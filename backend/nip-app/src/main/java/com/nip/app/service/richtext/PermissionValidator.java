@@ -3,11 +3,9 @@ package com.nip.app.service.richtext;
 import com.nip.app.common.enums.ResourceTypeEnum;
 import com.nip.app.common.enums.richtext.ArticlePermissionEnum;
 import com.nip.app.common.enums.richtext.CatalogPermissionEnum;
-import com.nip.app.mapper.rbac.RbacRelationMapper;
 import com.nip.app.mapper.richtext.ArticleMapper;
 import com.nip.app.mapper.richtext.CatalogMapper;
 import com.nip.app.mapper.richtext.ShareMapper;
-import com.nip.app.pojo.rbac.RoleDto;
 import com.nip.app.pojo.richtext.ArticleDto;
 import com.nip.app.pojo.richtext.CatalogDto;
 import com.nip.app.pojo.richtext.ShareDto;
@@ -16,9 +14,7 @@ import com.nip.core.pojo.UserContext;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class PermissionValidator {
@@ -31,9 +27,6 @@ public class PermissionValidator {
 
     @Resource
     private ArticleMapper articleMapper;
-
-    @Resource
-    private RbacRelationMapper rbacRelationMapper;
 
     public String getEffectivePermission(String resourceType, Integer resourceId) {
         String currentUser = UserContext.getUserName();
@@ -146,6 +139,18 @@ public class PermissionValidator {
         }
     }
 
+    public void assertCanCreateChild(CatalogDto catalog) {
+        String currentUser = UserContext.getUserName();
+        if (currentUser.equals(catalog.getCreateBy())) {
+            return;
+        }
+        ShareDto share = highestShare(ResourceTypeEnum.CATALOG.getValue(),
+                shareMapper.listEffectiveCatalogShares(catalog.getId(), currentUser));
+        if (!CatalogPermissionEnum.of(catalogPermission(share)).canCreateChild()) {
+            throw new BusinessException("无新建子内容权限");
+        }
+    }
+
     public void assertCanDelete(String resourceType, Integer resourceId) {
         if (!canDelete(resourceType, resourceId)) {
             throw new BusinessException("无删除权限");
@@ -153,18 +158,7 @@ public class PermissionValidator {
     }
 
     private ShareDto findEffectiveShare(String resourceType, Integer resourceId, String user) {
-        List<String> roleCodes = listRoleCodes(user);
-        ShareDto best = highestShare(resourceType, shareMapper.findByResourceAndTarget(resourceType, resourceId, user, roleCodes));
-
-        List<Integer> ancestorIds = catalogMapper.listAncestorIds(resourceId);
-        if (ancestorIds != null) {
-            for (Integer ancestorId : ancestorIds) {
-                ShareDto ancestorShare = highestShare(resourceType,
-                        shareMapper.findByResourceAndTarget(ResourceTypeEnum.CATALOG.getValue(), ancestorId, user, roleCodes));
-                best = higherPermission(resourceType, best, ancestorShare);
-            }
-        }
-        return best;
+        return highestShare(resourceType, shareMapper.listEffectiveCatalogShares(resourceId, user));
     }
 
     private ShareDto findEffectiveShare(ArticleDto article, String user) {
@@ -195,18 +189,6 @@ public class PermissionValidator {
             best = higherPermission(resourceType, best, share);
         }
         return best;
-    }
-
-    private List<String> listRoleCodes(String user) {
-        List<RoleDto> roles = rbacRelationMapper.listRolesByUserName(user);
-        if (roles == null || roles.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return roles.stream()
-                .map(RoleDto::getRoleCode)
-                .filter(code -> code != null && !code.isBlank())
-                .distinct()
-                .collect(Collectors.toList());
     }
 
     private ShareDto higherPermission(String resourceType, ShareDto current, ShareDto candidate) {

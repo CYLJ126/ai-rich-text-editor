@@ -36,12 +36,12 @@ public interface ShareMapper extends BaseMapper<ShareDto> {
     /** 查询某个资源对特定用户的分享记录 */
     ShareDto findByResourceAndUser(@Param("resourceType") String resourceType, @Param("resourceId") Integer resourceId, @Param("targetUser") String targetUser);
 
-    List<ShareDto> findByResourceAndTarget(@Param("resourceType") String resourceType, @Param("resourceId") Integer resourceId,
-                                           @Param("targetUser") String targetUser, @Param("targetRoles") List<String> targetRoles);
-
     /** 一次查询文章自身及所属目录祖先链上对指定用户生效的分享记录 */
     List<ShareDto> listEffectiveArticleShares(@Param("articleId") Integer articleId,
                                               @Param("catalogId") Integer catalogId,
+                                              @Param("targetUser") String targetUser);
+
+    List<ShareDto> listEffectiveCatalogShares(@Param("catalogId") Integer catalogId,
                                               @Param("targetUser") String targetUser);
 
     /** 一次查询判断指定用户是否拥有文章批注权限 */

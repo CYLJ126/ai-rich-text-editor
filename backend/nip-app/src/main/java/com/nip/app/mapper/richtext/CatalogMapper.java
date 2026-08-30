@@ -32,16 +32,16 @@ public interface CatalogMapper extends BaseMapper<CatalogDto> {
     Boolean removeRecursive(@Param("id") Integer id);
 
     /**
-     * 查询公共目录列表
-     */
-    @MybatisParams(value = "nip_rt_catalog", ignore = true)
-    List<CatalogDto> listPublicCatalogs();
-
-    /**
      * 按ID列表查询目录
      */
     @MybatisParams(value = "nip_rt_catalog", ignore = true)
     List<CatalogDto> listByIds(@Param("ids") List<Integer> ids);
+
+    /**
+     * 查询多个根目录及其所有子孙目录
+     */
+    @MybatisParams(value = "nip_rt_catalog", ignore = true)
+    List<CatalogDto> listDescendantsByRootIds(@Param("rootIds") List<Integer> rootIds);
 
     /**
      * 查询某目录的所有祖先目录ID（递归CTE，用于权限继承校验）
@@ -61,8 +61,11 @@ public interface CatalogMapper extends BaseMapper<CatalogDto> {
     @MybatisParams(value = "nip_rt_catalog", ignore = true)
     CatalogDto getByIdUnfiltered(@Param("id") Integer id);
 
-    /**
-     * 查询当前用户的私有目录（排除已发布至公共空间的）
-     */
-    List<CatalogDto> listMyPrivateCatalogs(CatalogDto param);
+    /** 查询当前用户私有目录及全部公共目录 */
+    @MybatisParams(value = "nip_rt_catalog", ignore = true)
+    List<CatalogDto> listOwnedOrPublicCatalogs(@Param("currentUser") String currentUser);
+
+    /** 查询同级目录中的最大排序值 */
+    @MybatisParams(value = "nip_rt_catalog", ignore = true)
+    Integer findMaxOrder(@Param("fatherId") Integer fatherId);
 }

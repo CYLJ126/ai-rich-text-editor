@@ -168,7 +168,15 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     @Override
     public List<ArticleDto> listRecentAccessible(String currentUser, List<String> targetRoles, Integer limit) {
-        return baseMapper.listRecentAccessible(currentUser, targetRoles, limit);
+        List<ArticleDto> articles = baseMapper.listRecentAccessible(currentUser, targetRoles, limit);
+        if (CollUtil.isEmpty(articles)) {
+            return articles;
+        }
+        Map<Integer, String> permissionMap = baseMapper.listEffectivePermissions(
+                        articles.stream().map(ArticleDto::getId).toList(), currentUser, targetRoles).stream()
+                .collect(Collectors.toMap(ArticleDto::getId, ArticleDto::getEffectivePermission));
+        articles.forEach(article -> article.setEffectivePermission(permissionMap.get(article.getId())));
+        return articles;
     }
 
     @Override
@@ -442,12 +450,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     @Override
     public Integer findMaxOrder(Integer catalogId) {
-        QueryWrapper<ArticleDto> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq(Objects.nonNull(catalogId), ArticlePo.COL_CATALOG_ID, catalogId);
-        queryWrapper.isNull(catalogId == null, ArticlePo.COL_CATALOG_ID);
-        queryWrapper.orderBy(true, false, ArticlePo.COL_ORDER_ID);
-        List<ArticleDto> list = list(queryWrapper);
-        return CollUtil.isEmpty(list) ? 0 : list.getFirst().getOrderId();
+        return baseMapper.findMaxOrder(catalogId);
     }
 
     @Override
