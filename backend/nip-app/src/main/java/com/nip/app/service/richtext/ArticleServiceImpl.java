@@ -204,6 +204,10 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
         try {
             // 获取文章元数据信息
             ArticleDto article = getCompleteArticle(articleId);
+            if (article == null) {
+                deleteArticleFromEs(articleId);
+                return;
+            }
             // 保存并返回文章 ES 文档
             ArticleDocument articleDocument = saveArticleDocToEs(article);
             // 将文章内容解析为 ES 分块文档列表
@@ -247,6 +251,32 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
                 Long.toString(dueAt),
                 articleId.toString());
         log.debug("文章 ES 同步任务已标记，articleId={}，dueAt={}", articleId, dueAt);
+    }
+
+    @Override
+    public void asyncDeleteFromEs(Integer articleId) {
+        long dueAt = System.currentTimeMillis();
+        redissonClient.getScript(StringCodec.INSTANCE).eval(
+                RScript.Mode.READ_WRITE,
+                RichTextRedisScript.MARK_ES_DELETE_DIRTY_SCRIPT,
+                RScript.ReturnType.LONG,
+                List.of(getDirtyVersionKey(articleId), RichTextRedisScript.ES_SYNC_PENDING_KEY),
+                Long.toString(dueAt),
+                articleId.toString());
+        log.debug("文章 ES 删除任务已标记，articleId={}", articleId);
+    }
+
+    private void deleteArticleFromEs(Integer articleId) {
+        DeleteResponse deleteResponse = articleRepository.delete(articleId);
+        if (Objects.nonNull(deleteResponse.failureStore())) {
+            throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION,
+                    "文章 ID：" + articleId + "，ES 索引删除失败");
+        }
+        DeleteByQueryResponse deleteByQueryResponse = chunkRepository.deleteByArticleId(articleId);
+        if (!deleteByQueryResponse.failures().isEmpty()) {
+            throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION,
+                    "文章 ID：" + articleId + "，ES 索引分块删除失败");
+        }
     }
 
     /**
@@ -534,6 +564,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
     @Override
     public ArticleDto getCompleteArticle(Integer articleId) {
         ArticleDto article = getById(articleId);
+        if (article == null) {
+            return null;
+        }
         // 填充文章标签 ID 列表
         List<TagRelationDto> tagRelations = tagRelationService.listTagIds(List.of(articleId));
         if (CollUtil.isNotEmpty(tagRelations)) {

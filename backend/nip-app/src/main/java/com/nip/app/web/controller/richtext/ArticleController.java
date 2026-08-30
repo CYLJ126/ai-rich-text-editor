@@ -431,6 +431,7 @@ public class ArticleController extends AbstractStreamController {
             return ResultContext.fail();
         }
         shareMapper.deleteByResource(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
+        articleService.asyncDeleteFromEs(article.getId());
         return ResultContext.success(Boolean.TRUE);
     }
 
@@ -449,6 +450,7 @@ public class ArticleController extends AbstractStreamController {
         }
         for (Integer id : ids) {
             shareMapper.deleteByResource(ResourceTypeEnum.ARTICLE.getValue(), id);
+            articleService.asyncDeleteFromEs(id);
         }
         return ResultContext.success(Boolean.TRUE);
     }

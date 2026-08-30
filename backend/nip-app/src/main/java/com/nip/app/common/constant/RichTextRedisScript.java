@@ -50,6 +50,15 @@ public final class RichTextRedisScript {
             """;
 
     /**
+     * 标记文章已删除，并立即安排 ES 同步任务。
+     */
+    public static final String MARK_ES_DELETE_DIRTY_SCRIPT = """
+            redis.call('INCR', KEYS[1])
+            redis.call('ZADD', KEYS[2], ARGV[1], ARGV[2])
+            return 1
+            """;
+
+    /**
      * 查询已经到期的文章 ES 同步任务。
      *
      * <ul>
