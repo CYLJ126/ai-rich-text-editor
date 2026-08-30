@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.mapper.rbac.RbacRelationMapper">
+
+    <select id="listRolesByUserName" resultType="com.arte.app.pojo.rbac.RoleDto">
+        select r.*
+        from arte_rbac_role r
+                 left join arte_rbac_relation rr on r.role_code = rr.target
+        where rr.binding_type = 'user_to_role'
+          and rr.source = #{userName}
+    </select>
+
+    <select id="listMenusByUserName" resultType="com.arte.app.pojo.rbac.MenuDto">
+        select r.*
+        from arte_rbac_menu r
+                 left join arte_rbac_relation rr on r.menu_code = rr.target
+        where rr.binding_type = 'user_to_menu'
+          and rr.source = #{userName}
+    </select>
+
+    <select id="listBySourceName" resultType="com.arte.app.pojo.rbac.RbacRelationDto">
+        select rr.*
+        from arte_rbac_relation rr
+        where rr.binding_type = #{sourceType}
+          and rr.source = #{sourceName}
+    </select>
+</mapper>
