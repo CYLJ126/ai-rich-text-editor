@@ -1,4 +1,5 @@
 import {request} from "@@/exports";
+import {getLocale} from '@umijs/max';
 import type {StreamCallback, StreamChatCallbacks, StreamChunk} from '@/types/ai.type';
 
 /** 流式交互请求地址 */
@@ -81,6 +82,8 @@ export async function streamChat(
         'Content-Type': 'application/json',
         // 如果需要鉴权 token，在这里加
         Authorization: `Bearer ${token}`,
+        // 裸 fetch 不经过统一拦截器，需手动携带当前语言
+        'Accept-Language': getLocale(),
       },
       body: JSON.stringify(params),
       signal,
