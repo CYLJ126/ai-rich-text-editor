@@ -46,6 +46,8 @@ public interface ArticleService extends IService<ArticleDto> {
 
     void asyncSaveToEs(Integer articleId);
 
+    void asyncDeleteFromEs(Integer articleId);
+
     /**
      * 保存文章 Doc 到 ES
      *
