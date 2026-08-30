@@ -173,7 +173,7 @@ const ArticleHome: React.FC<ArticleHomeProps> = ({onArticleSelect}) => {
       <div className="mt-2.5 mb-5 text-center">
         <Title level={2}>
           <ReadOutlined className="mr-2"/>
-          NIP - 文章列表
+          ARTE - 文章列表
         </Title>
       </div>
       <div className={`flex justify-center ${showRecent ? 'mb-7.5' : ''}`}>

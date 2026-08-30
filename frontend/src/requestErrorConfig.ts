@@ -1,6 +1,6 @@
 ﻿import type {RequestOptions} from '@@/plugin-request/request';
 import type {RequestConfig} from '@umijs/max';
-import {getIntl} from '@umijs/max';
+import {getIntl, getLocale} from '@umijs/max';
 import {message, notification} from 'antd';
 
 // 错误处理方案： 错误类型
@@ -90,14 +90,16 @@ export const errorConfig: RequestConfig = {
   // 请求拦截器
   requestInterceptors: [
     (config: RequestOptions) => {
-      // 拦截请求配置，头部增加 Token 值
+      // 拦截请求配置，头部增加 Token 值与当前语言（后端按 Accept-Language 返回对应语言的文案）
       const token = localStorage.getItem('user_token');
+      const headers: Record<string, string> = {
+        ...(config.headers as Record<string, string> | undefined),
+        'Accept-Language': getLocale(),
+      };
       if (token) {
-        const authHeader = { Authorization: 'Bearer ' + token };
-        return { ...config, headers: authHeader };
-      } else {
-        return config;
+        headers.Authorization = 'Bearer ' + token;
       }
+      return {...config, headers};
     },
   ],
 
