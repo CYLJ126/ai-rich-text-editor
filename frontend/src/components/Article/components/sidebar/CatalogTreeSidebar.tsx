@@ -8,12 +8,30 @@ import {
   SearchOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import {useModel} from '@umijs/max';
-import type {CollapseProps} from 'antd';
-import {App, Button, Collapse, Dropdown, Input, Menu, Modal, Select, Typography,} from 'antd';
-import React, {useCallback, useEffect, useMemo, useRef, useState,} from 'react';
-import {hasAdminRole} from '@/access';
-import {AutoFocusInput} from '@/components/ui/autofucus-input';
+import { useModel } from '@umijs/max';
+import type { CollapseProps } from 'antd';
+import {
+  App,
+  Button,
+  Collapse,
+  Dropdown,
+  Input,
+  Menu,
+  Modal,
+  Select,
+  Typography,
+} from 'antd';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { hasAdminRole } from '@/access';
+import { useArticleInfoStore } from '@/components';
+import { AutoFocusInput } from '@/components/ui/autofucus-input';
 import {
   addArticle,
   addCatalog,
@@ -36,12 +54,15 @@ import {
   toggleArticlePublic,
   toggleCatalogPublic,
 } from '@/services/share';
-import type {ActiveSelectedInfo, ArticleSpace, CatalogType,} from '@/types/rt.type';
-import {exportFile} from '@/utils/fileUtil';
+import type {
+  ActiveSelectedInfo,
+  ArticleSpace,
+  CatalogType,
+} from '@/types/rt.type';
+import { exportFile } from '@/utils/fileUtil';
 import PublishToPublicModal from './PublishToPublicModal';
 import SelectTargetCatalogModal from './SelectTargetCatalogModal';
 import SpaceTree from './SpaceTree';
-import {useArticleInfoStore} from "@/components";
 
 // ── 组件 Props ──
 interface CatalogTreeSidebarProps {
@@ -184,13 +205,48 @@ export default function CatalogTreeSidebar({
     x: number;
     y: number;
   } | null>(null);
+  const spaceMenuRef = useRef<HTMLDivElement>(null);
+  const [spaceMenuPosition, setSpaceMenuPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!spaceMenu) return;
     const close = () => setSpaceMenu(null);
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    document.addEventListener('contextmenu', close, true);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('contextmenu', close, true);
+    };
   }, [spaceMenu]);
+
+  useLayoutEffect(() => {
+    if (!spaceMenu || !spaceMenuRef.current) return;
+    const { width, height } = spaceMenuRef.current.getBoundingClientRect();
+    const viewportPadding = 8;
+    setSpaceMenuPosition({
+      left: Math.max(
+        viewportPadding,
+        Math.min(spaceMenu.x, window.innerWidth - width - viewportPadding),
+      ),
+      top: Math.max(
+        viewportPadding,
+        Math.min(spaceMenu.y, window.innerHeight - height - viewportPadding),
+      ),
+    });
+  }, [spaceMenu]);
+
+  const openSpaceMenu = useCallback(
+    (space: 'my' | 'public', event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setSpaceMenuPosition(null);
+      setSpaceMenu({ space, x: event.clientX, y: event.clientY });
+    },
+    [],
+  );
 
   const fetchAllSpaces = useCallback(async () => {
     setLoading(true);
@@ -692,8 +748,7 @@ export default function CatalogTreeSidebar({
         }
         try {
           await updateArticle({ id: articleId, title: nextTitle });
-          const currentArticleInfo =
-            useArticleInfoStore.getState().articleInfo;
+          const currentArticleInfo = useArticleInfoStore.getState().articleInfo;
           if (currentArticleInfo?.id === articleId) {
             setArticleInfo({ ...currentArticleInfo, title: nextTitle });
           }
@@ -1022,12 +1077,8 @@ export default function CatalogTreeSidebar({
       key: 'my',
       label: (
         <span
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setSpaceMenu({ space: 'my', x: e.clientX, y: e.clientY });
-          }}
-          className="flex-1"
+          onContextMenu={(e) => openSpaceMenu('my', e)}
+          className="block w-full"
         >
           <LockOutlined className="mr-1.5" />
           我的空间（私有）
@@ -1059,6 +1110,7 @@ export default function CatalogTreeSidebar({
           onTreeDrop={(info) => handleTreeDropV2(info, 'my')}
           batchMode={batchModeSpace === 'my'}
           searchKeyword={treeSearchKeyword}
+          onBlankContextMenu={(event) => openSpaceMenu('my', event)}
         />
       ),
     },
@@ -1090,12 +1142,8 @@ export default function CatalogTreeSidebar({
       key: 'public',
       label: (
         <span
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setSpaceMenu({ space: 'public', x: e.clientX, y: e.clientY });
-          }}
-          className="flex-1"
+          onContextMenu={(e) => openSpaceMenu('public', e)}
+          className="block w-full"
         >
           <GlobalOutlined className="mr-1.5" />
           公共空间
@@ -1127,6 +1175,7 @@ export default function CatalogTreeSidebar({
           onTreeDrop={(info) => handleTreeDropV2(info, 'public')}
           batchMode={batchModeSpace === 'public'}
           searchKeyword={treeSearchKeyword}
+          onBlankContextMenu={(event) => openSpaceMenu('public', event)}
         />
       ),
     },
@@ -1173,14 +1222,21 @@ export default function CatalogTreeSidebar({
         (spaceMenu.space === 'my' || spaceMenu.space === 'public') && (
           <>
             <div
-              className="fixed inset-0 z-[999]"
-              onClick={() => setSpaceMenu(null)}
-            />
-            <div
+              ref={spaceMenuRef}
               className="fixed z-[1000]"
-              style={{ left: spaceMenu.x, top: spaceMenu.y }}
+              style={
+                spaceMenuPosition
+                  ? spaceMenuPosition
+                  : {
+                      left: spaceMenu.x,
+                      top: spaceMenu.y,
+                      visibility: 'hidden',
+                    }
+              }
+              onContextMenu={(event) => event.preventDefault()}
             >
               <Menu
+                className="rounded-lg border border-[#e5e7eb] shadow-lg"
                 items={[
                   {
                     key: 'add-root-catalog',
