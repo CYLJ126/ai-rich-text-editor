@@ -1,14 +1,14 @@
-import {cn} from "@/lib/utils";
-import {mergeAttributes, Node} from "@tiptap/core";
-import {NodeSelection} from "@tiptap/pm/state";
-import {ReactNodeViewRenderer} from "@tiptap/react";
-import {MermaidView} from "./mermaid-view";
+import { mergeAttributes, Node } from '@tiptap/core';
+import { NodeSelection } from '@tiptap/pm/state';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { cn } from '@/lib/utils';
+import { MermaidView } from './mermaid-view';
 
 export interface MermaidOptions {
   HTMLAttributes: Record<string, any>;
 }
 
-declare module "@tiptap/core" {
+declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     mermaidCommands: {
       setMermaid: (props: { code: string }) => ReturnType;
@@ -19,16 +19,16 @@ declare module "@tiptap/core" {
 
 /** 将多行文本转换为 TipTap inline content（用 hardBreak 表示换行） */
 export function codeToContent(code: string) {
-  const lines = code.split("\n");
+  const lines = code.split('\n');
   const content: any[] = [];
 
   lines.forEach((line, index) => {
     if (index > 0) {
       // 插入硬换行节点
-      content.push({ type: "hardBreak" });
+      content.push({ type: 'hardBreak' });
     }
     if (line.length > 0) {
-      content.push({ type: "text", text: line });
+      content.push({ type: 'text', text: line });
     }
   });
 
@@ -37,18 +37,20 @@ export function codeToContent(code: string) {
 
 // ─── Mermaid 扩展 ───
 export const Mermaid = Node.create<MermaidOptions>({
-  name: "mermaid",
-  group: "block",
+  name: 'mermaid',
+  // Markdown 中的 Mermaid 和普通代码块都是 code token，需要优先识别 mermaid 语言块
+  priority: 101,
+  group: 'block',
   // 允许 hardBreak 节点，用于保留换行
-  content: "(text | hardBreak)*",
-  marks: "",
+  content: '(text | hardBreak)*',
+  marks: '',
   atom: true,
   draggable: true,
   allowGapCursor: true,
 
   addAttributes() {
     return {
-      "data-content-type": {
+      'data-content-type': {
         default: this.name,
       },
     };
@@ -56,8 +58,8 @@ export const Mermaid = Node.create<MermaidOptions>({
 
   addCommands() {
     return {
-      setMermaid: ({code}: any) => {
-        return ({commands}: any) => {
+      setMermaid: ({ code }: any) => {
+        return ({ commands }: any) => {
           if (!code) {
             return false;
           }
@@ -68,8 +70,8 @@ export const Mermaid = Node.create<MermaidOptions>({
           });
         };
       },
-      updateMermaid: ({code}: any) => {
-        return ({state, commands}: any) => {
+      updateMermaid: ({ code }: any) => {
+        return ({ state, commands }: any) => {
           if (!code) {
             return false;
           }
@@ -87,31 +89,38 @@ export const Mermaid = Node.create<MermaidOptions>({
           const { from, to } = selection;
 
           return commands.insertContentAt(
-              { from, to },
-              {
-                type: this.name,
-                content: codeToContent(code),
-              }
+            { from, to },
+            {
+              type: this.name,
+              content: codeToContent(code),
+            },
           );
         };
       },
     };
   },
 
-  // TODO 从 Markdown 文本转换为 Tiptap 内容时，渲染成代码块了
   parseHTML() {
     return [{ tag: `div[data-content-type="${this.name}"]` }];
   },
 
-  renderText({node}: any) {
-    return node.textContent ?? "";
+  markdownTokenName: 'code',
+
+  parseMarkdown: (token: any, helpers: any) => {
+    if (token.lang !== 'mermaid') return [];
+
+    return helpers.createNode('mermaid', {}, codeToContent(token.text || ''));
   },
 
-  renderHTML({HTMLAttributes}: any) {
+  renderText({ node }: any) {
+    return node.textContent ?? '';
+  },
+
+  renderHTML({ HTMLAttributes }: any) {
     return [
-      "div",
+      'div',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        class: cn("w-full"),
+        class: cn('w-full'),
       }),
       0,
     ];
@@ -119,10 +128,12 @@ export const Mermaid = Node.create<MermaidOptions>({
 
   addNodeView() {
     return ReactNodeViewRenderer(MermaidView, {
-      className: cn("relative border border-[var(--ant-color-border)] rounded-md my-4 p-2 bg-white dark:bg-[var(--ant-color-text)]"),
+      className: cn(
+        'relative border border-[var(--ant-color-border)] rounded-md my-4 p-2 bg-white dark:bg-[var(--ant-color-text)]',
+      ),
       attrs: () => {
         return {
-          contentEditable: "false",
+          contentEditable: 'false',
         };
       },
     });
