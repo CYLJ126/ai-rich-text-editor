@@ -191,6 +191,8 @@ export interface SpaceTreeProps {
   onCopyToMySpace?: (resourceType: string, resourceId: number) => void;
   /** 拖拽放置回调 */
   onTreeDrop?: (info: any) => void;
+  /** 树节点外空白区域右键回调 */
+  onBlankContextMenu?: (event: React.MouseEvent<HTMLDivElement>) => void;
   batchMode?: boolean;
   searchKeyword?: string;
 }
@@ -217,6 +219,7 @@ export default function SpaceTree({
   onPublishToPublic,
   onCopyToMySpace,
   onTreeDrop,
+  onBlankContextMenu,
   batchMode = false,
   searchKeyword = '',
 }: SpaceTreeProps) {
@@ -237,12 +240,16 @@ export default function SpaceTree({
     top: number;
   } | null>(null);
 
-  // 点击外部关闭右键菜单
+  // 点击外部或再次右键时关闭当前菜单
   useEffect(() => {
     if (!contextMenu) return;
     const close = () => setContextMenu(null);
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    document.addEventListener('contextmenu', close, true);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('contextmenu', close, true);
+    };
   }, [contextMenu]);
 
   useLayoutEffect(() => {
@@ -377,6 +384,7 @@ export default function SpaceTree({
   const handleRightClick = useCallback(
     ({ event, node }: { event: React.MouseEvent; node: CatalogTreeNode }) => {
       event.preventDefault();
+      event.stopPropagation();
       setContextMenuPosition(null);
       setContextMenu({ node, x: event.clientX, y: event.clientY });
     },
@@ -729,7 +737,13 @@ export default function SpaceTree({
   );
 
   return (
-    <div className="overflow-auto py-1">
+    <div
+      className="overflow-auto py-1"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onBlankContextMenu?.(event);
+      }}
+    >
       {batchMode && selectedArticleIds.length > 0 && (
         <div className="sticky top-0 z-[2] mb-1.5 flex items-center justify-between gap-2 border-b border-[#f0f0f0] bg-white px-2.5 py-2">
           <Typography.Text type="secondary" className="text-xs">
@@ -813,12 +827,9 @@ export default function SpaceTree({
         createPortal(
           <>
             <div
-              className="fixed inset-0 z-[999]"
-              onClick={() => setContextMenu(null)}
-            />
-            <div
               ref={contextMenuRef}
               className="fixed z-[1000]"
+              onContextMenu={(event) => event.preventDefault()}
               style={
                 contextMenuPosition
                   ? contextMenuPosition
@@ -830,7 +841,7 @@ export default function SpaceTree({
               }
             >
               <Menu
-                className="[&_.ant-menu-title-content]:!overflow-visible [&_.ant-menu-title-content]:!text-clip [&_.ant-menu-title-content]:!whitespace-normal"
+                className="rounded-lg border border-[#e5e7eb] shadow-lg [&_.ant-menu-title-content]:!overflow-visible [&_.ant-menu-title-content]:!text-clip [&_.ant-menu-title-content]:!whitespace-normal"
                 style={{ minWidth: 220, maxWidth: 'calc(100vw - 16px)' }}
                 items={buildContextMenu(contextMenu.node)}
               />
