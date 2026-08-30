@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.rbac;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
 import com.arte.app.api.rbac.RoleService;
@@ -49,7 +51,7 @@ public class RoleController {
     @PostMapping("/updateRole")
     @PreAuthorize("@pcs.check('role:update')")
     public ResultContext<Boolean> updateRole(@RequestBody RoleDto param) {
-        Assert.notNull(param.getId(), "角色 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.roleIdRequired"));
         return ResultContext.wrap(param, roleService::updateRole);
     }
 
@@ -80,21 +82,21 @@ public class RoleController {
     @PostMapping("/assignRoleToUsers")
     @PreAuthorize("@pcs.check('role:update')")
     public ResultContext<Boolean> assignRoleToUsers(@RequestBody RoleParam param) {
-        Assert.notBlank(param.getRoleCode(), "角色编码不能为空");
+        Assert.notBlank(param.getRoleCode(), MessageUtils.get("error.field.roleCodeRequired"));
         return ResultContext.wrap(param, userService::assignRoleToUsers);
     }
 
     @PostMapping("/assignMenusToRole")
     @PreAuthorize("@pcs.check('role:update')")
     public ResultContext<Boolean> assignMenusToRole(@RequestBody RoleParam param) {
-        Assert.notBlank(param.getRoleCode(), "角色编码不能为空");
+        Assert.notBlank(param.getRoleCode(), MessageUtils.get("error.field.roleCodeRequired"));
         return ResultContext.wrap(param, roleService::assignMenusToRole);
     }
 
     @PostMapping("/assignOperationsToRole")
     @PreAuthorize("@pcs.check('role:update')")
     public ResultContext<Boolean> assignOperationsToRole(@RequestBody RoleParam param) {
-        Assert.notBlank(param.getRoleCode(), "角色编码不能为空");
+        Assert.notBlank(param.getRoleCode(), MessageUtils.get("error.field.roleCodeRequired"));
         return ResultContext.wrap(param, roleService::assignOperationsToRole);
     }
 
@@ -105,7 +107,7 @@ public class RoleController {
                 .filter(list -> !list.isEmpty())
                 .map(List::getFirst)
                 .orElse(null);
-        Assert.notBlank(userName, "用户名不能为空");
+        Assert.notBlank(userName, MessageUtils.get("error.field.userNameRequired"));
         List<RoleDto> allRoles = roleService.list();
         UserDto user = userService.getUser(new UserParam().setUserName(userName));
         if (CollUtil.isNotEmpty(user.getRoles())) {

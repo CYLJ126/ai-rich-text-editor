@@ -1,5 +1,7 @@
 package com.arte.app.service.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -55,7 +57,7 @@ public class RemoteImageDownloadService {
             }
             if (status < 200 || status >= 300) {
                 response.body().close();
-                throw new IOException("远程图片请求失败，HTTP " + status);
+                throw new IOException(MessageUtils.get("error.image.requestFailed", status));
             }
 
             String contentType = response.headers().firstValue("content-type")
@@ -64,28 +66,28 @@ public class RemoteImageDownloadService {
             String extension = EXTENSIONS.get(contentType);
             if (extension == null) {
                 response.body().close();
-                throw new IOException("远程资源不是受支持的图片类型");
+                throw new IOException(MessageUtils.get("error.image.unsupportedType"));
             }
             long declaredLength = response.headers().firstValueAsLong("content-length").orElse(-1);
             if (declaredLength > MAX_IMAGE_SIZE) {
                 response.body().close();
-                throw new IOException("远程图片超过 10MB 限制");
+                throw new IOException(MessageUtils.get("error.image.overSize"));
             }
             byte[] bytes;
             try (InputStream inputStream = response.body()) {
                 bytes = inputStream.readNBytes(MAX_IMAGE_SIZE + 1);
             }
             if (bytes.length == 0 || bytes.length > MAX_IMAGE_SIZE) {
-                throw new IOException("远程图片为空或超过 10MB 限制");
+                throw new IOException(MessageUtils.get("error.image.emptyOrOverSize"));
             }
             return new ByteArrayMultipartFile(bytes, "remote-image" + extension, contentType);
         }
-        throw new IOException("远程图片重定向次数过多");
+        throw new IOException(MessageUtils.get("error.image.tooManyRedirects"));
     }
 
     private void validateUri(URI uri) throws IOException {
         if (!"http".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null) {
-            throw new IOException("仅支持不包含用户凭据的 HTTP 图片地址");
+            throw new IOException(MessageUtils.get("error.image.onlyHttpNoCredentials"));
         }
     }
 

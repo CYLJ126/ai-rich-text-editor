@@ -1,5 +1,7 @@
 package com.arte.ai.advisor;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.arte.ai.pojo.chat.ChatRequestDto;
@@ -69,11 +71,11 @@ public abstract class AbstractAdvisor implements BaseAdvisor {
         } else if (reqOrRes instanceof ChatClientResponse chatClientResponse) {
             context = chatClientResponse.context();
         } else {
-            throw new ChatException("获取上下文内容时，请求参数类型错误");
+            throw new ChatException("error.ai.contextParamType");
         }
         ChatRequestDto requestDto = (ChatRequestDto) context.get(REQUEST_DTO);
         if (Objects.isNull(requestDto)) {
-            throw new ChatException("请求参数不能为空");
+            throw new ChatException("error.ai.paramRequired");
         }
         return requestDto;
     }
@@ -85,11 +87,11 @@ public abstract class AbstractAdvisor implements BaseAdvisor {
         } else if (reqOrRes instanceof ChatClientResponse chatClientResponse) {
             context = chatClientResponse.context();
         } else {
-            throw new ChatException("获取上下文内容时，请求参数类型错误");
+            throw new ChatException("error.ai.contextParamType");
         }
         String conversationId = (String) context.get(CONVERSATION_ID);
         if (StrUtil.isBlank(conversationId)) {
-            throw new ChatException("会话 ID 不能为空");
+            throw new ChatException("error.ai.convIdRequired");
         }
         return conversationId;
     }
@@ -125,11 +127,11 @@ public abstract class AbstractAdvisor implements BaseAdvisor {
             return context;
         }
         if (args.length % 2 != 0) {
-            throw new ChatException("填充参数个数必须为偶数");
+            throw new ChatException("error.ai.paramEvenPairs");
         }
         for (int i = 0; i < args.length; i += 2) {
             if (ObjectUtil.hasNull(args[i], args[i + 1])) {
-                throw new ChatException(String.format("填充参数不能为空，键：%s，值：%s", args[i], args[i + 1]));
+                throw new ChatException(MessageUtils.get("error.ai.fillParamEmpty", args[i], args[i + 1]));
             }
             context.put((String) args[i], args[i + 1]);
         }

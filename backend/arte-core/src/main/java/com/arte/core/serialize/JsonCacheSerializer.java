@@ -1,5 +1,6 @@
 package com.arte.core.serialize;
 
+import com.arte.core.i18n.MessageUtils;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,7 +36,7 @@ public class JsonCacheSerializer<T> implements MySerializer<T> {
             return objectMapper.writeValueAsString(object);
         } catch (Exception e) {
             log.error("Json 序列化异常：{}", object.getClass().getSimpleName(), e);
-            throw new RuntimeException("Json 序列化异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.jsonSerialize"), e);
         }
     }
 
@@ -53,7 +54,7 @@ public class JsonCacheSerializer<T> implements MySerializer<T> {
             return objectMapper.readValue(data, targetType);
         } catch (Exception e) {
             log.error("Json 反序列化异常：{}-{}", targetType.getSimpleName(), data, e);
-            throw new RuntimeException("Json 反序列化异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.jsonDeserialize"), e);
         }
     }
 

@@ -1,5 +1,7 @@
 package com.arte.ai.tool;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.arte.ai.api.AssistantService;
@@ -51,12 +53,12 @@ public class RequestParamHandler {
 
     public ChatRequestDto handleChatRequest(ChatRequestParam chatRequestParam) {
         if (chatRequestParam == null) {
-            throw new ChatException("请求参数不能为空");
+            throw new ChatException("error.ai.paramRequired");
         }
         validateMessageIds(chatRequestParam);
         String conversationId = chatRequestParam.getConvId();
         if (StrUtil.isBlank(conversationId)) {
-            throw new ChatException("会话 ID 不能为空");
+            throw new ChatException("error.ai.convIdRequired");
         }
         ConversationDto conversation = conversationService.getAndValidate(conversationId);
         AssistantDto assistant = null;
@@ -73,7 +75,7 @@ public class RequestParamHandler {
             defaultModelConfig = modelConfigService.getDefaultModelConfig(CoreConstant.SYSTEM_USER_NAME);
         }
         if (defaultModelConfig == null) {
-            throw new ChatException(String.format("用户【%s】未指定默认模型", chatRequestParam.getUserName()));
+            throw new ChatException(MessageUtils.get("error.ai.userDefaultModelNotSet", chatRequestParam.getUserName()));
         }
         if (modelConfig == null) {
             modelConfig = defaultModelConfig;
@@ -88,7 +90,7 @@ public class RequestParamHandler {
         if (StrUtil.isNotBlank(chatRequestDto.getQuotedMessageId())) {
             MessageDto quotedMessage = messageService.getByMessageId(chatRequestDto.getQuotedMessageId());
             if (Objects.isNull(quotedMessage)) {
-                throw new ChatException("引用消息不存在，ID：" + chatRequestDto.getQuotedMessageId());
+                throw new ChatException(MessageUtils.get("error.ai.quotedMessageNotFound", chatRequestDto.getQuotedMessageId()));
             }
             chatRequestDto.setQuotedMessage(quotedMessage);
         }
@@ -97,7 +99,7 @@ public class RequestParamHandler {
 
     public ChatRequestDto handleGenerateRequest(ChatRequestParam chatRequestParam) {
         if (chatRequestParam == null) {
-            throw new ChatException("请求参数不能为空");
+            throw new ChatException("error.ai.paramRequired");
         }
         validateMessageIds(chatRequestParam);
         ModelConfigDto modelConfig = modelConfigService.getById(chatRequestParam.getModelId());
@@ -109,7 +111,7 @@ public class RequestParamHandler {
             }
             if (modelConfig == null) {
                 // 后台 system 用户未配置默认模型时，抛出异常
-                throw new ChatException("未指定默认模型");
+                throw new ChatException("error.ai.defaultModelNotSet");
             }
         }
         AssistantDto assistant = assistantService.getDefaultAssistant(chatRequestParam.getUserName());
@@ -123,14 +125,14 @@ public class RequestParamHandler {
 
     public ChatRequestDto handleRegenerateRequest(RegenerateRequestDto request) {
         if (request == null || StrUtil.isBlank(request.getMessageId())) {
-            throw new ChatException("消息 ID 不能为空");
+            throw new ChatException("error.ai.messageIdRequired");
         }
         MessageDto assistantMessage = messageService.getByMessageId(request.getMessageId());
         if (assistantMessage == null || Boolean.TRUE.equals(assistantMessage.getDeleteFlag())) {
-            throw new ChatException("要重新生成的消息不存在");
+            throw new ChatException("error.ai.regenerateMessageNotFound");
         }
         if (assistantMessage.getRole() != MessageRoleEnum.ASSISTANT) {
-            throw new ChatException("只能重新生成 AI 消息");
+            throw new ChatException("error.ai.onlyRegenerateAssistant");
         }
         MessageDto userMessage = messageService.lambdaQuery()
                 .eq(MessageDto::getConvId, assistantMessage.getConvId())
@@ -141,7 +143,7 @@ public class RequestParamHandler {
                 .last("limit 1")
                 .one();
         if (userMessage == null) {
-            throw new ChatException("未找到该回复对应的用户消息");
+            throw new ChatException("error.ai.parentReplyNotFound");
         }
 
         ChatRequestParam chatRequest = new ChatRequestParam()
@@ -159,10 +161,10 @@ public class RequestParamHandler {
 
     private static void validateMessageIds(ChatRequestParam chatRequestParam) {
         if (StrUtil.isBlank(chatRequestParam.getUserMessageId())) {
-            throw new ChatException("用户消息 ID 不能为空");
+            throw new ChatException("error.ai.userMessageIdRequired");
         }
         if (StrUtil.isBlank(chatRequestParam.getAssistantMessageId())) {
-            throw new ChatException("AI 响应消息 ID 不能为空");
+            throw new ChatException("error.ai.assistantMessageIdRequired");
         }
     }
 

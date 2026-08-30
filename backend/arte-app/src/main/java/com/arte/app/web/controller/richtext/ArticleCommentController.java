@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.app.api.richtext.ArticleCommentThreadService;
 import com.arte.app.pojo.richtext.ArticleCommentDto;
@@ -30,7 +32,7 @@ public class ArticleCommentController {
     @AnonymousAccess
     @PostMapping("/listThreads")
     public ResultContext<List<ArticleCommentThreadDto>> listThreads(@RequestBody ArticleCommentThreadDto param) {
-        Assert.notNull(param.getArticleId(), "文章ID不能为空");
+        Assert.notNull(param.getArticleId(), MessageUtils.get("error.field.articleIdRequired"));
         return ResultContext.success(articleCommentThreadService.listThreads(param.getArticleId()));
     }
 

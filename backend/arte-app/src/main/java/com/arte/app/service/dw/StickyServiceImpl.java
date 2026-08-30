@@ -1,5 +1,7 @@
 package com.arte.app.service.dw;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
@@ -62,7 +64,7 @@ public class StickyServiceImpl extends ServiceImpl<StickyMapper, StickyDto> impl
 
     @Override
     public StickyDto getStickyById(StickyDto param) {
-        Assert.notNull(param.getId(), "便笺查询 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.stickyQueryIdRequired"));
         StickyDto sticky = getById(param.getId());
         List<TagRelationDto> tagRelations = tagrelationService.listTagIds(Collections.singletonList(param.getId()));
         if (CollUtil.isNotEmpty(tagRelations)) {

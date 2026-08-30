@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.base;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -39,9 +41,9 @@ public class TagRelationController {
     @PostMapping("/addTagRelation")
     @PreAuthorize("@pcs.check('tagRelation:add')")
     public ResultContext<Boolean> addTagRelation(@RequestBody TagRelationDto param) {
-        Assert.notNull(param.getTagType(), "标签类型不能为空");
-        Assert.notNull(param.getTagId(), "标签 ID 不能为空");
-        Assert.notNull(param.getSourceId(), "源 ID 不能为空");
+        Assert.notNull(param.getTagType(), MessageUtils.get("error.field.tagTypeRequired"));
+        Assert.notNull(param.getTagId(), MessageUtils.get("error.field.tagIdRequired"));
+        Assert.notNull(param.getSourceId(), MessageUtils.get("error.field.sourceIdRequired"));
         List<TagRelationDto> exists = tagrelationService.listTags(param);
         if (CollUtil.isNotEmpty(exists)) {
             // 标签关系存在时，再添加同样关系则直接返回成功
@@ -68,8 +70,8 @@ public class TagRelationController {
     }
 
     private static QueryWrapper<TagRelationDto> getQueryWrapper(TagRelationDto param) {
-        Assert.notNull(param.getTagType(), "标签类型不能为空");
-        Assert.notNull(param.getSourceId(), "源对象 ID 不能为空");
+        Assert.notNull(param.getTagType(), MessageUtils.get("error.field.tagTypeRequired"));
+        Assert.notNull(param.getSourceId(), MessageUtils.get("error.field.sourceObjectIdRequired"));
         QueryWrapper<TagRelationDto> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(TagRelationPo.COL_TAG_TYPE, param.getTagType());
         queryWrapper.eq(Objects.nonNull(param.getTagId()), TagRelationPo.COL_TAG_ID, param.getTagId());

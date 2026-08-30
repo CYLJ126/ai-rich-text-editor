@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.rbac;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.text.CharSequenceUtil;
 import com.arte.app.api.rbac.OnlineService;
@@ -86,7 +88,7 @@ public class AuthorizationController {
     @AnonymousAccess
     public ResultContext<Void> logout(HttpServletRequest request) {
         boolean delete = redissonClient.getBucket(webSecurityProperties.getOnlineKey() + tokenService.getToken(request)).delete();
-        return delete ? ResultContext.success() : ResultContext.fail("登出失败");
+        return delete ? ResultContext.success() : ResultContext.fail("error.auth.logout");
     }
 
     @PostMapping("/onlineInfo")
@@ -101,24 +103,24 @@ public class AuthorizationController {
     @PostMapping("/changePassword")
     @AnonymousAccess
     public ResultContext<Boolean> changePassword(HttpServletRequest request, @RequestBody UserParam param) {
-        Assert.notBlank(param.getUserName(), "用户名不能为空");
-        Assert.notBlank(param.getOldPassword(), "旧密码不能为空");
-        Assert.notBlank(param.getNewPassword(), "新密码不能为空");
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
+        Assert.notBlank(param.getOldPassword(), MessageUtils.get("error.field.oldPasswordRequired"));
+        Assert.notBlank(param.getNewPassword(), MessageUtils.get("error.field.newPasswordRequired"));
         try {
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(param.getUserName(), tokenService.decrypt(param.getOldPassword()));
             Authentication authentication = authenticationManager.authenticate(authenticationToken);
             if (!authentication.isAuthenticated()) {
-                return ResultContext.fail("旧密码错误");
+                return ResultContext.fail("error.auth.wrongOldPassword");
             }
             // 让当前用户登录信息失效
             boolean delete = redissonClient.getBucket(webSecurityProperties.getOnlineKey() + tokenService.getToken(request)).delete();
             if (!delete) {
-                return ResultContext.fail("登出失败");
+                return ResultContext.fail("error.auth.logout");
             }
             param.setNewPassword(tokenService.decrypt(param.getNewPassword()));
         } catch (Exception e) {
             log.error("验证旧密码异常", e);
-            return ResultContext.fail("验证旧密码异常");
+            return ResultContext.fail("error.auth.verifyOldPassword");
         }
         return ResultContext.wrap(param, userService::changePassword);
     }

@@ -5,6 +5,7 @@ import cn.hutool.core.text.CharSequenceUtil;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.BusinessException;
 import com.arte.core.exception.CommonException;
+import com.arte.core.i18n.MessageUtils;
 
 import java.sql.SQLException;
 
@@ -28,13 +29,13 @@ public class ExceptionUtil {
     public static String desensitize(Throwable ex) {
         String errMsg = CharSequenceUtil.sub(ex.getMessage(), 0, 256);
         if (ex instanceof SQLException || ex.getCause() instanceof SQLException) {
-            return "数据库异常-" + errMsg;
+            return MessageUtils.get("error.type.db") + "-" + errMsg;
         } else if (ex instanceof IllegalArgumentException || ex.getCause() instanceof IllegalArgumentException) {
-            return "参数异常-" + errMsg;
+            return MessageUtils.get("error.type.param") + "-" + errMsg;
         } else if (ex instanceof BusinessException || ex.getCause() instanceof BusinessException) {
-            return "业务异常-" + errMsg;
+            return MessageUtils.get("error.type.business") + "-" + errMsg;
         } else {
-            return "程序运行出错，请联系相关人员！\n" + errMsg;
+            return MessageUtils.get("error.type.generic") + "\n" + errMsg;
         }
     }
 

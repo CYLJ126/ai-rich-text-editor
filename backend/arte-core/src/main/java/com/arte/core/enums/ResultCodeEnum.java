@@ -1,5 +1,6 @@
 package com.arte.core.enums;
 
+import com.arte.core.i18n.MessageUtils;
 import lombok.Getter;
 
 /**
@@ -15,22 +16,22 @@ public enum ResultCodeEnum {
      * 状态：成功-1；失败-2；异常-3；未知-4；
      * 系统或模块：01-core包；02-study包；03-待定；04-wechat包；
      */
-    SUCCESS("100000", "成功"),
-    FAIL("200000", "失败"),
-    FAIL_AUTH("200001", "认证失败"),
-    ADD_EXCEPTION("200002", "添加异常"),
-    UPDATE_EXCEPTION("200003", "更新异常"),
-    DELETE_EXCEPTION("200004", "删除异常"),
-    EXCEPTION("300000", "异常"),
-    DB_EXCEPTION("300001", "数据库异常"),
-    RETRIEVAL_EXCEPTION("300002", "检索异常"),
-    SYSTEM_EXCEPTION("301001", "系统异常"),
-    CHAT_EXCEPTION("302001", "聊天异常"),
-    WITHOUT_CONVERSATION("302002", "找不到会话"),
-    WITHOUT_MESSAGE("302003", "找不到消息"),
-    WITHOUT_FATHER_MESSAGE("302004", "找不到父消息"),
-    CONNECTION_EXCEPTION("303001", "连接异常"),
-    UNKNOWN("400000", "未知");
+    SUCCESS("100000", "result.success"),
+    FAIL("200000", "result.fail"),
+    FAIL_AUTH("200001", "result.fail.auth"),
+    ADD_EXCEPTION("200002", "result.fail.add"),
+    UPDATE_EXCEPTION("200003", "result.fail.update"),
+    DELETE_EXCEPTION("200004", "result.fail.delete"),
+    EXCEPTION("300000", "result.exception"),
+    DB_EXCEPTION("300001", "result.exception.db"),
+    RETRIEVAL_EXCEPTION("300002", "result.exception.retrieval"),
+    SYSTEM_EXCEPTION("301001", "result.exception.system"),
+    CHAT_EXCEPTION("302001", "result.exception.chat"),
+    WITHOUT_CONVERSATION("302002", "result.exception.conversationNotFound"),
+    WITHOUT_MESSAGE("302003", "result.exception.messageNotFound"),
+    WITHOUT_FATHER_MESSAGE("302004", "result.exception.parentMessageNotFound"),
+    CONNECTION_EXCEPTION("303001", "result.exception.connection"),
+    UNKNOWN("400000", "result.unknown");
 
     private final String code;
     private final String desc;
@@ -38,5 +39,12 @@ public enum ResultCodeEnum {
     ResultCodeEnum(String code, String desc) {
         this.code = code;
         this.desc = desc;
+    }
+
+    /**
+     * 返回按当前语言翻译后的描述文案（desc 存储的是 message key）
+     */
+    public String getDesc() {
+        return MessageUtils.get(desc);
     }
 }

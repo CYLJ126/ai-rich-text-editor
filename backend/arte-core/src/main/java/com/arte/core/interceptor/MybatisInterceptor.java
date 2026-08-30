@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.inner.BaseMultiTableInnerInter
 import com.arte.core.annotations.MybatisParams;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.CommonException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.UserContext;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.*;
@@ -100,7 +101,7 @@ public abstract class MybatisInterceptor extends BaseMultiTableInnerInterceptor 
 
     @Override
     public Expression buildTableExpression(Table table, Expression where, String whereSegment) {
-        throw new UnsupportedOperationException("当拦截器未提供相关操作支持！");
+        throw new UnsupportedOperationException(MessageUtils.get("error.common.interceptorUnsupported"));
     }
 
     @Override

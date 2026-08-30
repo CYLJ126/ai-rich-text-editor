@@ -1,5 +1,7 @@
 package com.arte.app.service.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.BooleanUtil;
@@ -91,7 +93,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
     public ArticleUpdateStatus updateWithHistory(ArticleDto article) {
         ArticleDto current = baseMapper.getByIdWithContentForUpdate(article.getId());
         if (current == null) {
-            throw new BusinessException("文章不存在");
+            throw new BusinessException("error.article.notFound");
         }
 
         String nextTitle = article.getTitle() == null ? current.getTitle() : article.getTitle();
@@ -218,7 +220,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
             DeleteByQueryResponse deleteByQueryResponse = chunkRepository.deleteByArticleId(article.getId());
             if (!deleteByQueryResponse.failures().isEmpty()) {
                 log.error("文章分块删除失败，文章 ID：{}，失败原因：{}", article.getId(), deleteByQueryResponse.failures());
-                throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION, "文章 ID：" + article.getId() + "，ES 索引分块删除失败");
+                throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION, MessageUtils.get("error.article.esChunkDeleteFailed", article.getId()));
             }
             if (CollUtil.isNotEmpty(articleChunks)) {
                 BulkResponse bulkResponse = chunkRepository.saveBatch(articleChunks);
@@ -232,7 +234,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
             }
         } catch (Exception e) {
             log.error("保存文章到 elasticsearch 异常", e);
-            throw new ArticleException(ResultCodeEnum.ADD_EXCEPTION, "文章 ID：" + articleId + "，ES 保存失败");
+            throw new ArticleException(ResultCodeEnum.ADD_EXCEPTION, MessageUtils.get("error.article.esSaveFailed", articleId));
         }
     }
 
@@ -393,7 +395,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
         DeleteResponse deleteResponse = articleRepository.delete(article.getId());
         if (Objects.nonNull(deleteResponse.failureStore())) {
             log.error("文章删除失败，文章 ID：{}，失败原因：{}", article.getId(), deleteResponse.failureStore());
-            throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION, "文章 ID：" + article.getId() + "，ES 索引删除失败");
+            throw new ArticleException(ResultCodeEnum.DELETE_EXCEPTION, MessageUtils.get("error.article.esDeleteFailed", article.getId()));
         }
         articleRepository.save(articleDocument);
         return articleDocument;
@@ -411,7 +413,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
     @Override
     public ArticleEsReindexResult rebuildAllEsIndex() {
         if (!rebuildingEsIndex.compareAndSet(false, true)) {
-            throw new BusinessException("文章 ES 索引正在重建，请勿重复提交");
+            throw new BusinessException("error.article.esRebuilding");
         }
         try {
             List<ArticleDto> articles = baseMapper.listAllWithContentUnfiltered();
@@ -488,11 +490,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
     public void togglePublic(Integer articleId, boolean isPublic, Integer targetCatalogId) {
         if (!isPublic) {
             if (targetCatalogId == null) {
-                throw new BusinessException("文章撤回后必须选择私有目录");
+                throw new BusinessException("error.article.withdrawNeedsPrivateCatalog");
             }
             CatalogDto targetCatalog = getTargetCatalog(targetCatalogId);
             if (Boolean.TRUE.equals(targetCatalog.getIsPublic())) {
-                throw new BusinessException("文章撤回后不能移动到公共目录");
+                throw new BusinessException("error.article.withdrawNoPublicCatalog");
             }
             // 撤回公共状态时，用 LambdaUpdateWrapper 强制写入 catalogId（支持 null=根目录）
             lambdaUpdate()
@@ -505,7 +507,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
             return;
         }
         if (targetCatalogId == null) {
-            throw new BusinessException("文章发布到公共空间时必须选择公共目录");
+            throw new BusinessException("error.article.publishNeedsPublicCatalog");
         }
         publishToPublic(articleId, targetCatalogId);
     }
@@ -543,7 +545,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
     public void publishToPublic(Integer articleId, Integer targetCatalogId) {
         CatalogDto targetCatalog = getTargetCatalog(targetCatalogId);
         if (!Boolean.TRUE.equals(targetCatalog.getIsPublic())) {
-            throw new BusinessException("目标目录不是公共目录");
+            throw new BusinessException("error.catalog.targetNotPublic");
         }
         ArticleDto article = new ArticleDto();
         article.setId(articleId);
@@ -641,11 +643,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     private CatalogDto getTargetCatalog(Integer catalogId) {
         if (catalogId == null) {
-            throw new BusinessException("目标目录不能为空");
+            throw new BusinessException("error.catalog.targetRequired");
         }
         CatalogDto targetCatalog = catalogMapper.getByIdUnfiltered(catalogId);
         if (targetCatalog == null) {
-            throw new BusinessException("目标目录不存在");
+            throw new BusinessException("error.catalog.targetNotFound");
         }
         return targetCatalog;
     }

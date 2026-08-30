@@ -1,5 +1,7 @@
 package com.arte.ai.web.controller;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.ai.api.BackEndChatService;
 import com.arte.ai.api.EmbeddingService;
@@ -73,7 +75,7 @@ public class ChatController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping(value = "/streamGenerate", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamGenerate(@RequestBody ChatRequestParam request, HttpServletResponse response) {
-        Assert.notNull(request.getGenerateType(), "生成类型不能为空");
+        Assert.notNull(request.getGenerateType(), MessageUtils.get("error.field.generateTypeRequired"));
         log.debug("收到流式生成请求, 类型={}", request.getGenerateType());
         return executeSseStream(backEndChatService.streamGenerate(request), response);
     }

@@ -413,14 +413,14 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
             allIds.add(catalogId);
             if (targetCatalogId != null) {
                 if (allIds.contains(targetCatalogId)) {
-                    throw new BusinessException("目录不能移动到自己的子目录中");
+                    throw new BusinessException("error.catalog.cannotMoveIntoSelf");
                 }
                 CatalogDto targetCatalog = catalogMapper.getByIdUnfiltered(targetCatalogId);
                 if (targetCatalog == null) {
-                    throw new BusinessException("目标目录不存在");
+                    throw new BusinessException("error.catalog.targetNotFound");
                 }
                 if (Boolean.TRUE.equals(targetCatalog.getIsPublic())) {
-                    throw new BusinessException("目录撤回后不能移动到公共目录");
+                    throw new BusinessException("error.catalog.withdrawNoPublic");
                 }
             }
 
@@ -548,14 +548,14 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
         catalogIds.add(catalogId);
         if (targetCatalogId != null) {
             if (catalogIds.contains(targetCatalogId)) {
-                throw new BusinessException("目录不能移动到自己的子目录中");
+                throw new BusinessException("error.catalog.cannotMoveIntoSelf");
             }
             CatalogDto targetCatalog = catalogMapper.getByIdUnfiltered(targetCatalogId);
             if (targetCatalog == null) {
-                throw new BusinessException("目标目录不存在");
+                throw new BusinessException("error.catalog.targetNotFound");
             }
             if (!Boolean.TRUE.equals(targetCatalog.getIsPublic())) {
-                throw new BusinessException("目标目录不是公共目录");
+                throw new BusinessException("error.catalog.targetNotPublic");
             }
         }
 

@@ -1,5 +1,7 @@
 package com.arte.ai.strategy.model;
 
+import com.arte.core.i18n.MessageUtils;
+
 import com.arte.ai.api.ModelAdapter;
 import com.arte.ai.common.enums.ModelProviderEnum;
 import jakarta.annotation.PostConstruct;
@@ -39,7 +41,7 @@ public class ModelAdapterFactory {
     public ModelAdapter getAdapter(ModelProviderEnum provider, String modelId) {
         ModelAdapter adapter = registry.get(provider.getValue() + ":" + modelId);
         if (adapter == null) {
-            throw new IllegalArgumentException("不支持的模型提供商: " + provider.getValue() + ":" + modelId);
+            throw new IllegalArgumentException(MessageUtils.get("error.ai.providerUnsupported", provider.getValue() + ":" + modelId));
         }
         return adapter;
     }

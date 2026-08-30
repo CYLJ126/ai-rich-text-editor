@@ -1,5 +1,7 @@
 package com.arte.ai.web.controller;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -64,7 +66,7 @@ public class AssistantController {
     @PostMapping("/deleteAssistant")
     @AnonymousAccess
     public ResultContext<Void> deleteAssistant(@RequestBody AssistantParam param) {
-        Assert.notNull(param.getId(), "待删除助手 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.deleteAssistantIdRequired"));
         assistantService.removeById(param.getId());
         return ResultContext.success();
     }
@@ -80,7 +82,7 @@ public class AssistantController {
             queryWrapper.eq(AssistantPo.COL_DEFAULT_FLAG, true);
             return ResultContext.success(assistantService.getOne(queryWrapper));
         }
-        Assert.notNull(param.getId(), "待查询助手 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.queryAssistantIdRequired"));
         return ResultContext.success(assistantService.getById(param.getId()));
     }
 
@@ -96,8 +98,8 @@ public class AssistantController {
     @AnonymousAccess
     @PostMapping("/toggleAssistantPin")
     public ResultContext<Boolean> toggleAssistantPin(@RequestBody AssistantParam dto) {
-        Assert.notNull(dto.getId(), "助手 ID 不能为空");
-        Assert.notNull(dto.getPinFlag(), "助手是否置顶 不能为空");
+        Assert.notNull(dto.getId(), MessageUtils.get("error.field.assistantIdRequired"));
+        Assert.notNull(dto.getPinFlag(), MessageUtils.get("error.field.assistantPinRequired"));
         boolean result = assistantService.lambdaUpdate()
                 .eq(AssistantDto::getId, dto.getId())
                 .set(AssistantDto::getPinFlag, dto.getPinFlag())
@@ -108,8 +110,8 @@ public class AssistantController {
     @AnonymousAccess
     @PostMapping("/toggleAssistantStatus")
     public ResultContext<Boolean> toggleAssistantStatus(@RequestBody AssistantParam dto) {
-        Assert.notNull(dto.getId(), "助手 ID 不能为空");
-        Assert.notNull(dto.getStatus(), "助手状态不能为空");
+        Assert.notNull(dto.getId(), MessageUtils.get("error.field.assistantIdRequired"));
+        Assert.notNull(dto.getStatus(), MessageUtils.get("error.field.assistantStatusRequired"));
         boolean result = assistantService.lambdaUpdate()
                 .eq(AssistantDto::getId, dto.getId())
                 .set(AssistantDto::getStatus, dto.getStatus())
@@ -124,20 +126,20 @@ public class AssistantController {
     @PostMapping("/setAsDefaultAssistant")
     @AnonymousAccess
     public ResultContext<Boolean> setAsDefaultAssistant(@RequestBody AssistantParam param) {
-        Assert.notNull(param.getId(), "待设置默认助手 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.defaultAssistantIdRequired"));
         // 将指定助手设为默认
         UpdateWrapper<AssistantDto> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq("id", param.getId()).set("default_flag", true);
         boolean update = assistantService.update(updateWrapper);
         if (!update) {
-            throw new BusinessException(String.format("助手【%s】设置默认失败", param.getId()));
+            throw new BusinessException(MessageUtils.get("error.ai.assistantSetDefaultFailed", param.getId()));
         }
         // 将其他助手取消默认
         UpdateWrapper<AssistantDto> clearWrapper = new UpdateWrapper<>();
         clearWrapper.ne("id", param.getId()).set("default_flag", false);
         boolean clear = assistantService.update(clearWrapper);
         if (!clear) {
-            throw new BusinessException(String.format("助手【%s】设为默认时，取消其他默认助手失败", param.getId()));
+            throw new BusinessException(MessageUtils.get("error.ai.assistantClearDefaultFailed", param.getId()));
         }
         return ResultContext.success();
     }

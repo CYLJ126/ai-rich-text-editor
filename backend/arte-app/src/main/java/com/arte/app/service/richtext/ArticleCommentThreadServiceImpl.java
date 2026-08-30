@@ -1,5 +1,7 @@
 package com.arte.app.service.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -49,8 +51,8 @@ public class ArticleCommentThreadServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ArticleCommentThreadDto createThread(ArticleCommentThreadDto param) {
-        Assert.notNull(param.getArticleId(), "文章ID不能为空");
-        Assert.notBlank(param.getContent(), "批注内容不能为空");
+        Assert.notNull(param.getArticleId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(param.getContent(), MessageUtils.get("error.field.annotateContentRequired"));
         assertCanComment(param.getArticleId());
 
         LocalDateTime now = LocalDateTime.now();
@@ -80,9 +82,9 @@ public class ArticleCommentThreadServiceImpl
 
     @Override
     public ArticleCommentDto addComment(ArticleCommentDto param) {
-        Assert.notNull(param.getArticleId(), "文章ID不能为空");
-        Assert.notBlank(param.getThreadId(), "批注线程ID不能为空");
-        Assert.notBlank(param.getContent(), "评论内容不能为空");
+        Assert.notNull(param.getArticleId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(param.getThreadId(), MessageUtils.get("error.field.threadIdRequired"));
+        Assert.notBlank(param.getContent(), MessageUtils.get("error.field.commentContentRequired"));
         assertCanComment(param.getArticleId());
         assertThreadExists(param.getArticleId(), param.getThreadId());
 
@@ -100,10 +102,10 @@ public class ArticleCommentThreadServiceImpl
 
     @Override
     public Boolean updateComment(ArticleCommentDto param) {
-        Assert.notNull(param.getArticleId(), "文章ID不能为空");
-        Assert.notBlank(param.getThreadId(), "批注线程ID不能为空");
-        Assert.notBlank(param.getCommentId(), "评论ID不能为空");
-        Assert.notBlank(param.getContent(), "评论内容不能为空");
+        Assert.notNull(param.getArticleId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(param.getThreadId(), MessageUtils.get("error.field.threadIdRequired"));
+        Assert.notBlank(param.getCommentId(), MessageUtils.get("error.field.commentIdRequired"));
+        Assert.notBlank(param.getContent(), MessageUtils.get("error.field.commentContentRequired"));
         assertCanComment(param.getArticleId());
 
         LocalDateTime now = LocalDateTime.now();
@@ -120,7 +122,7 @@ public class ArticleCommentThreadServiceImpl
         updateWrapper.set(ArticleCommentPo.COL_UPDATE_TIME, now);
         int count = articleCommentMapper.update(updateWrapper);
         if (count <= 0) {
-            throw new BusinessException("评论不存在");
+            throw new BusinessException("error.comment.notFound");
         }
         touchThread(param.getArticleId(), param.getThreadId(), now, currentUser);
         return true;
@@ -128,9 +130,9 @@ public class ArticleCommentThreadServiceImpl
 
     @Override
     public Boolean deleteComment(ArticleCommentDto param) {
-        Assert.notNull(param.getArticleId(), "文章ID不能为空");
-        Assert.notBlank(param.getThreadId(), "批注线程ID不能为空");
-        Assert.notBlank(param.getCommentId(), "评论ID不能为空");
+        Assert.notNull(param.getArticleId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(param.getThreadId(), MessageUtils.get("error.field.threadIdRequired"));
+        Assert.notBlank(param.getCommentId(), MessageUtils.get("error.field.commentIdRequired"));
         assertCanComment(param.getArticleId());
 
         LocalDateTime now = LocalDateTime.now();
@@ -150,7 +152,7 @@ public class ArticleCommentThreadServiceImpl
         }
         int count = articleCommentMapper.update(updateWrapper);
         if (count <= 0) {
-            throw new BusinessException("评论不存在");
+            throw new BusinessException("error.comment.notFound");
         }
         touchThread(param.getArticleId(), param.getThreadId(), now, currentUser);
         return true;
@@ -158,8 +160,8 @@ public class ArticleCommentThreadServiceImpl
 
     @Override
     public Boolean resolveThread(Integer articleId, String threadId) {
-        Assert.notNull(articleId, "文章ID不能为空");
-        Assert.notBlank(threadId, "批注线程ID不能为空");
+        Assert.notNull(articleId, MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(threadId, MessageUtils.get("error.field.threadIdRequired"));
         assertCanComment(articleId);
         LocalDateTime now = LocalDateTime.now();
         return updateThread(articleId, threadId, now, UserContext.getUserName(), true);
@@ -167,8 +169,8 @@ public class ArticleCommentThreadServiceImpl
 
     @Override
     public Boolean unresolveThread(Integer articleId, String threadId) {
-        Assert.notNull(articleId, "文章ID不能为空");
-        Assert.notBlank(threadId, "批注线程ID不能为空");
+        Assert.notNull(articleId, MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(threadId, MessageUtils.get("error.field.threadIdRequired"));
         assertCanComment(articleId);
         LocalDateTime now = LocalDateTime.now();
         return updateThread(articleId, threadId, now, UserContext.getUserName(), false);
@@ -177,8 +179,8 @@ public class ArticleCommentThreadServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean deleteThread(Integer articleId, String threadId) {
-        Assert.notNull(articleId, "文章ID不能为空");
-        Assert.notBlank(threadId, "批注线程ID不能为空");
+        Assert.notNull(articleId, MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(threadId, MessageUtils.get("error.field.threadIdRequired"));
         assertCanComment(articleId);
         String currentUser = UserContext.getUserName();
         ArticleCommentThreadDto thread = getThread(articleId, threadId);
@@ -190,7 +192,7 @@ public class ArticleCommentThreadServiceImpl
         threadQuery.eq(ArticleCommentThreadPo.COL_THREAD_ID, threadId);
         boolean removed = remove(threadQuery);
         if (!removed) {
-            throw new BusinessException("批注线程不存在");
+            throw new BusinessException("error.comment.threadNotFound");
         }
 
         QueryWrapper<ArticleCommentDto> commentQuery = new QueryWrapper<>();
@@ -214,7 +216,7 @@ public class ArticleCommentThreadServiceImpl
         queryWrapper.eq(ArticleCommentThreadPo.COL_THREAD_ID, threadId);
         ArticleCommentThreadDto thread = getOne(queryWrapper, false);
         if (thread == null) {
-            throw new BusinessException("批注线程不存在");
+            throw new BusinessException("error.comment.threadNotFound");
         }
         return thread;
     }
@@ -226,14 +228,14 @@ public class ArticleCommentThreadServiceImpl
         queryWrapper.eq(ArticleCommentPo.COL_COMMENT_ID, commentId);
         ArticleCommentDto comment = articleCommentMapper.selectOne(queryWrapper);
         if (comment == null) {
-            throw new BusinessException("评论不存在");
+            throw new BusinessException("error.comment.notFound");
         }
         return comment;
     }
 
     private void assertCommentOwner(ArticleCommentDto comment, String currentUser) {
         if (!isCreatedBy(comment.getCreateBy(), currentUser)) {
-            throw new BusinessException("只能编辑本人创建的批注内容");
+            throw new BusinessException("error.comment.onlyEditOwn");
         }
     }
 
@@ -243,19 +245,19 @@ public class ArticleCommentThreadServiceImpl
 
     private void assertThreadOpen(ArticleCommentThreadDto thread) {
         if (thread.getResolvedAt() != null) {
-            throw new BusinessException("已解决的批注只能重新打开");
+            throw new BusinessException("error.comment.onlyReopenResolved");
         }
     }
 
     private void assertCanDeleteComment(Integer articleId, ArticleCommentDto comment, String currentUser) {
         if (!isCreatedBy(comment.getCreateBy(), currentUser) && !isArticleAuthor(articleId, currentUser)) {
-            throw new BusinessException("只能删除本人创建的批注内容");
+            throw new BusinessException("error.comment.onlyDeleteOwn");
         }
     }
 
     private void assertCanDeleteThread(Integer articleId, ArticleCommentThreadDto thread, String currentUser) {
         if (!isCreatedBy(thread.getCreateBy(), currentUser) && !isArticleAuthor(articleId, currentUser)) {
-            throw new BusinessException("只能删除本人创建的批注线程");
+            throw new BusinessException("error.comment.onlyDeleteOwnThread");
         }
     }
 
@@ -295,7 +297,7 @@ public class ArticleCommentThreadServiceImpl
         updateWrapper.set(ArticleCommentThreadPo.COL_UPDATE_TIME, now);
         boolean updated = update(updateWrapper);
         if (!updated) {
-            throw new BusinessException("批注线程不存在");
+            throw new BusinessException("error.comment.threadNotFound");
         }
         return true;
     }

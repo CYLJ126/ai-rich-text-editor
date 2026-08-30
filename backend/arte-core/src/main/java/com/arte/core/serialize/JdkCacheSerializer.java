@@ -1,5 +1,6 @@
 package com.arte.core.serialize;
 
+import com.arte.core.i18n.MessageUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
@@ -31,7 +32,7 @@ public record JdkCacheSerializer<T>(Class<T> targetType) implements MySerializer
             return Base64.getEncoder().encodeToString(bos.toByteArray());
         } catch (Exception e) {
             log.error("JDK serializer 序列化异常", e);
-            throw new RuntimeException("JDK serializer 序列化异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.jdkSerialize"), e);
         }
     }
 
@@ -49,7 +50,7 @@ public record JdkCacheSerializer<T>(Class<T> targetType) implements MySerializer
             return (T) ois.readObject();
         } catch (Exception e) {
             log.error("JDK serializer 反序列化异常", e);
-            throw new RuntimeException("JDK serializer 反序列化异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.jdkDeserialize"), e);
         }
     }
 }

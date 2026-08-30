@@ -1,5 +1,7 @@
 package com.arte.ai.service;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -149,7 +151,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     public ConversationDto getAndValidate(String convId) {
         ConversationDto one = baseMapper.getAndValidate(convId);
         if (Objects.isNull(one)) {
-            throw new ChatException(ResultCodeEnum.WITHOUT_CONVERSATION, "会话不存在: " + convId);
+            throw new ChatException(ResultCodeEnum.WITHOUT_CONVERSATION, MessageUtils.get("error.ai.conversationNotFound", convId));
         }
         return one;
     }

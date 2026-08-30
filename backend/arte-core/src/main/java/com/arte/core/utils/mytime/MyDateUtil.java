@@ -2,6 +2,7 @@ package com.arte.core.utils.mytime;
 
 import cn.hutool.core.lang.Pair;
 import com.arte.core.enums.MyTimeUnit;
+import com.arte.core.i18n.MessageUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -196,7 +197,7 @@ public class MyDateUtil {
             case SUNDAY -> {
                 return Pair.of(7, "周日");
             }
-            default -> throw new IllegalArgumentException("日期有误！");
+            default -> throw new IllegalArgumentException(MessageUtils.get("error.common.dateInvalid"));
         }
     }
 

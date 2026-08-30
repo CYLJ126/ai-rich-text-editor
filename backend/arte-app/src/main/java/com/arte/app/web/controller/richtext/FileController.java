@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import com.arte.app.service.richtext.RichTextFileStorageService;
 import com.arte.app.service.richtext.RemoteImageDownloadService;
 import com.arte.core.annotations.AnonymousAccess;
@@ -39,21 +41,21 @@ public class FileController {
     public ResultContext<String> uploadImage(@RequestParam("file") MultipartFile file,
                                              @RequestParam(value = "folder", required = false) String folder) {
         if (file == null || file.isEmpty()) {
-            return ResultContext.fail("上传文件不能为空");
+            return ResultContext.fail("error.file.uploadEmpty");
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            return ResultContext.fail("仅支持上传图片文件");
+            return ResultContext.fail("error.file.onlyImage");
         }
 
         try {
             String url = richTextFileStorageService.uploadImage(file, folder);
             log.info("图片上传成功，链接: {}", url);
-            return ResultContext.success(url, "上传成功");
+            return ResultContext.success(url, "error.file.uploadSuccess");
         } catch (Exception e) {
             log.error("图片上传失败", e);
-            return ResultContext.fail("图片上传失败: " + e.getMessage());
+            return ResultContext.fail(MessageUtils.get("error.file.imageUploadFailed", e.getMessage()));
         }
     }
 
@@ -65,16 +67,16 @@ public class FileController {
     public ResultContext<String> uploadFile(@RequestParam("file") MultipartFile file,
                                             @RequestParam(value = "folder", required = false) String folder) {
         if (file == null || file.isEmpty()) {
-            return ResultContext.fail("上传文件不能为空");
+            return ResultContext.fail("error.file.uploadEmpty");
         }
 
         try {
             String url = richTextFileStorageService.uploadFile(file, folder);
             log.info("文件上传成功，链接: {}", url);
-            return ResultContext.success(url, "上传成功");
+            return ResultContext.success(url, "error.file.uploadSuccess");
         } catch (Exception e) {
             log.error("文件上传失败", e);
-            return ResultContext.fail("文件上传失败: " + e.getMessage());
+            return ResultContext.fail(MessageUtils.get("error.file.uploadFailed", e.getMessage()));
         }
     }
 
@@ -84,10 +86,10 @@ public class FileController {
         try {
             MultipartFile image = remoteImageDownloadService.download(url);
             String storedUrl = richTextFileStorageService.uploadImage(image, "images/article/remote");
-            return ResultContext.success(storedUrl, "转存成功");
+            return ResultContext.success(storedUrl, "error.file.transferSuccess");
         } catch (Exception e) {
             log.error("远程图片转存失败，url: {}", url, e);
-            return ResultContext.fail("远程图片转存失败: " + e.getMessage());
+            return ResultContext.fail(MessageUtils.get("error.image.transferFailed", e.getMessage()));
         }
     }
 
@@ -98,7 +100,7 @@ public class FileController {
             return ResultContext.success(richTextFileStorageService.readTextByUrl(url));
         } catch (Exception e) {
             log.error("富文本文件读取失败，url: {}", url, e);
-            return ResultContext.fail("文件读取失败: " + e.getMessage());
+            return ResultContext.fail(MessageUtils.get("error.file.readFailed", e.getMessage()));
         }
     }
 
@@ -110,7 +112,7 @@ public class FileController {
             return ResultContext.success(null);
         } catch (Exception e) {
             log.error("富文本文件删除失败，url: {}", url, e);
-            return ResultContext.fail("文件删除失败: " + e.getMessage());
+            return ResultContext.fail(MessageUtils.get("error.file.deleteFailed", e.getMessage()));
         }
     }
 }

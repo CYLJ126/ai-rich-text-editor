@@ -2,6 +2,7 @@ package com.arte.core.exception;
 
 import cn.hutool.core.text.CharSequenceUtil;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.i18n.MessageUtils;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -28,7 +29,7 @@ public class CommonException extends RuntimeException {
     }
 
     public CommonException(String str) {
-        super(str);
+        super(MessageUtils.get(str));
         this.resultCode = ResultCodeEnum.EXCEPTION;
     }
 
@@ -37,7 +38,7 @@ public class CommonException extends RuntimeException {
     }
 
     public CommonException(ResultCodeEnum resultCode, String str) {
-        super(CharSequenceUtil.blankToDefault(str, resultCode.getDesc()));
+        super(MessageUtils.get(CharSequenceUtil.blankToDefault(str, resultCode.getDesc())));
         this.resultCode = resultCode;
     }
 
@@ -48,11 +49,11 @@ public class CommonException extends RuntimeException {
     }
 
     public CommonException(String str, Throwable ex) {
-        super(str, ex);
+        super(MessageUtils.get(str), ex);
     }
 
     public CommonException(ResultCodeEnum resultCode, String str, Throwable ex) {
-        super(CharSequenceUtil.blankToDefault(str, resultCode.getDesc()), ex);
+        super(MessageUtils.get(CharSequenceUtil.blankToDefault(str, resultCode.getDesc())), ex);
         this.resultCode = resultCode;
     }
 }

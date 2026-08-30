@@ -1,5 +1,6 @@
 package com.arte.core.pojo;
 
+import com.arte.core.i18n.MessageUtils;
 import cn.hutool.core.lang.Pair;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.utils.ExceptionUtil;
@@ -45,7 +46,8 @@ public class ResultContext<T> implements IResult<T>, Serializable {
 
     @Override
     public ResultContext<T> setDesc(String desc) {
-        this.desc = desc;
+        // desc 支持传 message key，按当前语言解析；未收录的原始文本原样返回
+        this.desc = MessageUtils.get(desc);
         return this;
     }
 
@@ -86,7 +88,7 @@ public class ResultContext<T> implements IResult<T>, Serializable {
         ResultContext<T> result = new ResultContext<>();
         result.code = resultCode.getCode();
         result.success = Boolean.TRUE;
-        result.desc = desc;
+        result.setDesc(desc);
         result.setData(data);
         return result;
     }
@@ -121,7 +123,7 @@ public class ResultContext<T> implements IResult<T>, Serializable {
         ResultContext<T> result = new ResultContext<>();
         result.code = resultCode.getCode();
         result.success = Boolean.FALSE;
-        result.desc = desc;
+        result.setDesc(desc);
         return result;
     }
 

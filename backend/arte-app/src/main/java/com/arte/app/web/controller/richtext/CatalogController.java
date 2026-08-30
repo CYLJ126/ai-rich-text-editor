@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.app.api.richtext.CatalogService;
 import com.arte.app.api.richtext.ShareService;
@@ -72,16 +74,16 @@ public class CatalogController {
     @AnonymousAccess
     @PostMapping("/addCatalog")
     public ResultContext<Boolean> addCatalog(@RequestBody CatalogDto param) {
-        Assert.notNull(param.getName(), "目录名称不能为空");
+        Assert.notNull(param.getName(), MessageUtils.get("error.field.catalogNameRequired"));
         if (publicRootCatalog(param)) {
-            Assert.isTrue(currentUserIsAdmin(), "只有管理员可以在公共空间中新建根目录");
+            Assert.isTrue(currentUserIsAdmin(), MessageUtils.get("error.catalog.adminRootOnly"));
         }
         CatalogDto parent = null;
         if (param.getFatherId() != null) {
             permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), param.getFatherId());
             parent = catalogMapper.getByIdUnfiltered(param.getFatherId());
             if (parent == null) {
-                throw new BusinessException("父目录不存在");
+                throw new BusinessException("error.catalog.parentNotFound");
             }
             param.setIsPublic(Boolean.TRUE.equals(parent.getIsPublic()));
         } else if (param.getIsPublic() == null) {
@@ -112,7 +114,7 @@ public class CatalogController {
     @AnonymousAccess
     @PostMapping("/updateCatalog")
     public ResultContext<Boolean> updateCatalog(@RequestBody CatalogDto param) {
-        Assert.notNull(param.getId(), "目录ID不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.catalogIdRequired"));
         permissionValidator.assertCanWrite(ResourceTypeEnum.CATALOG.getValue(), param.getId());
         CatalogDto updateParam = new CatalogDto();
         updateParam.setId(param.getId());
@@ -133,7 +135,7 @@ public class CatalogController {
     @AnonymousAccess
     @PostMapping("/deleteCatalog")
     public ResultContext<Boolean> deleteCatalog(@RequestBody CatalogDto param) {
-        Assert.notNull(param.getId(), "目录ID不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.catalogIdRequired"));
         permissionValidator.assertCanDelete(ResourceTypeEnum.CATALOG.getValue(), param.getId());
         Boolean removed = catalogService.removeRecursive(param.getId());
         if (!removed) {
@@ -148,12 +150,12 @@ public class CatalogController {
     @AnonymousAccess
     @PostMapping("/reorderCatalogs")
     public ResultContext<Boolean> reorderCatalogs(@RequestBody List<CatalogDto> list) {
-        Assert.notEmpty(list, "目录列表不能为空");
+        Assert.notEmpty(list, MessageUtils.get("error.field.catalogListRequired"));
         for (CatalogDto item : list) {
-            Assert.notNull(item.getId(), "目录ID不能为空");
+            Assert.notNull(item.getId(), MessageUtils.get("error.field.catalogIdRequired"));
             permissionValidator.assertCanWrite(ResourceTypeEnum.CATALOG.getValue(), item.getId());
             if (item.getFatherId() != null) {
-                Assert.isFalse(item.getId().equals(item.getFatherId()), "目录不能移动到自身下");
+                Assert.isFalse(item.getId().equals(item.getFatherId()), MessageUtils.get("error.catalog.cannotMoveToItself"));
                 permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), item.getFatherId());
             }
         }
@@ -181,7 +183,7 @@ public class CatalogController {
         Integer id = req.getId();
         Boolean isPublic = req.getIsPublic();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "目录ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.catalogIdRequired"));
         Assert.notNull(isPublic, "isPublic不能为空");
         permissionValidator.assertCanWrite(ResourceTypeEnum.CATALOG.getValue(), id);
         if (targetCatalogId != null) {
@@ -199,8 +201,8 @@ public class CatalogController {
     public ResultContext<CatalogDto> copyToMySpace(@RequestBody CopyToMySpaceParam req) {
         Integer id = req.getId();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "目录ID不能为空");
-        Assert.notNull(targetCatalogId, "目标目录ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.catalogIdRequired"));
+        Assert.notNull(targetCatalogId, MessageUtils.get("error.field.targetCatalogIdRequired"));
         permissionValidator.assertCanRead(ResourceTypeEnum.CATALOG.getValue(), id);
         permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), targetCatalogId);
         CatalogDto result = catalogService.copyToMySpace(id, targetCatalogId);
@@ -215,7 +217,7 @@ public class CatalogController {
     public ResultContext<Boolean> publishToPublic(@RequestBody PublishToPublicParam req) {
         Integer id = req.getId();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "目录ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.catalogIdRequired"));
         permissionValidator.assertCanWrite(ResourceTypeEnum.CATALOG.getValue(), id);
         if (targetCatalogId != null) {
             permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), targetCatalogId);
@@ -234,7 +236,7 @@ public class CatalogController {
             Integer current = item.getId();
             while (current != null) {
                 if (!visited.add(current)) {
-                    throw new BusinessException("目录层级不能形成循环");
+                    throw new BusinessException("error.catalog.cycle");
                 }
                 current = resolveSubmittedOrStoredFatherId(current, submittedParents);
             }
@@ -257,12 +259,12 @@ public class CatalogController {
             CatalogDto child = catalogMapper.getByIdUnfiltered(item.getId());
             CatalogDto parent = catalogMapper.getByIdUnfiltered(item.getFatherId());
             if (child == null || parent == null) {
-                throw new BusinessException("未找到对应目录");
+                throw new BusinessException("error.catalog.notFound");
             }
             boolean childPublic = Boolean.TRUE.equals(child.getIsPublic());
             boolean parentPublic = Boolean.TRUE.equals(parent.getIsPublic());
             if (childPublic != parentPublic) {
-                throw new BusinessException("父目录与子目录之间的公开状态不统一");
+                throw new BusinessException("error.catalog.publicStateMismatch");
             }
         }
     }

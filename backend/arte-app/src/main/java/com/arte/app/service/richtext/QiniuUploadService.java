@@ -9,6 +9,7 @@ import com.google.gson.JsonParser;
 import com.arte.app.common.enums.richtext.FileStorageTypeEnum;
 import com.arte.app.config.bean.QiniuProperties;
 import com.arte.app.config.bean.RichTextStorageProperties;
+import com.arte.core.i18n.MessageUtils;
 import com.qiniu.common.QiniuException;
 import com.qiniu.http.Response;
 import com.qiniu.storage.BucketManager;
@@ -251,14 +252,14 @@ public class QiniuUploadService {
         try {
             bucketManager.delete(qiniuProperties.getBucket(), key);
         } catch (QiniuException e) {
-            throw new IOException("七牛云文件删除失败", e);
+            throw new IOException(MessageUtils.get("error.file.qiniuDeleteFailed"), e);
         }
     }
 
     private String requireStoredKey(String url) throws IOException {
         String key = extractKeyFromUrl(url);
         if (StrUtil.isBlank(key)) {
-            throw new IOException("URL 不属于当前七牛云存储");
+            throw new IOException(MessageUtils.get("error.file.urlNotQiniu"));
         }
         return key;
     }

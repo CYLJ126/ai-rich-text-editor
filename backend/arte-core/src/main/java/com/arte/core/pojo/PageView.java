@@ -1,5 +1,6 @@
 package com.arte.core.pojo;
 
+import com.arte.core.i18n.MessageUtils;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Pair;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -110,7 +111,7 @@ public class PageView<T> extends Page<T> implements IResult<T> {
         PageView<T> result = new PageView<>();
         result.code = resultCode.getCode();
         result.success = Boolean.FALSE;
-        result.desc = desc;
+        result.setDesc(MessageUtils.get(desc));
         return result;
     }
 

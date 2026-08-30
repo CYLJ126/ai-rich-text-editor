@@ -1,5 +1,7 @@
 package com.arte.core.utils.crypto;
 
+import com.arte.core.i18n.MessageUtils;
+
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.asn1.gm.GMNamedCurves;
 import org.bouncycastle.asn1.x9.X9ECParameters;
@@ -88,7 +90,7 @@ public class Sm2Util extends AbstractGmUtil {
             byte[] publicKeyBytes = publicKeyPoint.getEncoded(false);
             return Hex.toHexString(publicKeyBytes).toLowerCase();
         } catch (Exception e) {
-            throw new RuntimeException("从私钥推导公钥失败: " + e.getMessage(), e);
+            throw new RuntimeException(MessageUtils.get("error.crypto.publicKeyDeriveFailed", e.getMessage()), e);
         }
     }
 
@@ -134,7 +136,7 @@ public class Sm2Util extends AbstractGmUtil {
             byte[] cipher = engine.processBlock(data, 0, data.length);
             return Hex.toHexString(cipher);
         } catch (InvalidCipherTextException e) {
-            throw new RuntimeException("SM2 加密失败", e);
+            throw new RuntimeException(MessageUtils.get("error.crypto.sm2EncryptFailed"), e);
         }
     }
 
@@ -160,7 +162,7 @@ public class Sm2Util extends AbstractGmUtil {
             byte[] cipher = Hex.decode(cipherHex);
             return engine.processBlock(cipher, 0, cipher.length);
         } catch (InvalidCipherTextException e) {
-            throw new RuntimeException("SM2 解密失败", e);
+            throw new RuntimeException(MessageUtils.get("error.crypto.sm2DecryptFailed"), e);
         }
     }
 }

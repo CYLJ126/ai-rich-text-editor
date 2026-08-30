@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.rbac;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.app.api.rbac.RbacRelationService;
 import com.arte.app.api.rbac.UserService;
@@ -45,7 +47,7 @@ public class UserController {
     @PostMapping("/updateUser")
     @PreAuthorize("@pcs.check('user:update')")
     public ResultContext<Boolean> updateUser(@RequestBody UserDto param) {
-        Assert.notNull(param.getId(), "用户 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.userIdRequired"));
         return ResultContext.wrap(param, userService::updateUser);
     }
 
@@ -58,7 +60,7 @@ public class UserController {
     @PostMapping("/getUserByName")
     @PreAuthorize("@pcs.check('user:list')")
     public ResultContext<UserDto> getUserByName(@RequestBody UserParam param) {
-        Assert.notBlank(param.getUserName(), "用户名不能为空");
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
         return ResultContext.wrap(param.getUserName(), userService::getByName);
     }
 
@@ -71,8 +73,8 @@ public class UserController {
     @PostMapping("/listUserByTarget")
     @PreAuthorize("@pcs.check('user:list')")
     public PageView<UserDto> listUserByTarget(@RequestBody UserParam param) {
-        Assert.notBlank(param.getTarget(), "绑定目标不能为空");
-        Assert.notNull(param.getRelationType(), "关系类型不能为空");
+        Assert.notBlank(param.getTarget(), MessageUtils.get("error.field.bindTargetRequired"));
+        Assert.notNull(param.getRelationType(), MessageUtils.get("error.field.relationTypeRequired"));
         Set<String> existedUsernames = rbacRelationService.listByTarget(param.getTarget(), param.getRelationType())
                 .stream().map(RbacRelationPo::getSource).collect(Collectors.toSet());
         PageView<UserDto> pageView = userService.selectUsers(param);
@@ -87,21 +89,21 @@ public class UserController {
     @PostMapping("/assignRolesToUser")
     @PreAuthorize("@pcs.check('user:update')")
     public ResultContext<Boolean> assignRolesToUser(@RequestBody UserParam param) {
-        Assert.notBlank(param.getUserName(), "用户名不能为空");
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
         return ResultContext.wrap(param, userService::assignRolesToUser);
     }
 
     @PostMapping("/assignMenusToUser")
     @PreAuthorize("@pcs.check('user:update')")
     public ResultContext<Boolean> assignMenusToUser(@RequestBody UserParam param) {
-        Assert.notBlank(param.getUserName(), "用户名不能为空");
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
         return ResultContext.wrap(param, userService::assignMenusToUser);
     }
 
     @PostMapping("/assignOperationsToUser")
     @PreAuthorize("@pcs.check('user:update')")
     public ResultContext<Boolean> assignOperationsToUser(@RequestBody UserParam param) {
-        Assert.notBlank(param.getUserName(), "用户名不能为空");
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
         return ResultContext.wrap(param, userService::assignOperationsToUser);
     }
 }

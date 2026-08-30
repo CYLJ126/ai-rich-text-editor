@@ -1,5 +1,7 @@
 package com.arte.ai.advisor;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.arte.ai.api.MessageService;
@@ -86,7 +88,7 @@ public class QueryOptimizationAdvisor extends AbstractAdvisor {
                 .set(MessageDto.COL_OPTIMIZED_CONTENT, finalQuery);
         boolean update = messageService.update(updateWrapper);
         if (!update) {
-            throw new ChatException(String.format("消息 ID ：%s，更新重写后查询失败", userMessageId));
+            throw new ChatException(MessageUtils.get("error.ai.rewriteQueryFailed", userMessageId));
         }
     }
 

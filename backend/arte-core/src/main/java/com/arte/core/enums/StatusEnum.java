@@ -1,5 +1,7 @@
 package com.arte.core.enums;
 
+import com.arte.core.i18n.MessageUtils;
+
 import com.baomidou.mybatisplus.annotation.IEnum;
 import lombok.Getter;
 import org.springframework.core.convert.converter.Converter;
@@ -39,7 +41,7 @@ public enum StatusEnum implements IEnum<Integer>, MyEnum<Integer> {
                 return status;
             }
         }
-        throw new IllegalArgumentException("status 参数非法：" + value);
+        throw new IllegalArgumentException(MessageUtils.get("error.common.enumStatus", value));
     }
 
     public static boolean isNormal(StatusEnum status) {
