@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" role="img" aria-labelledby="title description">
+    <title id="title">ARTE</title>
+    <desc id="description">ARTE project logo</desc>
+    <rect width="360" height="120" rx="24" fill="#111827"/>
+    <path d="M44 86 72 34h18l28 52H98l-5-11H68l-5 11H44Zm31-26h11l-6-13-5 13Z" fill="#f97316"/>
+    <text x="128" y="82" fill="#f9fafb" font-family="Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="4">RTE</text>
+</svg>

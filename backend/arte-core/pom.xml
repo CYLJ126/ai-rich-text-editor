@@ -128,11 +128,6 @@
             <groupId>com.github.whvcse</groupId>
             <artifactId>easy-captcha</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.belerweb</groupId>
-            <artifactId>pinyin4j</artifactId>
-        </dependency>
-
         <!-- Test 说明：test scope是不会传递的，依赖模块应自行引入 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
