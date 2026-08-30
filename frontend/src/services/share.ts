@@ -74,6 +74,16 @@ export async function listSpaceCatalogs(): Promise<SpaceCatalogsDto> {
   }).then((res: any) => withSpaceCatalogPermissionFlags(res?.data ?? res));
 }
 
+/** 更新同目录内的文章顺序 */
+export async function reorderArticles(
+  list: Array<{id: number; orderId: number}>,
+): Promise<boolean> {
+  return request(`${PATH_PREFIX}/richText/article/reorderArticles`, {
+    method: 'POST',
+    data: list,
+  }).then((res: any) => res?.data ?? res);
+}
+
 /** 切换目录公共状态 */
 export async function toggleCatalogPublic(
   id: number,

@@ -51,11 +51,13 @@ import {
   listSpaceCatalogs,
   publishArticleToPublic,
   publishCatalogToPublic,
+  reorderArticles,
   toggleArticlePublic,
   toggleCatalogPublic,
 } from '@/services/share';
 import type {
   ActiveSelectedInfo,
+  ArticleInfoType,
   ArticleSpace,
   CatalogType,
 } from '@/types/rt.type';
@@ -785,6 +787,82 @@ export default function CatalogTreeSidebar({
       const dragNode = info.dragNode;
       const dropNode = info.node;
       if (!dragNode || !dropNode) return;
+
+      if (dragNode.type === 'article' && info.dropToGap) {
+        const source = dragNode.data as ArticleInfoType;
+        if (!source.catalogId) return;
+
+        const findCatalog = (
+          catalogs: CatalogType[],
+          catalogId: number,
+        ): CatalogType | null => {
+          for (const catalog of catalogs) {
+            if (catalog.id === catalogId) return catalog;
+            const found = findCatalog(catalog.children ?? [], catalogId);
+            if (found) return found;
+          }
+          return null;
+        };
+        const catalog = findCatalog(
+          sourceSpace === 'public' ? publicCatalogs : myCatalogs,
+          source.catalogId,
+        );
+        if (!catalog?.articles) return;
+
+        const articles = [...catalog.articles];
+        const sourceIndex = articles.findIndex((item) => item.id === source.id);
+        if (sourceIndex < 0) return;
+        const relativePosition =
+          info.dropPosition - Number(String(dropNode.pos).split('-').pop());
+
+        let insertIndex: number;
+        if (dropNode.type === 'article') {
+          const target = dropNode.data as ArticleInfoType;
+          if (
+            source.id === target.id ||
+            source.catalogId !== target.catalogId
+          ) {
+            return;
+          }
+          const targetIndex = articles.findIndex(
+            (item) => item.id === target.id,
+          );
+          if (targetIndex < 0) return;
+          articles.splice(sourceIndex, 1);
+          const nextTargetIndex = articles.findIndex(
+            (item) => item.id === target.id,
+          );
+          insertIndex =
+            relativePosition < 0 ? nextTargetIndex : nextTargetIndex + 1;
+        } else if (dropNode.type === 'catalog') {
+          const target = dropNode.data as CatalogType;
+          const childCatalogs = catalog.children ?? [];
+          const lastChildCatalog = childCatalogs[childCatalogs.length - 1];
+          if (lastChildCatalog?.id !== target.id || relativePosition <= 0) {
+            return;
+          }
+          articles.splice(sourceIndex, 1);
+          insertIndex = 0;
+        } else {
+          return;
+        }
+
+        articles.splice(insertIndex, 0, source);
+
+        try {
+          await reorderArticles(
+            articles.map((article, index) => ({
+              id: article.id as number,
+              orderId: index + 1,
+            })),
+          );
+          message.success('文章顺序已更新');
+          await fetchAllSpaces();
+        } catch {
+          message.error('调整文章顺序失败');
+        }
+        return;
+      }
 
       if (
         dragNode.type === 'article' &&
