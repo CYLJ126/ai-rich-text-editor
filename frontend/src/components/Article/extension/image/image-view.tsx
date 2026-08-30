@@ -200,7 +200,7 @@ export function ImageView({
         alt={attributes.alt ?? ''}
         title={attributes.title ?? undefined}
         draggable={false}
-        className={`tiptap-img block max-w-full cursor-zoom-in rounded-md ${
+        className={`tiptap-img block max-w-full cursor-zoom-in rounded-md shadow-[4px_5px_10px_rgba(0,0,0,0.22)] ${
           resizingDimensions === undefined
             ? ''
             : 'pointer-events-none select-none'
