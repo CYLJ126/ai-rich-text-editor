@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useEffect, useMemo, useState} from 'react';
 import type {ColorPickerProps, GetProp} from 'antd';
 import {ColorPicker, message, Popover} from 'antd';
@@ -40,7 +41,7 @@ const InnerPicker: React.FC<InnerPickerProps> = ({
         try {
           notify(color);
         } catch (error) {
-          message.error('颜色改变通知失败').then();
+          message.error(i18nText("app.common.mycolorpicker.92bbb81c")).then();
         }
       }, 300),
     // eslint-disable-next-line react-hooks/exhaustive-deps

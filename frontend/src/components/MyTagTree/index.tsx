@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {DownOutlined} from '@ant-design/icons';
 import {Button, Checkbox, Flex, Input, Space, Tree} from 'antd';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
@@ -508,7 +509,7 @@ const MyTagTree: React.FC<MyTagTreeProps> = ({
         // 乐观插入临时子节点，保存后由 refresh 替换为真实数据
         const timestamp = Date.now();
         const newChildData: TagData = {
-          name: '新标签',
+          name: i18nText("app.common.mytagtree.8d5ae0f6"),
           status: 1,
           fatherId: action.id,
         };
@@ -547,7 +548,7 @@ const MyTagTree: React.FC<MyTagTreeProps> = ({
     const timestamp = Date.now();
     // 构造临时新节点数据
     const newRootData: TagData = {
-      name: '新标签',
+      name: i18nText("app.common.mytagtree.8d5ae0f6"),
       status: 1,
       fatherId: fatherId === 0 ? undefined : fatherId,
     };
@@ -562,7 +563,7 @@ const MyTagTree: React.FC<MyTagTreeProps> = ({
     setTreeData((prev) => [...prev, newRootNode]);
     // 向后端提交，成功后用真实数据刷新
     addTag({
-      name: '新标签',
+      name: i18nText("app.common.mytagtree.8d5ae0f6"),
       status: 1,
       fatherId: fatherId === 0 ? undefined : fatherId,
       orderId: treeData.length,
@@ -639,19 +640,19 @@ const MyTagTree: React.FC<MyTagTreeProps> = ({
           className={styles.toggleBtn}
           onClick={toggleExpandState}
         >
-          {expanded ? '全部收起' : '全部展开'}
+          {expanded ? i18nText("app.common.mytagtree.13a5ec9f") : i18nText("app.common.mytagtree.a18eaa8a")}
         </Button>
         <Button
           className={styles.toggleBtn}
           onClick={expandTopTags}
         >
-          展开顶层
+          {i18nText("app.common.mytagtree.35dc27d4")}
         </Button>
         <Button
           className={styles.addBtn}
           onClick={addRootTag}
         >
-          添加
+          {i18nText("app.common.mytagtree.657065b0")}
         </Button>
       </Flex>
 

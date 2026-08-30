@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useEffect, useState} from 'react';
 import {Spin} from 'antd';
 import {DynamicForm} from '@/components';
@@ -66,31 +67,31 @@ const ModelEditForm = ({
     {
       fieldName: 'provider',
       fieldType: 'select',
-      label: '模型提供商',
+      label: i18nText("app.ai.modelsider.modeleditform.bb3d9ba5"),
       required: true,
-      placeholder: '请选择模型提供商',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.0795c3e4"),
       options: providerOptions,
     },
     {
       fieldName: 'modelId',
       fieldType: 'input',
-      label: '模型 ID',
+      label: i18nText("app.ai.modelsider.modeleditform.b32031aa"),
       required: true,
-      placeholder: '请输入模型 ID',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.15696882"),
     },
     {
       fieldName: 'modelName',
       fieldType: 'input',
-      label: '名称',
+      label: i18nText("app.ai.modelsider.modeleditform.743ba271"),
       required: true,
-      placeholder: '请输入模型名称',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.345c1867"),
     },
     {
       fieldName: 'apiKey',
       fieldType: 'input',
-      label: 'API 密钥',
+      label: i18nText("app.ai.modelsider.modeleditform.3f2b7a7d"),
       required: true,
-      placeholder: '请输入 API 密钥',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.b41d4008"),
       transformFunction: (value: string) => {
         // 已是 SM2 密文则跳过，避免编辑时对后端返回的密文重复加密
         if (GMCrypto.isSM2Encrypted(value)) return value;
@@ -100,115 +101,115 @@ const ModelEditForm = ({
     {
       fieldName: 'apiBaseUrl',
       fieldType: 'input',
-      label: 'API 基础 URL',
+      label: i18nText("app.ai.modelsider.modeleditform.fb4b43e1"),
       required: true,
-      placeholder: '请输入 API 基础 URL',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.b9ed74af"),
     },
     {
       fieldName: 'apiVersion',
       fieldType: 'input',
-      label: 'API 版本',
+      label: i18nText("app.ai.modelsider.modeleditform.e95e2bdd"),
       required: false,
-      placeholder: '请输入 API 版本',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.b598ad3b"),
     },
     {
       fieldName: 'contextWindow',
       fieldType: 'number',
-      label: '上下文窗口大小',
+      label: i18nText("app.ai.modelsider.modeleditform.0dcb5e49"),
       required: false,
     },
     {
       fieldName: 'maxTokens',
       fieldType: 'number',
-      label: '最大输出 token 数',
+      label: i18nText("app.ai.modelsider.modeleditform.1a077c0b"),
       required: false,
     },
     {
       fieldName: 'supportVision',
       fieldType: 'select',
-      label: '是否支持视觉',
+      label: i18nText("app.ai.modelsider.modeleditform.4af5509c"),
       required: false,
-      placeholder: '请选择是否支持视觉',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.b1e6a82c"),
       options: [
-        {label: '是', value: true},
-        {label: '否', value: false},
+        {label: i18nText("app.ai.modelsider.modeleditform.f8d44568"), value: true},
+        {label: i18nText("app.ai.modelsider.modeleditform.b2b54bc3"), value: false},
       ],
     },
     {
       fieldName: 'supportFunction',
       fieldType: 'select',
-      label: '是否支持函数',
+      label: i18nText("app.ai.modelsider.modeleditform.e8843de3"),
       required: false,
-      placeholder: '请选择是否支持函数',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.72aa0f0c"),
       options: [
-        {label: '是', value: true},
-        {label: '否', value: false},
+        {label: i18nText("app.ai.modelsider.modeleditform.f8d44568"), value: true},
+        {label: i18nText("app.ai.modelsider.modeleditform.b2b54bc3"), value: false},
       ],
     },
     {
       fieldName: 'supportThinking',
       fieldType: 'select',
-      label: '是否支持思考',
+      label: i18nText("app.ai.modelsider.modeleditform.6a0f084a"),
       required: false,
-      placeholder: '请选择是否支持思考',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.13459154"),
       options: [
-        {label: '是', value: true},
-        {label: '否', value: false},
+        {label: i18nText("app.ai.modelsider.modeleditform.f8d44568"), value: true},
+        {label: i18nText("app.ai.modelsider.modeleditform.b2b54bc3"), value: false},
       ],
     },
     {
       fieldName: 'supportSearch',
       fieldType: 'select',
-      label: '是否支持搜索',
+      label: i18nText("app.ai.modelsider.modeleditform.420de5ba"),
       required: false,
-      placeholder: '请选择是否支持搜索',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.6bfbd6d0"),
       options: [
-        {label: '是', value: true},
-        {label: '否', value: false},
+        {label: i18nText("app.ai.modelsider.modeleditform.f8d44568"), value: true},
+        {label: i18nText("app.ai.modelsider.modeleditform.b2b54bc3"), value: false},
       ],
     },
     {
       fieldName: 'supportPromptCaching',
       fieldType: 'select',
-      label: '是否支持提示缓存',
+      label: i18nText("app.ai.modelsider.modeleditform.7e8f8c2f"),
       required: false,
-      placeholder: '请选择是否支持提示缓存',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.e53e93df"),
       options: [
-        {label: '是', value: true},
-        {label: '否', value: false},
+        {label: i18nText("app.ai.modelsider.modeleditform.f8d44568"), value: true},
+        {label: i18nText("app.ai.modelsider.modeleditform.b2b54bc3"), value: false},
       ],
     },
     {
       fieldName: 'orgId',
       fieldType: 'select',
-      label: '组织 ID',
+      label: i18nText("app.ai.modelsider.modeleditform.bae60abc"),
       required: false,
-      placeholder: '请输入组织 ID',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.a16a06e4"),
       options: [
-        {label: '组织 ID 1', value: 1},
-        {label: '组织 ID 2', value: 2},
+        {label: i18nText("app.ai.modelsider.modeleditform.301d9e41"), value: 1},
+        {label: i18nText("app.ai.modelsider.modeleditform.6dadd797"), value: 2},
       ],
     },
     {
       fieldName: 'inputUnitPrice',
       fieldType: 'number',
-      label: '输入单价',
+      label: i18nText("app.ai.modelsider.modeleditform.de3083d4"),
       required: false,
-      placeholder: '请输入输入单价',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.2a8c9b2a"),
     },
     {
       fieldName: 'outputUnitPrice',
       fieldType: 'number',
-      label: '输出单价',
+      label: i18nText("app.ai.modelsider.modeleditform.948c1217"),
       required: false,
-      placeholder: '请输入输出单价',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.8c89526c"),
     },
     {
       fieldName: 'priceCurrency',
       fieldType: 'select',
-      label: '货币单位',
+      label: i18nText("app.ai.modelsider.modeleditform.0aed44a0"),
       required: false,
-      placeholder: '请选择货币单位',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.110bd4b4"),
       options: [
         {label: 'CNY', value: 'CNY'},
         {label: 'USD', value: 'USD'},
@@ -217,63 +218,63 @@ const ModelEditForm = ({
     {
       fieldName: 'proxy',
       fieldType: 'input',
-      label: '代理',
+      label: i18nText("app.ai.modelsider.modeleditform.8f23ef75"),
       required: false,
-      placeholder: '请输入代理',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.39c90149"),
     },
     {
       fieldName: 'requestsPerMinute',
       fieldType: 'number',
-      label: '每分钟最大请求数（RPM）',
+      label: i18nText("app.ai.modelsider.modeleditform.fb74f081"),
       required: false,
-      placeholder: '请输入每分钟最大请求数（RPM）',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.de79ea68"),
     },
     {
       fieldName: 'tokensPerMinute',
       fieldType: 'number',
-      label: '每分钟最大 Token 数（TPM）',
+      label: i18nText("app.ai.modelsider.modeleditform.8716d64a"),
       required: false,
-      placeholder: '请输入每分钟最大 Token 数（TPM）',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.818065d1"),
     },
     {
       fieldName: 'dailyRequestLimit',
       fieldType: 'number',
-      label: '每日最大请求数',
+      label: i18nText("app.ai.modelsider.modeleditform.4f11f17f"),
       required: false,
-      placeholder: '请输入每日最大请求数',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.eebd8105"),
     },
     {
       fieldName: 'concurrencyLimit',
       fieldType: 'number',
-      label: '并发请求数限制',
+      label: i18nText("app.ai.modelsider.modeleditform.e0874fdf"),
       required: false,
-      placeholder: '请输入并发请求数限制',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.44a1b9eb"),
     },
     {
       fieldName: 'timeoutSeconds',
       fieldType: 'number',
-      label: '请求超时时间（秒）',
+      label: i18nText("app.ai.modelsider.modeleditform.82e55cff"),
       required: false,
-      placeholder: '请输入请求超时时间（秒）',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.6fcc72fc"),
     },
     {
       fieldName: 'maxRetries',
       fieldType: 'number',
-      label: '最大重试次数',
+      label: i18nText("app.ai.modelsider.modeleditform.28d1eb62"),
       required: false,
-      placeholder: '请输入最大重试次数',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.9f5b8505"),
     },
     {
       fieldName: 'sortOrder',
       fieldType: 'number',
-      label: '排序',
+      label: i18nText("app.ai.modelsider.modeleditform.d94dc205"),
       required: true,
       defaultValue: 1,
-      placeholder: '请输入排序值',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.6892fb9f"),
       rules: [
         {
           pattern: /^[0-9]+$/,
-          message: '排序只能输入自然数',
+          message: i18nText("app.ai.modelsider.modeleditform.f013f731"),
         },
       ],
       extraProps: {min: 0, max: 1000, precision: 0},
@@ -281,20 +282,20 @@ const ModelEditForm = ({
     {
       fieldName: 'status',
       fieldType: 'select',
-      label: '状态',
+      label: i18nText("app.ai.modelsider.modeleditform.8363b67c"),
       required: true,
       defaultValue: 1,
       options: [
-        {label: '启用', value: 1},
-        {label: '禁用', value: 3},
+        {label: i18nText("app.ai.modelsider.modeleditform.535e21e7"), value: 1},
+        {label: i18nText("app.ai.modelsider.modeleditform.2af436d1"), value: 3},
       ],
     },
     {
       fieldName: 'description',
       fieldType: 'input',
-      label: '描述',
+      label: i18nText("app.ai.modelsider.modeleditform.a223d373"),
       required: false,
-      placeholder: '请输入描述',
+      placeholder: i18nText("app.ai.modelsider.modeleditform.f4aea1c2"),
       span: 12,
       extraProps: {
         rows: 1,
@@ -304,7 +305,7 @@ const ModelEditForm = ({
     {
       fieldName: 'defaultParams',
       fieldType: 'json',
-      label: '默认参数',
+      label: i18nText("app.ai.modelsider.modeleditform.7a726839"),
       required: false,
       height: 150,
       fullWidth: true,
@@ -332,7 +333,7 @@ const ModelEditForm = ({
   if (loading) {
     return (
       <div style={{padding: '50px 0', textAlign: 'center'}}>
-        <Spin size="large" description="加载中..."/>
+        <Spin size="large" description={i18nText("app.ai.modelsider.modeleditform.a46c7b8a")}/>
       </div>
     );
   }
@@ -346,8 +347,8 @@ const ModelEditForm = ({
       mode={isEdit ? 'edit' : 'create'}
       size="medium"
       columns={4}
-      submitText={isEdit ? '更新' : '创建'}
-      cancelText="取消"
+      submitText={isEdit ? i18nText("app.ai.modelsider.modeleditform.be1c57f4") : i18nText("app.ai.modelsider.modeleditform.c0c098dc")}
+      cancelText={i18nText("app.ai.modelsider.modeleditform.3ea69b66")}
       loading={submitLoading}
     />
   );

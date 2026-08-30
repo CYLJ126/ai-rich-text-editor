@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useImperativeHandle, useState} from 'react';
 import {AssistantConfig, AssistantParam} from "@/types/ai.type";
 import {Button, Modal} from "antd";
@@ -49,7 +50,7 @@ function transferAssistant(assistant: AssistantConfig) {
   return {
     origin: assistant,
     key: assistant.id,
-    title: assistant.name || '未命名助手',
+    title: assistant.name || i18nText("app.ai.assistantsider.194f73c6"),
     icon: assistant.avatar || 'robot',
     abstractInfo,
     pinFlag: assistant.pinFlag,
@@ -75,7 +76,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
     if (!assistant.defaultFlag) {
       defaultOperation.push({
         key: "setDefault",
-        label: "设为默认",
+        label: i18nText("app.ai.assistantsider.3ea5581a"),
         order: 1,
         icon: <StarOutlined/>,
         onClick: (current: RightSiderItem) => setAsDefaultAssistant(current.key as number).then(() => {
@@ -87,7 +88,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
     const restOperations = [
       {
         key: "pin",
-        label: assistant.pinFlag ? "取消置顶" : "置顶",
+        label: assistant.pinFlag ? i18nText("app.ai.assistantsider.ed37ce7f") : i18nText("app.ai.assistantsider.1e93d851"),
         order: 2,
         icon: assistant.pinFlag ? <PushpinOutlined/> : <PushpinFilled/>,
         onClick: (current: RightSiderItem) => toggleAssistantPin(current.key as number, !current.pinFlag).then(() => {
@@ -102,7 +103,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
         }),
       },
       {
-        label: disabled ? "启用" : "禁用",
+        label: disabled ? i18nText("app.ai.assistantsider.4d7df07f") : i18nText("app.ai.assistantsider.a7802f68"),
         order: 3,
         icon: disabled ? <CheckOutlined/> : <CloseOutlined/>,
         onClick: (current: RightSiderItem) => toggleAssistantStatus(current.key as number, disabled ? 1 : 3).then(() => {
@@ -118,18 +119,18 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
       },
       {
         key: "edit",
-        label: "编辑",
+        label: i18nText("app.ai.assistantsider.77356810"),
         order: 4,
         icon: <EditOutlined/>,
         onClick: () => {
-          formModalTitleRef.current = '编辑助手';
+          formModalTitleRef.current = i18nText("app.ai.assistantsider.78e32761");
           setFormModalVisible(true);
         },
       },
       {type: 'divider' as const, order: 5},
       {
         key: "delete",
-        label: "删除",
+        label: i18nText("app.ai.assistantsider.da9a1203"),
         order: 6,
         isDanger: true,
         icon: <DeleteOutlined/>,
@@ -197,7 +198,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
 
   // 添加助手
   const addAssistant = useCallback(() => {
-    formModalTitleRef.current = '添加助手';
+    formModalTitleRef.current = i18nText("app.ai.assistantsider.2cbcebe1");
     setActiveKey(undefined);
     setFormModalVisible(true);
   }, [setFormModalVisible]);
@@ -219,7 +220,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
         className="rounded-lg"
         onClick={addAssistant}
       >
-        添加助手
+        {i18nText("app.ai.assistantsider.2cbcebe1")}
       </Button>
     </>
   );
@@ -234,7 +235,7 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
         loadFunc={searchAssistants}
         activeKey={activeKey}
         virtualItem={defaultAssistant}
-        virtualTip="默认助手"
+        virtualTip={i18nText("app.ai.assistantsider.b9d095bb")}
         onItemClick={(item) => {
           setActiveKey(Number(item.key));
           onItemClick?.(item.origin);
@@ -242,10 +243,10 @@ const AssistantSider = forwardRef<AssistantSiderRef, AssistantSiderProps>((props
         onItemDoubleClick={(item) => {
           setActiveKey(Number(item.key));
           onItemDoubleClick?.(item.origin);
-          formModalTitleRef.current = '编辑助手';
+          formModalTitleRef.current = i18nText("app.ai.assistantsider.78e32761");
           setFormModalVisible(true);
         }}
-        emptyRender={<span className="text-sm">暂无助手</span>}
+        emptyRender={<span className="text-sm">{i18nText("app.ai.assistantsider.fdac443f")}</span>}
       />
       <Modal
         title={formModalTitleRef.current}

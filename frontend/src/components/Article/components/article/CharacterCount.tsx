@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useEffect, useRef, useState} from 'react';
 import ProgressBar from "@/components/ProgressBar";
 import {createStyles} from "antd-style";
@@ -59,7 +60,7 @@ const CharacterCount: React.FC<CharacterCountProps> = ({characterCount}) => {
         showInfo={false}
         className={styles.progressBar}
       >
-        <span>字数：{characterCount}/{MAX_CHARACTER_COUNT}</span>
+        <span>{i18nText("app.article.article.charactercount.b67f2e87")}{characterCount}/{MAX_CHARACTER_COUNT}</span>
       </ProgressBar>
     </div>
   )

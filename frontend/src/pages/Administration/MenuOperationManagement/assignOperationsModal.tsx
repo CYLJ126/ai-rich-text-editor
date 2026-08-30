@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useRef} from 'react';
 import {SimpleTable, TableColumn} from '@/components';
 import {
@@ -17,22 +18,22 @@ interface AssignOperationsModalProps {
 
 const operationColumns: TableColumn[] = [
     {
-        title: '权限名称',
+        title: i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.bcb54330"),
         dataIndex: 'operationName',
         width: 150,
     },
     {
-        title: '菜单编码',
+        title: i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.e064ee96"),
         dataIndex: 'menuCode',
         width: 100,
     },
     {
-        title: '权限编码',
+        title: i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.512860ba"),
         dataIndex: 'operationCode',
         width: 100,
     },
     {
-        title: '描述',
+        title: i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.27a54f93"),
         dataIndex: 'description',
         width: 300,
     },
@@ -61,7 +62,7 @@ const AssignOperationsModal: React.FC<AssignOperationsModalProps> = ({
     const handleAssignOperations = () => {
         const selectedOperations = operationTableRef.current?.getSelectedRows() || [];
         if (selectedOperations.length === 0) {
-            message.warning('请选择至少一个权限').then();
+            message.warning(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.022e88bb")).then();
             return;
         }
 
@@ -84,20 +85,20 @@ const AssignOperationsModal: React.FC<AssignOperationsModalProps> = ({
 
         assignPromise
             .then(() => {
-                message.success('权限分配成功').then();
+                message.success(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.045ccc08")).then();
                 onSuccess();
             })
             .catch((error) => {
-                message.error(`权限分配失败: ${error.message}`).then();
+                message.error(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.f8373591", {value0: error.message})).then();
             });
     };
 
     // 获取弹窗标题
     const getModalTitle = () => {
         if (sourceType === 'role') {
-            return `为角色 ${sourceName} 分配权限`;
+            return i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.88c7c888", {value0: sourceName});
         } else {
-            return `为用户 ${sourceName} 分配权限`;
+            return i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.d39ef32c", {value0: sourceName});
         }
     };
 
@@ -108,10 +109,10 @@ const AssignOperationsModal: React.FC<AssignOperationsModalProps> = ({
             onCancel={onCancel}
             footer={[
                 <Button key="cancel" onClick={onCancel}>
-                    取消
+                    {i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.16677176")}
                 </Button>,
                 <Button key="assign" type="primary" onClick={handleAssignOperations}>
-                    分配
+                    {i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.5030849e")}
                 </Button>,
             ]}
             width={1000}

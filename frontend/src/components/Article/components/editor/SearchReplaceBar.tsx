@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   CloseOutlined,
   DownOutlined,
@@ -67,7 +68,7 @@ const findMatches = (
   } catch (error) {
     return {
       matches: [],
-      error: error instanceof Error ? error.message : '正则表达式无效',
+      error: error instanceof Error ? error.message : i18nText("app.article.editor.searchreplacebar.0b12ff3e"),
     };
   }
 
@@ -381,7 +382,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
           variant="borderless"
           status={searchResult.error ? 'error' : undefined}
           value={query}
-          placeholder="搜索文章内容"
+          placeholder={i18nText("app.article.editor.searchreplacebar.3fcdb272")}
           onChange={(event) => {
             setQuery(event.target.value);
             resetToSearchStartRef.current = true;
@@ -398,7 +399,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
             if (event.key === 'Escape') close();
           }}
         />
-        <Tooltip title="区分大小写">
+        <Tooltip title={i18nText("app.article.editor.searchreplacebar.f9152b29")}>
           <Button
             type={caseSensitive ? 'primary' : 'text'}
             size="small"
@@ -415,8 +416,8 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
         <Tooltip
           title={
             searchResult.error
-              ? `正则表达式无效：${searchResult.error}`
-              : '使用正则表达式'
+              ? i18nText("app.article.editor.searchreplacebar.c6d80116", {value0: searchResult.error})
+              : i18nText("app.article.editor.searchreplacebar.8f15a37c")
           }
         >
           <Button
@@ -435,38 +436,38 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
         </Tooltip>
         <span className={styles.matchCount}>
           {searchResult.error
-            ? '无效'
+            ? i18nText("app.article.editor.searchreplacebar.aedca075")
             : query
               ? `${matches.length ? activeIndex + 1 : 0}/${matches.length}`
               : ''}
         </span>
-        <Tooltip title="上一处（Shift + Enter）">
+        <Tooltip title={i18nText("app.article.editor.searchreplacebar.6168b3d3")}>
           <Button
             type="text"
             size="small"
             icon={<UpOutlined />}
             disabled={!matches.length}
             onClick={goToPrevious}
-            aria-label="上一处"
+            aria-label={i18nText("app.article.editor.searchreplacebar.8e4ba8aa")}
           />
         </Tooltip>
-        <Tooltip title="下一处（Enter）">
+        <Tooltip title={i18nText("app.article.editor.searchreplacebar.2d287c9e")}>
           <Button
             type="text"
             size="small"
             icon={<DownOutlined />}
             disabled={!matches.length}
             onClick={goToNext}
-            aria-label="下一处"
+            aria-label={i18nText("app.article.editor.searchreplacebar.3cb938b1")}
           />
         </Tooltip>
-        <Tooltip title={replaceVisible ? '收起替换' : '展开替换'}>
+        <Tooltip title={replaceVisible ? i18nText("app.article.editor.searchreplacebar.cda6279d") : i18nText("app.article.editor.searchreplacebar.4e0e5892")}>
           <Button
             type="text"
             size="small"
             icon={<SwapOutlined />}
             onClick={() => setReplaceVisible((visible) => !visible)}
-            aria-label="展开或收起替换"
+            aria-label={i18nText("app.article.editor.searchreplacebar.09736f6a")}
           />
         </Tooltip>
         <Button
@@ -474,7 +475,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
           size="small"
           icon={<CloseOutlined />}
           onClick={close}
-          aria-label="关闭搜索"
+          aria-label={i18nText("app.article.editor.searchreplacebar.63f331de")}
         />
       </div>
       {replaceVisible && (
@@ -483,7 +484,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
           <Input
             variant="borderless"
             value={replacement}
-            placeholder={canReplace ? '替换为' : '编辑模式下可替换'}
+            placeholder={canReplace ? i18nText("app.article.editor.searchreplacebar.7effc9be") : i18nText("app.article.editor.searchreplacebar.6429e3da")}
             disabled={!canReplace}
             onChange={(event) => setReplacement(event.target.value)}
             onPressEnter={replaceCurrent}
@@ -496,7 +497,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
             disabled={!canReplace || !query || !matches.length}
             onClick={replaceCurrent}
           >
-            替换
+            {i18nText("app.article.editor.searchreplacebar.53c5615e")}
           </Button>
           <Button
             type="primary"
@@ -504,7 +505,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
             disabled={!canReplace || !query || !matches.length}
             onClick={replaceAll}
           >
-            全部替换
+            {i18nText("app.article.editor.searchreplacebar.5c99541d")}
           </Button>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import {
   AlipayCircleOutlined,
   LockOutlined,
@@ -6,17 +7,28 @@ import {
   UserOutlined,
   WeiboCircleOutlined,
 } from '@ant-design/icons';
-import {LoginForm, ProFormCaptcha, ProFormCheckbox, ProFormText,} from '@ant-design/pro-components';
-import {FormattedMessage, Helmet, SelectLang, useIntl, useModel,} from '@umijs/max';
-import {Alert, App, Button, Tabs} from 'antd';
-import {createStyles} from 'antd-style';
-import React, {startTransition, useState} from 'react';
-import {Footer} from '@/components';
-import {getPubKey, login} from '@/services/ant-design-pro/base';
-import {getFakeCaptcha} from '@/services/ant-design-pro/login';
+import {
+  LoginForm,
+  ProFormCaptcha,
+  ProFormCheckbox,
+  ProFormText,
+} from '@ant-design/pro-components';
+import {
+  FormattedMessage,
+  Helmet,
+  SelectLang,
+  useIntl,
+  useModel,
+} from '@umijs/max';
+import { Alert, App, Button, Tabs } from 'antd';
+import { createStyles } from 'antd-style';
+import React, { startTransition, useState } from 'react';
+import { Footer } from '@/components';
+import { getPubKey, login } from '@/services/ant-design-pro/base';
+import { getFakeCaptcha } from '@/services/ant-design-pro/login';
 import Settings from '../../../../config/defaultSettings';
-import {initialUserTags} from './initialBaseInfo';
-import {GMCrypto} from '@/utils/crypto/gmCrypto';
+import { initialUserTags } from './initialBaseInfo';
+import { GMCrypto } from '@/utils/crypto/gmCrypto';
 
 /**
  * Validate redirect URL to prevent open redirect attacks.
@@ -146,12 +158,12 @@ const Login: React.FC = () => {
         if (pubkey !== null) {
           localStorage.setItem('platform-public-key', pubkey);
         } else {
-          message.error('获取公钥失败，请联系管理员').then();
+          message.error(i18nText('app.user.login.bfe08e19')).then();
           return;
         }
       }
       if (!values.password) {
-        message.warning('请输入密码').then();
+        message.warning(i18nText('app.user.login.3956237e')).then();
         return;
       }
       // 密码加密
@@ -212,9 +224,14 @@ const Login: React.FC = () => {
             minWidth: 280,
             maxWidth: '75vw',
           }}
-          logo={<img alt="logo" src="/balloon-flat.svg" />}
+          logo={
+            <img
+              alt={intl.formatMessage({ id: 'app.common.logo' })}
+              src="/balloon-flat.svg"
+            />
+          }
           title="Nobody Is Perfect"
-          subTitle={'Better late than never.'}
+          subTitle={intl.formatMessage({ id: 'app.login.motto' })}
           initialValues={{
             autoLogin: true,
           }}
@@ -310,7 +327,7 @@ const Login: React.FC = () => {
           )}
 
           {status === 'error' && loginType === 'mobile' && (
-            <LoginMessage content="验证码错误" />
+            <LoginMessage content={i18nText('app.user.login.04fc89cd')} />
           )}
           {type === 'mobile' && (
             <>
@@ -388,7 +405,7 @@ const Login: React.FC = () => {
                   if (!result) {
                     return;
                   }
-                  message.success('获取验证码成功！验证码为：1234');
+                  message.success(i18nText('app.user.login.367e4f12'));
                 }}
               />
             </>

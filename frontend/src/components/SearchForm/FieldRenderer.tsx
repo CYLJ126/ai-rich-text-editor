@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useMemo} from 'react';
 import {
     Cascader,
@@ -184,14 +185,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
                     <InputNumber
                         value={value?.[0]}
                         onChange={(val) => handleChange([val, value?.[1]])}
-                        placeholder="最小值"
+                        placeholder={i18nText("app.common.searchform.fieldrenderer.2c40f64a")}
                         size={size}
                     />
                     <span className="range-separator">~</span>
                     <InputNumber
                         value={value?.[1]}
                         onChange={(val) => handleChange([value?.[0], val])}
-                        placeholder="最大值"
+                        placeholder={i18nText("app.common.searchform.fieldrenderer.f0a25ed0")}
                         size={size}
                     />
                 </div>

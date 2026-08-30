@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { ForkOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Button } from 'antd';
@@ -28,7 +29,7 @@ export const VersionDropdown: React.FC = () => {
         style: { minWidth: 100 },
       }}
     >
-      <Button type="text" className={styles.action} aria-label="历史版本">
+      <Button type="text" className={styles.action} aria-label={i18nText("app.common.rightcontent.versiondropdown.6ea94a4e")}>
         <ForkOutlined />
       </Button>
     </HeaderDropdown>

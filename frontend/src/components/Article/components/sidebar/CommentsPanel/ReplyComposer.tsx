@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Input} from 'antd';
 import React, {type MouseEvent, useState} from 'react';
 
@@ -30,7 +31,7 @@ export default function ReplyComposer({
       <TextArea
         autoSize={{ minRows: 2, maxRows: 4 }}
         disabled={disabled || submitting || !canSubmit}
-        placeholder="回复这个批注线程..."
+        placeholder={i18nText("app.article.commentspanel.replycomposer.dcf0fecd")}
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
@@ -51,7 +52,7 @@ export default function ReplyComposer({
             }
           }}
         >
-          回复
+          {i18nText("app.article.commentspanel.replycomposer.663d32ba")}
         </Button>
       </div>
     </div>

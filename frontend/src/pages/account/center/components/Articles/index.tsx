@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { LikeOutlined, MessageFilled, StarTwoTone } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Flex, List, Tag } from 'antd';
@@ -56,8 +57,8 @@ const Articles: React.FC = () => {
             description={
               <Flex wrap gap="small">
                 <Tag>Ant Design</Tag>
-                <Tag>设计语言</Tag>
-                <Tag>蚂蚁集团</Tag>
+                <Tag>{i18nText("app.account.articles.d32a4d57")}</Tag>
+                <Tag>{i18nText("app.account.articles.d2c86c67")}</Tag>
               </Flex>
             }
           />

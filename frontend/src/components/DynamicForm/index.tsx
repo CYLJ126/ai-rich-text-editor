@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import {
   Button,
   Cascader,
@@ -20,14 +21,20 @@ import {
   TreeSelect,
   Upload,
 } from 'antd';
-import {debounce} from 'lodash';
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import type {DynamicFormProps, FormFieldConfig} from './FormField';
+import { debounce } from 'lodash';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { DynamicFormProps, FormFieldConfig } from './FormField';
 import HistoryTab from './HistoryTab';
 import NumberRange from './NumberRange';
 import RegionPicker from './RegionPicker';
-import {IconPicker} from '@/components/DynamicIcon';
-import {JsonEditor} from "@/components";
+import { IconPicker } from '@/components/DynamicIcon';
+import { JsonEditor } from '@/components';
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
@@ -40,8 +47,8 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
   mode = 'create',
   size = 'medium',
   columns = 2,
-  submitText = '提交',
-  cancelText = '取消',
+  submitText = i18nText('app.common.dynamicform.6614bb9f'),
+  cancelText = i18nText('app.common.dynamicform.665a89dd'),
   submitShortcut = 'Ctrl+S',
   cancelShortcut = 'Escape',
   loading = false,
@@ -90,14 +97,15 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
             {} as Record<string, any>,
           );
         }
-        f.loadOptionsFunc(f, dependentValues).then((res) => setOptionsCache((prev) => ({
-          ...prev,
-          [f.fieldName]: res,
-        })));
+        f.loadOptionsFunc(f, dependentValues).then((res) =>
+          setOptionsCache((prev) => ({
+            ...prev,
+            [f.fieldName]: res,
+          })),
+        );
       }
     });
   });
-
 
   const handleSubmitClick = () => {
     setSubmitConfirmVisible(true);
@@ -155,7 +163,13 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         }));
       } catch (error) {
         console.error(`Failed to load options for ${field.fieldName}:`, error);
-        message.error(`加载${field.label}选项失败`).then();
+        message
+          .error(
+            i18nText('app.common.dynamicform.f7be2880', {
+              value0: field.label,
+            }),
+          )
+          .then();
       }
     },
     [],
@@ -182,10 +196,12 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
             {} as Record<string, any>,
           );
           if (f.loadOptionsFunc) {
-            f.loadOptionsFunc(f, dependentValues).then((res) => setOptionsCache((prev) => ({
-              ...prev,
-              [f.fieldName]: res,
-            })));
+            f.loadOptionsFunc(f, dependentValues).then((res) =>
+              setOptionsCache((prev) => ({
+                ...prev,
+                [f.fieldName]: res,
+              })),
+            );
           } else {
             defaultLoadOptions(f, dependentValues).then();
           }
@@ -317,7 +333,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         return (
           <Switch
             {...commonProps}
-            style={{...commonProps.style, width: 50, height: 23}}
+            style={{ ...commonProps.style, width: 50, height: 23 }}
             onChange={(checked) => handleFieldChange(field, checked)}
           />
         );
@@ -347,7 +363,10 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         return (
           <RangePicker
             {...commonProps}
-            placeholder={['开始日期', '结束日期']}
+            placeholder={[
+              i18nText('app.common.dynamicform.7a84342d'),
+              i18nText('app.common.dynamicform.5074f263'),
+            ]}
             onChange={(dates, dateStrings) =>
               handleFieldChange(field, dateStrings)
             }
@@ -362,8 +381,8 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
             {...commonProps}
             onChange={(value) => handleFieldChange(field, value)}
             placeholder={[
-              field.placeholder || '最小值',
-              field.placeholder || '最大值',
+              field.placeholder || i18nText('app.common.dynamicform.1d8d7d36'),
+              field.placeholder || i18nText('app.common.dynamicform.cf2f910b'),
             ]}
           />
         );
@@ -373,7 +392,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
           <div className="pr-4">
             <Slider
               {...commonProps}
-              style={{...commonProps.style, margin: 5}}
+              style={{ ...commonProps.style, margin: 5 }}
               min={field.extraProps?.min}
               max={field.extraProps?.max}
               step={field.extraProps?.step}
@@ -441,7 +460,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
             {...commonProps}
             onChange={(info) => handleFieldChange(field, info.fileList)}
           >
-            <Button>上传文件</Button>
+            <Button>{i18nText('app.common.dynamicform.44bf94aa')}</Button>
           </Upload>
         );
 
@@ -489,7 +508,17 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
 
       if (onSubmit) {
         await onSubmit(transformedValues);
-        message.success(`${mode === 'create' ? '创建' : '更新'}成功`).then();
+        message
+          .success(
+            i18nText('app.common.dynamicform.3f1de104', {
+              value0: i18nText(
+                mode === 'create'
+                  ? 'app.common.dynamicform.3d950905'
+                  : 'app.common.dynamicform.881e9e21',
+              ),
+            }),
+          )
+          .then();
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -522,7 +551,14 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
               }
               rules={[
                 ...(field.required
-                  ? [{ required: true, message: `请输入${field.label}` }]
+                  ? [
+                      {
+                        required: true,
+                        message: i18nText('app.common.dynamicform.c79d3b69', {
+                          value0: field.label,
+                        }),
+                      },
+                    ]
                   : []),
                 ...(field.rules || []),
               ]}
@@ -538,7 +574,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
   const tabItems = [
     {
       key: 'form',
-      label: '基本信息',
+      label: i18nText('app.common.dynamicform.e4ca6870'),
       children: (
         <Form
           form={form}
@@ -555,7 +591,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
   if (mode === 'view' && historyData) {
     tabItems.push({
       key: 'history',
-      label: '历史记录',
+      label: i18nText('app.common.dynamicform.1004e217'),
       children: <HistoryTab data={historyData} />,
     });
   }
@@ -614,14 +650,18 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         )}
 
         <Modal
-          title="确认提交"
+          title={i18nText('app.common.dynamicform.5506bfd5')}
           open={submitConfirmVisible}
           onOk={handleSubmit}
           onCancel={() => setSubmitConfirmVisible(false)}
-          okText="确认"
-          cancelText="取消"
+          okText={i18nText('app.common.dynamicform.5b34d296')}
+          cancelText={i18nText('app.common.dynamicform.665a89dd')}
         >
-          确定要{mode === 'create' ? '创建' : '更新'}此记录吗？
+          {i18nText('app.common.dynamicform.06ef01d2')}
+          {mode === 'create'
+            ? i18nText('app.common.dynamicform.3d950905')
+            : i18nText('app.common.dynamicform.881e9e21')}
+          {i18nText('app.common.dynamicform.eb2fd6f5')}
         </Modal>
       </div>
     </div>

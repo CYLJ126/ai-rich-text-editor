@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {GridContent} from '@ant-design/pro-components';
 import {Menu} from 'antd';
 import React, {useLayoutEffect, useRef, useState} from 'react';
@@ -14,10 +15,10 @@ type SettingsState = {
 };
 
 const menuMap: Record<string, React.ReactNode> = {
-  base: '基本设置',
-  security: '安全设置',
-  binding: '账号绑定',
-  notification: '新消息通知',
+  base: i18nText("app.account.settings.518f6bc3"),
+  security: i18nText("app.account.settings.6e7dd522"),
+  binding: i18nText("app.account.settings.0bc17387"),
+  notification: i18nText("app.account.settings.c809225e"),
 };
 const menuItems = Object.keys(menuMap).map((item) => ({
   key: item,

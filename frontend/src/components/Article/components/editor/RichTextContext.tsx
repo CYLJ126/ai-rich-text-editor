@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   AlignCenterOutlined,
   BgColorsOutlined,
@@ -84,32 +85,32 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
     () => [
       {
         key: 'text-bold',
-        label: '文本加粗【Mod-B】',
+        label: i18nText("app.article.editor.richtextcontext.c9c3dc07"),
         icon: <BoldOutlined />,
         onClick: () => editorRef.current?.chain().focus().toggleBold().run(),
       },
       {
         key: 'text-italic',
-        label: '文本斜体【Mod-I】',
+        label: i18nText("app.article.editor.richtextcontext.6334cde6"),
         icon: <ItalicOutlined />,
         onClick: () => editorRef.current?.chain().focus().toggleItalic().run(),
       },
       {
         key: 'text-underline',
-        label: '文本下划线【Mod-U】',
+        label: i18nText("app.article.editor.richtextcontext.b060e21d"),
         icon: <UnderlineOutlined />,
         onClick: () =>
           editorRef.current?.chain().focus().toggleUnderline().run(),
       },
       {
         key: 'text-strike-through',
-        label: '文本删除线【Mod-Shift-S】',
+        label: i18nText("app.article.editor.richtextcontext.89920612"),
         icon: <StrikethroughOutlined />,
         onClick: () => editorRef.current?.chain().focus().toggleStrike().run(),
       },
       {
         key: 'text-color',
-        label: '文本颜色',
+        label: i18nText("app.article.editor.richtextcontext.d7355ca6"),
         icon: <FontColorsOutlined />,
         children: (
           // 使用 setFontColor 替换 ref 赋值
@@ -130,7 +131,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-background-color',
-        label: '文本背景色',
+        label: i18nText("app.article.editor.richtextcontext.4383f4c2"),
         icon: <BgColorsOutlined />,
         children: (
           // 使用 setBackgroundColor 替换 ref 赋值
@@ -151,14 +152,14 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-align',
-        label: '文本对齐',
+        label: i18nText("app.article.editor.richtextcontext.0a5f9390"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<AlignCenterOutlined />}
             options={[
-              { label: '左对齐【Mod-Shift-L】', value: 'left' },
-              { label: '居中对齐【Mod-Shift-E】', value: 'center' },
-              { label: '右对齐【Mod-Shift-R】', value: 'right' },
+              { label: i18nText("app.article.editor.richtextcontext.d0891109"), value: 'left' },
+              { label: i18nText("app.article.editor.richtextcontext.e9a097b6"), value: 'center' },
+              { label: i18nText("app.article.editor.richtextcontext.e2f3554d"), value: 'right' },
             ]}
             onSelect={(val) =>
               (editorRef.current?.chain().focus() as any)
@@ -170,14 +171,14 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-list',
-        label: '文本列表',
+        label: i18nText("app.article.editor.richtextcontext.158fc602"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<UnorderedListOutlined />}
             options={[
-              { label: '有序列表【Mod-Shift-7】', value: 'ordered' },
-              { label: '无序列表【Mod-Shift-8】', value: 'unordered' },
-              { label: '任务列表【Mod-Shift-9】', value: 'toggleTaskList' },
+              { label: i18nText("app.article.editor.richtextcontext.ec9f8eb3"), value: 'ordered' },
+              { label: i18nText("app.article.editor.richtextcontext.5463c81d"), value: 'unordered' },
+              { label: i18nText("app.article.editor.richtextcontext.e2579ac7"), value: 'toggleTaskList' },
             ]}
             onSelect={(val) => {
               switch (val) {
@@ -199,7 +200,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-format',
-        label: '文本格式化',
+        label: i18nText("app.article.editor.richtextcontext.7049b9d2"),
         icon: <FormatPainterOutlined />,
         onClick: () => {
           const rawSelection =
@@ -257,17 +258,17 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-type',
-        label: '其他文本',
+        label: i18nText("app.article.editor.richtextcontext.425156a9"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<NodeExpandOutlined />}
             options={[
-              { label: '文本代码【Mod-E】', value: 'text-code' },
-              { label: '文本链接【Mod-K】', value: 'text-link' },
-              { label: '文本上标【Mod-.】', value: 'text-superscript' },
-              { label: '文本下标【Mod-,】', value: 'text-subscript' },
-              { label: '数学公式【Mod-M】', value: 'text-math' },
-              { label: '文本引用【Mod-Shift-B】', value: 'quote' },
+              { label: i18nText("app.article.editor.richtextcontext.bf7c3465"), value: 'text-code' },
+              { label: i18nText("app.article.editor.richtextcontext.f37c2f04"), value: 'text-link' },
+              { label: i18nText("app.article.editor.richtextcontext.6d52f7d4"), value: 'text-superscript' },
+              { label: i18nText("app.article.editor.richtextcontext.61000ae1"), value: 'text-subscript' },
+              { label: i18nText("app.article.editor.richtextcontext.971e0f7b"), value: 'text-math' },
+              { label: i18nText("app.article.editor.richtextcontext.f5375a63"), value: 'quote' },
             ]}
             onSelect={(val) => {
               if (!editorRef.current) return;
@@ -299,26 +300,26 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-translate',
-        label: '文本翻译',
+        label: i18nText("app.article.editor.richtextcontext.b66ccf99"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<TranslationOutlined />}
             options={[
-              { label: '翻译选中内容', value: 'translateSelection' },
+              { label: i18nText("app.article.editor.richtextcontext.e63a45fc"), value: 'translateSelection' },
               {
-                label: '翻译并替换选中内容',
+                label: i18nText("app.article.editor.richtextcontext.8d0fb29e"),
                 value: 'translateAndReplaceSelection',
               },
               {
-                label: '翻译并插入选中内容',
+                label: i18nText("app.article.editor.richtextcontext.eb30ca2a"),
                 value: 'translateSelectionAndInsertAfter',
               },
-              { label: '翻译本段', value: 'translateParagraphs' },
+              { label: i18nText("app.article.editor.richtextcontext.6ee668d6"), value: 'translateParagraphs' },
               {
-                label: '翻译并替换本段',
+                label: i18nText("app.article.editor.richtextcontext.b9bfc9bc"),
                 value: 'translateAndReplaceParagraphs',
               },
-              { label: '翻译并插入引用', value: 'translateAndInsertAsQuote' },
+              { label: i18nText("app.article.editor.richtextcontext.386caa53"), value: 'translateAndInsertAsQuote' },
             ]}
             onSelect={(val) => {
               switch (val) {
@@ -370,15 +371,15 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-tools',
-        label: '文本工具',
+        label: i18nText("app.article.editor.richtextcontext.26ce764b"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<ToolOutlined />}
-            options={[{ label: '解读', value: 'interpret' }]}
+            options={[{ label: i18nText("app.article.editor.richtextcontext.904d0278"), value: 'interpret' }]}
             onSelect={(val) => {
               switch (val) {
                 case 'interpret':
-                  message.info('解读功能暂未实现').then();
+                  message.info(i18nText("app.article.editor.richtextcontext.d70cb7fd")).then();
                   return;
                 default:
                   break;
@@ -389,7 +390,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-font-size',
-        label: '字体大小',
+        label: i18nText("app.article.editor.richtextcontext.6e52f611"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<FontSizeOutlined />}
@@ -406,10 +407,10 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-font-family',
-        label: '字体族',
+        label: i18nText("app.article.editor.richtextcontext.5f50ffc6"),
         renderCustom: () => (
           <DropdownToolbarButton
-            icon={<span>字</span>}
+            icon={<span>{i18nText("app.article.editor.richtextcontext.75b177fb")}</span>}
             options={FONT_FAMILY_OPTIONS}
             activeValue={currentFontFamily}
             onSelect={(val) => {
@@ -423,7 +424,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       },
       {
         key: 'text-line-height',
-        label: '行高',
+        label: i18nText("app.article.editor.richtextcontext.b267a805"),
         renderCustom: () => (
           <DropdownToolbarButton
             icon={<LineHeightOutlined />}

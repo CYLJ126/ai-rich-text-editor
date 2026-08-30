@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {
   forwardRef,
   useCallback,
@@ -138,12 +139,12 @@ const useStyles = createStyles(({token, css}) => ({
 
 // ─── 快捷提示词 ───
 const QUICK_HINTS = [
-  '帮我写一段 Python 代码',
-  '用简洁的语言解释量子计算',
-  '给我推荐一份健康的早餐食谱',
-  '分析一下当前 AI 发展趋势',
-  '帮我优化这段 SQL 查询',
-  '写一封正式的商务邮件',
+  i18nText("app.ai.messagelist.13230391"),
+  i18nText("app.ai.messagelist.fad04a49"),
+  i18nText("app.ai.messagelist.aed36983"),
+  i18nText("app.ai.messagelist.a2fddccc"),
+  i18nText("app.ai.messagelist.16275bbd"),
+  i18nText("app.ai.messagelist.483d3123"),
 ];
 
 // ─── Props ───
@@ -371,12 +372,12 @@ const MessageList = forwardRef(
       try {
         await navigator.clipboard.writeText(getDisplayedContent(msg));
         setCopiedMessageId(msg.messageId);
-        antdMessage.success('已复制到剪贴板').then();
+        antdMessage.success(i18nText("app.ai.messagelist.0f53d91f")).then();
         setTimeout(() => {
           setCopiedMessageId((current) => current === msg.messageId ? undefined : current);
         }, 2000);
       } catch {
-        antdMessage.error('复制失败').then();
+        antdMessage.error(i18nText("app.ai.messagelist.d714de45")).then();
       }
     }, [getDisplayedContent]);
 
@@ -397,7 +398,7 @@ const MessageList = forwardRef(
       {
         key: 'copy',
         order: 10,
-        label: (msg) => copiedMessageId === msg.messageId ? '已复制' : '复制',
+        label: (msg) => copiedMessageId === msg.messageId ? i18nText("app.ai.messagelist.b91ea936") : i18nText("app.ai.messagelist.1eec5711"),
         icon: (msg) => copiedMessageId === msg.messageId
           ? <CheckOutlined style={{color: '#52c41a'}}/>
           : <CopyOutlined/>,
@@ -406,7 +407,7 @@ const MessageList = forwardRef(
       {
         key: 'like',
         order: 20,
-        label: '赞',
+        label: i18nText("app.ai.messagelist.936ef569"),
         icon: (msg) => msg.likeStatus === 1 ? <LikeFilled/> : <LikeOutlined/>,
         showFunc: (msg) => msg.role === 'assistant',
         operationFunc: (msg) => handleLike(msg, 1),
@@ -416,7 +417,7 @@ const MessageList = forwardRef(
       {
         key: 'dislike',
         order: 30,
-        label: '踩',
+        label: i18nText("app.ai.messagelist.20b10ebc"),
         icon: (msg) => msg.likeStatus === -1 ? <DislikeFilled/> : <DislikeOutlined/>,
         showFunc: (msg) => msg.role === 'assistant',
         operationFunc: (msg) => handleLike(msg, -1),
@@ -426,7 +427,7 @@ const MessageList = forwardRef(
       {
         key: 'regenerate',
         order: 40,
-        label: '重新生成',
+        label: i18nText("app.ai.messagelist.0713d7de"),
         icon: <ReloadOutlined/>,
         showFunc: (msg) => msg.role === 'assistant' && Boolean(regenerateMessage),
         operationFunc: handleRegenerate,
@@ -434,7 +435,7 @@ const MessageList = forwardRef(
       {
         key: 'toggle-content',
         order: 45,
-        label: (msg) => isShowingOptimized(msg) ? '查看原内容' : '查看优化内容',
+        label: (msg) => isShowingOptimized(msg) ? i18nText("app.ai.messagelist.c7cb946f") : i18nText("app.ai.messagelist.25ac4727"),
         icon: <SwapOutlined/>,
         showFunc: (msg) => Boolean(msg.optimizedContent),
         operationFunc: handleToggleContent,
@@ -442,7 +443,7 @@ const MessageList = forwardRef(
       {
         key: 'quote',
         order: 50,
-        label: '引用(暂不支持)',
+        label: i18nText("app.ai.messagelist.a3385fd8"),
         icon: <QuestionCircleOutlined/>,
         isMore: true,
         operationFunc: (msg) => onQuote?.(msg),
@@ -450,7 +451,7 @@ const MessageList = forwardRef(
       {
         key: 'edit',
         order: 60,
-        label: '编辑(暂不支持)',
+        label: i18nText("app.ai.messagelist.02de627d"),
         icon: <EditOutlined/>,
         isMore: true,
         operationFunc: (msg) => onEdit?.(msg),
@@ -458,7 +459,7 @@ const MessageList = forwardRef(
       {
         key: 'delete',
         order: 70,
-        label: '删除',
+        label: i18nText("app.ai.messagelist.05108a38"),
         icon: <DeleteOutlined/>,
         isMore: true,
         dividerBefore: true,
@@ -519,9 +520,9 @@ const MessageList = forwardRef(
       return (
         <div className={styles.emptyBox}>
           <div style={{fontSize: 50}}>💬</div>
-          <div style={{fontSize: 16, fontWeight: 600}}>选择或新建一个对话</div>
+          <div style={{fontSize: 16, fontWeight: 600}}>{i18nText("app.ai.messagelist.0d82f2b9")}</div>
           <div style={{fontSize: 13, color: '#8c8c8c'}}>
-            从左侧选择已有对话，或点击「新建」开始
+            {i18nText("app.ai.messagelist.38e21bae")}
           </div>
         </div>
       );
@@ -552,10 +553,10 @@ const MessageList = forwardRef(
         <div className={styles.emptyBox}>
           <div style={{fontSize: 50}}>💬</div>
           <div style={{fontSize: 15, fontWeight: 600}}>
-            {currentConv.title || '新对话'}
+            {currentConv.title || i18nText("app.ai.messagelist.860b4fea")}
           </div>
           <div style={{fontSize: 13, color: '#8c8c8c'}}>
-            开始你的第一条消息
+            {i18nText("app.ai.messagelist.d8e49c27")}
           </div>
           <div className={styles.emptyHints}>
             {quickHints.map((hint) => (
@@ -590,7 +591,7 @@ const MessageList = forwardRef(
                 <div style={{height: 32}}/>
               ) : (
                 <span style={{fontSize: 12, color: '#bfbfbf'}}>
-                  已加载全部消息
+                  {i18nText("app.ai.messagelist.d18769a8")}
                 </span>
               )}
             </div>
@@ -614,7 +615,7 @@ const MessageList = forwardRef(
 
         {/* ── 回到底部按钮 ── */}
         {showScrollBtn && (
-          <Tooltip title="回到底部">
+          <Tooltip title={i18nText("app.ai.messagelist.17a4f1a6")}>
             <div
               className={styles.scrollToBottom}
               onClick={() => {

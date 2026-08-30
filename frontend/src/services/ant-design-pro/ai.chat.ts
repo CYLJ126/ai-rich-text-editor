@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {request} from "@@/exports";
 import {getLocale} from '@umijs/max';
 import type {StreamCallback, StreamChatCallbacks, StreamChunk} from '@/types/ai.type';
@@ -90,7 +91,7 @@ export async function streamChat(
     });
   } catch (err: any) {
     if (err?.name === 'AbortError') throw err;
-    onError?.({message: err?.message ?? '网络请求失败'});
+    onError?.({message: err?.message ?? i18nText("app.common.antdesignpro.ai.chat.e21b95dd")});
     return;
   }
 
@@ -101,7 +102,7 @@ export async function streamChat(
   // 用 ReadableStream + TextDecoder 逐块读取
   const reader = response.body?.getReader();
   if (!reader) {
-    onError?.({message: '无法获取响应流'});
+    onError?.({message: i18nText("app.common.antdesignpro.ai.chat.33352e37")});
     return;
   }
 
@@ -156,7 +157,7 @@ export async function streamChat(
     onDone?.();
   } catch (err: any) {
     if (err?.name === 'AbortError') throw err;
-    onError?.({message: err?.message ?? '读取流失败'});
+    onError?.({message: err?.message ?? i18nText("app.common.antdesignpro.ai.chat.b6424a33")});
   } finally {
     reader.releaseLock();
   }

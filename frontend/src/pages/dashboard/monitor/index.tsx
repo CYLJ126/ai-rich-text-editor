@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Gauge, Liquid, WordCloud } from '@ant-design/plots';
 import { GridContent } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
@@ -40,7 +41,7 @@ const Monitor: FC = () => {
           }}
         >
           <Card
-            title="活动实时交易情况"
+            title={i18nText("app.dashboard.monitor.c228b605")}
             variant="borderless"
             style={{ flex: 1 }}
             styles={{
@@ -50,26 +51,26 @@ const Monitor: FC = () => {
             <Row>
               <Col md={6} sm={12} xs={24}>
                 <Statistic
-                  title="今日交易总额"
-                  suffix="元"
+                  title={i18nText("app.dashboard.monitor.211e2617")}
+                  suffix={i18nText("app.dashboard.monitor.11ed5995")}
                   value={formatNumber(124543233)}
                 />
               </Col>
               <Col md={6} sm={12} xs={24}>
-                <Statistic title="销售目标完成率" value="92%" />
+                <Statistic title={i18nText("app.dashboard.monitor.d30554b9")} value="92%" />
               </Col>
               <Col md={6} sm={12} xs={24}>
                 <Statistic.Timer
                   type="countdown"
-                  title="活动剩余时间"
+                  title={i18nText("app.dashboard.monitor.f6f41cfd")}
                   value={deadline}
                   format="HH:mm:ss:SSS"
                 />
               </Col>
               <Col md={6} sm={12} xs={24}>
                 <Statistic
-                  title="每秒交易总额"
-                  suffix="元"
+                  title={i18nText("app.dashboard.monitor.10001bb0")}
+                  suffix={i18nText("app.dashboard.monitor.11ed5995")}
                   value={formatNumber(234)}
                 />
               </Col>
@@ -90,7 +91,7 @@ const Monitor: FC = () => {
         </Col>
         <Col xl={6} lg={24} md={24} sm={24} xs={24}>
           <Card
-            title="活动情况预测"
+            title={i18nText("app.dashboard.monitor.f3550187")}
             style={{
               marginBottom: 24,
             }}
@@ -99,7 +100,7 @@ const Monitor: FC = () => {
             <ActiveChart />
           </Card>
           <Card
-            title="券核效率"
+            title={i18nText("app.dashboard.monitor.df440681")}
             style={{
               marginBottom: 24,
             }}
@@ -122,7 +123,7 @@ const Monitor: FC = () => {
               }
               padding={-16}
               style={{
-                textContent: () => '优',
+                textContent: () => i18nText("app.dashboard.monitor.e9153c01"),
               }}
               meta={{
                 color: {
@@ -149,7 +150,7 @@ const Monitor: FC = () => {
             marginBottom: 24,
           }}
         >
-          <Card title="各品类占比" variant="borderless">
+          <Card title={i18nText("app.dashboard.monitor.e4f04a60")} variant="borderless">
             <Row
               style={{
                 padding: '16px 0',
@@ -177,7 +178,7 @@ const Monitor: FC = () => {
           }}
         >
           <Card
-            title="热门搜索"
+            title={i18nText("app.dashboard.monitor.f65e1e2c")}
             loading={loading}
             variant="borderless"
             styles={{
@@ -205,7 +206,7 @@ const Monitor: FC = () => {
           }}
         >
           <Card
-            title="资源剩余"
+            title={i18nText("app.dashboard.monitor.6e219e6e")}
             styles={{
               body: {
                 textAlign: 'center',

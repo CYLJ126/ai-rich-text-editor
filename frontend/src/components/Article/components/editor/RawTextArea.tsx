@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {App, Input} from 'antd';
 import React, {useCallback} from 'react';
 import {uploadFile, uploadImage} from '@/services/upload';
@@ -35,7 +36,7 @@ function RawTextArea() {
             const url = await uploadImage(file);
             insertTextAtCursor(`![image](${url})`);
           } catch {
-            message.error('图片上传失败');
+            message.error(i18nText("app.article.editor.rawtextarea.5b329fd3"));
           }
         } else if (item.kind === 'file') {
           e.preventDefault();
@@ -43,7 +44,7 @@ function RawTextArea() {
             const url = await uploadFile(file);
             insertTextAtCursor(`[${file.name}](${url})`);
           } catch {
-            message.error('文件上传失败');
+            message.error(i18nText("app.article.editor.rawtextarea.c123c525"));
           }
         }
       }

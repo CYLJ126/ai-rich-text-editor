@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type { ReactNodeViewProps } from '@tiptap/react';
 import { NodeViewWrapper } from '@tiptap/react';
 import {
@@ -15,25 +16,25 @@ const IMAGE_RESIZE_HANDLES = [
   {
     corner: 'top-left',
     side: 'left',
-    label: '拖动左上角调整图片大小',
+    label: i18nText("app.article.image.imageview.fe15423f"),
     className: '-top-2 -left-2 cursor-nwse-resize',
   },
   {
     corner: 'top-right',
     side: 'right',
-    label: '拖动右上角调整图片大小',
+    label: i18nText("app.article.image.imageview.e8bd64ae"),
     className: '-top-2 -right-2 cursor-nesw-resize',
   },
   {
     corner: 'bottom-left',
     side: 'left',
-    label: '拖动左下角调整图片大小',
+    label: i18nText("app.article.image.imageview.0c3aba3a"),
     className: '-bottom-2 -left-2 cursor-nesw-resize',
   },
   {
     corner: 'bottom-right',
     side: 'right',
-    label: '拖动右下角调整图片大小',
+    label: i18nText("app.article.image.imageview.499b5749"),
     className: '-right-2 -bottom-2 cursor-nwse-resize',
   },
 ] as const satisfies readonly {

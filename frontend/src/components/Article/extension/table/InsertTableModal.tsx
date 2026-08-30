@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Form, InputNumber, message, Modal} from 'antd';
 import React, {useCallback, useState} from 'react';
 import {Editor} from "@tiptap/core";
@@ -20,7 +21,7 @@ export function useInsertTable(editorRef: React.RefObject<Editor>) {
             .then((values) => {
                 const {rows, cols} = values;
                 if (!editorRef.current) {
-                    message.error('编辑器不可用').then();
+                    message.error(i18nText("app.article.table.inserttablemodal.2dfbed4a")).then();
                     return;
                 }
                 editorRef.current
@@ -28,7 +29,7 @@ export function useInsertTable(editorRef: React.RefObject<Editor>) {
                     .focus()
                     .insertTable({rows, cols, withHeaderRow: true})
                     .run();
-                message.success('插入表格成功').then();
+                message.success(i18nText("app.article.table.inserttablemodal.cbd45850")).then();
 
                 setModalOpen(false);
             })
@@ -40,7 +41,7 @@ export function useInsertTable(editorRef: React.RefObject<Editor>) {
     /** 插入表格弹窗 JSX，直接渲染到组件树中 */
     const insertTableModal = (
         <Modal
-            title="插入表格"
+            title={i18nText("app.article.table.inserttablemodal.2db4cb94")}
             open={modalOpen}
             onOk={handleInsertConfirm}
             onCancel={() => setModalOpen(false)}
@@ -49,27 +50,27 @@ export function useInsertTable(editorRef: React.RefObject<Editor>) {
         >
             <Form form={form} layout="vertical" initialValues={{rows: 3, cols: 3}}>
                 <Form.Item
-                    label="行数"
+                    label={i18nText("app.article.table.inserttablemodal.6179be83")}
                     name="rows"
-                    rules={[{required: true, message: '请输入行数'}]}
+                    rules={[{required: true, message: i18nText("app.article.table.inserttablemodal.832a2b0b")}]}
                 >
                     <InputNumber
                         min={1}
                         max={20}
                         style={{width: '100%'}}
-                        placeholder="请输入行数"
+                        placeholder={i18nText("app.article.table.inserttablemodal.832a2b0b")}
                     />
                 </Form.Item>
                 <Form.Item
-                    label="列数"
+                    label={i18nText("app.article.table.inserttablemodal.2aeb002e")}
                     name="cols"
-                    rules={[{required: true, message: '请输入列数'}]}
+                    rules={[{required: true, message: i18nText("app.article.table.inserttablemodal.721e928a")}]}
                 >
                     <InputNumber
                         min={1}
                         max={20}
                         style={{width: '100%'}}
-                        placeholder="请输入列数"
+                        placeholder={i18nText("app.article.table.inserttablemodal.721e928a")}
                     />
                 </Form.Item>
             </Form>

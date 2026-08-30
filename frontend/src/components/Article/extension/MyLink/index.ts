@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import Link from '@tiptap/extension-link';
 import {message} from 'antd';
 
@@ -48,6 +49,6 @@ export function toggleLink(editor: any) {
   try {
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   } catch (e: any) {
-    message.error('设置链接失败：', e.message).then();
+    message.error(i18nText("app.article.mylink.bf9e0257"), e.message).then();
   }
 }

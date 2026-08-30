@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { message } from 'antd';
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,35 +11,35 @@ import ManageOperationsModal from '../MenuOperationManagement/manageOperationsMo
 
 const columns: TableColumn[] = [
   {
-    title: '菜单编码',
+    title: i18nText("app.administration.menumanagement.370f07aa"),
     dataIndex: 'menuCode',
     width: 100,
     sorter: true,
     order: 1,
   },
   {
-    title: '菜单名称',
+    title: i18nText("app.administration.menumanagement.2dac04a1"),
     dataIndex: 'menuName',
     width: 100,
     sorter: true,
     order: 2,
   },
   {
-    title: '上级菜单 ID',
+    title: i18nText("app.administration.menumanagement.d21f17a0"),
     dataIndex: 'fatherId',
     width: 100,
     sorter: true,
     order: 3,
   },
   {
-    title: '顺序',
+    title: i18nText("app.administration.menumanagement.c69d48ad"),
     dataIndex: 'orderId',
     width: 50,
     sorter: true,
     order: 4,
   },
   {
-    title: '状态',
+    title: i18nText("app.administration.menumanagement.73f96419"),
     dataIndex: 'status',
     width: 50,
     sorter: true,
@@ -54,7 +55,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            初始
+            {i18nText("app.administration.menumanagement.9e200b59")}
           </span>
         );
       } else if (text === 1) {
@@ -67,7 +68,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            正常
+            {i18nText("app.administration.menumanagement.68645428")}
           </span>
         );
       } else if (text === 2) {
@@ -80,7 +81,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            完成
+            {i18nText("app.administration.menumanagement.9269eaf4")}
           </span>
         );
       } else if (text === 3) {
@@ -93,7 +94,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            注销
+            {i18nText("app.administration.menumanagement.bf5ee8ab")}
           </span>
         );
       }
@@ -112,42 +113,42 @@ const columns: TableColumn[] = [
     },
   },
   {
-    title: '菜单地址',
+    title: i18nText("app.administration.menumanagement.b280d1f3"),
     dataIndex: 'menuUrl',
     width: 150,
     sorter: true,
     order: 6,
   },
   {
-    title: '描述',
+    title: i18nText("app.administration.menumanagement.b5dbc5ac"),
     dataIndex: 'description',
     width: 100,
     sorter: true,
     order: 7,
   },
   {
-    title: '创建人',
+    title: i18nText("app.administration.menumanagement.e0e81eca"),
     dataIndex: 'createBy',
     width: 100,
     sorter: true,
     order: 8,
   },
   {
-    title: '更新人',
+    title: i18nText("app.administration.menumanagement.9a2cd713"),
     dataIndex: 'updateBy',
     width: 100,
     sorter: true,
     order: 9,
   },
   {
-    title: '创建时间',
+    title: i18nText("app.administration.menumanagement.72cc438c"),
     dataIndex: 'createTime',
     width: 100,
     sorter: true,
     order: 10,
   },
   {
-    title: '更新时间',
+    title: i18nText("app.administration.menumanagement.31f4e630"),
     dataIndex: 'updateTime',
     width: 100,
     sorter: true,
@@ -159,52 +160,52 @@ const searchFields: SearchFieldConfig[] = [
   {
     fieldName: 'menuCode',
     fieldType: 'input',
-    label: '菜单编码',
-    placeholder: '请输入菜单编码',
+    label: i18nText("app.administration.menumanagement.370f07aa"),
+    placeholder: i18nText("app.administration.menumanagement.4120c92b"),
     alwaysShow: true,
   },
   {
     fieldName: 'menuName',
     fieldType: 'input',
-    label: '菜单名称',
-    placeholder: '请输入菜单名称',
+    label: i18nText("app.administration.menumanagement.2dac04a1"),
+    placeholder: i18nText("app.administration.menumanagement.98d02641"),
     alwaysShow: true,
   },
   {
     fieldName: 'fatherId',
     fieldType: 'input',
-    label: '上级菜单 ID',
-    placeholder: '请输入上级菜单 ID',
+    label: i18nText("app.administration.menumanagement.d21f17a0"),
+    placeholder: i18nText("app.administration.menumanagement.09c7f7b2"),
   },
   {
     fieldName: 'status',
     fieldType: 'select',
-    label: '状态',
+    label: i18nText("app.administration.menumanagement.73f96419"),
     alwaysShow: true,
     options: [
-      { label: '初始', value: 0 },
-      { label: '正常', value: 1 },
-      { label: '完成', value: 2 },
-      { label: '注销', value: 3 },
+      { label: i18nText("app.administration.menumanagement.9e200b59"), value: 0 },
+      { label: i18nText("app.administration.menumanagement.68645428"), value: 1 },
+      { label: i18nText("app.administration.menumanagement.9269eaf4"), value: 2 },
+      { label: i18nText("app.administration.menumanagement.bf5ee8ab"), value: 3 },
     ],
   },
   {
     fieldName: 'menuUrl',
     fieldType: 'input',
-    label: '菜单地址',
-    placeholder: '请输入菜单地址',
+    label: i18nText("app.administration.menumanagement.b280d1f3"),
+    placeholder: i18nText("app.administration.menumanagement.95156197"),
   },
   {
     fieldName: 'createBy',
     fieldType: 'input',
-    label: '创建人',
-    placeholder: '请输入创建人',
+    label: i18nText("app.administration.menumanagement.e0e81eca"),
+    placeholder: i18nText("app.administration.menumanagement.6508914c"),
   },
   {
     fieldName: 'createTime',
     fieldType: 'dateRangePicker',
-    label: '创建时间',
-    placeholder: '请选择创建时间',
+    label: i18nText("app.administration.menumanagement.72cc438c"),
+    placeholder: i18nText("app.administration.menumanagement.e69960e8"),
     format: 'YYYY-MM-DD HH:mm:ss',
     transformFunction: (value) => {
       if (value && value.length === 2) {
@@ -235,17 +236,17 @@ export default function MenuPage() {
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
-      text: '新增',
+      text: i18nText("app.administration.menumanagement.5944dfe3"),
       authority: 'menu:add',
       handler: () =>
         navigate('/Administration/MenuManagement/MenuForm?mode=create'),
     },
     {
-      text: '编辑',
+      text: i18nText("app.administration.menumanagement.dd19304b"),
       authority: 'menu:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.menumanagement.489e0fa9")).then();
           return;
         }
         navigate(
@@ -254,11 +255,11 @@ export default function MenuPage() {
       },
     },
     {
-      text: '管理操作权限',
+      text: i18nText("app.administration.menumanagement.5c9b2d33"),
       authority: 'menu:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.menumanagement.489e0fa9")).then();
           return;
         }
         setSelectedMenu({
@@ -269,19 +270,19 @@ export default function MenuPage() {
       },
     },
     {
-      text: '删除',
+      text: i18nText("app.administration.menumanagement.b51a1a6e"),
       authority: 'menu:update',
-      handler: () => message.info('删除用户操作'),
+      handler: () => message.info(i18nText("app.administration.menumanagement.1d48964a")),
     },
     {
-      text: '导出',
+      text: i18nText("app.administration.menumanagement.625c9366"),
       authority: 'menu:export',
-      handler: () => message.info('导出用户操作'),
+      handler: () => message.info(i18nText("app.administration.menumanagement.e4ef6337")),
     },
     {
-      text: '导出全部',
+      text: i18nText("app.administration.menumanagement.54737232"),
       authority: 'menu:export',
-      handler: () => message.info('导出全部用户操作'),
+      handler: () => message.info(i18nText("app.administration.menumanagement.fcc2a328")),
     },
   ];
 

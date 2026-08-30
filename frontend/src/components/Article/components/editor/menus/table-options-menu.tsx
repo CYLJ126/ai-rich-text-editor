@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,13 +11,13 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {cn} from "@/lib/utils";
-import {PluginKey, TextSelection} from "@tiptap/pm/state";
-import {CellSelection, deleteCellSelection} from "@tiptap/pm/tables";
-import {Editor, useEditorState} from "@tiptap/react";
-import {EllipsisIcon, EllipsisVerticalIcon, EqualIcon} from "lucide-react";
-import {useMemo, useState} from "react";
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PluginKey, TextSelection } from '@tiptap/pm/state';
+import { CellSelection, deleteCellSelection } from '@tiptap/pm/tables';
+import { Editor, useEditorState } from '@tiptap/react';
+import { EllipsisIcon, EllipsisVerticalIcon, EqualIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
   columnMenuPluginKey,
   rowMenuPluginKey,
@@ -24,7 +25,7 @@ import {
   TableMenuHandleProps,
   TableSelectionOverlay,
   TableSelectionOverlayProps,
-} from "@/components/Article/extension";
+} from '@/components/Article/extension';
 
 interface CellMenusState {
   canMergeCell: boolean;
@@ -50,9 +51,9 @@ const ColumnMenuPopover = ({ editor }: { editor: Editor }) => {
       }}
     >
       <DropdownMenuTrigger
-        className={cn("w-full h-3 rounded flex items-center justify-center", {
-          "bg-primary text-primary-foreground": opened,
-          "bg-secondary hover:bg-secondary/70 text-secondary-foreground":
+        className={cn('w-full h-3 rounded flex items-center justify-center', {
+          'bg-primary text-primary-foreground': opened,
+          'bg-secondary hover:bg-secondary/70 text-secondary-foreground':
             !opened,
         })}
       >
@@ -68,14 +69,14 @@ const ColumnMenuPopover = ({ editor }: { editor: Editor }) => {
               editor.chain().focus().addColumnBefore().run();
             }}
           >
-            Add column before
+            {i18nText('app.article.table.addColumnBefore')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               editor.chain().focus().addColumnAfter().run();
             }}
           >
-            Add column after
+            {i18nText('app.article.table.addColumnAfter')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -84,7 +85,7 @@ const ColumnMenuPopover = ({ editor }: { editor: Editor }) => {
             }}
             variant="destructive"
           >
-            Delete column
+            {i18nText('app.article.table.deleteColumn')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
@@ -111,7 +112,7 @@ const RowMenuPopover = ({ editor }: { editor: Editor }) => {
     >
       {/* 触发按钮，三个点 */}
       <DropdownMenuTrigger
-        className={cn("w-3 rounded flex items-center justify-center h-full")}
+        className={cn('w-3 rounded flex items-center justify-center h-full')}
       >
         <EllipsisVerticalIcon className="size-4 shrink-0" />
       </DropdownMenuTrigger>
@@ -126,7 +127,7 @@ const RowMenuPopover = ({ editor }: { editor: Editor }) => {
               editor.chain().focus().addRowBefore().run();
             }}
           >
-            Add row before
+            {i18nText('app.article.table.addRowBefore')}
             <DropdownMenuShortcut>Mod+Shift+Enter</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -134,7 +135,7 @@ const RowMenuPopover = ({ editor }: { editor: Editor }) => {
               editor.chain().focus().addRowAfter().run();
             }}
           >
-            Add row after
+            {i18nText('app.article.table.addRowAfter')}
             <DropdownMenuShortcut>Mod+Enter</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -144,7 +145,7 @@ const RowMenuPopover = ({ editor }: { editor: Editor }) => {
             }}
             variant="destructive"
           >
-            Delete row
+            {i18nText('app.article.table.deleteRow')}
             <DropdownMenuShortcut>Mod+⌫</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -170,7 +171,7 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
         const editor = instance.editor;
         const { selection } = editor.state;
         const { from, to, ranges } = selection;
-        if (!instance.editor.isActive("table")) {
+        if (!instance.editor.isActive('table')) {
           return {
             canMergeCell: false,
             canSplitCell: false,
@@ -185,7 +186,7 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
         if (selection instanceof TextSelection) {
           editor.state.doc.nodesBetween(from, to, (node, pos) => {
             const nodeName = node.type.name;
-            if (nodeName === "tableHeader" || nodeName === "tableCell") {
+            if (nodeName === 'tableHeader' || nodeName === 'tableCell') {
               const cell = editor.view.nodeDOM(pos) as HTMLTableCellElement;
               hasSpannedCell = cell.colSpan > 1 || cell.rowSpan > 1;
               return false;
@@ -219,10 +220,10 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
     <DropdownMenu open={opened} onOpenChange={setOpened}>
       <DropdownMenuTrigger
         className={cn(
-          "absolute flex items-center justify-center top-1/2 -translate-y-1/2 hover:-right-2.25 bg-primary size-2 hover:size-4 rounded-full cursor-pointer pointer-events-auto",
+          'absolute flex items-center justify-center top-1/2 -translate-y-1/2 hover:-right-2.25 bg-primary size-2 hover:size-4 rounded-full cursor-pointer pointer-events-auto',
           {
-            "size-4 -right-2.25": opened,
-            "-right-1.25": !opened,
+            'size-4 -right-2.25': opened,
+            '-right-1.25': !opened,
           },
         )}
         render={
@@ -234,9 +235,9 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
           >
             <EqualIcon
               className={cn(
-                "size-3.5 text-primary-foreground opacity-0 hover:opacity-100 text-[var(--ant-color-bg-base)]",
+                'size-3.5 text-primary-foreground opacity-0 hover:opacity-100 text-[var(--ant-color-bg-base)]',
                 {
-                  "opacity-100": opened,
+                  'opacity-100': opened,
                 },
               )}
             />
@@ -255,7 +256,7 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
               editor.chain().focus().mergeCells().run();
             }}
           >
-            Merge cells
+            {i18nText('app.article.table.mergeCells')}
           </DropdownMenuItem>
           <DropdownMenuItem
             hidden={!canSplitCell}
@@ -263,20 +264,22 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
               editor.chain().focus().splitCell().run();
             }}
           >
-            Split cell
+            {i18nText('app.article.table.splitCell')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               editor.chain().focus().toggleHeaderCell().run();
             }}
           >
-            Toggle header cell
+            {i18nText('app.article.table.toggleHeaderCell')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Alignment</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>
+              {i18nText('app.article.table.alignment')}
+            </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent className="bg-white dark:bg-neutral-800 ring-neutral-300 dark:ring-neutral-600">
                 <DropdownMenuItem
@@ -284,33 +287,33 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
                     editor
                       .chain()
                       .focus()
-                      .setCellAttribute("verticalAlign", "top")
+                      .setCellAttribute('verticalAlign', 'top')
                       .run();
                   }}
                 >
-                  Align top
+                  {i18nText('app.article.table.alignTop')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     editor
                       .chain()
                       .focus()
-                      .setCellAttribute("verticalAlign", "middle")
+                      .setCellAttribute('verticalAlign', 'middle')
                       .run();
                   }}
                 >
-                  Align middle
+                  {i18nText('app.article.table.alignMiddle')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     editor
                       .chain()
                       .focus()
-                      .setCellAttribute("verticalAlign", "bottom")
+                      .setCellAttribute('verticalAlign', 'bottom')
                       .run();
                   }}
                 >
-                  Align bottom
+                  {i18nText('app.article.table.alignBottom')}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
@@ -327,7 +330,7 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
                 .run();
             }}
           >
-            Clear contents
+            {i18nText('app.article.table.clearContents')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
@@ -343,15 +346,15 @@ export const TableHandle = ({ editor }: { editor: Editor | null }) => {
     }
     return {
       editor,
-      menuType: "column",
+      menuType: 'column',
       pluginKey: columnMenuPluginKey,
       options: {
-        placement: "top-start",
+        placement: 'top-start',
         offset: {
           mainAxis: 4,
         },
       },
-    } satisfies TableMenuHandleProps["pluginProps"];
+    } satisfies TableMenuHandleProps['pluginProps'];
   }, [editor]);
 
   const rowMenuPluginProps = useMemo(() => {
@@ -360,15 +363,15 @@ export const TableHandle = ({ editor }: { editor: Editor | null }) => {
     }
     return {
       editor,
-      menuType: "row",
+      menuType: 'row',
       pluginKey: rowMenuPluginKey,
       options: {
-        placement: "left-start",
+        placement: 'left-start',
         offset: {
           mainAxis: 4,
         },
       },
-    } satisfies TableMenuHandleProps["pluginProps"];
+    } satisfies TableMenuHandleProps['pluginProps'];
   }, [editor]);
 
   const tableSelectionOverlayProps = useMemo(() => {
@@ -377,8 +380,8 @@ export const TableHandle = ({ editor }: { editor: Editor | null }) => {
     }
     return {
       editor,
-      pluginKey: new PluginKey("table-selection-overlay"),
-    } satisfies TableSelectionOverlayProps["pluginProps"];
+      pluginKey: new PluginKey('table-selection-overlay'),
+    } satisfies TableSelectionOverlayProps['pluginProps'];
   }, [editor]);
 
   if (!editor) {

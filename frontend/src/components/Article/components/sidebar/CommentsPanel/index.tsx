@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { CommentOutlined } from '@ant-design/icons';
 import { useModel } from '@umijs/max';
 import { Button, Empty, Input, message, Radio, Tag, Tooltip } from 'antd';
@@ -208,31 +209,31 @@ export default function CommentsPanel({ active }: { active: boolean }) {
       editor?.commands?.setArticleInfo(newArticle);
       return true;
     }
-    message.warning('文章高亮标记同步失败，请稍后重试').then();
+    message.warning(i18nText("app.article.commentspanel.605e86df")).then();
     return false;
   };
 
   const handleCreateThread = useCallback(async () => {
     if (!commentValue.trim()) {
-      message.info('请先输入批注内容').then();
+      message.info(i18nText("app.article.commentspanel.5de5651e")).then();
       return;
     }
     if (!canComment) {
-      message.warning('当前用户没有批注权限').then();
+      message.warning(i18nText("app.article.commentspanel.1dfa2171")).then();
       return;
     }
     if (!articleId) {
-      message.warning('请先选择文章').then();
+      message.warning(i18nText("app.article.commentspanel.29e3dc27")).then();
       return;
     }
 
     if (!editor || editor.state.selection.empty) {
-      message.info('请先在正文中选中需要批注的内容').then();
+      message.info(i18nText("app.article.commentspanel.e6ffee38")).then();
       return;
     }
 
     if (operationMode === 'edit' && savingState === 1) {
-      message.info('文章正在保存，请稍后再添加批注').then();
+      message.info(i18nText("app.article.commentspanel.099efd24")).then();
       return;
     }
     if (operationMode === 'edit' && savingState === 4) {
@@ -240,19 +241,19 @@ export default function CommentsPanel({ active }: { active: boolean }) {
       const saved = await saveArticle(editor, 'auto');
       setCreatingThread(false);
       if (!saved) {
-        message.warning('请先保存当前文章，再添加批注').then();
+        message.warning(i18nText("app.article.commentspanel.a9a21514")).then();
         return;
       }
     }
     if (editor.state.selection.empty) {
-      message.info('请重新选择需要批注的内容').then();
+      message.info(i18nText("app.article.commentspanel.2c8a502f")).then();
       return;
     }
 
     const { from, to } = editor.state.selection;
     const commentMarkType = editor.schema.marks.comments;
     if (!commentMarkType) {
-      message.error('批注扩展未加载，请刷新后重试').then();
+      message.error(i18nText("app.article.commentspanel.e4bf81a9")).then();
       return;
     }
 
@@ -267,7 +268,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
       createdThreadId = threadId;
 
       if (!threadId) {
-        message.error('批注创建失败，请稍后重试').then();
+        message.error(i18nText("app.article.commentspanel.802c3792")).then();
         return;
       }
 
@@ -295,7 +296,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
         });
       }
       console.error('创建批注失败', error);
-      message.error('批注创建失败，请稍后重试').then();
+      message.error(i18nText("app.article.commentspanel.802c3792")).then();
     } finally {
       setCreatingThread(false);
     }
@@ -347,10 +348,10 @@ export default function CommentsPanel({ active }: { active: boolean }) {
         <div className="border-b border-[var(--ant-color-border-secondary)] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="text-[15px] font-semibold text-[var(--ant-color-text)]">
-              批注
+              {i18nText("app.article.commentspanel.6fa3af44")}
             </div>
             <Tag color={showUnresolved ? 'blue' : 'green'}>
-              {filteredThreads.length} 条
+              {filteredThreads.length} {i18nText("app.article.commentspanel.090fdf48")}
             </Tag>
           </div>
 
@@ -364,8 +365,8 @@ export default function CommentsPanel({ active }: { active: boolean }) {
                 setShowUnresolved(event.target.value === 'open')
               }
               options={[
-                { label: '进行中', value: 'open' },
-                { label: '已解决', value: 'resolved' },
+                { label: i18nText("app.article.commentspanel.7c1a276a"), value: 'open' },
+                { label: i18nText("app.article.commentspanel.854c2fd4"), value: 'resolved' },
               ]}
             />
           </div>
@@ -382,19 +383,19 @@ export default function CommentsPanel({ active }: { active: boolean }) {
               disabled={!canComposeComment || !canComment}
               placeholder={
                 !canComment
-                  ? '当前用户没有批注权限'
+                  ? i18nText("app.article.commentspanel.1dfa2171")
                   : canComposeComment
-                    ? '输入批注内容，并在正文中选中一段文本'
-                    : '切换到编辑或修订模式后可添加批注'
+                    ? i18nText("app.article.commentspanel.76614cbe")
+                    : i18nText("app.article.commentspanel.3abafc40")
               }
               value={commentValue}
               onChange={(event) => setCommentValue(event.target.value)}
             />
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="text-xs text-[var(--ant-color-text-tertiary)]">
-                {selectionEmpty ? '当前未选中文本' : '已选中文本'}
+                {selectionEmpty ? i18nText("app.article.commentspanel.945ef85b") : i18nText("app.article.commentspanel.36857387")}
               </span>
-              <Tooltip title={selectionEmpty ? '请先选中文本' : undefined}>
+              <Tooltip title={selectionEmpty ? i18nText("app.article.commentspanel.e721f0a4") : undefined}>
                 <Button
                   type="primary"
                   size="small"
@@ -409,7 +410,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
                   loading={creatingThread}
                   onClick={() => handleCreateThread().then()}
                 >
-                  添加批注
+                  {i18nText("app.article.commentspanel.bd406a8b")}
                 </Button>
               </Tooltip>
             </div>
@@ -421,7 +422,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
-                showUnresolved ? '暂无进行中的批注' : '暂无已解决批注'
+                showUnresolved ? i18nText("app.article.commentspanel.4c3e55da") : i18nText("app.article.commentspanel.550110b0")
               }
             />
           ) : (

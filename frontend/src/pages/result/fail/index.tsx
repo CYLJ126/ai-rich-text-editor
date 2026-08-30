@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {CloseCircleOutlined, RightOutlined} from '@ant-design/icons';
 import {GridContent} from '@ant-design/pro-components';
 import {Button, Card, Result} from 'antd';
@@ -8,7 +9,7 @@ export default () => {
   const Content = (
     <>
       <div className={styles.title}>
-        <span>您提交的内容有如下错误：</span>
+        <span>{i18nText("app.examples.fail.d5e431c4")}</span>
       </div>
       <div
         style={{
@@ -21,7 +22,7 @@ export default () => {
           }}
           className={styles.error_icon}
         />
-        <span>您的账户已被冻结</span>
+        <span>{i18nText("app.examples.fail.d532d7ab")}</span>
         <Button
           type="link"
           style={{
@@ -29,7 +30,7 @@ export default () => {
             padding: 0,
           }}
         >
-          <span>立即解冻</span>
+          <span>{i18nText("app.examples.fail.acd92a32")}</span>
           <RightOutlined />
         </Button>
       </div>
@@ -40,7 +41,7 @@ export default () => {
           }}
           className={styles.error_icon}
         />
-        <span>您的账户还不具备申请资格</span>
+        <span>{i18nText("app.examples.fail.808c47cc")}</span>
         <Button
           type="link"
           style={{
@@ -48,7 +49,7 @@ export default () => {
             padding: 0,
           }}
         >
-          <span>立即升级</span>
+          <span>{i18nText("app.examples.fail.34502364")}</span>
           <RightOutlined />
         </Button>
       </div>
@@ -59,11 +60,11 @@ export default () => {
       <Card variant="borderless">
         <Result
           status="error"
-          title="提交失败"
-          subTitle="请核对并修改以下信息后，再重新提交。"
+          title={i18nText("app.examples.fail.4beef5a6")}
+          subTitle={i18nText("app.examples.fail.aa88cbba")}
           extra={
             <Button type="primary">
-              <span>返回修改</span>
+              <span>{i18nText("app.examples.fail.2ac413c5")}</span>
             </Button>
           }
           style={{

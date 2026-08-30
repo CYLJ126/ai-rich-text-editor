@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   BookOutlined,
   DownloadOutlined,
@@ -188,9 +189,9 @@ function createPasteStylePatch(values: string[]): Partial<PasteStyleOptions> {
 function getOperationModeMeta(mode: OperationMode) {
   const meta: Record<OperationMode, { label: string; icon: React.ReactNode }> =
     {
-      read: { label: '阅读模式', icon: <BookOutlined /> },
-      revise: { label: '修订模式', icon: <HighlightOutlined /> },
-      edit: { label: '编辑模式', icon: <EditOutlined /> },
+      read: { label: i18nText("app.article.article.richtexteditor.64c78d0a"), icon: <BookOutlined /> },
+      revise: { label: i18nText("app.article.article.richtexteditor.4c5df57d"), icon: <HighlightOutlined /> },
+      edit: { label: i18nText("app.article.article.richtexteditor.1a3b2c4c"), icon: <EditOutlined /> },
     };
   return meta[mode];
 }
@@ -286,13 +287,13 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         return new Promise<boolean>((resolve) => {
           let dialog: ReturnType<typeof Modal.confirm>;
           dialog = Modal.confirm({
-            title: '当前文章有未保存内容',
+            title: i18nText("app.article.article.richtexteditor.ea13a210"),
             content: (
               <div>
                 <div style={{ marginBottom: 12 }}>
                   {isLeavingEditor
-                    ? '是否先保存当前文章，再离开编辑页面？'
-                    : '是否先保存当前文章，再打开新的文章？'}
+                    ? i18nText("app.article.article.richtexteditor.c03a915d")
+                    : i18nText("app.article.article.richtexteditor.a6cff621")}
                 </div>
                 <Button
                   danger
@@ -302,17 +303,17 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                     resolve(true);
                   }}
                 >
-                  {isLeavingEditor ? '不保存，直接离开' : '不保存，直接打开'}
+                  {isLeavingEditor ? i18nText("app.article.article.richtexteditor.97c58b63") : i18nText("app.article.article.richtexteditor.c201e8db")}
                 </Button>
               </div>
             ),
-            okText: isLeavingEditor ? '保存并离开' : '保存并打开',
-            cancelText: '取消',
+            okText: isLeavingEditor ? i18nText("app.article.article.richtexteditor.217f82a7") : i18nText("app.article.article.richtexteditor.ef5831a5"),
+            cancelText: i18nText("app.article.article.richtexteditor.6159855b"),
             onOk: async () => {
               const ok = await saveArticle(editor, 'manual');
               onSaved?.(ok);
               if (!ok) {
-                message.error('保存失败，请处理后再切换文章').then();
+                message.error(i18nText("app.article.article.richtexteditor.f6ca8ac8")).then();
                 return Promise.reject();
               }
               resolve(true);
@@ -368,7 +369,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       return [
         {
           key: 'editor-home',
-          label: '返回主页',
+          label: i18nText("app.article.article.richtexteditor.871b7b7d"),
           icon: <HomeOutlined />,
           order: 1,
           onClick: async () => {
@@ -386,23 +387,23 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'article-cover',
-          label: articleInfo?.cover ? '修改封面' : '设置封面',
+          label: articleInfo?.cover ? i18nText("app.article.article.richtexteditor.6efad4b2") : i18nText("app.article.article.richtexteditor.54070f86"),
           icon: <PictureOutlined />,
           order: 2,
           onClick: () => setCoverModalVisible(true),
         },
         {
           key: 'switch-area',
-          label: '左右屏切换',
+          label: i18nText("app.article.article.richtexteditor.00c51681"),
           order: 3,
           renderCustom: () => (
             <DropdownToolbarButton
               icon={<SplitCellsOutlined />}
               activeValue={editorMode}
               options={[
-                { label: '纯文本显示', value: 'raw-text' },
-                { label: '左右同显', value: 'split' },
-                { label: '富文本显示', value: 'rich-text' },
+                { label: i18nText("app.article.article.richtexteditor.a1f72f28"), value: 'raw-text' },
+                { label: i18nText("app.article.article.richtexteditor.4c0f72e8"), value: 'split' },
+                { label: i18nText("app.article.article.richtexteditor.085675d0"), value: 'rich-text' },
               ]}
               onSelect={(val) => setEditorMode(val as EditorMode)}
             />
@@ -410,14 +411,14 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'switch-page-size',
-          label: '编辑区域宽度设置',
+          label: i18nText("app.article.article.richtexteditor.0a8ad355"),
           order: 4,
           renderCustom: () => (
             <Popover
               placement="bottomLeft"
               content={
                 <div>
-                  <h1>编辑区域宽度设置</h1>
+                  <h1>{i18nText("app.article.article.richtexteditor.0a8ad355")}</h1>
                   <Slider
                     marks={{
                       400: '400',
@@ -446,7 +447,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'bg-color',
-          label: '背景颜色',
+          label: i18nText("app.article.article.richtexteditor.5df51bee"),
           order: 5,
           icon: (
             <MyColorPicker
@@ -478,12 +479,12 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'markdown-text',
-          label: '转换为 Markdown 纯文本',
+          label: i18nText("app.article.article.richtexteditor.02d2ccab"),
           icon: <MediumOutlined />,
           order: 6,
           onClick: () => {
             if (!editor) {
-              message.error('编辑器异常，无法转换，请刷新页面后重试').then();
+              message.error(i18nText("app.article.article.richtexteditor.d560e34c")).then();
               return;
             }
             setArticleLoading(true);
@@ -497,7 +498,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'save-article',
-          label: '保存文章内容',
+          label: i18nText("app.article.article.richtexteditor.1efcfc72"),
           icon: <SaveOutlined />,
           order: 7,
           onClick: () => {
@@ -506,7 +507,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'text-paste',
-          label: '文本粘贴格式',
+          label: i18nText("app.article.article.richtexteditor.3e2a3e24"),
           order: 8,
           renderCustom: () => (
             <Popover
@@ -521,15 +522,15 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                   size="small"
                   mode="multiple"
                   defaultValue={pasteStyleOnPaste}
-                  placeholder={'请选择粘贴格式'}
+                  placeholder={i18nText("app.article.article.richtexteditor.5376d252")}
                   options={[
-                    { label: '包含字体', value: 'fontFamily' },
-                    { label: '包含字号', value: 'fontSize' },
-                    { label: '包含颜色', value: 'color' },
-                    { label: '包含背景色', value: 'backgroundColor' },
-                    { label: '包含加粗', value: 'fontWeight' },
-                    { label: '包含斜体', value: 'fontStyle' },
-                    { label: '包含装饰', value: 'textDecoration' },
+                    { label: i18nText("app.article.article.richtexteditor.ff88c1b3"), value: 'fontFamily' },
+                    { label: i18nText("app.article.article.richtexteditor.dfb05fb1"), value: 'fontSize' },
+                    { label: i18nText("app.article.article.richtexteditor.753f5191"), value: 'color' },
+                    { label: i18nText("app.article.article.richtexteditor.5a542f71"), value: 'backgroundColor' },
+                    { label: i18nText("app.article.article.richtexteditor.063fe6cb"), value: 'fontWeight' },
+                    { label: i18nText("app.article.article.richtexteditor.6dca2349"), value: 'fontStyle' },
+                    { label: i18nText("app.article.article.richtexteditor.b16bb3a4"), value: 'textDecoration' },
                   ]}
                   onChange={(values: string[]) => {
                     const patch = createPasteStylePatch(values);
@@ -549,12 +550,12 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'rich-text-convert',
-          label: '转换为富文本',
+          label: i18nText("app.article.article.richtexteditor.a04c4cbf"),
           icon: <SendOutlined />,
           order: 9,
           onClick: () => {
             if (!editor) {
-              message.error('编辑器异常，无法转换，请刷新页面后重试').then();
+              message.error(i18nText("app.article.article.richtexteditor.d560e34c")).then();
               return;
             }
             setArticleLoading(true);
@@ -569,7 +570,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'markdown-export',
-          label: '导出 Markdown',
+          label: i18nText("app.article.article.richtexteditor.cf9fa79d"),
           icon: <DownloadOutlined />,
           order: 10,
           onClick: () =>
@@ -577,14 +578,14 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         {
           key: 'share-article',
-          label: '分享文章',
+          label: i18nText("app.article.article.richtexteditor.5911ae67"),
           icon: <ShareAltOutlined />,
           order: 12,
           onClick: () => {
             if (articleInfo?.id) {
               onShareArticle?.();
             } else {
-              message.info('请先创建或打开一篇文章').then();
+              message.info(i18nText("app.article.article.richtexteditor.90976cea")).then();
             }
           },
         },
@@ -599,19 +600,19 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
               activeValue={operationMode}
               options={[
                 {
-                  label: '阅读模式',
+                  label: i18nText("app.article.article.richtexteditor.64c78d0a"),
                   value: 'read',
                   icon: <BookOutlined />,
                   disabled: !canUseOperationMode('read', articleInfo),
                 },
                 {
-                  label: '修订模式',
+                  label: i18nText("app.article.article.richtexteditor.4c5df57d"),
                   value: 'revise',
                   icon: <HighlightOutlined />,
                   disabled: !canUseOperationMode('revise', articleInfo),
                 },
                 {
-                  label: '编辑模式',
+                  label: i18nText("app.article.article.richtexteditor.1a3b2c4c"),
                   value: 'edit',
                   icon: <EditOutlined />,
                   disabled: !canUseOperationMode('edit', articleInfo),
@@ -661,7 +662,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       return [
         {
           key: 'insert-table',
-          label: '插入表格',
+          label: i18nText("app.article.article.richtexteditor.bae6dd75"),
           icon: <TableOutlined />,
           onClick: () => handleOpenInsertModal(),
         },
@@ -800,7 +801,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           if (cancelled) return;
           restoringPositionRef.current = false;
           console.error('加载文章失败:', err);
-          message.error('加载文章失败').then();
+          message.error(i18nText("app.article.article.richtexteditor.62c3f9c2")).then();
         });
       return () => {
         cancelled = true;
@@ -932,7 +933,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 }}
               >
                 <Input
-                  placeholder="请输入文章标题"
+                  placeholder={i18nText("app.article.article.richtexteditor.9f25c632")}
                   disabled={operationMode !== 'edit'}
                   variant="borderless"
                   style={{
@@ -993,7 +994,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           <div className={styles.editorContainer}>
             {articleLoading && (
               <div className={styles.articleLoadingMask}>
-                <Spin description="文章加载中..." size="large" />
+                <Spin description={i18nText("app.article.article.richtexteditor.9f483e3b")} size="large" />
               </div>
             )}
             <Splitter className={styles.customSplitter}>

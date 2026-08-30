@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { importImageByUrl } from '@/services/upload';
@@ -78,12 +79,12 @@ export const InsecureImagePasteHandler = Extension.create({
                   .run();
                 if (result.failed.length) {
                   window.alert(
-                    `有 ${result.failed.length} 张 HTTP 图片转存失败，已保留原始地址。`,
+                    i18nText("app.article.extension.insecureimagepastehandler.a81cc2f4", {value0: result.failed.length}),
                   );
                 }
               } catch (error: any) {
                 console.error('HTTP image paste handling failed:', error);
-                window.alert(error?.message ?? 'HTTP 图片转存失败');
+                window.alert(error?.message ?? i18nText("app.article.extension.insecureimagepastehandler.cbf7c27c"));
               }
             })();
             return true;

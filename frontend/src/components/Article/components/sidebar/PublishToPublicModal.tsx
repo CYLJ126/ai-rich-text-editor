@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {App, Modal, Tree} from 'antd';
 import React, {useCallback, useEffect, useState} from 'react';
 import type {CatalogTreeNode, CatalogType,} from '@/types/rt.type';
@@ -46,13 +47,13 @@ export default function PublishToPublicModal({
       .then((data) => {
         setTreeData(buildPublicTree(data?.publicSpace ?? []));
       })
-      .catch(() => message.error('获取公共空间目录失败'))
+      .catch(() => message.error(i18nText("app.article.sidebar.publishtopublicmodal.fce6d565")))
       .finally(() => setLoading(false));
   }, [open, message]);
 
   const handleOk = useCallback(async () => {
     if (!selectedKey && resourceType === 'ARTICLE') {
-      message.warning('请选择公共空间中的目标目录');
+      message.warning(i18nText("app.article.sidebar.publishtopublicmodal.2e50661f"));
       return;
     }
     const targetCatalogId = selectedKey
@@ -61,11 +62,11 @@ export default function PublishToPublicModal({
     setPublishing(true);
     try {
       await publishApi(resourceId, targetCatalogId);
-      message.success('已发布至公共空间');
+      message.success(i18nText("app.article.sidebar.publishtopublicmodal.caac65d1"));
       onPublished();
       onClose();
     } catch {
-      message.error('发布失败');
+      message.error(i18nText("app.article.sidebar.publishtopublicmodal.a870e400"));
     } finally {
       setPublishing(false);
     }
@@ -81,21 +82,21 @@ export default function PublishToPublicModal({
 
   return (
     <Modal
-      title={`发布至公共空间 — "${resourceName}"`}
+      title={i18nText("app.article.sidebar.publishtopublicmodal.1457d415", {value0: resourceName})}
       open={open}
       onCancel={onClose}
       onOk={handleOk}
       confirmLoading={publishing}
-      okText="发布"
-      cancelText="取消"
+      okText={i18nText("app.article.sidebar.publishtopublicmodal.369c1b48")}
+      cancelText={i18nText("app.article.sidebar.publishtopublicmodal.b6d39045")}
       destroyOnHidden={true}
     >
       <div className="mb-3 text-[13px] text-[#666]">
-        请选择{resourceType === 'CATALOG' ? '目录' : '文章'}
-        在公共空间中的目标位置：
+        {i18nText("app.article.sidebar.publishtopublicmodal.4473dfbc")}{resourceType === 'CATALOG' ? i18nText("app.article.sidebar.publishtopublicmodal.5a696bdf") : i18nText("app.article.sidebar.publishtopublicmodal.688555dc")}
+        {i18nText("app.article.sidebar.publishtopublicmodal.6400bd3c")}
       </div>
       {loading ? (
-        <div className="p-6 text-center">加载中...</div>
+        <div className="p-6 text-center">{i18nText("app.article.sidebar.publishtopublicmodal.55aadc8d")}</div>
       ) : (
         <Tree
           treeData={treeData as any}

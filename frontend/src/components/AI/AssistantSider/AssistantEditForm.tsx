@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useState} from 'react';
 import {Slider, Spin} from 'antd';
 import DynamicForm from '@/components/DynamicForm';
@@ -149,29 +150,29 @@ const AssistantEditForm = ({
     {
       fieldName: 'name',
       fieldType: 'input',
-      label: '名称',
+      label: i18nText("app.ai.assistantsider.assistanteditform.29139660"),
       required: true,
-      placeholder: '请输入助手名称',
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.e99cb099"),
     },
     {
       fieldName: 'avatar',
       fieldType: 'icon-picker',
-      label: '头像',
+      label: i18nText("app.ai.assistantsider.assistanteditform.5f90c572"),
       required: true,
-      placeholder: '请选择头像',
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.f78d585f"),
     },
     {
       fieldName: 'modelProvider',
       fieldType: 'select',
-      label: '模型提供商',
-      placeholder: '请选择模型提供商',
+      label: i18nText("app.ai.assistantsider.assistanteditform.45964902"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.74cb1c86"),
       options: providerOptions,
     },
     {
       fieldName: 'modelId',
       fieldType: 'select',
-      label: '模型',
-      placeholder: '请选择模型',
+      label: i18nText("app.ai.assistantsider.assistanteditform.de86d311"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.184f3007"),
       dependOn: ['modelProvider'],
       loadOptionsFunc: async (field, dependentValues) => {
         if (dependentValues?.modelProvider) {
@@ -184,8 +185,8 @@ const AssistantEditForm = ({
     {
       fieldName: 'systemPrompt',
       fieldType: 'textarea',
-      label: '系统提示词',
-      placeholder: '请输入系统提示词',
+      label: i18nText("app.ai.assistantsider.assistanteditform.a65186f6"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.69412fd9"),
       fullWidth: true,
       extraProps: {
         rows: 4,
@@ -196,8 +197,8 @@ const AssistantEditForm = ({
     {
       fieldName: 'reasoningEffort',
       fieldType: 'select',
-      label: '推理力度',
-      placeholder: '请选择推理力度',
+      label: i18nText("app.ai.assistantsider.assistanteditform.bdd27c6f"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.be19244b"),
       defaultValue: 'high',
       options: reasoningEffortOptions,
       clearable: true,
@@ -205,8 +206,8 @@ const AssistantEditForm = ({
     {
       fieldName: 'textType',
       fieldType: 'select',
-      label: '文本类型',
-      placeholder: '请选择文本类型',
+      label: i18nText("app.ai.assistantsider.assistanteditform.507fe7c4"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.64612d40"),
       defaultValue: 'markdown',
       options: textTypeOptions,
       clearable: true,
@@ -214,8 +215,8 @@ const AssistantEditForm = ({
     {
       fieldName: 'contextStrategy',
       fieldType: 'select',
-      label: '上下文策略',
-      placeholder: '请选择上下文策略',
+      label: i18nText("app.ai.assistantsider.assistanteditform.6bc38fd6"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.e2f16e48"),
       defaultValue: 'window',
       options: contextStrategyOptions,
       clearable: true,
@@ -224,7 +225,7 @@ const AssistantEditForm = ({
     {
       fieldName: 'contextWindow',
       fieldType: 'custom',
-      label: '上下文窗口数',
+      label: i18nText("app.ai.assistantsider.assistanteditform.2e9efc22"),
       dependOn: ['contextStrategy'],
       defaultValue: 6,
       render: ({value, onChange}) => {
@@ -234,14 +235,14 @@ const AssistantEditForm = ({
     {
       fieldName: 'temperature',
       fieldType: 'slider',
-      label: '温度',
+      label: i18nText("app.ai.assistantsider.assistanteditform.850250a0"),
       defaultValue: 0.7,
       extraProps: {min: 0, max: 2, step: 0.1, marks: {0: '0', 0.5: '0.5', 1: '1', 1.5: '1.5', 2: '2'}},
     },
     {
       fieldName: 'maxTokens',
       fieldType: 'slider',
-      label: '最大 Token 数',
+      label: i18nText("app.ai.assistantsider.assistanteditform.9138e5ac"),
       defaultValue: 4096,
       extraProps: {min: 0, max: 8192, step: 1, marks: {0: '0', 2048: '2048', 4096: '4096', 6144: '6144', 8192: '8192'}},
     },
@@ -262,48 +263,48 @@ const AssistantEditForm = ({
     {
       fieldName: 'presencePenalty',
       fieldType: 'slider',
-      label: '存在惩罚',
+      label: i18nText("app.ai.assistantsider.assistanteditform.ce644caf"),
       defaultValue: 0.2,
       extraProps: {min: -2.0, max: 2.0, step: 0.1, marks: {'-2': '-2', '-1': '-1', '0': '0', '1': '1', '2': '2'}},
     },
     {
       fieldName: 'frequencyPenalty',
       fieldType: 'slider',
-      label: '频率惩罚',
+      label: i18nText("app.ai.assistantsider.assistanteditform.1bb46147"),
       defaultValue: 0.2,
       extraProps: {min: -2.0, max: 2.0, step: 0.1, marks: {'-2': '-2', '-1': '-1', '0': '0', '1': '1', '2': '2'}},
     },
     {
       fieldName: 'globalMemoryFlag',
       fieldType: 'switch',
-      label: '是否开启全局记忆功能',
+      label: i18nText("app.ai.assistantsider.assistanteditform.fdc4f734"),
       defaultValue: false,
     },
     {
       fieldName: 'queryRewriteFlag',
       fieldType: 'switch',
-      label: '是否开启查询重写功能',
+      label: i18nText("app.ai.assistantsider.assistanteditform.48848d89"),
       defaultValue: false,
     },
     {
       fieldName: 'knowledgeBaseId',
       fieldType: 'select',
-      label: '关联知识库',
-      placeholder: '请选择关联知识库',
+      label: i18nText("app.ai.assistantsider.assistanteditform.f33aab5b"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.11eda565"),
       options: knowledgeOptions,
       clearable: true,
     },
     {
       fieldName: 'sortOrder',
       fieldType: 'number',
-      label: '排序',
+      label: i18nText("app.ai.assistantsider.assistanteditform.32b24e67"),
       required: true,
       defaultValue: 1,
-      placeholder: '请输入排序值',
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.9dab7d2e"),
       rules: [
         {
           pattern: /^[0-9]+$/,
-          message: '排序只能输入自然数',
+          message: i18nText("app.ai.assistantsider.assistanteditform.11f99d0c"),
         },
       ],
       extraProps: {min: 0, max: 1000, precision: 0},
@@ -311,19 +312,19 @@ const AssistantEditForm = ({
     {
       fieldName: 'status',
       fieldType: 'select',
-      label: '状态',
+      label: i18nText("app.ai.assistantsider.assistanteditform.f2f9da7e"),
       required: true,
       defaultValue: 1,
       options: [
-        {label: '启用', value: 1},
-        {label: '禁用', value: 3},
+        {label: i18nText("app.ai.assistantsider.assistanteditform.aadb1845"), value: 1},
+        {label: i18nText("app.ai.assistantsider.assistanteditform.ff41fea7"), value: 3},
       ],
     },
     {
       fieldName: 'description',
       fieldType: 'input',
-      label: '描述',
-      placeholder: '请输入描述',
+      label: i18nText("app.ai.assistantsider.assistanteditform.b8f87b98"),
+      placeholder: i18nText("app.ai.assistantsider.assistanteditform.d10cecd7"),
       extraProps: {
         rows: 1,
         maxLength: 200,
@@ -332,7 +333,7 @@ const AssistantEditForm = ({
     {
       fieldName: 'extraParams',
       fieldType: 'json',
-      label: '额外参数',
+      label: i18nText("app.ai.assistantsider.assistanteditform.f18ca8e1"),
       height: 150,
       fullWidth: true,
     },
@@ -359,7 +360,7 @@ const AssistantEditForm = ({
   if (loading) {
     return (
       <div style={{padding: '50px 0', textAlign: 'center'}}>
-        <Spin size="large" description="加载中..."/>
+        <Spin size="large" description={i18nText("app.ai.assistantsider.assistanteditform.31f9d90f")}/>
       </div>
     );
   }
@@ -373,8 +374,8 @@ const AssistantEditForm = ({
       mode={isEdit ? 'edit' : 'create'}
       size="medium"
       columns={4}
-      submitText={isEdit ? '更新' : '创建'}
-      cancelText="取消"
+      submitText={isEdit ? i18nText("app.ai.assistantsider.assistanteditform.6a06c9d2") : i18nText("app.ai.assistantsider.assistanteditform.523a0aed")}
+      cancelText={i18nText("app.ai.assistantsider.assistanteditform.90ac8f4c")}
       loading={submitLoading}
     />
   );

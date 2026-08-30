@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {KnowledgeBaseTypeEnum} from "@/types/ai.type";
 import {Select} from "antd";
@@ -37,7 +38,7 @@ const RagSider: React.FC<RagSiderProps> = ({height, onSelect}) => {
       case 'article':
         return <ArticleRagSider onSelect={handleSelect}/>;
       default:
-        return <div>暂不支持</div>;
+        return <div>{i18nText("app.ai.ragsider.8c8e1f9b")}</div>;
     }
   }, [knowledgeBaseType]);
   return (

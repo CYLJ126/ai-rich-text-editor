@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import UniqueID from '@tiptap/extension-unique-id';
 import {EditorContent, useEditor} from '@tiptap/react';
 import dayjs from 'dayjs';
@@ -159,8 +160,8 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
     () => {
       const commentButton: ToolbarButtonItem = {
         key: 'add-comment',
-        label: '添加批注',
-        children: '注',
+        label: i18nText("app.article.editor.richtextarea.772414d7"),
+        children: i18nText("app.article.editor.richtextarea.3ac1b6a9"),
         onClick: () => {
           setActivePanel('comments');
           window.dispatchEvent(new CustomEvent(COMMENT_COMPOSER_OPEN_EVENT));
@@ -252,7 +253,7 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
             <FloatingResultView
               content={floatingState.content}
               position={floatingState.position}
-              label="翻译结果"
+              label={i18nText("app.article.editor.richtextarea.ab9dbf52")}
               onClose={() => {
                 if (!editor.isDestroyed) editor.commands.hideFloatingResult();
               }}
@@ -260,7 +261,7 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
           )}
         </div>
       ) : (
-        <div>正在加载编辑器……</div>
+        <div>{i18nText("app.article.editor.richtextarea.ab02172a")}</div>
       )}
     </div>
   );

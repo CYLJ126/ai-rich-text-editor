@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {NodeViewWrapper, type ReactNodeViewProps} from '@tiptap/react';
 import {
   BrainCircuitIcon,
@@ -48,18 +49,18 @@ const canvasMeta: Record<
   { description: string; icon: typeof NetworkIcon; label: string }
 > = {
   drawio: {
-    label: 'Draw.io 图表',
-    description: '适用于流程图、架构图和 UML 图。',
+    label: i18nText("app.article.canvas.canvasblockview.9abf51ff"),
+    description: i18nText("app.article.canvas.canvasblockview.dc071f65"),
     icon: NetworkIcon,
   },
   mindmap: {
-    label: '思维导图',
-    description: '使用 Mind Elixir 创建和编辑结构化思维导图。',
+    label: i18nText("app.article.canvas.canvasblockview.9442c76b"),
+    description: i18nText("app.article.canvas.canvasblockview.1ed0ebcf"),
     icon: BrainCircuitIcon,
   },
   whiteboard: {
-    label: '自由画布',
-    description: '自由绘制画布将在后续 Provider 中接入。',
+    label: i18nText("app.article.canvas.canvasblockview.2b59a543"),
+    description: i18nText("app.article.canvas.canvasblockview.04628a98"),
     icon: PencilRulerIcon,
   },
 };
@@ -88,10 +89,10 @@ async function normalizeSvgFile(blob: Blob, filename: string) {
     'image/svg+xml',
   );
   if (document.querySelector('parsererror'))
-    throw new Error('导出的 SVG 文件格式无效');
+    throw new Error(i18nText("app.article.canvas.canvasblockview.614295ff"));
   const root = document.documentElement;
   if (root.tagName.toLowerCase() !== 'svg')
-    throw new Error('导出的文件不是 SVG');
+    throw new Error(i18nText("app.article.canvas.canvasblockview.a1370d69"));
 
   if (!root.hasAttribute('viewBox')) {
     const width = Number.parseFloat(root.getAttribute('width') ?? '');
@@ -102,7 +103,7 @@ async function normalizeSvgFile(blob: Blob, filename: string) {
       width <= 0 ||
       height <= 0
     ) {
-      throw new Error('SVG 缺少有效的尺寸信息，无法生成自适应预览');
+      throw new Error(i18nText("app.article.canvas.canvasblockview.e16c9016"));
     }
     root.setAttribute('viewBox', `0 0 ${width} ${height}`);
   }
@@ -310,7 +311,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
           );
         } catch (error: any) {
           console.error('Draw.io source load failed:', error);
-          window.alert(error?.message ?? '流程图源文件读取失败，请稍后重试。');
+          window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.c40ac313"));
           setOpen(false);
         } finally {
           setLoadingSource(false);
@@ -347,7 +348,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
         } catch (error: any) {
           console.error('Draw.io source upload failed:', error);
           window.alert(
-            error?.message ?? '流程图源文件上传失败，旧文件仍然保留，请重试。',
+            error?.message ?? i18nText("app.article.canvas.canvasblockview.d9c0be0d"),
           );
         } finally {
           savingSourceRef.current = false;
@@ -377,7 +378,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
             const articleSaved = await saveArticle(editor, 'manual');
             if (!articleSaved) {
               window.alert(
-                '流程图文件已经上传，但文章保存失败。请保持编辑窗口并重试保存。',
+                i18nText("app.article.canvas.canvasblockview.5f84bc55"),
               );
               return;
             }
@@ -411,7 +412,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
           console.error('Draw.io preview upload failed:', error);
           window.alert(
             error?.message ??
-              '流程图预览上传失败，图表源数据已经保存，请重试。',
+              i18nText("app.article.canvas.canvasblockview.3b4b04ec"),
           );
         } finally {
           setUploadingPreview(false);
@@ -455,11 +456,11 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
           const source = await readUploadedText(attrs.sourceUrl as string);
           data = JSON.parse(source) as MindElixirData;
         }
-        if (!data) data = MindElixir.new('中心主题');
+        if (!data) data = MindElixir.new(i18nText("app.article.canvas.canvasblockview.b709a807"));
         if (!cancelled) setMindMapData(data);
       } catch (error: any) {
         console.error('Mind map source load failed:', error);
-        window.alert(error?.message ?? '思维导图源文件读取失败，请稍后重试。');
+        window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.e2f35955"));
         if (!cancelled) setOpen(false);
       } finally {
         if (!cancelled) setLoadingSource(false);
@@ -525,7 +526,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
       const articleSaved = await saveArticle(editor, 'manual');
       if (!articleSaved) {
         window.alert(
-          '思维导图文件已经上传，但文章保存失败。请保持编辑窗口并重试保存。',
+          i18nText("app.article.canvas.canvasblockview.10062817"),
         );
         return;
       }
@@ -549,7 +550,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
       }
       console.error('Mind map save failed:', error);
       window.alert(
-        error?.message ?? '思维导图保存失败，旧文件仍然保留，请重试。',
+        error?.message ?? i18nText("app.article.canvas.canvasblockview.ef3cb9ca"),
       );
     } finally {
       savingSourceRef.current = false;
@@ -564,7 +565,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
     const mindMapEditor = mindMapEditorRef.current;
     if (!mindMapEditor) return;
     Promise.resolve(action(mindMapEditor)).catch((error: any) => {
-      window.alert(error?.message ?? '思维导图操作失败');
+      window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.932d0846"));
     });
   };
 
@@ -595,18 +596,18 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
       } else if (previewContainerRef.current?.requestFullscreen) {
         await previewContainerRef.current.requestFullscreen();
       } else {
-        throw new Error('当前浏览器不支持全屏展示');
+        throw new Error(i18nText("app.article.canvas.canvasblockview.2c75d219"));
       }
     } catch (error: any) {
-      window.alert(error?.message ?? '无法进入全屏模式');
+      window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.50ecb4c9"));
     }
   };
 
   const generateWithAi = async () => {
     const prompt = window.prompt(
       canvasType === 'mindmap'
-        ? '描述你想生成的思维导图，例如：制定一个新产品上线计划'
-        : '描述你想生成的图表，例如：用户下单到退款的完整流程',
+        ? i18nText("app.article.canvas.canvasblockview.4b2c9a18")
+        : i18nText("app.article.canvas.canvasblockview.0eac6b9a"),
     );
     if (!prompt?.trim()) return;
 
@@ -634,7 +635,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
           .trim();
         const data = JSON.parse(json) as MindElixirData;
         if (!data?.nodeData?.id || !data.nodeData.topic) {
-          throw new Error('AI 未返回有效的思维导图数据，请调整描述后重试。');
+          throw new Error(i18nText("app.article.canvas.canvasblockview.70533b71"));
         }
         pendingMindMapRef.current = data;
         handleOpenChange(true);
@@ -644,13 +645,13 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
       const xml = response.replace(/^```xml\s*|^```\s*|\s*```$/g, '').trim();
 
       if (!xml.startsWith('<mxGraphModel') || !xml.includes('<root>')) {
-        throw new Error('AI 未返回有效的 Draw.io 图表数据，请调整描述后重试。');
+        throw new Error(i18nText("app.article.canvas.canvasblockview.8795d6bf"));
       }
 
       pendingXmlRef.current = xml;
       handleOpenChange(true);
     } catch (error: any) {
-      window.alert(error?.message ?? 'AI 图表生成失败，请稍后重试。');
+      window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.c170ad88"));
     } finally {
       setGenerating(false);
     }
@@ -673,7 +674,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 size="icon-sm"
                 onClick={() => zoomPreview(-0.25)}
                 disabled={previewScale <= 0.5}
-                title="缩小"
+                title={i18nText("app.article.canvas.canvasblockview.5d4207ed")}
               >
                 <ZoomOutIcon className="size-4" />
               </Button>
@@ -685,7 +686,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 size="icon-sm"
                 onClick={() => zoomPreview(0.25)}
                 disabled={previewScale >= 2.5}
-                title="放大"
+                title={i18nText("app.article.canvas.canvasblockview.5f612f64")}
               >
                 <ZoomInIcon className="size-4" />
               </Button>
@@ -694,7 +695,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 size="icon-sm"
                 onClick={() => setPreviewScale(1)}
                 disabled={previewScale === 1}
-                title="恢复默认"
+                title={i18nText("app.article.canvas.canvasblockview.e13328ad")}
               >
                 <RotateCcwIcon className="size-4" />
               </Button>
@@ -702,7 +703,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={togglePreviewFullscreen}
-                title={isPreviewFullscreen ? '退出全屏' : '全屏'}
+                title={isPreviewFullscreen ? i18nText("app.article.canvas.canvasblockview.23d28ca1") : i18nText("app.article.canvas.canvasblockview.edf8deaf")}
               >
                 {isPreviewFullscreen ? (
                   <Minimize2Icon className="size-4" />
@@ -728,7 +729,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 }}
               >
                 <a href={preview} target="_blank" rel="noreferrer">
-                  在新标签页打开{meta.label}
+                  {i18nText("app.article.canvas.canvasblockview.df7e368b")}{meta.label}
                 </a>
               </object>
             </div>
@@ -758,7 +759,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                   onClick={generateWithAi}
                 >
                   <SparklesIcon className="size-4" />
-                  {generating ? '生成中' : 'AI 生成（尚不支持）'}
+                  {generating ? i18nText("app.article.canvas.canvasblockview.32a54de6") : i18nText("app.article.canvas.canvasblockview.4df4d9e1")}
                 </Button>
               )}
               <Button
@@ -769,13 +770,13 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 onClick={editExistingCanvas}
               >
                 <EditIcon className="size-4" />
-                编辑
+                {i18nText("app.article.canvas.canvasblockview.0f778d3c")}
               </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={deleteNode}
-                aria-label="删除画布"
+                aria-label={i18nText("app.article.canvas.canvasblockview.a8725ed2")}
               >
                 <Trash2Icon className="size-4" />
               </Button>
@@ -799,14 +800,14 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
               <DialogTitle>
                 {attrs.title ||
                   (canvasType === 'mindmap'
-                    ? '编辑思维导图'
-                    : '编辑 Draw.io 图表')}
+                    ? i18nText("app.article.canvas.canvasblockview.cbf06f86")
+                    : i18nText("app.article.canvas.canvasblockview.107310c6"))}
                 {loadingSource
-                  ? '（正在读取源文件）'
+                  ? i18nText("app.article.canvas.canvasblockview.5a10395c")
                   : uploadingSource
-                    ? '（正在上传源文件）'
+                    ? i18nText("app.article.canvas.canvasblockview.a7193766")
                     : uploadingPreview
-                      ? '（正在上传预览）'
+                      ? i18nText("app.article.canvas.canvasblockview.1441344d")
                       : ''}
               </DialogTitle>
               {canvasType === 'mindmap' && (
@@ -815,10 +816,10 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => runMindMapAction((mind) => mind.addChild())}
-                    title="选择节点后新增子主题（Tab）"
+                    title={i18nText("app.article.canvas.canvasblockview.203fff44")}
                   >
                     <GitBranchPlusIcon className="size-4" />
-                    子主题
+                    {i18nText("app.article.canvas.canvasblockview.a1f87b57")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -826,10 +827,10 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     onClick={() =>
                       runMindMapAction((mind) => mind.addSibling())
                     }
-                    title="选择节点后新增同级主题（Enter）"
+                    title={i18nText("app.article.canvas.canvasblockview.94b0b121")}
                   >
                     <PlusIcon className="size-4" />
-                    同级主题
+                    {i18nText("app.article.canvas.canvasblockview.144b67c1")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -837,7 +838,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     onClick={() =>
                       runMindMapAction((mind) => mind.editSelected())
                     }
-                    title="编辑选中主题（F2 或双击）"
+                    title={i18nText("app.article.canvas.canvasblockview.6e78f039")}
                   >
                     <EditIcon className="size-4" />
                   </Button>
@@ -847,7 +848,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     onClick={() =>
                       runMindMapAction((mind) => mind.removeSelected())
                     }
-                    title="删除选中主题（Delete）"
+                    title={i18nText("app.article.canvas.canvasblockview.d50d5865")}
                   >
                     <Trash2Icon className="size-4" />
                   </Button>
@@ -855,7 +856,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => runMindMapAction((mind) => mind.undo())}
-                    title="撤销"
+                    title={i18nText("app.article.canvas.canvasblockview.c5414bed")}
                   >
                     <Undo2Icon className="size-4" />
                   </Button>
@@ -863,7 +864,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => runMindMapAction((mind) => mind.redo())}
-                    title="重做"
+                    title={i18nText("app.article.canvas.canvasblockview.030f50a0")}
                   >
                     <Redo2Icon className="size-4" />
                   </Button>
@@ -871,7 +872,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setShowMindMapHelp(true)}
-                    title="快捷键帮助（?）"
+                    title={i18nText("app.article.canvas.canvasblockview.b94af55c")}
                   >
                     <CircleHelpIcon className="size-4" />
                   </Button>
@@ -883,7 +884,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                     onClick={saveMindMap}
                   >
                     <SaveIcon className="size-4" />
-                    保存并退出
+                    {i18nText("app.article.canvas.canvasblockview.9c876095")}
                   </Button>
                 </div>
               )}
@@ -893,7 +894,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
             {canvasType === 'drawio' && (
               <iframe
                 ref={iframeRef}
-                title="Draw.io 图表编辑器"
+                title={i18nText("app.article.canvas.canvasblockview.f5c69a59")}
                 src={drawioUrl}
                 className="size-full border-0"
               />
@@ -910,56 +911,56 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h3 className="m-0 text-lg font-semibold">
-                      思维导图操作帮助
+                      {i18nText("app.article.canvas.canvasblockview.10017ddf")}
                     </h3>
                     <p className="m-0 mt-1 text-sm text-slate-500">
-                      先单击选择一个主题，再使用快捷键；按 ? 可开关此帮助。
+                      {i18nText("app.article.canvas.canvasblockview.95cf7345")}
                     </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setShowMindMapHelp(false)}
-                    aria-label="关闭帮助"
+                    aria-label={i18nText("app.article.canvas.canvasblockview.991be50b")}
                   >
                     <XIcon className="size-4" />
                   </Button>
                 </div>
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                   <MindMapShortcutGroup
-                    title="创建与编辑"
+                    title={i18nText("app.article.canvas.canvasblockview.9976e86a")}
                     shortcuts={[
-                      ['Tab', '新增子主题'],
-                      ['Enter', '在后面新增同级主题'],
-                      ['Shift + Enter', '在前面新增同级主题'],
-                      ['Ctrl/Cmd + Enter', '插入父主题'],
-                      ['F2 / 双击', '编辑选中主题'],
-                      ['Delete / Backspace', '删除选中主题'],
+                      ['Tab', i18nText("app.article.canvas.canvasblockview.a1afdfbf")],
+                      ['Enter', i18nText("app.article.canvas.canvasblockview.c094f96d")],
+                      ['Shift + Enter', i18nText("app.article.canvas.canvasblockview.bc858025")],
+                      ['Ctrl/Cmd + Enter', i18nText("app.article.canvas.canvasblockview.16e7ab8b")],
+                      [i18nText("app.article.canvas.canvasblockview.2ac62e48"), i18nText("app.article.canvas.canvasblockview.7c3adfd6")],
+                      ['Delete / Backspace', i18nText("app.article.canvas.canvasblockview.29efe486")],
                     ]}
                   />
                   <MindMapShortcutGroup
-                    title="选择与调整"
+                    title={i18nText("app.article.canvas.canvasblockview.4bbd8f23")}
                     shortcuts={[
-                      ['方向键', '切换选中主题'],
-                      ['PageUp / Alt + ↑', '主题上移'],
-                      ['PageDown / Alt + ↓', '主题下移'],
-                      ['F1', '导图居中'],
-                      ['Ctrl/Cmd + ←', '切换左向布局'],
-                      ['Ctrl/Cmd + →', '切换右向布局'],
-                      ['Ctrl/Cmd + ↑', '切换双向布局'],
+                      [i18nText("app.article.canvas.canvasblockview.191fcfcf"), i18nText("app.article.canvas.canvasblockview.a77adb9d")],
+                      ['PageUp / Alt + ↑', i18nText("app.article.canvas.canvasblockview.79f8e04c")],
+                      ['PageDown / Alt + ↓', i18nText("app.article.canvas.canvasblockview.1eae6744")],
+                      ['F1', i18nText("app.article.canvas.canvasblockview.90684e96")],
+                      ['Ctrl/Cmd + ←', i18nText("app.article.canvas.canvasblockview.e6615090")],
+                      ['Ctrl/Cmd + →', i18nText("app.article.canvas.canvasblockview.b3065c75")],
+                      ['Ctrl/Cmd + ↑', i18nText("app.article.canvas.canvasblockview.556451cd")],
                     ]}
                   />
                   <MindMapShortcutGroup
-                    title="缩放与通用操作"
+                    title={i18nText("app.article.canvas.canvasblockview.37cf48ce")}
                     shortcuts={[
-                      ['Ctrl/Cmd + =', '放大'],
-                      ['Ctrl/Cmd + -', '缩小'],
-                      ['Ctrl/Cmd + 0', '恢复 100%'],
-                      ['Ctrl/Cmd + Z', '撤销'],
-                      ['Ctrl/Cmd + Shift + Z / Ctrl + Y', '重做'],
-                      ['Ctrl/Cmd + C / X / V', '复制 / 剪切 / 粘贴主题'],
-                      ['右键主题', '打开主题操作菜单'],
-                      ['空格 + 拖动', '移动画布'],
+                      ['Ctrl/Cmd + =', i18nText("app.article.canvas.canvasblockview.5f612f64")],
+                      ['Ctrl/Cmd + -', i18nText("app.article.canvas.canvasblockview.5d4207ed")],
+                      ['Ctrl/Cmd + 0', i18nText("app.article.canvas.canvasblockview.18b1c971")],
+                      ['Ctrl/Cmd + Z', i18nText("app.article.canvas.canvasblockview.c5414bed")],
+                      ['Ctrl/Cmd + Shift + Z / Ctrl + Y', i18nText("app.article.canvas.canvasblockview.030f50a0")],
+                      ['Ctrl/Cmd + C / X / V', i18nText("app.article.canvas.canvasblockview.fca1320d")],
+                      [i18nText("app.article.canvas.canvasblockview.41403531"), i18nText("app.article.canvas.canvasblockview.6e8f0035")],
+                      [i18nText("app.article.canvas.canvasblockview.2d9c67c0"), i18nText("app.article.canvas.canvasblockview.a1f4c1b5")],
                     ]}
                   />
                 </div>

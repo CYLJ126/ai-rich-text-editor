@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Conversation} from "@/types/ai.type";
 import dayjs from "dayjs";
@@ -164,7 +165,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         items.push({
           key: 'pin',
           icon: conversation.pinFlag ? <PushpinFilled/> : <PushpinOutlined/>,
-          label: conversation.pinFlag ? '取消置顶' : '置顶会话',
+          label: conversation.pinFlag ? i18nText("app.ai.conversationsider.conversationitem.c48f7be6") : i18nText("app.ai.conversationsider.conversationitem.de1f7f60"),
           onClick: () => onPin(conversation.convId || '', !conversation.pinFlag),
         });
       }
@@ -172,7 +173,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         items.push({
           key: 'rename',
           icon: <EditOutlined/>,
-          label: '重命名',
+          label: i18nText("app.ai.conversationsider.conversationitem.4ba1bf3f"),
           onClick: () => {
             setEditTitle(conversation.title ?? '');
             setEditing(true);
@@ -183,7 +184,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         items.push({
           key: 'edit',
           icon: <FormOutlined/>,
-          label: '编辑',
+          label: i18nText("app.ai.conversationsider.conversationitem.c287471d"),
           onClick: () => onEdit(conversation.convId || ''),
         });
       }
@@ -191,7 +192,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         items.push({
           key: 'archive',
           icon: <InboxOutlined/>,
-          label: '归档',
+          label: i18nText("app.ai.conversationsider.conversationitem.0d5aead2"),
           onClick: () => onArchive(conversation.convId || ''),
         });
       }
@@ -200,7 +201,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         items.push({
           key: 'delete',
           icon: <DeleteOutlined/>,
-          label: '删除',
+          label: i18nText("app.ai.conversationsider.conversationitem.18dc6285"),
           danger: true,
           onClick: () => onDelete(conversation.convId || ''),
         });
@@ -250,7 +251,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
               {conversation.pinFlag && (
                 <PushpinFilled className={styles.pinIcon} style={{marginRight: 4}}/>
               )}
-              {conversation.title || '新会话'}
+              {conversation.title || i18nText("app.ai.conversationsider.conversationitem.7fc567bc")}
             </Text>
           )}
           <span className={styles.time}>
@@ -259,7 +260,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         </div>
         <div className={styles.digest}>
           <span className="text-xs truncate opacity-40 leading-tight">
-            {conversation.lastMessageDigest || '暂无消息'}
+            {conversation.lastMessageDigest || i18nText("app.ai.conversationsider.conversationitem.0f5b6c47")}
           </span>
         </div>
       </div>
@@ -270,7 +271,7 @@ const ConversationItem: React.FC<ConvItemProps> = ({
         trigger={['click']}
         placement="bottomRight"
       >
-        <Tooltip title="更多操作">
+        <Tooltip title={i18nText("app.ai.conversationsider.conversationitem.2784005e")}>
           <div
             className={cx(styles.actions, 'conv-actions')}
             onClick={(e) => e.stopPropagation()}

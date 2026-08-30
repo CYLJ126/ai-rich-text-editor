@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Radar} from '@ant-design/plots';
 import {PageContainer} from '@ant-design/pro-components';
 import {useQuery} from '@tanstack/react-query';
@@ -12,27 +13,27 @@ import useStyles from './style.style';
 
 const links = [
   {
-    title: '操作一',
+    title: i18nText("app.dashboard.workplace.496745c4"),
     href: '',
   },
   {
-    title: '操作二',
+    title: i18nText("app.dashboard.workplace.c21a0f88"),
     href: '',
   },
   {
-    title: '操作三',
+    title: i18nText("app.dashboard.workplace.bacd55b3"),
     href: '',
   },
   {
-    title: '操作四',
+    title: i18nText("app.dashboard.workplace.38018fec"),
     href: '',
   },
   {
-    title: '操作五',
+    title: i18nText("app.dashboard.workplace.695c582f"),
     href: '',
   },
   {
-    title: '操作六',
+    title: i18nText("app.dashboard.workplace.36735aec"),
     href: '',
   },
 ];
@@ -59,9 +60,9 @@ const PageHeaderContent: FC<{
       </div>
       <div className={styles.content}>
         <div className={styles.contentTitle}>
-          早安，
+          {i18nText("app.dashboard.workplace.9239f213")}
           {currentUser.name}
-          ，祝你开心每一天！
+          {i18nText("app.dashboard.workplace.c9cb7439")}
         </div>
         <div>
           {currentUser.title} | {currentUser.group}
@@ -75,13 +76,13 @@ const ExtraContent: FC<Record<string, any>> = () => {
   return (
     <div className={styles.extraContent}>
       <div className={styles.statItem}>
-        <Statistic title="项目数" value={56} />
+        <Statistic title={i18nText("app.dashboard.workplace.ecc1a898")} value={56} />
       </div>
       <div className={styles.statItem}>
-        <Statistic title="团队内排名" value={8} suffix="/ 24" />
+        <Statistic title={i18nText("app.dashboard.workplace.fe00260d")} value={8} suffix="/ 24" />
       </div>
       <div className={styles.statItem}>
-        <Statistic title="项目访问" value={2223} />
+        <Statistic title={i18nText("app.dashboard.workplace.d99f9413")} value={2223} />
       </div>
     </div>
   );
@@ -142,12 +143,12 @@ const Workplace: FC = () => {
           currentUser={{
             avatar:
               'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png',
-            name: '吴彦祖',
+            name: i18nText("app.dashboard.workplace.208da994"),
             userid: '00000001',
             email: 'antdesign@alipay.com',
-            signature: '海纳百川，有容乃大',
-            title: '交互专家',
-            group: '蚂蚁集团－某某某事业群－某某平台部－某某技术部－UED',
+            signature: i18nText("app.dashboard.workplace.382fab58"),
+            title: i18nText("app.dashboard.workplace.f56fa4a3"),
+            group: i18nText("app.dashboard.workplace.d6af3066"),
           }}
         />
       }
@@ -160,11 +161,11 @@ const Workplace: FC = () => {
             style={{
               marginBottom: 24,
             }}
-            title="进行中的项目"
+            title={i18nText("app.dashboard.workplace.d120e1fd")}
             variant="borderless"
             extra={
               <Link to="/" prefetch>
-                全部项目
+                {i18nText("app.dashboard.workplace.8a8ad9ce")}
               </Link>
             }
             loading={projectLoading}
@@ -206,7 +207,7 @@ const Workplace: FC = () => {
             }}
             variant="borderless"
             className={styles.activeCard}
-            title="动态"
+            title={i18nText("app.dashboard.workplace.ce65c7e0")}
             loading={activitiesLoading}
           >
             <List<ActivitiesType>
@@ -223,7 +224,7 @@ const Workplace: FC = () => {
             style={{
               marginBottom: 24,
             }}
-            title="快速开始 / 便捷导航"
+            title={i18nText("app.dashboard.workplace.ba570e06")}
             variant="borderless"
           >
             <EditableLinkGroup
@@ -237,7 +238,7 @@ const Workplace: FC = () => {
               marginBottom: 24,
             }}
             variant="borderless"
-            title="XX 指数"
+            title={i18nText("app.dashboard.workplace.f4b66736")}
             loading={data?.radarData?.length === 0}
           >
             <Radar
@@ -273,7 +274,7 @@ const Workplace: FC = () => {
               },
             }}
             variant="borderless"
-            title="团队"
+            title={i18nText("app.dashboard.workplace.41e8fecf")}
             loading={projectLoading}
           >
             <div className={styles.members}>

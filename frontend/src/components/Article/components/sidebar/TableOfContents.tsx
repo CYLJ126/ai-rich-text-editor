@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   CaretDownOutlined,
   CaretRightOutlined,
@@ -559,7 +560,7 @@ const TableOfContents: React.FC = () => {
       {/* 标题栏 */}
       <div className={styles.header}>
         <MenuOutlined />
-        <span style={{ flex: 1 }}>章节列表</span>
+        <span style={{ flex: 1 }}>{i18nText("app.article.sidebar.tableofcontents.5738d1de")}</span>
         {parentIds.length > 0 && (
           <span
             style={{
@@ -570,7 +571,7 @@ const TableOfContents: React.FC = () => {
             }}
             onClick={handleToggleAll}
           >
-            {allExpanded ? '折叠' : '展开'}
+            {allExpanded ? i18nText("app.article.sidebar.tableofcontents.66440a48") : i18nText("app.article.sidebar.tableofcontents.b037db96")}
           </span>
         )}
       </div>

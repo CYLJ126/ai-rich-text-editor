@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState,} from 'react';
 import {Select, Tag, Tooltip} from 'antd';
 import {createStyles} from 'antd-style';
@@ -257,7 +258,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
     );
 
     return (
-      <Tooltip title="选择模型">
+      <Tooltip title={i18nText("app.ai.modelselector.2152358c")}>
         <Select<string>
           className={styles.selector}
           style={{ width }}
@@ -265,7 +266,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
           value={activeModelId}
           onChange={handleSelect}
           options={options}
-          placeholder="选择模型"
+          placeholder={i18nText("app.ai.modelselector.2152358c")}
           popupMatchSelectWidth={false}
           popupStyle={{ minWidth: 240 }}
           size="small"

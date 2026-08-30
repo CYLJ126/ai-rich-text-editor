@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useRef} from 'react';
 import {SimpleTable, TableColumn} from '@/components';
 import {
@@ -17,27 +18,27 @@ interface AssignMenusModalProps {
 
 const menuColumns: TableColumn[] = [
     {
-        title: '菜单名称',
+        title: i18nText("app.administration.menumanagement.assignmenusmodal.d1347172"),
         dataIndex: 'menuName',
         width: 150,
     },
     {
-        title: '菜单编码',
+        title: i18nText("app.administration.menumanagement.assignmenusmodal.69254608"),
         dataIndex: 'menuCode',
         width: 100,
     },
     {
-        title: '菜单路径',
+        title: i18nText("app.administration.menumanagement.assignmenusmodal.18e5104f"),
         dataIndex: 'menuUrl',
         width: 200,
     },
     {
-        title: '父菜单',
+        title: i18nText("app.administration.menumanagement.assignmenusmodal.f3421ea9"),
         dataIndex: 'fatherId',
         width: 100,
     },
     {
-        title: '描述',
+        title: i18nText("app.administration.menumanagement.assignmenusmodal.543fafe5"),
         dataIndex: 'description',
         width: 300,
     },
@@ -66,7 +67,7 @@ const AssignMenusModal: React.FC<AssignMenusModalProps> = ({
     const handleAssignMenus = () => {
         const selectedMenus = menuTableRef.current?.getSelectedRows() || [];
         if (selectedMenus.length === 0) {
-            message.warning('请选择至少一个菜单').then();
+            message.warning(i18nText("app.administration.menumanagement.assignmenusmodal.8e3536de")).then();
             return;
         }
 
@@ -87,20 +88,20 @@ const AssignMenusModal: React.FC<AssignMenusModalProps> = ({
 
         assignPromise
             .then(() => {
-                message.success('菜单分配成功').then();
+                message.success(i18nText("app.administration.menumanagement.assignmenusmodal.539070aa")).then();
                 onSuccess();
             })
             .catch((error) => {
-                message.error(`菜单分配失败: ${error.message}`).then();
+                message.error(i18nText("app.administration.menumanagement.assignmenusmodal.1ffcd32c", {value0: error.message})).then();
             });
     };
 
     // 获取弹窗标题
     const getModalTitle = () => {
         if (sourceType === 'role') {
-            return `为角色 ${sourceName} 分配菜单`;
+            return i18nText("app.administration.menumanagement.assignmenusmodal.b19fbad1", {value0: sourceName});
         } else {
-            return `为用户 ${sourceName} 分配菜单`;
+            return i18nText("app.administration.menumanagement.assignmenusmodal.9558c886", {value0: sourceName});
         }
     };
 
@@ -111,10 +112,10 @@ const AssignMenusModal: React.FC<AssignMenusModalProps> = ({
             onCancel={onCancel}
             footer={[
                 <Button key="cancel" onClick={onCancel}>
-                    取消
+                    {i18nText("app.administration.menumanagement.assignmenusmodal.dff84585")}
                 </Button>,
                 <Button key="assign" type="primary" onClick={handleAssignMenus}>
-                    分配
+                    {i18nText("app.administration.menumanagement.assignmenusmodal.a770c87f")}
                 </Button>,
             ]}
             width={1000}

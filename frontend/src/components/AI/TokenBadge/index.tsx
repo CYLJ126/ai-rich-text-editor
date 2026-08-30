@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {memo} from 'react';
 import {Tooltip} from 'antd';
 import {createStyles} from 'antd-style';
@@ -45,16 +46,16 @@ const TokenBadge: React.FC<TokenBadgeProps> = memo(
 
     const tooltipContent = (
       <div style={{fontSize: 12, lineHeight: 1.8}}>
-        {prompt != null && <div>提示词：{prompt.toLocaleString()} tokens</div>}
+        {prompt != null && <div>{i18nText("app.ai.tokenbadge.9adaac0b")}{prompt.toLocaleString()} tokens</div>}
         {think != null && think > 0 && (
-          <div>思考：{think.toLocaleString()} tokens</div>
+          <div>{i18nText("app.ai.tokenbadge.bbaec5f9")}{think.toLocaleString()} tokens</div>
         )}
         {completion != null && (
-          <div>输出：{completion.toLocaleString()} tokens</div>
+          <div>{i18nText("app.ai.tokenbadge.129dce39")}{completion.toLocaleString()} tokens</div>
         )}
         {total != null && (
           <div style={{borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 4, paddingTop: 4}}>
-            合计：{total.toLocaleString()} tokens
+            {i18nText("app.ai.tokenbadge.c668c14a")}{total.toLocaleString()} tokens
           </div>
         )}
       </div>

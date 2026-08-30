@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
@@ -10,56 +11,56 @@ import { queryBasicProfile } from './service';
 
 const progressColumns: ProColumns<BasicProgress>[] = [
   {
-    title: '时间',
+    title: i18nText("app.examples.basic.bc92f24f"),
     dataIndex: 'time',
   },
   {
-    title: '当前进度',
+    title: i18nText("app.examples.basic.7f6bf451"),
     dataIndex: 'rate',
   },
   {
-    title: '状态',
+    title: i18nText("app.examples.basic.9d0ad273"),
     dataIndex: 'status',
     render: (text: React.ReactNode) => {
       if (text === 'success') {
-        return <Badge status="success" text="成功" />;
+        return <Badge status="success" text={i18nText("app.examples.basic.b29aac27")} />;
       }
-      return <Badge status="processing" text="进行中" />;
+      return <Badge status="processing" text={i18nText("app.examples.basic.ca708c27")} />;
     },
   },
   {
-    title: '操作员ID',
+    title: i18nText("app.examples.basic.a62cf544"),
     dataIndex: 'operator',
   },
   {
-    title: '耗时',
+    title: i18nText("app.examples.basic.b8b75dcb"),
     dataIndex: 'cost',
   },
 ];
 const goodsColumns: ProColumns<BasicGood>[] = [
   {
-    title: '商品编号',
+    title: i18nText("app.examples.basic.c0e3e2a7"),
     dataIndex: 'id',
   },
   {
-    title: '商品名称',
+    title: i18nText("app.examples.basic.81b6c6ed"),
     dataIndex: 'name',
   },
   {
-    title: '商品条码',
+    title: i18nText("app.examples.basic.2f47a431"),
     dataIndex: 'barcode',
   },
   {
-    title: '单价',
+    title: i18nText("app.examples.basic.d4ba6d4e"),
     dataIndex: 'price',
   },
   {
-    title: '数量（件）',
+    title: i18nText("app.examples.basic.d9bd9f84"),
     dataIndex: 'num',
     align: 'right',
   },
   {
-    title: '金额',
+    title: i18nText("app.examples.basic.8359758a"),
     dataIndex: 'amount',
     align: 'right',
   },
@@ -68,50 +69,50 @@ const goodsColumns: ProColumns<BasicGood>[] = [
 const Descriptions1: DescriptionsProps['items'] = [
   {
     key: '1',
-    label: '取货单号',
+    label: i18nText("app.examples.basic.660f802f"),
     children: '1000000000',
   },
   {
     key: '2',
-    label: '状态',
-    children: '已取货',
+    label: i18nText("app.examples.basic.9d0ad273"),
+    children: i18nText("app.examples.basic.56f22ec9"),
   },
   {
     key: '3',
-    label: '销售单号',
+    label: i18nText("app.examples.basic.39a35677"),
     children: '1234123421',
   },
   {
     key: '4',
-    label: '子订单',
+    label: i18nText("app.examples.basic.e7d990c8"),
     children: '3214321432',
   },
 ];
 const Descriptions2: DescriptionsProps['items'] = [
   {
     key: '1',
-    label: '用户姓名',
-    children: '付小小',
+    label: i18nText("app.examples.basic.1017a55c"),
+    children: i18nText("app.examples.basic.a08d2308"),
   },
   {
     key: '2',
-    label: '联系电话',
+    label: i18nText("app.examples.basic.826a26c1"),
     children: '18100000000',
   },
   {
     key: '3',
-    label: '常用快递',
-    children: '菜鸟仓储',
+    label: i18nText("app.examples.basic.b591d803"),
+    children: i18nText("app.examples.basic.ceb7caab"),
   },
   {
     key: '4',
-    label: '取货地址',
-    children: '浙江省杭州市西湖区万塘路18号',
+    label: i18nText("app.examples.basic.7a2904c7"),
+    children: i18nText("app.examples.basic.2d9f5c56"),
   },
   {
     key: '5',
-    label: '备注',
-    children: '无',
+    label: i18nText("app.examples.basic.ef60f971"),
+    children: i18nText("app.examples.basic.6f8d66a0"),
   },
 ];
 
@@ -127,12 +128,12 @@ const Basic: FC = () => {
   return (
     <PageContainer>
       <Card variant="borderless">
-        <Descriptions title="退款申请" items={Descriptions1} />
+        <Descriptions title={i18nText("app.examples.basic.bd9795a2")} items={Descriptions1} />
         <Divider size="large" />
-        <Descriptions title="用户信息" items={Descriptions2} />
+        <Descriptions title={i18nText("app.examples.basic.981de19e")} items={Descriptions2} />
         <Divider size="large" />
         <ProTable
-          headerTitle="退货商品"
+          headerTitle={i18nText("app.examples.basic.eb9f7e7e")}
           style={{
             marginBottom: 24,
           }}
@@ -154,7 +155,7 @@ const Basic: FC = () => {
             return (
               <Table.Summary.Row>
                 <Table.Summary.Cell index={0} colSpan={4}>
-                  <span style={{ fontWeight: 600 }}>总计</span>
+                  <span style={{ fontWeight: 600 }}>{i18nText("app.examples.basic.d9e80b9e")}</span>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={4} align="right">
                   <span style={{ fontWeight: 600 }}>{totalNum}</span>
@@ -167,7 +168,7 @@ const Basic: FC = () => {
           }}
         />
         <ProTable
-          headerTitle="退货进度"
+          headerTitle={i18nText("app.examples.basic.59477b4a")}
           pagination={false}
           loading={loading}
           search={false}

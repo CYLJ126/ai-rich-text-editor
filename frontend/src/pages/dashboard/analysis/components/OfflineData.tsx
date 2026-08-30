@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Line, Tiny } from '@ant-design/plots';
 import { Card, Col, Row, Tabs } from 'antd';
 import type { DataItem, OfflineDataType } from '../data.d';
@@ -21,7 +22,7 @@ const CustomTab = ({
     <Col span={12}>
       <NumberInfo
         title={data.name}
-        subTitle="转化率"
+        subTitle={i18nText("app.dashboard.components.offlinedata.bfcb4771")}
         gap={2}
         total={`${data.cvr * 100}%`}
         theme={currentKey !== data.name ? 'light' : undefined}

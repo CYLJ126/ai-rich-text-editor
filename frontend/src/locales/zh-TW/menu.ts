@@ -58,6 +58,7 @@ export default {
   'menu.Personal': '個人管理',
   'menu.Personal.TagManagement': '標籤管理',
   'menu.Personal.StickyNote': '便笺',
+  'menu.Personal.GeneralManagement': '活動計劃',
   'menu.Learn': '學習',
   'menu.Proof': '功能驗證',
   'menu.Administration': '系統管理',

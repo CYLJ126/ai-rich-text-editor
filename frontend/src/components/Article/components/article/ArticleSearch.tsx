@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react';
 import {ArticleSearchParam, ArticleType, articleTypeOptions} from '@/types/rt.type';
 import {DownOutlined, SearchOutlined, UpOutlined} from '@ant-design/icons';
@@ -68,9 +69,9 @@ function buildCatalogTree(data: {
   sharedWithMe?: RawCatalog[];
 }): TreeNode[] {
   const groups = [
-    {label: '我的空间', key: 'mySpace', list: data.mySpace},
-    {label: '公共空间', key: 'publicSpace', list: data.publicSpace},
-    {label: '共享给我', key: 'sharedWithMe', list: data.sharedWithMe},
+    {label: i18nText("app.article.article.articlesearch.2df1c531"), key: 'mySpace', list: data.mySpace},
+    {label: i18nText("app.article.article.articlesearch.4290c88f"), key: 'publicSpace', list: data.publicSpace},
+    {label: i18nText("app.article.article.articlesearch.c0088b15"), key: 'sharedWithMe', list: data.sharedWithMe},
   ];
 
   return groups
@@ -263,7 +264,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
     const characterComponent = useMemo(() => {
       if (size === 'large') {
         return <div className="col-span-2 flex items-center gap-2 flex-1 min-w-0">
-          <span className="flex-shrink-0">字数范围</span>
+          <span className="flex-shrink-0">{i18nText("app.article.article.articlesearch.6f323566")}</span>
           <Slider
             range
             step={500}
@@ -275,7 +276,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
             // 鼠标释放后才触发搜索
             onChangeComplete={() => onChange?.(assembleSearch(), expanded)}
             tooltip={{
-              formatter: (v) => `${v} 字`,
+              formatter: (v) => i18nText("app.article.article.articlesearch.6a7ccc6a", {value0: v}),
             }}
             className="flex-1 w-[300px] min-w-[300px] max-w-[300px]"
           />
@@ -285,7 +286,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
         </div>;
       }
       return <div className="col-span-2 flex items-center gap-2 flex-1">
-        <span className="flex-shrink-0">字数范围</span>
+        <span className="flex-shrink-0">{i18nText("app.article.article.articlesearch.6f323566")}</span>
         <InputNumber
           className="w-[130px]"
           min={0}
@@ -340,7 +341,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
         <div className="flex gap-2 items-center">
           <div className="flex-1">
             <Input.Search
-              placeholder="搜索文章..."
+              placeholder={i18nText("app.article.article.articlesearch.73e5f0c2")}
               enterButton={<SearchOutlined/>}
               value={searchBingoText}
               // 输入时只更新文本，不触发搜索
@@ -357,7 +358,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
             className="flex-shrink-0"
             style={{width: size === 'large' ? undefined : 70}}
           >
-            {expanded ? '收起' : '展开'}
+            {expanded ? i18nText("app.article.article.articlesearch.0e56f79c") : i18nText("app.article.article.articlesearch.05708f44")}
           </Button>
         </div>
 
@@ -370,7 +371,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
               <Select
                 allowClear
                 mode="multiple"
-                placeholder="请选择文章类型"
+                placeholder={i18nText("app.article.article.articlesearch.ce187aeb")}
                 options={articleTypeOptions}
                 onChange={handleArticleTypeChange}
                 className="w-full"
@@ -381,7 +382,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
               <Select
                 allowClear
                 mode="multiple"
-                placeholder="搜索作者"
+                placeholder={i18nText("app.article.article.articlesearch.f13fb86b")}
                 loading={authorLoading}
                 options={authorOptions}
                 onFocus={loadAuthors}
@@ -395,7 +396,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
               <TreeSelect
                 multiple
                 allowClear
-                placeholder="请选择标签"
+                placeholder={i18nText("app.article.article.articlesearch.55a9f9a5")}
                 treeData={tagTree}
                 loading={tagLoading}
                 value={tags}
@@ -412,7 +413,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
               <TreeSelect
                 multiple
                 allowClear
-                placeholder="请选择目录"
+                placeholder={i18nText("app.article.article.articlesearch.fe2c3a26")}
                 treeData={catalogTree}
                 loading={catalogLoading}
                 value={catalogIds}
@@ -432,7 +433,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
                 onChange={(e) => handleSearchTitleChange(e.target.checked)}
                 className="flex-shrink-0 whitespace-nowrap"
               >
-                搜索标题
+                {i18nText("app.article.article.articlesearch.43a5a207")}
               </Checkbox>
 
               <Checkbox
@@ -440,7 +441,7 @@ const ArticleSearch = forwardRef<ArticleSearchRef, ArticleSearchInfo>(
                 onChange={(e) => handleSemanticChange(e.target.checked)}
                 className="flex-shrink-0 whitespace-nowrap"
               >
-                相关性搜索
+                {i18nText("app.article.article.articlesearch.d8d78e37")}
               </Checkbox>
               {/* 字数范围 */}
               {characterComponent}

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Column } from '@ant-design/plots';
 import { Button, Card, Col, DatePicker, Row, Tabs } from 'antd';
 import type { RangePickerProps } from 'antd/es/date-picker';
@@ -15,7 +16,7 @@ const rankingListData: {
 
 for (let i = 0; i < 7; i += 1) {
   rankingListData.push({
-    title: `工专路 ${i} 号店`,
+    title: i18nText("app.dashboard.components.salescard.0052ad23", {value0: i}),
     total: 323234,
   });
 }
@@ -56,28 +57,28 @@ const SalesCard = ({
                 className={isActive('today')}
                 onClick={() => selectDate('today')}
               >
-                今日
+                {i18nText("app.dashboard.components.salescard.a18b7079")}
               </Button>
               <Button
                 type="text"
                 className={isActive('week')}
                 onClick={() => selectDate('week')}
               >
-                本周
+                {i18nText("app.dashboard.components.salescard.ae69c84d")}
               </Button>
               <Button
                 type="text"
                 className={isActive('month')}
                 onClick={() => selectDate('month')}
               >
-                本月
+                {i18nText("app.dashboard.components.salescard.96d011e8")}
               </Button>
               <Button
                 type="text"
                 className={isActive('year')}
                 onClick={() => selectDate('year')}
               >
-                本年
+                {i18nText("app.dashboard.components.salescard.dfef68fd")}
               </Button>
             </div>
             <RangePicker
@@ -97,7 +98,7 @@ const SalesCard = ({
         items={[
           {
             key: 'sales',
-            label: '销售额',
+            label: i18nText("app.dashboard.components.salescard.5437341a"),
             children: (
               <Row>
                 <Col xl={16} lg={12} md={12} sm={24} xs={24}>
@@ -122,7 +123,7 @@ const SalesCard = ({
                         x: { paddingInner: 0.4 },
                       }}
                       tooltip={{
-                        name: '销售量',
+                        name: i18nText("app.dashboard.components.salescard.749b8393"),
                         channel: 'y',
                       }}
                     />
@@ -130,7 +131,7 @@ const SalesCard = ({
                 </Col>
                 <Col xl={8} lg={12} md={12} sm={24} xs={24}>
                   <div className={styles.salesRank}>
-                    <h4 className={styles.rankingTitle}>门店销售额排名</h4>
+                    <h4 className={styles.rankingTitle}>{i18nText("app.dashboard.components.salescard.a8f8432e")}</h4>
                     <ul className={styles.rankingList}>
                       {rankingListData.map((item, i) => (
                         <li key={item.title}>
@@ -158,7 +159,7 @@ const SalesCard = ({
           },
           {
             key: 'views',
-            label: '访问量',
+            label: i18nText("app.dashboard.components.salescard.eeabc81d"),
             children: (
               <Row>
                 <Col xl={16} lg={12} md={12} sm={24} xs={24}>
@@ -181,7 +182,7 @@ const SalesCard = ({
                         x: { paddingInner: 0.4 },
                       }}
                       tooltip={{
-                        name: '访问量',
+                        name: i18nText("app.dashboard.components.salescard.eeabc81d"),
                         channel: 'y',
                       }}
                     />
@@ -189,7 +190,7 @@ const SalesCard = ({
                 </Col>
                 <Col xl={8} lg={12} md={12} sm={24} xs={24}>
                   <div className={styles.salesRank}>
-                    <h4 className={styles.rankingTitle}>门店访问量排名</h4>
+                    <h4 className={styles.rankingTitle}>{i18nText("app.dashboard.components.salescard.0fa2ef0c")}</h4>
                     <ul className={styles.rankingList}>
                       {rankingListData.map((item, i) => (
                         <li key={item.title}>

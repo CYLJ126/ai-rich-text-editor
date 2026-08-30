@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Tabs} from 'antd';
 import {createStyles} from 'antd-style';
 import React, {forwardRef, useImperativeHandle, useState} from 'react';
@@ -68,7 +69,7 @@ export const ChattingSider = forwardRef<AIChatHandleRef, AIChatProps>(
 
     const tabs = [
       {
-        label: '会话列表',
+        label: i18nText("app.ai.chattingsider.chattingsider.6928e7b6"),
         key: 'conversationList',
         children: (
           <ConversationSider
@@ -76,7 +77,7 @@ export const ChattingSider = forwardRef<AIChatHandleRef, AIChatProps>(
             searchParam={{ scene: 'basic_writing_chat' }}
             onCreate={() =>
               createConversation({
-                title: '新对话',
+                title: i18nText("app.ai.chattingsider.chattingsider.52b5a4b2"),
                 convId: '',
                 scene: 'basic_writing_chat',
               } as ConversationUpsertDto)
@@ -97,7 +98,7 @@ export const ChattingSider = forwardRef<AIChatHandleRef, AIChatProps>(
         ),
       },
       {
-        label: '会话配置',
+        label: i18nText("app.ai.chattingsider.chattingsider.c473f194"),
         key: 'conversationConfig',
         children: (
           <ConversationEditSider
@@ -107,12 +108,12 @@ export const ChattingSider = forwardRef<AIChatHandleRef, AIChatProps>(
         ),
       },
       {
-        label: '助手配置',
+        label: i18nText("app.ai.chattingsider.chattingsider.12a37b37"),
         key: 'assistantConfig',
         children: <AssistantSider ref={assistantSiderRef} />,
       },
       {
-        label: '消息列表',
+        label: i18nText("app.ai.chattingsider.chattingsider.edc1c0f9"),
         key: 'messageList',
         children: <AIMessagesAndSend height={height - 26} />,
       },

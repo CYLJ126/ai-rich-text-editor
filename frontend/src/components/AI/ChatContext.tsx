@@ -1,5 +1,6 @@
-import {useModel} from '@@/exports';
-import {App} from 'antd';
+import { i18nText } from '@/utils/i18n';
+import { useModel } from '@@/exports';
+import { App } from 'antd';
 import React, {
   createContext,
   type Dispatch,
@@ -11,13 +12,18 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {STREAM_CHAT_URL, streamChat} from '@/services/ant-design-pro/ai.chat';
-import type {Conversation, ConversationUpsertDto, Message, SendMessageParams,} from '@/types/ai.type';
-import {generateRandomUUID} from '@/utils/RandomUtil';
-import type {RightSiderItem} from '../MyRightSiderPanel';
-import type {AssistantSiderRef} from './AssistantSider';
-import type {ConversationSiderRef} from './ConversationSider';
-import type {MessageListRef, MessageOperationProps} from './MessageList';
+import { STREAM_CHAT_URL, streamChat } from '@/services/ant-design-pro/ai.chat';
+import type {
+  Conversation,
+  ConversationUpsertDto,
+  Message,
+  SendMessageParams,
+} from '@/types/ai.type';
+import { generateRandomUUID } from '@/utils/RandomUtil';
+import type { RightSiderItem } from '../MyRightSiderPanel';
+import type { AssistantSiderRef } from './AssistantSider';
+import type { ConversationSiderRef } from './ConversationSider';
+import type { MessageListRef, MessageOperationProps } from './MessageList';
 
 export interface ChatRequestContext {
   type: 'send' | 'retry'; // 消息类型
@@ -106,7 +112,9 @@ export function ChatProvider({
   // 当前用户
   const { currentUser }: any = initialState ?? {};
   // 当前会话
-  const [activeConversation, setActiveConversation] = useState<Conversation>({} as Conversation);
+  const [activeConversation, setActiveConversation] = useState<Conversation>(
+    {} as Conversation,
+  );
   // 流式消息 ID
   const [streamingMessageId, setStreamingMessageId] = useState('');
   // 是否正在流式输出
@@ -242,7 +250,9 @@ export function ChatProvider({
                   ? {
                       ...item,
                       status: 'failed',
-                      errorMessage: error?.message ?? '生成失败',
+                      errorMessage:
+                        error?.message ??
+                        i18nText('app.ai.ai.chatcontext.4de0880b'),
                       ...failureFallback,
                     }
                   : item,
@@ -251,7 +261,15 @@ export function ChatProvider({
             setIsStreaming(false);
             setStreamingMessageId('');
             abortControllerRef.current = null;
-            message.error(`生成失败：${error?.message ?? '未知错误'}`).then();
+            message
+              .error(
+                i18nText('app.ai.ai.chatcontext.8bf7b2ac', {
+                  value0:
+                    error?.message ??
+                    i18nText('app.ai.ai.chatcontext.906732b5'),
+                }),
+              )
+              .then();
           },
         },
         controller.signal,
@@ -264,7 +282,9 @@ export function ChatProvider({
               ? {
                   ...item,
                   status: 'failed',
-                  errorMessage: (error as Error)?.message ?? '未知错误',
+                  errorMessage:
+                    (error as Error)?.message ??
+                    i18nText('app.ai.ai.chatcontext.906732b5'),
                   ...failureFallback,
                 }
               : item,
@@ -360,7 +380,7 @@ export function ChatProvider({
         }
       }
       if (!userMessage) {
-        message.warning('未找到可重试的用户消息').then();
+        message.warning(i18nText('app.ai.ai.chatcontext.59457b9c')).then();
         return;
       }
 

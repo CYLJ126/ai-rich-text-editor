@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Checkbox, Collapse, Divider, Input, InputNumber, Select} from 'antd';
 import React, {useState} from 'react';
 import PageWrapper from '@/components/PageWrapper';
@@ -9,9 +10,9 @@ import ClipboardUtil from "@/utils/ClipboardUtil";
 import {CustomProperty, TextProcessor} from "@/utils/textProcessor";
 
 const borderAlignmentOptions = [
-  {label: '左对齐', value: 'left'},
-  {label: '右对齐', value: 'right'},
-  {label: '居中对齐', value: 'center'},
+  {label: i18nText("app.tools.textformatter.2eea7883"), value: 'left'},
+  {label: i18nText("app.tools.textformatter.c8558274"), value: 'right'},
+  {label: i18nText("app.tools.textformatter.9a334944"), value: 'center'},
 ];
 
 /**
@@ -88,7 +89,7 @@ const TextFormatter: React.FC = () => {
         items={[
           {
             key: 'basic',
-            label: '基础配置',
+            label: i18nText("app.tools.textformatter.bb5164a0"),
             children: (
               <div className={styles.configRow}>
                 <Checkbox
@@ -97,7 +98,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({zhOrEn: e.target.checked})
                   }
                 >
-                  中文模式
+                  {i18nText("app.tools.textformatter.8a3da6b9")}
                 </Checkbox>
                 <Checkbox
                   checked={!customProperty.zhOrEn}
@@ -105,7 +106,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({zhOrEn: !e.target.checked})
                   }
                 >
-                  英文模式
+                  {i18nText("app.tools.textformatter.f79dd04c")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.punctuationMark}
@@ -113,7 +114,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({punctuationMark: e.target.checked})
                   }
                 >
-                  替换标点符号
+                  {i18nText("app.tools.textformatter.a0aa110e")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.clearBreakLine}
@@ -121,7 +122,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({clearBreakLine: e.target.checked})
                   }
                 >
-                  消除换行
+                  {i18nText("app.tools.textformatter.261ec42c")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.compressSpace}
@@ -129,7 +130,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({compressSpace: e.target.checked})
                   }
                 >
-                  压缩空格
+                  {i18nText("app.tools.textformatter.52172e3c")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.withSpace}
@@ -137,7 +138,7 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({withSpace: e.target.checked})
                   }
                 >
-                  英文数字前后空格
+                  {i18nText("app.tools.textformatter.34d844c6")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.pasteFromClipboard}
@@ -147,7 +148,7 @@ const TextFormatter: React.FC = () => {
                     })
                   }
                 >
-                  从剪切板填充
+                  {i18nText("app.tools.textformatter.da0b1ed2")}
                 </Checkbox>
                 <Checkbox
                   checked={customProperty.rewriteClipboard}
@@ -155,14 +156,14 @@ const TextFormatter: React.FC = () => {
                     updateCustomProperty({rewriteClipboard: e.target.checked})
                   }
                 >
-                  复制到剪切板
+                  {i18nText("app.tools.textformatter.77c86872")}
                 </Checkbox>
               </div>
             ),
           },
           {
             key: 'list',
-            label: '列表处理配置',
+            label: i18nText("app.tools.textformatter.37d44d7e"),
             children: (
               <>
                 <div className={styles.configRow}>
@@ -177,13 +178,13 @@ const TextFormatter: React.FC = () => {
                       })
                     }
                   >
-                    启用列表处理
+                    {i18nText("app.tools.textformatter.b73857da")}
                   </Checkbox>
                 </div>
 
                 {customProperty.handleList && (
                   <div className={styles.configRow}>
-                    <span className={styles.label}>项目编号：</span>
+                    <span className={styles.label}>{i18nText("app.tools.textformatter.65c685a2")}</span>
                     <Select
                       className={styles.serialMark}
                       value={listProperty.serialMark}
@@ -198,7 +199,7 @@ const TextFormatter: React.FC = () => {
                         updateListProperty({singleLineMode: e.target.checked})
                       }
                     >
-                      单行标序
+                      {i18nText("app.tools.textformatter.a791e7e6")}
                     </Checkbox>
                     <Checkbox
                       checked={listProperty.withBlankLine}
@@ -206,7 +207,7 @@ const TextFormatter: React.FC = () => {
                         updateListProperty({withBlankLine: e.target.checked})
                       }
                     >
-                      添加空行
+                      {i18nText("app.tools.textformatter.23fa410c")}
                     </Checkbox>
                     <Checkbox
                       checked={listProperty.autoRemovePrefix}
@@ -216,9 +217,9 @@ const TextFormatter: React.FC = () => {
                         })
                       }
                     >
-                      自动去除列表前缀
+                      {i18nText("app.tools.textformatter.402035e1")}
                     </Checkbox>
-                    <span className={styles.label}>结束符：</span>
+                    <span className={styles.label}>{i18nText("app.tools.textformatter.99a2f03f")}</span>
                     <Input
                       className={styles.endWithInput}
                       value={listProperty.endWith}
@@ -232,14 +233,14 @@ const TextFormatter: React.FC = () => {
                         updateListProperty({lastWithPeriod: e.target.checked})
                       }
                     >
-                      句点结尾
+                      {i18nText("app.tools.textformatter.e96afb0e")}
                     </Checkbox>
                     <InputNumber
                       className={styles.prefixRemove}
                       value={listProperty.removePrefixLength}
                       min={0}
-                      addonBefore="删除前缀"
-                      addonAfter="个字符"
+                      addonBefore={i18nText("app.tools.textformatter.6a3ad96f")}
+                      addonAfter={i18nText("app.tools.textformatter.670ce0bb")}
                       onChange={(value) =>
                         updateListProperty({
                           removePrefixLength: Number(value) || 0,
@@ -253,7 +254,7 @@ const TextFormatter: React.FC = () => {
           },
           {
             key: 'markdownTable',
-            label: 'Markdown 表格配置',
+            label: i18nText("app.tools.textformatter.4fc3ef35"),
             children: (
               <>
                 <div className={styles.configRow}>
@@ -268,7 +269,7 @@ const TextFormatter: React.FC = () => {
                       })
                     }
                   >
-                    启用 Markdown 表格处理
+                    {i18nText("app.tools.textformatter.b9f976f4")}
                   </Checkbox>
                 </div>
 
@@ -282,7 +283,7 @@ const TextFormatter: React.FC = () => {
                         })
                       }
                     >
-                      去除表格中的加粗
+                      {i18nText("app.tools.textformatter.ca2f1061")}
                     </Checkbox>
                     <Checkbox
                       checked={markdownTableProperty.compressSpaces}
@@ -292,9 +293,9 @@ const TextFormatter: React.FC = () => {
                         })
                       }
                     >
-                      压缩表格中的空格
+                      {i18nText("app.tools.textformatter.0af2d944")}
                     </Checkbox>
-                    <span className={styles.label}>边框对齐：</span>
+                    <span className={styles.label}>{i18nText("app.tools.textformatter.170c4b73")}</span>
                     <Select
                       className={styles.serialMark}
                       value={markdownTableProperty.borderAlignment}
@@ -303,7 +304,7 @@ const TextFormatter: React.FC = () => {
                         updateMarkdownTableProperty({borderAlignment: value})
                       }
                     />
-                    <span className={styles.label}>单元格分隔符：</span>
+                    <span className={styles.label}>{i18nText("app.tools.textformatter.45a09311")}</span>
                     <Input
                       style={{width: 40}}
                       defaultValue=" "
@@ -327,24 +328,24 @@ const TextFormatter: React.FC = () => {
       {/* 文本区域 */}
       <div className={styles.textSection}>
         <div>
-          <div className={styles.textLabel}>原始文本：</div>
+          <div className={styles.textLabel}>{i18nText("app.tools.textformatter.89d380c2")}</div>
           <Input.TextArea
             showCount
             className={styles.textArea}
             value={textPair.raw}
             onChange={(e) => handleTextChange(e.target.value)}
-            placeholder="请输入要格式化的文本..."
+            placeholder={i18nText("app.tools.textformatter.d334f423")}
             onFocus={handleWindowFocus}
           />
         </div>
         <div>
-          <div className={styles.textLabel}>格式化结果：</div>
+          <div className={styles.textLabel}>{i18nText("app.tools.textformatter.0df2dc8a")}</div>
           <Input.TextArea
             showCount
             className={`${styles.textArea} ${styles.readOnly}`}
             value={textPair.formatted}
             readOnly
-            placeholder="格式化后的文本将显示在这里..."
+            placeholder={i18nText("app.tools.textformatter.d569aca5")}
           />
         </div>
       </div>

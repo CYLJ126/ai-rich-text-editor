@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {FC, ReactNode, useMemo} from 'react';
 import {Avatar, Divider, Popover, Tag, Tooltip} from 'antd';
 import {
@@ -269,7 +270,7 @@ const ArticlePopover: FC<ArticlePopoverProps> = ({
           {/* Highlights */}
           {highlights && highlights.length > 0 && (
             <div className={styles.highlightSection}>
-              <div className={styles.highlightLabel}>相关内容</div>
+              <div className={styles.highlightLabel}>{i18nText("app.article.article.articlepopover.e93b6a84")}</div>
               {renderHighlightedText(highlights, chunkId)}
             </div>
           )}
@@ -295,7 +296,7 @@ const ArticlePopover: FC<ArticlePopoverProps> = ({
         {(author || createTime || updateTime || characterCount) && (
           <div className={styles.footer}>
             {author && (
-              <Tooltip title="作者">
+              <Tooltip title={i18nText("app.article.article.articlepopover.f9f765cb")}>
                 <span className={styles.metaItem}>
                   <Avatar
                     size={16}
@@ -307,15 +308,15 @@ const ArticlePopover: FC<ArticlePopoverProps> = ({
               </Tooltip>
             )}
             {characterCount !== undefined && (
-              <Tooltip title="字数">
+              <Tooltip title={i18nText("app.article.article.articlepopover.e788c7ff")}>
                 <span className={styles.metaItem}>
                   <FileTextOutlined/>
-                  {characterCount.toLocaleString()} 字
+                  {characterCount.toLocaleString()} {i18nText("app.article.article.articlepopover.259e9393")}
                 </span>
               </Tooltip>
             )}
             {createTime && (
-              <Tooltip title="创建时间">
+              <Tooltip title={i18nText("app.article.article.articlepopover.fafb71d2")}>
                 <span className={styles.metaItem}>
                   <CalendarOutlined/>
                   {createTime?.format('YYYY-MM-DD HH:mm')}
@@ -323,7 +324,7 @@ const ArticlePopover: FC<ArticlePopoverProps> = ({
               </Tooltip>
             )}
             {updateTime && (
-              <Tooltip title="更新时间">
+              <Tooltip title={i18nText("app.article.article.articlepopover.6d310fb2")}>
                 <span className={styles.metaItem}>
                   <ClockCircleOutlined/>
                   {updateTime?.format('YYYY-MM-DD HH:mm')}

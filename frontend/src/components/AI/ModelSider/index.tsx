@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useState} from 'react';
 import {ModelConfig} from "@/types/ai.type";
 import {Button, message, Modal} from "antd";
@@ -42,7 +43,7 @@ function transferModelConfig(model: ModelConfig) {
   return {
     origin: model,
     key: model.id,
-    title: model.modelName || '未命名模型',
+    title: model.modelName || i18nText("app.ai.modelsider.ce802c5c"),
     abstractInfo,
     pinFlag: model.pinFlag,
     disabled,
@@ -67,7 +68,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
     if(!model.defaultFlag) {
       defaultOperation.push({
         key: "setDefault",
-          label: "设为默认",
+          label: i18nText("app.ai.modelsider.3e8d9edb"),
         order: 1,
         icon: <StarOutlined/>,
         onClick: (current: RightSiderItem) => setAsDefaultModelConfig(current.key as number).then(() => {
@@ -79,7 +80,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
     const restOperations = [
       {
         key: "pin",
-        label: model.pinFlag ? "取消置顶" : "置顶",
+        label: model.pinFlag ? i18nText("app.ai.modelsider.2bfc5643") : i18nText("app.ai.modelsider.71c9c6d0"),
         order: 2,
         icon: model.pinFlag ? <PushpinOutlined/> : <PushpinFilled/>,
         onClick: (current: RightSiderItem) => toggleModelConfigPin(current.key as number, !current.pinFlag).then(() => {
@@ -94,7 +95,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         }),
       },
       {
-        label: disabled ? "启用" : "禁用",
+        label: disabled ? i18nText("app.ai.modelsider.6e61d44b") : i18nText("app.ai.modelsider.baefd5e8"),
         order: 3,
         icon: disabled ? <CheckOutlined/> : <CloseOutlined/>,
         onClick: (current: RightSiderItem) => toggleModelConfigStatus(current.key as number, disabled ? 1 : 3).then(() => {
@@ -110,18 +111,18 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
       },
       {
         key: "edit",
-        label: "编辑",
+        label: i18nText("app.ai.modelsider.cc8fb513"),
         order: 4,
         icon: <EditOutlined/>,
         onClick: () => {
-          formModalTitleRef.current = '编辑模型';
+          formModalTitleRef.current = i18nText("app.ai.modelsider.0d4f4305");
           setFormModalVisible(true);
         },
       },
       {type: 'divider' as const, order: 5},
       {
         key: "delete",
-        label: "删除",
+        label: i18nText("app.ai.modelsider.3f982cb6"),
         order: 6,
         isDanger: true,
         icon: <DeleteOutlined/>,
@@ -143,7 +144,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
   const extraRender = (item: RightSiderItem) => (
     <span
       className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
-      {(item as any).origin.provider || '模型'}
+      {(item as any).origin.provider || i18nText("app.ai.modelsider.896ba845")}
     </span>
   );
 
@@ -178,7 +179,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
           item.operations = getOperations(res) as RightSiderItemOption[];
           setDefaultModelConfig(item);
         } else {
-          message.warning("请设置一个默认模型！");
+          message.warning(i18nText("app.ai.modelsider.d91788c0"));
         }
       })
     }
@@ -192,7 +193,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
 
   // 添加模型
   const addModel = useCallback(() => {
-    formModalTitleRef.current = '添加模型';
+    formModalTitleRef.current = i18nText("app.ai.modelsider.764a9874");
     setActiveKey(undefined);
     setFormModalVisible(true);
   }, [setFormModalVisible]);
@@ -206,7 +207,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         className="rounded-lg"
         onClick={addModel}
       >
-        添加模型
+        {i18nText("app.ai.modelsider.764a9874")}
       </Button>
     </>
   );
@@ -217,13 +218,13 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         ref={rightSiderPanelRef}
         header={header}
         virtualItem={defaultModelConfig}
-        virtualTip='默认模型'
+        virtualTip={i18nText("app.ai.modelsider.ed41fa9b")}
         searchInputKey='modelName'
         size={15}
         loadFunc={searchModels}
         activeKey={activeKey}
         onItemClick={(item) => setActiveKey(Number(item.key))}
-        emptyRender={<span className="text-sm">暂无模型</span>}
+        emptyRender={<span className="text-sm">{i18nText("app.ai.modelsider.0a9ab3f2")}</span>}
       />
       <Modal
         title={formModalTitleRef.current}

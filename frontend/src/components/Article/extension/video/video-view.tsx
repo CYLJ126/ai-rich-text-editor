@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {ReactNodeViewProps} from '@tiptap/react';
 import {NodeViewWrapper} from '@tiptap/react';
 import {EditIcon, ExternalLinkIcon, TrashIcon} from 'lucide-react';
@@ -12,25 +13,25 @@ const VIDEO_RESIZE_HANDLES = [
   {
     corner: 'top-left',
     side: 'left',
-    label: '拖动左上角调整视频大小',
+    label: i18nText("app.article.video.videoview.4273898e"),
     className: '-top-2 -left-2 cursor-nwse-resize',
   },
   {
     corner: 'top-right',
     side: 'right',
-    label: '拖动右上角调整视频大小',
+    label: i18nText("app.article.video.videoview.8c50b675"),
     className: '-top-2 -right-2 cursor-nesw-resize',
   },
   {
     corner: 'bottom-left',
     side: 'left',
-    label: '拖动左下角调整视频大小',
+    label: i18nText("app.article.video.videoview.206c6cb0"),
     className: '-bottom-2 -left-2 cursor-nesw-resize',
   },
   {
     corner: 'bottom-right',
     side: 'right',
-    label: '拖动右下角调整视频大小',
+    label: i18nText("app.article.video.videoview.b2b00143"),
     className: '-right-2 -bottom-2 cursor-nwse-resize',
   },
 ] as const satisfies readonly {
@@ -189,7 +190,7 @@ export function VideoView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="修改视频"
+            title={i18nText("app.article.video.videoview.55e4160d")}
             onClick={() => setIsDialogOpen(true)}
           >
             <EditIcon className="size-4" strokeWidth={3} />
@@ -199,7 +200,7 @@ export function VideoView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="删除视频"
+            title={i18nText("app.article.video.videoview.fceb4604")}
             onClick={deleteNode}
           >
             <TrashIcon className="size-4" strokeWidth={3} />
@@ -209,7 +210,7 @@ export function VideoView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="在新标签页打开原视频"
+            title={i18nText("app.article.video.videoview.36604867")}
             onClick={(event) => {
               event.stopPropagation();
               openOriginalVideo();

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {DingdingOutlined} from '@ant-design/icons';
 import {GridContent} from '@ant-design/pro-components';
 import {Button, Card, Descriptions, Result, Steps} from 'antd';
@@ -5,16 +6,16 @@ import React from 'react';
 import useStyles from './index.style';
 
 const descriptionItems = [
-  { key: 'id', label: '项目 ID', children: '23421' },
-  { key: 'owner', label: '负责人', children: '曲丽丽' },
-  { key: 'time', label: '生效时间', children: '2016-12-12 ~ 2017-12-12' },
+  { key: 'id', label: i18nText("app.examples.success.ea80fdc8"), children: '23421' },
+  { key: 'owner', label: i18nText("app.examples.success.aa69f004"), children: i18nText("app.examples.success.eb295135") },
+  { key: 'time', label: i18nText("app.examples.success.43f86710"), children: '2016-12-12 ~ 2017-12-12' },
 ];
 
 const extra = (
   <>
-    <Button type="primary">返回列表</Button>
-    <Button>查看项目</Button>
-    <Button>打印</Button>
+    <Button type="primary">{i18nText("app.examples.success.74b566b9")}</Button>
+    <Button>{i18nText("app.examples.success.94337d28")}</Button>
+    <Button>{i18nText("app.examples.success.77c307fb")}</Button>
   </>
 );
 
@@ -27,7 +28,7 @@ const Success: React.FC = () => {
           margin: '8px 0 4px',
         }}
       >
-        <span>曲丽丽</span>
+        <span>{i18nText("app.examples.success.eb295135")}</span>
         <DingdingOutlined
           style={{
             marginLeft: 8,
@@ -50,7 +51,7 @@ const Success: React.FC = () => {
           margin: '8px 0 4px',
         }}
       >
-        <span>周毛毛</span>
+        <span>{i18nText("app.examples.success.7a9b6d03")}</span>
         <Button type="link" style={{padding: 0}}>
           <DingdingOutlined
             style={{
@@ -58,14 +59,14 @@ const Success: React.FC = () => {
               marginLeft: 8,
             }}
           />
-          <span>催一下</span>
+          <span>{i18nText("app.examples.success.7cee48fc")}</span>
         </Button>
       </div>
     </div>
   );
   const content = (
     <>
-      <Descriptions title="项目名称" items={descriptionItems} />
+      <Descriptions title={i18nText("app.examples.success.1f94f3b6")} items={descriptionItems} />
       <br />
       <Steps
         type="dot"
@@ -78,7 +79,7 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                创建项目
+                {i18nText("app.examples.success.373aa34b")}
               </span>
             ),
             content: desc1,
@@ -90,7 +91,7 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                部门初审
+                {i18nText("app.examples.success.0ff9caaf")}
               </span>
             ),
             content: desc2,
@@ -102,7 +103,7 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                财务复核
+                {i18nText("app.examples.success.6d95480d")}
               </span>
             ),
           },
@@ -113,7 +114,7 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                完成
+                {i18nText("app.examples.success.8e5de35e")}
               </span>
             ),
           },
@@ -126,8 +127,8 @@ const Success: React.FC = () => {
       <Card variant="borderless">
         <Result
           status="success"
-          title="提交成功"
-          subTitle='提交结果页用于反馈一系列操作任务的处理结果， 如果仅是简单操作，使用 Message 全局提示反馈即可。 本文字区域可以展示简单的补充说明，如果有类似展示 "单据"的需求，下面这个灰色区域可以呈现比较复杂的内容。'
+          title={i18nText("app.examples.success.5989a176")}
+          subTitle={i18nText("app.examples.success.8a5b98c8")}
           extra={extra}
           style={{
             marginBottom: 16,

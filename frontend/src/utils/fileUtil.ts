@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import JSZip from 'jszip';
 
 /**
@@ -114,7 +115,7 @@ const fetchResourceBlob = async (resource: LocalResource): Promise<Blob> => {
     credentials: 'include',
   });
   if (!response.ok) {
-    throw new Error(`资源下载失败: ${resource.originalUrl}`);
+    throw new Error(i18nText("app.common.utils.fileutil.6c0b0d8c", {value0: resource.originalUrl}));
   }
   return response.blob();
 };

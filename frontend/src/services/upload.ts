@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { request } from '@umijs/max';
 
 const PATH_PREFIX = '/arte';
@@ -26,7 +27,7 @@ export async function uploadImage(file: File, folder?: string): Promise<string> 
     if (result.success) {
       return result.data;
     }
-    throw new Error(result.message || '上传失败');
+    throw new Error(result.message || i18nText("app.common.services.upload.d77586ac"));
   });
 }
 
@@ -54,7 +55,7 @@ export async function uploadFile(file: File, folder?: string): Promise<string> {
     if (result.success) {
       return result.data;
     }
-    throw new Error(result.message || '上传失败');
+    throw new Error(result.message || i18nText("app.common.services.upload.d77586ac"));
   });
 }
 
@@ -65,7 +66,7 @@ export async function readUploadedText(url: string): Promise<string> {
     {method: 'GET', params: {url}},
   ).then((result) => {
     if (result.success) return result.data;
-    throw new Error(result.message || '文件读取失败');
+    throw new Error(result.message || i18nText("app.common.services.upload.b38b2539"));
   });
 }
 
@@ -75,7 +76,7 @@ export async function deleteUploadedFile(url: string): Promise<void> {
     `${PATH_PREFIX}/richText/file/deleteFile`,
     {method: 'POST', params: {url}},
   );
-  if (!result.success) throw new Error(result.message || '文件删除失败');
+  if (!result.success) throw new Error(result.message || i18nText("app.common.services.upload.729aaf7c"));
 }
 
 /** 由后端下载 HTTP 图片并转存到当前配置的 LOCAL/七牛云图片存储。 */
@@ -85,6 +86,6 @@ export async function importImageByUrl(url: string): Promise<string> {
     {method: 'POST', params: {url}},
   ).then((result) => {
     if (result.success) return result.data;
-    throw new Error(result.message || '远程图片转存失败');
+    throw new Error(result.message || i18nText("app.common.services.upload.263e57c3"));
   });
 }

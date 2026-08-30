@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Modal, message } from 'antd';
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,28 +13,28 @@ import AssignRoleModal from './assignRoleModal';
 
 const columns: TableColumn[] = [
   {
-    title: '用户名',
+    title: i18nText("app.administration.usermanagement.9291cf19"),
     dataIndex: 'userName',
     width: 100,
     sorter: true,
     order: 1,
   },
   {
-    title: '手机号',
+    title: i18nText("app.administration.usermanagement.efbf1604"),
     dataIndex: 'mobile',
     width: 100,
     sorter: true,
     order: 2,
   },
   {
-    title: '邮箱',
+    title: i18nText("app.administration.usermanagement.ad5a479d"),
     dataIndex: 'email',
     width: 100,
     sorter: true,
     order: 3,
   },
   {
-    title: '状态',
+    title: i18nText("app.administration.usermanagement.81f6c997"),
     dataIndex: 'status',
     width: 100,
     sorter: true,
@@ -49,7 +50,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            初始
+            {i18nText("app.administration.usermanagement.653497af")}
           </span>
         );
       } else if (text === 1) {
@@ -62,7 +63,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            正常
+            {i18nText("app.administration.usermanagement.ffcafe9a")}
           </span>
         );
       } else if (text === 2) {
@@ -75,7 +76,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            完成
+            {i18nText("app.administration.usermanagement.5046c5fa")}
           </span>
         );
       } else if (text === 3) {
@@ -88,7 +89,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            注销
+            {i18nText("app.administration.usermanagement.e7f36e4d")}
           </span>
         );
       }
@@ -107,35 +108,35 @@ const columns: TableColumn[] = [
     },
   },
   {
-    title: '描述',
+    title: i18nText("app.administration.usermanagement.101bf14c"),
     dataIndex: 'description',
     width: 100,
     sorter: true,
     order: 9,
   },
   {
-    title: '创建人',
+    title: i18nText("app.administration.usermanagement.8f30deb9"),
     dataIndex: 'createBy',
     width: 100,
     sorter: true,
     order: 5,
   },
   {
-    title: '更新人',
+    title: i18nText("app.administration.usermanagement.930de5f2"),
     dataIndex: 'updateBy',
     width: 100,
     sorter: true,
     order: 6,
   },
   {
-    title: '创建时间',
+    title: i18nText("app.administration.usermanagement.7cb324b0"),
     dataIndex: 'createTime',
     width: 100,
     sorter: true,
     order: 7,
   },
   {
-    title: '更新时间',
+    title: i18nText("app.administration.usermanagement.acf4d00a"),
     dataIndex: 'updateTime',
     width: 100,
     sorter: true,
@@ -147,47 +148,47 @@ const searchFields: SearchFieldConfig[] = [
   {
     fieldName: 'name',
     fieldType: 'input',
-    label: '用户名',
-    placeholder: '请输入用户名',
+    label: i18nText("app.administration.usermanagement.9291cf19"),
+    placeholder: i18nText("app.administration.usermanagement.0213d713"),
     alwaysShow: true,
   },
   {
     fieldName: 'status',
     fieldType: 'select',
-    label: '状态',
+    label: i18nText("app.administration.usermanagement.81f6c997"),
     options: [
-      { label: '初始', value: 0 },
-      { label: '正常', value: 1 },
-      { label: '完成', value: 2 },
-      { label: '注销', value: 3 },
+      { label: i18nText("app.administration.usermanagement.653497af"), value: 0 },
+      { label: i18nText("app.administration.usermanagement.ffcafe9a"), value: 1 },
+      { label: i18nText("app.administration.usermanagement.5046c5fa"), value: 2 },
+      { label: i18nText("app.administration.usermanagement.e7f36e4d"), value: 3 },
     ],
   },
   {
     fieldName: 'mobile',
     fieldType: 'input',
-    label: '手机号',
-    placeholder: '请输入手机号',
+    label: i18nText("app.administration.usermanagement.efbf1604"),
+    placeholder: i18nText("app.administration.usermanagement.fb4217ba"),
     alwaysShow: true,
   },
   {
     fieldName: 'email',
     fieldType: 'input',
-    label: '邮箱',
-    placeholder: '请输入邮箱',
+    label: i18nText("app.administration.usermanagement.ad5a479d"),
+    placeholder: i18nText("app.administration.usermanagement.dfec38d6"),
     alwaysShow: true,
   },
   {
     fieldName: 'createBy',
     fieldType: 'input',
-    label: '创建人',
-    placeholder: '请输入创建人',
+    label: i18nText("app.administration.usermanagement.8f30deb9"),
+    placeholder: i18nText("app.administration.usermanagement.18a9c348"),
     alwaysShow: true,
   },
   {
     fieldName: 'createTime',
     fieldType: 'dateRangePicker',
-    label: '创建时间',
-    placeholder: '请选择创建时间',
+    label: i18nText("app.administration.usermanagement.7cb324b0"),
+    placeholder: i18nText("app.administration.usermanagement.3ff3c6ae"),
     format: 'YYYY-MM-DD HH:mm:ss',
     transformFunction: (value) => {
       if (value && value.length === 2) {
@@ -223,17 +224,17 @@ export default function UserPage() {
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
-      text: '新增',
+      text: i18nText("app.administration.usermanagement.27d8ddf2"),
       authority: 'user:add',
       handler: () =>
         navigate('/Administration/UserManagement/UserForm?mode=create'),
     },
     {
-      text: '编辑',
+      text: i18nText("app.administration.usermanagement.c8855b36"),
       authority: 'user:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
           return;
         }
         navigate(
@@ -242,30 +243,30 @@ export default function UserPage() {
       },
     },
     {
-      text: '注销',
+      text: i18nText("app.administration.usermanagement.e7f36e4d"),
       authority: 'user:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
           return;
         }
         const userName = records[0].userName;
         Modal.confirm({
-          title: '确认注销',
-          content: `确定要注销用户 "${userName}" 吗？此操作不可撤销。`,
-          okText: '确认',
-          cancelText: '取消',
+          title: i18nText("app.administration.usermanagement.4a689783"),
+          content: i18nText("app.administration.usermanagement.10a7a066", {value0: userName}),
+          okText: i18nText("app.administration.usermanagement.3a69d6a4"),
+          cancelText: i18nText("app.administration.usermanagement.25ab89de"),
           onOk: async () => {
             try {
               deactivateUser(userName).then((result) => {
                 if (result) {
-                  message.success('用户注销成功');
+                  message.success(i18nText("app.administration.usermanagement.f1168551"));
                   // 刷新表格数据
                   tableRef.current?.query();
                 }
               });
             } catch (error) {
-              message.error('用户注销失败，请重试');
+              message.error(i18nText("app.administration.usermanagement.4dddeb37"));
               console.error('注销用户失败：', error);
             }
           },
@@ -273,11 +274,11 @@ export default function UserPage() {
       },
     },
     {
-      text: '分配角色',
+      text: i18nText("app.administration.usermanagement.89cb5e5c"),
       authority: 'user:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
           return;
         }
         setSelectedUserName(records[0].userName);
@@ -285,11 +286,11 @@ export default function UserPage() {
       },
     },
     {
-      text: '分配菜单',
+      text: i18nText("app.administration.usermanagement.c3cbc231"),
       authority: 'user:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
           return;
         }
         setSelectedUserName(records[0].userName);
@@ -297,11 +298,11 @@ export default function UserPage() {
       },
     },
     {
-      text: '分配权限',
+      text: i18nText("app.administration.usermanagement.e09d88c1"),
       authority: 'user:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
           return;
         }
         setSelectedUserName(records[0].userName);
@@ -309,14 +310,14 @@ export default function UserPage() {
       },
     },
     {
-      text: '导出',
+      text: i18nText("app.administration.usermanagement.31d8f455"),
       authority: 'user:export',
-      handler: () => message.info('导出用户操作'),
+      handler: () => message.info(i18nText("app.administration.usermanagement.95349e47")),
     },
     {
-      text: '导出全部',
+      text: i18nText("app.administration.usermanagement.ff54ba35"),
       authority: 'user:export',
-      handler: () => message.info('导出全部用户操作'),
+      handler: () => message.info(i18nText("app.administration.usermanagement.41289e54")),
     },
   ];
 

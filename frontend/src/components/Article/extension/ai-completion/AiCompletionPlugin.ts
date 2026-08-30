@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {Editor} from '@tiptap/core';
 import {Plugin, PluginKey} from '@tiptap/pm/state';
 import type {DecorationSet, EditorView} from '@tiptap/pm/view';
@@ -185,7 +186,7 @@ export function createAiCompletionPlugin(
             const view_ = runtime.currentView;
             if (!view_) return;
             runtime.pendingAccept = false;
-            const error = new Error(err?.message ?? 'AI 补全失败');
+            const error = new Error(err?.message ?? i18nText("app.article.aicompletion.aicompletionplugin.6d39fe2a"));
             dispatchAction(view_, { type: 'error', message: error.message });
             options.onError?.(error);
           },

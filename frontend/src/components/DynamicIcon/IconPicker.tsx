@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useMemo, useState} from 'react';
 import {Empty, Input, Popover, Tooltip} from 'antd';
 import {SearchOutlined} from '@ant-design/icons';
@@ -81,7 +82,7 @@ export interface IconPickerProps {
 const IconPicker: React.FC<IconPickerProps> = ({
                                                  value,
                                                  onChange,
-                                                 placeholder = '请选择图标',
+                                                 placeholder = i18nText("app.common.dynamicicon.iconpicker.96e8d11b"),
                                                  disabled = false,
                                                }) => {
   const {styles, cx} = useStyles();
@@ -107,14 +108,14 @@ const IconPicker: React.FC<IconPickerProps> = ({
     <div className={styles.pickerContainer}>
       <Input
         prefix={<SearchOutlined/>}
-        placeholder="搜索图标名称..."
+        placeholder={i18nText("app.common.dynamicicon.iconpicker.d947bad9")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         allowClear
         autoFocus
       />
       {filteredIcons.length === 0 ? (
-        <Empty description="未找到图标" style={{margin: '16px 0'}}/>
+        <Empty description={i18nText("app.common.dynamicicon.iconpicker.1380381f")} style={{margin: '16px 0'}}/>
       ) : (
         <div className={styles.iconGrid}>
           {filteredIcons.map((name) => (

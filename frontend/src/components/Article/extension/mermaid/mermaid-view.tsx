@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button} from "@/components/ui/button";
 import {Alert} from "@/components/ui/alert";
 import {cn} from "@/lib/utils";
@@ -96,7 +97,7 @@ export function MermaidView({
       {error ? (
         <div className="w-full p-2">
           <Alert variant="destructive" className="mt-2">
-            <p className="text-sm font-medium">Mermaid 渲染错误</p>
+            <p className="text-sm font-medium">{i18nText("app.article.mermaid.mermaidview.043407b5")}</p>
             <p className="text-xs mt-1 whitespace-pre-wrap break-all">
               {error}
             </p>

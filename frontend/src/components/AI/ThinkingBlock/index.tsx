@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {memo, useState} from 'react';
 import {createStyles} from 'antd-style';
 import {LoadingOutlined, MinusOutlined, PlusOutlined} from '@ant-design/icons';
@@ -118,10 +119,10 @@ const ThinkingBlock: React.FC<ThinkingBlockProps> = memo(
             {isStreaming ? (
               <>
                 <LoadingOutlined style={{fontSize: 11}}/>
-                <span>正在思考中...</span>
+                <span>{i18nText("app.ai.thinkingblock.88d59063")}</span>
               </>
             ) : (
-              <span>思考过程</span>
+              <span>{i18nText("app.ai.thinkingblock.beb4c75f")}</span>
             )}
           </div>
           <span className={styles.toggleIcon}>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Input, InputNumber, Modal, Typography} from 'antd';
 import {useEffect, useState} from 'react';
 
@@ -63,11 +64,11 @@ export function ImageInputDialog({
   const handleSubmit = () => {
     const src = attributes.src.trim();
     if (!src) {
-      setError('请输入图片地址');
+      setError(i18nText("app.article.image.imageinputdialog.498e200a"));
       return;
     }
     if (!isValidImageSource(src)) {
-      setError('请输入有效的 HTTP 或 HTTPS 图片地址');
+      setError(i18nText("app.article.image.imageinputdialog.c7da297b"));
       return;
     }
 
@@ -91,23 +92,23 @@ export function ImageInputDialog({
   return (
     <Modal
       open={isOpen}
-      title={value ? '修改图片' : '插入图片'}
+      title={value ? i18nText("app.article.image.imageinputdialog.aba31061") : i18nText("app.article.image.imageinputdialog.13ae2a60")}
       width={640}
       mask={{closable: false}}
       onCancel={() => onOpenChange(false)}
       destroyOnHidden
       footer={
         <div style={{display: 'flex', justifyContent: 'flex-end', gap: 8}}>
-          <Button onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={() => onOpenChange(false)}>{i18nText("app.article.image.imageinputdialog.e1ce6692")}</Button>
           <Button type="primary" onClick={handleSubmit}>
-            {value ? '更新' : '插入'}
+            {value ? i18nText("app.article.image.imageinputdialog.7cf8b53a") : i18nText("app.article.image.imageinputdialog.7c01f1e5")}
           </Button>
         </div>
       }
     >
       <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
         <label htmlFor="image-src" style={fieldStyle}>
-          <span>图片地址</span>
+          <span>{i18nText("app.article.image.imageinputdialog.db65d8e7")}</span>
           <Input
             id="image-src"
             value={attributes.src}
@@ -128,35 +129,35 @@ export function ImageInputDialog({
           }}
         >
           <label htmlFor="image-alt" style={fieldStyle}>
-            <span>Alt 文本</span>
+            <span>{i18nText("app.article.image.imageinputdialog.412a3297")}</span>
             <Input
               id="image-alt"
               value={attributes.alt ?? ''}
-              placeholder="图片内容说明"
+              placeholder={i18nText("app.article.image.imageinputdialog.0dab141a")}
               onChange={(event) => updateAttribute('alt', event.target.value)}
             />
           </label>
 
           <label htmlFor="image-title" style={fieldStyle}>
-            <span>图片标题</span>
+            <span>{i18nText("app.article.image.imageinputdialog.9439d1cb")}</span>
             <Input
               id="image-title"
               value={attributes.title ?? ''}
-              placeholder="鼠标悬停时显示的标题"
+              placeholder={i18nText("app.article.image.imageinputdialog.7a8a1f88")}
               onChange={(event) => updateAttribute('title', event.target.value)}
             />
           </label>
 
           <label htmlFor="image-width" style={fieldStyle}>
-            <span>宽度</span>
+            <span>{i18nText("app.article.image.imageinputdialog.bee2c25e")}</span>
             <InputNumber
               id="image-width"
-              aria-label="图片宽度"
+              aria-label={i18nText("app.article.image.imageinputdialog.dc49744e")}
               style={{width: '100%'}}
               min={1}
               precision={0}
               suffix="px"
-              placeholder="原始宽度"
+              placeholder={i18nText("app.article.image.imageinputdialog.8674be98")}
               value={attributes.width}
               onChange={(nextValue) =>
                 updateAttribute(
@@ -168,15 +169,15 @@ export function ImageInputDialog({
           </label>
 
           <label htmlFor="image-height" style={fieldStyle}>
-            <span>高度</span>
+            <span>{i18nText("app.article.image.imageinputdialog.feab32c6")}</span>
             <InputNumber
               id="image-height"
-              aria-label="图片高度"
+              aria-label={i18nText("app.article.image.imageinputdialog.087fcf11")}
               style={{width: '100%'}}
               min={1}
               precision={0}
               suffix="px"
-              placeholder="原始高度"
+              placeholder={i18nText("app.article.image.imageinputdialog.e355fd16")}
               value={attributes.height}
               onChange={(nextValue) =>
                 updateAttribute(
@@ -189,7 +190,7 @@ export function ImageInputDialog({
         </div>
 
         <Typography.Text type="secondary">
-          尺寸留空时使用图片原始大小；在编辑器中拖动图片四角会保持宽高比。
+          {i18nText("app.article.image.imageinputdialog.7b6bd501")}
         </Typography.Text>
       </div>
     </Modal>

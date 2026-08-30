@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {sm2, sm3, sm4} from 'sm-crypto';
 
 /**
@@ -13,7 +14,7 @@ function getRandomBytes(size: number): Uint8Array {
     window.crypto.getRandomValues(buffer);
     return buffer;
   } else {
-    throw new Error('无法找到安全的随机数生成器');
+    throw new Error(i18nText("app.common.crypto.gmcrypto.5baf066b"));
   }
 }
 

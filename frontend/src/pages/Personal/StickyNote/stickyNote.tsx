@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState,} from 'react';
 import {DatePicker, Input, message, Popover, Spin} from 'antd';
 import {CloseOutlined, FileWordOutlined, PlusSquareOutlined, TagsOutlined,} from '@ant-design/icons';
@@ -344,7 +345,7 @@ export default function StickyNote({
         ),
       ).catch((error) => {
         console.error('便笺位置保存失败:', error);
-        message.error('便笺位置保存失败').then();
+        message.error(i18nText("app.common.stickynote.stickynote.9e111f6e")).then();
       });
     },
     [onPositionChange, stickyNoteInfo.id],
@@ -363,7 +364,7 @@ export default function StickyNote({
           });
         } catch (error) {
           console.error('颜色更新失败:', error);
-          message.error('颜色更新失败').then();
+          message.error(i18nText("app.common.stickynote.stickynote.eee92d96")).then();
         }
       }, 1000),
     [],
@@ -379,7 +380,7 @@ export default function StickyNote({
           await resizeSticky(id, tempWidth, tempHeight);
         } catch (error) {
           console.error('便笺尺寸更新失败:', error);
-          message.error('便笺尺寸更新失败').then();
+          message.error(i18nText("app.common.stickynote.stickynote.ac13b0e7")).then();
         }
       }, 1000),
     [],
@@ -405,7 +406,7 @@ export default function StickyNote({
     updateSticky(param).then((res) => {
       if (!res) {
         message
-          .error(`id：${param.id} 保存失败`)
+          .error(i18nText("app.common.stickynote.stickynote.6d1ebd27", {value0: param.id}))
           .then();
       }
     });
@@ -620,7 +621,7 @@ export default function StickyNote({
         <TagsOutlined
           className={styles.dragIcon}
           draggable={false}
-          title="按住并拖动便笺"
+          title={i18nText("app.common.stickynote.stickynote.087e8e9a")}
           onPointerDown={handleDragStart}
           onPointerMove={handleDragMove}
           onPointerUp={handleDragEnd}

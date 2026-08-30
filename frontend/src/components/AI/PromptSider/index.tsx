@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React from 'react';
 import {PromptConfig} from "@/types/ai.type";
 
@@ -9,7 +10,7 @@ export type PromptSiderProps = {
 const PromptSider: React.FC<PromptSiderProps> = ({ height, onSelect }) => {
   return (
     <div style={{ height }}>
-      <div>提示词侧边栏</div>
+      <div>{i18nText("app.ai.promptsider.d9ac182e")}</div>
     </div>
   );
 }

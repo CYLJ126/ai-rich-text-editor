@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, message, Modal, Upload} from "antd";
 import {DeleteOutlined, UploadOutlined} from "@ant-design/icons";
 import React, {useCallback, useState} from "react";
@@ -21,16 +22,16 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
   // 先上传图片，并返回链接
   const handleCoverUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      message.warning('请选择图片文件').then();
+      message.warning(i18nText("app.article.article.articlecovermodal.73a463b2")).then();
       return false;
     }
     setCoverUploading(true);
     try {
       const url = await uploadImage(file, 'images/article/cover');
       setCoverDraft((url || '').trim());
-      message.success('封面上传成功').then();
+      message.success(i18nText("app.article.article.articlecovermodal.37b367c7")).then();
     } catch {
-      message.error('封面上传失败').then();
+      message.error(i18nText("app.article.article.articlecovermodal.d18c4b48")).then();
     } finally {
       setCoverUploading(false);
     }
@@ -40,7 +41,7 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
   // 将封面链接保存到文章信息中
   const handleCoverSave = useCallback(async () => {
     if (!articleInfo?.id) {
-      message.info('请先打开一篇文章').then();
+      message.info(i18nText("app.article.article.articlecovermodal.84318691")).then();
       return;
     }
     setCoverSaving(true);
@@ -51,10 +52,10 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
         summary: articleInfo.summary,
         cover: coverDraft,
       });
-      message.success(coverDraft ? '封面已保存' : '封面已清除').then();
+      message.success(coverDraft ? i18nText("app.article.article.articlecovermodal.20028740") : i18nText("app.article.article.articlecovermodal.2eb6f68a")).then();
       onSuccess?.(coverDraft);
     } catch {
-      message.error('封面保存失败').then();
+      message.error(i18nText("app.article.article.articlecovermodal.15c989b4")).then();
       onFailure?.();
     } finally {
       setCoverSaving(false);
@@ -63,10 +64,10 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
 
   return (
     <Modal
-      title="设置文章封面"
+      title={i18nText("app.article.article.articlecovermodal.3480ee81")}
       open={visible}
-      okText="保存封面"
-      cancelText="取消"
+      okText={i18nText("app.article.article.articlecovermodal.f29e631f")}
+      cancelText={i18nText("app.article.article.articlecovermodal.6907f718")}
       confirmLoading={coverSaving}
       onOk={handleCoverSave}
       onCancel={onClose}
@@ -89,11 +90,11 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
           {coverDraft ? (
             <img
               src={coverDraft}
-              alt="文章封面"
+              alt={i18nText("app.article.article.articlecovermodal.799b2c41")}
               style={{width: '100%', height: '100%', objectFit: 'cover'}}
             />
           ) : (
-            <span>暂无封面</span>
+            <span>{i18nText("app.article.article.articlecovermodal.5ef295fa")}</span>
           )}
         </div>
         <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end'}}>
@@ -102,7 +103,7 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
             disabled={!coverDraft || coverUploading || coverSaving}
             onClick={() => setCoverDraft('')}
           >
-            清除封面
+            {i18nText("app.article.article.articlecovermodal.404e21e3")}
           </Button>
           <Upload
             accept="image/*"
@@ -114,7 +115,7 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
               icon={<UploadOutlined/>}
               loading={coverUploading}
             >
-              上传封面
+              {i18nText("app.article.article.articlecovermodal.707ea8b9")}
             </Button>
           </Upload>
         </div>

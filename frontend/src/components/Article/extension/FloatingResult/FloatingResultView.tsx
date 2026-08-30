@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useRef, useState,} from 'react';
 import {createStyles} from 'antd-style';
 import {CheckOutlined, CloseOutlined, CopyOutlined} from '@ant-design/icons';
@@ -84,7 +85,7 @@ const HIDE_DELAY = 2000;
 const FloatingResultView: React.FC<FloatingResultViewProps> = ({
                                                                  content,
                                                                  position,
-                                                                 label = '结果',
+                                                                 label = i18nText("app.article.floatingresult.floatingresultview.467e545f"),
                                                                  onClose,
                                                                }) => {
   const {styles} = useStyles();
@@ -183,7 +184,7 @@ const FloatingResultView: React.FC<FloatingResultViewProps> = ({
         <div className={styles.header}>
           <span className={styles.label}>{label}</span>
           <div className={styles.actions}>
-            <Tooltip title={copied ? '已复制' : '复制'} placement="top">
+            <Tooltip title={copied ? i18nText("app.article.floatingresult.floatingresultview.f4eae5f5") : i18nText("app.article.floatingresult.floatingresultview.2d210a33")} placement="top">
               <button
                 className={styles.iconBtn}
                 onClick={handleCopy}
@@ -197,7 +198,7 @@ const FloatingResultView: React.FC<FloatingResultViewProps> = ({
               </button>
             </Tooltip>
             <div className={styles.divider}/>
-            <Tooltip title="关闭" placement="top">
+            <Tooltip title={i18nText("app.article.floatingresult.floatingresultview.4effdc77")} placement="top">
               <button
                 className={styles.iconBtn}
                 onClick={handleClose}

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   CopyOutlined,
   DeleteOutlined,
@@ -63,7 +64,7 @@ function buildTreeNodes(catalogs: CatalogType[]): CatalogTreeNode[] {
 function buildArticleNodes(articles: ArticleInfoType[]): CatalogTreeNode[] {
   return articles.map((article) => ({
     key: `article-${article.id}`,
-    title: article.title || '(无标题)',
+    title: article.title || i18nText("app.article.sidebar.spacetree.f817a1f4"),
     isLeaf: true,
     children: undefined,
     data: article,
@@ -106,17 +107,17 @@ function collectExpandableKeys(nodes: CatalogTreeNode[]): React.Key[] {
 }
 
 function getPermissionLabel(permission?: string, type?: 'catalog' | 'article') {
-  if (!permission) return '未知';
+  if (!permission) return i18nText("app.article.sidebar.spacetree.26e7e3fb");
   const labels: Record<string, string> = {
-    READ: '可读',
-    COMMENT: '可批注',
-    READ_WRITE: '可编辑',
-    ACCESS: '可访问',
-    CREATE_CHILD: '可新建子内容',
-    FULL_CONTROL: '完全控制',
+    READ: i18nText("app.article.sidebar.spacetree.5a5ff0ed"),
+    COMMENT: i18nText("app.article.sidebar.spacetree.7d722924"),
+    READ_WRITE: i18nText("app.article.sidebar.spacetree.40d0beb3"),
+    ACCESS: i18nText("app.article.sidebar.spacetree.1166af46"),
+    CREATE_CHILD: i18nText("app.article.sidebar.spacetree.5a99b362"),
+    FULL_CONTROL: i18nText("app.article.sidebar.spacetree.6f09acef"),
   };
   if (permission === 'READ' && type === 'catalog') {
-    return '可访问';
+    return i18nText("app.article.sidebar.spacetree.1166af46");
   }
   return labels[permission] ?? permission;
 }
@@ -129,7 +130,7 @@ function permissionMenuItems(node: CatalogTreeNode): MenuItems {
   return [
     {
       key: 'current-permission',
-      label: `当前权限：${getPermissionLabel(permission, node.type)}`,
+      label: i18nText("app.article.sidebar.spacetree.dd47a0d8", {value0: getPermissionLabel(permission, node.type)}),
       disabled: true,
     },
     { type: 'divider' },
@@ -445,38 +446,38 @@ export default function SpaceTree({
           items.push(
             {
               key: 'add-sub-catalog',
-              label: '新建子目录',
+              label: i18nText("app.article.sidebar.spacetree.ce3a66c8"),
               icon: <FolderAddOutlined />,
               onClick: () => onAddSubCatalog?.(catalog.id),
             },
             {
               key: 'create-article',
-              label: '在此目录下新建文章',
+              label: i18nText("app.article.sidebar.spacetree.bd3ed3d7"),
               icon: <FileAddOutlined />,
               onClick: () => onCreateArticle?.(catalog.id),
             },
             {
               key: 'import-markdown',
-              label: '导入 Markdown 文章',
+              label: i18nText("app.article.sidebar.spacetree.625e893f"),
               icon: <UploadOutlined />,
               onClick: () => onImportMarkdown?.(catalog.id),
             },
             {
               key: 'import-markdown-zip',
-              label: '导入 Markdown 压缩包',
+              label: i18nText("app.article.sidebar.spacetree.50034169"),
               icon: <FileZipOutlined />,
               onClick: () => onImportMarkdownZip?.(catalog.id),
             },
             { type: 'divider' },
             {
               key: 'rename-catalog',
-              label: '重命名',
+              label: i18nText("app.article.sidebar.spacetree.36e5a20b"),
               icon: <EditOutlined />,
               onClick: () => onRenameCatalog?.(catalog.id, catalog.name),
             },
             {
               key: 'share-setting',
-              label: '分享设置',
+              label: i18nText("app.article.sidebar.spacetree.5b56d2a6"),
               icon: <ShareAltOutlined />,
               onClick: () => onShareSetting?.('CATALOG', catalog.id),
             },
@@ -484,7 +485,7 @@ export default function SpaceTree({
               ? [
                   {
                     key: 'toggle-public',
-                    label: '撤回公共状态',
+                    label: i18nText("app.article.sidebar.spacetree.5867a669"),
                     icon: <StopOutlined />,
                     onClick: () =>
                       onTogglePublic?.('CATALOG', catalog.id, false),
@@ -493,7 +494,7 @@ export default function SpaceTree({
               : [
                   {
                     key: 'publish-to-public',
-                    label: '发布至公共空间',
+                    label: i18nText("app.article.sidebar.spacetree.84483664"),
                     icon: <GlobalOutlined />,
                     onClick: () =>
                       onPublishToPublic?.('CATALOG', catalog.id, catalog.name),
@@ -502,7 +503,7 @@ export default function SpaceTree({
             { type: 'divider' },
             {
               key: 'delete-catalog',
-              label: '删除目录',
+              label: i18nText("app.article.sidebar.spacetree.171ba34e"),
               icon: <DeleteOutlined />,
               danger: true,
               onClick: () => onDeleteCatalog?.(catalog.id, catalog.name),
@@ -513,25 +514,25 @@ export default function SpaceTree({
             items.push(
               {
                 key: 'add-sub-catalog',
-                label: '新建子目录',
+                label: i18nText("app.article.sidebar.spacetree.ce3a66c8"),
                 icon: <FolderAddOutlined />,
                 onClick: () => onAddSubCatalog?.(catalog.id),
               },
               {
                 key: 'create-article',
-                label: '在此目录下新建文章',
+                label: i18nText("app.article.sidebar.spacetree.bd3ed3d7"),
                 icon: <FileAddOutlined />,
                 onClick: () => onCreateArticle?.(catalog.id),
               },
               {
                 key: 'import-markdown',
-                label: '导入 Markdown 文章',
+                label: i18nText("app.article.sidebar.spacetree.625e893f"),
                 icon: <UploadOutlined />,
                 onClick: () => onImportMarkdown?.(catalog.id),
               },
               {
                 key: 'import-markdown-zip',
-                label: '导入 Markdown 压缩包',
+                label: i18nText("app.article.sidebar.spacetree.50034169"),
                 icon: <FileZipOutlined />,
                 onClick: () => onImportMarkdownZip?.(catalog.id),
               },
@@ -540,16 +541,16 @@ export default function SpaceTree({
           }
           items.push({
             key: 'leave-share-catalog',
-            label: '退出共享',
+            label: i18nText("app.article.sidebar.spacetree.aab54257"),
             icon: <StopOutlined />,
             danger: true,
             onClick: async () => {
               try {
                 await leaveShare('CATALOG', catalog.id);
-                message.success('已退出共享');
+                message.success(i18nText("app.article.sidebar.spacetree.66797756"));
                 onDataChange();
               } catch {
-                message.error('退出共享失败');
+                message.error(i18nText("app.article.sidebar.spacetree.df1c9393"));
               }
             },
           });
@@ -558,45 +559,45 @@ export default function SpaceTree({
             items.push(
               {
                 key: 'add-sub-catalog',
-                label: '新建子目录',
+                label: i18nText("app.article.sidebar.spacetree.ce3a66c8"),
                 icon: <FolderAddOutlined />,
                 onClick: () => onAddSubCatalog?.(catalog.id),
               },
               {
                 key: 'create-article',
-                label: '在此目录下新建文章',
+                label: i18nText("app.article.sidebar.spacetree.bd3ed3d7"),
                 icon: <FileAddOutlined />,
                 onClick: () => onCreateArticle?.(catalog.id),
               },
               {
                 key: 'import-markdown',
-                label: '导入 Markdown 文章',
+                label: i18nText("app.article.sidebar.spacetree.625e893f"),
                 icon: <UploadOutlined />,
                 onClick: () => onImportMarkdown?.(catalog.id),
               },
               {
                 key: 'import-markdown-zip',
-                label: '导入 Markdown 压缩包',
+                label: i18nText("app.article.sidebar.spacetree.50034169"),
                 icon: <FileZipOutlined />,
                 onClick: () => onImportMarkdownZip?.(catalog.id),
               },
               {
                 key: 'share-setting',
-                label: '分享设置',
+                label: i18nText("app.article.sidebar.spacetree.5b56d2a6"),
                 icon: <ShareAltOutlined />,
                 onClick: () => onShareSetting?.('CATALOG', catalog.id),
               },
               { type: 'divider' },
               {
                 key: 'toggle-public',
-                label: '撤回公共状态',
+                label: i18nText("app.article.sidebar.spacetree.5867a669"),
                 icon: <StopOutlined />,
                 onClick: () => onTogglePublic?.('CATALOG', catalog.id, false),
               },
             );
             items.splice(3, 0, {
               key: 'rename-catalog',
-              label: '重命名',
+              label: i18nText("app.article.sidebar.spacetree.36e5a20b"),
               icon: <EditOutlined />,
               onClick: () => onRenameCatalog?.(catalog.id, catalog.name),
             });
@@ -604,7 +605,7 @@ export default function SpaceTree({
               { type: 'divider' },
               {
                 key: 'delete-catalog',
-                label: '删除目录',
+                label: i18nText("app.article.sidebar.spacetree.171ba34e"),
                 icon: <DeleteOutlined />,
                 danger: true,
                 onClick: () => onDeleteCatalog?.(catalog.id, catalog.name),
@@ -613,7 +614,7 @@ export default function SpaceTree({
           } else {
             items.push({
               key: 'copy-catalog',
-              label: '复制到我的空间',
+              label: i18nText("app.article.sidebar.spacetree.b8cb3d2b"),
               icon: <CopyOutlined />,
               onClick: () => onCopyToMySpace?.('CATALOG', catalog.id),
             });
@@ -631,20 +632,20 @@ export default function SpaceTree({
         items.push(
           {
             key: 'rename-article',
-            label: '修改标题',
+            label: i18nText("app.article.sidebar.spacetree.d40c4e29"),
             icon: <EditOutlined />,
             onClick: () =>
-              onRenameArticle?.(article.id, article.title || '(无标题)'),
+              onRenameArticle?.(article.id, article.title || i18nText("app.article.sidebar.spacetree.f817a1f4")),
           },
           {
             key: 'move-article',
-            label: '移动到目录',
+            label: i18nText("app.article.sidebar.spacetree.2fdd9f34"),
             icon: <SwapOutlined />,
             onClick: () => onMoveArticle?.(article.id),
           },
           {
             key: 'share-setting',
-            label: '分享设置',
+            label: i18nText("app.article.sidebar.spacetree.5b56d2a6"),
             icon: <ShareAltOutlined />,
             onClick: () => onShareSetting?.('ARTICLE', article.id),
           },
@@ -652,7 +653,7 @@ export default function SpaceTree({
             ? [
                 {
                   key: 'toggle-public',
-                  label: '撤回公共状态',
+                  label: i18nText("app.article.sidebar.spacetree.5867a669"),
                   icon: <StopOutlined />,
                   onClick: () => onTogglePublic?.('ARTICLE', article.id, false),
                 },
@@ -660,24 +661,24 @@ export default function SpaceTree({
             : [
                 {
                   key: 'publish-to-public',
-                  label: '发布至公共空间',
+                  label: i18nText("app.article.sidebar.spacetree.84483664"),
                   icon: <GlobalOutlined />,
                   onClick: () =>
                     onPublishToPublic?.(
                       'ARTICLE',
                       article.id,
-                      article.title || '(无标题)',
+                      article.title || i18nText("app.article.sidebar.spacetree.f817a1f4"),
                     ),
                 },
               ]),
           { type: 'divider' },
           {
             key: 'delete-article',
-            label: '删除文章',
+            label: i18nText("app.article.sidebar.spacetree.96e52f5b"),
             icon: <DeleteOutlined />,
             danger: true,
             onClick: () =>
-              onDeleteArticle?.(article.id, article.title || '(无标题)'),
+              onDeleteArticle?.(article.id, article.title || i18nText("app.article.sidebar.spacetree.f817a1f4")),
           },
         );
       } else if (space === 'shared') {
@@ -689,26 +690,26 @@ export default function SpaceTree({
           items.push(
             {
               key: 'rename-article',
-              label: '修改标题',
+              label: i18nText("app.article.sidebar.spacetree.d40c4e29"),
               icon: <EditOutlined />,
               onClick: () =>
-                onRenameArticle?.(article.id, article.title || '(无标题)'),
+                onRenameArticle?.(article.id, article.title || i18nText("app.article.sidebar.spacetree.f817a1f4")),
             },
             { type: 'divider' },
           );
         }
         items.push({
           key: 'leave-share-article',
-          label: '退出共享',
+          label: i18nText("app.article.sidebar.spacetree.aab54257"),
           icon: <StopOutlined />,
           danger: true,
           onClick: async () => {
             try {
               await leaveShare('ARTICLE', article.id);
-              message.success('已退出共享');
+              message.success(i18nText("app.article.sidebar.spacetree.66797756"));
               onDataChange();
             } catch {
-              message.error('退出共享失败');
+              message.error(i18nText("app.article.sidebar.spacetree.df1c9393"));
             }
           },
         });
@@ -716,26 +717,26 @@ export default function SpaceTree({
         if (hasFullControl) {
           items.push({
             key: 'toggle-public',
-            label: '撤回公共状态',
+            label: i18nText("app.article.sidebar.spacetree.5867a669"),
             icon: <StopOutlined />,
             onClick: () => onTogglePublic?.('ARTICLE', article.id, false),
           });
           items.unshift({
             key: 'rename-article',
-            label: '修改标题',
+            label: i18nText("app.article.sidebar.spacetree.d40c4e29"),
             icon: <EditOutlined />,
             onClick: () =>
-              onRenameArticle?.(article.id, article.title || '(无标题)'),
+              onRenameArticle?.(article.id, article.title || i18nText("app.article.sidebar.spacetree.f817a1f4")),
           });
           items.splice(1, 0, {
             key: 'move-article',
-            label: '移动到目录',
+            label: i18nText("app.article.sidebar.spacetree.2fdd9f34"),
             icon: <SwapOutlined />,
             onClick: () => onMoveArticle?.(article.id, 'public'),
           });
           items.splice(2, 0, {
             key: 'share-setting',
-            label: '分享设置',
+            label: i18nText("app.article.sidebar.spacetree.5b56d2a6"),
             icon: <ShareAltOutlined />,
             onClick: () => onShareSetting?.('ARTICLE', article.id),
           });
@@ -743,17 +744,17 @@ export default function SpaceTree({
             { type: 'divider' },
             {
               key: 'delete-article',
-              label: '删除文章',
+              label: i18nText("app.article.sidebar.spacetree.96e52f5b"),
               icon: <DeleteOutlined />,
               danger: true,
               onClick: () =>
-                onDeleteArticle?.(article.id, article.title || '(无标题)'),
+                onDeleteArticle?.(article.id, article.title || i18nText("app.article.sidebar.spacetree.f817a1f4")),
             },
           );
         } else {
           items.push({
             key: 'copy-article',
-            label: '复制到我的空间',
+            label: i18nText("app.article.sidebar.spacetree.b8cb3d2b"),
             icon: <CopyOutlined />,
             onClick: () => onCopyToMySpace?.('ARTICLE', article.id),
           });
@@ -793,7 +794,7 @@ export default function SpaceTree({
       {batchMode && selectedArticleIds.length > 0 && (
         <div className="sticky top-0 z-[2] mb-1.5 flex items-center justify-between gap-2 border-b border-[#f0f0f0] bg-white px-2.5 py-2">
           <Typography.Text type="secondary" className="text-xs">
-            已选择 {selectedArticleIds.length} 篇文章
+            {i18nText("app.article.sidebar.spacetree.720fa76a")} {selectedArticleIds.length} {i18nText("app.article.sidebar.spacetree.db52c85e")}
           </Typography.Text>
           <Space size={4}>
             {canBatchMutate && (
@@ -803,7 +804,7 @@ export default function SpaceTree({
                   icon={<SwapOutlined />}
                   onClick={handleBatchMoveClick}
                 >
-                  移动
+                  {i18nText("app.article.sidebar.spacetree.2498f80b")}
                 </Button>
                 <Button
                   size="small"
@@ -811,7 +812,7 @@ export default function SpaceTree({
                   icon={<DeleteOutlined />}
                   onClick={handleBatchDeleteClick}
                 >
-                  删除
+                  {i18nText("app.article.sidebar.spacetree.b04574e1")}
                 </Button>
               </>
             )}
@@ -820,10 +821,10 @@ export default function SpaceTree({
               icon={<DownloadOutlined />}
               onClick={handleExportClick}
             >
-              导出
+              {i18nText("app.article.sidebar.spacetree.546c963a")}
             </Button>
             <Button size="small" type="link" onClick={() => setCheckedKeys([])}>
-              清空
+              {i18nText("app.article.sidebar.spacetree.3b1a521f")}
             </Button>
           </Space>
         </div>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {EllipsisOutlined} from '@ant-design/icons';
 import {GridContent} from '@ant-design/pro-components';
 import {useQuery} from '@tanstack/react-query';
@@ -79,11 +80,11 @@ const Analysis: FC<AnalysisProps> = () => {
           items: [
             {
               key: '1',
-              label: '操作一',
+              label: i18nText("app.dashboard.analysis.f2178ac4"),
             },
             {
               key: '2',
-              label: '操作二',
+              label: i18nText("app.dashboard.analysis.aed0b7fc"),
             },
           ],
         }}

@@ -1,9 +1,20 @@
-import {NodeViewContent, NodeViewWrapper, ReactNodeViewProps,} from "@tiptap/react";
-import {common} from "lowlight";
-import {useEffect, useMemo, useState} from "react";
-import {Button, Input, Popover} from "antd";
-import {CheckOutlined, CopyOutlined, DeleteOutlined, DownOutlined, UpOutlined,} from "@ant-design/icons";
-import {createStyles} from "antd-style";
+import {
+  NodeViewContent,
+  NodeViewWrapper,
+  ReactNodeViewProps,
+} from '@tiptap/react';
+import { common } from 'lowlight';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Input, Popover } from 'antd';
+import { i18nText } from '@/utils/i18n';
+import {
+  CheckOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  UpOutlined,
+} from '@ant-design/icons';
+import { createStyles } from 'antd-style';
 
 const useStyles = createStyles(({ css, token }) => ({
   wrapper: css`
@@ -175,14 +186,14 @@ const useStyles = createStyles(({ css, token }) => ({
 
 // 代码扩展 - 代码块视图
 const CodeBlockView = ({
-                         editor,
-                         extension,
-                         node,
-                         getPos,
-                       }: ReactNodeViewProps) => {
+  editor,
+  extension,
+  node,
+  getPos,
+}: ReactNodeViewProps) => {
   const { styles: s, cx } = useStyles();
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [isCopied, setCopied] = useState(false);
   const [lineCount, setLineCount] = useState(1);
@@ -196,19 +207,19 @@ const CodeBlockView = ({
 
   // 行数统计
   useEffect(() => {
-    const lines = node.textContent.split("\n");
+    const lines = node.textContent.split('\n');
     setLineCount(lines.length || 1);
   }, [node.textContent]);
 
   const languageClassPrefix =
-    extension.options.languageClassPrefix ?? "language-";
-  const language: string = node.attrs.language ?? "plaintext";
+    extension.options.languageClassPrefix ?? 'language-';
+  const language: string = node.attrs.language ?? 'plaintext';
 
   // 过滤语言列表
   const filteredLanguages = useMemo(() => {
     if (!search.trim()) return languages;
     return languages.filter((l) =>
-      l.toLowerCase().includes(search.toLowerCase())
+      l.toLowerCase().includes(search.toLowerCase()),
     );
   }, [languages, search]);
 
@@ -243,7 +254,7 @@ const CodeBlockView = ({
       .setCodeBlock({ language: lang })
       .run();
     setPopoverOpen(false);
-    setSearch("");
+    setSearch('');
   };
 
   // 语言选择器下拉内容
@@ -251,7 +262,7 @@ const CodeBlockView = ({
     <div className={s.popoverContent}>
       <Input
         size="small"
-        placeholder="Search..."
+        placeholder={i18nText('app.common.search.placeholder')}
         className={s.searchInput}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -260,8 +271,8 @@ const CodeBlockView = ({
       />
       <div className={s.langList}>
         {filteredLanguages.length === 0 ? (
-          <div style={{ padding: "8px", color: "#999", fontSize: 12 }}>
-            No results
+          <div style={{ padding: '8px', color: '#999', fontSize: 12 }}>
+            {i18nText('app.common.noResults')}
           </div>
         ) : (
           filteredLanguages.map((l) => (
@@ -288,12 +299,12 @@ const CodeBlockView = ({
             open={popoverOpen}
             onOpenChange={(open) => {
               setPopoverOpen(open);
-              if (open) setSearch("");
+              if (open) setSearch('');
             }}
             content={popoverContent}
             trigger="click"
             placement="bottomLeft"
-            styles={{container: {padding: 0}}}
+            styles={{ container: { padding: 0 } }}
             arrow={false}
           >
             <button className={s.langTrigger} type="button">
@@ -313,12 +324,12 @@ const CodeBlockView = ({
               onClick={handleCopy}
               icon={
                 isCopied ? (
-                  <CheckOutlined style={{ color: "#4ade80" }} />
+                  <CheckOutlined style={{ color: '#4ade80' }} />
                 ) : (
                   <CopyOutlined />
                 )
               }
-              title="Copy code"
+              title={i18nText('app.article.code.copy')}
             />
             {/* 删除 */}
             <Button
@@ -327,7 +338,7 @@ const CodeBlockView = ({
               className={s.iconBtn}
               onClick={handleDelete}
               icon={<DeleteOutlined />}
-              title="Delete block"
+              title={i18nText('app.article.code.delete')}
             />
             {/* 展开收起 */}
             <Button
@@ -337,8 +348,8 @@ const CodeBlockView = ({
               onClick={() => {
                 setFoldFlag(!foldFlag);
               }}
-              icon={foldFlag ? <DownOutlined/> : <UpOutlined/>}
-              title="fold block"
+              icon={foldFlag ? <DownOutlined /> : <UpOutlined />}
+              title={i18nText('app.article.code.fold')}
             />
           </div>
         </div>
@@ -348,25 +359,28 @@ const CodeBlockView = ({
           <div className={s.codeBody}>
             {/* 行号 */}
             <div className={s.lineNumbers}>
-              {Array.from({length: lineCount}, (_, i) => (
+              {Array.from({ length: lineCount }, (_, i) => (
                 <span key={i} className={s.lineNumber}>
-                {i + 1}
-              </span>
+                  {i + 1}
+                </span>
               ))}
             </div>
 
             {/* 代码内容 */}
             <pre className={s.pre}>
-            <code
-              className={cx(
-                s.code,
-                language ? `${languageClassPrefix}${language}` : undefined
-              )}
-            >
-              <NodeViewContent style={{ whiteSpace: "pre", display: "block" }} />
-            </code>
-          </pre>
-          </div>)}
+              <code
+                className={cx(
+                  s.code,
+                  language ? `${languageClassPrefix}${language}` : undefined,
+                )}
+              >
+                <NodeViewContent
+                  style={{ whiteSpace: 'pre', display: 'block' }}
+                />
+              </code>
+            </pre>
+          </div>
+        )}
       </div>
     </NodeViewWrapper>
   );

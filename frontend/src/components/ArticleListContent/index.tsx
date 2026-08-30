@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { Avatar } from 'antd';
 import dayjs from 'dayjs';
 import React from 'react';
@@ -22,7 +23,7 @@ const ArticleListContent: React.FC<ArticleListContentProps> = ({
       <div className={styles.description}>{content}</div>
       <div className={styles.extra}>
         <Avatar src={avatar} size="small" />
-        <a href={href}>{owner}</a> 发布在 <a href={href}>{href}</a>
+        <a href={href}>{owner}</a> {i18nText("app.common.articlelistcontent.fea05c1d")} <a href={href}>{href}</a>
         <em>{dayjs(updatedAt).format('YYYY-MM-DD HH:mm')}</em>
       </div>
     </div>

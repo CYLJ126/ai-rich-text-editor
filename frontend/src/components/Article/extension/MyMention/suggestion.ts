@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {computePosition, flip, shift} from '@floating-ui/dom'
 import {posToDOMRect, ReactRenderer} from '@tiptap/react'
 
@@ -24,13 +25,13 @@ export default {
   items: ({query}) => {
     // TODO 从后端获取拥有此文章权限的人员列表
     return [
-      '张老三',
-      '李四',
-      '王五本是端',
-      '郑六六六',
-      '田七',
-      '周八',
-      '吴九',
+      i18nText("app.article.mymention.suggestion.f359f44e"),
+      i18nText("app.article.mymention.suggestion.92a0dd0f"),
+      i18nText("app.article.mymention.suggestion.660f3264"),
+      i18nText("app.article.mymention.suggestion.711fe082"),
+      i18nText("app.article.mymention.suggestion.05a3660a"),
+      i18nText("app.article.mymention.suggestion.7acd9bb8"),
+      i18nText("app.article.mymention.suggestion.3657b147"),
     ].filter(item => item.toLowerCase().startsWith(query.toLowerCase()))
   },
 

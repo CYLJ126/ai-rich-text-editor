@@ -58,6 +58,7 @@ export default {
   'menu.Personal': 'Personal',
   'menu.Personal.TagManagement': 'Tag Management',
   'menu.Personal.StickyNote': 'Sticky Note',
+  'menu.Personal.GeneralManagement': 'Activity Planning',
   'menu.Learn': 'Learn',
   'menu.Proof': 'Proof',
   'menu.Administration': 'Administration',

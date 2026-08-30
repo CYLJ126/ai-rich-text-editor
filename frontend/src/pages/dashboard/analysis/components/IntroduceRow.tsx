@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {InfoCircleOutlined} from '@ant-design/icons';
 import {Area, Column} from '@ant-design/plots';
 import {Col, Progress, Row, Tooltip} from 'antd';
@@ -32,15 +33,15 @@ const IntroduceRow = ({
       <Col {...topColResponsiveProps}>
         <ChartCard
           variant="borderless"
-          title="总销售额"
+          title={i18nText("app.dashboard.components.introducerow.d7b039ec")}
           action={
-            <Tooltip title="指标说明">
+            <Tooltip title={i18nText("app.dashboard.components.introducerow.d97ce6bf")}>
               <InfoCircleOutlined />
             </Tooltip>
           }
           loading={loading}
           total={() => <Yuan>126560</Yuan>}
-          footer={<Field label="日销售额" value={`￥${formatNumber(12423)}`} />}
+          footer={<Field label={i18nText("app.dashboard.components.introducerow.dfab7972")} value={`￥${formatNumber(12423)}`} />}
           contentHeight={46}
         >
           <Trend
@@ -49,11 +50,11 @@ const IntroduceRow = ({
               marginRight: 16,
             }}
           >
-            周同比
+            {i18nText("app.dashboard.components.introducerow.b335ab7e")}
             <span className={styles.trendText}>12%</span>
           </Trend>
           <Trend flag="down">
-            日同比
+            {i18nText("app.dashboard.components.introducerow.6da2a9ed")}
             <span className={styles.trendText}>11%</span>
           </Trend>
         </ChartCard>
@@ -63,14 +64,14 @@ const IntroduceRow = ({
         <ChartCard
           variant="borderless"
           loading={loading}
-          title="访问量"
+          title={i18nText("app.dashboard.components.introducerow.88618372")}
           action={
-            <Tooltip title="指标说明">
+            <Tooltip title={i18nText("app.dashboard.components.introducerow.d97ce6bf")}>
               <InfoCircleOutlined />
             </Tooltip>
           }
           total={formatNumber(8846)}
-          footer={<Field label="日访问量" value={formatNumber(1234)} />}
+          footer={<Field label={i18nText("app.dashboard.components.introducerow.d280b490")} value={formatNumber(1234)} />}
           contentHeight={46}
         >
           <Area
@@ -93,14 +94,14 @@ const IntroduceRow = ({
         <ChartCard
           variant="borderless"
           loading={loading}
-          title="支付笔数"
+          title={i18nText("app.dashboard.components.introducerow.110eb060")}
           action={
-            <Tooltip title="指标说明">
+            <Tooltip title={i18nText("app.dashboard.components.introducerow.d97ce6bf")}>
               <InfoCircleOutlined />
             </Tooltip>
           }
           total={formatNumber(6560)}
-          footer={<Field label="转化率" value="60%" />}
+          footer={<Field label={i18nText("app.dashboard.components.introducerow.0e40f2d1")} value="60%" />}
           contentHeight={46}
         >
           <Column
@@ -118,9 +119,9 @@ const IntroduceRow = ({
         <ChartCard
           loading={loading}
           variant="borderless"
-          title="运营活动效果"
+          title={i18nText("app.dashboard.components.introducerow.c7eb3b01")}
           action={
-            <Tooltip title="指标说明">
+            <Tooltip title={i18nText("app.dashboard.components.introducerow.d97ce6bf")}>
               <InfoCircleOutlined />
             </Tooltip>
           }
@@ -138,11 +139,11 @@ const IntroduceRow = ({
                   marginRight: 16,
                 }}
               >
-                周同比
+                {i18nText("app.dashboard.components.introducerow.b335ab7e")}
                 <span className={styles.trendText}>12%</span>
               </Trend>
               <Trend flag="down">
-                日同比
+                {i18nText("app.dashboard.components.introducerow.6da2a9ed")}
                 <span className={styles.trendText}>11%</span>
               </Trend>
             </div>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {ReactNodeViewProps} from '@tiptap/react';
 import {NodeViewWrapper} from '@tiptap/react';
 import {DownloadIcon, EditIcon, TrashIcon} from 'lucide-react';
@@ -41,7 +42,7 @@ export function AudioView({
             ? 'include'
             : 'same-origin',
       });
-      if (!response.ok) throw new Error('音频下载失败');
+      if (!response.ok) throw new Error(i18nText("app.article.audio.audioview.ebe743fc"));
 
       const objectUrl = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
@@ -93,7 +94,7 @@ export function AudioView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="修改音频"
+            title={i18nText("app.article.audio.audioview.e60337a9")}
             onClick={() => setIsDialogOpen(true)}
           >
             <EditIcon className="size-4" strokeWidth={3} />
@@ -103,7 +104,7 @@ export function AudioView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="下载音频"
+            title={i18nText("app.article.audio.audioview.97917f5f")}
             onClick={downloadAudio}
           >
             <DownloadIcon className="size-4" strokeWidth={3} />
@@ -113,7 +114,7 @@ export function AudioView({
             variant="secondary"
             size="icon"
             className="size-7 cursor-pointer opacity-40 hover:opacity-100"
-            title="删除音频"
+            title={i18nText("app.article.audio.audioview.49f91be4")}
             onClick={deleteNode}
           >
             <TrashIcon className="size-4" strokeWidth={3} />

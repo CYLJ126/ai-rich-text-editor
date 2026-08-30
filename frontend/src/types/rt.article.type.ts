@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {Dayjs} from 'dayjs';
 import type {TagNode} from '@/components/MyTagTree';
 import type {BaseParam} from '@/types/base.type';
@@ -9,11 +10,11 @@ export type ArticleType = 'note' | 'blog' | 'novel' | 'essay' | 'generic';
 export type ArticleSaveStatus = 0 | 1 | 2 | 3 | 4;
 
 export const articleTypeOptions = [
-  { value: 'note', label: '笔记', color: '#ce2416' },
-  { value: 'blog', label: '博客', color: '#f78922' },
-  { value: 'novel', label: '小说', color: '#f6c114' },
-  { value: 'essay', label: '散文', color: '#64bd89' },
-  { value: 'generic', label: '通用类型', color: '#59aec6' },
+  { value: 'note', label: i18nText("app.common.types.rt.article.type.2f3a3e0a"), color: '#ce2416' },
+  { value: 'blog', label: i18nText("app.common.types.rt.article.type.2817ece5"), color: '#f78922' },
+  { value: 'novel', label: i18nText("app.common.types.rt.article.type.9ad2d392"), color: '#f6c114' },
+  { value: 'essay', label: i18nText("app.common.types.rt.article.type.be56f6e8"), color: '#64bd89' },
+  { value: 'generic', label: i18nText("app.common.types.rt.article.type.bc62506e"), color: '#59aec6' },
 ];
 
 // 页面显示类型：ArticleHome-编辑器首页；RichTextEditor-富文本编辑器

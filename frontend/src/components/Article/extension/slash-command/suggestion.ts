@@ -1,5 +1,6 @@
-import {type Editor, posToDOMRect, ReactRenderer} from '@tiptap/react';
-import type {SuggestionOptions} from '@tiptap/suggestion';
+import { i18nText } from '@/utils/i18n';
+import { type Editor, posToDOMRect, ReactRenderer } from '@tiptap/react';
+import type { SuggestionOptions } from '@tiptap/suggestion';
 import {
   BrainCircuitIcon,
   CodeIcon,
@@ -21,7 +22,7 @@ import {
   TextQuoteIcon,
   VideoIcon,
 } from 'lucide-react';
-import type {SlashCommandNodeAttrs} from './slash-command';
+import type { SlashCommandNodeAttrs } from './slash-command';
 import SuggestionList, {
   type CommandSuggestionItem,
   type SuggestionListHandle,
@@ -40,8 +41,8 @@ type SuggestionType = Omit<
 const list: CommandSuggestionItem[] = [
   {
     id: 'aiWriter',
-    title: 'AI Writer',
-    description: 'Ask AI with custom prompt.',
+    title: i18nText('app.article.slash.aiWriter.title'),
+    description: i18nText('app.article.slash.aiWriter.description'),
     keywords: ['ai'],
     icon: SparklesIcon,
     command: ({ editor, range }) => {
@@ -50,8 +51,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'text',
-    title: 'Text',
-    description: 'Just start typing with plain text.',
+    title: i18nText('app.article.slash.text.title'),
+    description: i18nText('app.article.slash.text.description'),
     keywords: ['p', 'paragraph'],
     icon: LetterTextIcon,
     command: ({ editor, range }) => {
@@ -65,8 +66,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'h1',
-    title: 'Heading 1',
-    description: 'Big section heading.',
+    title: i18nText('app.article.slash.heading1.title'),
+    description: i18nText('app.article.slash.heading1.description'),
     keywords: ['title', 'big', 'large', 'heading'],
     icon: Heading1Icon,
     command: ({ editor, range }) => {
@@ -80,8 +81,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'h2',
-    title: 'Heading 2',
-    description: 'Medium section heading.',
+    title: i18nText('app.article.slash.heading2.title'),
+    description: i18nText('app.article.slash.heading2.description'),
     keywords: ['subtitle', 'medium', 'heading'],
     icon: Heading2Icon,
     command: ({ editor, range }) => {
@@ -95,8 +96,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'h3',
-    title: 'Heading 3',
-    description: 'Small section heading.',
+    title: i18nText('app.article.slash.heading3.title'),
+    description: i18nText('app.article.slash.heading3.description'),
     keywords: ['subtitle', 'small', 'heading'],
     icon: Heading3Icon,
     command: ({ editor, range }) => {
@@ -110,8 +111,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'ul',
-    title: 'Bullet List',
-    description: 'Create a simple bullet list.',
+    title: i18nText('app.article.slash.bulletList.title'),
+    description: i18nText('app.article.slash.bulletList.description'),
     keywords: ['unordered', 'list', 'bullet'],
     icon: ListIcon,
     command: ({ editor, range }) => {
@@ -120,8 +121,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'ol',
-    title: 'Numbered List',
-    description: 'Create a list with numbering.',
+    title: i18nText('app.article.slash.numberedList.title'),
+    description: i18nText('app.article.slash.numberedList.description'),
     keywords: ['ordered', 'list'],
     icon: ListOrderedIcon,
     command: ({ editor, range }) => {
@@ -130,8 +131,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'task-list',
-    title: 'Task List',
-    description: 'Create a task list',
+    title: i18nText('app.article.slash.taskList.title'),
+    description: i18nText('app.article.slash.taskList.description'),
     keywords: ['task', 'todo', 'check', 'taskList'],
     icon: ListTodoIcon,
     command: ({ editor, range }) => {
@@ -140,8 +141,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'divider',
-    title: 'Divider',
-    description: 'Create a horizontal divider.',
+    title: i18nText('app.article.slash.divider.title'),
+    description: i18nText('app.article.slash.divider.description'),
     keywords: ['divider'],
     icon: SeparatorHorizontal,
     command: ({ editor, range }) =>
@@ -149,8 +150,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'table',
-    title: 'Table',
-    description: 'Capture a table.',
+    title: i18nText('app.article.slash.table.title'),
+    description: i18nText('app.article.slash.table.description'),
     keywords: ['table'],
     icon: TableIcon,
     command: ({ editor, range }) =>
@@ -158,8 +159,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'blockquote',
-    title: 'Quote',
-    description: 'Capture a quote.',
+    title: i18nText('app.article.slash.quote.title'),
+    description: i18nText('app.article.slash.quote.description'),
     keywords: ['blockquote'],
     icon: TextQuoteIcon,
     command: ({ editor, range }) =>
@@ -173,8 +174,8 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'codeBlock',
-    title: 'Code',
-    description: 'Capture a code snippet.',
+    title: i18nText('app.article.slash.code.title'),
+    description: i18nText('app.article.slash.code.description'),
     keywords: ['codeblock'],
     icon: CodeIcon,
     command: ({ editor, range }) =>
@@ -187,31 +188,42 @@ const list: CommandSuggestionItem[] = [
   },
   {
     id: 'mermaid',
-    title: 'Mermaid',
-    description: 'Render a mermaid diagram.',
+    title: i18nText('app.article.slash.mermaid.title'),
+    description: i18nText('app.article.slash.mermaid.description'),
     keywords: ['mermaid', 'diagram'],
     icon: ShapesIcon,
     command: () => {},
   },
   {
     id: 'drawio',
-    title: 'Draw.io',
-    description: 'Create flowcharts, architecture diagrams, or UML diagrams.',
-    keywords: ['drawio', 'draw.io', 'diagram', 'flowchart', 'flowcharts', 'architecture', 'uml'],
+    title: i18nText('app.article.slash.drawio.title'),
+    description: i18nText('app.article.slash.drawio.description'),
+    keywords: [
+      'drawio',
+      'draw.io',
+      'diagram',
+      'flowchart',
+      'flowcharts',
+      'architecture',
+      'uml',
+    ],
     icon: NetworkIcon,
     command: ({ editor, range }) => {
       editor
         .chain()
         .focus()
         .deleteRange(range)
-        .insertCanvasBlock({ canvasType: 'drawio', title: 'Draw.io' })
+        .insertCanvasBlock({
+          canvasType: 'drawio',
+          title: i18nText('app.article.slash.drawio.title'),
+        })
         .run();
     },
   },
   {
     id: 'mindmap',
-    title: 'Mind Map',
-    description: 'Create mind maps via Mind Elixir.',
+    title: i18nText('app.article.slash.mindMap.title'),
+    description: i18nText('app.article.slash.mindMap.description'),
     keywords: ['mindmap', 'mind map', 'xmind', 'mind maps'],
     icon: BrainCircuitIcon,
     command: ({ editor, range }) => {
@@ -219,14 +231,17 @@ const list: CommandSuggestionItem[] = [
         .chain()
         .focus()
         .deleteRange(range)
-        .insertCanvasBlock({ canvasType: 'mindmap', title: 'Mind Map' })
+        .insertCanvasBlock({
+          canvasType: 'mindmap',
+          title: i18nText('app.article.slash.mindMap.title'),
+        })
         .run();
     },
   },
   {
     id: 'whiteboard',
-    title: 'Freehand Canvas',
-    description: 'Insert expandable freehand canvas.',
+    title: i18nText('app.article.slash.canvas.title'),
+    description: i18nText('app.article.slash.canvas.description'),
     keywords: ['whiteboard', 'canvas', 'drawing'],
     icon: PencilRulerIcon,
     command: ({ editor, range }) => {
@@ -234,7 +249,10 @@ const list: CommandSuggestionItem[] = [
         .chain()
         .focus()
         .deleteRange(range)
-        .insertCanvasBlock({ canvasType: 'whiteboard', title: 'Freehand Canvas' })
+        .insertCanvasBlock({
+          canvasType: 'whiteboard',
+          title: i18nText('app.article.slash.canvas.title'),
+        })
         .run();
     },
   },
@@ -248,24 +266,24 @@ const list: CommandSuggestionItem[] = [
   // },
   {
     id: 'image',
-    title: 'Image',
-    description: 'Insert an image from a link.',
+    title: i18nText('app.article.slash.image.title'),
+    description: i18nText('app.article.slash.image.description'),
     keywords: ['image', 'picture', 'photo'],
     icon: ImageIcon,
     command: () => {},
   },
   {
     id: 'audio',
-    title: 'Audio',
-    description: 'Insert a native audio player.',
+    title: i18nText('app.article.slash.audio.title'),
+    description: i18nText('app.article.slash.audio.description'),
     keywords: ['audio', 'music', 'sound'],
     icon: FileAudioIcon,
     command: () => {},
   },
   {
     id: 'video',
-    title: 'Video',
-    description: 'Insert a video or platform player.',
+    title: i18nText('app.article.slash.video.title'),
+    description: i18nText('app.article.slash.video.description'),
     keywords: ['video', 'movie', 'youtube', 'vimeo', 'bilibili'],
     icon: VideoIcon,
     command: () => {},

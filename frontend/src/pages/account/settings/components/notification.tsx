@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {List, Switch} from 'antd';
 import React from 'react';
 
@@ -6,8 +7,8 @@ type Unpacked<T> = T extends (infer U)[] ? U : T;
 const notificationAction = (key: string) => (
   <Switch
     key={key}
-    checkedChildren="开"
-    unCheckedChildren="关"
+    checkedChildren={i18nText("app.account.components.notification.9bc09d9a")}
+    unCheckedChildren={i18nText("app.account.components.notification.dc1dd4e1")}
     defaultChecked
   />
 );
@@ -15,20 +16,20 @@ const notificationAction = (key: string) => (
 const notificationData = [
   {
     key: 'user-message',
-    title: '用户消息',
-    description: '其他用户的消息将以站内信的形式通知',
+    title: i18nText("app.account.components.notification.74cf0b34"),
+    description: i18nText("app.account.components.notification.ec0409fb"),
     actions: [notificationAction('user-message-switch')],
   },
   {
     key: 'system-message',
-    title: '系统消息',
-    description: '系统消息将以站内信的形式通知',
+    title: i18nText("app.account.components.notification.ce412638"),
+    description: i18nText("app.account.components.notification.1e8bd9cd"),
     actions: [notificationAction('system-message-switch')],
   },
   {
     key: 'todo-task',
-    title: '待办任务',
-    description: '待办任务将以站内信的形式通知',
+    title: i18nText("app.account.components.notification.4f599a47"),
+    description: i18nText("app.account.components.notification.a643a86c"),
     actions: [notificationAction('todo-task-switch')],
   },
 ];

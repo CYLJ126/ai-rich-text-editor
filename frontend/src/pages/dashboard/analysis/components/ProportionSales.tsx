@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Pie} from '@ant-design/plots';
 import {Card, Segmented, Typography} from 'antd';
 import React from 'react';
@@ -29,9 +30,9 @@ const ProportionSales = ({
         value={salesType}
         onChange={handleChangeSalesType}
         options={[
-          {label: '全部渠道', value: 'all'},
-          {label: '线上', value: 'online'},
-          {label: '门店', value: 'stores'},
+          {label: i18nText("app.dashboard.components.proportionsales.de295727"), value: 'all'},
+          {label: i18nText("app.dashboard.components.proportionsales.9baa8fca"), value: 'online'},
+          {label: i18nText("app.dashboard.components.proportionsales.1d726261"), value: 'stores'},
         ]}
         size="middle"
       />
@@ -42,13 +43,13 @@ const ProportionSales = ({
       loading={loading}
       className={styles.salesCard}
       variant="borderless"
-      title="销售额类别占比"
+      title={i18nText("app.dashboard.components.proportionsales.93f5cf21")}
       style={{
         height: '100%',
       }}
       extra={extra}
     >
-      <Text>销售额</Text>
+      <Text>{i18nText("app.dashboard.components.proportionsales.a37a2380")}</Text>
       <Pie
         height={340}
         radius={0.8}

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Flex, InputNumber, message, Tooltip, Typography} from 'antd';
 import React, {forwardRef, useCallback, useEffect, useMemo, useState,} from 'react';
 import {ModelSelector} from '@/components';
@@ -87,7 +88,7 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
           editor.commands.setArticleInfo(temp);
         }
         // 向后端更新总结摘要
-        saveArticleSummary(id, summary).then(() => message.success('保存成功'));
+        saveArticleSummary(id, summary).then(() => message.success(i18nText("app.article.sidebar.writingmanager.72fe37cb")));
       },
       [articleInfo, setArticleInfo, editor],
     );
@@ -156,9 +157,9 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
           <ModelSelector width="100%" onSelect={handleModelSelect} />
           <CharacterCount characterCount={characterCount} />
           <Flex align="center" justify="space-between" className="w-full">
-            <Tooltip title="续写或翻译时携带的上下文数量">
+            <Tooltip title={i18nText("app.article.sidebar.writingmanager.91c75304")}>
               <Text type="secondary" className="text-sm whitespace-nowrap">
-                上下文字数
+                {i18nText("app.article.sidebar.writingmanager.dd1ba7a2")}
               </Text>
             </Tooltip>
             <InputNumber
@@ -175,7 +176,7 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
           </Flex>
           <Flex align="center" justify="space-between" className="w-full">
             <Text type="secondary" className="text-sm whitespace-nowrap">
-              前文占比
+              {i18nText("app.article.sidebar.writingmanager.5e5f07aa")}
             </Text>
             <InputNumber
               min={0}
@@ -192,7 +193,7 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
           </Flex>
           <Flex align="center" justify="space-between" className="w-full">
             <Text type="secondary" className="text-sm whitespace-nowrap">
-              后文占比
+              {i18nText("app.article.sidebar.writingmanager.cb6fbd7f")}
             </Text>
             <InputNumber
               min={0}
@@ -209,7 +210,7 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
           </Flex>
           <Flex align="center" justify="space-between" className="w-full">
             <Text type="secondary" className="text-sm whitespace-nowrap">
-              续写字数上限
+              {i18nText("app.article.sidebar.writingmanager.10ca2c0a")}
             </Text>
             <InputNumber
               min={50}

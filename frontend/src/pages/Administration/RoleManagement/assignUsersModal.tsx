@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useRef} from 'react';
 import {SimpleTable, TableColumn} from '@/components';
 import {assignRoleToUsers, listUserByTarget} from '@/services/ant-design-pro/rbac';
@@ -12,27 +13,27 @@ interface AssignUsersModalProps {
 
 const userColumns: TableColumn[] = [
     {
-        title: '用户名',
+        title: i18nText("app.administration.rolemanagement.assignusersmodal.1add1dfc"),
         dataIndex: 'userName',
         width: 150,
     },
     {
-        title: '姓名',
+        title: i18nText("app.administration.rolemanagement.assignusersmodal.155d3a5b"),
         dataIndex: 'name',
         width: 100,
     },
     {
-        title: '邮箱',
+        title: i18nText("app.administration.rolemanagement.assignusersmodal.b61afcbb"),
         dataIndex: 'email',
         width: 200,
     },
     {
-        title: '手机号',
+        title: i18nText("app.administration.rolemanagement.assignusersmodal.5fe25560"),
         dataIndex: 'phone',
         width: 150,
     },
     {
-        title: '状态',
+        title: i18nText("app.administration.rolemanagement.assignusersmodal.29d800c1"),
         dataIndex: 'status',
         width: 100,
         render: (text: number) => {
@@ -46,7 +47,7 @@ const userColumns: TableColumn[] = [
                             borderRadius: '4px',
                         }}
                     >
-            初始
+            {i18nText("app.administration.rolemanagement.assignusersmodal.3eaa66d8")}
           </span>
                 );
             } else if (text === 1) {
@@ -59,7 +60,7 @@ const userColumns: TableColumn[] = [
                             borderRadius: '4px',
                         }}
                     >
-            正常
+            {i18nText("app.administration.rolemanagement.assignusersmodal.a41be1b9")}
           </span>
                 );
             } else if (text === 2) {
@@ -72,7 +73,7 @@ const userColumns: TableColumn[] = [
                             borderRadius: '4px',
                         }}
                     >
-            注销
+            {i18nText("app.administration.rolemanagement.assignusersmodal.f0c79820")}
           </span>
                 );
             }
@@ -103,7 +104,7 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
     const handleAssignUsers = () => {
         const selectedUsers = userTableRef.current?.getSelectedRows() || [];
         if (selectedUsers.length === 0) {
-            message.warning('请选择至少一个用户').then();
+            message.warning(i18nText("app.administration.rolemanagement.assignusersmodal.4b5bbc47")).then();
             return;
         }
 
@@ -115,11 +116,11 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
             assignOrCancel: true,
         })
             .then(() => {
-                message.success('用户分配成功').then();
+                message.success(i18nText("app.administration.rolemanagement.assignusersmodal.f7c95bdd")).then();
                 onSuccess();
             })
             .catch((error) => {
-                message.error(`用户分配失败: ${error.message}`).then();
+                message.error(i18nText("app.administration.rolemanagement.assignusersmodal.54db523f", {value0: error.message})).then();
             });
     };
 
@@ -127,7 +128,7 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
     const handleCancelUsers = () => {
         const selectedUsers = userTableRef.current?.getSelectedRows() || [];
         if (selectedUsers.length === 0) {
-            message.warning('请选择至少一个用户').then();
+            message.warning(i18nText("app.administration.rolemanagement.assignusersmodal.4b5bbc47")).then();
             return;
         }
 
@@ -139,28 +140,28 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
             assignOrCancel: false,
         })
             .then(() => {
-                message.success('用户取消分配成功').then();
+                message.success(i18nText("app.administration.rolemanagement.assignusersmodal.c6be296d")).then();
                 onSuccess();
             })
             .catch((error) => {
-                message.error(`用户取消分配失败: ${error.message}`).then();
+                message.error(i18nText("app.administration.rolemanagement.assignusersmodal.506c5b26", {value0: error.message})).then();
             });
     };
 
     return (
         <Modal
-            title={`为角色 ${roleCode} 分配用户`}
+            title={i18nText("app.administration.rolemanagement.assignusersmodal.f38b94b8", {value0: roleCode})}
             open={visible}
             onCancel={onCancel}
             footer={[
                 <Button key="cancel" onClick={onCancel}>
-                    取消
+                    {i18nText("app.administration.rolemanagement.assignusersmodal.453f9b5a")}
                 </Button>,
                 <Button key="cancelAssign" onClick={handleCancelUsers}>
-                    取消分配
+                    {i18nText("app.administration.rolemanagement.assignusersmodal.a277ed43")}
                 </Button>,
                 <Button key="assign" type="primary" onClick={handleAssignUsers}>
-                    分配
+                    {i18nText("app.administration.rolemanagement.assignusersmodal.15ad839e")}
                 </Button>,
             ]}
             width={1000}

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { Textarea } from "./textarea";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef, useState } from 'react';
+import { Textarea } from './textarea';
+import { cn } from '@/lib/utils';
+import { i18nText } from '@/utils/i18n';
 
 const CodeTextarea = ({
   value,
@@ -20,18 +21,18 @@ const CodeTextarea = ({
   const [scrollbarOffset, setScrollbarOffset] = useState(0);
 
   useEffect(() => {
-    setLineCount(code.split("\n").length);
+    setLineCount(code.split('\n').length);
   }, [code]);
 
   return (
-    <div className={cn("flex", className)}>
+    <div className={cn('flex', className)}>
       <div
         ref={lineContainerRef}
         className={cn(
-          "p-2 w-12 border border-e-0 rounded-s-me bg-accent rounded-s-md overflow-hidden",
+          'p-2 w-12 border border-e-0 rounded-s-me bg-accent rounded-s-md overflow-hidden',
           {
-            "border-primary": inputFocused,
-          }
+            'border-primary': inputFocused,
+          },
         )}
         style={{
           paddingBottom: scrollbarOffset + 8,
@@ -51,8 +52,8 @@ const CodeTextarea = ({
         ))}
       </div>
       <div
-        className={cn("border-y", {
-          "border-primary": inputFocused,
+        className={cn('border-y', {
+          'border-primary': inputFocused,
         })}
       >
         <div className="h-full w-[1px] bg-border"></div>
@@ -60,7 +61,7 @@ const CodeTextarea = ({
       <Textarea
         id="mermaid-code"
         className="rounded-s-none border-s-0 resize-none font-mono text-[14px]"
-        placeholder="Enter mermaid code"
+        placeholder={i18nText('app.article.mermaid.codePlaceholder')}
         value={code}
         wrap="off"
         spellCheck="false"

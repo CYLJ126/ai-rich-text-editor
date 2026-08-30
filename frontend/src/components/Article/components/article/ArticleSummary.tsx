@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Flex, Input, InputNumber, message, Space} from "antd";
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import type {ArticleInfoType} from "@/types/rt.type";
@@ -47,12 +48,12 @@ const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpd
     setGenerateDisabled(true);
     setAcceptDisabled(true);
     if (!currentModelRef.current) {
-      message.warning('请选择一个模型').then();
+      message.warning(i18nText("app.article.article.articlesummary.54557824")).then();
       return;
     }
     if(generateType === 'polish') {
       if(!content) {
-        message.warning('总结/摘要内容为空，无法润色，请先输入内容或接受上一轮生成内容').then();
+        message.warning(i18nText("app.article.article.articlesummary.fd917650")).then();
         return;
       }
     }
@@ -97,7 +98,7 @@ const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpd
       <Input.TextArea
         style={{height: inputHeight, minHeight: MIN_INPUT_HEIGHT, scrollbarWidth: 'none'}}
         value={content}
-        placeholder="请输入文章总结或摘要"
+        placeholder={i18nText("app.article.article.articlesummary.60f5f0c8")}
         onChange={(e) => setContent(e.target.value)}
       />
       <DraggableLine
@@ -117,24 +118,24 @@ const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpd
               styles={{input: {textAlign: 'center'}}}
               value={characterCountCeil}
               onChange={(value) => setCharacterCountCeil(value || 200)}
-              placeholder="上限"
+              placeholder={i18nText("app.article.article.articlesummary.9e7f2eed")}
               min={50}
               step={50}
               max={1000}
             />
-            <span>字</span>
+            <span>{i18nText("app.article.article.articlesummary.ecff6211")}</span>
           </Space.Compact>
         </Space>
-        <Button className={styles.button} disabled={generateDisabled} onClick={() => generateSummary('summary')}>生成</Button>
-        <Button className={styles.button} disabled={generateDisabled || !content} onClick={() => generateSummary('polish')}>润色</Button>
+        <Button className={styles.button} disabled={generateDisabled} onClick={() => generateSummary('summary')}>{i18nText("app.article.article.articlesummary.65b24e88")}</Button>
+        <Button className={styles.button} disabled={generateDisabled || !content} onClick={() => generateSummary('polish')}>{i18nText("app.article.article.articlesummary.90bc4fbb")}</Button>
         <Button className={styles.button} disabled={acceptDisabled} onClick={() => {
           setContent(aiOutput);
           setShowAiInput(false);
           setAcceptDisabled(true);
-        }}>接受</Button>
+        }}>{i18nText("app.article.article.articlesummary.548f51db")}</Button>
         <Button className={styles.button} type="primary" onClick={() => {
           onSummaryUpdate(articleInfo.id as number, content);
-        }}>保存</Button>
+        }}>{i18nText("app.article.article.articlesummary.78021264")}</Button>
       </Flex>
       {showAiInput && <Input.TextArea autoSize value={aiOutput} className="scrollbar-none"/>}
     </div>

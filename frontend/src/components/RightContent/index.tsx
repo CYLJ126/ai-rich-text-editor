@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {BookOutlined} from '@ant-design/icons';
 import {history} from '@umijs/max';
 import {Button, Tooltip} from 'antd';
@@ -9,12 +10,12 @@ import {VersionDropdown} from './VersionDropdown';
 export const DocLink: React.FC = () => {
   const {styles} = useHeaderActionStyles();
   return (
-    <Tooltip title="使用文档">
+    <Tooltip title={i18nText("app.common.rightcontent.9eef3df3")}>
       <Button
         type="text"
         className={styles.action}
         icon={<BookOutlined/>}
-        aria-label="使用文档"
+        aria-label={i18nText("app.common.rightcontent.9eef3df3")}
         onClick={() => {
           history.push('/welcome');
         }}

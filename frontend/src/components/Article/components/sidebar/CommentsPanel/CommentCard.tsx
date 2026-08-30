@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Input} from 'antd';
 import React, {type MouseEvent, useEffect, useState} from 'react';
 import type {CommentRecord} from '@/components/Article/extension/comments/commentsExtension';
@@ -37,7 +38,7 @@ export default function CommentCard({
   if (comment.deletedAt) {
     return (
       <div className="rounded border border-dashed border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs text-[var(--ant-color-text-tertiary)]">
-        评论已删除
+        {i18nText("app.article.commentspanel.commentcard.68b5a5b1")}
       </div>
     );
   }
@@ -52,7 +53,7 @@ export default function CommentCard({
     >
       <div className="flex items-center justify-between gap-2 text-xs text-[var(--ant-color-text-tertiary)]">
         <span className="font-medium text-[var(--ant-color-text)]">
-          {comment.data.userName || '匿名用户'}
+          {comment.data.userName || i18nText("app.article.commentspanel.commentcard.2baaa25a")}
         </span>
         <span>{formatCommentTime(comment.createdAt)}</span>
       </div>
@@ -75,7 +76,7 @@ export default function CommentCard({
               disabled={submitting}
               onClick={() => setEditing(false)}
             >
-              取消
+              {i18nText("app.article.commentspanel.commentcard.021cb45d")}
             </Button>
             <Button
               size="small"
@@ -94,7 +95,7 @@ export default function CommentCard({
                 }
               }}
             >
-              保存
+              {i18nText("app.article.commentspanel.commentcard.40327ef8")}
             </Button>
           </div>
         </div>
@@ -114,7 +115,7 @@ export default function CommentCard({
                   setEditing(true);
                 }}
               >
-                编辑
+                {i18nText("app.article.commentspanel.commentcard.1e23fd30")}
               </Button>
             ) : null}
             {canDelete ? (
@@ -134,7 +135,7 @@ export default function CommentCard({
                   }
                 }}
               >
-                删除
+                {i18nText("app.article.commentspanel.commentcard.fbf3488d")}
               </Button>
             ) : null}
           </div>

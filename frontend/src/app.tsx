@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {LinkOutlined} from '@ant-design/icons';
 import type {Settings as LayoutSettings} from '@ant-design/pro-components';
 import type {RequestConfig, RunTimeLayoutConfig} from '@umijs/max';
@@ -240,7 +241,7 @@ export const layout: RunTimeLayoutConfig = ({
       ? [
           <Link key="openapi" to="/umi/plugin/openapi" target="_blank">
             <LinkOutlined />
-            <span>OpenAPI 文档</span>
+            <span>{i18nText("app.common.app.223c3ddf")}</span>
           </Link>,
         ]
       : [],

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {
   CommentRecord,
   CommentThreadWithComments,
@@ -26,7 +27,7 @@ function mapBackendComment(comment: BackendComment): CommentRecord {
     updatedAt: comment.updateTime ?? comment.createTime ?? Date.now(),
     deletedAt: comment.deletedAt,
     data: {
-      userName: comment.createBy || comment.updateBy || '匿名用户',
+      userName: comment.createBy || comment.updateBy || i18nText("app.article.commentspanel.utils.37494f5e"),
     },
   };
 }

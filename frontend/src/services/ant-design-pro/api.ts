@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 // @ts-ignore
 /* eslint-disable */
 import {request} from '@umijs/max';
@@ -84,7 +85,7 @@ export function jsonBlob(path: string, data: any, options?: { [key: string]: any
     if (resp) {
       return resp;
     } else {
-      message.error(`Blob 请求出错`).then((r) => {
+      message.error(i18nText("app.common.antdesignpro.api.49247735", {})).then((r) => {
       });
     }
   });

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React from "react";
 import {App, Dropdown} from "antd";
 import clsx from "clsx";
@@ -24,10 +25,10 @@ const OperationsMenu: React.FC<{
         onClick: () => {
           if (opt.isDanger) {
             modal.confirm({
-              title: "确认操作",
-              content: `确定要执行「${opt.label}」吗？`,
-              okText: "确认",
-              cancelText: "取消",
+              title: i18nText("app.common.myrightsiderpanel.operationsmenu.cb7b3d8f"),
+              content: i18nText("app.common.myrightsiderpanel.operationsmenu.86989ab5", {value0: opt.label}),
+              okText: i18nText("app.common.myrightsiderpanel.operationsmenu.017e90af"),
+              cancelText: i18nText("app.common.myrightsiderpanel.operationsmenu.19891573"),
               okButtonProps: {danger: true},
               onOk: () => opt.onClick?.(item),
             });

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {isValidAudioUrl} from '@tiptap/extension-audio';
 import {Button, Checkbox, Input, Modal, Select, Typography} from 'antd';
 import {useEffect, useState} from 'react';
@@ -79,11 +80,11 @@ export function AudioInputDialog({
   const handleSubmit = () => {
     const src = attributes.src.trim();
     if (!src) {
-      setError('请输入音频地址');
+      setError(i18nText("app.article.audio.audioinputdialog.d5857855"));
       return;
     }
     if (!isValidAudioUrl(src)) {
-      setError('请输入有效的音频地址');
+      setError(i18nText("app.article.audio.audioinputdialog.5b9714e4"));
       return;
     }
 
@@ -105,23 +106,23 @@ export function AudioInputDialog({
   return (
     <Modal
       open={isOpen}
-      title={value ? '修改音频' : '插入音频'}
+      title={value ? i18nText("app.article.audio.audioinputdialog.d120250b") : i18nText("app.article.audio.audioinputdialog.5ed302df")}
       width={640}
       mask={{ closable: false }}
       onCancel={() => onOpenChange(false)}
       destroyOnHidden
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={() => onOpenChange(false)}>{i18nText("app.article.audio.audioinputdialog.1d70edfe")}</Button>
           <Button type="primary" onClick={handleSubmit}>
-            {value ? '更新' : '插入'}
+            {value ? i18nText("app.article.audio.audioinputdialog.b810e238") : i18nText("app.article.audio.audioinputdialog.b433d259")}
           </Button>
         </div>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <label htmlFor="audio-src" style={fieldStyle}>
-          <span>音频地址</span>
+          <span>{i18nText("app.article.audio.audioinputdialog.daec1504")}</span>
           <Input
             id="audio-src"
             value={attributes.src}
@@ -147,9 +148,9 @@ export function AudioInputDialog({
               id="audio-preload"
               value={attributes.preload ?? ''}
               options={[
-                { value: 'metadata', label: 'metadata - 预加载元数据' },
-                { value: 'auto', label: 'auto - 自动预加载音频' },
-                { value: 'none', label: 'none - 不预加载' },
+                { value: 'metadata', label: i18nText("app.article.audio.audioinputdialog.31c4e234") },
+                { value: 'auto', label: i18nText("app.article.audio.audioinputdialog.5f28c9f0") },
+                { value: 'none', label: i18nText("app.article.audio.audioinputdialog.0cd920cf") },
               ]}
               onChange={(nextValue) =>
                 updateAttribute(
@@ -166,14 +167,14 @@ export function AudioInputDialog({
               id="audio-crossorigin"
               value={attributes.crossorigin ?? ''}
               options={[
-                { value: '', label: '(unset) - 不启用 CORS' },
+                { value: '', label: i18nText("app.article.audio.audioinputdialog.44a7acbc") },
                 {
                   value: 'anonymous',
-                  label: 'anonymous - 不携带跨域凭证',
+                  label: i18nText("app.article.audio.audioinputdialog.ea892324"),
                 },
                 {
                   value: 'use-credentials',
-                  label: 'use-credentials - 携带跨域凭证',
+                  label: i18nText("app.article.audio.audioinputdialog.d4f43676"),
                 },
               ]}
               onChange={(nextValue) =>
@@ -192,23 +193,23 @@ export function AudioInputDialog({
             id="audio-controls-list"
             value={attributes.controlslist ?? ''}
             options={[
-              { value: '', label: '(unset) - 不限制原生控制项' },
-              { value: 'nodownload', label: 'nodownload - 隐藏下载按钮' },
+              { value: '', label: i18nText("app.article.audio.audioinputdialog.dc2d0661") },
+              { value: 'nodownload', label: i18nText("app.article.audio.audioinputdialog.35a3ed41") },
               {
                 value: 'noremoteplayback',
-                label: 'noremoteplayback - 隐藏远程播放入口',
+                label: i18nText("app.article.audio.audioinputdialog.42b265ad"),
               },
               {
                 value: 'nofullscreen',
-                label: 'nofullscreen - 隐藏全屏入口',
+                label: i18nText("app.article.audio.audioinputdialog.3e4dd0e8"),
               },
               {
                 value: 'noplaybackrate',
-                label: 'noplaybackrate - 隐藏倍速菜单（部分浏览器）',
+                label: i18nText("app.article.audio.audioinputdialog.7a0b36c2"),
               },
               {
                 value: 'nodownload noremoteplayback',
-                label: 'nodownload noremoteplayback - 隐藏下载和远程播放',
+                label: i18nText("app.article.audio.audioinputdialog.da7b209a"),
               },
             ]}
             onChange={(nextValue) =>
@@ -224,19 +225,19 @@ export function AudioInputDialog({
               updateAttribute('autoplay', event.target.checked)
             }
           >
-            自动播放
+            {i18nText("app.article.audio.audioinputdialog.3e81a62e")}
           </Checkbox>
           <Checkbox
             checked={attributes.loop}
             onChange={(event) => updateAttribute('loop', event.target.checked)}
           >
-            循环播放
+            {i18nText("app.article.audio.audioinputdialog.5a8b5e28")}
           </Checkbox>
           <Checkbox
             checked={attributes.muted}
             onChange={(event) => updateAttribute('muted', event.target.checked)}
           >
-            静音
+            {i18nText("app.article.audio.audioinputdialog.69c8de86")}
           </Checkbox>
           <Checkbox
             checked={attributes.disableremoteplayback}
@@ -244,7 +245,7 @@ export function AudioInputDialog({
               updateAttribute('disableremoteplayback', event.target.checked)
             }
           >
-            禁用远程播放
+            {i18nText("app.article.audio.audioinputdialog.2239adf2")}
           </Checkbox>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useState} from 'react';
 import {Button, message, Space, Table} from 'antd';
 import type {ColumnType, TableProps} from 'antd/es/table';
@@ -160,10 +161,10 @@ const SimpleTable = forwardRef((props, ref) => {
           setSelectedRows([]);
         }
       } else {
-        message.error('加载数据失败');
+        message.error(i18nText("app.common.simpletable.f4f16d80"));
       }
     } catch (error) {
-      message.error('加载数据失败');
+      message.error(i18nText("app.common.simpletable.f4f16d80"));
       console.error('加载数据失败:', error);
     } finally {
       setLoading(false);
@@ -268,7 +269,7 @@ const SimpleTable = forwardRef((props, ref) => {
               showQuickJumper: true,
               onChange: handlePaginationChange,
               onShowSizeChange: (current, size) => handlePaginationChange(1, size),
-              showTotal: (total) => `共 ${total} 条记录`,
+              showTotal: (total) => i18nText("app.common.simpletable.dd289960", {value0: total}),
               pageSizeOptions: [20, 50, 100, 200, 500],
             }}
             onChange={handleTableChange}

@@ -1,13 +1,20 @@
-import React, {useMemo} from 'react';
-import type {MenuProps} from 'antd';
-import {Button, Dropdown, Tag, Tooltip} from 'antd';
-import {MoreOutlined, QuestionCircleOutlined, ReloadOutlined, RobotOutlined, UserOutlined,} from '@ant-design/icons';
-import {createStyles} from 'antd-style';
-import {MarkdownRenderer, ThinkingBlock} from '@/components/AI';
-import type {Message} from "@/types/ai.type";
-import {useModelsStore} from "@/stores/modelsStore";
+import {
+  MoreOutlined,
+  QuestionCircleOutlined,
+  ReloadOutlined,
+  RobotOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import { Button, Dropdown, Tag, Tooltip } from 'antd';
+import { createStyles } from 'antd-style';
+import React, { useMemo } from 'react';
+import { MarkdownRenderer, ThinkingBlock } from '@/components/AI';
+import { useModelsStore } from '@/stores/modelsStore';
+import type { Message } from '@/types/ai.type';
+import { getI18nLocale, i18nText } from '@/utils/i18n';
 
-const useStyles = createStyles(({token, css}) => ({
+const useStyles = createStyles(({ token, css }) => ({
   wrapper: css`
     display: flex;
     flex-direction: column;
@@ -213,7 +220,9 @@ const useStyles = createStyles(({token, css}) => ({
 }));
 
 // ─── Props ───
-type OperationContent = React.ReactNode | ((message: Message) => React.ReactNode);
+type OperationContent =
+  | React.ReactNode
+  | ((message: Message) => React.ReactNode);
 
 export interface MessageOperationProps {
   key: string;
@@ -242,34 +251,37 @@ const getOperationContent = (content: OperationContent, message: Message) =>
 
 // ─── 主组件：消息框，使用 Markdown 渲染 ───
 const MessageBubble: React.FC<MessageBubbleProps> = ({
-     message: msg,
-     displayContent = msg.content,
-     menuOperations = [],
-     isStreaming = false,
-     onRetry,
-   }) => {
-    const getModelById = useModelsStore((state) => state.getModelById);
-    const {styles, cx} = useStyles();
-    const isUser = msg.role === 'user';
+  message: msg,
+  displayContent = msg.content,
+  menuOperations = [],
+  isStreaming = false,
+  onRetry,
+}) => {
+  const getModelById = useModelsStore((state) => state.getModelById);
+  const { styles, cx } = useStyles();
+  const isUser = msg.role === 'user';
 
-    const visibleOperations = useMemo(
-      () => [...menuOperations]
+  const visibleOperations = useMemo(
+    () =>
+      [...menuOperations]
         .sort((a, b) => a.order - b.order)
         .filter((operation) => operation.showFunc?.(msg) ?? true),
-      [menuOperations, msg],
-    );
+    [menuOperations, msg],
+  );
 
-    const actionOperations = useMemo(
-      () => visibleOperations.filter((operation) => !operation.isMore),
-      [visibleOperations],
-    );
+  const actionOperations = useMemo(
+    () => visibleOperations.filter((operation) => !operation.isMore),
+    [visibleOperations],
+  );
 
-    // 更多菜单
-    const moreMenuItems = useMemo<NonNullable<MenuProps['items']>>(() => {
-      const items: NonNullable<MenuProps['items']> = [];
-      visibleOperations.filter((operation) => operation.isMore).forEach((operation) => {
+  // 更多菜单
+  const moreMenuItems = useMemo<NonNullable<MenuProps['items']>>(() => {
+    const items: NonNullable<MenuProps['items']> = [];
+    visibleOperations
+      .filter((operation) => operation.isMore)
+      .forEach((operation) => {
         if (operation.dividerBefore && items.length > 0) {
-          items.push({type: 'divider'});
+          items.push({ type: 'divider' });
         }
         items.push({
           key: operation.key,
@@ -279,85 +291,47 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           onClick: () => operation.operationFunc(msg),
         });
       });
-      return items;
-    }, [visibleOperations, msg]);
+    return items;
+  }, [visibleOperations, msg]);
 
-    // 渲染气泡内容
-    const renderContent = () => {
-      if (msg.status === 'failed') {
-        return (
-          <div className={styles.errorBlock}>
-            <QuestionCircleOutlined/>
-            <span>{'消息发送失败，请重试'}</span>
-            {onRetry && (
-              <Button
-                size="small"
-                type="link"
-                icon={<ReloadOutlined/>}
-                onClick={onRetry}
-                style={{padding: 0, height: 'auto', fontSize: 12}}
-              >
-                重试
-              </Button>
-            )}
-          </div>
-        );
-      }
-
-      if (isUser) {
-        return (
-          <div className={styles.userBubble}>
-            {/* 引用块 */}
-            {msg.quotedSnapshot && (
-              <div className={styles.quotedBlock}>{msg.quotedSnapshot}</div>
-            )}
-
-            {/* 正文 */}
-            <span>{displayContent}</span>
-
-            {/* 附件 */}
-            {msg.attachments && msg.attachments.length > 0 && (
-              <div className={styles.fileAttachments}>
-                {msg.attachments.map((f) => (
-                  <span key={f.attachmentId} className={styles.fileChip}>
-                    📎 {f.fileName}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      // assistant
+  // 渲染气泡内容
+  const renderContent = () => {
+    if (msg.status === 'failed') {
       return (
-        <div className={cx(styles.assistantBubble, isStreaming && styles.streamingBubble)}>
-          {/* 思考过程块 */}
-          {msg.reasoningContent && (
-            <ThinkingBlock
-              content={msg.reasoningContent}
-              isStreaming={isStreaming}
-            />
+        <div className={styles.errorBlock}>
+          <QuestionCircleOutlined />
+          <span>{i18nText('app.ai.messagelist.messagebubble.75e8d98a')}</span>
+          {onRetry && (
+            <Button
+              size="small"
+              type="link"
+              icon={<ReloadOutlined />}
+              onClick={onRetry}
+              style={{ padding: 0, height: 'auto', fontSize: 12 }}
+            >
+              {i18nText('app.ai.messagelist.messagebubble.25583446')}
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    if (isUser) {
+      return (
+        <div className={styles.userBubble}>
+          {/* 引用块 */}
+          {msg.quotedSnapshot && (
+            <div className={styles.quotedBlock}>{msg.quotedSnapshot}</div>
           )}
 
-          {/* 正文 Markdown */}
-          {displayContent ? (
-            <>
-              <MarkdownRenderer content={displayContent}/>
-              {isStreaming && <span className={styles.cursor}/>}
-            </>
-          ) : isStreaming ? (
-            <span className={styles.cursor}/>
-          ) : null}
+          {/* 正文 */}
+          <span>{displayContent}</span>
 
           {/* 附件 */}
           {msg.attachments && msg.attachments.length > 0 && (
             <div className={styles.fileAttachments}>
               {msg.attachments.map((f) => (
-                <span
-                  key={f.attachmentId}
-                  className={cx(styles.fileChip, styles.fileChipAssistant)}
-                >
+                <span key={f.attachmentId} className={styles.fileChip}>
                   📎 {f.fileName}
                 </span>
               ))}
@@ -365,115 +339,158 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
         </div>
       );
-    };
+    }
 
-    // 渲染操作栏
-    const renderActions = () => (
-      <div
-        className={cx(
-          styles.actions,
-          'msg-actions',
-          isUser && styles.userActions,
-        )}
-      >
-        {actionOperations.map((operation) => (
-          <Tooltip key={operation.key} title={getOperationContent(operation.label, msg)}>
-            <span
-              className={cx(
-                styles.actionBtn,
-                operation.activeFunc?.(msg) &&
-                (operation.activeType === 'danger' ? 'active-danger' : 'active-success'),
-              )}
-              onClick={() => operation.operationFunc(msg)}
-            >
-              {getOperationContent(operation.icon, msg)}
-            </span>
-          </Tooltip>
-        ))}
-
-        {/* 更多 */}
-        {moreMenuItems.length > 0 && (
-          <Dropdown
-            menu={{items: moreMenuItems}}
-            trigger={['click']}
-            placement={isUser ? 'bottomRight' : 'bottomLeft'}
-          >
-            <span className={styles.actionBtn}>
-              <MoreOutlined/>
-            </span>
-          </Dropdown>
-        )}
-      </div>
-    );
-
-    // 渲染 meta 信息（时间、token 用量）
-    const renderMeta = () => (
-      <div
-        className={styles.metaRow}
-        style={{justifyContent: isUser ? 'flex-end' : 'flex-start'}}
-      >
-        <span className={styles.metaTime}>
-          {msg.createTime
-            ? new Date(msg.createTime).toLocaleTimeString('zh-CN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-            : ''}
-        </span>
-        {!isUser && msg.promptToken != null && (
-          <Tag className={styles.tokenTag} color="default">
-            input {msg.promptToken} tokens
-          </Tag>
-        )}
-        {!isUser && msg.completionToken != null && (
-          <Tag className={styles.tokenTag} color="default">
-            output {msg.completionToken} tokens
-          </Tag>
-        )}
-        {msg.modelId && !isUser && (
-          <Tag className={styles.tokenTag} color="default">
-            {getModelById(msg.modelId)?.modelId}
-          </Tag>
-        )}
-      </div>
-    );
-
+    // assistant
     return (
       <div
         className={cx(
-          styles.wrapper,
-          isUser ? styles.userWrapper : styles.assistantWrapper,
+          styles.assistantBubble,
+          isStreaming && styles.streamingBubble,
         )}
       >
-        <div
-          className={cx(
-            styles.bubbleRow,
-            isUser && styles.userBubbleRow,
-          )}
-        >
-          {/* 头像 */}
-          <div
-            className={cx(
-              styles.avatar,
-              isUser ? styles.userAvatar : styles.assistantAvatar,
-            )}
-          >
-            {isUser ? <UserOutlined/> : <RobotOutlined/>}
-          </div>
+        {/* 思考过程块 */}
+        {msg.reasoningContent && (
+          <ThinkingBlock
+            content={msg.reasoningContent}
+            isStreaming={isStreaming}
+          />
+        )}
 
-          {/* 气泡内容 */}
-          <div className={styles.bubbleContent}>
-            {renderContent()}
-          </div>
-        </div>
+        {/* 正文 Markdown */}
+        {displayContent ? (
+          <>
+            <MarkdownRenderer content={displayContent} />
+            {isStreaming && <span className={styles.cursor} />}
+          </>
+        ) : isStreaming ? (
+          <span className={styles.cursor} />
+        ) : null}
 
-        {/* 操作栏 & meta */}
-        <div style={{paddingLeft: isUser ? 0 : 44, paddingRight: isUser ? 44 : 0}}>
-          {renderActions()}
-          {renderMeta()}
-        </div>
+        {/* 附件 */}
+        {msg.attachments && msg.attachments.length > 0 && (
+          <div className={styles.fileAttachments}>
+            {msg.attachments.map((f) => (
+              <span
+                key={f.attachmentId}
+                className={cx(styles.fileChip, styles.fileChipAssistant)}
+              >
+                📎 {f.fileName}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     );
+  };
+
+  // 渲染操作栏
+  const renderActions = () => (
+    <div
+      className={cx(
+        styles.actions,
+        'msg-actions',
+        isUser && styles.userActions,
+      )}
+    >
+      {actionOperations.map((operation) => (
+        <Tooltip
+          key={operation.key}
+          title={getOperationContent(operation.label, msg)}
+        >
+          <span
+            className={cx(
+              styles.actionBtn,
+              operation.activeFunc?.(msg) &&
+                (operation.activeType === 'danger'
+                  ? 'active-danger'
+                  : 'active-success'),
+            )}
+            onClick={() => operation.operationFunc(msg)}
+          >
+            {getOperationContent(operation.icon, msg)}
+          </span>
+        </Tooltip>
+      ))}
+
+      {/* 更多 */}
+      {moreMenuItems.length > 0 && (
+        <Dropdown
+          menu={{ items: moreMenuItems }}
+          trigger={['click']}
+          placement={isUser ? 'bottomRight' : 'bottomLeft'}
+        >
+          <span className={styles.actionBtn}>
+            <MoreOutlined />
+          </span>
+        </Dropdown>
+      )}
+    </div>
+  );
+
+  // 渲染 meta 信息（时间、token 用量）
+  const renderMeta = () => (
+    <div
+      className={styles.metaRow}
+      style={{ justifyContent: isUser ? 'flex-end' : 'flex-start' }}
+    >
+      <span className={styles.metaTime}>
+        {msg.createTime
+          ? new Date(msg.createTime).toLocaleTimeString(getI18nLocale(), {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : ''}
+      </span>
+      {!isUser && msg.promptToken != null && (
+        <Tag className={styles.tokenTag} color="default">
+          {i18nText('app.ai.tokens.input')} {msg.promptToken} tokens
+        </Tag>
+      )}
+      {!isUser && msg.completionToken != null && (
+        <Tag className={styles.tokenTag} color="default">
+          {i18nText('app.ai.tokens.output')} {msg.completionToken} tokens
+        </Tag>
+      )}
+      {msg.modelId && !isUser && (
+        <Tag className={styles.tokenTag} color="default">
+          {getModelById(msg.modelId)?.modelId}
+        </Tag>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      className={cx(
+        styles.wrapper,
+        isUser ? styles.userWrapper : styles.assistantWrapper,
+      )}
+    >
+      <div className={cx(styles.bubbleRow, isUser && styles.userBubbleRow)}>
+        {/* 头像 */}
+        <div
+          className={cx(
+            styles.avatar,
+            isUser ? styles.userAvatar : styles.assistantAvatar,
+          )}
+        >
+          {isUser ? <UserOutlined /> : <RobotOutlined />}
+        </div>
+
+        {/* 气泡内容 */}
+        <div className={styles.bubbleContent}>{renderContent()}</div>
+      </div>
+
+      {/* 操作栏 & meta */}
+      <div
+        style={{ paddingLeft: isUser ? 0 : 44, paddingRight: isUser ? 44 : 0 }}
+      >
+        {renderActions()}
+        {renderMeta()}
+      </div>
+    </div>
+  );
 };
 
 export default MessageBubble;

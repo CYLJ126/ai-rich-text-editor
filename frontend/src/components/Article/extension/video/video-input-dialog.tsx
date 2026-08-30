@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Checkbox, Input, InputNumber, Modal, Select, Typography,} from 'antd';
 import {useEffect, useState} from 'react';
 import {resolveVideoSource} from '@/components/Video';
@@ -22,7 +23,7 @@ export interface VideoAttributes {
 
 export const DEFAULT_VIDEO_ATTRIBUTES: VideoAttributes = {
   src: '',
-  title: '视频播放器',
+  title: i18nText("app.article.video.videoinputdialog.bad440e7"),
   poster: '',
   controls: true,
   autoplay: false,
@@ -75,13 +76,13 @@ export function VideoInputDialog({
   const handleSubmit = () => {
     const src = attributes.src.trim();
     if (!src) {
-      setError('请输入视频地址');
+      setError(i18nText("app.article.video.videoinputdialog.b27629e5"));
       return;
     }
 
     const source = resolveVideoSource(src);
     if (!source.isValid) {
-      setError(source.error ?? '请输入有效的视频地址');
+      setError(source.error ?? i18nText("app.article.video.videoinputdialog.48235d52"));
       return;
     }
 
@@ -109,28 +110,28 @@ export function VideoInputDialog({
   return (
     <Modal
       open={isOpen}
-      title={value ? '修改视频' : '插入视频'}
+      title={value ? i18nText("app.article.video.videoinputdialog.455aab44") : i18nText("app.article.video.videoinputdialog.827feba9")}
       width={720}
       mask={{ closable: false }}
       onCancel={() => onOpenChange(false)}
       destroyOnHidden
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={() => onOpenChange(false)}>{i18nText("app.article.video.videoinputdialog.2188df59")}</Button>
           <Button type="primary" onClick={handleSubmit}>
-            {value ? '更新' : '插入'}
+            {value ? i18nText("app.article.video.videoinputdialog.c7a4068b") : i18nText("app.article.video.videoinputdialog.a1cdad55")}
           </Button>
         </div>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <label htmlFor="video-src" style={fieldStyle}>
-          <span>视频地址</span>
+          <span>{i18nText("app.article.video.videoinputdialog.2c31080c")}</span>
           <Input
             id="video-src"
             value={attributes.src}
             status={error ? 'error' : undefined}
-            placeholder="MP4、HLS、DASH、YouTube、Vimeo、Bilibili 等链接"
+            placeholder={i18nText("app.article.video.videoinputdialog.b98dd22a")}
             autoFocus
             onChange={(event) => updateAttribute('src', event.target.value)}
             onPressEnter={handleSubmit}
@@ -146,21 +147,21 @@ export function VideoInputDialog({
           }}
         >
           <label htmlFor="video-title" style={fieldStyle}>
-            <span>播放器标题</span>
+            <span>{i18nText("app.article.video.videoinputdialog.fd717fc2")}</span>
             <Input
               id="video-title"
               value={attributes.title}
-              placeholder="视频播放器"
+              placeholder={i18nText("app.article.video.videoinputdialog.bad440e7")}
               onChange={(event) => updateAttribute('title', event.target.value)}
             />
           </label>
 
           <label htmlFor="video-poster" style={fieldStyle}>
-            <span>封面地址</span>
+            <span>{i18nText("app.article.video.videoinputdialog.8813bf19")}</span>
             <Input
               id="video-poster"
               value={attributes.poster}
-              placeholder="https://.../poster.jpg（可选）"
+              placeholder={i18nText("app.article.video.videoinputdialog.010dd2f4")}
               onChange={(event) =>
                 updateAttribute('poster', event.target.value)
               }
@@ -168,15 +169,15 @@ export function VideoInputDialog({
           </label>
 
           <label htmlFor="video-aspect-ratio" style={fieldStyle}>
-            <span>宽高比</span>
+            <span>{i18nText("app.article.video.videoinputdialog.2d5ca29f")}</span>
             <Select
               id="video-aspect-ratio"
               value={attributes.aspectRatio}
               options={[
-                { value: '16 / 9', label: '16:9 - 横屏视频' },
-                { value: '4 / 3', label: '4:3 - 传统视频' },
-                { value: '1 / 1', label: '1:1 - 方形视频' },
-                { value: '9 / 16', label: '9:16 - 竖屏视频' },
+                { value: '16 / 9', label: i18nText("app.article.video.videoinputdialog.f78c4706") },
+                { value: '4 / 3', label: i18nText("app.article.video.videoinputdialog.06a9c1b4") },
+                { value: '1 / 1', label: i18nText("app.article.video.videoinputdialog.2892e362") },
+                { value: '9 / 16', label: i18nText("app.article.video.videoinputdialog.71426b28") },
               ]}
               onChange={(nextValue) =>
                 updateAttribute('aspectRatio', nextValue)
@@ -185,10 +186,10 @@ export function VideoInputDialog({
           </label>
 
           <label htmlFor="video-width-percent" style={fieldStyle}>
-            <span>视频宽度</span>
+            <span>{i18nText("app.article.video.videoinputdialog.c5eaec7c")}</span>
             <InputNumber
               id="video-width-percent"
-              aria-label="视频宽度"
+              aria-label={i18nText("app.article.video.videoinputdialog.c5eaec7c")}
               style={{ width: '100%' }}
               min={10}
               max={100}
@@ -212,9 +213,9 @@ export function VideoInputDialog({
               id="video-preload"
               value={attributes.preload}
               options={[
-                { value: 'metadata', label: 'metadata - 预加载元数据' },
-                { value: 'auto', label: 'auto - 自动预加载视频' },
-                { value: 'none', label: 'none - 不预加载' },
+                { value: 'metadata', label: i18nText("app.article.video.videoinputdialog.0e694370") },
+                { value: 'auto', label: i18nText("app.article.video.videoinputdialog.8756a7f4") },
+                { value: 'none', label: i18nText("app.article.video.videoinputdialog.6279631c") },
               ]}
               onChange={(nextValue) => updateAttribute('preload', nextValue)}
             />
@@ -228,7 +229,7 @@ export function VideoInputDialog({
               updateAttribute('controls', event.target.checked)
             }
           >
-            显示控制栏
+            {i18nText("app.article.video.videoinputdialog.86e1f5e4")}
           </Checkbox>
           <Checkbox
             checked={attributes.autoplay}
@@ -236,19 +237,19 @@ export function VideoInputDialog({
               updateAttribute('autoplay', event.target.checked)
             }
           >
-            自动播放
+            {i18nText("app.article.video.videoinputdialog.6545d06e")}
           </Checkbox>
           <Checkbox
             checked={attributes.loop}
             onChange={(event) => updateAttribute('loop', event.target.checked)}
           >
-            循环播放
+            {i18nText("app.article.video.videoinputdialog.65d2e1d7")}
           </Checkbox>
           <Checkbox
             checked={attributes.muted}
             onChange={(event) => updateAttribute('muted', event.target.checked)}
           >
-            静音
+            {i18nText("app.article.video.videoinputdialog.50515f5a")}
           </Checkbox>
           <Checkbox
             checked={attributes.playsInline}
@@ -256,7 +257,7 @@ export function VideoInputDialog({
               updateAttribute('playsInline', event.target.checked)
             }
           >
-            移动端行内播放
+            {i18nText("app.article.video.videoinputdialog.fc1522d3")}
           </Checkbox>
         </div>
 
@@ -270,7 +271,7 @@ export function VideoInputDialog({
             borderRadius: 6,
           }}
         >
-          <Typography.Text strong>Bilibili 专属参数</Typography.Text>
+          <Typography.Text strong>{i18nText("app.article.video.videoinputdialog.964ed747")}</Typography.Text>
           <div
             style={{
               display: 'grid',
@@ -279,13 +280,13 @@ export function VideoInputDialog({
             }}
           >
             <label htmlFor="video-bilibili-page" style={fieldStyle}>
-              <span>分 P</span>
+              <span>{i18nText("app.article.video.videoinputdialog.7fcb924d")}</span>
               <InputNumber
                 id="video-bilibili-page"
                 style={{ width: '100%' }}
                 min={1}
                 precision={0}
-                placeholder="使用链接中的分 P"
+                placeholder={i18nText("app.article.video.videoinputdialog.3fbee250")}
                 value={attributes.bilibiliPage}
                 onChange={(nextValue) =>
                   updateAttribute('bilibiliPage', nextValue)
@@ -294,13 +295,13 @@ export function VideoInputDialog({
             </label>
 
             <label htmlFor="video-bilibili-start-time" style={fieldStyle}>
-              <span>起始时间</span>
+              <span>{i18nText("app.article.video.videoinputdialog.be2d3ac6")}</span>
               <InputNumber
                 id="video-bilibili-start-time"
                 style={{ width: '100%' }}
                 min={0}
                 precision={0}
-                suffix="秒"
+                suffix={i18nText("app.article.video.videoinputdialog.ca7fe8d8")}
                 placeholder="0"
                 value={attributes.bilibiliStartTime}
                 onChange={(nextValue) =>
@@ -317,7 +318,7 @@ export function VideoInputDialog({
                 updateAttribute('bilibiliDanmaku', event.target.checked)
               }
             >
-              显示弹幕
+              {i18nText("app.article.video.videoinputdialog.beeba062")}
             </Checkbox>
             <Checkbox
               checked={attributes.bilibiliShowPoster}
@@ -325,7 +326,7 @@ export function VideoInputDialog({
                 updateAttribute('bilibiliShowPoster', event.target.checked)
               }
             >
-              显示 Bilibili 封面
+              {i18nText("app.article.video.videoinputdialog.2b0b63c4")}
             </Checkbox>
           </div>
         </div>
