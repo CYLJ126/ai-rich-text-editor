@@ -64,7 +64,7 @@ interface ChatProviderProps {
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
-const REGENERATE_CHAT_URL = '/nip/ai/chat/regenerate';
+const REGENERATE_CHAT_URL = '/arte/ai/chat/regenerate';
 type StreamContentField = 'content' | 'optimizedContent';
 
 // 构建默认请求参数

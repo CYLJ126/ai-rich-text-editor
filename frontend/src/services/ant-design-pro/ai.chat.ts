@@ -2,13 +2,13 @@ import {request} from "@@/exports";
 import type {StreamCallback, StreamChatCallbacks, StreamChunk} from '@/types/ai.type';
 
 /** 流式交互请求地址 */
-export const STREAM_CHAT_URL = '/nip/ai/chat/streamChat';
+export const STREAM_CHAT_URL = '/arte/ai/chat/streamChat';
 
 /** 根据文章生成 AI 总结 */
-export const STREAM_ARTICLE_SUMMARY_URL = '/nip/richText/article/generateArticleSummary';
+export const STREAM_ARTICLE_SUMMARY_URL = '/arte/richText/article/generateArticleSummary';
 
 /** 编辑器内 AI 流式补全（续写） */
-export const STREAM_COMPLETION_URL = '/nip/ai/chat/streamGenerate';
+export const STREAM_COMPLETION_URL = '/arte/ai/chat/streamGenerate';
 
 /**
  * 处理单个 SSE chunk
@@ -162,22 +162,22 @@ export async function streamChat(
 /**  ----------------- ChatController start ----------------- */
 /** 后端代理流式聊天 */
 export function backStreamChat(request: any, callbacks: StreamCallback, signal?: AbortSignal): Promise<void> {
-  return streamChat(`/nip/ai/chat/streamChat`, request, callbacks, signal);
+  return streamChat(`/arte/ai/chat/streamChat`, request, callbacks, signal);
 }
 
 /** 重新生成 */
 export function streamRegenerate(request: any, callbacks: StreamCallback, signal?: AbortSignal): Promise<void> {
-  return streamChat(`/nip/ai/chat/regenerate`, request, callbacks, signal);
+  return streamChat(`/arte/ai/chat/regenerate`, request, callbacks, signal);
 }
 
 /** 编辑并重发 */
 export function streamEditResend(request: any, callbacks: StreamCallback, signal?: AbortSignal): Promise<void> {
-  return streamChat(`/nip/ai/chat/edit-resend`, request, callbacks, signal);
+  return streamChat(`/arte/ai/chat/edit-resend`, request, callbacks, signal);
 }
 
 /** 前端直连模式保存交互数据 */
 export async function saveFrontendInteraction(dto: any): Promise<any> {
-  return request(`/nip/ai/chat/frontend/save`, {
+  return request(`/arte/ai/chat/frontend/save`, {
     method: 'POST',
     data: dto,
   });

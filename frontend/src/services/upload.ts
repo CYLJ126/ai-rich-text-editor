@@ -1,6 +1,6 @@
 import { request } from '@umijs/max';
 
-const PATH_PREFIX = '/nip';
+const PATH_PREFIX = '/arte';
 
 /**
  * 上传图片到服务器（七牛云），返回图片访问链接

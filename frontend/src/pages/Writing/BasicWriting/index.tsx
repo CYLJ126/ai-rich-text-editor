@@ -336,7 +336,7 @@ const BasicWriting: React.FC = () => {
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       socket = new WebSocket(
-        `${protocol}//${window.location.host}/nip/webSocket/article-version`,
+        `${protocol}//${window.location.host}/arte/webSocket/article-version`,
       );
 
       socket.onopen = () => {
