@@ -13,7 +13,7 @@ export default {
   // 如果需要自定义本地开发服务器  请取消注释按需调整
   dev: {
     // localhost:8000/api/** -> https://preview.pro.ant.design/api/**
-    '/nip/': {
+    '/arte/': {
       target: 'http://localhost:12636', // 要代理的地址
       changeOrigin: true, // 配置了这个可以从 http 代理到 https；依赖 origin 的功能可能需要这个，比如 cookie
       compress: false, // 关键配置：修复无法查看响应数据问题

@@ -8,7 +8,7 @@ import {
   withSpaceCatalogPermissionFlags,
 } from '@/components/Article/utitilies/permissionUtil';
 
-const PATH_PREFIX = '/nip';
+const PATH_PREFIX = '/arte';
 
 /** 分享资源给用户 */
 export async function share(params: {

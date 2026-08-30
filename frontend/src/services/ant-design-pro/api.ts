@@ -3,7 +3,7 @@
 import {request} from '@umijs/max';
 import {message} from "antd";
 
-const PATH_PREFIX = '/nip'
+const PATH_PREFIX = '/arte'
 
 /******************************************** 公共方法 ********************************************/
 /**

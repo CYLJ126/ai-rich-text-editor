@@ -3,7 +3,7 @@ import {jsonPost, jsonPostList} from './api';
 
 /**  ----------------- TagController start ----------------- */
 
-/** 获取用户标签 POST /nip/base/tag/listTags */
+/** 获取用户标签 POST /arte/base/tag/listTags */
 export async function getTags(param: any) {
   return jsonPost('/base/tag/listTags', param);
 }
@@ -97,20 +97,20 @@ export async function listTagRelations(sourceId: number, tagType: string) {
 
 /**  ----------------- AuthorizationController start ----------------- */
 
-/** 获取公钥，用于加密敏感信息 POST /nip/auth/getPubKey */
+/** 获取公钥，用于加密敏感信息 POST /arte/auth/getPubKey */
 export async function getPubKey() {
   return jsonPost('/auth/getPubKey', {});
 }
 
-/** 获取当前用户信息 POST /nip/auth/onlineInfo */
+/** 获取当前用户信息 POST /arte/auth/onlineInfo */
 export async function queryCurrentUser(options?: { [key: string]: any }) {
-  return request<API.CurrentUser>('/nip/auth/onlineInfo', {
+  return request<API.CurrentUser>('/arte/auth/onlineInfo', {
     method: 'POST',
     ...(options ?? {}),
   });
 }
 
-/** 登录接口 POST /nip/auth/login */
+/** 登录接口 POST /arte/auth/login */
 export async function login(
   body: {
     password: string | undefined;
@@ -119,7 +119,7 @@ export async function login(
   },
   options?: { [p: string]: any },
 ) {
-  return request<API.LoginResult>('/nip/auth/login', {
+  return request<API.LoginResult>('/arte/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -129,11 +129,11 @@ export async function login(
   });
 }
 
-/** 登录接口 POST /nip/auth/logout */
+/** 登录接口 POST /arte/auth/logout */
 export async function logout(
   options?: { [p: string]: any },
 ) {
-  return request<API.LoginResult>('/nip/auth/logout', {
+  return request<API.LoginResult>('/arte/auth/logout', {
     method: 'POST',
     headers: {},
     ...(options ?? {}),
