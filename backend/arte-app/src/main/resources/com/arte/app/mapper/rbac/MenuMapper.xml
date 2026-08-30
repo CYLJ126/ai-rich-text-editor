@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.mapper.rbac.MenuMapper">
+
+    <resultMap id="tagMap" type="com.arte.app.pojo.rbac.MenuDto">
+        <id property="id" column="id" jdbcType="INTEGER" />
+        <result property="menuCode" column="menu_code" jdbcType="VARCHAR" />
+        <result property="menuName" column="menu_name" jdbcType="VARCHAR" />
+        <result property="icon" column="icon" jdbcType="VARCHAR" />
+        <result property="menuUrl" column="menu_url" jdbcType="VARCHAR" />
+        <result property="fatherId" column="father_id" jdbcType="INTEGER" />
+        <result property="status" column="status" jdbcType="INTEGER" />
+        <result property="orderId" column="order_id" jdbcType="INTEGER" />
+        <result property="showFlag" column="show_flag" jdbcType="CHAR" />
+        <result property="rowVersion" column="row_version" jdbcType="INTEGER" />
+        <result property="description" column="description" jdbcType="VARCHAR" />
+        <result property="createBy" column="create_by" jdbcType="VARCHAR" />
+        <result property="updateBy" column="update_by" jdbcType="VARCHAR" />
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP" />
+        <result property="updateTime" column="update_time" jdbcType="TIMESTAMP" />
+    </resultMap>
+
+    <sql id="baseColumn">
+        distinct (id), menu_code, menu_name, icon, menu_url, father_id, status, show_flag, order_id
+        create_by, update_by, create_time, update_time, row_version, description
+    </sql>
+
+    <sql id="recursiveColumn">
+        distinct (id), menu_code, menu_name, icon, menu_url, father_id, status, show_flag, order_id
+    </sql>
+
+    <sql id="baseWhere">
+        <where>
+            <if test="id != null">
+                AND id = #{id}
+            </if>
+            <if test="menuCode != null and menuCode != ''">
+                AND menu_code = #{menuCode}
+            </if>
+            <if test="menuName != null and menuName != ''">
+                AND menu_name = #{menuName}
+            </if>
+            <if test="menuUrl != null and menuUrl != ''">
+                AND menu_url = #{menuUrl}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="showFlag != null">
+                AND show_flag = #{showFlag}
+            </if>
+            <if test="description != null and description != ''">
+                AND description like concat('%', #{description}, '%')
+            </if>
+            <if test="fatherId != null">
+                AND father_id = #{fatherId}
+            </if>
+            <if test="createBy != null and createBy != ''">
+                AND create_by = #{createBy}
+            </if>
+            <if test="updateBy != null and updateBy != ''">
+                AND update_by = #{updateBy}
+            </if>
+            <if test="createTime != null">
+                AND create_time = #{createTime}
+            </if>
+            <if test="updateTime != null">
+                AND update_time = #{updateTime}
+            </if>
+        </where>
+    </sql>
+
+    <select id="listRecursive" parameterType="com.arte.app.pojo.rbac.MenuDto" resultMap="tagMap">
+        select id, menu_code, menu_name, icon, menu_url, father_id, status, show_flag, order_id
+        from arte_rbac_menu
+        <include refid="baseWhere" />
+        order by order_id
+    </select>
+</mapper>

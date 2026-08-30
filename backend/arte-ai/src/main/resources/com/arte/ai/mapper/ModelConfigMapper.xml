@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.ModelConfigMapper">
+
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.model.ModelConfigDto">
+        <id column="id" property="id" jdbcType="INTEGER"/>
+        <result column="provider" property="provider" jdbcType="VARCHAR"/>
+        <result column="model_id" property="modelId" jdbcType="VARCHAR"/>
+        <result column="model_name" property="modelName" jdbcType="VARCHAR"/>
+        <result column="model_type" property="modelType" jdbcType="VARCHAR"/>
+        <result column="icon" property="icon" jdbcType="VARCHAR"/>
+        <result column="description" property="description" jdbcType="LONGVARCHAR"/>
+        <result column="api_key" property="apiKey" jdbcType="VARCHAR"/>
+        <result column="api_base_url" property="apiBaseUrl" jdbcType="VARCHAR"/>
+        <result column="api_version" property="apiVersion" jdbcType="VARCHAR"/>
+        <result column="org_id" property="orgId" jdbcType="INTEGER"/>
+        <result column="proxy" property="proxy" jdbcType="VARCHAR"/>
+        <result column="default_params" property="defaultParam"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="context_window" property="contextWindow" jdbcType="INTEGER"/>
+        <result column="max_tokens" property="maxTokens" jdbcType="INTEGER"/>
+        <result column="support_vision" property="supportVision" jdbcType="BOOLEAN"/>
+        <result column="support_function" property="supportFunction" jdbcType="BOOLEAN"/>
+        <result column="support_thinking" property="supportThinking" jdbcType="BOOLEAN"/>
+        <result column="support_search" property="supportSearch" jdbcType="BOOLEAN"/>
+        <result column="support_prompt_caching" property="supportPromptCaching" jdbcType="BOOLEAN"/>
+        <result column="input_unit_price" property="inputUnitPrice" jdbcType="DECIMAL"/>
+        <result column="output_unit_price" property="outputUnitPrice" jdbcType="DECIMAL"/>
+        <result column="price_currency" property="priceCurrency" jdbcType="VARCHAR"/>
+        <result column="timeout_seconds" property="timeoutSeconds" jdbcType="INTEGER"/>
+        <result column="max_retries" property="maxRetries" jdbcType="INTEGER"/>
+        <result column="requests_per_minute" property="requestsPerMinute" jdbcType="INTEGER"/>
+        <result column="tokens_per_minute" property="tokensPerMinute" jdbcType="INTEGER"/>
+        <result column="daily_request_limit" property="dailyRequestLimit" jdbcType="INTEGER"/>
+        <result column="concurrency_limit" property="concurrencyLimit" jdbcType="INTEGER"/>
+        <result column="sort_order" property="sortOrder" jdbcType="INTEGER"/>
+        <result column="default_flag" property="defaultFlag" jdbcType="BOOLEAN"/>
+        <result column="status" property="status" jdbcType="VARCHAR"/>
+        <result column="pin_flag" property="pinFlag" jdbcType="BOOLEAN"/>
+        <result column="create_by" property="createBy" jdbcType="VARCHAR"/>
+        <result column="update_by" property="updateBy" jdbcType="VARCHAR"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        , provider, model_id, model_name, model_type, icon, description,
+    api_key, api_base_url, api_version, org_id, proxy,
+    default_params,
+    context_window, max_tokens,
+    support_vision, support_function, support_thinking,
+    support_search, support_prompt_caching,
+    input_unit_price, output_unit_price, price_currency,
+    timeout_seconds, max_retries,
+    requests_per_minute, tokens_per_minute,
+    daily_request_limit, concurrency_limit,
+    sort_order, status, pin_flag, default_flag,
+    create_by, update_by, create_time, update_time
+    </sql>
+
+    <update id="clearDefaultByModelType" parameterType="java.lang.String">
+        UPDATE arte_ai_model_config
+        SET is_default = 0
+        WHERE model_type = #{modelType}
+          AND is_deleted = 0
+    </update>
+
+    <!-- 批量更新排序 -->
+    <update id="batchUpdateSort">
+        <foreach collection="sortList" item="item" separator=";">
+            UPDATE arte_ai_model_config
+            SET sort_order = #{item.sortOrder},
+            update_time = NOW()
+            WHERE config_id = #{item.configId}
+            AND is_deleted = 0
+        </foreach>
+    </update>
+
+</mapper>

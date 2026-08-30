@@ -21,7 +21,7 @@ To use an external draw.io service, change `NGINX_DRAWIO_UPSTREAM` in `.env`, fo
 To use external middleware, change these values in `.env`:
 
 ```env
-APP_DB_URL=jdbc:mysql://your-mysql-host:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+APP_DB_URL=jdbc:mysql://your-mysql-host:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
 APP_DB_USERNAME=your_user
 APP_DB_PASSWORD=your_password
 CHLOROPHYLL_DB_URL=jdbc:mysql://your-mysql-host:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
@@ -40,17 +40,17 @@ If the external service is running on the Docker host machine, use the host LAN 
 The backend jar and frontend dist package are prepared by `compose-up.sh` before the image build. Both sources must be configured explicitly, and each source can be a download URL or a local file:
 
 ```env
-# Local files, absolute paths or paths relative to nip-docker/
-NIP_APP_JAR_SOURCE=../nobody-is-perfect/nip-app/target/nip-app-boot.jar
-NIP_FRONT_DIST_SOURCE=../nobody-is-perfect-front/dist.zip
+# Local files, absolute paths or paths relative to arte-docker/
+ARTE_APP_JAR_SOURCE=../ai-rich-text-editor/arte-app/target/arte-app-boot.jar
+ARTE_FRONT_DIST_SOURCE=../ai-rich-text-editor-front/dist.zip
 
 # Absolute local path examples
-# NIP_APP_JAR_SOURCE=/opt/nip/nip-app-boot.jar
-# NIP_FRONT_DIST_SOURCE=/opt/nip/dist.zip
+# ARTE_APP_JAR_SOURCE=/opt/arte/arte-app-boot.jar
+# ARTE_FRONT_DIST_SOURCE=/opt/arte/dist.zip
 
 # Download URL examples: downloaded again on every startup
-# NIP_APP_JAR_SOURCE=https://example.com/nip-app-boot.jar
-# NIP_FRONT_DIST_SOURCE=https://example.com/dist.zip
+# ARTE_APP_JAR_SOURCE=https://example.com/arte-app-boot.jar
+# ARTE_FRONT_DIST_SOURCE=https://example.com/dist.zip
 ```
 
 Each script invocation clears the previous staged artifact and copies or downloads a file with a new UUID in its name. This guarantees that Docker builds a new `COPY` layer.

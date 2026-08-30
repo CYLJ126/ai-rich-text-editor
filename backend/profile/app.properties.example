@@ -1,6 +1,6 @@
 # ======================== Server 配置 ========================
 server.port=12636
-server.servlet.context-path=/nip
+server.servlet.context-path=/arte
 # ======================== redis 配置 ========================
 redis.singleServerConfig.address=redis://127.0.0.1:6379
 redis.singleServerConfig.password=
@@ -8,7 +8,7 @@ redis.singleServerConfig.password=
 spring.datasource.druid.app.url=your-database-url-here
 spring.datasource.druid.app.username=your-database-username-here
 spring.datasource.druid.app.password=your-database-password-here
-# ======================== 另一个数据库连接池配置（暂无用处，可扩展多数据源），见 com.nip.app.config.DataSourceConfig ========================
+# ======================== 另一个数据库连接池配置（暂无用处，可扩展多数据源），见 com.arte.app.config.DataSourceConfig ========================
 spring.datasource.druid.chlorophyll.url=your-database-url-here
 spring.datasource.druid.chlorophyll.username=your-database-username-here
 spring.datasource.druid.chlorophyll.password=your-database-password-here
@@ -83,9 +83,9 @@ spring.ai.embedding.transformer.tokenizer.options.padding=true
 # ======================== Spring AI 配置 ========================
 spring.ai.deepseek.api-key=your-deepseek-api-key-here
 # ======================== mcp client 配置 ========================
-spring.ai.mcp.client.name=nip-mcp-client
+spring.ai.mcp.client.name=arte-mcp-client
 # ======================== mcp server 配置 ========================
-spring.ai.mcp.server.name=nip-mcp-server
-# 配置路径为 项目根路径加端点路径，如 http://localhost:8000/nip/mcp
+spring.ai.mcp.server.name=arte-mcp-server
+# 配置路径为 项目根路径加端点路径，如 http://localhost:8000/arte/mcp
 spring.ai.mcp.server.endpoint=/mcp
 spring.ai.mcp.server.disallow-delete=true

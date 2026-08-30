@@ -3,9 +3,9 @@ set -eu
 
 MYSQL_HOST="${MYSQL_HOST:-mysql}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
-MYSQL_DATABASE="${MYSQL_DATABASE:-nip}"
-MYSQL_USER="${MYSQL_USER:-nip}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-nip}"
+MYSQL_DATABASE="${MYSQL_DATABASE:-arte}"
+MYSQL_USER="${MYSQL_USER:-arte}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:-arte}"
 
 echo "Waiting for MySQL at ${MYSQL_HOST}:${MYSQL_PORT}..."
 until MYSQL_PWD="${MYSQL_PASSWORD}" mysqladmin ping \
@@ -30,12 +30,12 @@ if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
 fi
 
 for sql_file in \
-  /sql/nip-base-ddl-mysql.sql \
-  /sql/nip-home-ddl-mysql.sql \
-  /sql/nip-home-dml-mysql.sql \
-  /sql/nip-rbac-ddl-mysql.sql \
-  /sql/nip-rbac-dml-mysql.sql \
-  /sql/nip-rt-ddl-mysql.sql; do
+  /sql/arte-base-ddl-mysql.sql \
+  /sql/arte-home-ddl-mysql.sql \
+  /sql/arte-home-dml-mysql.sql \
+  /sql/arte-rbac-ddl-mysql.sql \
+  /sql/arte-rbac-dml-mysql.sql \
+  /sql/arte-rt-ddl-mysql.sql; do
   echo "Running ${sql_file}..."
   MYSQL_PWD="${MYSQL_PASSWORD}" mysql \
     -h "${MYSQL_HOST}" \

@@ -80,19 +80,19 @@ function Prepare-Artifact(
   Write-Host "Prepared ${Name}: artifacts/$targetFile"
 }
 
-$appSource = Get-ConfigValue 'NIP_APP_JAR_SOURCE'
-$frontSource = Get-ConfigValue 'NIP_FRONT_DIST_SOURCE'
+$appSource = Get-ConfigValue 'ARTE_APP_JAR_SOURCE'
+$frontSource = Get-ConfigValue 'ARTE_FRONT_DIST_SOURCE'
 
 if ([string]::IsNullOrWhiteSpace($appSource)) {
-  throw 'NIP_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL.'
+  throw 'ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL.'
 }
 
 if ([string]::IsNullOrWhiteSpace($frontSource)) {
-  throw 'NIP_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL.'
+  throw 'ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL.'
 }
 
-Prepare-Artifact 'nip-app-boot' $appSource 'backend/artifacts' 'jar' 'NIP_APP_JAR_FILE'
-Prepare-Artifact 'dist' $frontSource 'frontend/artifacts' 'zip' 'NIP_FRONT_DIST_FILE'
+Prepare-Artifact 'arte-app-boot' $appSource 'backend/artifacts' 'jar' 'ARTE_APP_JAR_FILE'
+Prepare-Artifact 'dist' $frontSource 'frontend/artifacts' 'zip' 'ARTE_FRONT_DIST_FILE'
 
 $composeOptions = [System.Collections.Generic.List[string]]::new()
 $serviceArgs = [System.Collections.Generic.List[string]]::new()

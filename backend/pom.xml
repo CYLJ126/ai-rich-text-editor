@@ -3,14 +3,14 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.nip</groupId>
-    <artifactId>nip</artifactId>
+    <groupId>com.arte</groupId>
+    <artifactId>arte</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <modules>
-        <module>nip-core</module>
-        <module>nip-app</module>
-        <module>nip-ai</module>
+        <module>arte-core</module>
+        <module>arte-app</module>
+        <module>arte-ai</module>
     </modules>
 
     <properties>
@@ -248,32 +248,14 @@
 
     <profiles>
         <profile>
-            <id>fingard</id>
-            <build>
-                <filters>
-                    <filter>../profile/common.properties</filter>
-                    <filter>../profile/app-fingard.properties</filter>
-                </filters>
-            </build>
-        </profile>
-        <profile>
-            <id>zsc</id>
+            <id>dev</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
             <build>
                 <filters>
                     <filter>../profile/common.properties</filter>
-                    <filter>../profile/app-zsc.properties</filter>
-                </filters>
-            </build>
-        </profile>
-        <profile>
-            <id>docker</id>
-            <build>
-                <filters>
-                    <filter>../profile/common.properties</filter>
-                    <filter>../profile/docker.properties</filter>
+                    <filter>../profile/app.properties</filter>
                 </filters>
             </build>
         </profile>

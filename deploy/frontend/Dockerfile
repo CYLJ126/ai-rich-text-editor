@@ -10,8 +10,8 @@ RUN apk add openssl unzip \
         -subj "/CN=localhost" \
     && rm -rf /usr/share/nginx/html/*
 
-ARG NIP_FRONT_DIST_FILE
-COPY ${NIP_FRONT_DIST_FILE} /tmp/dist.zip
+ARG ARTE_FRONT_DIST_FILE
+COPY ${ARTE_FRONT_DIST_FILE} /tmp/dist.zip
 RUN unzip /tmp/dist.zip -d /usr/share/nginx/html \
     && rm /tmp/dist.zip
 
