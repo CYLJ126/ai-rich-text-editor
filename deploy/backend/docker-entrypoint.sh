@@ -12,7 +12,7 @@ singleServerConfig:
 EOF
 
 cd /tmp
-zip -q -u /app/nip-app-boot.jar BOOT-INF/classes/redisson.yml
+zip -q -u /app/arte-app-boot.jar BOOT-INF/classes/redisson.yml
 cd /app
 
-exec sh -c "java ${JAVA_OPTS:-} -jar /app/nip-app-boot.jar"
+exec sh -c "java ${JAVA_OPTS:-} -jar /app/arte-app-boot.jar"

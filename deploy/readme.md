@@ -21,7 +21,7 @@ cd docker
 如果使用外部已经搭建好的中间件，需要在 `.env` 中改这些配置：
 
 ```env
-APP_DB_URL=jdbc:mysql://your-mysql-host:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+APP_DB_URL=jdbc:mysql://your-mysql-host:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
 APP_DB_USERNAME=your_user
 APP_DB_PASSWORD=your_password
 CHLOROPHYLL_DB_URL=jdbc:mysql://your-mysql-host:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
@@ -40,17 +40,17 @@ KIBANA_ELASTICSEARCH_HOSTS=http://your-es-host:9200
 后端 jar 和前端 dist 包由 `compose-up.sh` 在构建前准备。必须显式配置来源，来源既可以是下载地址，也可以是 Docker 宿主机上的本地文件：
 
 ```env
-# 本地文件，支持绝对路径或相对 nip-docker/ 目录的路径
-NIP_APP_JAR_SOURCE=../nobody-is-perfect/nip-app/target/nip-app-boot.jar
-NIP_FRONT_DIST_SOURCE=../nobody-is-perfect-front/dist.zip
+# 本地文件，支持绝对路径或相对 arte-docker/ 目录的路径
+ARTE_APP_JAR_SOURCE=../ai-rich-text-editor/arte-app/target/arte-app-boot.jar
+ARTE_FRONT_DIST_SOURCE=../ai-rich-text-editor-front/dist.zip
 
 # 本地绝对路径示例
-# NIP_APP_JAR_SOURCE=/opt/nip/nip-app-boot.jar
-# NIP_FRONT_DIST_SOURCE=/opt/nip/dist.zip
+# ARTE_APP_JAR_SOURCE=/opt/arte/arte-app-boot.jar
+# ARTE_FRONT_DIST_SOURCE=/opt/arte/dist.zip
 
 # 远程下载示例：每次启动都会重新下载
-# NIP_APP_JAR_SOURCE=https://example.com/nip-app-boot.jar
-# NIP_FRONT_DIST_SOURCE=https://example.com/dist.zip
+# ARTE_APP_JAR_SOURCE=https://example.com/arte-app-boot.jar
+# ARTE_FRONT_DIST_SOURCE=https://example.com/dist.zip
 ```
 
 每次脚本执行都会先清空上一次的构建产物，并复制或下载为包含新 UUID 的文件名，因此 Docker 的 `COPY` 层不会复用旧缓存。

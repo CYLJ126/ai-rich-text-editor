@@ -9,21 +9,21 @@
 
 ```bash
 #!/bin/bash
-processId=`ps -ef|grep nip-app|grep -v 'grep'|awk '{print $2}'`
+processId=`ps -ef|grep arte-app|grep -v 'grep'|awk '{print $2}'`
 for id in ${processId}
  do
  kill -9 $id
  echo "process killed, pid: ${id}"
 done
 sleep 3
-nohup java  -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=7500 -jar nip-app-boot.jar >> app.log &
+nohup java  -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=7500 -jar arte-app-boot.jar >> app.log &
 ```
 
 **Linux 停止**
 
 ```bash
 #!/bin/bash
-processId=`ps -ef|grep nip-app|grep -v 'grep'|awk '{print $2}'`
+processId=`ps -ef|grep arte-app|grep -v 'grep'|awk '{print $2}'`
 for id in ${processId}
  do
  kill -9 $id
@@ -35,7 +35,7 @@ done
 
 ```cmd
 CHCP 65001
-"C:\Program Files\Java\jdk-21\bin\java.exe" -jar ./target/nip-app-boot.jar
+"C:\Program Files\Java\jdk-21\bin\java.exe" -jar ./target/arte-app-boot.jar
 ```
 
 **Windows 停止**

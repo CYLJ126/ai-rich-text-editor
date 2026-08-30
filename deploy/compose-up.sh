@@ -73,21 +73,21 @@ prepare_artifact() {
   echo "Prepared ${name}: artifacts/${target_file}"
 }
 
-app_source=$(get_config_value NIP_APP_JAR_SOURCE)
-front_source=$(get_config_value NIP_FRONT_DIST_SOURCE)
+app_source=$(get_config_value ARTE_APP_JAR_SOURCE)
+front_source=$(get_config_value ARTE_FRONT_DIST_SOURCE)
 
 if [ -z "$app_source" ]; then
-  echo "NIP_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL." >&2
+  echo "ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL." >&2
   exit 1
 fi
 
 if [ -z "$front_source" ]; then
-  echo "NIP_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL." >&2
+  echo "ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL." >&2
   exit 1
 fi
 
-prepare_artifact "nip-app-boot" "$app_source" "./backend/artifacts" "jar" "NIP_APP_JAR_FILE"
-prepare_artifact "dist" "$front_source" "./frontend/artifacts" "zip" "NIP_FRONT_DIST_FILE"
+prepare_artifact "arte-app-boot" "$app_source" "./backend/artifacts" "jar" "ARTE_APP_JAR_FILE"
+prepare_artifact "dist" "$front_source" "./frontend/artifacts" "zip" "ARTE_FRONT_DIST_FILE"
 
 compose_options=""
 while [ "$#" -gt 0 ]; do

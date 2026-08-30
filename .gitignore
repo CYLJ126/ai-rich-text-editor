@@ -35,3 +35,5 @@ backend/model.onnx*
 *.sln
 *.local
 *.class
+# local env with real credentials
+backend/profile/app.properties

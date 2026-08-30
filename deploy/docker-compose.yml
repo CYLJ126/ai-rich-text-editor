@@ -1,15 +1,15 @@
 services:
   mysql:
     image: mysql:8.4
-    container_name: nip-mysql
+    container_name: arte-mysql
     profiles:
       - mysql
       - middleware
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nip_root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-nip}
-      MYSQL_USER: ${MYSQL_USER:-nip}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nip}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-arte_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-arte}
+      MYSQL_USER: ${MYSQL_USER:-arte}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-arte}
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
@@ -20,42 +20,42 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init/00-create-databases.sql:/docker-entrypoint-initdb.d/00-create-databases.sql:ro
-      - ./mysql/sql/nip-base-ddl-mysql.sql:/docker-entrypoint-initdb.d/10-nip-base-ddl-mysql.sql:ro
-      - ./mysql/sql/nip-home-ddl-mysql.sql:/docker-entrypoint-initdb.d/20-nip-home-ddl-mysql.sql:ro
-      - ./mysql/sql/nip-home-dml-mysql.sql:/docker-entrypoint-initdb.d/30-nip-home-dml-mysql.sql:ro
-      - ./mysql/sql/nip-rbac-ddl-mysql.sql:/docker-entrypoint-initdb.d/40-nip-rbac-ddl-mysql.sql:ro
-      - ./mysql/sql/nip-rbac-dml-mysql.sql:/docker-entrypoint-initdb.d/50-nip-rbac-dml-mysql.sql:ro
-      - ./mysql/sql/nip-rt-ddl-mysql.sql:/docker-entrypoint-initdb.d/60-nip-rt-ddl-mysql.sql:ro
+      - ./mysql/sql/arte-base-ddl-mysql.sql:/docker-entrypoint-initdb.d/10-arte-base-ddl-mysql.sql:ro
+      - ./mysql/sql/arte-home-ddl-mysql.sql:/docker-entrypoint-initdb.d/20-arte-home-ddl-mysql.sql:ro
+      - ./mysql/sql/arte-home-dml-mysql.sql:/docker-entrypoint-initdb.d/30-arte-home-dml-mysql.sql:ro
+      - ./mysql/sql/arte-rbac-ddl-mysql.sql:/docker-entrypoint-initdb.d/40-arte-rbac-ddl-mysql.sql:ro
+      - ./mysql/sql/arte-rbac-dml-mysql.sql:/docker-entrypoint-initdb.d/50-arte-rbac-dml-mysql.sql:ro
+      - ./mysql/sql/arte-rt-ddl-mysql.sql:/docker-entrypoint-initdb.d/60-arte-rt-ddl-mysql.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 10s
       timeout: 5s
       retries: 20
     networks:
-      - nip
+      - arte
 
   mysql-init:
     image: mysql:8.4
-    container_name: nip-mysql-init
+    container_name: arte-mysql-init
     profiles:
       - mysql-init
     environment:
       MYSQL_HOST: ${MYSQL_HOST:-mysql}
       MYSQL_PORT: ${MYSQL_PORT:-3306}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-nip}
-      MYSQL_USER: ${MYSQL_USER:-nip}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nip}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-arte}
+      MYSQL_USER: ${MYSQL_USER:-arte}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-arte}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
     volumes:
       - ./mysql/init/run-init.sh:/run-init.sh:ro
       - ./mysql/sql:/sql:ro
     entrypoint: ["sh", "/run-init.sh"]
     networks:
-      - nip
+      - arte
 
   redis:
     image: redis:7.4-alpine
-    container_name: nip-redis
+    container_name: arte-redis
     profiles:
       - redis
       - middleware
@@ -70,7 +70,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - nip
+      - arte
 
   elasticsearch:
     build:
@@ -104,7 +104,7 @@ services:
       timeout: 10s
       retries: 30
     networks:
-      - nip
+      - arte
 
   kibana:
     image: kibana:8.13.4
@@ -128,44 +128,44 @@ services:
       XPACK_SECURITY_ENCRYPTIONKEY: ${KB_SEC_KEY}
       TZ: Asia/Shanghai
     networks:
-      - nip
+      - arte
 
   drawio:
     image: jgraph/drawio:latest
-    container_name: nip-drawio
+    container_name: arte-drawio
     environment:
       TZ: Asia/Shanghai
     ports:
       - "${DRAWIO_PORT:-8080}:8080"
     networks:
-      - nip
+      - arte
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        NIP_APP_JAR_FILE: ${NIP_APP_JAR_FILE:-artifacts/.missing.jar}
-    container_name: nip-backend
+        ARTE_APP_JAR_FILE: ${ARTE_APP_JAR_FILE:-artifacts/.missing.jar}
+    container_name: arte-backend
     environment:
       TZ: Asia/Shanghai
       JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx2g}
       SERVER_PORT: ${SERVER_PORT:-12636}
-      SERVER_SERVLET_CONTEXT_PATH: ${SERVER_SERVLET_CONTEXT_PATH:-/nip}
-      SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-NobodyIsPerfect}
+      SERVER_SERVLET_CONTEXT_PATH: ${SERVER_SERVLET_CONTEXT_PATH:-/arte}
+      SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-AIRichTextEditor}
       LOGGING_CONFIG: ${LOGGING_CONFIG:-classpath:log4j2.xml}
-      LOG_PATH: ${LOG_PATH:-/usr/local/data/log/NobodyIsPerfect}
-      LOG_FILE_NAME: ${LOG_FILE_NAME:-NobodyIsPerfect}
+      LOG_PATH: ${LOG_PATH:-/usr/local/data/log/AIRichTextEditor}
+      LOG_FILE_NAME: ${LOG_FILE_NAME:-AIRichTextEditor}
       THREAD_POOL_BUSINESS_CORE_SIZE: ${THREAD_POOL_BUSINESS_CORE_SIZE:-5}
       THREAD_POOL_BUSINESS_MAX_SIZE: ${THREAD_POOL_BUSINESS_MAX_SIZE:-50}
       THREAD_POOL_BUSINESS_KEEP_ALIVE_TIME: ${THREAD_POOL_BUSINESS_KEEP_ALIVE_TIME:-300}
       THREAD_POOL_BUSINESS_QUEUE_SIZE: ${THREAD_POOL_BUSINESS_QUEUE_SIZE:-1024}
-      SPRING_DATASOURCE_DRUID_APP_URL: ${APP_DB_URL:-jdbc:mysql://mysql:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
-      SPRING_DATASOURCE_DRUID_APP_USERNAME: ${APP_DB_USERNAME:-nip}
-      SPRING_DATASOURCE_DRUID_APP_PASSWORD: ${APP_DB_PASSWORD:-nip}
+      SPRING_DATASOURCE_DRUID_APP_URL: ${APP_DB_URL:-jdbc:mysql://mysql:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+      SPRING_DATASOURCE_DRUID_APP_USERNAME: ${APP_DB_USERNAME:-arte}
+      SPRING_DATASOURCE_DRUID_APP_PASSWORD: ${APP_DB_PASSWORD:-arte}
       SPRING_DATASOURCE_DRUID_CHLOROPHYLL_URL: ${CHLOROPHYLL_DB_URL:-jdbc:mysql://mysql:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
-      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_USERNAME: ${CHLOROPHYLL_DB_USERNAME:-nip}
-      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_PASSWORD: ${CHLOROPHYLL_DB_PASSWORD:-nip}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_USERNAME: ${CHLOROPHYLL_DB_USERNAME:-arte}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_PASSWORD: ${CHLOROPHYLL_DB_PASSWORD:-arte}
       SPRING_DATASOURCE_DRUID_MIN_IDLE: ${SPRING_DATASOURCE_DRUID_MIN_IDLE:-5}
       SPRING_DATASOURCE_DRUID_MAX_ACTIVE: ${SPRING_DATASOURCE_DRUID_MAX_ACTIVE:-10}
       SPRING_DATASOURCE_DRUID_MAX_WAIT: ${SPRING_DATASOURCE_DRUID_MAX_WAIT:-5000}
@@ -211,16 +211,16 @@ services:
       REDIS_ADDRESS: ${REDIS_ADDRESS:-redis://redis:6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       CACHE_CACHE_TYPE: ${CACHE_CACHE_TYPE:-redis}
-      CACHE_SCAN_PACKAGES: ${CACHE_SCAN_PACKAGES:-com.nip.app.pojo,com.nip.ai.pojo.model}
+      CACHE_SCAN_PACKAGES: ${CACHE_SCAN_PACKAGES:-com.arte.app.pojo,com.arte.ai.pojo.model}
       CACHE_DEFAULT_EXPIRE: ${CACHE_DEFAULT_EXPIRE:-60000}
       CACHE_DEFAULT_MAX_SIZE: ${CACHE_DEFAULT_MAX_SIZE:-65536}
-      CACHE_DEFAULT_CACHE_KEY_PREFIX: ${CACHE_DEFAULT_CACHE_KEY_PREFIX:-NIP}
+      CACHE_DEFAULT_CACHE_KEY_PREFIX: ${CACHE_DEFAULT_CACHE_KEY_PREFIX:-ARTE}
       JWT_HEADER: ${JWT_HEADER:-Authorization}
       JWT_TOKEN_START_WITH: ${JWT_TOKEN_START_WITH:-Bearer}
       JWT_BASE64_SECRET_KEY: ${JWT_BASE64_SECRET_KEY:-YmEyOTE3YWJiOTdlNGRlMTllNzMwOTlmMGRkNzM0NjBkMDAyZjdhNGViNzE0NmU4OTk2YTEyNGFhZjE4YmE3Y2RkYWVlOGZkZDczMjRhMWM4ZDIwZmQ1ZDgzMDBiNGIw}
       JWT_TOKEN_VALIDITY_IN_SECONDS: ${JWT_TOKEN_VALIDITY_IN_SECONDS:-7200000}
-      JWT_ONLINE_KEY: ${JWT_ONLINE_KEY:-nip_online:}
-      JWT_CODE_KEY: ${JWT_CODE_KEY:-nip_code:}
+      JWT_ONLINE_KEY: ${JWT_ONLINE_KEY:-arte_online:}
+      JWT_CODE_KEY: ${JWT_CODE_KEY:-arte_code:}
       JWT_DETECT: ${JWT_DETECT:-1800000}
       JWT_RENEW: ${JWT_RENEW:-3600000}
       JWT_DEFAULT_PASSWORD: ${JWT_DEFAULT_PASSWORD:-Aa111111}
@@ -250,18 +250,18 @@ services:
     ports:
       - "${BACKEND_PORT:-12636}:12636"
     volumes:
-      - backend-logs:/usr/local/data/log/NobodyIsPerfect
+      - backend-logs:/usr/local/data/log/AIRichTextEditor
       - backend-uploads:/app/data/uploads
     networks:
-      - nip
+      - arte
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NIP_FRONT_DIST_FILE: ${NIP_FRONT_DIST_FILE:-artifacts/.missing.zip}
-    container_name: nip-frontend
+        ARTE_FRONT_DIST_FILE: ${ARTE_FRONT_DIST_FILE:-artifacts/.missing.zip}
+    container_name: arte-frontend
     depends_on:
       - backend
       - drawio
@@ -280,10 +280,10 @@ services:
     ports:
       - "${FRONTEND_HTTPS_PORT:-8000}:${FRONTEND_HTTPS_PORT:-8000}"
     networks:
-      - nip
+      - arte
 
 networks:
-  nip:
+  arte:
     driver: bridge
 
 volumes:

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.AssistantMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.assistant.AssistantDto">
+        <id column="id" property="id" jdbcType="INTEGER"/>
+        <result column="name" property="name" jdbcType="VARCHAR"/>
+        <result column="avatar" property="avatar" jdbcType="VARCHAR"/>
+        <result column="knowledge_base_id" property="knowledgeBaseId" jdbcType="VARCHAR"/>
+        <result column="sort_order" property="sortOrder" jdbcType="INTEGER"/>
+        <result column="system_prompt" property="systemPrompt" jdbcType="LONGVARCHAR"/>
+        <result column="extra_param" property="extraParam"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="context_strategy" property="contextStrategy" jdbcType="VARCHAR"/>
+        <result column="reasoning_effort" property="reasoningEffort" jdbcType="VARCHAR"/>
+        <result column="text_type" property="textType" jdbcType="VARCHAR"/>
+        <result column="status" property="status" jdbcType="VARCHAR"/>
+        <result column="pin_flag" property="pinFlag" jdbcType="BOOLEAN"/>
+        <result column="query_rewrite_flag" property="queryRewriteFlag" jdbcType="BOOLEAN"/>
+        <result column="context_window" property="contextWindow" jdbcType="INTEGER"/>
+        <result column="model_id" property="modelId" jdbcType="INTEGER"/>
+        <result column="max_tokens" property="maxTokens" jdbcType="INTEGER"/>
+        <result column="top_k" property="topK" jdbcType="INTEGER"/>
+        <result column="temperature" property="temperature" jdbcType="DECIMAL"/>
+        <result column="top_p" property="topP" jdbcType="DECIMAL"/>
+        <result column="presence_penalty" property="presencePenalty" jdbcType="DECIMAL"/>
+        <result column="frequency_penalty" property="frequencyPenalty" jdbcType="DECIMAL"/>
+        <result column="global_memory_flag" property="globalMemoryFlag" jdbcType="BOOLEAN"/>
+        <result column="default_flag" property="defaultFlag" jdbcType="BOOLEAN"/>
+        <result column="description" property="description" jdbcType="VARCHAR"/>
+        <result column="create_by" property="createBy" jdbcType="VARCHAR"/>
+        <result column="update_by" property="updateBy" jdbcType="VARCHAR"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        , name, avatar, system_prompt, context_strategy, context_window,
+    model_id, reasoning_effort, text_type, temperature,
+    max_tokens, top_p, top_k,
+    presence_penalty, frequency_penalty,
+    global_memory_flag, default_flag, extra_param,
+    knowledge_base_id, sort_order, status, pin_flag, query_rewrite_flag, description,
+    create_by, update_by, create_time, update_time
+    </sql>
+</mapper>
