@@ -4,12 +4,14 @@ import {
   DownloadOutlined,
   EditOutlined,
   FileAddOutlined,
+  FileZipOutlined,
   FolderAddOutlined,
   FolderTwoTone,
   GlobalOutlined,
   ShareAltOutlined,
   StopOutlined,
   SwapOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { App, Button, Menu, Space, Spin, Tree, Typography } from 'antd';
@@ -161,6 +163,10 @@ export interface SpaceTreeProps {
   onDeleteCatalog?: (catalogId: number, catalogName: string) => void;
   /** 新建文章 */
   onCreateArticle?: (catalogId: number) => void;
+  /** 导入 Markdown 文章 */
+  onImportMarkdown?: (catalogId: number) => void;
+  /** 导入 Markdown 压缩包 */
+  onImportMarkdownZip?: (catalogId: number) => void;
   /** 移动文章 */
   onMoveArticle?: (articleId: number, space?: 'my' | 'public') => void;
   /** 重命名文章 */
@@ -208,6 +214,8 @@ export default function SpaceTree({
   onRenameCatalog,
   onDeleteCatalog,
   onCreateArticle,
+  onImportMarkdown,
+  onImportMarkdownZip,
   onMoveArticle,
   onRenameArticle,
   onDeleteArticle,
@@ -447,6 +455,18 @@ export default function SpaceTree({
               icon: <FileAddOutlined />,
               onClick: () => onCreateArticle?.(catalog.id),
             },
+            {
+              key: 'import-markdown',
+              label: '导入 Markdown 文章',
+              icon: <UploadOutlined />,
+              onClick: () => onImportMarkdown?.(catalog.id),
+            },
+            {
+              key: 'import-markdown-zip',
+              label: '导入 Markdown 压缩包',
+              icon: <FileZipOutlined />,
+              onClick: () => onImportMarkdownZip?.(catalog.id),
+            },
             { type: 'divider' },
             {
               key: 'rename-catalog',
@@ -503,6 +523,18 @@ export default function SpaceTree({
                 icon: <FileAddOutlined />,
                 onClick: () => onCreateArticle?.(catalog.id),
               },
+              {
+                key: 'import-markdown',
+                label: '导入 Markdown 文章',
+                icon: <UploadOutlined />,
+                onClick: () => onImportMarkdown?.(catalog.id),
+              },
+              {
+                key: 'import-markdown-zip',
+                label: '导入 Markdown 压缩包',
+                icon: <FileZipOutlined />,
+                onClick: () => onImportMarkdownZip?.(catalog.id),
+              },
               { type: 'divider' },
             );
           }
@@ -535,6 +567,18 @@ export default function SpaceTree({
                 label: '在此目录下新建文章',
                 icon: <FileAddOutlined />,
                 onClick: () => onCreateArticle?.(catalog.id),
+              },
+              {
+                key: 'import-markdown',
+                label: '导入 Markdown 文章',
+                icon: <UploadOutlined />,
+                onClick: () => onImportMarkdown?.(catalog.id),
+              },
+              {
+                key: 'import-markdown-zip',
+                label: '导入 Markdown 压缩包',
+                icon: <FileZipOutlined />,
+                onClick: () => onImportMarkdownZip?.(catalog.id),
               },
               {
                 key: 'share-setting',
@@ -722,6 +766,8 @@ export default function SpaceTree({
       space,
       onAddSubCatalog,
       onCreateArticle,
+      onImportMarkdown,
+      onImportMarkdownZip,
       onRenameCatalog,
       onRenameArticle,
       onMoveArticle,

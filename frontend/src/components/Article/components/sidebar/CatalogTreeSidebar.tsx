@@ -8,6 +8,7 @@ import {
   SearchOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
+import { Editor } from '@tiptap/core';
 import { useModel } from '@umijs/max';
 import type { CollapseProps } from 'antd';
 import {
@@ -21,6 +22,7 @@ import {
   Select,
   Typography,
 } from 'antd';
+import JSZip from 'jszip';
 import React, {
   useCallback,
   useEffect,
@@ -30,7 +32,7 @@ import React, {
   useState,
 } from 'react';
 import { hasAdminRole } from '@/access';
-import { useArticleInfoStore } from '@/components';
+import { defaultExtensions, useArticleInfoStore } from '@/components';
 import { AutoFocusInput } from '@/components/ui/autofucus-input';
 import {
   addArticle,
@@ -55,6 +57,7 @@ import {
   toggleArticlePublic,
   toggleCatalogPublic,
 } from '@/services/share';
+import { uploadFile, uploadImage } from '@/services/upload';
 import type {
   ActiveSelectedInfo,
   ArticleInfoType,
@@ -65,6 +68,81 @@ import { exportFile } from '@/utils/fileUtil';
 import PublishToPublicModal from './PublishToPublicModal';
 import SelectTargetCatalogModal from './SelectTargetCatalogModal';
 import SpaceTree from './SpaceTree';
+
+const MARKDOWN_FILE_PATTERN = /\.(?:md|markdown)$/i;
+const IMAGE_FILE_PATTERN = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+};
+const MARKDOWN_RESOURCE_PATTERN =
+  /(!?\[[^\]]*]\()([^)\s]+)((?:\s+["'][^"']*["'])?\))/g;
+
+function getImageMimeType(fileName: string) {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  return extension ? IMAGE_MIME_TYPES[extension] : undefined;
+}
+
+function resolveZipResourcePath(markdownPath: string, resourcePath: string) {
+  const normalizedPath = resourcePath.replace(/\\/g, '/');
+  if (/^(?:[a-z][a-z\d+.-]*:|#|\/)/i.test(normalizedPath)) {
+    return undefined;
+  }
+  try {
+    return decodeURIComponent(
+      new URL(
+        normalizedPath,
+        `https://zip.local/${markdownPath}`,
+      ).pathname.slice(1),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+async function replaceZipResourceUrls(
+  zip: JSZip,
+  markdownPath: string,
+  markdown: string,
+  uploadedUrls: Map<string, string>,
+) {
+  let result = markdown;
+  const resourcePaths = Array.from(
+    new Set(
+      Array.from(
+        markdown.matchAll(MARKDOWN_RESOURCE_PATTERN),
+        (match) => match[2],
+      ),
+    ),
+  );
+
+  for (const resourcePath of resourcePaths) {
+    const zipPath = resolveZipResourcePath(markdownPath, resourcePath);
+    if (!zipPath) continue;
+    const entry = zip.file(zipPath);
+    if (!entry) continue;
+
+    let uploadedUrl = uploadedUrls.get(zipPath);
+    if (!uploadedUrl) {
+      const blob = await entry.async('blob');
+      const fileName = zipPath.split('/').pop() || 'file';
+      const isImage = IMAGE_FILE_PATTERN.test(zipPath);
+      const file = new File([blob], fileName, {
+        type: isImage ? getImageMimeType(fileName) : blob.type,
+      });
+      uploadedUrl = isImage ? await uploadImage(file) : await uploadFile(file);
+      uploadedUrls.set(zipPath, uploadedUrl);
+    }
+    result = result.split(resourcePath).join(uploadedUrl);
+  }
+  return result;
+}
 
 // ── 组件 Props ──
 interface CatalogTreeSidebarProps {
@@ -590,6 +668,161 @@ export default function CatalogTreeSidebar({
       });
     },
     [fetchAllSpaces, message, onArticleSelect, openTextConfirm],
+  );
+
+  const saveImportedMarkdown = useCallback(
+    async (catalogId: number, title: string, markdown: string) => {
+      const markdownEditor = new Editor({
+        content: markdown,
+        contentType: 'markdown',
+        extensions: defaultExtensions,
+      });
+      try {
+        const contentJson = JSON.stringify(markdownEditor.getJSON());
+        const contentText = markdownEditor.getText();
+        const characterCount =
+          markdownEditor.storage.characterCount.characters();
+        const newArticle = await addArticle({
+          title,
+          catalogId,
+          contentJson,
+          contentMd: markdown,
+          contentText,
+        });
+        await updateArticle({
+          ...newArticle,
+          contentJson,
+          contentMd: markdown,
+          contentText,
+          characterCount,
+        });
+        return newArticle;
+      } finally {
+        markdownEditor.destroy();
+      }
+    },
+    [],
+  );
+
+  const handleImportMarkdown = useCallback(
+    (catalogId: number) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.md,.markdown,text/markdown';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+
+        try {
+          const markdown = await file.text();
+          const title =
+            file.name.replace(MARKDOWN_FILE_PATTERN, '') || '未命名文章';
+          const newArticle = await saveImportedMarkdown(
+            catalogId,
+            title,
+            markdown,
+          );
+          message.success(`文章“${title}”导入成功`);
+          await fetchAllSpaces();
+          onArticleSelect({ articleId: newArticle.id });
+        } catch {
+          message.error('Markdown 文章导入失败');
+        }
+      };
+      input.click();
+    },
+    [fetchAllSpaces, message, onArticleSelect, saveImportedMarkdown],
+  );
+
+  const handleImportMarkdownZip = useCallback(
+    (catalogId: number) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.zip,application/zip,application/x-zip-compressed';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+
+        const messageKey = 'markdown-zip-import';
+        let importedCount = 0;
+        message.loading({
+          key: messageKey,
+          content: '正在导入 Markdown 压缩包…',
+          duration: 0,
+        });
+        try {
+          const zip = await JSZip.loadAsync(file);
+          const markdownEntries = Object.values(zip.files)
+            .filter(
+              (entry) =>
+                !entry.dir &&
+                MARKDOWN_FILE_PATTERN.test(entry.name) &&
+                !entry.name.startsWith('__MACOSX/'),
+            )
+            .sort((first, second) => first.name.localeCompare(second.name));
+          if (markdownEntries.length === 0) {
+            message.warning({
+              key: messageKey,
+              content: '压缩包中没有 Markdown 文件',
+            });
+            return;
+          }
+
+          const catalogIds = new Map<string, number>([['', catalogId]]);
+          const uploadedUrls = new Map<string, string>();
+          for (const entry of markdownEntries) {
+            const pathParts = entry.name.split('/').filter(Boolean);
+            const fileName = pathParts.pop() as string;
+            let parentId = catalogId;
+            let catalogPath = '';
+            for (const folderName of pathParts) {
+              catalogPath = catalogPath
+                ? `${catalogPath}/${folderName}`
+                : folderName;
+              let nextCatalogId = catalogIds.get(catalogPath);
+              if (!nextCatalogId) {
+                const catalog = await addCatalog({
+                  name: folderName,
+                  fatherId: parentId,
+                });
+                nextCatalogId = catalog.id;
+                catalogIds.set(catalogPath, nextCatalogId);
+              }
+              parentId = nextCatalogId;
+            }
+
+            const sourceMarkdown = await entry.async('string');
+            const markdown = await replaceZipResourceUrls(
+              zip,
+              entry.name,
+              sourceMarkdown,
+              uploadedUrls,
+            );
+            const title =
+              fileName.replace(MARKDOWN_FILE_PATTERN, '') || '未命名文章';
+            await saveImportedMarkdown(parentId, title, markdown);
+            importedCount += 1;
+          }
+
+          await fetchAllSpaces();
+          message.success({
+            key: messageKey,
+            content: `成功导入 ${importedCount} 篇 Markdown 文章`,
+          });
+        } catch {
+          await fetchAllSpaces();
+          message.error({
+            key: messageKey,
+            content:
+              importedCount > 0
+                ? `已导入 ${importedCount} 篇，后续内容导入失败`
+                : 'Markdown 压缩包导入失败',
+          });
+        }
+      };
+      input.click();
+    },
+    [fetchAllSpaces, message, saveImportedMarkdown],
   );
 
   const handleDeleteArticle = useCallback(
@@ -1176,6 +1409,8 @@ export default function CatalogTreeSidebar({
           onRenameCatalog={handleRenameCatalog}
           onDeleteCatalog={handleDeleteCatalog}
           onCreateArticle={handleCreateArticle}
+          onImportMarkdown={handleImportMarkdown}
+          onImportMarkdownZip={handleImportMarkdownZip}
           onMoveArticle={handleMoveArticle}
           onRenameArticle={handleRenameArticle}
           onDeleteArticle={handleDeleteArticle}
@@ -1211,6 +1446,8 @@ export default function CatalogTreeSidebar({
           onDataChange={fetchAllSpaces}
           onAddSubCatalog={handleAddSubCatalog}
           onCreateArticle={handleCreateArticle}
+          onImportMarkdown={handleImportMarkdown}
+          onImportMarkdownZip={handleImportMarkdownZip}
           onExportArticles={handleExportArticles}
           searchKeyword={treeSearchKeyword}
         />
@@ -1241,6 +1478,8 @@ export default function CatalogTreeSidebar({
           onRenameCatalog={handleRenameCatalog}
           onDeleteCatalog={handleDeleteCatalog}
           onCreateArticle={handleCreateArticle}
+          onImportMarkdown={handleImportMarkdown}
+          onImportMarkdownZip={handleImportMarkdownZip}
           onMoveArticle={handleMoveArticle}
           onRenameArticle={handleRenameArticle}
           onDeleteArticle={handleDeleteArticle}
