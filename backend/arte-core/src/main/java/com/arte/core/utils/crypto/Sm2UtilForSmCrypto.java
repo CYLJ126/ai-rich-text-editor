@@ -1,5 +1,7 @@
 package com.arte.core.utils.crypto;
 
+import com.arte.core.i18n.MessageUtils;
+
 import org.bouncycastle.crypto.engines.SM2Engine;
 import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
@@ -71,7 +73,7 @@ public class Sm2UtilForSmCrypto extends Sm2Util {
             // 转换为前端兼容格式
             return convertToFrontendFormat(cipherBytes);
         } catch (Exception e) {
-            throw new RuntimeException("SM2 加密失败: " + e.getMessage(), e);
+            throw new RuntimeException(MessageUtils.get("error.crypto.sm2EncryptFailedWith", e.getMessage()), e);
         }
     }
 
@@ -96,7 +98,7 @@ public class Sm2UtilForSmCrypto extends Sm2Util {
             byte[] plainBytes = engine.processBlock(cipherBytes, 0, cipherBytes.length);
             return new String(plainBytes, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new RuntimeException("SM2 解密失败: " + e.getMessage(), e);
+            throw new RuntimeException(MessageUtils.get("error.crypto.sm2DecryptFailedWith", e.getMessage()), e);
         }
     }
 }

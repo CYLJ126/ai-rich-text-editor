@@ -54,7 +54,7 @@ public abstract class DeepSeekModelAdapter extends AbstractModelAdapter {
 
     private ChatModel getChatModel(ModelConfigDto modelConfig, ChatOptions chatOptions, boolean disableThinking) {
         if (StrUtil.hasBlank(modelConfig.getApiKey(), modelConfig.getApiBaseUrl())) {
-            throw new ChatException("API Key 或 Base URL 不能为空");
+            throw new ChatException("error.ai.apiKeyOrBaseUrlRequired");
         }
         String apiKey = Sm2UtilForSmCrypto.decryptForSmCrypto(modelConfig.getApiKey(), privateKey);
         String baseUrl = StrUtil.blankToDefault(modelConfig.getApiBaseUrl(), modelConfig.getApiBaseUrl());

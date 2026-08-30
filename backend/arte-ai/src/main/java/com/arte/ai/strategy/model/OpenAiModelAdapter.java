@@ -1,5 +1,7 @@
 package com.arte.ai.strategy.model;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.util.StrUtil;
 import com.arte.ai.common.enums.ModelProviderEnum;
 import com.arte.ai.pojo.chat.ChatRequestDto;
@@ -45,10 +47,10 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
         // API Key 只在创建客户端时解密，不写回请求对象。
         ModelConfigDto config = modelConfigService.getById(modelConfigDto.getId());
         if (config == null) {
-            throw new ChatException("模型配置不存在: " + modelConfigDto.getId());
+            throw new ChatException(MessageUtils.get("error.ai.modelConfigNotFound", modelConfigDto.getId()));
         }
         if (StrUtil.hasBlank(config.getApiKey(), config.getApiBaseUrl())) {
-            throw new ChatException("API Key 或 Base URL 不能为空");
+            throw new ChatException("error.ai.apiKeyOrBaseUrlRequired");
         }
 
         OpenAiChatOptions.Builder optionsBuilder;
@@ -69,7 +71,7 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
     @Override
     public ChatClient buildChatClient(ChatRequestDto chatRequest) {
         if (chatRequest == null || chatRequest.getModelAutoId() == null) {
-            throw new ChatException("模型请求或模型配置 ID 不能为空");
+            throw new ChatException("error.ai.modelOrConfigRequired");
         }
         ModelConfigDto config = modelConfigService.getById(chatRequest.getModelAutoId());
         try {
@@ -79,17 +81,17 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
             throw e;
         } catch (Exception e) {
             log.error("创建 OpenAI 兼容客户端失败，modelId={}", chatRequest.getModelId(), e);
-            throw new ChatException("创建 OpenAI 兼容客户端失败", e);
+            throw new ChatException("error.ai.openaiClientFailed", e);
         }
     }
 
     @Override
     public OpenAiChatOptions buildOptions(ChatRequestDto chatRequest) {
         if (chatRequest == null) {
-            throw new ChatException("模型请求不能为空");
+            throw new ChatException("error.ai.modelRequestRequired");
         }
         if (StrUtil.isBlank(chatRequest.getModelId())) {
-            throw new ChatException("模型 ID 不能为空");
+            throw new ChatException("error.ai.modelIdRequired");
         }
 
         OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
@@ -140,13 +142,13 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
     private void applyConnectionOptions(OpenAiChatOptions.Builder builder, ModelConfigDto config) {
         if (config.getTimeoutSeconds() != null) {
             if (config.getTimeoutSeconds() <= 0) {
-                throw new ChatException("请求超时时间必须大于 0 秒");
+                throw new ChatException("error.ai.timeoutPositive");
             }
             builder.timeout(Duration.ofSeconds(config.getTimeoutSeconds()));
         }
         if (config.getMaxRetries() != null) {
             if (config.getMaxRetries() < 0) {
-                throw new ChatException("最大重试次数不能小于 0");
+                throw new ChatException("error.ai.retryNotNegative");
             }
             builder.maxRetries(config.getMaxRetries());
         }
@@ -170,15 +172,15 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
             Proxy.Type type = switch (scheme) {
                 case "http", "https" -> Proxy.Type.HTTP;
                 case "socks", "socks5" -> Proxy.Type.SOCKS;
-                default -> throw new ChatException("不支持的代理协议: " + scheme);
+                default -> throw new ChatException(MessageUtils.get("error.ai.proxySchemeUnsupported", scheme));
             };
             String host = uri.getHost();
             if (StrUtil.isBlank(host) || uri.getPort() < 1 || uri.getPort() > 65535) {
-                throw new ChatException("代理地址格式错误，应为 host:port");
+                throw new ChatException("error.ai.proxyFormat");
             }
             return new Proxy(type, InetSocketAddress.createUnresolved(host, uri.getPort()));
         } catch (URISyntaxException | IllegalArgumentException e) {
-            throw new ChatException("代理地址格式错误，应为 host:port", e);
+            throw new ChatException("error.ai.proxyFormat", e);
         }
     }
 }

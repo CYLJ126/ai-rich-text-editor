@@ -1,5 +1,7 @@
 package com.arte.ai.web.controller;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -68,7 +70,7 @@ public class ModelConfigController {
     @PostMapping("/deleteModelConfig")
     @AnonymousAccess
     public ResultContext<Boolean> deleteModelConfig(@RequestBody ModelConfigParam param) {
-        Assert.notNull(param.getId(), "待删除模型配置 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.deleteModelConfigIdRequired"));
         ModelConfigDto existing = modelConfigService.getById(param.getId());
         boolean removed = modelConfigService.removeById(param.getId());
         if (removed && existing != null) {
@@ -84,14 +86,14 @@ public class ModelConfigController {
     @PostMapping("/setAsDefaultModelConfig")
     @AnonymousAccess
     public ResultContext<Boolean> setAsDefaultModelConfig(@RequestBody ModelConfigParam param) {
-        Assert.notNull(param.getId(), "待设置默认模型配置 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.defaultModelConfigIdRequired"));
         ModelConfigDto existing = modelConfigService.getById(param.getId());
-        Assert.notNull(existing, "待设置默认模型配置不存在");
+        Assert.notNull(existing, MessageUtils.get("error.field.defaultModelConfigNotFound"));
         UpdateWrapper<ModelConfigDto> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq("id", param.getId()).set(ModelConfigPo.COL_DEFAULT_FLAG, true);
         boolean update = modelConfigService.update(updateWrapper);
         if (!update) {
-            throw new BusinessException(String.format("模型【%s】设置默认失败", param.getId()));
+            throw new BusinessException(MessageUtils.get("error.ai.modelSetDefaultFailed", param.getId()));
         }
         UpdateWrapper<ModelConfigDto> clearWrapper = new UpdateWrapper<>();
         clearWrapper.eq(ModelConfigPo.COL_CREATE_BY, existing.getCreateBy())
@@ -114,7 +116,7 @@ public class ModelConfigController {
             queryWrapper.eq(ModelConfigPo.COL_CREATE_BY, StrUtil.blankToDefault(param.getCreateBy(), UserContext.getUserName()));
             return ResultContext.success(modelConfigService.getOne(queryWrapper));
         }
-        Assert.notNull(param.getId(), "待获取模型配置 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.getModelConfigIdRequired"));
         return ResultContext.success(modelConfigService.getById(param.getId()));
     }
 
@@ -152,8 +154,8 @@ public class ModelConfigController {
     @AnonymousAccess
     @PostMapping("/toggleModelConfigPin")
     public ResultContext<Boolean> toggleModelConfigPin(@RequestBody ModelConfigParam param) {
-        Assert.notNull(param.getId(), "模型配置 ID 不能为空");
-        Assert.notNull(param.getPinFlag(), "模型配置是否置顶 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.modelConfigIdRequired"));
+        Assert.notNull(param.getPinFlag(), MessageUtils.get("error.field.modelConfigPinRequired"));
         boolean result = modelConfigService.lambdaUpdate()
                 .eq(ModelConfigDto::getId, param.getId())
                 .set(ModelConfigDto::getPinFlag, param.getPinFlag())
@@ -164,8 +166,8 @@ public class ModelConfigController {
     @AnonymousAccess
     @PostMapping("/toggleModelConfigStatus")
     public ResultContext<Boolean> toggleModelConfigStatus(@RequestBody ModelConfigParam param) {
-        Assert.notNull(param.getId(), "模型配置 ID 不能为空");
-        Assert.notNull(param.getStatus(), "模型配置状态不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.modelConfigIdRequired"));
+        Assert.notNull(param.getStatus(), MessageUtils.get("error.field.modelConfigStatusRequired"));
         ModelConfigDto existing = modelConfigService.getById(param.getId());
         boolean result = modelConfigService.lambdaUpdate()
                 .eq(ModelConfigDto::getId, param.getId())

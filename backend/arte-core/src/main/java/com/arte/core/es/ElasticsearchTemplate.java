@@ -1,5 +1,7 @@
 package com.arte.core.es;
 
+import com.arte.core.i18n.MessageUtils;
+
 import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.*;
@@ -97,7 +99,7 @@ public class ElasticsearchTemplate {
         try {
             return syncClient.delete(r -> r.index(indexName).id(id));
         } catch (IOException e) {
-            throw new ElasticsearchException("删除文档失败，ID：" + id, "delete", indexName, e);
+            throw new ElasticsearchException(MessageUtils.get("error.es.deleteDocFailed", id), "delete", indexName, e);
         }
     }
 
@@ -148,7 +150,7 @@ public class ElasticsearchTemplate {
                 .toCompletableFuture()
                 .exceptionally(e -> {
                     log.error("异步保存 es 文档失败，索引名：{}，id：{}", indexName, id, e);
-                    throw new ElasticsearchException("异步保存 es 文档失败", "indexAsync", indexName, e);
+                    throw new ElasticsearchException(MessageUtils.get("error.es.asyncSaveFailed"), "indexAsync", indexName, e);
                 });
     }
 

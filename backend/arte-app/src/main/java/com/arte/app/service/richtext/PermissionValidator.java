@@ -99,7 +99,7 @@ public class PermissionValidator {
 
     public void assertCanRead(String resourceType, Integer resourceId) {
         if (!canRead(resourceType, resourceId)) {
-            throw new BusinessException("无读取权限");
+            throw new BusinessException("error.comment.noReadPermission");
         }
     }
 
@@ -110,32 +110,32 @@ public class PermissionValidator {
         }
         ShareDto share = findEffectiveShare(article, currentUser);
         if (!Boolean.TRUE.equals(article.getIsPublic()) && share == null) {
-            throw new BusinessException("无读取权限");
+            throw new BusinessException("error.comment.noReadPermission");
         }
         return articlePermission(share);
     }
 
     public void assertCanWrite(String resourceType, Integer resourceId) {
         if (!canWrite(resourceType, resourceId)) {
-            throw new BusinessException("无写权限");
+            throw new BusinessException("error.comment.noWritePermission");
         }
     }
 
     public void assertCanComment(String resourceType, Integer resourceId) {
         if (!canComment(resourceType, resourceId)) {
-            throw new BusinessException("无批注权限");
+            throw new BusinessException("error.comment.noAnnotatePermission");
         }
     }
 
     public void assertCanComment(Integer articleId) {
         if (!Boolean.TRUE.equals(shareMapper.canCommentArticle(articleId, UserContext.getUserName()))) {
-            throw new BusinessException("无批注权限");
+            throw new BusinessException("error.comment.noAnnotatePermission");
         }
     }
 
     public void assertCanCreateChild(String resourceType, Integer resourceId) {
         if (!canCreateChild(resourceType, resourceId)) {
-            throw new BusinessException("无新建子内容权限");
+            throw new BusinessException("error.comment.noCreateChildPermission");
         }
     }
 
@@ -147,13 +147,13 @@ public class PermissionValidator {
         ShareDto share = highestShare(ResourceTypeEnum.CATALOG.getValue(),
                 shareMapper.listEffectiveCatalogShares(catalog.getId(), currentUser));
         if (!CatalogPermissionEnum.of(catalogPermission(share)).canCreateChild()) {
-            throw new BusinessException("无新建子内容权限");
+            throw new BusinessException("error.comment.noCreateChildPermission");
         }
     }
 
     public void assertCanDelete(String resourceType, Integer resourceId) {
         if (!canDelete(resourceType, resourceId)) {
-            throw new BusinessException("无删除权限");
+            throw new BusinessException("error.comment.noDeletePermission");
         }
     }
 

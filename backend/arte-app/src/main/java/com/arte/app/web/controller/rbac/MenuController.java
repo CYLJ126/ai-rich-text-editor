@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.rbac;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.app.api.rbac.MenuService;
 import com.arte.app.api.rbac.RbacRelationService;
@@ -57,7 +59,7 @@ public class MenuController {
     @PostMapping("/updateMenu")
     @PreAuthorize("@pcs.check('menu:update')")
     public ResultContext<Boolean> updateMenu(@RequestBody MenuDto param) {
-        Assert.notNull(param.getId(), "菜单 ID 不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.menuIdRequired"));
         return ResultContext.wrap(param, menuService::updateMenu);
     }
 

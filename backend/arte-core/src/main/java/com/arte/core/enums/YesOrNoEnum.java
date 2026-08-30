@@ -1,5 +1,7 @@
 package com.arte.core.enums;
 
+import com.arte.core.i18n.MessageUtils;
+
 import com.baomidou.mybatisplus.annotation.IEnum;
 import lombok.Getter;
 import org.springframework.core.convert.converter.Converter;
@@ -47,7 +49,7 @@ public enum YesOrNoEnum implements IEnum<Integer>, MyEnum<Integer> {
                 return yesOrNoEnum;
             }
         }
-        throw new IllegalArgumentException("yesOrNoEnum 参数非法：" + value);
+        throw new IllegalArgumentException(MessageUtils.get("error.common.enumYesOrNo", value));
     }
 
     @ReadingConverter

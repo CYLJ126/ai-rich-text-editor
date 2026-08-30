@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -68,12 +70,12 @@ public class ShareController {
         String permission = req.getPermission();
         String articlePermission = req.getArticlePermission();
 
-        Assert.notBlank(resourceType, "资源类型不能为空");
-        Assert.notNull(resourceId, "资源 ID 不能为空");
-        Assert.notBlank(permission, "权限不能为空");
-        Assert.isTrue(isValidResourceType(resourceType), "资源类型不合法");
-        Assert.isTrue(isValidTargetType(targetType), "目标类型不合法");
-        Assert.isTrue(isValidPermission(resourceType, permission, articlePermission), "权限不合法");
+        Assert.notBlank(resourceType, MessageUtils.get("error.field.resourceTypeRequired"));
+        Assert.notNull(resourceId, MessageUtils.get("error.field.resourceIdRequired"));
+        Assert.notBlank(permission, MessageUtils.get("error.field.permissionRequired"));
+        Assert.isTrue(isValidResourceType(resourceType), MessageUtils.get("error.field.resourceTypeInvalid"));
+        Assert.isTrue(isValidTargetType(targetType), MessageUtils.get("error.field.targetTypeInvalid"));
+        Assert.isTrue(isValidPermission(resourceType, permission, articlePermission), MessageUtils.get("error.field.permissionInvalid"));
 
         permissionValidator.assertCanDelete(resourceType, resourceId);
         if (ResourceTypeEnum.ARTICLE == ResourceTypeEnum.of(resourceType)) {
@@ -83,10 +85,10 @@ public class ShareController {
         }
 
         List<String> targets = normalizeTargets(resolveTargets(req, targetType));
-        Assert.notEmpty(targets, "分享目标不能为空");
+        Assert.notEmpty(targets, MessageUtils.get("error.field.shareTargetRequired"));
         if (TARGET_USER.equals(targetType)) {
             targets = removeCurrentUser(targets);
-            Assert.notEmpty(targets, "目标用户不能为空，且不能包含当前用户");
+            Assert.notEmpty(targets, MessageUtils.get("error.field.targetUserInvalid"));
             assertUsersExist(targets);
         } else {
             assertRolesExist(targets);
@@ -107,11 +109,11 @@ public class ShareController {
         String targetType = normalizeTargetType(req.getTargetType());
         String target = TARGET_ROLE.equals(targetType) ? req.getTargetRole() : req.getTargetUser();
 
-        Assert.notBlank(resourceType, "资源类型不能为空");
-        Assert.notNull(resourceId, "资源 ID 不能为空");
-        Assert.notBlank(target, "分享目标不能为空");
-        Assert.isTrue(isValidResourceType(resourceType), "资源类型不合法");
-        Assert.isTrue(isValidTargetType(targetType), "目标类型不合法");
+        Assert.notBlank(resourceType, MessageUtils.get("error.field.resourceTypeRequired"));
+        Assert.notNull(resourceId, MessageUtils.get("error.field.resourceIdRequired"));
+        Assert.notBlank(target, MessageUtils.get("error.field.shareTargetRequired"));
+        Assert.isTrue(isValidResourceType(resourceType), MessageUtils.get("error.field.resourceTypeInvalid"));
+        Assert.isTrue(isValidTargetType(targetType), MessageUtils.get("error.field.targetTypeInvalid"));
 
         permissionValidator.assertCanDelete(resourceType, resourceId);
         shareService.unshare(resourceType, resourceId, targetType, target);
@@ -127,9 +129,9 @@ public class ShareController {
         String resourceType = req.getResourceType();
         Integer resourceId = req.getResourceId();
 
-        Assert.notBlank(resourceType, "资源类型不能为空");
-        Assert.notNull(resourceId, "资源 ID 不能为空");
-        Assert.isTrue(isValidResourceType(resourceType), "资源类型不合法");
+        Assert.notBlank(resourceType, MessageUtils.get("error.field.resourceTypeRequired"));
+        Assert.notNull(resourceId, MessageUtils.get("error.field.resourceIdRequired"));
+        Assert.isTrue(isValidResourceType(resourceType), MessageUtils.get("error.field.resourceTypeInvalid"));
 
         permissionValidator.assertCanDelete(resourceType, resourceId);
         return ResultContext.success(shareService.listShares(resourceType, resourceId));
@@ -145,9 +147,9 @@ public class ShareController {
         Integer resourceId = req.getResourceId();
         String currentUser = UserContext.getUserOnlineInfo().getUserName();
 
-        Assert.notBlank(resourceType, "资源类型不能为空");
-        Assert.notNull(resourceId, "资源 ID 不能为空");
-        Assert.isTrue(isValidResourceType(resourceType), "资源类型不合法");
+        Assert.notBlank(resourceType, MessageUtils.get("error.field.resourceTypeRequired"));
+        Assert.notNull(resourceId, MessageUtils.get("error.field.resourceIdRequired"));
+        Assert.isTrue(isValidResourceType(resourceType), MessageUtils.get("error.field.resourceTypeInvalid"));
 
         permissionValidator.assertCanRead(resourceType, resourceId);
         shareService.leaveShare(resourceType, resourceId, currentUser);
@@ -238,7 +240,7 @@ public class ShareController {
         Set<String> existingUsers = userMapper.selectList(userWrapper).stream()
                 .map(UserDto::getUserName)
                 .collect(Collectors.toSet());
-        Assert.isTrue(existingUsers.containsAll(targetUsers), "目标用户不存在");
+        Assert.isTrue(existingUsers.containsAll(targetUsers), MessageUtils.get("error.field.targetUserNotFound"));
     }
 
     private void assertRolesExist(List<String> targetRoles) {
@@ -247,7 +249,7 @@ public class ShareController {
         Set<String> existingRoles = roleMapper.selectList(roleWrapper).stream()
                 .map(RoleDto::getRoleCode)
                 .collect(Collectors.toSet());
-        Assert.isTrue(existingRoles.containsAll(targetRoles), "目标角色不存在");
+        Assert.isTrue(existingRoles.containsAll(targetRoles), MessageUtils.get("error.field.targetRoleNotFound"));
     }
 
     private boolean isValidResourceType(String resourceType) {

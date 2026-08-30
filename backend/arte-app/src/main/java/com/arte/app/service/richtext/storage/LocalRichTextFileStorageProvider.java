@@ -3,6 +3,7 @@ package com.arte.app.service.richtext.storage;
 import cn.hutool.core.util.StrUtil;
 import com.arte.app.common.enums.richtext.FileStorageTypeEnum;
 import com.arte.app.config.bean.RichTextStorageProperties;
+import com.arte.core.i18n.MessageUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -152,17 +153,17 @@ public class LocalRichTextFileStorageProvider implements RichTextFileStorageProv
                 storagePath = richTextStorageProperties.getLocal().getFilePath();
                 relativePath = urlPath.substring(filePrefix.length());
             } else {
-                throw new IOException("URL 不属于当前富文本文件存储");
+                throw new IOException(MessageUtils.get("error.file.urlNotCurrentStorage"));
             }
 
             Path rootPath = Paths.get(storagePath).toAbsolutePath().normalize();
             Path targetFile = rootPath.resolve(relativePath).normalize();
             if (!targetFile.startsWith(rootPath)) {
-                throw new IOException("非法文件路径");
+                throw new IOException(MessageUtils.get("error.file.illegalPath"));
             }
             return targetFile;
         } catch (IllegalArgumentException e) {
-            throw new IOException("非法文件 URL", e);
+            throw new IOException(MessageUtils.get("error.file.illegalUrl"), e);
         }
     }
 }

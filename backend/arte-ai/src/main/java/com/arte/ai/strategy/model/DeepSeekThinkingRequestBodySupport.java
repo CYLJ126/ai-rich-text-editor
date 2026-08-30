@@ -1,5 +1,6 @@
 package com.arte.ai.strategy.model;
 
+import com.arte.core.i18n.MessageUtils;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
 import org.springframework.http.codec.json.JacksonJsonEncoder;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -57,7 +58,7 @@ final class DeepSeekThinkingRequestBodySupport {
                 SerializationContext context) throws JacksonException {
             JsonNode requestNode = DEFAULT_OBJECT_MAPPER.valueToTree(request);
             if (!(requestNode instanceof ObjectNode objectNode)) {
-                throw new IllegalStateException("DeepSeek 请求体必须为 JSON 对象");
+                throw new IllegalStateException(MessageUtils.get("error.ai.deepseekBodyMustBeObject"));
             }
             objectNode.set(
                     "thinking",

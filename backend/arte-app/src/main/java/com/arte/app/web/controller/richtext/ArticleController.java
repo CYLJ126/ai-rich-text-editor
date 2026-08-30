@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -101,12 +103,12 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/getArticleById")
     public ResultContext<ArticleDto> getArticleById(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
         // 使用 unfiltered 查询绕过 MyBatis 拦截器的 create_by 条件，
         // 以便访问公共/共享文章（非本人创建）
         ArticleDto result = articleService.getArticleById(article.getId());
         if (result == null) {
-            return ResultContext.fail("文章不存在");
+            return ResultContext.fail("error.article.notFound");
         }
         result.setEffectivePermission(permissionValidator.assertCanRead(result));
         return ResultContext.success(result);
@@ -127,11 +129,11 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/addArticle")
     public ResultContext<ArticleDto> addArticle(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getTitle(), "文章标题不能为空");
-        Assert.notNull(article.getCatalogId(), "文章必须挂载到目录节点下");
+        Assert.notNull(article.getTitle(), MessageUtils.get("error.field.articleTitleRequired"));
+        Assert.notNull(article.getCatalogId(), MessageUtils.get("error.field.articleCatalogRequired"));
         CatalogDto parent = catalogMapper.getByIdUnfiltered(article.getCatalogId());
         if (parent == null) {
-            throw new BusinessException("父目录不存在");
+            throw new BusinessException("error.catalog.parentNotFound");
         }
         permissionValidator.assertCanCreateChild(parent);
         article.setIsPublic(Boolean.TRUE.equals(parent.getIsPublic()));
@@ -175,7 +177,7 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/updateArticle")
     public ResultContext<Boolean> updateArticle(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
         permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
         ArticleDto updateParam = new ArticleDto();
         updateParam.setId(article.getId());
@@ -224,7 +226,7 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/listHistory")
     public ResultContext<List<ArticleHistoryPo>> listHistory(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
         permissionValidator.assertCanRead(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
         return ResultContext.success(articleService.listHistory(article.getId()));
     }
@@ -232,9 +234,9 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/getHistoryById")
     public ResultContext<ArticleHistoryPo> getHistoryById(@RequestBody ArticleHistoryPo history) {
-        Assert.notNull(history.getId(), "历史版本ID不能为空");
+        Assert.notNull(history.getId(), MessageUtils.get("error.field.historyIdRequired"));
         ArticleHistoryPo result = articleService.getHistoryById(history.getId());
-        Assert.notNull(result, "历史版本不存在");
+        Assert.notNull(result, MessageUtils.get("error.field.historyNotFound"));
         permissionValidator.assertCanRead(ResourceTypeEnum.ARTICLE.getValue(), result.getArticleId());
         return ResultContext.success(result);
     }
@@ -245,10 +247,10 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/getEditorArticleById")
     public ResultContext<ArticleDto> getEditorArticleById(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
         ArticleDto result = articleService.getEditorArticleById(article.getId());
         if (result == null) {
-            return ResultContext.fail("文章不存在");
+            return ResultContext.fail("error.article.notFound");
         }
         result.setEffectivePermission(permissionValidator.assertCanRead(result));
         return ResultContext.success(result);
@@ -261,12 +263,12 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/updateArticleCommentMarks")
     public ResultContext<Boolean> updateArticleCommentMarks(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
-        Assert.notBlank(article.getContentJson(), "文章内容不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notBlank(article.getContentJson(), MessageUtils.get("error.field.articleContentRequired"));
         permissionValidator.assertCanComment(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
         if (!permissionValidator.canWrite(ResourceTypeEnum.ARTICLE.getValue(), article.getId())) {
             ArticleDto oldArticle = articleService.getById(article.getId());
-            Assert.notNull(oldArticle, "文章不存在");
+            Assert.notNull(oldArticle, MessageUtils.get("error.article.notFound"));
             Assert.isTrue(
                     hasSameContentWithoutCommentMarks(oldArticle.getContentJson(), article.getContentJson()),
                     "仅有批注权限时只能更新批注标记");
@@ -294,7 +296,7 @@ public class ArticleController extends AbstractStreamController {
     @PostMapping("/saveArticleSummary")
     @PreAuthorize("@pcs.check('summary:update')")
     public ResultContext<Void> saveArticleSummary(@RequestBody ArticleDto article) {
-        Assert.isTrue(article.getId() != null, "文章 ID 不能为空");
+        Assert.isTrue(article.getId() != null, MessageUtils.get("error.field.articleIdRequired"));
         UpdateWrapper<ArticleDto> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq(ArticlePo.COL_ID, article.getId());
         updateWrapper.set(ArticlePo.COL_SUMMARY, article.getSummary());
@@ -424,7 +426,7 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/deleteArticle")
     public ResultContext<Boolean> deleteArticle(@RequestBody ArticleDto article) {
-        Assert.notNull(article.getId(), "文章ID不能为空");
+        Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
         permissionValidator.assertCanDelete(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
         boolean remove = articleService.removeById(article.getId());
         if (!remove) {
@@ -500,7 +502,7 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/listByCatalog")
     public ResultContext<List<ArticleDto>> listByCatalog(@RequestBody ArticleDto param) {
-        Assert.notNull(param.getCatalogId(), "目录ID不能为空");
+        Assert.notNull(param.getCatalogId(), MessageUtils.get("error.field.catalogIdRequired"));
         // 先校验目录读权限，再使用 unfiltered 查询绕过 create_by 拦截
         permissionValidator.assertCanRead(ResourceTypeEnum.CATALOG.getValue(), param.getCatalogId());
         List<ArticleDto> list = articleService.listByCatalogIdUnfiltered(param.getCatalogId());
@@ -513,8 +515,8 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/moveToCatalog")
     public ResultContext<Boolean> moveToCatalog(@RequestBody ArticleDto param) {
-        Assert.notNull(param.getId(), "文章ID不能为空");
-        Assert.notNull(param.getCatalogId(), "目标目录ID不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notNull(param.getCatalogId(), MessageUtils.get("error.field.targetCatalogIdRequired"));
         permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), param.getId());
         permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), param.getCatalogId());
         return ResultContext.wrap(() -> {
@@ -534,10 +536,10 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/reorderArticles")
     public ResultContext<Boolean> reorderArticles(@RequestBody List<ArticleDto> list) {
-        Assert.notEmpty(list, "文章列表不能为空");
+        Assert.notEmpty(list, MessageUtils.get("error.field.articleListRequired"));
         for (ArticleDto article : list) {
-            Assert.notNull(article.getId(), "文章ID不能为空");
-            Assert.notNull(article.getOrderId(), "文章排序值不能为空");
+            Assert.notNull(article.getId(), MessageUtils.get("error.field.articleIdRequired"));
+            Assert.notNull(article.getOrderId(), MessageUtils.get("error.field.articleOrderRequired"));
             permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
         }
         return ResultContext.wrap(() -> articleService.reorder(list));
@@ -549,8 +551,8 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/batchMoveToCatalogByIds")
     public ResultContext<Boolean> batchMoveToCatalogByIds(@RequestBody ArticleBatchMoveParam param) {
-        Assert.notEmpty(param.getArticleIds(), "文章ID列表不能为空");
-        Assert.notNull(param.getCatalogId(), "目标目录ID不能为空");
+        Assert.notEmpty(param.getArticleIds(), MessageUtils.get("error.field.articleIdListRequired"));
+        Assert.notNull(param.getCatalogId(), MessageUtils.get("error.field.targetCatalogIdRequired"));
         permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), param.getCatalogId());
         for (Integer articleId : param.getArticleIds()) {
             permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), articleId);
@@ -581,7 +583,7 @@ public class ArticleController extends AbstractStreamController {
                 return ResultContext.success(result);
             }
         }
-        return ResultContext.fail("文章不存在");
+        return ResultContext.fail("error.article.notFound");
     }
 
     /**
@@ -593,7 +595,7 @@ public class ArticleController extends AbstractStreamController {
         Integer id = req.getId();
         Boolean isPublic = req.getIsPublic();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "文章ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.articleIdRequired"));
         Assert.notNull(isPublic, "isPublic不能为空");
         permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), id);
         if (targetCatalogId != null) {
@@ -611,8 +613,8 @@ public class ArticleController extends AbstractStreamController {
     public ResultContext<ArticleDto> copyToMySpace(@RequestBody CopyToMySpaceParam req) {
         Integer id = req.getId();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "文章ID不能为空");
-        Assert.notNull(targetCatalogId, "目标目录ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notNull(targetCatalogId, MessageUtils.get("error.field.targetCatalogIdRequired"));
         permissionValidator.assertCanRead(ResourceTypeEnum.ARTICLE.getValue(), id);
         permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), targetCatalogId);
         ArticleDto result = articleService.copyToMySpace(id, targetCatalogId);
@@ -627,8 +629,8 @@ public class ArticleController extends AbstractStreamController {
     public ResultContext<Boolean> publishToPublic(@RequestBody PublishToPublicParam req) {
         Integer id = req.getId();
         Integer targetCatalogId = req.getTargetCatalogId();
-        Assert.notNull(id, "文章ID不能为空");
-        Assert.notNull(targetCatalogId, "目标目录ID不能为空");
+        Assert.notNull(id, MessageUtils.get("error.field.articleIdRequired"));
+        Assert.notNull(targetCatalogId, MessageUtils.get("error.field.targetCatalogIdRequired"));
         permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), id);
         permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), targetCatalogId);
         articleService.publishToPublic(id, targetCatalogId);

@@ -81,7 +81,7 @@ public class ShareServiceImpl extends ServiceImpl<ShareMapper, ShareDto> impleme
 
         ShareDto inherited = findInheritedCatalogShare(resourceType, resourceId, targetUser);
         if (inherited == null) {
-            throw new BusinessException("分享记录不存在");
+            throw new BusinessException("error.share.notFound");
         }
         getBaseMapper().deleteShare(ResourceTypeEnum.CATALOG.getValue(), inherited.getResourceId(), TARGET_USER, targetUser, null);
     }

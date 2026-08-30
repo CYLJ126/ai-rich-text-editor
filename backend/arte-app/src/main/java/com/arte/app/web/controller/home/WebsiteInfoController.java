@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.home;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.text.CharSequenceUtil;
 import com.arte.app.api.home.WebsiteInfoService;
@@ -39,10 +41,10 @@ public class WebsiteInfoController {
     @PostMapping("/listWebsiteNews")
     @PreAuthorize("@pcs.check('website:list')")
     public ResultContext<List<WebsiteInfoDto>> listWebsiteNews(@RequestBody WebsiteInfoDto param) {
-        Assert.notNull(param.getTagName(), "新闻标签名不能为空");
+        Assert.notNull(param.getTagName(), MessageUtils.get("error.field.newsTagNameRequired"));
         WebsiteInfoTypeEnum websiteInfoType = WebsiteInfoTypeEnum.getByLabel(param.getTagName());
         if (Objects.isNull(websiteInfoType)) {
-            return ResultContext.fail("不存在此新闻类型");
+            return ResultContext.fail("error.news.typeNotFound");
         } else {
             param.setType(websiteInfoType.getValue());
             return ResultContext.wrap(param, websiteInfoService::listByType);
@@ -58,7 +60,7 @@ public class WebsiteInfoController {
     @PostMapping("/getWebsiteLogo")
     @PreAuthorize("@pcs.check('website:list')")
     public ResponseEntity<org.springframework.core.io.Resource> getWebsiteLogo(@RequestBody WebsiteInfoDto param) {
-        Assert.notNull(param.getId(), "网站 ID不能为空");
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.websiteIdRequired"));
         Assert.notNull(param.getLogoUrl(), "logo 地址不能为空");
         // 如果获取不到 logo，返回默认 logo，此时会清空 param 中的 logoUrl 字段，不是合理的处理方式
         byte[] imageBytes = websiteInfoService.getLogoImg(param);

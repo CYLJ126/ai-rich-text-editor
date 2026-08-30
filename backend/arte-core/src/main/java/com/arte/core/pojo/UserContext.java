@@ -1,5 +1,7 @@
 package com.arte.core.pojo;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 
@@ -23,7 +25,7 @@ public class UserContext {
 
     public static UserOnlineInfo getUserOnlineInfo() {
         UserOnlineInfo userInfo = USER_INFO.get();
-        Assert.notNull(userInfo, "无法获取登录用户信息！");
+        Assert.notNull(userInfo, MessageUtils.get("error.field.loginUserUnavailable"));
         return userInfo;
     }
 

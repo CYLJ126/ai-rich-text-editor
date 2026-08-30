@@ -75,7 +75,7 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
             if (!regenerate) {
                 MessageDto toolMessage = transferToolResponseMessage(toolResponseMessage, chatRequest);
                 if (!messageService.save(toolMessage)) {
-                    throw new ChatException("工具响应消息保存失败");
+                    throw new ChatException("error.ai.toolResponseSaveFailed");
                 }
                 conversationService.incrementMessageCount(chatRequest.getConvId(), 1, chatRequest.getUserName());
                 log.info("工具响应消息已保存，消息 ID：{}，工具数量：{}", toolMessage.getMessageId(), toolResponseMessage.getResponses().size());
@@ -187,11 +187,11 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
 
     private void replaceRegeneratedMessage(List<MessageDto> messages, ChatRequestDto chatRequest) {
         if (messages.isEmpty()) {
-            throw new ChatException("AI 未返回可保存的消息");
+            throw new ChatException("error.ai.noSaveableResponse");
         }
         MessageDto original = messageService.getByMessageId(chatRequest.getAssistantMessageId());
         if (original == null) {
-            throw new ChatException("要重新生成的消息不存在");
+            throw new ChatException("error.ai.regenerateMessageNotFound");
         }
         MessageDto replacement = messages.getFirst();
         original.setOptimizedContent(replacement.getContent());
@@ -199,7 +199,7 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
         original.setUpdateBy(replacement.getUpdateBy());
         original.setUpdateTime(LocalDateTime.now());
         if (!messageService.updateById(original)) {
-            throw new ChatException("重新生成消息保存失败");
+            throw new ChatException("error.ai.regenerateSaveFailed");
         }
     }
 
@@ -310,7 +310,7 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
         if (Boolean.TRUE.equals(chatRequest.getRegenerate())) {
             MessageDto userMessage = messageService.getByMessageId(chatRequest.getUserMessageId());
             if (userMessage == null) {
-                throw new ChatException("未找到该回复对应的用户消息");
+                throw new ChatException("error.ai.parentReplyNotFound");
             }
             dbMessages = messageService.selectConversationContextMessagesBefore(
                     chatRequest.getConvId(), userMessage.getId(), chatRequest.getContextWindow());

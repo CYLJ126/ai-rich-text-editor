@@ -8,6 +8,7 @@ import com.arte.app.pojo.home.website.FieldMapping;
 import com.arte.app.pojo.home.website.NewsVo;
 import com.arte.app.pojo.home.website.WebsiteInfoDto;
 import com.arte.core.enums.HttpRequestTypeEnum;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.serialize.SerializerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -34,7 +35,7 @@ public class NewsListJsonParserTest {
         try (InputStream input = NewsListJsonParser.class.getClassLoader().getResourceAsStream("json/website/" + name)) {
             return IoUtil.read(input, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new RuntimeException("请求参数解析错误");
+            throw new RuntimeException(MessageUtils.get("error.common.requestParse"));
         }
     }
 

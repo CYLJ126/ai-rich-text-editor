@@ -205,7 +205,7 @@ public class WebsiteInfoServiceImpl extends ServiceImpl<WebsiteInfoMapper, Websi
         if (parserMap.containsKey(resolveType)) {
             return parserMap.get(resolveType);
         }
-        throw new BusinessException("解析器配置错误");
+        throw new BusinessException("error.common.parserConfig");
     }
 
     private static String getWebsiteTypeKey(String key) {

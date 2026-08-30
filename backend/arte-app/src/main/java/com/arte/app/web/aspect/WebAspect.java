@@ -81,7 +81,7 @@ public class WebAspect {
                 }
                 return result;
             } else {
-                throw new CommonException("执行异常", throwable);
+                throw new CommonException("error.common.exec", throwable);
             }
         } finally {
             //清空缓存

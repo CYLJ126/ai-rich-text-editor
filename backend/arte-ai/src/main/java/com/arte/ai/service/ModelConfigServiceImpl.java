@@ -1,5 +1,7 @@
 package com.arte.ai.service;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -58,7 +60,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
                 .eq(ModelConfigDto::getModelId, dto.getModelId())
                 .exists();
         if (exists) {
-            throw new BusinessException("该提供商下模型 ID 已存在: " + dto.getModelId());
+            throw new BusinessException(MessageUtils.get("error.ai.modelIdDuplicate", dto.getModelId()));
         }
         dto.setIcon(dto.getProvider().getIcon());
         if (save(dto)) {
@@ -67,7 +69,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
             }
             return dto;
         }
-        throw new BusinessException("添加模型配置失败");
+        throw new BusinessException("error.ai.modelAddFailed");
     }
 
     @Override
@@ -82,7 +84,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
                     .eq(ModelConfigDto::getModelId, dto.getModelId())
                     .exists();
             if (conflicts) {
-                throw new BusinessException("该提供商下模型ID已存在: " + dto.getModelId());
+                throw new BusinessException(MessageUtils.get("error.ai.modelIdDuplicate", dto.getModelId()));
             }
         }
         boolean updated = updateById(dto);
@@ -130,7 +132,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
     public Boolean testConnectivity(ModelProviderEnum provider, String modelId) {
         ModelConfigDto config = getAndCheckExists(provider, modelId);
         if (!StrUtil.isNotBlank(config.getApiKey())) {
-            throw new BusinessException("该模型未配置 ApiKey, 无法测试连通性");
+            throw new BusinessException("error.ai.testConnNoApiKey");
         }
         String decryptedKey = Sm2UtilForSmCrypto.decryptHexStr(privateKeyText, config.getApiKey());
         try {

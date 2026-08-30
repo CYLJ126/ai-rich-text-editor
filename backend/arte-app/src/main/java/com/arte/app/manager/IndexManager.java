@@ -1,5 +1,7 @@
 package com.arte.app.manager;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.io.resource.ResourceUtil;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
@@ -68,7 +70,7 @@ public class IndexManager {
             createIndex(indexName, settingsClasspath);
             log.info("创建索引 {} 成功", indexName);
         } catch (IOException e) {
-            throw new ElasticsearchException("创建索引失败：" + indexName, "ensureIndex", indexName, e);
+            throw new ElasticsearchException(MessageUtils.get("error.es.createIndexFailed", indexName), "ensureIndex", indexName, e);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.arte.app.web.security;
 
 import com.arte.app.pojo.rbac.JwtUserDto;
+import com.arte.core.i18n.MessageUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -38,7 +39,7 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
             return new UsernamePasswordAuthenticationToken(jwtUserDto.getUsername(), password, userDetails.getAuthorities());
         }
 
-        throw new BadCredentialsException("认证失败!");
+        throw new BadCredentialsException(MessageUtils.get("error.auth.notLoggedIn"));
     }
 
     @Override

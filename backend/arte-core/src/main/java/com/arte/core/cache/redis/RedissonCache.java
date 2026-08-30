@@ -4,6 +4,7 @@ import com.arte.core.cache.Cache;
 import com.arte.core.cache.CacheConfig;
 import com.arte.core.cache.CacheKeyGenerator;
 import com.arte.core.cache.CacheableDataSource;
+import com.arte.core.i18n.MessageUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.*;
 
@@ -349,7 +350,7 @@ public class RedissonCache<K, V> implements Cache<K, V>, CacheableDataSource<K, 
         } catch (Exception e) {
             log.error("putAndUpdate 缓存时异常，key: {}", key, e);
             // 如果数据源更新失败，不更新缓存
-            throw new RuntimeException("更新缓存异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.cacheUpdateFailed"), e);
         }
     }
 
@@ -362,7 +363,7 @@ public class RedissonCache<K, V> implements Cache<K, V>, CacheableDataSource<K, 
             evict(key);
         } catch (Exception e) {
             log.error("evictAndDelete 缓存时异常, key：{}", key, e);
-            throw new RuntimeException("删除缓存异常", e);
+            throw new RuntimeException(MessageUtils.get("error.common.cacheDeleteFailed"), e);
         }
     }
 

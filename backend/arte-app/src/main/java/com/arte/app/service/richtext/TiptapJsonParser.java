@@ -1,5 +1,7 @@
 package com.arte.app.service.richtext;
 
+import com.arte.core.i18n.MessageUtils;
+
 import com.arte.ai.api.EmbeddingService;
 import com.arte.app.common.enums.richtext.TiptapNodeTypeEnum;
 import com.arte.app.common.utils.TokenCountUtil;
@@ -78,10 +80,10 @@ public class TiptapJsonParser {
             doc = objectMapper.readValue(tiptapJson, TiptapNode.class);
         } catch (Exception e) {
             log.error("解析 Tiptap JSON 异常，articleId={}", articleId, e);
-            throw new IllegalArgumentException("无效的 Tiptap JSON: " + e.getMessage(), e);
+            throw new IllegalArgumentException(MessageUtils.get("error.tiptap.invalidJson", e.getMessage()), e);
         }
         if (!"doc".equals(doc.getType())) {
-            throw new IllegalArgumentException("根节点类型必须为 'doc'，实际为: " + doc.getType());
+            throw new IllegalArgumentException(MessageUtils.get("error.tiptap.rootMustBeDoc", doc.getType()));
         }
         ChunkingContext context = new ChunkingContext(articleId, articleDocument);
         traverseNodes(doc.getContent(), context);

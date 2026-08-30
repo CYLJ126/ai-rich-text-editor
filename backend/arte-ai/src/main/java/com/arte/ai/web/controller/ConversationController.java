@@ -1,5 +1,7 @@
 package com.arte.ai.web.controller;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import com.arte.ai.api.ConversationService;
 import com.arte.ai.pojo.conversation.ConversationDto;
@@ -59,8 +61,8 @@ public class ConversationController {
     @AnonymousAccess
     @PostMapping("/toggleConversationPin")
     public ResultContext<Boolean> toggleConversationPin(@RequestBody ConversationUpsertDto dto) {
-        Assert.notNull(dto.getConvId(), "会话 ID 不能为空");
-        Assert.notNull(dto.getPinFlag(), "会话是否置顶 不能为空");
+        Assert.notNull(dto.getConvId(), MessageUtils.get("error.ai.convIdRequired"));
+        Assert.notNull(dto.getPinFlag(), MessageUtils.get("error.field.conversationPinRequired"));
         boolean result = conversationService.lambdaUpdate()
                 .eq(ConversationDto::getConvId, dto.getConvId())
                 .set(ConversationDto::getPinFlag, dto.getPinFlag())
@@ -71,8 +73,8 @@ public class ConversationController {
     @AnonymousAccess
     @PostMapping("/toggleConversationStatus")
     public ResultContext<Boolean> toggleConversationStatus(@RequestBody ConversationUpsertDto dto) {
-        Assert.notNull(dto.getConvId(), "会话 ID 不能为空");
-        Assert.notNull(dto.getStatus(), "会话状态不能为空");
+        Assert.notNull(dto.getConvId(), MessageUtils.get("error.ai.convIdRequired"));
+        Assert.notNull(dto.getStatus(), MessageUtils.get("error.field.conversationStatusRequired"));
         boolean result = conversationService.lambdaUpdate()
                 .eq(ConversationDto::getConvId, dto.getConvId())
                 .set(ConversationDto::getStatus, dto.getStatus())

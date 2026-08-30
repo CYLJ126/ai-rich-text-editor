@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.base;
 
+import com.arte.core.i18n.MessageUtils;
+
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -34,15 +36,15 @@ public class SummaryController {
     @PostMapping("/saveSummary")
     @PreAuthorize("@pcs.check('summary:add')")
     public ResultContext<Boolean> saveSummary(@RequestBody SummaryDto param) {
-        Assert.notNull(param.getTargetId(), "查询总结内容时，目标 ID 不能为空");
-        Assert.notNull(param.getType(), "查询总结内容时，目标类型不能为空");
+        Assert.notNull(param.getTargetId(), MessageUtils.get("error.field.summaryTargetIdRequired"));
+        Assert.notNull(param.getType(), MessageUtils.get("error.field.summaryTargetTypeRequired"));
         QueryWrapper<SummaryDto> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(SummaryPo.COL_TARGET_ID, param.getTargetId());
         queryWrapper.eq(SummaryPo.COL_TYPE, param.getType());
         queryWrapper.eq(Objects.nonNull(param.getId()), SummaryPo.COL_ID, param.getId());
         SummaryDto one = summaryService.getOne(queryWrapper);
         if (Objects.isNull(one)) {
-            Assert.notNull(param.getContent(), "查询总结内容时，内容不能为空");
+            Assert.notNull(param.getContent(), MessageUtils.get("error.field.summaryContentRequired"));
             return ResultContext.wrap(() -> summaryService.save(param));
         } else {
             one.setContent(StrUtil.nullToEmpty(param.getContent()));
@@ -53,16 +55,16 @@ public class SummaryController {
     @PostMapping("/getSummaryByTargetIdAndType")
     @PreAuthorize("@pcs.check('summary:list')")
     public ResultContext<SummaryDto> getSummaryByTargetIdAndType(@RequestBody SummaryDto param) {
-        Assert.notNull(param.getTargetId(), "查询总结内容时，目标 ID 不能为空");
-        Assert.notNull(param.getType(), "查询总结内容时，目标类型不能为空");
+        Assert.notNull(param.getTargetId(), MessageUtils.get("error.field.summaryTargetIdRequired"));
+        Assert.notNull(param.getType(), MessageUtils.get("error.field.summaryTargetTypeRequired"));
         return ResultContext.wrap(() -> summaryService.getSummaryByTargetIdAndType(param.getTargetId(), param.getType()));
     }
 
     @PostMapping("/formatContent")
     @PreAuthorize("@pcs.check('summary:format')")
     public ResultContext<String> formatContent(@RequestBody SummaryDto param) {
-        Assert.notNull(param.getContent(), "内容不能为空");
-        Assert.notNull(param.getOperationType(), "操作类型不能为空");
+        Assert.notNull(param.getContent(), MessageUtils.get("error.field.contentRequired"));
+        Assert.notNull(param.getOperationType(), MessageUtils.get("error.field.operationTypeRequired"));
         return ResultContext.wrap(param.getContent(), param.getOperationType(), summaryService::formatContent);
     }
 
