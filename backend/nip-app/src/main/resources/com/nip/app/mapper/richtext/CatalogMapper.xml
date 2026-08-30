@@ -75,6 +75,19 @@
         <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
 
+    <select id="listDescendantsByRootIds" resultMap="catalogMap">
+        with recursive descendants as (
+            select id from nip_rt_catalog
+            where id in
+            <foreach collection="rootIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            union
+            select c.id from nip_rt_catalog c
+            inner join descendants d on c.father_id = d.id
+        )
+        select <include refid="baseColumn" /> from nip_rt_catalog
+        where id in (select id from descendants)
+    </select>
+
     <select id="listAncestorIds" resultType="integer">
         with recursive ancestors as (
             select id, father_id from nip_rt_catalog where id = #{id}
@@ -107,6 +120,21 @@
             <if test="fatherId != null">AND father_id = #{fatherId}</if>
             <if test="createBy != null and createBy != ''">AND create_by = #{createBy}</if>
             AND (is_public = 0 or is_public is null)
+        </where>
+    </select>
+
+    <select id="listOwnedOrPublicCatalogs" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog
+        where is_public = 1
+           or ((is_public = 0 or is_public is null) and create_by = #{currentUser})
+    </select>
+
+    <select id="findMaxOrder" resultType="integer">
+        select coalesce(max(order_id), 0)
+        from nip_rt_catalog
+        <where>
+            <if test="fatherId != null">father_id = #{fatherId}</if>
+            <if test="fatherId == null">father_id is null</if>
         </where>
     </select>
 </mapper>

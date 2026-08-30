@@ -129,11 +129,11 @@ public class ArticleController extends AbstractStreamController {
     public ResultContext<ArticleDto> addArticle(@RequestBody ArticleDto article) {
         Assert.notNull(article.getTitle(), "文章标题不能为空");
         Assert.notNull(article.getCatalogId(), "文章必须挂载到目录节点下");
-        permissionValidator.assertCanCreateChild(ResourceTypeEnum.CATALOG.getValue(), article.getCatalogId());
         CatalogDto parent = catalogMapper.getByIdUnfiltered(article.getCatalogId());
         if (parent == null) {
             throw new BusinessException("父目录不存在");
         }
+        permissionValidator.assertCanCreateChild(parent);
         article.setIsPublic(Boolean.TRUE.equals(parent.getIsPublic()));
         String userName = UserContext.getUserOnlineInfo().getUserName();
         article.setAuthor(userName);
@@ -477,9 +477,6 @@ public class ArticleController extends AbstractStreamController {
         String currentUser = UserContext.getUserName();
         List<ArticleDto> result = articleService.listRecentAccessible(
                 currentUser, listRoleCodes(currentUser), RECENT_ACCESSIBLE_ARTICLE_LIMIT);
-        for (ArticleDto article : result) {
-            article.setEffectivePermission(permissionValidator.getEffectivePermission(article));
-        }
         return ResultContext.success(result);
     }
 

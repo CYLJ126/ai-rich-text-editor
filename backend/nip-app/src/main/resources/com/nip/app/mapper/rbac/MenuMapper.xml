@@ -71,14 +71,8 @@
     </sql>
 
     <select id="listRecursive" parameterType="com.nip.app.pojo.rbac.MenuDto" resultMap="tagMap">
-        with recursive rec_query as (
-        select <include refid="recursiveColumn" /> from nip_rbac_menu
-        union all
-        select recu.id, recu.menu_code, recu.menu_name, recu.icon, recu.menu_url, recu.father_id, recu.status,
-        recu.show_flag, recu.order_id
-        from nip_rbac_menu recu join rec_query where recu.father_id = rec_query.id
-        )
-        select <include refid="recursiveColumn" /> from rec_query
+        select id, menu_code, menu_name, icon, menu_url, father_id, status, show_flag, order_id
+        from nip_rbac_menu
         <include refid="baseWhere" />
         order by order_id
     </select>

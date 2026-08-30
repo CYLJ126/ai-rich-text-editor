@@ -19,6 +19,7 @@
         <result property="articleType" column="article_type" jdbcType="VARCHAR"/>
         <result property="characterCount" column="character_count" jdbcType="INTEGER"/>
         <result property="rowVersion" column="row_version" jdbcType="INTEGER"/>
+        <result property="effectivePermission" column="effective_permission" jdbcType="VARCHAR"/>
         <result property="createBy" column="create_by" jdbcType="VARCHAR"/>
         <result property="updateBy" column="update_by" jdbcType="VARCHAR"/>
         <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
@@ -51,6 +52,23 @@
         where id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
         and is_delete = 0
+    </select>
+
+    <select id="listByCatalogIdsOrIds" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where is_delete = 0
+          and (
+            <if test="catalogIds != null and catalogIds.size() > 0">
+              catalog_id in
+              <foreach collection="catalogIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+            <if test="articleIds != null and articleIds.size() > 0">
+              <if test="catalogIds != null and catalogIds.size() > 0">or</if>
+              id in
+              <foreach collection="articleIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+          )
+        order by catalog_id, order_id
     </select>
 
     <select id="listPublicByCatalogId" resultMap="articleMap">
@@ -131,6 +149,79 @@
         limit #{limit}
     </select>
 
+    <select id="listEffectivePermissions" resultMap="articleMap">
+        with recursive ancestors as (
+            select a.id as article_id, c.id as catalog_id, c.father_id
+            from nip_rt_article a
+            left join nip_rt_catalog c on c.id = a.catalog_id
+            where a.id in
+            <foreach collection="articleIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            union all
+            select ancestors.article_id, c.id, c.father_id
+            from nip_rt_catalog c
+            inner join ancestors on c.id = ancestors.father_id
+        )
+        select a.id,
+               case
+                   when a.create_by = #{currentUser} then 'FULL_CONTROL'
+                   when max(case
+                       when s.resource_type = 'ARTICLE' then
+                           case s.permission
+                               when 'FULL_CONTROL' then 40
+                               when 'READ_WRITE' then 30
+                               when 'COMMENT' then 20
+                               else 10
+                           end
+                       when s.resource_type = 'CATALOG' then
+                           case coalesce(s.article_permission, 'READ')
+                               when 'FULL_CONTROL' then 40
+                               when 'READ_WRITE' then 30
+                               when 'COMMENT' then 20
+                               else 10
+                           end
+                       else 0
+                   end) = 40 then 'FULL_CONTROL'
+                   when max(case
+                       when s.resource_type = 'ARTICLE' and s.permission = 'READ_WRITE' then 30
+                       when s.resource_type = 'CATALOG' and s.article_permission = 'READ_WRITE' then 30
+                       else 0
+                   end) = 30 then 'READ_WRITE'
+                   when max(case
+                       when s.resource_type = 'ARTICLE' and s.permission = 'COMMENT' then 20
+                       when s.resource_type = 'CATALOG' and s.article_permission = 'COMMENT' then 20
+                       else 0
+                   end) = 20 then 'COMMENT'
+                   else 'READ'
+               end as effective_permission
+        from nip_rt_article a
+        left join ancestors on ancestors.article_id = a.id
+        left join nip_rt_share s on (
+            (s.resource_type = 'ARTICLE' and s.resource_id = a.id)
+            or (s.resource_type = 'CATALOG' and s.resource_id = ancestors.catalog_id)
+        ) and (
+            (s.target_type = 'USER' and s.target_user = #{currentUser})
+            <if test="targetRoles != null and targetRoles.size() > 0">
+              or (s.target_type = 'ROLE' and s.target_role in
+              <foreach collection="targetRoles" item="role" open="(" separator="," close=")">
+                #{role}
+              </foreach>)
+            </if>
+        )
+        where a.id in
+        <foreach collection="articleIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        group by a.id, a.create_by
+    </select>
+
+    <select id="findMaxOrder" resultType="integer">
+        select coalesce(max(order_id), 0)
+        from nip_rt_article
+        <where>
+            <if test="catalogId != null">catalog_id = #{catalogId}</if>
+            <if test="catalogId == null">catalog_id is null</if>
+            and is_delete = 0
+        </where>
+    </select>
+
     <select id="listByCatalogIdUnfiltered" resultMap="articleMap">
         select <include refid="withoutContent" /> from nip_rt_article
         where catalog_id = #{catalogId} and is_delete = 0
@@ -141,6 +232,14 @@
         select <include refid="withoutContent" /> from nip_rt_article
         where (is_public = 0 or is_public is null)
           and create_by = #{currentUser} and is_delete = 0
+        order by catalog_id, order_id
+    </select>
+
+    <select id="listOwnedOrPublicArticles" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where is_delete = 0
+          and (is_public = 1
+            or ((is_public = 0 or is_public is null) and create_by = #{currentUser}))
         order by catalog_id, order_id
     </select>
 

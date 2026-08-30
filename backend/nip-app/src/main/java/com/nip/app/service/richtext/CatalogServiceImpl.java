@@ -2,11 +2,9 @@ package com.nip.app.service.richtext;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.BooleanUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nip.app.api.richtext.ArticleService;
 import com.nip.app.api.richtext.CatalogService;
-import com.nip.app.api.richtext.ShareService;
 import com.nip.app.common.enums.ResourceTypeEnum;
 import com.nip.app.common.enums.richtext.ArticlePermissionEnum;
 import com.nip.app.common.enums.richtext.CatalogPermissionEnum;
@@ -43,9 +41,6 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
 
     @Resource
     private ArticleService articleService;
-
-    @Resource
-    private ShareService shareService;
 
     @Resource
     private ShareMapper shareMapper;
@@ -90,12 +85,7 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
 
     @Override
     public Integer findMaxOrder(Integer fatherId) {
-        QueryWrapper<CatalogDto> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq(Objects.nonNull(fatherId), CatalogPo.COL_FATHER_ID, fatherId);
-        queryWrapper.isNull(fatherId == null, CatalogPo.COL_FATHER_ID);
-        queryWrapper.orderBy(true, false, CatalogPo.COL_ORDER_ID);
-        List<CatalogDto> list = list(queryWrapper);
-        return CollUtil.isEmpty(list) ? 0 : list.getFirst().getOrderId();
+        return catalogMapper.findMaxOrder(fatherId);
     }
 
     @Override
@@ -194,25 +184,35 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
                         s -> s,
                         this::higherShare));
 
+        // 我的空间和公共空间分别由相同两张表提供，合并加载后在内存中分组
+        List<CatalogDto> ownedOrPublicCatalogs = catalogMapper.listOwnedOrPublicCatalogs(currentUser);
+        List<ArticleDto> ownedOrPublicArticles = articleMapper.listOwnedOrPublicArticles(currentUser);
+
         // 1. 我的空间
-        CatalogDto myParam = new CatalogDto();
-        myParam.setCreateBy(currentUser);
-        List<CatalogDto> myCatalogs = catalogMapper.listMyPrivateCatalogs(myParam);
+        List<CatalogDto> myCatalogs = ownedOrPublicCatalogs.stream()
+                .filter(catalog -> !Boolean.TRUE.equals(catalog.getIsPublic()))
+                .toList();
         List<CatalogDto> myTree = buildTree(myCatalogs);
-        List<ArticleDto> myArticles = articleMapper.listMyPrivateArticles(currentUser);
+        List<ArticleDto> myArticles = ownedOrPublicArticles.stream()
+                .filter(article -> !Boolean.TRUE.equals(article.getIsPublic()))
+                .toList();
         attachArticlesByMap(myTree, myArticles);
         setEffectivePermissions(myTree, shareMap, null, null);
 
         // 2. 与我分享
-        List<Integer> sharedCatalogIds = shareService.listSharedCatalogIds(currentUser, currentRoles);
-        List<Integer> sharedArticleIds = shareService.listSharedArticleIds(currentUser, currentRoles);
+        List<Integer> sharedCatalogIds = listSharedResourceIds(allShares, ResourceTypeEnum.CATALOG);
+        List<Integer> sharedArticleIds = listSharedResourceIds(allShares, ResourceTypeEnum.ARTICLE);
         List<CatalogDto> sharedTree = buildSharedTree(sharedCatalogIds, sharedArticleIds);
         setEffectivePermissions(sharedTree, shareMap, null, null);
 
         // 3. 公共空间
-        List<CatalogDto> publicCatalogs = catalogMapper.listPublicCatalogs();
+        List<CatalogDto> publicCatalogs = ownedOrPublicCatalogs.stream()
+                .filter(catalog -> Boolean.TRUE.equals(catalog.getIsPublic()))
+                .toList();
         List<CatalogDto> publicTree = buildTree(publicCatalogs);
-        List<ArticleDto> publicArticles = articleMapper.listPublicArticles();
+        List<ArticleDto> publicArticles = ownedOrPublicArticles.stream()
+                .filter(article -> Boolean.TRUE.equals(article.getIsPublic()))
+                .toList();
         attachArticlesByMap(publicTree, publicArticles);
         setEffectivePermissions(publicTree, shareMap, null, null);
 
@@ -316,6 +316,17 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
                 : share.getArticlePermission();
     }
 
+    private List<Integer> listSharedResourceIds(List<ShareDto> shares, ResourceTypeEnum resourceType) {
+        if (CollUtil.isEmpty(shares)) {
+            return Collections.emptyList();
+        }
+        return shares.stream()
+                .filter(share -> resourceType == ResourceTypeEnum.of(share.getResourceType()))
+                .map(ShareDto::getResourceId)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
     private List<String> listRoleCodes(String user) {
         List<RoleDto> roles = rbacRelationMapper.listRolesByUserName(user);
         if (CollUtil.isEmpty(roles)) {
@@ -333,20 +344,14 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
      */
     private List<CatalogDto> buildSharedTree(List<Integer> sharedCatalogIds, List<Integer> sharedArticleIds) {
         List<CatalogDto> result = new ArrayList<>();
-        Set<Integer> allCatalogIds = new LinkedHashSet<>();
+        List<CatalogDto> allCatalogs = Collections.emptyList();
 
-        // 收集被分享目录及其所有子孙目录
+        // 一条递归查询加载所有被分享目录及其子孙目录
         if (CollUtil.isNotEmpty(sharedCatalogIds)) {
-            for (Integer cid : sharedCatalogIds) {
-                allCatalogIds.add(cid);
-                allCatalogIds.addAll(catalogMapper.listDescendantIds(cid));
-            }
+            allCatalogs = catalogMapper.listDescendantsByRootIds(sharedCatalogIds);
         }
 
-
-        // 一次性加载所有相关目录
-        if (CollUtil.isNotEmpty(allCatalogIds)) {
-            List<CatalogDto> allCatalogs = catalogMapper.listByIds(new ArrayList<>(allCatalogIds));
+        if (CollUtil.isNotEmpty(allCatalogs)) {
             List<CatalogDto> tree = buildTree(allCatalogs);
             // 只保留被分享的根节点
             Set<Integer> rootIds = new HashSet<>(sharedCatalogIds);
@@ -355,21 +360,19 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
                     result.add(node);
                 }
             }
-            List<ArticleDto> inheritedArticles = new ArrayList<>();
-            for (Integer catalogId : allCatalogIds) {
-                inheritedArticles.addAll(articleMapper.listByCatalogIdUnfiltered(catalogId));
-            }
-            attachArticlesByMap(result, inheritedArticles);
         }
 
-        // 挂接被分享的文章
-        if (CollUtil.isNotEmpty(sharedArticleIds)) {
-            List<ArticleDto> sharedArticles = articleMapper.listByIds(sharedArticleIds);
+        List<Integer> allCatalogIds = allCatalogs.stream().map(CatalogDto::getId).toList();
+        if (CollUtil.isNotEmpty(allCatalogIds) || CollUtil.isNotEmpty(sharedArticleIds)) {
+            // 目录继承的文章和直接分享的文章一次性加载
+            List<ArticleDto> sharedArticles = articleMapper.listByCatalogIdsOrIds(allCatalogIds, sharedArticleIds);
+            attachArticlesByMap(result, sharedArticles);
 
             // 文章能挂到树中目录的就挂上去，挂不上去的（目录不在树中或没有目录）创建虚拟节点
             // 目录不在树中（含没有目录）的文章，创建虚拟目录节点
+            Set<Integer> catalogIdSet = new HashSet<>(allCatalogIds);
             List<ArticleDto> unplaced = sharedArticles.stream()
-                    .filter(a -> Objects.isNull(a.getCatalogId()) || !containsCatalog(result, a.getCatalogId()))
+                    .filter(a -> Objects.isNull(a.getCatalogId()) || !catalogIdSet.contains(a.getCatalogId()))
                     .toList();
 
             if (CollUtil.isNotEmpty(unplaced)) {
@@ -392,16 +395,6 @@ public class CatalogServiceImpl extends ServiceImpl<CatalogMapper, CatalogDto> i
     @Override
     public List<ArticleDto> listByIds(List<Integer> ids) {
         return articleMapper.listByIds(ids);
-    }
-
-    /** 递归检查树中是否包含指定目录ID */
-    private boolean containsCatalog(List<CatalogDto> tree, Integer catalogId) {
-        if (CollUtil.isEmpty(tree) || catalogId == null) return false;
-        for (CatalogDto node : tree) {
-            if (catalogId.equals(node.getId())) return true;
-            if (containsCatalog(node.getChildren(), catalogId)) return true;
-        }
-        return false;
     }
 
     private void attachArticlesByMap(List<CatalogDto> tree, List<ArticleDto> articles) {

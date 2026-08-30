@@ -118,6 +118,33 @@
         )
     </select>
 
+    <select id="listEffectiveCatalogShares" resultMap="shareMap">
+        WITH RECURSIVE ancestors AS (
+            SELECT id, father_id
+            FROM nip_rt_catalog
+            WHERE id = #{catalogId}
+            UNION ALL
+            SELECT c.id, c.father_id
+            FROM nip_rt_catalog c
+            INNER JOIN ancestors a ON c.id = a.father_id
+        )
+        SELECT s.id, s.resource_type, s.resource_id, s.target_user, s.target_type, s.target_role,
+               s.permission, s.article_permission, s.create_by, s.create_time
+        FROM nip_rt_share s
+        WHERE s.resource_type = 'CATALOG'
+          AND s.resource_id IN (SELECT id FROM ancestors)
+          AND (
+            (s.target_type = 'USER' AND s.target_user = #{targetUser})
+            OR (s.target_type = 'ROLE' AND EXISTS (
+                SELECT 1
+                FROM nip_rbac_relation rr
+                WHERE rr.binding_type = 'user_to_role'
+                  AND rr.source = #{targetUser}
+                  AND rr.target = s.target_role
+            ))
+          )
+    </select>
+
     <select id="canCommentArticle" resultType="java.lang.Boolean">
         WITH RECURSIVE ancestors AS (
             SELECT c.id, c.father_id
