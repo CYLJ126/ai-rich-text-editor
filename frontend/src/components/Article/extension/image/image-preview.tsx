@@ -223,18 +223,21 @@ export function ImagePreview({
       open={open}
       onCancel={onClose}
       footer={null}
-      width="calc(100vw - 32px)"
+      width="100vw"
       centered
+      style={{ maxWidth: '100vw' }}
       afterOpenChange={(visible) => {
         if (visible && imageRef.current) fitImage(imageRef.current);
       }}
       styles={{
         container: {
-          height: 'calc(100vh - 32px)',
+          height: '100vh',
           padding: '14px 16px 10px',
           boxSizing: 'border-box',
           background: 'rgba(18, 18, 18, 0.9)',
           backdropFilter: 'blur(12px)',
+          borderRadius: 0,
+          boxShadow: 'none',
         },
         body: {
           display: 'flex',
