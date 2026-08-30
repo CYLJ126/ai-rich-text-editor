@@ -412,6 +412,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public Boolean reorder(List<ArticleDto> list) {
+        return updateBatchById(list);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public Boolean batchMoveToCatalog(List<Integer> articleIds, Integer catalogId) {
         if (CollUtil.isEmpty(articleIds)) {
             return false;

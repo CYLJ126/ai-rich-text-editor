@@ -43,6 +43,7 @@
 
     <select id="listPublicArticles" resultMap="articleMap">
         select <include refid="withoutContent" /> from nip_rt_article where is_public = 1 and is_delete = 0
+        order by catalog_id, order_id
     </select>
 
     <select id="listByIds" resultMap="articleMap">
@@ -140,6 +141,7 @@
         select <include refid="withoutContent" /> from nip_rt_article
         where (is_public = 0 or is_public is null)
           and create_by = #{currentUser} and is_delete = 0
+        order by catalog_id, order_id
     </select>
 
 </mapper>

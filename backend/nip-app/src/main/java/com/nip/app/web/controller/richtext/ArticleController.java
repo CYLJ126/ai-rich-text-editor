@@ -530,6 +530,21 @@ public class ArticleController extends AbstractStreamController {
     }
 
     /**
+     * 更新同目录内的文章顺序
+     */
+    @AnonymousAccess
+    @PostMapping("/reorderArticles")
+    public ResultContext<Boolean> reorderArticles(@RequestBody List<ArticleDto> list) {
+        Assert.notEmpty(list, "文章列表不能为空");
+        for (ArticleDto article : list) {
+            Assert.notNull(article.getId(), "文章ID不能为空");
+            Assert.notNull(article.getOrderId(), "文章排序值不能为空");
+            permissionValidator.assertCanWrite(ResourceTypeEnum.ARTICLE.getValue(), article.getId());
+        }
+        return ResultContext.wrap(() -> articleService.reorder(list));
+    }
+
+    /**
      * 批量移动文章到指定目录
      */
     @AnonymousAccess
