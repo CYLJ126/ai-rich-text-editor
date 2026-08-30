@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {ActionType, ProColumns, ProDescriptionsItemProps,} from '@ant-design/pro-components';
 import {FooterToolbar, PageContainer, ProDescriptions, ProTable,} from '@ant-design/pro-components';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
@@ -217,7 +218,7 @@ const TableList: React.FC = () => {
   const handleRemove = useCallback(
     async (selectedRows: API.RuleListItem[]) => {
       if (!selectedRows?.length) {
-        messageApi.warning('请选择删除项');
+        messageApi.warning(i18nText("app.common.tablelist.5bc46a1a"));
 
         return;
       }

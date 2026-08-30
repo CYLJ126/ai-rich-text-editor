@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import {
   EyeInvisibleOutlined,
   EyeOutlined,
@@ -8,7 +9,7 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons';
-import React, {type RefObject, useState} from 'react';
+import React, { type RefObject, useState } from 'react';
 import styles from './FloatingQuickActions.less';
 
 export interface FloatingQuickActionsProps {
@@ -55,37 +56,37 @@ export const FloatingQuickActions: React.FC<FloatingQuickActionsProps> = ({
   const menuItems = [
     {
       key: 'top',
-      label: '到顶部',
+      label: i18nText('app.article.editor.floatingquickactions.b19f6435'),
       icon: <VerticalAlignTopOutlined />,
       onClick: () => scrollArticle('top'),
     },
     {
       key: 'bottom',
-      label: '到底部',
+      label: i18nText('app.article.editor.floatingquickactions.c2376a49'),
       icon: <VerticalAlignBottomOutlined />,
       onClick: () => scrollArticle('bottom'),
     },
     {
       key: 'scrollbar',
-      label: '内容滚动条',
+      label: i18nText('app.article.editor.floatingquickactions.aa525073'),
       icon: showScrollbar ? <EyeInvisibleOutlined /> : <EyeOutlined />,
       onClick: () => onShowScrollbarChange(!showScrollbar),
     },
     {
       key: 'ai',
-      label: 'AI Chat',
+      label: i18nText('app.ai.chat'),
       icon: <RobotOutlined />,
       onClick: onAskAi,
     },
     {
       key: 'metaInfo',
-      label: '文章元数据',
+      label: i18nText('app.article.editor.floatingquickactions.5cfffe28'),
       icon: <FileUnknownOutlined />,
       onClick: () => toggleShowMetaInfo(),
     },
     {
       key: 'history',
-      label: '历史版本',
+      label: i18nText('app.article.editor.floatingquickactions.9d941b9b'),
       icon: <HistoryOutlined />,
       onClick: onShowHistory,
     },
@@ -120,7 +121,9 @@ export const FloatingQuickActions: React.FC<FloatingQuickActionsProps> = ({
       <button
         type="button"
         className={styles.articleFloatingTrigger}
-        aria-label="文章快捷操作"
+        aria-label={i18nText(
+          'app.article.editor.floatingquickactions.d0d913a9',
+        )}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         onMouseEnter={() => setMenuOpen(true)}

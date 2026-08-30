@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useRef} from 'react';
 import {SimpleTable, TableColumn} from '@/components';
 import {assignRolesToUser, listRolesByUser} from '@/services/ant-design-pro/rbac';
@@ -12,17 +13,17 @@ interface AssignRoleModalProps {
 
 const roleColumns: TableColumn[] = [
     {
-        title: '角色名称',
+        title: i18nText("app.administration.usermanagement.assignrolemodal.006e400c"),
         dataIndex: 'roleName',
         width: 150,
     },
     {
-        title: '角色编码',
+        title: i18nText("app.administration.usermanagement.assignrolemodal.8e2405ff"),
         dataIndex: 'roleCode',
         width: 150,
     },
     {
-        title: '描述',
+        title: i18nText("app.administration.usermanagement.assignrolemodal.b7f8970d"),
         dataIndex: 'description',
         width: 200,
     },
@@ -45,7 +46,7 @@ const AssignRoleModal: React.FC<AssignRoleModalProps> = ({
     const handleAssignRoles = () => {
         const selectedRoles = roleTableRef.current?.getSelectedRows() || [];
         if (selectedRoles.length === 0) {
-            message.warning('请选择至少一个角色').then();
+            message.warning(i18nText("app.administration.usermanagement.assignrolemodal.847b6e67")).then();
             return;
         }
 
@@ -56,25 +57,25 @@ const AssignRoleModal: React.FC<AssignRoleModalProps> = ({
 
         assignRolesToUser(param)
             .then(() => {
-                message.success('角色分配成功').then();
+                message.success(i18nText("app.administration.usermanagement.assignrolemodal.738e7bbe")).then();
                 onSuccess();
             })
             .catch((error) => {
-                message.error(`角色分配失败: ${error.message}`).then();
+                message.error(i18nText("app.administration.usermanagement.assignrolemodal.068d8acb", {value0: error.message})).then();
             });
     };
 
     return (
         <Modal
-            title={`为用户 ${userName} 分配角色`}
+            title={i18nText("app.administration.usermanagement.assignrolemodal.ba93ba47", {value0: userName})}
             open={visible}
             onCancel={onCancel}
             footer={[
                 <Button key="cancel" onClick={onCancel}>
-                    取消
+                    {i18nText("app.administration.usermanagement.assignrolemodal.91f57db6")}
                 </Button>,
                 <Button key="assign" type="primary" onClick={handleAssignRoles}>
-                    分配
+                    {i18nText("app.administration.usermanagement.assignrolemodal.c81d51bf")}
                 </Button>,
             ]}
             width={1000}

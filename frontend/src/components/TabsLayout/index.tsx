@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {CloseOutlined} from '@ant-design/icons';
 import {history, useIntl, useLocation} from '@umijs/max';
 import {Button, Tabs} from 'antd';
@@ -379,10 +380,10 @@ const TabsLayout: React.FC = () => {
                 className={styles.extraBtn}
                 onClick={() => handleCloseOthers(activeKey)}
               >
-                关闭其他
+                {i18nText("app.common.tabslayout.59d57173")}
               </Button>
               <Button className={styles.extraBtn} onClick={handleCloseAll}>
-                关闭所有
+                {i18nText("app.common.tabslayout.ffa65211")}
               </Button>
             </div>
           ),

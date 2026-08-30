@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {CheckOutlined, CommentOutlined, DeleteOutlined, RollbackOutlined,} from '@ant-design/icons';
 import {Button, message, Tag} from 'antd';
 import React, {useCallback, useState} from 'react';
@@ -63,11 +64,11 @@ export default function ThreadItem({
 
   const requireArticleId = useCallback(() => {
     if (!canComment) {
-      message.warning('当前用户没有批注权限').then();
+      message.warning(i18nText("app.article.commentspanel.threaditem.28165fbc")).then();
       return;
     }
     if (!articleId) {
-      message.warning('请先选择文章').then();
+      message.warning(i18nText("app.article.commentspanel.threaditem.c7e5e32e")).then();
       return;
     }
     return articleId;
@@ -203,11 +204,11 @@ export default function ThreadItem({
           <div className="flex items-center gap-2">
             <CommentOutlined className="text-blue-500" />
             <span className="text-sm font-medium text-[var(--ant-color-text)]">
-              {firstComment?.data.userName || '匿名用户'}
+              {firstComment?.data.userName || i18nText("app.article.commentspanel.threaditem.5e0613b9")}
             </span>
           </div>
           <Tag color={thread.resolvedAt ? 'success' : 'processing'}>
-            {thread.resolvedAt ? '已解决' : '进行中'}
+            {thread.resolvedAt ? i18nText("app.article.commentspanel.threaditem.1650959b") : i18nText("app.article.commentspanel.threaditem.8779bb88")}
           </Tag>
         </div>
 
@@ -235,7 +236,7 @@ export default function ThreadItem({
 
         {!open && repliesCount > 0 ? (
           <div className="mt-2 text-xs text-[var(--ant-color-text-tertiary)]">
-            {repliesCount} 条回复
+            {repliesCount} {i18nText("app.article.commentspanel.threaditem.6538a581")}
           </div>
         ) : null}
 
@@ -253,7 +254,7 @@ export default function ThreadItem({
                     handleUnresolve().then();
                   }}
                 >
-                  重新打开
+                  {i18nText("app.article.commentspanel.threaditem.f72272d7")}
                 </Button>
               ) : null}
               {!thread.resolvedAt && canComment ? (
@@ -267,7 +268,7 @@ export default function ThreadItem({
                     handleResolve().then();
                   }}
                 >
-                  解决
+                  {i18nText("app.article.commentspanel.threaditem.0c7ad594")}
                 </Button>
               ) : null}
               {canDeleteThread ? (
@@ -282,14 +283,14 @@ export default function ThreadItem({
                     handleDeleteThread().then();
                   }}
                 >
-                  删除
+                  {i18nText("app.article.commentspanel.threaditem.16f6df6c")}
                 </Button>
               ) : null}
             </div>
 
             {thread.resolvedAt ? (
               <div className="mt-3 rounded bg-[var(--ant-color-success-bg)] px-3 py-2 text-xs text-[var(--ant-color-success-text)]">
-                解决于 {formatCommentTime(thread.resolvedAt)}
+                {i18nText("app.article.commentspanel.threaditem.97b77a92")} {formatCommentTime(thread.resolvedAt)}
               </div>
             ) : null}
 

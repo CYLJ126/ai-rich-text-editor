@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
@@ -20,10 +21,10 @@ interface ExampleItem {
 }
 
 const EXAMPLES: ExampleItem[] = [
-  { label: '质能方程', latex: 'E = mc^2' },
-  { label: '二次公式', latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
-  { label: '求和', latex: '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}' },
-  { label: '积分', latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}' },
+  { label: i18nText("app.article.mathformula.mathformulamodal.bfaec07d"), latex: 'E = mc^2' },
+  { label: i18nText("app.article.mathformula.mathformulamodal.891b20d7"), latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
+  { label: i18nText("app.article.mathformula.mathformulamodal.c4397fd5"), latex: '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}' },
+  { label: i18nText("app.article.mathformula.mathformulamodal.c08bcd0f"), latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}' },
 ];
 
 const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
@@ -57,7 +58,7 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
       setPreviewError('');
     } catch (err: any) {
       setPreviewHtml('');
-      setPreviewError(err?.message || '公式解析错误，请检查 LaTeX 语法');
+      setPreviewError(err?.message || i18nText("app.article.mathformula.mathformulamodal.48c97624"));
     }
   }, []);
 
@@ -99,7 +100,7 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
 
   return (
     <Modal
-      title="编辑数学公式"
+      title={i18nText("app.article.mathformula.mathformulamodal.480646f1")}
       open={open}
       onCancel={onCancel}
       footer={null}
@@ -114,21 +115,21 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
             value={formulaType}
             onChange={(e) => setFormulaType(e.target.value as MathFormulaType)}
           >
-            <Radio value="inline">行内公式</Radio>
-            <Radio value="block">块级公式</Radio>
+            <Radio value="inline">{i18nText("app.article.mathformula.mathformulamodal.404f8313")}</Radio>
+            <Radio value="block">{i18nText("app.article.mathformula.mathformulamodal.00f836fe")}</Radio>
           </Radio.Group>
         </div>
 
         {/* LaTeX 输入 */}
         <div className="math-formula-modal__input-section">
-          <div className="math-formula-modal__label">LaTeX 代码：</div>
+          <div className="math-formula-modal__label">{i18nText("app.article.mathformula.mathformulamodal.e74c03ef")}</div>
           <textarea
             ref={textareaRef}
             className="math-formula-modal__textarea"
             value={latexCode}
             onChange={(e) => setLatexCode(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="请输入 LaTeX 公式，例如：x^2 + y^2 = z^2"
+            placeholder={i18nText("app.article.mathformula.mathformulamodal.62e2f16f")}
             rows={4}
             spellCheck={false}
           />
@@ -136,7 +137,7 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
 
         {/* 预览区域 */}
         <div className="math-formula-modal__preview-section">
-          <div className="math-formula-modal__label">预览：</div>
+          <div className="math-formula-modal__label">{i18nText("app.article.mathformula.mathformulamodal.1c3452c2")}</div>
           <div
             className={[
               'math-formula-modal__preview',
@@ -151,14 +152,14 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
             ) : previewHtml ? (
               <span dangerouslySetInnerHTML={{ __html: previewHtml }} />
             ) : (
-              <span className="math-formula-modal__preview-placeholder">输入公式后显示预览...</span>
+              <span className="math-formula-modal__preview-placeholder">{i18nText("app.article.mathformula.mathformulamodal.be18a95c")}</span>
             )}
           </div>
         </div>
 
         {/* 示例按钮 */}
         <div className="math-formula-modal__examples-section">
-          <div className="math-formula-modal__label">示例：</div>
+          <div className="math-formula-modal__label">{i18nText("app.article.mathformula.mathformulamodal.b5347b75")}</div>
           <Space size={8} wrap>
             {EXAMPLES.map((example) => (
               <Button
@@ -176,9 +177,9 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
         {/* 操作按钮 */}
         <div className="math-formula-modal__footer">
           <Space>
-            <Button onClick={onCancel}>取消</Button>
+            <Button onClick={onCancel}>{i18nText("app.article.mathformula.mathformulamodal.fe95a273")}</Button>
             <Button type="primary" onClick={handleConfirm} disabled={!latexCode.trim()}>
-              保存
+              {i18nText("app.article.mathformula.mathformulamodal.794a238f")}
             </Button>
           </Space>
         </div>

@@ -27,6 +27,15 @@ export default {
   'pages.welcome.link': '歡迎使用',
   'pages.welcome.celebrationTitle': '歡迎使用 Ant Design Pro {v6}',
   'pages.welcome.alertMessage': '更快更強的重型組件，已經發布。',
+  'pages.welcome.infoCard.umi.title': '瞭解 umi',
+  'pages.welcome.infoCard.umi.desc':
+    'umi 是一個可擴展的企業級前端應用框架，以路由為基礎，支援配置式路由和約定式路由。',
+  'pages.welcome.infoCard.antd.title': '瞭解 Ant Design',
+  'pages.welcome.infoCard.antd.desc':
+    'antd 是基於 Ant Design 設計體系的 React UI 元件庫，主要用於研發企業級中後台產品。',
+  'pages.welcome.infoCard.procomponents.title': '瞭解 Pro Components',
+  'pages.welcome.infoCard.procomponents.desc':
+    'ProComponents 是基於 Ant Design 的高抽象範本元件，以一個元件就是一個頁面為開發理念。',
   'pages.404.subTitle': '抱歉，您訪問的頁面不存在。',
   'pages.404.buttonText': '返回首頁',
   'pages.admin.subPage.title': '這個頁面只有 admin 權限才能查看',

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React from "react";
 import {RightSiderItem} from "./type";
 import SiderListItem from "./SiderListItem";
@@ -22,7 +23,7 @@ const PinnedSection: React.FC<PinnedSectionProps> = ({
     <div className="shrink-0 border-b border-[var(--ant-color-border-secondary)]">
       {/* 置顶区标题 */}
       <div className="mx-2 -mb-0.5 flex items-center px-1 pt-1.5 select-none">
-        <span className="text-xs font-medium tracking-wide text-[var(--ant-color-text-quaternary)]">置顶</span>
+        <span className="text-xs font-medium tracking-wide text-[var(--ant-color-text-quaternary)]">{i18nText("app.common.myrightsiderpanel.pinnedsection.a84c5184")}</span>
       </div>
 
       {/* 置顶列表 */}

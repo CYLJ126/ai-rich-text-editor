@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {CopyOutlined} from '@ant-design/icons';
 import type {SelectProps} from 'antd';
 import {App, Button, Modal, Segmented, Select, Space, Tag} from 'antd';
@@ -18,21 +19,21 @@ type ResourcePermission = ArticlePermission | CatalogPermission;
 type PermissionOption<T extends string> = { label: string; value: T };
 
 const ARTICLE_PERMISSION_OPTIONS: PermissionOption<ArticlePermission>[] = [
-  {label: '可读', value: 'READ'},
-  {label: '可批注', value: 'COMMENT'},
-  {label: '可编辑', value: 'READ_WRITE'},
-  {label: '完全控制', value: 'FULL_CONTROL'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.4993527a"), value: 'READ'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.056e97c7"), value: 'COMMENT'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.a1891177"), value: 'READ_WRITE'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.2f7bb1b0"), value: 'FULL_CONTROL'},
 ];
 
 const CATALOG_PERMISSION_OPTIONS: PermissionOption<CatalogPermission>[] = [
-  {label: '可访问', value: 'ACCESS'},
-  {label: '可新建子内容', value: 'CREATE_CHILD'},
-  {label: '完全控制', value: 'FULL_CONTROL'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.cfb12895"), value: 'ACCESS'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.1ee7ac1c"), value: 'CREATE_CHILD'},
+  {label: i18nText("app.article.sidebar.sharesettingmodal.2f7bb1b0"), value: 'FULL_CONTROL'},
 ];
 
 const TARGET_TYPE_OPTIONS: { label: string; value: ShareTargetType }[] = [
-  { label: '用户', value: 'USER' },
-  { label: '角色', value: 'ROLE' },
+  { label: i18nText("app.article.sidebar.sharesettingmodal.bc122df2"), value: 'USER' },
+  { label: i18nText("app.article.sidebar.sharesettingmodal.a95fadad"), value: 'ROLE' },
 ];
 
 export default function ShareSettingModal({
@@ -102,7 +103,7 @@ export default function ShareSettingModal({
 
   useEffect(() => {
     if (!open || !resourceId) return;
-    refreshShares().catch(() => message.error('加载分享列表失败'));
+    refreshShares().catch(() => message.error(i18nText("app.article.sidebar.sharesettingmodal.51571f1f")));
   }, [open, resourceId, refreshShares, message]);
 
   useEffect(() => {
@@ -122,7 +123,7 @@ export default function ShareSettingModal({
 
   const handleAddTargets = useCallback(async () => {
     if (selectedTargets.length === 0) {
-      message.warning(targetType === 'ROLE' ? '请选择角色' : '请选择用户');
+      message.warning(targetType === 'ROLE' ? i18nText("app.article.sidebar.sharesettingmodal.53a2285b") : i18nText("app.article.sidebar.sharesettingmodal.df36575a"));
       return;
     }
     setSaving(true);
@@ -136,11 +137,11 @@ export default function ShareSettingModal({
         permission,
         articlePermission: isCatalog ? articlePermission : undefined,
       });
-      message.success('分享成功');
+      message.success(i18nText("app.article.sidebar.sharesettingmodal.edeabb46"));
       await refreshShares();
       setSelectedTargets([]);
     } catch {
-      message.error('分享失败');
+      message.error(i18nText("app.article.sidebar.sharesettingmodal.fdb1c8a3"));
     } finally {
       setSaving(false);
     }
@@ -163,10 +164,10 @@ export default function ShareSettingModal({
       if (!target) return;
       try {
         await unshare(resourceType, resourceId, type, target);
-        message.success(`已移除 ${target} 的权限`);
+        message.success(i18nText("app.article.sidebar.sharesettingmodal.e0f5b9c3", {value0: target}));
         await refreshShares();
       } catch {
-        message.error('移除失败');
+        message.error(i18nText("app.article.sidebar.sharesettingmodal.3b96ca3d"));
       }
     },
     [resourceType, resourceId, message, refreshShares],
@@ -193,9 +194,9 @@ export default function ShareSettingModal({
           articlePermission: isCatalog ? nextArticlePermission : undefined,
         });
         await refreshShares();
-        message.success('权限已更新');
+        message.success(i18nText("app.article.sidebar.sharesettingmodal.a9234faf"));
       } catch {
-        message.error('权限更新失败');
+        message.error(i18nText("app.article.sidebar.sharesettingmodal.ae4048a6"));
       }
     },
     [message, resourceId, resourceType, isCatalog, refreshShares],
@@ -207,7 +208,7 @@ export default function ShareSettingModal({
     return (
       <Space size={6}>
         <Tag color={type === 'ROLE' ? 'blue' : 'default'}>
-          {type === 'ROLE' ? '角色' : '用户'}
+          {type === 'ROLE' ? i18nText("app.article.sidebar.sharesettingmodal.a95fadad") : i18nText("app.article.sidebar.sharesettingmodal.bc122df2")}
         </Tag>
         <span>{target}</span>
       </Space>
@@ -216,7 +217,7 @@ export default function ShareSettingModal({
 
   return (
     <Modal
-      title={`分享设置 - "${resourceName}"`}
+      title={i18nText("app.article.sidebar.sharesettingmodal.07b876ab", {value0: resourceName})}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -225,7 +226,7 @@ export default function ShareSettingModal({
     >
       {existingShares.length > 0 && (
         <div className="mb-4">
-          <div className="mb-2 text-[13px] font-medium">已添加的权限</div>
+          <div className="mb-2 text-[13px] font-medium">{i18nText("app.article.sidebar.sharesettingmodal.93f4c10e")}</div>
           {existingShares.map((record) => (
             <div
               key={record.id}
@@ -269,7 +270,7 @@ export default function ShareSettingModal({
                   type="link"
                   onClick={() => handleRemoveTarget(record)}
                 >
-                  移除
+                  {i18nText("app.article.sidebar.sharesettingmodal.925ad117")}
                 </Button>
               </Space>
             </div>
@@ -278,7 +279,7 @@ export default function ShareSettingModal({
       )}
 
       <div className="mb-3">
-        <div className="mb-2 text-[13px] font-medium">添加权限</div>
+        <div className="mb-2 text-[13px] font-medium">{i18nText("app.article.sidebar.sharesettingmodal.110bda0f")}</div>
         <Space.Compact className="w-full">
           <Segmented
             value={targetType}
@@ -290,8 +291,8 @@ export default function ShareSettingModal({
             className="w-full"
             placeholder={
               targetType === 'ROLE'
-                ? '输入角色编码或名称搜索'
-                : '输入用户名或邮箱搜索'
+                ? i18nText("app.article.sidebar.sharesettingmodal.13aed24a")
+                : i18nText("app.article.sidebar.sharesettingmodal.946c2d4a")
             }
             value={selectedTargets}
             onChange={(values) => setSelectedTargets(values)}
@@ -304,7 +305,7 @@ export default function ShareSettingModal({
       <Space className="mb-4 w-full" align="start">
         <div className="w-[150px]">
           <div className="mb-2 text-[13px] font-medium">
-            {isCatalog ? '目录权限' : '文章权限'}
+            {isCatalog ? i18nText("app.article.sidebar.sharesettingmodal.652f9ab6") : i18nText("app.article.sidebar.sharesettingmodal.0e062413")}
           </div>
           <Select<ResourcePermission>
             className="w-full"
@@ -315,7 +316,7 @@ export default function ShareSettingModal({
         </div>
         {isCatalog && (
           <div className="w-[130px]">
-            <div className="mb-2 text-[13px] font-medium">已有文章权限</div>
+            <div className="mb-2 text-[13px] font-medium">{i18nText("app.article.sidebar.sharesettingmodal.5d90aa2f")}</div>
             <Select<ArticlePermission>
               className="w-full"
               value={articlePermission}
@@ -334,21 +335,21 @@ export default function ShareSettingModal({
               const url = `${window.location.origin}/Learn?articleId=${resourceId}`;
               try {
                 await navigator.clipboard.writeText(url);
-                message.success('文章链接已复制到剪贴板');
+                message.success(i18nText("app.article.sidebar.sharesettingmodal.92329e10"));
               } catch {
-                message.error('复制失败');
+                message.error(i18nText("app.article.sidebar.sharesettingmodal.f2eca02d"));
               }
             }}
           >
-            复制文章链接
+            {i18nText("app.article.sidebar.sharesettingmodal.0f9528ad")}
           </Button>
         ) : (
           <span />
         )}
         <Space>
-          <Button onClick={onClose}>关闭</Button>
+          <Button onClick={onClose}>{i18nText("app.article.sidebar.sharesettingmodal.61929b75")}</Button>
           <Button type="primary" onClick={handleAddTargets} loading={saving}>
-            保存
+            {i18nText("app.article.sidebar.sharesettingmodal.1cc01d34")}
           </Button>
         </Space>
       </div>

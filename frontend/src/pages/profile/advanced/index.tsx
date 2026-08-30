@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {DingdingOutlined, DownOutlined, EllipsisOutlined, InfoCircleOutlined,} from '@ant-design/icons';
 import {GridContent, PageContainer, RouteContext,} from '@ant-design/pro-components';
 import {useQuery} from '@tanstack/react-query';
@@ -36,43 +37,43 @@ const action = (
               items: [
                 {
                   key: '1',
-                  label: '操作一',
+                  label: i18nText("app.examples.advanced.5216ef11"),
                 },
                 {
                   key: '2',
-                  label: '操作二',
+                  label: i18nText("app.examples.advanced.0cb73d75"),
                 },
                 {
                   key: '3',
-                  label: '操作三',
+                  label: i18nText("app.examples.advanced.c0c263e1"),
                 },
               ],
             }}
             placement="bottomRight"
           >
-            主操作
+            {i18nText("app.examples.advanced.64d74d55")}
           </Dropdown.Button>
         );
       }
       return (
         <Space>
           <Space.Compact>
-            <Button>操作一</Button>
-            <Button>操作二</Button>
+            <Button>{i18nText("app.examples.advanced.5216ef11")}</Button>
+            <Button>{i18nText("app.examples.advanced.0cb73d75")}</Button>
             <Dropdown
               menu={{
                 items: [
                   {
                     key: '1',
-                    label: '选项一',
+                    label: i18nText("app.examples.advanced.5633edea"),
                   },
                   {
                     key: '2',
-                    label: '选项二',
+                    label: i18nText("app.examples.advanced.909d7941"),
                   },
                   {
                     key: '3',
-                    label: '选项三',
+                    label: i18nText("app.examples.advanced.0fccb00b"),
                   },
                 ],
               }}
@@ -83,7 +84,7 @@ const action = (
               </Button>
             </Dropdown>
           </Space.Compact>
-          <Button type="primary">主操作</Button>
+          <Button type="primary">{i18nText("app.examples.advanced.64d74d55")}</Button>
         </Space>
       );
     }}
@@ -93,78 +94,78 @@ const action = (
 const operationTabList = [
   {
     key: 'tab1',
-    tab: '操作日志一',
+    tab: i18nText("app.examples.advanced.cf8abc80"),
   },
   {
     key: 'tab2',
-    tab: '操作日志二',
+    tab: i18nText("app.examples.advanced.d9905835"),
   },
   {
     key: 'tab3',
-    tab: '操作日志三',
+    tab: i18nText("app.examples.advanced.386ebda7"),
   },
 ];
 const columns = [
   {
-    title: '操作类型',
+    title: i18nText("app.examples.advanced.5d4d6ccb"),
     dataIndex: 'type',
     key: 'type',
   },
   {
-    title: '操作人',
+    title: i18nText("app.examples.advanced.544d902d"),
     dataIndex: 'name',
     key: 'name',
   },
   {
-    title: '执行结果',
+    title: i18nText("app.examples.advanced.cd71e986"),
     dataIndex: 'status',
     key: 'status',
     render: (text: string) => {
       if (text === 'agree') {
-        return <Badge status="success" text="成功" />;
+        return <Badge status="success" text={i18nText("app.examples.advanced.3a50b234")} />;
       }
-      return <Badge status="error" text="驳回" />;
+      return <Badge status="error" text={i18nText("app.examples.advanced.05b70e71")} />;
     },
   },
   {
-    title: '操作时间',
+    title: i18nText("app.examples.advanced.f652bf9f"),
     dataIndex: 'updatedAt',
     key: 'updatedAt',
   },
   {
-    title: '备注',
+    title: i18nText("app.examples.advanced.ab4d12be"),
     dataIndex: 'memo',
     key: 'memo',
   },
 ];
 const descriptionItems: DescriptionsProps['items'] = [
-  { key: '1', label: '创建人', children: '曲丽丽' },
-  { key: '2', label: '订购产品', children: 'XX 服务' },
-  { key: '3', label: '创建时间', children: '2017-07-07' },
-  {key: '4', label: '关联单据', children: <a href="/">12421</a>},
-  { key: '5', label: '生效日期', children: '2017-07-07 ~ 2017-08-08' },
-  { key: '6', label: '备注', children: '请于两个工作日内确认' },
+  { key: '1', label: i18nText("app.examples.advanced.84204ec6"), children: i18nText("app.examples.advanced.8d661755") },
+  { key: '2', label: i18nText("app.examples.advanced.b1948d57"), children: i18nText("app.examples.advanced.7aa4d518") },
+  { key: '3', label: i18nText("app.examples.advanced.ac055aa3"), children: '2017-07-07' },
+  {key: '4', label: i18nText("app.examples.advanced.76260b30"), children: <a href="/">12421</a>},
+  { key: '5', label: i18nText("app.examples.advanced.1feeac01"), children: '2017-07-07 ~ 2017-08-08' },
+  { key: '6', label: i18nText("app.examples.advanced.ab4d12be"), children: i18nText("app.examples.advanced.8e2c5edc") },
 ];
 const userInfoItems: DescriptionsProps['items'] = [
-  { key: '1', label: '用户姓名', children: '付小小' },
-  { key: '2', label: '会员卡号', children: '32943898021309809423' },
-  { key: '3', label: '身份证', children: '3321944288191034921' },
-  { key: '4', label: '联系方式', children: '18112345678' },
+  { key: '1', label: i18nText("app.examples.advanced.9e18575a"), children: i18nText("app.examples.advanced.7db78c09") },
+  { key: '2', label: i18nText("app.examples.advanced.16fa7297"), children: '32943898021309809423' },
+  { key: '3', label: i18nText("app.examples.advanced.2a59d0e4"), children: '3321944288191034921' },
+  { key: '4', label: i18nText("app.examples.advanced.08d5871a"), children: '18112345678' },
   {
     key: '5',
-    label: '联系地址',
-    children: '曲丽丽 18100000000 浙江省杭州市西湖区黄姑山路工专路交叉路口',
+    label: i18nText("app.examples.advanced.3e3d5cb2"),
+    children: i18nText("app.examples.advanced.823bd697"),
   },
 ];
 const infoGroupItems: DescriptionsProps['items'] = [
-  { key: '1', label: '某某数据', children: '725' },
-  { key: '2', label: '该数据更新时间', children: '2017-08-08' },
+  { key: '1', label: i18nText("app.examples.advanced.8e808f84"), children: '725' },
+  { key: '2', label: i18nText("app.examples.advanced.a67bd555"), children: '2017-08-08' },
   {
     key: '3',
     label: (
       <span>
-        某某数据
-        <Tooltip title="数据说明">
+        {i18nText("app.examples.advanced.8e808f84")}
+        <Tooltip title={i18nText("app.examples.advanced.386fcf9b")}>
           <InfoCircleOutlined
             style={{ color: 'rgba(0, 0, 0, 0.43)', marginLeft: 4 }}
           />
@@ -173,31 +174,31 @@ const infoGroupItems: DescriptionsProps['items'] = [
     ),
     children: '725',
   },
-  { key: '4', label: '该数据更新时间', children: '2017-08-08' },
+  { key: '4', label: i18nText("app.examples.advanced.a67bd555"), children: '2017-08-08' },
 ];
 const groupItems1: DescriptionsProps['items'] = [
-  { key: '1', label: '负责人', children: '林东东' },
-  { key: '2', label: '角色码', children: '1234567' },
-  { key: '3', label: '所属部门', children: 'XX公司 - YY部' },
-  { key: '4', label: '过期时间', children: '2017-08-08' },
+  { key: '1', label: i18nText("app.examples.advanced.26266779"), children: i18nText("app.examples.advanced.e54b26aa") },
+  { key: '2', label: i18nText("app.examples.advanced.fed2d63b"), children: '1234567' },
+  { key: '3', label: i18nText("app.examples.advanced.6e1f474b"), children: i18nText("app.examples.advanced.09ea49d3") },
+  { key: '4', label: i18nText("app.examples.advanced.13589dee"), children: '2017-08-08' },
   {
     key: '5',
-    label: '描述',
+    label: i18nText("app.examples.advanced.920b4951"),
     children:
-      '这段描述很长很长很长很长很长很长很长很长很长很长很长很长很长很长...',
+      i18nText("app.examples.advanced.6b70a1b7"),
   },
 ];
 const groupItems2: DescriptionsProps['items'] = [
   {
     key: '1',
-    label: '学名',
+    label: i18nText("app.examples.advanced.21518ac5"),
     children:
-      'Citrullus lanatus (Thunb.) Matsum. et Nakai一年生蔓生藤本；茎、枝粗壮，具明显的棱。卷须较粗..',
+      i18nText("app.examples.advanced.92f445fd"),
   },
 ];
 const groupItems3: DescriptionsProps['items'] = [
-  { key: '1', label: '负责人', children: '付小小' },
-  { key: '2', label: '角色码', children: '1234568' },
+  { key: '1', label: i18nText("app.examples.advanced.26266779"), children: i18nText("app.examples.advanced.7db78c09") },
+  { key: '2', label: i18nText("app.examples.advanced.fed2d63b"), children: '1234568' },
 ];
 const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
   if (active) {
@@ -207,7 +208,7 @@ const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
           width: 160,
         }}
       >
-        吴加号
+        {i18nText("app.examples.advanced.3299c0f6")}
         <span
           style={{
             float: 'right',
@@ -221,7 +222,7 @@ const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
                   color: 'rgba(0, 0, 0, 0.45)',
                 }}
               >
-                未响应
+                {i18nText("app.examples.advanced.ec20ffad")}
               </span>
             }
           />
@@ -231,7 +232,7 @@ const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
             marginTop: 4,
           }}
         >
-          耗时：2小时25分钟
+          {i18nText("app.examples.advanced.787d18b4")}
         </div>
       </div>
     );
@@ -259,8 +260,8 @@ const Advanced: FC = () => {
 
   const extra = (
     <div className={styles.moreInfo}>
-      <Statistic title="状态" value="待审批" />
-      <Statistic title="订单金额" value={568.08} prefix="¥" />
+      <Statistic title={i18nText("app.examples.advanced.721b5164")} value={i18nText("app.examples.advanced.03574d00")} />
+      <Statistic title={i18nText("app.examples.advanced.0025cc72")} value={568.08} prefix="¥" />
     </div>
   );
   const description = (
@@ -277,7 +278,7 @@ const Advanced: FC = () => {
   );
   const desc1 = (
     <div className={styles.stepDescription}>
-      曲丽丽
+      {i18nText("app.examples.advanced.8d661755")}
       <DingdingOutlined
         style={{
           marginLeft: 8,
@@ -288,7 +289,7 @@ const Advanced: FC = () => {
   );
   const desc2 = (
     <div className={styles.stepDescription}>
-      周毛毛
+      {i18nText("app.examples.advanced.3d35d601")}
       <DingdingOutlined
         style={{
           color: '#00A0E9',
@@ -297,16 +298,16 @@ const Advanced: FC = () => {
       />
       <div>
         <Button type="link" style={{padding: 0}}>
-          催一下
+          {i18nText("app.examples.advanced.78ca3836")}
         </Button>
       </div>
     </div>
   );
   const stepsItems: StepsProps['items'] = [
-    { title: '创建项目', content: desc1 },
-    { title: '部门初审', content: desc2 },
-    { title: '财务复核' },
-    { title: '完成' },
+    { title: i18nText("app.examples.advanced.baa76298"), content: desc1 },
+    { title: i18nText("app.examples.advanced.05488d64"), content: desc2 },
+    { title: i18nText("app.examples.advanced.2ccd5e71") },
+    { title: i18nText("app.examples.advanced.a33fc6a5") },
   ];
 
   const [tabStatus, seTabStatus] = useState<AdvancedState>({
@@ -359,7 +360,7 @@ const Advanced: FC = () => {
   };
   return (
     <PageContainer
-      title="单号：234231029431"
+      title={i18nText("app.examples.advanced.6a6baa76")}
       extra={action}
       className={styles.pageHeader}
       content={description}
@@ -369,18 +370,18 @@ const Advanced: FC = () => {
       tabList={[
         {
           key: 'detail',
-          tab: '详情',
+          tab: i18nText("app.examples.advanced.d78746c6"),
         },
         {
           key: 'rule',
-          tab: '规则',
+          tab: i18nText("app.examples.advanced.f3915925"),
         },
       ]}
     >
       <div className={styles.main}>
         <GridContent>
           <Card
-            title="流程进度"
+            title={i18nText("app.examples.advanced.ec5112cf")}
             style={{
               marginBottom: 24,
             }}
@@ -397,7 +398,7 @@ const Advanced: FC = () => {
             </RouteContext.Consumer>
           </Card>
           <Card
-            title="用户信息"
+            title={i18nText("app.examples.advanced.248621c7")}
             style={{
               marginBottom: 24,
             }}
@@ -413,7 +414,7 @@ const Advanced: FC = () => {
               style={{
                 marginBottom: 24,
               }}
-              title="信息组"
+              title={i18nText("app.examples.advanced.346abfca")}
               items={infoGroupItems}
             />
             <h4
@@ -421,18 +422,18 @@ const Advanced: FC = () => {
                 marginBottom: 16,
               }}
             >
-              信息组
+              {i18nText("app.examples.advanced.346abfca")}
             </h4>
-            <Card type="inner" title="多层级信息组">
-              <Descriptions title="组名称" items={groupItems1} />
+            <Card type="inner" title={i18nText("app.examples.advanced.8be096e3")}>
+              <Descriptions title={i18nText("app.examples.advanced.95221b5c")} items={groupItems1} />
               <Divider size="large" />
-              <Descriptions title="组名称" column={1} items={groupItems2} />
+              <Descriptions title={i18nText("app.examples.advanced.95221b5c")} column={1} items={groupItems2} />
               <Divider size="large" />
-              <Descriptions title="组名称" items={groupItems3} />
+              <Descriptions title={i18nText("app.examples.advanced.95221b5c")} items={groupItems3} />
             </Card>
           </Card>
           <Card
-            title="用户近半年来电记录"
+            title={i18nText("app.examples.advanced.76285ada")}
             style={{
               marginBottom: 24,
             }}

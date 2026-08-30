@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Button, Input, Modal, Typography} from "antd";
 import mermaid from "mermaid";
 import {useEffect, useRef, useState} from "react";
@@ -52,7 +53,7 @@ export function MermaidInputDialog({
     } catch (err: any) {
       if (!parseAbortRef.current) {
         const message =
-          err?.message ?? err?.str ?? "Mermaid 语法错误，请检查代码";
+          err?.message ?? err?.str ?? i18nText("app.article.mermaid.mermaidinputdialog.6f7612ef");
         setError(message);
       }
     } finally {
@@ -81,7 +82,7 @@ export function MermaidInputDialog({
   return (
     <Modal
       open={isOpen}
-      title="mermaid 图表"
+      title={i18nText("app.article.mermaid.mermaidinputdialog.f9aecd74")}
       width="55%"
       mask={{closable: false}} // 点击遮罩层不关闭，对应 disablePointerDismissal
       onCancel={handleCancel}
@@ -89,14 +90,14 @@ export function MermaidInputDialog({
       destroyOnHidden
       footer={
         <div style={{display: "flex", justifyContent: "flex-end", gap: 8}}>
-          <Button onClick={handleCancel}>取消</Button>
+          <Button onClick={handleCancel}>{i18nText("app.article.mermaid.mermaidinputdialog.cf744d77")}</Button>
           <Button
             type="primary"
             disabled={code.trim().length === 0}
             loading={loading}
             onClick={handleSubmit}
           >
-            {value ? "更新" : "插入"}
+            {value ? i18nText("app.article.mermaid.mermaidinputdialog.3948bca5") : i18nText("app.article.mermaid.mermaidinputdialog.12bb7e7c")}
           </Button>
         </div>
       }

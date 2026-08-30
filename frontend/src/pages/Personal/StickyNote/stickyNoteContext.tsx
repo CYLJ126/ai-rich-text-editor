@@ -1,10 +1,22 @@
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
-import {addSticky, deleteSticky, listStickies} from '@/services/ant-design-pro/dailyWork';
-import {MyTime} from '@/components/TimeHeader';
+import { i18nText } from '@/utils/i18n';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  addSticky,
+  deleteSticky,
+  listStickies,
+} from '@/services/ant-design-pro/dailyWork';
+import { MyTime } from '@/components/TimeHeader';
 import dayjs from 'dayjs';
-import {message} from 'antd';
-import {StickyNoteInfo} from "./type";
-import {TagItem} from '@/components/TagsSelector';
+import { message } from 'antd';
+import { StickyNoteInfo } from './type';
+import { TagItem } from '@/components/TagsSelector';
 
 interface StickyNoteContextType {
   stickyTags: TagItem[];
@@ -19,9 +31,15 @@ interface StickyNoteContextType {
   isLoading: boolean;
 }
 
-const StickyNoteContext = createContext<StickyNoteContextType | undefined>(undefined);
+const StickyNoteContext = createContext<StickyNoteContextType | undefined>(
+  undefined,
+);
 
-export function StickyNoteProvider({children}: { children: React.ReactNode }) {
+export function StickyNoteProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const cached = localStorage.getItem('stickyTags');
   const stickyTags = cached ? JSON.parse(cached) : [];
   const [whichDay, setWhichDay] = useState<MyTime>({
@@ -40,7 +58,7 @@ export function StickyNoteProvider({children}: { children: React.ReactNode }) {
       setIsLoading(true);
       try {
         const res = await listStickies({ ...queryParam, ...param, size: 100 });
-        setStickies(res?.records as StickyNoteInfo[] || []);
+        setStickies((res?.records as StickyNoteInfo[]) || []);
       } catch (error) {
         console.error('获取便笺失败:', error);
         setStickies([]);
@@ -54,8 +72,8 @@ export function StickyNoteProvider({children}: { children: React.ReactNode }) {
   // 添加空白便笺
   const addBlankOne = useCallback(async () => {
     const stickyNote = {
-      title: '标题',
-      content: '内容',
+      title: i18nText('app.common.stickynote.stickynotecontext.ac8e3c4a'),
+      content: i18nText('app.common.stickynote.stickynotecontext.ee153502'),
       width: 300,
       height: 200,
       x: 0,
@@ -63,9 +81,11 @@ export function StickyNoteProvider({children}: { children: React.ReactNode }) {
     };
     try {
       await addSticky(stickyNote);
-      await fetchStickies({endDate: whichDay.label});
+      await fetchStickies({ endDate: whichDay.label });
     } catch (error) {
-      message.error('添加便笺失败').then();
+      message
+        .error(i18nText('app.common.stickynote.stickynotecontext.faa6ce38'))
+        .then();
     }
   }, [fetchStickies, whichDay]);
 
@@ -75,12 +95,20 @@ export function StickyNoteProvider({children}: { children: React.ReactNode }) {
       try {
         const res = await deleteSticky({ id: stickyId });
         if (res) {
-          await fetchStickies({endDate: whichDay.label});
+          await fetchStickies({ endDate: whichDay.label });
         } else {
-          message.warning('id：' + stickyId + '删除失败').then();
+          message
+            .warning(
+              i18nText('app.sticky.delete.failedWithId', { value0: stickyId }),
+            )
+            .then();
         }
       } catch (error) {
-        message.error('删除便笺失败' + error).then();
+        message
+          .error(
+            i18nText('app.sticky.delete.failed', { value0: String(error) }),
+          )
+          .then();
       }
     },
     [fetchStickies, whichDay],
@@ -99,14 +127,26 @@ export function StickyNoteProvider({children}: { children: React.ReactNode }) {
       deleteLogical,
       isLoading,
     }),
-    [queryParam, stickies, addBlankOne, fetchStickies, whichDay, isLoading, deleteLogical],
+    [
+      queryParam,
+      stickies,
+      addBlankOne,
+      fetchStickies,
+      whichDay,
+      isLoading,
+      deleteLogical,
+    ],
   );
 
   useEffect(() => {
     fetchStickies({ endDate: dayjs().format('YYYY-MM-DD') }).then();
   }, [queryParam]);
 
-  return <StickyNoteContext.Provider value={value}>{children}</StickyNoteContext.Provider>;
+  return (
+    <StickyNoteContext.Provider value={value}>
+      {children}
+    </StickyNoteContext.Provider>
+  );
 }
 
 // 自定义 hook 方便使用

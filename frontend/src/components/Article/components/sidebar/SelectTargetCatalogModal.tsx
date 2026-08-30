@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {App, Modal, Tree} from 'antd';
 import React, {useCallback, useEffect, useState} from 'react';
 import type {CatalogTreeNode, CatalogType,} from '@/types/rt.type';
@@ -66,7 +67,7 @@ export default function SelectTargetCatalogModal({
           buildCatalogTree(nodes, targetSpace, targetSpace === 'public'),
         );
       })
-      .catch(() => message.error('获取目标目录失败'))
+      .catch(() => message.error(i18nText("app.article.sidebar.selecttargetcatalogmodal.b18e9e7f")))
       .finally(() => setLoading(false));
   }, [open, message, targetSpace]);
 
@@ -79,7 +80,7 @@ export default function SelectTargetCatalogModal({
       await onSubmit(targetCatalogId);
       onClose();
     } catch {
-      message.error('操作失败');
+      message.error(i18nText("app.article.sidebar.selecttargetcatalogmodal.9256b9f4"));
     } finally {
       setSubmitting(false);
     }
@@ -92,13 +93,13 @@ export default function SelectTargetCatalogModal({
       onCancel={onClose}
       onOk={handleOk}
       confirmLoading={submitting}
-      okText="确定"
-      cancelText="取消"
+      okText={i18nText("app.article.sidebar.selecttargetcatalogmodal.264963dc")}
+      cancelText={i18nText("app.article.sidebar.selecttargetcatalogmodal.4bdf2d62")}
       destroyOnHidden={true}
     >
       <div className="mb-3 text-[13px] text-[#666]">{instruction}</div>
       {loading ? (
-        <div className="p-6 text-center">加载中...</div>
+        <div className="p-6 text-center">{i18nText("app.article.sidebar.selecttargetcatalogmodal.30ec6af4")}</div>
       ) : (
         <Tree
           treeData={treeData as any}

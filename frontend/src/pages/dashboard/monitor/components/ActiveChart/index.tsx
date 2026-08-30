@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Area} from '@ant-design/plots';
 import {Statistic} from 'antd';
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -50,7 +51,7 @@ const ActiveChart = () => {
 
   return (
     <div className={styles.activeChart}>
-      <Statistic title="目标评估" value="有望达到预期" />
+      <Statistic title={i18nText("app.dashboard.activechart.25cbe617")} value={i18nText("app.dashboard.activechart.413f9141")} />
       <div
         style={{
           marginTop: 32,
@@ -72,8 +73,8 @@ const ActiveChart = () => {
       {activeData && (
         <div>
           <div className={styles.activeChartGrid}>
-            <p>{maxValue + 200} 亿元</p>
-            <p>{medianValue} 亿元</p>
+            <p>{maxValue + 200} {i18nText("app.dashboard.activechart.5be78515")}</p>
+            <p>{medianValue} {i18nText("app.dashboard.activechart.5be78515")}</p>
           </div>
           <div className={styles.dashedLine}>
             <div className={styles.line} />

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Skeleton } from 'antd';
 import * as d3 from 'd3';
@@ -275,7 +276,7 @@ export default function MonitorMap() {
               strong.textContent = name;
               const br = document.createElement('br');
               const text = document.createTextNode(
-                `交易量: ${d.properties.cum_conf.toLocaleString()}`,
+                i18nText("app.dashboard.map.f77d28cd", {value0: d.properties.cum_conf.toLocaleString()}),
               );
               tooltipRef.current.appendChild(strong);
               tooltipRef.current.appendChild(br);
@@ -353,7 +354,7 @@ export default function MonitorMap() {
           gap: 12,
         }}
       >
-        <span style={{ color: '#999' }}>地图数据加载失败</span>
+        <span style={{ color: '#999' }}>{i18nText("app.dashboard.map.691abf03")}</span>
         <Button
           size="small"
           onClick={() => {
@@ -361,7 +362,7 @@ export default function MonitorMap() {
             refetchWorld();
           }}
         >
-          重试
+          {i18nText("app.dashboard.map.3ef961e2")}
         </Button>
       </div>
     );

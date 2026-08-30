@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   CheckSquareOutlined,
   CloseOutlined,
@@ -336,7 +337,7 @@ export default function CatalogTreeSidebar({
       setSharedCatalogs(data?.sharedWithMe ?? []);
       setPublicCatalogs(data?.publicSpace ?? []);
     } catch {
-      message.error('获取目录树失败').then();
+      message.error(i18nText("app.article.sidebar.catalogtreesidebar.4e2e8c7a")).then();
     } finally {
       setLoading(false);
     }
@@ -495,24 +496,24 @@ export default function CatalogTreeSidebar({
   const handleAddRootCatalog = useCallback(
     (isPublic = false) => {
       if (isPublic && !canCreatePublicRootCatalog) {
-        message.warning('只有管理员可以在公共空间中新建根目录').then();
+        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.01fb9674")).then();
         return;
       }
       openTextConfirm({
-        title: '新建根目录',
-        placeholder: '目录名称',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.820a16e1"),
+        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.89801373"),
         onSubmit: async (name) => {
           if (!name) {
-            message.warning('目录名称不能为空').then();
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
             return false;
           }
           try {
             await addCatalog({ name, isPublic });
-            message.success('目录创建成功').then();
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.c0034784")).then();
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error('创建目录失败').then();
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.a03ad4ba")).then();
             return false;
           }
         },
@@ -524,11 +525,11 @@ export default function CatalogTreeSidebar({
   useCallback(
     (isPublic = false) => {
       openTextConfirm({
-        title: '新建文章',
-        placeholder: '文章标题',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.eb13ae75"),
+        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.2f5c8c67"),
         onSubmit: async (title) => {
           if (!title) {
-            message.warning('文章标题不能为空').then();
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b")).then();
             return false;
           }
           try {
@@ -536,14 +537,14 @@ export default function CatalogTreeSidebar({
               title,
               isPublic,
             });
-            message.success(`文章"${newArticle.title}"创建成功`).then();
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.6b1d69c4", {value0: newArticle.title})).then();
             onArticleSelect({
               articleId: newArticle.id,
             });
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error('创建文章失败').then();
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.d4fac406")).then();
             return false;
           }
         },
@@ -555,20 +556,20 @@ export default function CatalogTreeSidebar({
   const handleAddSubCatalog = useCallback(
     (fatherId: number) => {
       openTextConfirm({
-        title: '新建子目录',
-        placeholder: '子目录名称',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.4da89de3"),
+        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.7021bd0c"),
         onSubmit: async (name) => {
           if (!name) {
-            message.warning('目录名称不能为空').then();
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
             return false;
           }
           try {
             await addCatalog({ name, fatherId });
-            message.success('子目录创建成功').then();
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.5ae3afc5")).then();
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error('创建子目录失败').then();
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.85eef335")).then();
             return false;
           }
         },
@@ -583,20 +584,20 @@ export default function CatalogTreeSidebar({
 
       async function rename() {
         if (!name.trim()) {
-          message.warning('目录名称不能为空').then();
+          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
           return;
         }
         try {
           await updateCatalog({ id: catalogId, name: name.trim() });
-          message.success('目录已重命名').then();
+          message.success(i18nText("app.article.sidebar.catalogtreesidebar.d3e3a6f3")).then();
           await fetchAllSpaces();
         } catch {
-          message.error('重命名失败').then();
+          message.error(i18nText("app.article.sidebar.catalogtreesidebar.98a6be5b")).then();
         }
       }
 
       Modal.confirm({
-        title: '重命名目录',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.325c7985"),
         content: (
           <AutoFocusInput
             defaultValue={currentName}
@@ -619,19 +620,19 @@ export default function CatalogTreeSidebar({
   const handleDeleteCatalog = useCallback(
     (catalogId: number, catalogName: string) => {
       modal.confirm({
-        title: '删除目录',
-        content: `确定要删除目录"${catalogName}"吗？其下所有子目录和文章将被一并删除，此操作不可恢复。`,
-        okText: '确认删除',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.645da5fa"),
+        content: i18nText("app.article.sidebar.catalogtreesidebar.544545a8", {value0: catalogName}),
+        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
         okType: 'danger',
-        cancelText: '取消',
+        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
         onOk: async () => {
           try {
             await deleteCatalog(catalogId);
-            message.success('目录已删除').then();
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.06b6ac39")).then();
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error('删除目录失败').then();
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.ac8cee4e")).then();
           }
         },
       });
@@ -644,11 +645,11 @@ export default function CatalogTreeSidebar({
   const handleCreateArticle = useCallback(
     async (catalogId: number) => {
       openTextConfirm({
-        title: '新建文章',
-        placeholder: '文章标题',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.eb13ae75"),
+        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.2f5c8c67"),
         onSubmit: async (title) => {
           if (!title) {
-            message.warning('文章标题不能为空').then();
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b")).then();
             return false;
           }
           try {
@@ -656,12 +657,12 @@ export default function CatalogTreeSidebar({
               title,
               catalogId,
             });
-            message.success(`文章"${newArticle.title}"创建成功`).then();
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.6b1d69c4", {value0: newArticle.title})).then();
             onArticleSelect({ articleId: newArticle.id });
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error('创建文章失败').then();
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.d4fac406")).then();
             return false;
           }
         },
@@ -716,17 +717,17 @@ export default function CatalogTreeSidebar({
         try {
           const markdown = await file.text();
           const title =
-            file.name.replace(MARKDOWN_FILE_PATTERN, '') || '未命名文章';
+            file.name.replace(MARKDOWN_FILE_PATTERN, '') || i18nText("app.article.sidebar.catalogtreesidebar.f8e63045");
           const newArticle = await saveImportedMarkdown(
             catalogId,
             title,
             markdown,
           );
-          message.success(`文章“${title}”导入成功`);
+          message.success(i18nText("app.article.sidebar.catalogtreesidebar.792ec85d", {value0: title}));
           await fetchAllSpaces();
           onArticleSelect({ articleId: newArticle.id });
         } catch {
-          message.error('Markdown 文章导入失败');
+          message.error(i18nText("app.article.sidebar.catalogtreesidebar.b08df0b3"));
         }
       };
       input.click();
@@ -747,7 +748,7 @@ export default function CatalogTreeSidebar({
         let importedCount = 0;
         message.loading({
           key: messageKey,
-          content: '正在导入 Markdown 压缩包…',
+          content: i18nText("app.article.sidebar.catalogtreesidebar.3a8a9393"),
           duration: 0,
         });
         try {
@@ -763,7 +764,7 @@ export default function CatalogTreeSidebar({
           if (markdownEntries.length === 0) {
             message.warning({
               key: messageKey,
-              content: '压缩包中没有 Markdown 文件',
+              content: i18nText("app.article.sidebar.catalogtreesidebar.3ad589f1"),
             });
             return;
           }
@@ -799,7 +800,7 @@ export default function CatalogTreeSidebar({
               uploadedUrls,
             );
             const title =
-              fileName.replace(MARKDOWN_FILE_PATTERN, '') || '未命名文章';
+              fileName.replace(MARKDOWN_FILE_PATTERN, '') || i18nText("app.article.sidebar.catalogtreesidebar.f8e63045");
             await saveImportedMarkdown(parentId, title, markdown);
             importedCount += 1;
           }
@@ -807,7 +808,7 @@ export default function CatalogTreeSidebar({
           await fetchAllSpaces();
           message.success({
             key: messageKey,
-            content: `成功导入 ${importedCount} 篇 Markdown 文章`,
+            content: i18nText("app.article.sidebar.catalogtreesidebar.18c9d0ce", {value0: importedCount}),
           });
         } catch {
           await fetchAllSpaces();
@@ -815,8 +816,8 @@ export default function CatalogTreeSidebar({
             key: messageKey,
             content:
               importedCount > 0
-                ? `已导入 ${importedCount} 篇，后续内容导入失败`
-                : 'Markdown 压缩包导入失败',
+                ? i18nText("app.article.sidebar.catalogtreesidebar.c9315cff", {value0: importedCount})
+                : i18nText("app.article.sidebar.catalogtreesidebar.4b407ec6"),
           });
         }
       };
@@ -828,19 +829,19 @@ export default function CatalogTreeSidebar({
   const handleDeleteArticle = useCallback(
     (articleId: number, articleTitle: string) => {
       modal.confirm({
-        title: '删除文章',
-        content: `确定要删除文章"${articleTitle}"吗？此操作不可恢复。`,
-        okText: '确认删除',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.1ee37afb"),
+        content: i18nText("app.article.sidebar.catalogtreesidebar.6d740c66", {value0: articleTitle}),
+        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
         okType: 'danger',
-        cancelText: '取消',
+        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
         onOk: async () => {
           try {
             await deleteArticle(articleId);
-            message.success('文章已删除');
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.9a21ac76"));
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error('删除文章失败');
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.ebc0b300"));
           }
         },
       });
@@ -868,11 +869,11 @@ export default function CatalogTreeSidebar({
       let targetCatalogId: number | null = null;
 
       Modal.confirm({
-        title: '移动文章到目录',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.2b756ee2"),
         content: (
           <Select
             className="w-full"
-            placeholder="选择目标目录"
+            placeholder={i18nText("app.article.sidebar.catalogtreesidebar.f978a3e4")}
             options={catalogOptions}
             onChange={(val) => {
               targetCatalogId = val;
@@ -881,15 +882,15 @@ export default function CatalogTreeSidebar({
         ),
         onOk: async () => {
           if (targetCatalogId === null) {
-            message.warning('请选择目标目录');
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.240fb806"));
             return;
           }
           try {
             await moveToCatalog(articleId, targetCatalogId);
-            message.success('文章已移动');
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.419b3908"));
             await fetchAllSpaces();
           } catch {
-            message.error('移动文章失败');
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.f731ddbc"));
           }
         },
       });
@@ -911,16 +912,16 @@ export default function CatalogTreeSidebar({
   const handleBatchMoveSubmit = useCallback(
     async (targetCatalogId: number | null) => {
       if (targetCatalogId === null) {
-        message.warning('请选择目标目录');
+        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.240fb806"));
         return;
       }
       try {
         await batchMoveToCatalogByIds(batchMove.articleIds, targetCatalogId);
-        message.success(`已移动 ${batchMove.articleIds.length} 篇文章`);
+        message.success(i18nText("app.article.sidebar.catalogtreesidebar.afb24336", {value0: batchMove.articleIds.length}));
         clearBatchMove();
         await fetchAllSpaces();
       } catch {
-        message.error('批量移动失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.3828305e"));
       }
     },
     [batchMove.articleIds, clearBatchMove, fetchAllSpaces, message],
@@ -929,19 +930,19 @@ export default function CatalogTreeSidebar({
   const handleBatchDeleteArticles = useCallback(
     (articleIds: number[]) => {
       modal.confirm({
-        title: '批量删除文章',
-        content: `确定删除选中的 ${articleIds.length} 篇文章吗？此操作不可恢复。`,
-        okText: '确认删除',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.1b387b9e"),
+        content: i18nText("app.article.sidebar.catalogtreesidebar.a57d8df5", {value0: articleIds.length}),
+        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
         okType: 'danger',
-        cancelText: '取消',
+        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
         onOk: async () => {
           try {
             await batchDeleteArticles(articleIds);
-            message.success(`已删除 ${articleIds.length} 篇文章`);
+            message.success(i18nText("app.article.sidebar.catalogtreesidebar.7f6d4b42", {value0: articleIds.length}));
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error('批量删除失败');
+            message.error(i18nText("app.article.sidebar.catalogtreesidebar.7ab460dd"));
           }
         },
       });
@@ -959,13 +960,13 @@ export default function CatalogTreeSidebar({
           .filter(Boolean)
           .map((article: any) => {
             const body = article.contentMd || article.contentText || '';
-            return `# ${article.title || `文章 ${article.id}`}\n\n${body}`;
+            return `# ${article.title || i18nText("app.article.sidebar.catalogtreesidebar.27ff4125", {value0: article.id})}\n\n${body}`;
           })
           .join('\n\n---\n\n');
         exportFile(`articles-${Date.now()}.md`, markdown);
-        message.success(`已导出 ${articleIds.length} 篇文章`);
+        message.success(i18nText("app.article.sidebar.catalogtreesidebar.be63f4fa", {value0: articleIds.length}));
       } catch {
-        message.error('导出文章失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.fb9c9ede"));
       }
     },
     [message],
@@ -978,7 +979,7 @@ export default function CatalogTreeSidebar({
       async function rename() {
         const nextTitle = title.trim();
         if (!nextTitle) {
-          message.warning('文章标题不能为空');
+          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b"));
           return;
         }
         try {
@@ -987,15 +988,15 @@ export default function CatalogTreeSidebar({
           if (currentArticleInfo?.id === articleId) {
             setArticleInfo({ ...currentArticleInfo, title: nextTitle });
           }
-          message.success('标题修改成功');
+          message.success(i18nText("app.article.sidebar.catalogtreesidebar.5ca16f2e"));
           await fetchAllSpaces();
         } catch {
-          message.error('修改标题失败');
+          message.error(i18nText("app.article.sidebar.catalogtreesidebar.bb1317b8"));
         }
       }
 
       Modal.confirm({
-        title: '修改文章标题',
+        title: i18nText("app.article.sidebar.catalogtreesidebar.0827a64a"),
         content: (
           <AutoFocusInput
             defaultValue={currentTitle}
@@ -1089,10 +1090,10 @@ export default function CatalogTreeSidebar({
               orderId: index + 1,
             })),
           );
-          message.success('文章顺序已更新');
+          message.success(i18nText("app.article.sidebar.catalogtreesidebar.c7b1216b"));
           await fetchAllSpaces();
         } catch {
-          message.error('调整文章顺序失败');
+          message.error(i18nText("app.article.sidebar.catalogtreesidebar.d413cdcc"));
         }
         return;
       }
@@ -1105,15 +1106,15 @@ export default function CatalogTreeSidebar({
         const article = dragNode.data as any;
         const catalog = dropNode.data as CatalogType;
         if (sourceSpace === 'public' && !catalog.canDelete) {
-          message.warning('只能移动到自己创建的公共目录');
+          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.98bcffda"));
           return;
         }
         try {
           await moveToCatalog(article.id, catalog.id);
-          message.success('文章已移动');
+          message.success(i18nText("app.article.sidebar.catalogtreesidebar.419b3908"));
           await fetchAllSpaces();
         } catch {
-          message.error('移动文章失败');
+          message.error(i18nText("app.article.sidebar.catalogtreesidebar.f731ddbc"));
         }
         return;
       }
@@ -1123,7 +1124,7 @@ export default function CatalogTreeSidebar({
       const target = dropNode.data as CatalogType;
       if (source.id === target.id) return;
       if (sourceSpace === 'public' && !target.canDelete) {
-        message.warning('只能移动到自己创建的公共目录');
+        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.98bcffda"));
         return;
       }
       const isDescendant = (node: CatalogType, id: number): boolean =>
@@ -1131,7 +1132,7 @@ export default function CatalogTreeSidebar({
           (child) => child.id === id || isDescendant(child, id),
         );
       if (isDescendant(source, target.id)) {
-        message.warning('不能把目录移动到自己的子目录中');
+        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.dac7b73b"));
         return;
       }
 
@@ -1216,10 +1217,10 @@ export default function CatalogTreeSidebar({
       }
       try {
         await reorderCatalogs(flattenUpdates(nextTree, null));
-        message.success('目录顺序已更新');
+        message.success(i18nText("app.article.sidebar.catalogtreesidebar.29f43e74"));
         await fetchAllSpaces();
       } catch {
-        message.error('移动目录失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.11b4a1d0"));
       }
     },
     [fetchAllSpaces, message, myCatalogs, publicCatalogs],
@@ -1241,8 +1242,8 @@ export default function CatalogTreeSidebar({
     (resourceType: string, resourceId: number) => {
       const name =
         resourceType === 'CATALOG'
-          ? `目录 #${resourceId}`
-          : `文章 #${resourceId}`;
+          ? i18nText("app.article.sidebar.catalogtreesidebar.edc62e31", {value0: resourceId})
+          : i18nText("app.article.sidebar.catalogtreesidebar.23142b3c", {value0: resourceId});
       setCopyModal({
         open: true,
         resourceType: resourceType as 'CATALOG' | 'ARTICLE',
@@ -1257,7 +1258,7 @@ export default function CatalogTreeSidebar({
     async (targetCatalogId: number | null) => {
       const { resourceType, resourceId } = copyModal;
       if (targetCatalogId === null) {
-        message.warning('复制操作需要选择目标目录');
+        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.ab9f1b64"));
         return;
       }
       try {
@@ -1266,10 +1267,10 @@ export default function CatalogTreeSidebar({
         } else {
           await copyArticleToMySpace(resourceId, targetCatalogId);
         }
-        message.success('已复制到我的空间');
+        message.success(i18nText("app.article.sidebar.catalogtreesidebar.5febc6e1"));
         await fetchAllSpaces();
       } catch {
-        message.error('复制失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.7c224c9b"));
       }
     },
     [copyModal, fetchAllSpaces, message],
@@ -1280,8 +1281,8 @@ export default function CatalogTreeSidebar({
     (resourceType: string, resourceId: number) => {
       const name =
         resourceType === 'CATALOG'
-          ? `目录 #${resourceId}`
-          : `文章 #${resourceId}`;
+          ? i18nText("app.article.sidebar.catalogtreesidebar.edc62e31", {value0: resourceId})
+          : i18nText("app.article.sidebar.catalogtreesidebar.23142b3c", {value0: resourceId});
       setRevokeModal({
         open: true,
         resourceType: resourceType as 'CATALOG' | 'ARTICLE',
@@ -1304,15 +1305,15 @@ export default function CatalogTreeSidebar({
           );
         } else {
           if (targetCatalogId === null) {
-            message.warning('请选择撤回后的私有目录');
+            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.f2eb2c96"));
             return;
           }
           await toggleArticlePublic(resourceId, false, targetCatalogId);
         }
-        message.success('已撤回公共状态');
+        message.success(i18nText("app.article.sidebar.catalogtreesidebar.80381937"));
         await fetchAllSpaces();
       } catch {
-        message.error('撤回失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.a8739d38"));
       }
     },
     [revokeModal, fetchAllSpaces, message],
@@ -1326,10 +1327,10 @@ export default function CatalogTreeSidebar({
         } else {
           await toggleArticlePublic(resourceId, isPublic);
         }
-        message.success(isPublic ? '已发布至公共空间' : '已撤回公共状态');
+        message.success(isPublic ? i18nText("app.article.sidebar.catalogtreesidebar.e288954c") : i18nText("app.article.sidebar.catalogtreesidebar.80381937"));
         await fetchAllSpaces();
       } catch {
-        message.error('操作失败');
+        message.error(i18nText("app.article.sidebar.catalogtreesidebar.2c103490"));
       }
     },
     [fetchAllSpaces, message],
@@ -1358,7 +1359,7 @@ export default function CatalogTreeSidebar({
                   ) : (
                     <CheckSquareOutlined />
                   ),
-                  label: isBatchMode ? '退出批量' : '批量操作',
+                  label: isBatchMode ? i18nText("app.article.sidebar.catalogtreesidebar.347cd9d3") : i18nText("app.article.sidebar.catalogtreesidebar.fbb37314"),
                   onClick: () => {
                     setBatchModeSpace(isBatchMode ? null : space);
                   },
@@ -1392,7 +1393,7 @@ export default function CatalogTreeSidebar({
           className="block w-full"
         >
           <LockOutlined className="mr-1.5" />
-          我的空间（私有）
+          {i18nText("app.article.sidebar.catalogtreesidebar.eccd2f1e")}
         </span>
       ),
       extra: renderBatchMenu('my'),
@@ -1432,7 +1433,7 @@ export default function CatalogTreeSidebar({
       label: (
         <span>
           <TeamOutlined className="mr-1.5" />
-          与我分享
+          {i18nText("app.article.sidebar.catalogtreesidebar.1250a36b")}
         </span>
       ),
       children: (
@@ -1461,7 +1462,7 @@ export default function CatalogTreeSidebar({
           className="block w-full"
         >
           <GlobalOutlined className="mr-1.5" />
-          公共空间
+          {i18nText("app.article.sidebar.catalogtreesidebar.17318c0b")}
         </span>
       ),
       extra: renderBatchMenu('public'),
@@ -1505,7 +1506,7 @@ export default function CatalogTreeSidebar({
           <Input
             allowClear
             prefix={<SearchOutlined className="text-[#8c8c8c]" />}
-            placeholder="搜索目录"
+            placeholder={i18nText("app.article.sidebar.catalogtreesidebar.65fe10a7")}
             value={treeSearchKeyword}
             onChange={(event) => setTreeSearchKeyword(event.target.value)}
             className="flex-1 rounded-md"
@@ -1513,8 +1514,8 @@ export default function CatalogTreeSidebar({
         </div>
         {normalizedTreeSearchKeyword && (
           <Typography.Text type="secondary" className="mt-1.5 block text-xs">
-            已在本地匹配 {treeSearchResultCount}{' '}
-            个目录/文章，点击“搜索正文”进入主页深度搜索
+            {i18nText("app.article.sidebar.catalogtreesidebar.183b962e")} {treeSearchResultCount}{' '}
+            {i18nText("app.article.sidebar.catalogtreesidebar.55e850ef")}
           </Typography.Text>
         )}
       </div>
@@ -1557,7 +1558,7 @@ export default function CatalogTreeSidebar({
                 items={[
                   {
                     key: 'add-root-catalog',
-                    label: '新建根目录',
+                    label: i18nText("app.article.sidebar.catalogtreesidebar.820a16e1"),
                     icon: <FolderAddOutlined />,
                     disabled:
                       spaceMenu.space === 'public' &&
@@ -1591,8 +1592,8 @@ export default function CatalogTreeSidebar({
       {/* 复制到我的空间弹窗 */}
       <SelectTargetCatalogModal
         open={copyModal.open}
-        title="复制到我的空间"
-        instruction="请选择复制到您的私有空间中的目标目录："
+        title={i18nText("app.article.sidebar.catalogtreesidebar.ed355c6e")}
+        instruction={i18nText("app.article.sidebar.catalogtreesidebar.9c31861b")}
         resourceName={copyModal.resourceName}
         onClose={() => setCopyModal((prev) => ({ ...prev, open: false }))}
         onSubmit={handleCopyToPrivateSubmit}
@@ -1601,9 +1602,9 @@ export default function CatalogTreeSidebar({
       {/* 撤回公共状态弹窗 */}
       <SelectTargetCatalogModal
         open={batchMove.articleIds.length > 0}
-        title="批量移动文章"
-        instruction="选择这些文章要移动到的目标目录。"
-        resourceName={`${batchMove.articleIds.length} 篇文章`}
+        title={i18nText("app.article.sidebar.catalogtreesidebar.c896d7d9")}
+        instruction={i18nText("app.article.sidebar.catalogtreesidebar.180cab67")}
+        resourceName={i18nText("app.article.sidebar.catalogtreesidebar.33a7e8cc", {value0: batchMove.articleIds.length})}
         targetSpace={batchMove.sourceSpace}
         onClose={clearBatchMove}
         onSubmit={handleBatchMoveSubmit}
@@ -1611,8 +1612,8 @@ export default function CatalogTreeSidebar({
 
       <SelectTargetCatalogModal
         open={revokeModal.open}
-        title="撤回公共状态"
-        instruction="请选择撤回后的目标目录（不选则放在根目录下）："
+        title={i18nText("app.article.sidebar.catalogtreesidebar.b93805da")}
+        instruction={i18nText("app.article.sidebar.catalogtreesidebar.f424c6c4")}
         resourceName={revokeModal.resourceName}
         onClose={() => setRevokeModal((prev) => ({ ...prev, open: false }))}
         onSubmit={handleRevokeSubmit}

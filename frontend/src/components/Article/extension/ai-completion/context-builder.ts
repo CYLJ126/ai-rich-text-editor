@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {Node as ProseMirrorNode} from '@tiptap/pm/model';
 import type {ArticleHeading} from "@/types/rt.type";
 
@@ -68,7 +69,7 @@ export function extractDocText(
     // ── 图片（叶子块节点） ───
     if (node.type.name === 'image') {
       const alt = (node.attrs?.alt as string) ?? '';
-      const repr = alt ? `[图片: ${alt}]` : '';
+      const repr = alt ? i18nText("app.article.aicompletion.contextbuilder.99a16105", {value0: alt}) : '';
       posMap.push({docPos: pos, textOffset: currentTextLength()});
       if (repr) parts.push(repr);
       posMap.push({docPos: pos + node.nodeSize, textOffset: currentTextLength()});

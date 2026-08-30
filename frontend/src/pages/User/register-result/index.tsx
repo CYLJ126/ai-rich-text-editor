@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Link, useSearchParams} from '@umijs/max';
 import {Button, Result} from 'antd';
 import React from 'react';
@@ -10,10 +11,10 @@ const RegisterResult: React.FC<Record<string, unknown>> = () => {
   const actions = (
     <div className={styles.actions}>
       <Button size="large" type="primary">
-        <span>查看邮箱</span>
+        <span>{i18nText("app.user.registerresult.691bfd2a")}</span>
       </Button>
       <Link to="/" prefetch>
-        <Button size="large">返回首页</Button>
+        <Button size="large">{i18nText("app.user.registerresult.1b7f5da1")}</Button>
       </Link>
     </div>
   );
@@ -25,10 +26,10 @@ const RegisterResult: React.FC<Record<string, unknown>> = () => {
       status="success"
       title={
         <div className={styles.title}>
-          <span>你的账户：{email} 注册成功</span>
+          <span>{i18nText("app.user.registerresult.d7245add")}{email} {i18nText("app.user.registerresult.b48e5b4c")}</span>
         </div>
       }
-      subTitle="激活邮件已发送到你的邮箱中，邮件有效期为24小时。请及时登录邮箱，点击邮件中的链接激活帐户。"
+      subTitle={i18nText("app.user.registerresult.383d3f65")}
       extra={actions}
     />
   );

@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import {
   DownloadOutlined,
   EditOutlined,
@@ -29,7 +30,7 @@ function formatWan(val: number) {
             marginLeft: 2,
           }}
         >
-          万
+          {i18nText('app.account.applications.a15b8e60')}
         </span>
       </span>
     );
@@ -45,11 +46,11 @@ const CardInfo: React.FC<{
   return (
     <div className={stylesApplications.cardInfo}>
       <div>
-        <p>活跃用户</p>
+        <p>{i18nText('app.account.applications.3b917554')}</p>
         <p>{activeUser}</p>
       </div>
       <div>
-        <p>新增用户</p>
+        <p>{i18nText('app.account.applications.34bd768c')}</p>
         <p>{newUser}</p>
       </div>
     </div>
@@ -88,13 +89,22 @@ const Applications: React.FC = () => {
               },
             }}
             actions={[
-              <Tooltip key="download" title="下载">
+              <Tooltip
+                key="download"
+                title={i18nText('app.account.applications.f696b3c7')}
+              >
                 <DownloadOutlined />
               </Tooltip>,
-              <Tooltip title="编辑" key="edit">
+              <Tooltip
+                title={i18nText('app.account.applications.0d59c621')}
+                key="edit"
+              >
                 <EditOutlined />
               </Tooltip>,
-              <Tooltip title="分享" key="share">
+              <Tooltip
+                title={i18nText('app.account.applications.780332d4')}
+                key="share"
+              >
                 <ShareAltOutlined />
               </Tooltip>,
               <Dropdown
@@ -102,11 +112,11 @@ const Applications: React.FC = () => {
                   items: [
                     {
                       key: '1',
-                      title: '1st menu item',
+                      title: i18nText('app.examples.firstMenuItem'),
                     },
                     {
                       key: '2',
-                      title: '2nd menu item',
+                      title: i18nText('app.examples.secondMenuItem'),
                     },
                   ],
                 }}

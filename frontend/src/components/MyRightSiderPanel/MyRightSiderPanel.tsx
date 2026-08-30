@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,} from "react";
 import {createStyles} from "antd-style";
 import {Button, Input, Spin, Tooltip} from "antd";
@@ -264,7 +265,7 @@ const MyRightSiderPanel = forwardRef<RightSiderHandleRef, RightSiderProps>(
         {searchInputKey && (
           <div className="shrink-0 pt-2 px-2 mb-1 flex flex-col">
             <Input
-              placeholder="搜索"
+              placeholder={i18nText("app.common.myrightsiderpanel.myrightsiderpanel.1cd22814")}
               prefix={<SearchOutlined/>}
               allowClear
               onChange={(e) => (searchInputRef.current = e.target.value)}
@@ -333,25 +334,25 @@ const MyRightSiderPanel = forwardRef<RightSiderHandleRef, RightSiderProps>(
                 indicator={<LoadingOutlined className="text-sm" spin/>}
                 size="small"
               />
-              <span className="ml-2 text-xs opacity-40">加载中...</span>
+              <span className="ml-2 text-xs opacity-40">{i18nText("app.common.myrightsiderpanel.myrightsiderpanel.b5b1bf98")}</span>
             </div>
           )}
 
           {/* 已加载全部 */}
           {noMore && itemList.length > 0 && (
             <div className="flex items-center justify-center py-3">
-              <span className="text-xs opacity-30">— 已加载全部 —</span>
+              <span className="text-xs opacity-30">{i18nText("app.common.myrightsiderpanel.myrightsiderpanel.47d5d305")}</span>
             </div>
           )}
         </div>
 
         {/* 回到顶部 */}
         {showBackTop && (
-          <Tooltip title="回到顶部" placement="left">
+          <Tooltip title={i18nText("app.common.myrightsiderpanel.myrightsiderpanel.8df12d57")} placement="left">
             <Button
               onClick={scrollToTop}
               className={styles.backTopBtn}
-              aria-label="回到顶部"
+              aria-label={i18nText("app.common.myrightsiderpanel.myrightsiderpanel.8df12d57")}
             >
               <ArrowUpOutlined className="text-xs"/>
             </Button>

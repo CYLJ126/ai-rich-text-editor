@@ -1,30 +1,32 @@
-import {CheckOutlined, GlobalOutlined} from '@ant-design/icons';
-import {getAllLocales, getLocale, setLocale} from '@umijs/max';
-import type {MenuProps} from 'antd';
-import {Button} from 'antd';
-import {useMemo} from 'react';
+import { CheckOutlined, GlobalOutlined } from '@ant-design/icons';
+import { getAllLocales, getLocale, setLocale } from '@umijs/max';
+import type { MenuProps } from 'antd';
+import { Button } from 'antd';
+import { useMemo } from 'react';
+import { i18nText } from '@/utils/i18n';
 import HeaderDropdown from '../HeaderDropdown';
 import useHeaderActionStyles from './style';
 
 const localeLabelMap: Record<string, { emoji: string; label: string }> = {
-  'zh-CN': {emoji: '🇨🇳', label: '简体中文'},
-  'zh-TW': {emoji: '🇭🇰', label: '繁體中文'},
-  'en-US': {emoji: '🇺🇸', label: 'English'},
-  'ja-JP': {emoji: '🇯🇵', label: '日本語'},
-  'pt-BR': {emoji: '🇧🇷', label: 'Português'},
-  'id-ID': {emoji: '🇮🇩', label: 'Bahasa Indonesia'},
-  'fa-IR': {emoji: '🇮🇷', label: 'فارسی'},
-  'bn-BD': {emoji: '🇧🇩', label: 'বাংলা'},
+  'zh-CN': {
+    emoji: '🇨🇳',
+    label: i18nText('app.common.rightcontent.langdropdown.065e2d15'),
+  },
+  'zh-TW': {
+    emoji: '🇭🇰',
+    label: i18nText('app.common.rightcontent.langdropdown.04240d81'),
+  },
+  'en-US': { emoji: '🇺🇸', label: 'English' },
 };
 
-const onLangClick: MenuProps['onClick'] = ({key}) => {
+const onLangClick: MenuProps['onClick'] = ({ key }) => {
   if (key.startsWith('lang-')) {
-    setLocale(key.replace('lang-', ''), false);
+    setLocale(key.replace('lang-', ''), true);
   }
 };
 
 export const LangDropdown: React.FC = () => {
-  const {styles} = useHeaderActionStyles();
+  const { styles } = useHeaderActionStyles();
   const allLocales = useMemo(() => getAllLocales(), []);
   const currentLocale = getLocale();
   const supportLocales = allLocales.filter((l) => l in localeLabelMap);
@@ -37,9 +39,9 @@ export const LangDropdown: React.FC = () => {
     key: `lang-${locale}`,
     icon:
       locale === currentLocale ? (
-        <CheckOutlined style={{color: '#52c41a'}}/>
+        <CheckOutlined style={{ color: '#52c41a' }} />
       ) : (
-        <span style={{display: 'inline-block', width: 14}}/>
+        <span style={{ display: 'inline-block', width: 14 }} />
       ),
     label: `${localeLabelMap[locale]?.emoji ?? ''} ${localeLabelMap[locale]?.label ?? locale}`,
   }));
@@ -52,11 +54,15 @@ export const LangDropdown: React.FC = () => {
         selectedKeys: [`lang-${currentLocale}`],
         onClick: onLangClick,
         items: langItems,
-        style: {minWidth: 180},
+        style: { minWidth: 180 },
       }}
     >
-      <Button type="text" className={styles.action} aria-label="语言切换">
-        <GlobalOutlined/>
+      <Button
+        type="text"
+        className={styles.action}
+        aria-label={i18nText('app.common.rightcontent.langdropdown.0860a9ed')}
+      >
+        <GlobalOutlined />
       </Button>
     </HeaderDropdown>
   );

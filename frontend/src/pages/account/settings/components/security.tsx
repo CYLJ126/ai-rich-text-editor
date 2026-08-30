@@ -1,29 +1,42 @@
-import {List} from 'antd';
-import React, {useState} from 'react';
-import {useModel} from 'umi';
-import ChangePasswordModal from "./ChangePasswordModal";
+import { i18nText } from '@/utils/i18n';
+import { List } from 'antd';
+import React, { useState } from 'react';
+import { useModel } from 'umi';
+import ChangePasswordModal from './ChangePasswordModal';
 
 type Unpacked<T> = T extends (infer U)[] ? U : T;
 
 const passwordStrength = {
-  strong: <span className="strong">强</span>,
-  medium: <span className="medium">中</span>,
-  weak: <span className="weak">弱 Weak</span>,
+  strong: (
+    <span className="strong">
+      {i18nText('app.account.components.security.dca27984')}
+    </span>
+  ),
+  medium: (
+    <span className="medium">
+      {i18nText('app.account.components.security.4f80067a')}
+    </span>
+  ),
+  weak: (
+    <span className="weak">
+      {i18nText('app.account.components.security.67bef1fd')}
+    </span>
+  ),
 };
 
 const SecurityView: React.FC = () => {
-  const {initialState} = useModel('@@initialState');
-  const {currentUser} = initialState ?? {};
+  const { initialState } = useModel('@@initialState');
+  const { currentUser } = initialState ?? {};
 
   // 控制修改密码弹窗
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
 
   const getData = () => [
     {
-      title: '账户密码',
+      title: i18nText('app.account.components.security.b0edbb49'),
       description: (
         <>
-          当前密码强度：
+          {i18nText('app.account.components.security.daae1714')}
           {passwordStrength.strong}
         </>
       ),
@@ -35,43 +48,47 @@ const SecurityView: React.FC = () => {
             setPwdModalOpen(true);
           }}
         >
-          修改
+          {i18nText('app.account.components.security.10ec7e3e')}
         </a>,
       ],
     },
     {
-      title: '密保手机',
-      description: `已绑定手机：${currentUser?.mobile || '未绑定'}`,
+      title: i18nText('app.account.components.security.fafa5019'),
+      description: i18nText('app.account.components.security.686c37e1', {
+        value0: currentUser?.mobile || i18nText('app.common.notBound'),
+      }),
       actions: [
         <a key="Modify" href="#">
-          修改
+          {i18nText('app.account.components.security.10ec7e3e')}
         </a>,
       ],
     },
     {
-      title: '密保问题',
-      description: '未设置密保问题，密保问题可有效保护账户安全【未实现】',
+      title: i18nText('app.account.components.security.2d675b1b'),
+      description: i18nText('app.account.components.security.6e3aa914'),
       actions: [
         <a key="Set" href="#">
-          设置
+          {i18nText('app.account.components.security.1c202130')}
         </a>,
       ],
     },
     {
-      title: '备用邮箱',
-      description: `已绑定邮箱：${currentUser?.email || '未绑定'}`,
+      title: i18nText('app.account.components.security.ed29990a'),
+      description: i18nText('app.account.components.security.c16120ef', {
+        value0: currentUser?.email || i18nText('app.common.notBound'),
+      }),
       actions: [
         <a key="Modify" href="#">
-          修改
+          {i18nText('app.account.components.security.10ec7e3e')}
         </a>,
       ],
     },
     {
-      title: 'MFA 设备',
-      description: '未绑定 MFA 设备，绑定后，可以进行二次确认【未实现】',
+      title: i18nText('app.account.components.security.5242ba16'),
+      description: i18nText('app.account.components.security.f38e46d0'),
       actions: [
         <a key="bind" href="#">
-          绑定
+          {i18nText('app.account.components.security.4f263cce')}
         </a>,
       ],
     },
@@ -86,7 +103,7 @@ const SecurityView: React.FC = () => {
         dataSource={data}
         renderItem={(item) => (
           <List.Item actions={item.actions}>
-            <List.Item.Meta title={item.title} description={item.description}/>
+            <List.Item.Meta title={item.title} description={item.description} />
           </List.Item>
         )}
       />

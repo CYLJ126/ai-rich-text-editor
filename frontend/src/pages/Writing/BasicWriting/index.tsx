@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   CommentOutlined,
   FileAddOutlined,
@@ -154,8 +155,8 @@ const BasicWriting: React.FC = () => {
         resourceId,
         resourceName:
           resourceType === 'CATALOG'
-            ? `目录 #${resourceId}`
-            : `文章 #${resourceId}`,
+            ? i18nText("app.article.basicwriting.2236d518", {value0: resourceId})
+            : i18nText("app.article.basicwriting.da357884", {value0: resourceId}),
       });
     },
     [],
@@ -207,14 +208,14 @@ const BasicWriting: React.FC = () => {
     () => [
       {
         id: 'toc',
-        name: '章节',
+        name: i18nText("app.article.basicwriting.3b9e7e6b"),
         icon: <MenuOutlined />,
         noPadding: true,
         component: <TableOfContents />,
       },
       {
         id: 'catalog',
-        name: '目录',
+        name: i18nText("app.article.basicwriting.373c02f4"),
         icon: <FolderOutlined />,
         noPadding: true,
         component: (
@@ -236,14 +237,14 @@ const BasicWriting: React.FC = () => {
       },
       {
         id: 'comments',
-        name: '批注',
+        name: i18nText("app.article.basicwriting.3ce391de"),
         icon: <CommentOutlined />,
         noPadding: true,
         component: <CommentsPanel active={activePanel === 'comments'} />,
       },
       {
         id: 'writeManage',
-        name: '管理',
+        name: i18nText("app.article.basicwriting.574a5bae"),
         icon: <FileWordOutlined />,
         noPadding: true,
         component: (
@@ -255,14 +256,14 @@ const BasicWriting: React.FC = () => {
       },
       {
         id: 'tagManage',
-        name: '标签',
+        name: i18nText("app.article.basicwriting.01999ddb"),
         icon: <TagsOutlined />,
         noPadding: true,
         component: <ArticleTags active={activePanel === 'tagManage'} />,
       },
       {
         id: 'versionManage',
-        name: '版本',
+        name: i18nText("app.article.basicwriting.2467722a"),
         icon: <HistoryOutlined />,
         noPadding: true,
         component: (
@@ -573,7 +574,7 @@ const BasicWriting: React.FC = () => {
 
       <Modal
         open={Boolean(versionWarning)}
-        title="当前文章已有更新"
+        title={i18nText("app.article.basicwriting.dd658217")}
         closable={false}
         maskClosable={false}
         footer={[
@@ -584,7 +585,7 @@ const BasicWriting: React.FC = () => {
               setIgnoreVersionForVisit(true);
             }}
           >
-            本次打开期间不再提示
+            {i18nText("app.article.basicwriting.8d83623f")}
           </Button>,
           <Button
             key="ignore-once"
@@ -593,25 +594,25 @@ const BasicWriting: React.FC = () => {
               setVersionWarning(undefined);
             }}
           >
-            忽略一次
+            {i18nText("app.article.basicwriting.38e985f0")}
           </Button>,
           <Button
             key="reload"
             type="primary"
             onClick={() => window.location.reload()}
           >
-            重新加载
+            {i18nText("app.article.basicwriting.8cea23b4")}
           </Button>,
         ]}
       >
         <p>
           {versionWarning?.updateBy
-            ? `${versionWarning.updateBy} 已更新了这篇文章。`
-            : '其他用户已更新了这篇文章。'}
+            ? i18nText("app.article.basicwriting.84bc4bdd", {value0: versionWarning.updateBy})
+            : i18nText("app.article.basicwriting.14c29613")}
         </p>
         <p>
-          当前页面版本为 V{articleInfo?.rowVersion ?? 0}，最新版本为 V
-          {versionWarning?.rowVersion}。重新加载将获取最新内容。
+          {i18nText("app.article.basicwriting.0a29472b")}{articleInfo?.rowVersion ?? 0}{i18nText("app.article.basicwriting.c0217ad0")}
+          {versionWarning?.rowVersion}{i18nText("app.article.basicwriting.8fe68723")}
         </p>
       </Modal>
     </div>
@@ -648,7 +649,7 @@ export default function BasicWritingLayout() {
     () => [
       {
         key: 'insert-into-current-article',
-        label: '插入到文章当前光标处',
+        label: i18nText("app.article.basicwriting.9b131c70"),
         order: 45,
         icon: <FileAddOutlined />,
         showFunc: (message) =>

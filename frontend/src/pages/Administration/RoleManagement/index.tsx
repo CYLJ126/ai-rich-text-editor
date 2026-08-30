@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { message } from 'antd';
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,21 +13,21 @@ import AssignUsersModal from './assignUsersModal';
 
 const columns: TableColumn[] = [
   {
-    title: '角色编码',
+    title: i18nText("app.administration.rolemanagement.a40a406e"),
     dataIndex: 'roleCode',
     width: 100,
     sorter: true,
     order: 1,
   },
   {
-    title: '角色名',
+    title: i18nText("app.administration.rolemanagement.848cca2d"),
     dataIndex: 'roleName',
     width: 100,
     sorter: true,
     order: 2,
   },
   {
-    title: '状态',
+    title: i18nText("app.administration.rolemanagement.5daf81c0"),
     dataIndex: 'status',
     width: 100,
     sorter: true,
@@ -42,7 +43,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            初始
+            {i18nText("app.administration.rolemanagement.bca8a187")}
           </span>
         );
       } else if (text === 1) {
@@ -55,7 +56,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            正常
+            {i18nText("app.administration.rolemanagement.6434eed0")}
           </span>
         );
       } else if (text === 2) {
@@ -68,7 +69,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            完成
+            {i18nText("app.administration.rolemanagement.3a3a05a2")}
           </span>
         );
       } else if (text === 3) {
@@ -81,7 +82,7 @@ const columns: TableColumn[] = [
               borderRadius: '4px',
             }}
           >
-            注销
+            {i18nText("app.administration.rolemanagement.c4241368")}
           </span>
         );
       }
@@ -100,35 +101,35 @@ const columns: TableColumn[] = [
     },
   },
   {
-    title: '描述',
+    title: i18nText("app.administration.rolemanagement.97e4e26c"),
     dataIndex: 'description',
     width: 100,
     sorter: true,
     order: 4,
   },
   {
-    title: '创建人',
+    title: i18nText("app.administration.rolemanagement.4a4d61a5"),
     dataIndex: 'createBy',
     width: 100,
     sorter: true,
     order: 5,
   },
   {
-    title: '更新人',
+    title: i18nText("app.administration.rolemanagement.e072be94"),
     dataIndex: 'updateBy',
     width: 100,
     sorter: true,
     order: 6,
   },
   {
-    title: '创建时间',
+    title: i18nText("app.administration.rolemanagement.1e1b108c"),
     dataIndex: 'createTime',
     width: 100,
     sorter: true,
     order: 7,
   },
   {
-    title: '更新时间',
+    title: i18nText("app.administration.rolemanagement.c456f9fb"),
     dataIndex: 'updateTime',
     width: 100,
     sorter: true,
@@ -140,40 +141,40 @@ const searchFields: SearchFieldConfig[] = [
   {
     fieldName: 'roleCode',
     fieldType: 'input',
-    label: '角色编码',
-    placeholder: '请输入角色编码',
+    label: i18nText("app.administration.rolemanagement.a40a406e"),
+    placeholder: i18nText("app.administration.rolemanagement.66fe4023"),
     alwaysShow: true,
   },
   {
     fieldName: 'roleName',
     fieldType: 'input',
-    label: '角色名',
-    placeholder: '请输入角色名',
+    label: i18nText("app.administration.rolemanagement.848cca2d"),
+    placeholder: i18nText("app.administration.rolemanagement.d982c119"),
     alwaysShow: true,
   },
   {
     fieldName: 'status',
     fieldType: 'select',
-    label: '状态',
+    label: i18nText("app.administration.rolemanagement.5daf81c0"),
     options: [
-      { label: '初始', value: 0 },
-      { label: '正常', value: 1 },
-      { label: '完成', value: 2 },
-      { label: '注销', value: 3 },
+      { label: i18nText("app.administration.rolemanagement.bca8a187"), value: 0 },
+      { label: i18nText("app.administration.rolemanagement.6434eed0"), value: 1 },
+      { label: i18nText("app.administration.rolemanagement.3a3a05a2"), value: 2 },
+      { label: i18nText("app.administration.rolemanagement.c4241368"), value: 3 },
     ],
     alwaysShow: true,
   },
   {
     fieldName: 'createBy',
     fieldType: 'input',
-    label: '创建人',
-    placeholder: '请输入创建人',
+    label: i18nText("app.administration.rolemanagement.4a4d61a5"),
+    placeholder: i18nText("app.administration.rolemanagement.cf038efb"),
   },
   {
     fieldName: 'createTime',
     fieldType: 'dateRangePicker',
-    label: '创建时间',
-    placeholder: '请选择创建时间',
+    label: i18nText("app.administration.rolemanagement.1e1b108c"),
+    placeholder: i18nText("app.administration.rolemanagement.c37f93ce"),
     format: 'YYYY-MM-DD HH:mm:ss',
     transformFunction: (value) => {
       if (value && value.length === 2) {
@@ -209,17 +210,17 @@ export default function UserPage() {
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
-      text: '新增',
+      text: i18nText("app.administration.rolemanagement.5091206d"),
       authority: 'role:add',
       handler: () =>
         navigate('/Administration/RoleManagement/RoleForm?mode=create'),
     },
     {
-      text: '编辑',
+      text: i18nText("app.administration.rolemanagement.69104da2"),
       authority: 'role:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
           return;
         }
         navigate(
@@ -228,16 +229,16 @@ export default function UserPage() {
       },
     },
     {
-      text: '注销',
+      text: i18nText("app.administration.rolemanagement.c4241368"),
       authority: 'role:update',
-      handler: () => message.info('注销角色操作'),
+      handler: () => message.info(i18nText("app.administration.rolemanagement.7f9a77ce")),
     },
     {
-      text: '分配用户',
+      text: i18nText("app.administration.rolemanagement.63cdb38c"),
       authority: 'role:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
           return;
         }
         setSelectedRoleCode(records[0].roleCode);
@@ -245,11 +246,11 @@ export default function UserPage() {
       },
     },
     {
-      text: '分配菜单',
+      text: i18nText("app.administration.rolemanagement.158d4631"),
       authority: 'role:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
           return;
         }
         setSelectedRoleCode(records[0].roleCode);
@@ -257,11 +258,11 @@ export default function UserPage() {
       },
     },
     {
-      text: '分配权限',
+      text: i18nText("app.administration.rolemanagement.f513b216"),
       authority: 'role:update',
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning('请选择且只选择一条记录').then();
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
           return;
         }
         setSelectedRoleCode(records[0].roleCode);
@@ -269,14 +270,14 @@ export default function UserPage() {
       },
     },
     {
-      text: '导出',
+      text: i18nText("app.administration.rolemanagement.f42921ba"),
       authority: 'role:export',
-      handler: () => message.info('导出角色操作'),
+      handler: () => message.info(i18nText("app.administration.rolemanagement.5287e26a")),
     },
     {
-      text: '导出全部',
+      text: i18nText("app.administration.rolemanagement.9a5dd799"),
       authority: 'role:export',
-      handler: () => message.info('导出全部角色操作'),
+      handler: () => message.info(i18nText("app.administration.rolemanagement.5ffea36f")),
     },
   ];
 

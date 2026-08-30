@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 // ─── 编辑器显示模式：split: 分屏模式；raw-text: 原始文本模式；rich-text: 富文本模式 ───
 import React from "react";
 
@@ -8,7 +9,7 @@ export type OperationMode = 'read' | 'revise' | 'edit';
 
 // ─── 字体大小选项 ───
 export const FONT_SIZE_OPTIONS = [
-  {label: '默认', value: 'default'},
+  {label: i18nText("app.common.types.rt.editor.type.55495f11"), value: 'default'},
   {label: '12px', value: '12px'},
   {label: '14px', value: '14px'},
   {label: '16px', value: '16px'},
@@ -24,11 +25,11 @@ export const FONT_SIZE_OPTIONS = [
 
 // ─── 字体族选项 ───
 export const FONT_FAMILY_OPTIONS = [
-  {label: '默认字体', value: 'default'},
-  {label: '微软雅黑', value: 'Microsoft YaHei, sans-serif'},
-  {label: '宋体', value: 'SimSun, serif'},
-  {label: '黑体', value: 'SimHei, sans-serif'},
-  {label: '楷体', value: 'KaiTi, serif'},
+  {label: i18nText("app.common.types.rt.editor.type.c3d73643"), value: 'default'},
+  {label: i18nText("app.common.types.rt.editor.type.b97a1e3e"), value: 'Microsoft YaHei, sans-serif'},
+  {label: i18nText("app.common.types.rt.editor.type.67eec7ce"), value: 'SimSun, serif'},
+  {label: i18nText("app.common.types.rt.editor.type.e4cfb332"), value: 'SimHei, sans-serif'},
+  {label: i18nText("app.common.types.rt.editor.type.3b8decd9"), value: 'KaiTi, serif'},
   {label: 'Arial', value: 'Arial, sans-serif'},
   {label: 'Times NR', value: 'Times New Roman, serif'},
   {label: 'Courier', value: 'Courier New, monospace'},
@@ -38,7 +39,7 @@ export const FONT_FAMILY_OPTIONS = [
 
 // ─── 行高选项 ───
 export const LINE_HEIGHT_OPTIONS = [
-  {label: '默认', value: 'default'},
+  {label: i18nText("app.common.types.rt.editor.type.55495f11"), value: 'default'},
   {label: '1.0', value: '1'},
   {label: '1.15', value: '1.15'},
   {label: '1.25', value: '1.25'},

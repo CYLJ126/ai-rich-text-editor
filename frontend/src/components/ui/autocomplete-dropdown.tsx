@@ -1,11 +1,12 @@
-import { cn } from "@/lib/utils";
-import { ChevronDownIcon, Trash2Icon } from "lucide-react";
-import { ReactNode, useState } from "react";
-import { buttonVariants } from "./button";
-import { Input } from "./input";
-import { Item, ItemActions, ItemContent, ItemTitle } from "./item";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
-import { Separator } from "./separator";
+import { cn } from '@/lib/utils';
+import { ChevronDownIcon, Trash2Icon } from 'lucide-react';
+import { ReactNode, useState } from 'react';
+import { buttonVariants } from './button';
+import { Input } from './input';
+import { Item, ItemActions, ItemContent, ItemTitle } from './item';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { Separator } from './separator';
+import { i18nText } from '@/utils/i18n';
 
 interface BaseAutocompleteDropdownProps<T> {
   items: T[];
@@ -18,16 +19,14 @@ interface BaseAutocompleteDropdownProps<T> {
   onDelete?: (item: T) => void;
 }
 
-interface WithCreateSuggestionProps<
-  T,
-> extends BaseAutocompleteDropdownProps<T> {
+interface WithCreateSuggestionProps<T>
+  extends BaseAutocompleteDropdownProps<T> {
   showCreateSuggestion: true;
   onCreate: (value: string) => void;
 }
 
-interface WithoutCreateSuggestionProps<
-  T,
-> extends BaseAutocompleteDropdownProps<T> {
+interface WithoutCreateSuggestionProps<T>
+  extends BaseAutocompleteDropdownProps<T> {
   showCreateSuggestion?: false;
   onCreate?: (value: string) => void;
 }
@@ -72,7 +71,7 @@ function AutocompleteDropdown<T>({
         >
           <ItemContent>
             <ItemTitle className="gap-0">
-              <span>Create:&nbsp;</span>
+              <span>{i18nText('app.common.create')}:&nbsp;</span>
               <span className="font-normal text-muted-foreground">
                 {search}
               </span>
@@ -83,7 +82,7 @@ function AutocompleteDropdown<T>({
     } else if (list.length === 0) {
       return (
         <div className="text-muted-foreground hover:text-muted-foreground focus:text-muted-foreground p-2">
-          No data
+          {i18nText('app.common.noData')}
         </div>
       );
     }
@@ -129,13 +128,13 @@ function AutocompleteDropdown<T>({
     >
       <PopoverTrigger
         className={cn(
-          buttonVariants({ variant: "outline" }),
-          "shadow-none w-full",
+          buttonVariants({ variant: 'outline' }),
+          'shadow-none w-full',
         )}
       >
         <span
-          className={cn("text-sm text-nowrap grow text-start", {
-            "text-muted-foreground": !value,
+          className={cn('text-sm text-nowrap grow text-start', {
+            'text-muted-foreground': !value,
           })}
         >
           {value ? `${value}` : placeholder}
@@ -152,7 +151,7 @@ function AutocompleteDropdown<T>({
         <div className="flex flex-col gap-0.5">
           <div className="p-1.5">
             <Input
-              value={search ?? ""}
+              value={search ?? ''}
               onChange={(evt) => {
                 console.log(evt.target.value);
                 setSearch(evt.target.value);

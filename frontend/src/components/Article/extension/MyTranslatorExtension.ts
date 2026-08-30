@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {Editor, JSONContent} from '@tiptap/core';
 import {Extension} from '@tiptap/core';
 import {STREAM_COMPLETION_URL, streamChat,} from '@/services/ant-design-pro/ai.chat';
@@ -40,7 +41,7 @@ async function callTranslateAPI(
         translated += delta;
       },
       onError: (error) => {
-        requestError = new Error(error?.message ?? 'AI 翻译失败');
+        requestError = new Error(error?.message ?? i18nText("app.article.extension.mytranslatorextension.fb70510c"));
       },
     },
   );
@@ -86,7 +87,7 @@ export const MyTranslatorExtension = Extension.create({
             info.text,
             info.range,
           );
-          editor.commands.showFloatingResult(translated, '翻译结果');
+          editor.commands.showFloatingResult(translated, i18nText("app.article.extension.mytranslatorextension.743079c2"));
           return true;
         },
 
@@ -136,7 +137,7 @@ export const MyTranslatorExtension = Extension.create({
             block.text,
             block.range,
           );
-          editor.commands.showFloatingResult(translated, '翻译结果');
+          editor.commands.showFloatingResult(translated, i18nText("app.article.extension.mytranslatorextension.743079c2"));
           return true;
         },
 

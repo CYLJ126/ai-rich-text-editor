@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import MindElixir, {
   DARK_THEME,
   type MindElixirData,
@@ -41,12 +42,12 @@ export const MindMapEditor = forwardRef<
     ref,
     () => ({
       addChild: async () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         const mind = instanceRef.current;
         await mind.addChild(mind.currentNode ?? mind.findEle(mind.nodeData.id));
       },
       addSibling: async () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         const mind = instanceRef.current;
         const current = mind.currentNode;
         const root = mind.findEle(mind.nodeData.id);
@@ -57,18 +58,18 @@ export const MindMapEditor = forwardRef<
         await mind.insertSibling('after', current);
       },
       editSelected: async () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         const mind = instanceRef.current;
         await mind.beginEdit(
           mind.currentNode ?? mind.findEle(mind.nodeData.id),
         );
       },
       exportData: () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         return instanceRef.current.getData();
       },
       exportSvg: () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         const mind = instanceRef.current;
         if (isDark) mind.changeTheme(THEME);
         const svg = mind.exportSvg(false);
@@ -77,11 +78,11 @@ export const MindMapEditor = forwardRef<
       },
       redo: () => instanceRef.current?.redo(),
       removeSelected: async () => {
-        if (!instanceRef.current) throw new Error('思维导图编辑器尚未初始化');
+        if (!instanceRef.current) throw new Error(i18nText("app.article.canvas.mindmapeditor.978b1c69"));
         const mind = instanceRef.current;
         const current = mind.currentNode;
         if (!current || current === mind.findEle(mind.nodeData.id)) {
-          throw new Error('请先选择一个非中心主题节点');
+          throw new Error(i18nText("app.article.canvas.mindmapeditor.4013c274"));
         }
         await mind.removeNodes([current]);
       },

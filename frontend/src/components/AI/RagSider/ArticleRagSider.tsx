@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ArticleCard, ArticleCardProps, ArticleSearch} from "@/components/Article/components";
 import {ActiveSelectedInfo, ArticleSearchParam} from "@/types/rt.type";
@@ -216,7 +217,7 @@ const ArticleRagSider: React.FC<RagSiderProps> = ({onSelect}) => {
         ref={listContainerRef}
         className="flex-1 overflow-y-auto scrollbar-none relative"
       >
-        <Spin spinning={isInitialLoading} description="搜索中...">
+        <Spin spinning={isInitialLoading} description={i18nText("app.ai.ragsider.articleragsider.44bf3769")}>
           <div className="flex flex-wrap gap-[10px] justify-center">
             {articles.map((article) => (
               <ArticleCard
@@ -248,7 +249,7 @@ const ArticleRagSider: React.FC<RagSiderProps> = ({onSelect}) => {
 
             {!isInitialLoading && articles.length === 0 && (
               <div className="w-full text-center text-gray-400 py-10">
-                暂无相关文章
+                {i18nText("app.ai.ragsider.articleragsider.84187a13")}
               </div>
             )}
           </div>
@@ -257,13 +258,13 @@ const ArticleRagSider: React.FC<RagSiderProps> = ({onSelect}) => {
         {isLoadingMore && (
           <div className="flex justify-center items-center py-4">
             <Spin size="small"/>
-            <span className="ml-2 text-gray-400 text-sm">加载更多...</span>
+            <span className="ml-2 text-gray-400 text-sm">{i18nText("app.ai.ragsider.articleragsider.9b6eab23")}</span>
           </div>
         )}
 
         {!hasMore && articles.length > 0 && !isInitialLoading && (
           <div className="text-center text-gray-400 text-sm py-4">
-            已加载全部结果
+            {i18nText("app.ai.ragsider.articleragsider.5f6fc64e")}
           </div>
         )}
 

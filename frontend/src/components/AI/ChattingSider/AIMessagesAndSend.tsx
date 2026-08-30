@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useState} from "react";
 import {Input, message, Splitter} from "antd";
 import {MessageList} from "@/components";
@@ -5,15 +6,15 @@ import {useModelsStore} from "@/stores/modelsStore";
 import {useChatData} from "@/components/AI/ChatContext";
 
 export const QUICK_HINTS = [
-  '书法相关的文章都有啥',
-  '随便聊聊历史呗',
-  '最近想去旅行，有攻略推荐不',
-  '自律得自由，健身计划有木有',
-  'AI 方向的内容来一波',
-  '来点编程干货',
-  '职场那些事儿，库里聊了多少',
-  '周末想看电影，有影评参考吗',
-  '让我来看看库里有哪些美食推荐'
+  i18nText("app.ai.chattingsider.aimessagesandsend.d915adaf"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.3c8eef1a"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.b3d53dd3"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.87cf7332"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.58cb572f"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.4b73734d"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.ad681f39"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.5f052c3e"),
+  i18nText("app.ai.chattingsider.aimessagesandsend.ffc90320")
 ];
 
 
@@ -49,18 +50,18 @@ export const AIMessagesAndSend = forwardRef<AIMessagesAndChatRef, AIMessagesAndC
   // 发送
   const handleSend = useCallback(async () => {
     if (!activeConversation) {
-      message.warning('请先选择一个对话').then();
+      message.warning(i18nText("app.ai.chattingsider.aimessagesandsend.d302e450")).then();
       return;
     }
     if (!activeConversation.modelId) {
       if (activeConversation.assistantId) {
         const assistant = assistantSiderRef.current?.getList().filter(item => item.id !== activeConversation.assistantId)[0];
         if (!assistant?.modelId) {
-          message.warning('请先在会话或助手上配置模型').then();
+          message.warning(i18nText("app.ai.chattingsider.aimessagesandsend.0b329198")).then();
           return;
         }
       } else {
-        message.warning('请先在会话或助手上配置模型').then();
+        message.warning(i18nText("app.ai.chattingsider.aimessagesandsend.0b329198")).then();
         return;
       }
     }
@@ -71,7 +72,7 @@ export const AIMessagesAndSend = forwardRef<AIMessagesAndChatRef, AIMessagesAndC
       quotedMessage: quotedMessageRef.current || undefined,
       model: getModelById(activeConversation.modelId) || undefined,
     });
-  }, [inputValue, sendMessage]);
+  }, [inputValue, sendMessage, activeConversation, assistantSiderRef.current, quotedMessageRef.current, getModelById]);
 
   // 键盘快捷键：Enter 发送，Shift+Enter 换行
   const handleKeyDown = useCallback(
@@ -117,7 +118,7 @@ export const AIMessagesAndSend = forwardRef<AIMessagesAndChatRef, AIMessagesAndC
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+          placeholder={i18nText("app.ai.chattingsider.aimessagesandsend.ba144aa6")}
           autoSize={{minRows: 4, maxRows: 16}}
         />
       </Splitter.Panel>

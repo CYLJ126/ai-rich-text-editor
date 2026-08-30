@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {LogoutOutlined, SettingOutlined, SkinOutlined, UserDeleteOutlined,} from '@ant-design/icons';
 import {history, useModel} from '@umijs/max';
 import type {MenuProps} from 'antd';
@@ -68,12 +69,12 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     {
       key: 'settings',
       icon: <SettingOutlined/>,
-      label: '个人设置',
+      label: i18nText("app.common.rightcontent.avatardropdown.c59e1f9b"),
     },
     {
       key: 'theme',
       icon: <SkinOutlined/>,
-      label: '主题设置',
+      label: i18nText("app.common.rightcontent.avatardropdown.9bb2d293"),
     },
     {
       type: 'divider' as const,
@@ -81,12 +82,12 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     {
       key: 'changePassword',
       icon: <UserDeleteOutlined/>,
-      label: '修改密码',
+      label: i18nText("app.common.rightcontent.avatardropdown.9782bb0d"),
     },
     {
       key: 'logout',
       icon: <LogoutOutlined/>,
-      label: '退出登录',
+      label: i18nText("app.common.rightcontent.avatardropdown.706f2fce"),
     },
   ];
 

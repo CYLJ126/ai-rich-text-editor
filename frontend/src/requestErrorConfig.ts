@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 ﻿import type {RequestOptions} from '@@/plugin-request/request';
 import type {RequestConfig} from '@umijs/max';
 import {getIntl, getLocale} from '@umijs/max';
@@ -112,7 +113,7 @@ export const errorConfig: RequestConfig = {
       if (data?.success === false) {
         const errMsg = data.desc?.substring(0, 256);
         message
-          .error(`请求失败！错误码【${data.code}】错误信息【${errMsg}】`)
+          .error(i18nText("app.common.requesterrorconfig.52de81bc", {value0: data.code, value1: errMsg}))
           .then();
       }
       return response;

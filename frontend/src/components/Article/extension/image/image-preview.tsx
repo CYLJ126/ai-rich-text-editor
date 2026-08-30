@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   AimOutlined,
   CopyOutlined,
@@ -58,7 +59,7 @@ async function getClipboardPng(src: string) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error('图片转换失败'));
+      else reject(new Error(i18nText("app.article.image.imagepreview.e068a8ee")));
     }, 'image/png');
   });
 }
@@ -192,9 +193,9 @@ export function ImagePreview({
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob }),
       ]);
-      message.success('图片已复制');
+      message.success(i18nText("app.article.image.imagepreview.56c04ac0"));
     } catch {
-      message.error('图片复制失败');
+      message.error(i18nText("app.article.image.imagepreview.3b348d0f"));
     } finally {
       setCopying(false);
     }
@@ -282,7 +283,7 @@ export function ImagePreview({
       </div>
 
       <div className={styles.toolbar}>
-        <Tooltip title="上一张">
+        <Tooltip title={i18nText("app.article.image.imagepreview.fd0a862b")}>
           <Button
             type="text"
             icon={<LeftOutlined />}
@@ -293,7 +294,7 @@ export function ImagePreview({
         <span className={styles.counter}>
           {images.length ? `${activeIndex + 1} / ${images.length}` : '0 / 0'}
         </span>
-        <Tooltip title="下一张">
+        <Tooltip title={i18nText("app.article.image.imagepreview.a4eef18f")}>
           <Button
             type="text"
             icon={<RightOutlined />}
@@ -302,7 +303,7 @@ export function ImagePreview({
           />
         </Tooltip>
         <span className={styles.divider} />
-        <Tooltip title="缩小">
+        <Tooltip title={i18nText("app.article.image.imagepreview.21216d85")}>
           <Button
             type="text"
             icon={<ZoomOutOutlined />}
@@ -310,12 +311,12 @@ export function ImagePreview({
             onClick={() => changeScale(-SCALE_STEP)}
           />
         </Tooltip>
-        <Tooltip title="适应窗口">
+        <Tooltip title={i18nText("app.article.image.imagepreview.0ac68cec")}>
           <Button type="text" onClick={() => setScale(fitScale)}>
             {Math.round(scale * 100)}%
           </Button>
         </Tooltip>
-        <Tooltip title="放大">
+        <Tooltip title={i18nText("app.article.image.imagepreview.3f7c93c4")}>
           <Button
             type="text"
             icon={<ZoomInOutlined />}
@@ -324,7 +325,7 @@ export function ImagePreview({
           />
         </Tooltip>
         <span className={styles.divider} />
-        <Tooltip title="复制图片">
+        <Tooltip title={i18nText("app.article.image.imagepreview.539ae68a")}>
           <Button
             type="text"
             icon={<CopyOutlined />}
@@ -332,9 +333,9 @@ export function ImagePreview({
             onClick={copyImage}
           />
         </Tooltip>
-        <Tooltip title="定位到正文">
+        <Tooltip title={i18nText("app.article.image.imagepreview.2bcaf666")}>
           <Button type="text" icon={<AimOutlined />} onClick={locateImage}>
-            定位
+            {i18nText("app.article.image.imagepreview.6825f70e")}
           </Button>
         </Tooltip>
       </div>

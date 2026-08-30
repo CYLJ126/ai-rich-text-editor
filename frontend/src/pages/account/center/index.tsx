@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   ClusterOutlined,
   ContactsOutlined,
@@ -30,7 +31,7 @@ const operationTabList = [
     key: 'articles',
     tab: (
       <span>
-        文章{' '}
+        {i18nText("app.account.center.f78d731f")}{' '}
         <span
           style={{
             fontSize: 14,
@@ -45,7 +46,7 @@ const operationTabList = [
     key: 'applications',
     tab: (
       <span>
-        应用{' '}
+        {i18nText("app.account.center.a01c617f")}{' '}
         <span
           style={{
             fontSize: 14,
@@ -60,7 +61,7 @@ const operationTabList = [
     key: 'projects',
     tab: (
       <span>
-        项目{' '}
+        {i18nText("app.account.center.2423a1be")}{' '}
         <span
           style={{
             fontSize: 14,
@@ -109,7 +110,7 @@ const TagList: React.FC<{
   };
   return (
     <div className={styles.tags}>
-      <div className={styles.tagsTitle}>标签</div>
+      <div className={styles.tagsTitle}>{i18nText("app.account.center.c8c439e1")}</div>
       <Flex wrap gap="small">
         {(tags || []).concat(newTags).map((item) => (
           <Tag key={item.key}>{item.label}</Tag>
@@ -241,7 +242,7 @@ const Center: React.FC = () => {
                   dashed
                 />
                 <div className={styles.team}>
-                  <div className={styles.teamTitle}>团队</div>
+                  <div className={styles.teamTitle}>{i18nText("app.account.center.0fd2a016")}</div>
                   <Row gutter={36}>
                     {currentUser.notice?.map((item) => (
                       <Col key={item.id} lg={24} xl={12}>

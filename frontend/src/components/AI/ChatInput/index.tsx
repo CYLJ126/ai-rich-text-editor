@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState,} from 'react';
 import {Button, Input, Tooltip, Upload,} from 'antd';
 import {
@@ -367,7 +368,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         {quotedMessage && (
           <div className={styles.quotedBar}>
             <span style={{flexShrink: 0, color: '#1677ff', fontSize: 12}}>
-              引用
+              {i18nText("app.ai.chatinput.024309b7")}
             </span>
             <span className={styles.quotedText}>{quotedMessage.content}</span>
             <CloseOutlined
@@ -403,7 +404,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+            placeholder={i18nText("app.ai.chatinput.b4975a10")}
             disabled={disabled || isStreaming}
             autoSize={{minRows: 3, maxRows: 16}}
           />
@@ -416,51 +417,51 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             <ModelSelector onSelect={setActiveModel}/>
 
             {/* 深度思考 */}
-            <Tooltip title="深度思考（使用 thinking 模型）">
+            <Tooltip title={i18nText("app.ai.chatinput.6056ef00")}>
               <span
                 className={cx(styles.toolBtn, enableThinking && 'active')}
                 onClick={() => setEnableThinking(!enableThinking)}
               >
                 <ThunderboltOutlined/>
-                <span>深思</span>
+                <span>{i18nText("app.ai.chatinput.3b36c153")}</span>
               </span>
             </Tooltip>
 
             {/* 启用视觉 */}
-            <Tooltip title="启用视觉（上传图片）">
+            <Tooltip title={i18nText("app.ai.chatinput.c5b56cce")}>
               <span
                 className={cx(styles.toolBtn, enableVision && 'active')}
                 onClick={() => setEnableVision(!enableVision)}
               >
                 <PictureOutlined/>
-                <span>视觉</span>
+                <span>{i18nText("app.ai.chatinput.377a72a8")}</span>
               </span>
             </Tooltip>
 
             {/* 生成图片 */}
-            <Tooltip title="生成图片">
+            <Tooltip title={i18nText("app.ai.chatinput.3d1e59a1")}>
               <span
                 className={cx(styles.toolBtn, generateImage && 'active')}
                 onClick={() => setGenerateImage(!generateImage)}
               >
                 <PictureOutlined/>
-                <span>生图</span>
+                <span>{i18nText("app.ai.chatinput.b81bd99e")}</span>
               </span>
             </Tooltip>
 
             {/* 联网搜索 */}
-            <Tooltip title="联网搜索">
+            <Tooltip title={i18nText("app.ai.chatinput.5d73cd74")}>
               <span
                 className={cx(styles.toolBtn, enableSearch && 'active')}
                 onClick={() => setEnableSearch(!enableSearch)}
               >
                 <SearchOutlined/>
-                <span>联网</span>
+                <span>{i18nText("app.ai.chatinput.cc513812")}</span>
               </span>
             </Tooltip>
 
             {/* 上传图片 */}
-            <Tooltip title="上传图片">
+            <Tooltip title={i18nText("app.ai.chatinput.f9af39e3")}>
               <Upload
                 accept={ACCEPT_IMAGE}
                 showUploadList={false}
@@ -474,7 +475,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             </Tooltip>
 
             {/* 上传文件 */}
-            <Tooltip title="上传文件">
+            <Tooltip title={i18nText("app.ai.chatinput.36b0293e")}>
               <Upload
                 accept={ACCEPT_FILE}
                 showUploadList={false}
@@ -508,7 +509,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onClick={stopStreaming}
                 variant="outlined"
               >
-                停止
+                {i18nText("app.ai.chatinput.84a6ca33")}
               </Button>
             ) : (
               <Button
@@ -518,7 +519,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onClick={handleSend}
                 disabled={!canSend}
               >
-                发送
+                {i18nText("app.ai.chatinput.36f4a4dc")}
               </Button>
             )}
           </div>

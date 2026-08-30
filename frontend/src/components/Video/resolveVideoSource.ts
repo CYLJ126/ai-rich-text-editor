@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 export type VideoProvider =
   | 'file'
   | 'hls'
@@ -160,7 +161,7 @@ export function resolveVideoSource(value: string): ResolvedVideoSource {
       provider: 'unknown',
       isValid: false,
       isRecognized: false,
-      error: '未提供视频地址',
+      error: i18nText("app.common.video.resolvevideosource.ee587116"),
     };
   }
 
@@ -172,7 +173,7 @@ export function resolveVideoSource(value: string): ResolvedVideoSource {
       provider: 'unknown',
       isValid: false,
       isRecognized: false,
-      error: `不支持 ${protocol}: 协议的视频地址`,
+      error: i18nText("app.common.video.resolvevideosource.847ba6e4", {value0: protocol}),
     };
   }
 

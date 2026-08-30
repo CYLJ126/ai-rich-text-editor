@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import type {Editor} from '@tiptap/core';
 import {message} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
@@ -85,7 +86,7 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
   createArticle: async (title: string, catalogId?: number) => {
     const newArticle = await addArticle({ title, catalogId });
     if (!newArticle) {
-      message.error(`创建文章[${title}]失败`).then();
+      message.error(i18nText("app.article.stores.articleinfostore.ac77322b", {value0: title})).then();
       return;
     }
     set(() => ({
@@ -108,28 +109,28 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
     const isManualSave = triggerType === 'manual';
     if (!editor || editor.isDestroyed) {
       // 如果走到这儿，则是异常情况，应作其他处理
-      message.error('编辑器实例不存在，无法保存文章').then();
+      message.error(i18nText("app.article.stores.articleinfostore.02987a0c")).then();
       set(() => ({ savingState: 3 }));
       return false;
     }
     const articleInfo = get().articleInfo;
     if (get().savingState === 1) {
-      isManualSave && message.warning('文章在保存中，请勿重复保存').then();
+      isManualSave && message.warning(i18nText("app.article.stores.articleinfostore.384a3815")).then();
       return false;
     }
     if (!articleInfo?.id) {
-      message.warning('文章 ID 不存在，无法保存到后端').then();
+      message.warning(i18nText("app.article.stores.articleinfostore.1e7b0d05")).then();
       set(() => ({ savingState: 3 }));
       return false;
     }
     if (!articleInfo.canWrite) {
-      message.warning('当前文章为只读权限，无法保存').then();
+      message.warning(i18nText("app.article.stores.articleinfostore.58fae5ff")).then();
       set(() => ({ savingState: 0 }));
       return false;
     }
     let content = get().rawText;
     if (!content) {
-      message.warning('原始文本内容为空，无法保存').then();
+      message.warning(i18nText("app.article.stores.articleinfostore.cd6ea56b")).then();
       set(() => ({ savingState: 3 }));
       return false;
     }
@@ -155,7 +156,7 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
       // 简单预防，避免 ctrl + A 或者复制粘贴等操作，把原本有的大量内容全部替换了
       if (isManualSave) {
         set(() => ({ savingState: 3 }));
-        message.warning('内容未改变或小于 10 个字符，不予保存').then();
+        message.warning(i18nText("app.article.stores.articleinfostore.a0aae622")).then();
       }
       return false;
     }
@@ -175,7 +176,7 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
         return false;
       }
       if (result === false) {
-        isManualSave && message.info('文章内容没有变化，无需保存').then();
+        isManualSave && message.info(i18nText("app.article.stores.articleinfostore.778a7882")).then();
         set(() => ({ savingState: 0 }));
         return true;
       }
@@ -198,14 +199,14 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
       };
       set(() => ({ articleInfo: tempArticleInfo }));
       editor.commands.setArticleInfo(tempArticleInfo);
-      isManualSave && message.success('文章保存成功').then();
+      isManualSave && message.success(i18nText("app.article.stores.articleinfostore.b33c4f48")).then();
       set(() => ({ savingState: 2 }));
       return true;
     } catch (e) {
       console.error('保存到后端失败:', e);
       set(() => ({ savingState: 3 }));
       if (isManualSave) {
-        message.warning('文章保存失败，请联系管理员').then();
+        message.warning(i18nText("app.article.stores.articleinfostore.526657be")).then();
       }
       return false;
     }

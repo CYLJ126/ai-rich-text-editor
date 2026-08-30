@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {FC, useCallback} from 'react';
 import {Card, Checkbox, Tooltip, Typography} from "antd";
 import {createStyles} from "antd-style";
@@ -67,7 +68,7 @@ export const renderCover = (cover?: string, title?: string) => (
     {cover ? (
       <img
         src={cover}
-        alt={title || '文章封面'}
+        alt={title || i18nText("app.article.article.articlecard.63d211db")}
         className="h-full w-full object-cover"
       />
     ) : (
@@ -79,7 +80,7 @@ export const renderCover = (cover?: string, title?: string) => (
 // ── 高亮文本渲染 ──
 export const renderHighlightedText = (highlights?: string[], chunkId?: string) => {
   if (!highlights || highlights.length === 0) {
-    return <span>暂无摘要</span>;
+    return <span>{i18nText("app.article.article.articlecard.a934b067")}</span>;
   }
 
   /**
@@ -169,10 +170,10 @@ const ArticleCard: FC<ArticleCardProps> = ({
         onClick={() => onArticleSelect?.({checked: true, articleId: id, chunkId})
         }
       >
-        <Title level={5} ellipsis>{title || '未命名文章'}</Title>
+        <Title level={5} ellipsis>{title || i18nText("app.article.article.articlecard.90c2ecec")}</Title>
 
         <Paragraph type="secondary" ellipsis={{rows: 2}} className="!mb-0">
-          {summary || content || '暂无摘要'}
+          {summary || content || i18nText("app.article.article.articlecard.a934b067")}
         </Paragraph>
       </Card>
     )
@@ -193,7 +194,7 @@ const ArticleCard: FC<ArticleCardProps> = ({
         {renderCover(cover, title)}
         <div className="min-w-0">
           <Title level={5} ellipsis className="!mb-2">
-            {breadcrumb || title || '未命名文章'}
+            {breadcrumb || title || i18nText("app.article.article.articlecard.90c2ecec")}
           </Title>
 
           <Paragraph type="secondary" ellipsis={{rows: 2}} className="!mb-0">
@@ -209,15 +210,15 @@ const ArticleCard: FC<ArticleCardProps> = ({
   }, [id])
 
   return <Card
-    title={title || '未命名文章'}
+    title={title || i18nText("app.article.article.articlecard.90c2ecec")}
     className={`w-full ${styles.minimalistsCard} `}
     extra={<div className="flex items-center gap-1">
-      <Tooltip title="作为检索候选">
+      <Tooltip title={i18nText("app.article.article.articlecard.4ff7fa02")}>
         <Checkbox onChange={(e) => {
           onArticleSelect?.({checked: e.target.checked, articleId: id, chunkId});
         }}/>
       </Tooltip>
-      <Tooltip title="在新标签中打开">
+      <Tooltip title={i18nText("app.article.article.articlecard.cf59b962")}>
         <ExportOutlined
           style={{fontSize: 16, color: 'var(--ant-color-border)'}}
           onClick={handleOpenArticle}/>
@@ -225,7 +226,7 @@ const ArticleCard: FC<ArticleCardProps> = ({
     </div>}>
     <ArticlePopover
       width={500}
-      title={title || '未命名文章'}
+      title={title || i18nText("app.article.article.articlecard.90c2ecec")}
       breadcrumb={breadcrumb}
       cover={cover}
       chunkId={chunkId}
@@ -242,7 +243,7 @@ const ArticleCard: FC<ArticleCardProps> = ({
       articleType={articleType}
     >
       <Paragraph type="secondary" ellipsis={{rows: 2}} className="!mb-0">
-        {highlights ? renderHighlightedText(highlights, chunkId) : summary || content || '暂无摘要'}
+        {highlights ? renderHighlightedText(highlights, chunkId) : summary || content || i18nText("app.article.article.articlecard.a934b067")}
       </Paragraph>
     </ArticlePopover>
   </Card>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { PlusOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import React, { createElement } from 'react';
@@ -29,7 +30,7 @@ const EditableLinkGroup: React.FC<EditableLinkGroupProps> = (props) => {
         ),
       )}
       <Button size="small" type="primary" ghost onClick={onAdd}>
-        <PlusOutlined /> 添加
+        <PlusOutlined /> {i18nText("app.dashboard.editablelinkgroup.14ffdee3")}
       </Button>
     </div>
   );

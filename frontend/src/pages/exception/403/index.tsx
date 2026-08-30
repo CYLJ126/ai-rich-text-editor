@@ -1,3 +1,4 @@
+import { i18nText } from '@/utils/i18n';
 import { Link } from '@umijs/max';
 import { Button, Card, Result } from 'antd';
 
@@ -6,10 +7,10 @@ export default () => (
     <Result
       status="403"
       title="403"
-      subTitle="Sorry, you are not authorized to access this page."
+      subTitle={i18nText('app.exception.403.description')}
       extra={
         <Link to="/" prefetch>
-          <Button type="primary">Back to home</Button>
+          <Button type="primary">{i18nText('app.common.backHome')}</Button>
         </Link>
       }
     />

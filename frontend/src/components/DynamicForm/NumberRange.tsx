@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React from 'react';
 import {InputNumber, Space} from 'antd';
 
@@ -13,7 +14,7 @@ interface NumberRangeProps {
 const NumberRange: React.FC<NumberRangeProps> = ({
                                                      value = [],
                                                      onChange,
-                                                     placeholder = ['最小值', '最大值'],
+                                                     placeholder = [i18nText("app.common.dynamicform.numberrange.fddf04fa"), i18nText("app.common.dynamicform.numberrange.ad495dba")],
                                                      disabled,
                                                      style,
                                                      className,

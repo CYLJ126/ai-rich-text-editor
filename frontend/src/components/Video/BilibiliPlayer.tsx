@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {type CSSProperties, type ReactNode, useMemo, useState} from 'react';
 import {cn} from '@/lib/utils';
 import type {ResolvedVideoSource} from './resolveVideoSource';
@@ -86,7 +87,7 @@ export function BilibiliPlayer({
           setLoadedSrc(src);
           onError({
             kind: 'playback',
-            message: 'Bilibili 视频加载失败，请检查地址和访问权限',
+            message: i18nText("app.common.video.bilibiliplayer.0d86babb"),
             source,
             cause,
           });

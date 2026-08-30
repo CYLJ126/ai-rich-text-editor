@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {InfoCircleOutlined} from '@ant-design/icons';
 import {Area} from '@ant-design/plots';
 import {Card, Col, Row, Table, Tooltip} from 'antd';
@@ -9,8 +10,8 @@ import Trend from './Trend';
 
 const renderSearchUserSubtitle = () => (
   <span>
-    搜索用户数
-    <Tooltip title="指标说明">
+    {i18nText("app.dashboard.components.topsearch.146bef7c")}
+    <Tooltip title={i18nText("app.dashboard.components.topsearch.fc8548e8")}>
       <InfoCircleOutlined
         style={{
           marginLeft: 8,
@@ -22,8 +23,8 @@ const renderSearchUserSubtitle = () => (
 
 const renderAverageSearchSubtitle = () => (
   <span>
-    人均搜索次数
-    <Tooltip title="指标说明">
+    {i18nText("app.dashboard.components.topsearch.db2872e3")}
+    <Tooltip title={i18nText("app.dashboard.components.topsearch.fc8548e8")}>
       <InfoCircleOutlined
         style={{
           marginLeft: 8,
@@ -47,18 +48,18 @@ const TopSearch = ({
   const dropdownGroup = renderDropdownGroup();
   const columns = [
     {
-      title: '排名',
+      title: i18nText("app.dashboard.components.topsearch.452a6961"),
       dataIndex: 'index',
       key: 'index',
     },
     {
-      title: '搜索关键词',
+      title: i18nText("app.dashboard.components.topsearch.b061cd2c"),
       dataIndex: 'keyword',
       key: 'keyword',
       render: (text: React.ReactNode) => <a href="/">{text}</a>,
     },
     {
-      title: '用户数',
+      title: i18nText("app.dashboard.components.topsearch.da4c0cf9"),
       dataIndex: 'count',
       key: 'count',
       sorter: (
@@ -71,7 +72,7 @@ const TopSearch = ({
       ) => a.count - b.count,
     },
     {
-      title: '周涨幅',
+      title: i18nText("app.dashboard.components.topsearch.0ca9a4cf"),
       dataIndex: 'range',
       key: 'range',
       sorter: (
@@ -104,7 +105,7 @@ const TopSearch = ({
     <Card
       loading={loading}
       variant="borderless"
-      title="线上热门搜索"
+      title={i18nText("app.dashboard.components.topsearch.ac33ccca")}
       extra={dropdownGroup}
       style={{
         height: '100%',

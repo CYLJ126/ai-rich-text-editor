@@ -7,7 +7,9 @@ import quarterOfYear from 'dayjs/plugin/quarterOfYear';
 import weekday from 'dayjs/plugin/weekday';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import React, { type ReactNode, useEffect, useState } from 'react';
+import { getI18nLocale, i18nText } from '@/utils/i18n';
 import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/zh-tw';
 import { getWeekInfoList } from '@/services/ant-design-pro/dailyWork';
 import styles from './index.less';
 
@@ -15,7 +17,8 @@ dayjs.extend(weekOfYear);
 dayjs.extend(quarterOfYear);
 dayjs.extend(weekday);
 dayjs.extend(localeData);
-dayjs.locale('zh-cn');
+const currentLocale = getI18nLocale();
+dayjs.locale(currentLocale === 'en-US' ? 'en' : currentLocale.toLowerCase());
 
 // 时间单位类型
 export type TimeUnit =
@@ -62,13 +65,13 @@ export interface HeaderProps {
 
 // 星期映射（中文）
 export const WEEKDAY_MAP = [
-  '周日',
-  '周一',
-  '周二',
-  '周三',
-  '周四',
-  '周五',
-  '周六',
+  i18nText('app.common.timeheader.4611918c'),
+  i18nText('app.common.timeheader.58ac84b3'),
+  i18nText('app.common.timeheader.7206be4b'),
+  i18nText('app.common.timeheader.b3893a65'),
+  i18nText('app.common.timeheader.4f23b946'),
+  i18nText('app.common.timeheader.90f6c680'),
+  i18nText('app.common.timeheader.675b1554'),
 ];
 
 /**
@@ -82,14 +85,35 @@ const buildDayLabel = (date: Dayjs, withWeekday: boolean): string => {
 
 // 时间单位配置
 const TIME_UNIT_CONFIG = {
-  minute: { format: 'YYYY-MM-DD HH:mm', label: '分钟' },
-  hour: { format: 'YYYY-MM-DD HH:00', label: '小时' },
-  day: { format: 'YYYY-MM-DD', label: '日' },
-  week: { format: 'YYYY-[第]w[周]', label: '周' },
-  month: { format: 'YYYY-MM', label: '月' },
-  quarter: { format: 'YYYY-[Q]Q', label: '季' },
-  'half-year': { format: 'YYYY-[H]', label: '半年' },
-  year: { format: 'YYYY', label: '年' },
+  minute: {
+    format: 'YYYY-MM-DD HH:mm',
+    label: i18nText('app.common.timeheader.854ce9d9'),
+  },
+  hour: {
+    format: 'YYYY-MM-DD HH:00',
+    label: i18nText('app.common.timeheader.fe0d88ca'),
+  },
+  day: {
+    format: 'YYYY-MM-DD',
+    label: i18nText('app.common.timeheader.c3fa2749'),
+  },
+  week: {
+    format: i18nText('app.common.timeheader.f94c518c'),
+    label: i18nText('app.common.timeheader.d109a055'),
+  },
+  month: {
+    format: 'YYYY-MM',
+    label: i18nText('app.common.timeheader.ebcd1799'),
+  },
+  quarter: {
+    format: 'YYYY-[Q]Q',
+    label: i18nText('app.common.timeheader.a378ca10'),
+  },
+  'half-year': {
+    format: 'YYYY-[H]',
+    label: i18nText('app.common.timeheader.d5ad045e'),
+  },
+  year: { format: 'YYYY', label: i18nText('app.common.timeheader.d3362408') },
 };
 
 // 样式定义 TODO 将主题色抽成全局变量
@@ -329,7 +353,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
           className={`${styles.timeSelect} ${colorStyle.timeSelect}`}
           options={timeOptions}
           value={matchedOption ? currentTime.value : undefined} // ✅ 找不到时显示 placeholder
-          placeholder="加载中..."
+          placeholder={i18nText('app.common.timeheader.85d18353')}
           loading={timeOptions.length === 0}
           onSelect={(_, option) => handleTimeChange(option as MyTime, 'set')}
         />
@@ -382,7 +406,13 @@ const TimeHeader: React.FC<HeaderProps> = ({
 
         {/* 仅 day 类型显示星期切换按钮 */}
         {isDay && (
-          <Tooltip title={showWeekday ? '隐藏星期' : '显示星期'}>
+          <Tooltip
+            title={
+              showWeekday
+                ? i18nText('app.common.timeheader.4196a805')
+                : i18nText('app.common.timeheader.2a4f53e3')
+            }
+          >
             <span
               className={`
                 ${colorStyle.weekdayToggle}
@@ -390,7 +420,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
               `}
               onClick={handleToggleWeekday}
             >
-              周
+              {i18nText('app.common.timeheader.d109a055')}
             </span>
           </Tooltip>
         )}

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {forwardRef, type ReactNode, useCallback, useEffect, useMemo, useRef, useState,} from 'react';
 import ReactPlayer from 'react-player';
 import type {VideoPlayerError, VideoPlayerProps, VideoPlayerRef,} from '@/components';
@@ -12,7 +13,7 @@ function DefaultLoadingFallback() {
   return (
     <div className="universal-video-player__status" role="status">
       <span className="universal-video-player__spinner" aria-hidden="true" />
-      <span>正在加载视频…</span>
+      <span>{i18nText("app.common.video.videoplayer.dfa2c97a")}</span>
     </div>
   );
 }
@@ -41,7 +42,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
   function VideoPlayer(
     {
       src,
-      title = '视频播放器',
+      title = i18nText("app.common.video.videoplayer.0b99a4e7"),
       poster,
       controls = true,
       autoPlay = false,
@@ -99,7 +100,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       if (source.isValid) return undefined;
       return {
         kind: 'invalid-source',
-        message: source.error ?? '视频地址无效',
+        message: source.error ?? i18nText("app.common.video.videoplayer.3bd19798"),
         source,
       };
     }, [source]);
@@ -194,7 +195,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             onError={(cause) => {
               const error: VideoPlayerError = {
                 kind: 'playback',
-                message: '视频加载或播放失败，请检查地址和访问权限',
+                message: i18nText("app.common.video.videoplayer.91b20a66"),
                 source,
                 cause,
               };

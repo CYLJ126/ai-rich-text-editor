@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   DeleteOutlined,
   FormOutlined,
@@ -47,7 +48,7 @@ function transferConversation(conversation: Conversation) {
   }
   return {
     key: conversation.convId,
-    title: conversation.title || '未命名会话',
+    title: conversation.title || i18nText("app.ai.conversationsider.1f94196e"),
     abstractInfo: conversation.lastMessageDigest || '',
     pinFlag: conversation.pinFlag,
     icon: 'messageOutlined',
@@ -79,7 +80,7 @@ const ConversationSider = forwardRef<
     return [
       {
         key: 'pin',
-        label: conv.pinFlag ? '取消置顶' : '置顶',
+        label: conv.pinFlag ? i18nText("app.ai.conversationsider.4b00b34b") : i18nText("app.ai.conversationsider.e6531ed9"),
         order: 1,
         icon: conv.pinFlag ? <PushpinFilled /> : <PushpinOutlined />,
         onClick: (current: RightSiderItem) => {
@@ -106,7 +107,7 @@ const ConversationSider = forwardRef<
       {
         key: 'edit',
         icon: <FormOutlined />,
-        label: '编辑',
+        label: i18nText("app.ai.conversationsider.5e946133"),
         order: 3,
         onClick: (current: RightSiderItem) => {
           onEdit?.(current.origin as Conversation);
@@ -115,14 +116,14 @@ const ConversationSider = forwardRef<
       {
         key: 'archive',
         icon: <InboxOutlined />,
-        label: '归档',
+        label: i18nText("app.ai.conversationsider.457448ca"),
         order: 4,
         onClick: (current: RightSiderItem) => {}, //TODO
       },
       { type: 'divider' as const, order: 4 },
       {
         key: 'delete',
-        label: '删除',
+        label: i18nText("app.ai.conversationsider.15836fee"),
         order: 6,
         isDanger: true,
         icon: <DeleteOutlined />,
@@ -193,7 +194,7 @@ const ConversationSider = forwardRef<
           })
         }
       >
-        新建会话
+        {i18nText("app.ai.conversationsider.ae76d902")}
       </Button>
     </>
   );
@@ -255,7 +256,7 @@ const ConversationSider = forwardRef<
           setActiveKey(item.key as string);
           onDoubleClick?.(item.origin as Conversation);
         }}
-        emptyRender={<span className="text-sm">暂无会话</span>}
+        emptyRender={<span className="text-sm">{i18nText("app.ai.conversationsider.3ebb1bab")}</span>}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {
   ArrowDownOutlined,
   ArrowLeftOutlined,
@@ -103,7 +104,7 @@ const ArticleHistoryCompare: React.FC<ArticleHistoryCompareProps> = ({
 
   const options = useMemo(
     () => [
-      { label: '当前版本', value: 'current' as const },
+      { label: i18nText("app.article.historysidebar.articlehistorycompare.84f7e479"), value: 'current' as const },
       ...versions.map((version) => ({
         label: `V${version.versionNo} · ${version.modifiedBy} · ${version.modifiedTime}`,
         value: version.id,
@@ -179,8 +180,8 @@ const ArticleHistoryCompare: React.FC<ArticleHistoryCompareProps> = ({
   if (versions.length === 0) {
     return (
       <div style={{ height, width: '100%', paddingTop: 80 }}>
-        <Empty description="当前文章还没有可对比的历史版本">
-          <Button onClick={onExit}>返回文章</Button>
+        <Empty description={i18nText("app.article.historysidebar.articlehistorycompare.1df0ad4d")}>
+          <Button onClick={onExit}>{i18nText("app.article.historysidebar.articlehistorycompare.ffa54d79")}</Button>
         </Empty>
       </div>
     );
@@ -199,18 +200,18 @@ const ArticleHistoryCompare: React.FC<ArticleHistoryCompareProps> = ({
         }}
       >
         <Button icon={<ArrowLeftOutlined />} onClick={onExit}>
-          返回文章
+          {i18nText("app.article.historysidebar.articlehistorycompare.ffa54d79")}
         </Button>
         <Select
-          aria-label="左侧文章版本"
+          aria-label={i18nText("app.article.historysidebar.articlehistorycompare.fd9a5c58")}
           style={{ minWidth: 220, flex: 1 }}
           options={options}
           value={leftVersion}
           onChange={(value) => setLeftVersion(value)}
         />
-        <Typography.Text type="secondary">对比</Typography.Text>
+        <Typography.Text type="secondary">{i18nText("app.article.historysidebar.articlehistorycompare.5a096142")}</Typography.Text>
         <Select
-          aria-label="右侧文章版本"
+          aria-label={i18nText("app.article.historysidebar.articlehistorycompare.b24c8a0a")}
           style={{ minWidth: 220, flex: 1 }}
           options={options}
           value={rightVersion}
@@ -218,19 +219,19 @@ const ArticleHistoryCompare: React.FC<ArticleHistoryCompareProps> = ({
         />
         <Space.Compact>
           <Button
-            aria-label="上一个差异"
+            aria-label={i18nText("app.article.historysidebar.articlehistorycompare.1146d73c")}
             icon={<ArrowUpOutlined />}
             disabled={differenceCount === 0}
             onClick={() => jumpDifference(-1)}
           />
           <Button
-            aria-label="下一个差异"
+            aria-label={i18nText("app.article.historysidebar.articlehistorycompare.f6f6809a")}
             icon={<ArrowDownOutlined />}
             disabled={differenceCount === 0}
             onClick={() => jumpDifference(1)}
           >
             {differenceCount === 0
-              ? '无差异'
+              ? i18nText("app.article.historysidebar.articlehistorycompare.9fa8804d")
               : `${differenceIndex + 1}/${differenceCount}`}
           </Button>
         </Space.Compact>

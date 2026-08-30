@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Button, Col, Form, Row, Space} from 'antd';
 import {DownOutlined, ReloadOutlined, SearchOutlined, UpOutlined} from '@ant-design/icons';
@@ -15,8 +16,8 @@ const SearchForm: React.FC<SearchFormProps> = ({
                                                    collapsible = true,
                                                    defaultCollapsed = false,
                                                    collapsedRows = 1,
-                                                   searchText = '查询',
-                                                   resetText = '重置',
+                                                   searchText = i18nText("app.common.searchform.2d197959"),
+                                                   resetText = i18nText("app.common.searchform.852d31a0"),
                                                    searchShortcut,
                                                    resetShortcut,
                                                    className,
@@ -267,14 +268,14 @@ const SearchForm: React.FC<SearchFormProps> = ({
                                         icon={<SearchOutlined/>}
                                         loading={loading}
                                         onClick={handleSearch}
-                                        title={searchShortcut ? `快捷键: Ctrl+${searchShortcut}` : undefined}
+                                        title={searchShortcut ? i18nText("app.common.searchform.8969d113", {value0: searchShortcut}) : undefined}
                                     >
                                         {searchText}
                                     </Button>
                                     <Button
                                         icon={<ReloadOutlined/>}
                                         onClick={handleReset}
-                                        title={resetShortcut ? `快捷键: Ctrl+${resetShortcut}` : undefined}
+                                        title={resetShortcut ? i18nText("app.common.searchform.8969d113", {value0: resetShortcut}) : undefined}
                                     >
                                         {resetText}
                                     </Button>
@@ -287,11 +288,11 @@ const SearchForm: React.FC<SearchFormProps> = ({
                                         >
                       {collapsed ? (
                           <>
-                              展开 <DownOutlined/>
+                              {i18nText("app.common.searchform.2568e9d7")} <DownOutlined/>
                           </>
                       ) : (
                           <>
-                              收起 <UpOutlined/>
+                              {i18nText("app.common.searchform.4205b408")} <UpOutlined/>
                           </>
                       )}
                     </span>

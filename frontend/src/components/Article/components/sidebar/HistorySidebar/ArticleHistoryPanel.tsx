@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
 import { List, Skeleton, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
@@ -62,10 +63,10 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
     <div style={{ height: '100%', overflow: 'auto', scrollbarWidth: 'thin' }}>
       <div style={{ padding: '12px 12px 8px' }}>
         <Typography.Title level={5} style={{ margin: 0 }}>
-          版本管理
+          {i18nText("app.article.historysidebar.articlehistorypanel.4d05751e")}
         </Typography.Title>
         <Typography.Text type="secondary">
-          点击历史版本进入左右对比
+          {i18nText("app.article.historysidebar.articlehistorypanel.6a9c490d")}
         </Typography.Text>
       </div>
       <div style={{ padding: '0 10px 12px' }}>
@@ -87,16 +88,16 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
             }}
           >
             <Typography.Text ellipsis strong>
-              {article.title || '无标题文章'}
+              {article.title || i18nText("app.article.historysidebar.articlehistorypanel.dd95649a")}
             </Typography.Text>
             <Tag color="green" style={{ marginInlineEnd: 0 }}>
-              当前版本
+              {i18nText("app.article.historysidebar.articlehistorypanel.9a1879c4")}
             </Tag>
           </div>
           <div
             style={{ color: 'var(--ant-color-text-secondary)', fontSize: 12 }}
           >
-            <UserOutlined /> {article.updateBy || article.author || '未知用户'}
+            <UserOutlined /> {article.updateBy || article.author || i18nText("app.article.historysidebar.articlehistorypanel.3cc868ab")}
           </div>
           <div
             style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 12 }}
@@ -104,7 +105,7 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
             <ClockCircleOutlined />{' '}
             {article.updateTime
               ? dayjs(article.updateTime).format('YYYY-MM-DD HH:mm:ss')
-              : '暂无修改时间'}
+              : i18nText("app.article.historysidebar.articlehistorypanel.cc1ef391")}
           </div>
         </div>
         <List
@@ -113,7 +114,7 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
           dataSource={versions}
           loading={loading}
           locale={{
-            emptyText: loading ? <Skeleton active /> : '暂无历史版本',
+            emptyText: loading ? <Skeleton active /> : i18nText("app.article.historysidebar.articlehistorypanel.d6c69180"),
           }}
           renderItem={(version) => (
             <List.Item
@@ -145,7 +146,7 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
                   }}
                 >
                   <Typography.Text ellipsis strong>
-                    {version.title || '无标题文章'}
+                    {version.title || i18nText("app.article.historysidebar.articlehistorypanel.dd95649a")}
                   </Typography.Text>
                   <Tag color="blue" style={{ marginInlineEnd: 0 }}>
                     V{version.versionNo}
@@ -157,7 +158,7 @@ const ArticleHistoryPanel: React.FC<ArticleHistoryPanelProps> = ({
                     fontSize: 12,
                   }}
                 >
-                  <UserOutlined /> {version.modifiedBy || '未知用户'}
+                  <UserOutlined /> {version.modifiedBy || i18nText("app.article.historysidebar.articlehistorypanel.3cc868ab")}
                 </div>
                 <div
                   style={{

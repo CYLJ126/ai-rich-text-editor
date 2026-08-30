@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {AppstoreOutlined, MessageOutlined, ReadOutlined, RobotOutlined, SettingOutlined,} from '@ant-design/icons';
 import {Splitter} from 'antd';
 import {createStyles} from 'antd-style';
@@ -203,7 +204,7 @@ function ChatManagementContent() {
     () => [
       {
         id: 'conversation',
-        name: '会话',
+        name: i18nText("app.ai.chatmanagement.e7f7c4e7"),
         icon: <MessageOutlined />,
         noPadding: true,
         component: (
@@ -215,21 +216,21 @@ function ChatManagementContent() {
       },
       {
         id: 'assistant',
-        name: '助手',
+        name: i18nText("app.ai.chatmanagement.0f538c46"),
         icon: <RobotOutlined />,
         noPadding: true,
         component: <AssistantSider />,
       },
       {
         id: 'model',
-        name: '模型',
+        name: i18nText("app.ai.chatmanagement.a3b58fb8"),
         icon: <AppstoreOutlined />,
         noPadding: true,
         component: <ModelSider />,
       },
       {
         id: 'rag',
-        name: '知识库',
+        name: i18nText("app.ai.chatmanagement.c9bd6fae"),
         icon: <ReadOutlined />,
         component: (
           <RagSider
@@ -253,7 +254,7 @@ function ChatManagementContent() {
         <div
           className={`${styles.floatBtn} float-left`}
           onClick={expandLeft}
-          title="展开会话列表"
+          title={i18nText("app.ai.chatmanagement.a0b69878")}
         >
           <MessageOutlined />
         </div>
@@ -264,7 +265,7 @@ function ChatManagementContent() {
         <div
           className={`${styles.floatBtn} float-right`}
           onClick={expandRight}
-          title="展开设置面板"
+          title={i18nText("app.ai.chatmanagement.01a924f4")}
         >
           <SettingOutlined />
         </div>
@@ -288,7 +289,7 @@ function ChatManagementContent() {
               ref={conversationSiderRef}
               onCreate={() =>
                 createConversation({
-                  title: '新对话',
+                  title: i18nText("app.ai.chatmanagement.fbe4bdea"),
                   convId: '',
                   scene: 'chat_management',
                 } as ConversationUpsertDto)

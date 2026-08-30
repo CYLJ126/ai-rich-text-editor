@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {Extension} from '@tiptap/core';
 import type {FloatingResultState} from './FloatingResultPlugin';
 import {createFloatingResultPlugin, floatingResultPluginKey} from './FloatingResultPlugin';
@@ -38,7 +39,7 @@ export const FloatingResultExtension = Extension.create<FloatingResultOptions>({
   addCommands() {
     return {
       showFloatingResult:
-        (content: string, label = '结果') =>
+        (content: string, label = i18nText("app.article.floatingresult.floatingresultextension.5a9848b1")) =>
           ({editor, tr, dispatch}) => {
             const {from, to} = editor.state.selection;
 

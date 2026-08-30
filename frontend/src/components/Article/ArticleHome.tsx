@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {ReadOutlined,} from '@ant-design/icons';
 import {Empty, Row, Spin, Typography} from 'antd';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
@@ -173,7 +174,7 @@ const ArticleHome: React.FC<ArticleHomeProps> = ({onArticleSelect}) => {
       <div className="mt-2.5 mb-5 text-center">
         <Title level={2}>
           <ReadOutlined className="mr-2"/>
-          ARTE - 文章列表
+          {i18nText("app.article.article.articlehome.327a85a5")}
         </Title>
       </div>
       <div className={`flex justify-center ${showRecent ? 'mb-7.5' : ''}`}>
@@ -199,11 +200,11 @@ const ArticleHome: React.FC<ArticleHomeProps> = ({onArticleSelect}) => {
         : <div className="ml-[10%] w-[80%]"><ArticleSkeleton showType='list'/></div>)}
 
       {/* 无文章时 */}
-      {!loading && totalHits === 0 && <Empty description='暂无文章'/>}
+      {!loading && totalHits === 0 && <Empty description={i18nText("app.article.article.articlehome.da627558")}/>}
 
       {/* 搜索结果统计 */}
       {!showRecent && !loading && totalHits > 0 &&
-        <div className="ml-[10%] mb-3 text-[#8c8c8c]">共找到 {totalHits} 条相关内容</div>}
+        <div className="ml-[10%] mb-3 text-[#8c8c8c]">{i18nText("app.article.article.articlehome.c9824fab")} {totalHits} {i18nText("app.article.article.articlehome.fff6d41f")}</div>}
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none">
         {/* 内容区 */}
@@ -234,7 +235,7 @@ const ArticleHome: React.FC<ArticleHomeProps> = ({onArticleSelect}) => {
         {!showRecent && loadingMore && (
           <div className="py-4 text-center">
             <Spin size="small"/>
-            <span className="ml-2 text-[#8c8c8c]">加载更多...</span>
+            <span className="ml-2 text-[#8c8c8c]">{i18nText("app.article.article.articlehome.be8b77fe")}</span>
           </div>
         )}
       </div>

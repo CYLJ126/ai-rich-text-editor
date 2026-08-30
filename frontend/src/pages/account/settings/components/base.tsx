@@ -1,5 +1,6 @@
-import {UploadOutlined} from '@ant-design/icons';
-import type {ProFormInstance} from '@ant-design/pro-components';
+import { i18nText } from '@/utils/i18n';
+import { UploadOutlined } from '@ant-design/icons';
+import type { ProFormInstance } from '@ant-design/pro-components';
 import {
   ProForm,
   ProFormDependency,
@@ -8,12 +9,12 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import {useQuery} from '@tanstack/react-query';
-import {Button, Input, message, Upload} from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { Button, Input, message, Upload } from 'antd';
 import React from 'react';
-import {getCityOptions, provinceOptions} from '@/utils/chinaDivision';
-import type {GeographicItemType} from '../data';
-import {queryCity, queryCurrent, queryProvince} from '../service';
+import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
+import type { GeographicItemType } from '../data';
+import { queryCity, queryCurrent, queryProvince } from '../service';
 import useStyles from './index.style';
 
 const validatorPhone = (
@@ -33,9 +34,9 @@ const validatorPhone = (
 const toSelectValue = (item?: { label?: string; key?: string }) =>
   item?.key
     ? {
-      label: item.label,
-      value: item.key,
-    }
+        label: item.label,
+        value: item.key,
+      }
     : undefined;
 
 const toSelectOptions = (items: GeographicItemType[]) =>
@@ -44,12 +45,12 @@ const toSelectOptions = (items: GeographicItemType[]) =>
       const label = item.name ?? item.label;
       const value = item.id ?? item.key;
 
-      return label && value ? {label, value} : undefined;
+      return label && value ? { label, value } : undefined;
     })
     .filter((item): item is { label: string; value: string } => Boolean(item));
 
 const handleFinish = async () => {
-  message.success('更新基本信息成功');
+  message.success(i18nText('app.account.components.base.7fa856f0'));
 };
 
 const BaseView: React.FC = () => {
@@ -89,7 +90,7 @@ const BaseView: React.FC = () => {
               onValuesChange={handleValuesChange}
               submitter={{
                 searchConfig: {
-                  submitText: '更新基本信息',
+                  submitText: i18nText('app.account.components.base.dc48ea7a'),
                 },
                 render: (_, dom) => dom[1],
               }}
@@ -104,49 +105,49 @@ const BaseView: React.FC = () => {
               <ProFormText
                 width="md"
                 name="email"
-                label="邮箱"
+                label={i18nText('app.account.components.base.2da05b59')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的邮箱!',
+                    message: i18nText('app.account.components.base.621c27f1'),
                   },
                 ]}
               />
               <ProFormText
                 width="md"
                 name="name"
-                label="昵称"
+                label={i18nText('app.account.components.base.6904fe0e')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的昵称!',
+                    message: i18nText('app.account.components.base.50235b25'),
                   },
                 ]}
               />
               <ProFormTextArea
                 name="profile"
-                label="个人简介"
+                label={i18nText('app.account.components.base.3fb7d772')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入个人简介!',
+                    message: i18nText('app.account.components.base.ec37ef1d'),
                   },
                 ]}
-                placeholder="个人简介"
+                placeholder={i18nText('app.account.components.base.3fb7d772')}
               />
               <ProFormSelect
                 width="sm"
                 name="country"
-                label="国家/地区"
+                label={i18nText('app.account.components.base.823dbd8c')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的国家或地区!',
+                    message: i18nText('app.account.components.base.0d29e3b0'),
                   },
                 ]}
                 options={[
                   {
-                    label: '中国',
+                    label: i18nText('app.account.components.base.dfcec571'),
                     value: 'China',
                   },
                 ]}
@@ -154,11 +155,11 @@ const BaseView: React.FC = () => {
 
               <ProForm.Group size={8}>
                 <ProFormSelect
-                  label="所在省市"
+                  label={i18nText('app.account.components.base.7aebda63')}
                   rules={[
                     {
                       required: true,
-                      message: '请输入您的所在省!',
+                      message: i18nText('app.account.components.base.ef3d3d4d'),
                     },
                   ]}
                   width="sm"
@@ -186,7 +187,9 @@ const BaseView: React.FC = () => {
                         rules={[
                           {
                             required: true,
-                            message: '请输入您的所在城市!',
+                            message: i18nText(
+                              'app.account.components.base.079998ff',
+                            ),
                           },
                         ]}
                         fieldProps={{
@@ -213,21 +216,21 @@ const BaseView: React.FC = () => {
               <ProFormText
                 width="md"
                 name="address"
-                label="街道地址"
+                label={i18nText('app.account.components.base.6a13482c')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的街道地址!',
+                    message: i18nText('app.account.components.base.dbe83b6f'),
                   },
                 ]}
               />
               <ProFormFieldSet
                 name="phone"
-                label="联系电话"
+                label={i18nText('app.account.components.base.53132d6a')}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的联系电话!',
+                    message: i18nText('app.account.components.base.521ff7ec'),
                   },
                   {
                     validator: validatorPhone,
@@ -254,15 +257,17 @@ const AvatarView = ({ avatar }: { avatar: string }) => {
 
   return (
     <>
-      <div className={styles.avatar_title}>头像</div>
+      <div className={styles.avatar_title}>
+        {i18nText('app.account.components.base.a2dd9e07')}
+      </div>
       <div className={styles.avatar}>
-        <img src={avatar} alt="avatar" />
+        <img src={avatar} alt={i18nText('app.common.avatar')} />
       </div>
       <Upload showUploadList={false}>
         <div className={styles.button_view}>
           <Button>
             <UploadOutlined />
-            更换头像
+            {i18nText('app.account.components.base.b72753ae')}
           </Button>
         </div>
       </Upload>

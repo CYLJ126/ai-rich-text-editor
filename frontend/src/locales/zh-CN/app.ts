@@ -1,0 +1,2320 @@
+export default {
+  'app.common.search.placeholder': '搜索...',
+  'app.common.noResults': '暂无结果',
+  'app.common.create': '创建',
+  'app.common.noData': '暂无数据',
+  'app.common.close': '关闭',
+  'app.common.backHome': '返回首页',
+  'app.common.logo': '网站标志',
+  'app.common.avatar': '头像',
+  'app.ai.markdown.content': 'Markdown 内容',
+  'app.ai.chat': 'AI 对话',
+  'app.ai.tokens.input': '输入',
+  'app.ai.tokens.output': '输出',
+  'app.exception.403.description': '抱歉，您无权访问此页面。',
+  'app.exception.500.description': '抱歉，页面出现了错误。',
+  'app.admin.you': '你',
+  'app.admin.morePages': '想添加更多页面？请参考',
+  'app.admin.useBlock': '区块使用说明',
+  'app.examples.firstMenuItem': '第一个菜单项',
+  'app.examples.secondMenuItem': '第二个菜单项',
+  'app.login.motto': '迟做总比不做好。',
+  'app.article.mermaid.codePlaceholder': '请输入 Mermaid 代码',
+  'app.article.code.copy': '复制代码',
+  'app.article.code.delete': '删除代码块',
+  'app.article.code.fold': '折叠代码块',
+  'app.article.table.addColumnBefore': '在前面添加列',
+  'app.article.table.addColumnAfter': '在后面添加列',
+  'app.article.table.deleteColumn': '删除列',
+  'app.article.table.addRowBefore': '在前面添加行',
+  'app.article.table.addRowAfter': '在后面添加行',
+  'app.article.table.deleteRow': '删除行',
+  'app.article.table.mergeCells': '合并单元格',
+  'app.article.table.splitCell': '拆分单元格',
+  'app.article.table.toggleHeaderCell': '切换表头单元格',
+  'app.article.table.alignment': '对齐方式',
+  'app.article.table.alignTop': '顶部对齐',
+  'app.article.table.alignMiddle': '居中对齐',
+  'app.article.table.alignBottom': '底部对齐',
+  'app.article.table.clearContents': '清除内容',
+  'app.article.slash.aiWriter.title': 'AI 写作',
+  'app.article.slash.aiWriter.description': '使用自定义提示词询问 AI。',
+  'app.article.slash.text.title': '文本',
+  'app.article.slash.text.description': '开始输入普通文本。',
+  'app.article.slash.heading1.title': '一级标题',
+  'app.article.slash.heading1.description': '大型章节标题。',
+  'app.article.slash.heading2.title': '二级标题',
+  'app.article.slash.heading2.description': '中型章节标题。',
+  'app.article.slash.heading3.title': '三级标题',
+  'app.article.slash.heading3.description': '小型章节标题。',
+  'app.article.slash.bulletList.title': '项目符号列表',
+  'app.article.slash.bulletList.description': '创建简单的项目符号列表。',
+  'app.article.slash.numberedList.title': '编号列表',
+  'app.article.slash.numberedList.description': '创建带编号的列表。',
+  'app.article.slash.taskList.title': '任务列表',
+  'app.article.slash.taskList.description': '创建任务列表。',
+  'app.article.slash.divider.title': '分隔线',
+  'app.article.slash.divider.description': '创建水平分隔线。',
+  'app.article.slash.table.title': '表格',
+  'app.article.slash.table.description': '插入表格。',
+  'app.article.slash.quote.title': '引用',
+  'app.article.slash.quote.description': '插入引用块。',
+  'app.article.slash.code.title': '代码',
+  'app.article.slash.code.description': '插入代码片段。',
+  'app.article.slash.mermaid.title': 'Mermaid 图表',
+  'app.article.slash.mermaid.description': '渲染 Mermaid 图表。',
+  'app.article.slash.drawio.title': 'Draw.io 图表',
+  'app.article.slash.drawio.description': '创建流程图、架构图或 UML 图。',
+  'app.article.slash.mindMap.title': '思维导图',
+  'app.article.slash.mindMap.description': '使用 Mind Elixir 创建思维导图。',
+  'app.article.slash.canvas.title': '自由画布',
+  'app.article.slash.canvas.description': '插入可扩展的自由绘制画布。',
+  'app.article.slash.image.title': '图片',
+  'app.article.slash.image.description': '通过链接插入图片。',
+  'app.article.slash.audio.title': '音频',
+  'app.article.slash.audio.description': '插入原生音频播放器。',
+  'app.article.slash.video.title': '视频',
+  'app.article.slash.video.description': '插入视频或平台播放器。',
+  'app.ai.continuation.failed': 'AI 续写失败：{value0}',
+  'app.common.notBound': '未绑定',
+  'app.sticky.delete.failed': '删除便笺失败：{value0}',
+  'app.sticky.delete.failedWithId': 'ID {value0} 删除失败',
+  // app.tsx
+  'app.common.app.223c3ddf': 'OpenAPI 文档',
+
+  // components/AI/AssistantSider/AssistantEditForm.tsx
+  'app.ai.assistantsider.assistanteditform.11eda565': '请选择关联知识库',
+  'app.ai.assistantsider.assistanteditform.11f99d0c': '排序只能输入自然数',
+  'app.ai.assistantsider.assistanteditform.184f3007': '请选择模型',
+  'app.ai.assistantsider.assistanteditform.1bb46147': '频率惩罚',
+  'app.ai.assistantsider.assistanteditform.29139660': '名称',
+  'app.ai.assistantsider.assistanteditform.2e9efc22': '上下文窗口数',
+  'app.ai.assistantsider.assistanteditform.31f9d90f': '加载中...',
+  'app.ai.assistantsider.assistanteditform.32b24e67': '排序',
+  'app.ai.assistantsider.assistanteditform.45964902': '模型提供商',
+  'app.ai.assistantsider.assistanteditform.48848d89': '是否开启查询重写功能',
+  'app.ai.assistantsider.assistanteditform.507fe7c4': '文本类型',
+  'app.ai.assistantsider.assistanteditform.523a0aed': '创建',
+  'app.ai.assistantsider.assistanteditform.5f90c572': '头像',
+  'app.ai.assistantsider.assistanteditform.64612d40': '请选择文本类型',
+  'app.ai.assistantsider.assistanteditform.69412fd9': '请输入系统提示词',
+  'app.ai.assistantsider.assistanteditform.6a06c9d2': '更新',
+  'app.ai.assistantsider.assistanteditform.6bc38fd6': '上下文策略',
+  'app.ai.assistantsider.assistanteditform.74cb1c86': '请选择模型提供商',
+  'app.ai.assistantsider.assistanteditform.850250a0': '温度',
+  'app.ai.assistantsider.assistanteditform.90ac8f4c': '取消',
+  'app.ai.assistantsider.assistanteditform.9138e5ac': '最大 Token 数',
+  'app.ai.assistantsider.assistanteditform.9dab7d2e': '请输入排序值',
+  'app.ai.assistantsider.assistanteditform.a65186f6': '系统提示词',
+  'app.ai.assistantsider.assistanteditform.aadb1845': '启用',
+  'app.ai.assistantsider.assistanteditform.b8f87b98': '描述',
+  'app.ai.assistantsider.assistanteditform.bdd27c6f': '推理力度',
+  'app.ai.assistantsider.assistanteditform.be19244b': '请选择推理力度',
+  'app.ai.assistantsider.assistanteditform.ce644caf': '存在惩罚',
+  'app.ai.assistantsider.assistanteditform.d10cecd7': '请输入描述',
+  'app.ai.assistantsider.assistanteditform.de86d311': '模型',
+  'app.ai.assistantsider.assistanteditform.e2f16e48': '请选择上下文策略',
+  'app.ai.assistantsider.assistanteditform.e99cb099': '请输入助手名称',
+  'app.ai.assistantsider.assistanteditform.f18ca8e1': '额外参数',
+  'app.ai.assistantsider.assistanteditform.f2f9da7e': '状态',
+  'app.ai.assistantsider.assistanteditform.f33aab5b': '关联知识库',
+  'app.ai.assistantsider.assistanteditform.f78d585f': '请选择头像',
+  'app.ai.assistantsider.assistanteditform.fdc4f734': '是否开启全局记忆功能',
+  'app.ai.assistantsider.assistanteditform.ff41fea7': '禁用',
+
+  // components/AI/AssistantSider/index.tsx
+  'app.ai.assistantsider.194f73c6': '未命名助手',
+  'app.ai.assistantsider.1e93d851': '置顶',
+  'app.ai.assistantsider.2cbcebe1': '添加助手',
+  'app.ai.assistantsider.3ea5581a': '设为默认',
+  'app.ai.assistantsider.4d7df07f': '启用',
+  'app.ai.assistantsider.77356810': '编辑',
+  'app.ai.assistantsider.78e32761': '编辑助手',
+  'app.ai.assistantsider.a7802f68': '禁用',
+  'app.ai.assistantsider.b9d095bb': '默认助手',
+  'app.ai.assistantsider.da9a1203': '删除',
+  'app.ai.assistantsider.ed37ce7f': '取消置顶',
+  'app.ai.assistantsider.fdac443f': '暂无助手',
+
+  // components/AI/ChatContext.tsx
+  'app.ai.ai.chatcontext.4de0880b': '生成失败',
+  'app.ai.ai.chatcontext.59457b9c': '未找到可重试的用户消息',
+  'app.ai.ai.chatcontext.8bf7b2ac': '生成失败：{value0}',
+  'app.ai.ai.chatcontext.906732b5': '未知错误',
+
+  // components/AI/ChatInput/index.tsx
+  'app.ai.chatinput.024309b7': '引用',
+  'app.ai.chatinput.36b0293e': '上传文件',
+  'app.ai.chatinput.36f4a4dc': '发送',
+  'app.ai.chatinput.377a72a8': '视觉',
+  'app.ai.chatinput.3b36c153': '深思',
+  'app.ai.chatinput.3d1e59a1': '生成图片',
+  'app.ai.chatinput.5d73cd74': '联网搜索',
+  'app.ai.chatinput.6056ef00': '深度思考（使用 thinking 模型）',
+  'app.ai.chatinput.84a6ca33': '停止',
+  'app.ai.chatinput.b4975a10': '输入消息... (Enter 发送，Shift+Enter 换行)',
+  'app.ai.chatinput.b81bd99e': '生图',
+  'app.ai.chatinput.c5b56cce': '启用视觉（上传图片）',
+  'app.ai.chatinput.cc513812': '联网',
+  'app.ai.chatinput.f9af39e3': '上传图片',
+
+  // components/AI/ChattingSider/AIMessagesAndSend.tsx
+  'app.ai.chattingsider.aimessagesandsend.0b329198':
+    '请先在会话或助手上配置模型',
+  'app.ai.chattingsider.aimessagesandsend.3c8eef1a': '随便聊聊历史呗',
+  'app.ai.chattingsider.aimessagesandsend.4b73734d': '来点编程干货',
+  'app.ai.chattingsider.aimessagesandsend.58cb572f': 'AI 方向的内容来一波',
+  'app.ai.chattingsider.aimessagesandsend.5f052c3e':
+    '周末想看电影，有影评参考吗',
+  'app.ai.chattingsider.aimessagesandsend.87cf7332':
+    '自律得自由，健身计划有木有',
+  'app.ai.chattingsider.aimessagesandsend.ad681f39':
+    '职场那些事儿，库里聊了多少',
+  'app.ai.chattingsider.aimessagesandsend.b3d53dd3':
+    '最近想去旅行，有攻略推荐不',
+  'app.ai.chattingsider.aimessagesandsend.ba144aa6':
+    '输入消息... (Enter 发送，Shift+Enter 换行)',
+  'app.ai.chattingsider.aimessagesandsend.d302e450': '请先选择一个对话',
+  'app.ai.chattingsider.aimessagesandsend.d915adaf': '书法相关的文章都有啥',
+  'app.ai.chattingsider.aimessagesandsend.ffc90320':
+    '让我来看看库里有哪些美食推荐',
+
+  // components/AI/ChattingSider/ChattingSider.tsx
+  'app.ai.chattingsider.chattingsider.12a37b37': '助手配置',
+  'app.ai.chattingsider.chattingsider.52b5a4b2': '新对话',
+  'app.ai.chattingsider.chattingsider.6928e7b6': '会话列表',
+  'app.ai.chattingsider.chattingsider.c473f194': '会话配置',
+  'app.ai.chattingsider.chattingsider.edc1c0f9': '消息列表',
+
+  // components/AI/ConversationEditSider/index.tsx
+  'app.ai.conversationeditsider.0687c731': '请选择会话助手',
+  'app.ai.conversationeditsider.07ec8e9f': '请选择知识库',
+  'app.ai.conversationeditsider.0ab0f18f': '默认',
+  'app.ai.conversationeditsider.12a65d45': '频率惩罚 (Frequency Penalty)',
+  'app.ai.conversationeditsider.231cea64': '请选择上下文策略',
+  'app.ai.conversationeditsider.334a9280': '收起',
+  'app.ai.conversationeditsider.41891402': '推理力度',
+  'app.ai.conversationeditsider.41e6fd93': '请选择文本类型（默认继承助手配置）',
+  'app.ai.conversationeditsider.42d80d37': '开启后将跨会话保留用户记忆偏好',
+  'app.ai.conversationeditsider.4d85a313': '文本类型',
+  'app.ai.conversationeditsider.58427c4b': '会话模型',
+  'app.ai.conversationeditsider.58867126': '知识库',
+  'app.ai.conversationeditsider.5fdc5eae': '统计信息',
+  'app.ai.conversationeditsider.62ff5ba2': '请选择推理力度（默认继承助手配置）',
+  'app.ai.conversationeditsider.6662039e': '展开',
+  'app.ai.conversationeditsider.6c6afe30': '最大生成 Token 数',
+  'app.ai.conversationeditsider.6f24e3da':
+    '控制输出随机性，值越高越有创意，值越低越确定',
+  'app.ai.conversationeditsider.6f5745a2': '温度 (Temperature)',
+  'app.ai.conversationeditsider.813d269c': '会话助手',
+  'app.ai.conversationeditsider.825004cb': '请输入最大 Token 数',
+  'app.ai.conversationeditsider.882e3e5c':
+    '正值鼓励模型讨论新话题，减少重复内容，范围 -2 ~ 2',
+  'app.ai.conversationeditsider.88ce2098': '最新消息时间',
+  'app.ai.conversationeditsider.8b16a937':
+    '正值降低模型逐字重复相同内容的可能性，范围 -2 ~ 2',
+  'app.ai.conversationeditsider.9510816f': '会话名称',
+  'app.ai.conversationeditsider.9711270d': '开启后将做查询重写',
+  'app.ai.conversationeditsider.97c91e97': '系统提示词',
+  'app.ai.conversationeditsider.99776c3b': 'Top K 解码采样参数',
+  'app.ai.conversationeditsider.9f4ed39f': '请输入会话名称',
+  'app.ai.conversationeditsider.a0ecc096': '额外模型参数',
+  'app.ai.conversationeditsider.a195d9c8':
+    'top P 核采样概率阈值，与 Temperature 建议只调其一',
+  'app.ai.conversationeditsider.b487910f': '上下文窗口大小',
+  'app.ai.conversationeditsider.bfe6a5c4': '上下文策略',
+  'app.ai.conversationeditsider.c1e2ab7f': '存在惩罚 (Presence Penalty)',
+  'app.ai.conversationeditsider.cd1cfaa9': '请输入系统提示词',
+  'app.ai.conversationeditsider.da22cddd': '请选择会话模型',
+  'app.ai.conversationeditsider.e71aa4e5': '查询重写功能',
+  'app.ai.conversationeditsider.f8e418d5': '全局记忆功能',
+  'app.ai.conversationeditsider.fbd7966f': '总消息条数',
+  'app.ai.conversationeditsider.ff28b9a5': '总消息条数：',
+
+  // components/AI/ConversationSider/ConversationItem.tsx
+  'app.ai.conversationsider.conversationitem.0d5aead2': '归档',
+  'app.ai.conversationsider.conversationitem.0f5b6c47': '暂无消息',
+  'app.ai.conversationsider.conversationitem.18dc6285': '删除',
+  'app.ai.conversationsider.conversationitem.2784005e': '更多操作',
+  'app.ai.conversationsider.conversationitem.4ba1bf3f': '重命名',
+  'app.ai.conversationsider.conversationitem.7fc567bc': '新会话',
+  'app.ai.conversationsider.conversationitem.c287471d': '编辑',
+  'app.ai.conversationsider.conversationitem.c48f7be6': '取消置顶',
+  'app.ai.conversationsider.conversationitem.de1f7f60': '置顶会话',
+
+  // components/AI/ConversationSider/index.tsx
+  'app.ai.conversationsider.15836fee': '删除',
+  'app.ai.conversationsider.1f94196e': '未命名会话',
+  'app.ai.conversationsider.3ebb1bab': '暂无会话',
+  'app.ai.conversationsider.457448ca': '归档',
+  'app.ai.conversationsider.4b00b34b': '取消置顶',
+  'app.ai.conversationsider.5e946133': '编辑',
+  'app.ai.conversationsider.ae76d902': '新建会话',
+  'app.ai.conversationsider.e6531ed9': '置顶',
+
+  // components/AI/MessageList/index.tsx
+  'app.ai.messagelist.02de627d': '编辑(暂不支持)',
+  'app.ai.messagelist.05108a38': '删除',
+  'app.ai.messagelist.0713d7de': '重新生成',
+  'app.ai.messagelist.0d82f2b9': '选择或新建一个对话',
+  'app.ai.messagelist.0f53d91f': '已复制到剪贴板',
+  'app.ai.messagelist.13230391': '帮我写一段 Python 代码',
+  'app.ai.messagelist.16275bbd': '帮我优化这段 SQL 查询',
+  'app.ai.messagelist.17a4f1a6': '回到底部',
+  'app.ai.messagelist.1eec5711': '复制',
+  'app.ai.messagelist.20b10ebc': '踩',
+  'app.ai.messagelist.25ac4727': '查看优化内容',
+  'app.ai.messagelist.38e21bae': '从左侧选择已有对话，或点击「新建」开始',
+  'app.ai.messagelist.483d3123': '写一封正式的商务邮件',
+  'app.ai.messagelist.860b4fea': '新对话',
+  'app.ai.messagelist.936ef569': '赞',
+  'app.ai.messagelist.a2fddccc': '分析一下当前 AI 发展趋势',
+  'app.ai.messagelist.a3385fd8': '引用(暂不支持)',
+  'app.ai.messagelist.aed36983': '给我推荐一份健康的早餐食谱',
+  'app.ai.messagelist.b91ea936': '已复制',
+  'app.ai.messagelist.c7cb946f': '查看原内容',
+  'app.ai.messagelist.d18769a8': '已加载全部消息',
+  'app.ai.messagelist.d714de45': '复制失败',
+  'app.ai.messagelist.d8e49c27': '开始你的第一条消息',
+  'app.ai.messagelist.fad04a49': '用简洁的语言解释量子计算',
+
+  // components/AI/MessageList/MessageBubble.tsx
+  'app.ai.messagelist.messagebubble.25583446': '重试',
+  'app.ai.messagelist.messagebubble.75e8d98a': '消息发送失败，请重试',
+
+  // components/AI/ModelSelector/index.tsx
+  'app.ai.modelselector.2152358c': '选择模型',
+
+  // components/AI/ModelSider/index.tsx
+  'app.ai.modelsider.0a9ab3f2': '暂无模型',
+  'app.ai.modelsider.0d4f4305': '编辑模型',
+  'app.ai.modelsider.2bfc5643': '取消置顶',
+  'app.ai.modelsider.3e8d9edb': '设为默认',
+  'app.ai.modelsider.3f982cb6': '删除',
+  'app.ai.modelsider.6e61d44b': '启用',
+  'app.ai.modelsider.71c9c6d0': '置顶',
+  'app.ai.modelsider.764a9874': '添加模型',
+  'app.ai.modelsider.896ba845': '模型',
+  'app.ai.modelsider.baefd5e8': '禁用',
+  'app.ai.modelsider.cc8fb513': '编辑',
+  'app.ai.modelsider.ce802c5c': '未命名模型',
+  'app.ai.modelsider.d91788c0': '请设置一个默认模型！',
+  'app.ai.modelsider.ed41fa9b': '默认模型',
+
+  // components/AI/ModelSider/ModelEditForm.tsx
+  'app.ai.modelsider.modeleditform.0795c3e4': '请选择模型提供商',
+  'app.ai.modelsider.modeleditform.0aed44a0': '货币单位',
+  'app.ai.modelsider.modeleditform.0dcb5e49': '上下文窗口大小',
+  'app.ai.modelsider.modeleditform.110bd4b4': '请选择货币单位',
+  'app.ai.modelsider.modeleditform.13459154': '请选择是否支持思考',
+  'app.ai.modelsider.modeleditform.15696882': '请输入模型 ID',
+  'app.ai.modelsider.modeleditform.1a077c0b': '最大输出 token 数',
+  'app.ai.modelsider.modeleditform.28d1eb62': '最大重试次数',
+  'app.ai.modelsider.modeleditform.2a8c9b2a': '请输入输入单价',
+  'app.ai.modelsider.modeleditform.2af436d1': '禁用',
+  'app.ai.modelsider.modeleditform.301d9e41': '组织 ID 1',
+  'app.ai.modelsider.modeleditform.345c1867': '请输入模型名称',
+  'app.ai.modelsider.modeleditform.39c90149': '请输入代理',
+  'app.ai.modelsider.modeleditform.3ea69b66': '取消',
+  'app.ai.modelsider.modeleditform.3f2b7a7d': 'API 密钥',
+  'app.ai.modelsider.modeleditform.420de5ba': '是否支持搜索',
+  'app.ai.modelsider.modeleditform.44a1b9eb': '请输入并发请求数限制',
+  'app.ai.modelsider.modeleditform.4af5509c': '是否支持视觉',
+  'app.ai.modelsider.modeleditform.4f11f17f': '每日最大请求数',
+  'app.ai.modelsider.modeleditform.535e21e7': '启用',
+  'app.ai.modelsider.modeleditform.6892fb9f': '请输入排序值',
+  'app.ai.modelsider.modeleditform.6a0f084a': '是否支持思考',
+  'app.ai.modelsider.modeleditform.6bfbd6d0': '请选择是否支持搜索',
+  'app.ai.modelsider.modeleditform.6dadd797': '组织 ID 2',
+  'app.ai.modelsider.modeleditform.6fcc72fc': '请输入请求超时时间（秒）',
+  'app.ai.modelsider.modeleditform.72aa0f0c': '请选择是否支持函数',
+  'app.ai.modelsider.modeleditform.743ba271': '名称',
+  'app.ai.modelsider.modeleditform.7a726839': '默认参数',
+  'app.ai.modelsider.modeleditform.7e8f8c2f': '是否支持提示缓存',
+  'app.ai.modelsider.modeleditform.818065d1':
+    '请输入每分钟最大 Token 数（TPM）',
+  'app.ai.modelsider.modeleditform.82e55cff': '请求超时时间（秒）',
+  'app.ai.modelsider.modeleditform.8363b67c': '状态',
+  'app.ai.modelsider.modeleditform.8716d64a': '每分钟最大 Token 数（TPM）',
+  'app.ai.modelsider.modeleditform.8c89526c': '请输入输出单价',
+  'app.ai.modelsider.modeleditform.8f23ef75': '代理',
+  'app.ai.modelsider.modeleditform.948c1217': '输出单价',
+  'app.ai.modelsider.modeleditform.9f5b8505': '请输入最大重试次数',
+  'app.ai.modelsider.modeleditform.a16a06e4': '请输入组织 ID',
+  'app.ai.modelsider.modeleditform.a223d373': '描述',
+  'app.ai.modelsider.modeleditform.a46c7b8a': '加载中...',
+  'app.ai.modelsider.modeleditform.b1e6a82c': '请选择是否支持视觉',
+  'app.ai.modelsider.modeleditform.b2b54bc3': '否',
+  'app.ai.modelsider.modeleditform.b32031aa': '模型 ID',
+  'app.ai.modelsider.modeleditform.b41d4008': '请输入 API 密钥',
+  'app.ai.modelsider.modeleditform.b598ad3b': '请输入 API 版本',
+  'app.ai.modelsider.modeleditform.b9ed74af': '请输入 API 基础 URL',
+  'app.ai.modelsider.modeleditform.bae60abc': '组织 ID',
+  'app.ai.modelsider.modeleditform.bb3d9ba5': '模型提供商',
+  'app.ai.modelsider.modeleditform.be1c57f4': '更新',
+  'app.ai.modelsider.modeleditform.c0c098dc': '创建',
+  'app.ai.modelsider.modeleditform.d94dc205': '排序',
+  'app.ai.modelsider.modeleditform.de3083d4': '输入单价',
+  'app.ai.modelsider.modeleditform.de79ea68': '请输入每分钟最大请求数（RPM）',
+  'app.ai.modelsider.modeleditform.e0874fdf': '并发请求数限制',
+  'app.ai.modelsider.modeleditform.e53e93df': '请选择是否支持提示缓存',
+  'app.ai.modelsider.modeleditform.e8843de3': '是否支持函数',
+  'app.ai.modelsider.modeleditform.e95e2bdd': 'API 版本',
+  'app.ai.modelsider.modeleditform.eebd8105': '请输入每日最大请求数',
+  'app.ai.modelsider.modeleditform.f013f731': '排序只能输入自然数',
+  'app.ai.modelsider.modeleditform.f4aea1c2': '请输入描述',
+  'app.ai.modelsider.modeleditform.f8d44568': '是',
+  'app.ai.modelsider.modeleditform.fb4b43e1': 'API 基础 URL',
+  'app.ai.modelsider.modeleditform.fb74f081': '每分钟最大请求数（RPM）',
+
+  // components/AI/PromptSider/index.tsx
+  'app.ai.promptsider.d9ac182e': '提示词侧边栏',
+
+  // components/AI/RagSider/ArticleRagSider.tsx
+  'app.ai.ragsider.articleragsider.44bf3769': '搜索中...',
+  'app.ai.ragsider.articleragsider.5f6fc64e': '已加载全部结果',
+  'app.ai.ragsider.articleragsider.84187a13': '暂无相关文章',
+  'app.ai.ragsider.articleragsider.9b6eab23': '加载更多...',
+
+  // components/AI/RagSider/index.tsx
+  'app.ai.ragsider.8c8e1f9b': '暂不支持',
+
+  // components/AI/ThinkingBlock/index.tsx
+  'app.ai.thinkingblock.88d59063': '正在思考中...',
+  'app.ai.thinkingblock.beb4c75f': '思考过程',
+
+  // components/AI/TokenBadge/index.tsx
+  'app.ai.tokenbadge.129dce39': '输出：',
+  'app.ai.tokenbadge.9adaac0b': '提示词：',
+  'app.ai.tokenbadge.bbaec5f9': '思考：',
+  'app.ai.tokenbadge.c668c14a': '合计：',
+
+  // components/Article/ArticleHome.tsx
+  'app.article.article.articlehome.327a85a5': 'ARTE - 文章列表',
+  'app.article.article.articlehome.be8b77fe': '加载更多...',
+  'app.article.article.articlehome.c9824fab': '共找到',
+  'app.article.article.articlehome.da627558': '暂无文章',
+  'app.article.article.articlehome.fff6d41f': '条相关内容',
+
+  // components/Article/components/article/ArticleCard.tsx
+  'app.article.article.articlecard.4ff7fa02': '作为检索候选',
+  'app.article.article.articlecard.63d211db': '文章封面',
+  'app.article.article.articlecard.90c2ecec': '未命名文章',
+  'app.article.article.articlecard.a934b067': '暂无摘要',
+  'app.article.article.articlecard.cf59b962': '在新标签中打开',
+
+  // components/Article/components/article/ArticleCoverModal.tsx
+  'app.article.article.articlecovermodal.15c989b4': '封面保存失败',
+  'app.article.article.articlecovermodal.20028740': '封面已保存',
+  'app.article.article.articlecovermodal.2eb6f68a': '封面已清除',
+  'app.article.article.articlecovermodal.3480ee81': '设置文章封面',
+  'app.article.article.articlecovermodal.37b367c7': '封面上传成功',
+  'app.article.article.articlecovermodal.404e21e3': '清除封面',
+  'app.article.article.articlecovermodal.5ef295fa': '暂无封面',
+  'app.article.article.articlecovermodal.6907f718': '取消',
+  'app.article.article.articlecovermodal.707ea8b9': '上传封面',
+  'app.article.article.articlecovermodal.73a463b2': '请选择图片文件',
+  'app.article.article.articlecovermodal.799b2c41': '文章封面',
+  'app.article.article.articlecovermodal.84318691': '请先打开一篇文章',
+  'app.article.article.articlecovermodal.d18c4b48': '封面上传失败',
+  'app.article.article.articlecovermodal.f29e631f': '保存封面',
+
+  // components/Article/components/article/ArticleMetaInfo.tsx
+  'app.article.article.articlemetainfo.24e1530f': '可编辑',
+  'app.article.article.articlemetainfo.3add4155': '最后修改时间：',
+  'app.article.article.articlemetainfo.3b0cc08e': '权限：',
+  'app.article.article.articlemetainfo.69110004': '未保存',
+  'app.article.article.articlemetainfo.77eb28ec': '保存失败',
+  'app.article.article.articlemetainfo.7cbe191f': '可批注',
+  'app.article.article.articlemetainfo.88245809': '最后修改人：',
+  'app.article.article.articlemetainfo.8cca2c36': '作者：',
+  'app.article.article.articlemetainfo.9e428673': '状态：',
+  'app.article.article.articlemetainfo.b313084b': '完全控制',
+  'app.article.article.articlemetainfo.bcf8f5f6': '字数：',
+  'app.article.article.articlemetainfo.c41cdef1': '未知',
+  'app.article.article.articlemetainfo.c79d59f9': '可读',
+  'app.article.article.articlemetainfo.d59f41e1': '创建时间：',
+  'app.article.article.articlemetainfo.d90f1a4a': '保存成功',
+  'app.article.article.articlemetainfo.dc6acae2': '保存中',
+  'app.article.article.articlemetainfo.dc81e0e5': '未变化',
+
+  // components/Article/components/article/ArticlePopover.tsx
+  'app.article.article.articlepopover.259e9393': '字',
+  'app.article.article.articlepopover.6d310fb2': '更新时间',
+  'app.article.article.articlepopover.e788c7ff': '字数',
+  'app.article.article.articlepopover.e93b6a84': '相关内容',
+  'app.article.article.articlepopover.f9f765cb': '作者',
+  'app.article.article.articlepopover.fafb71d2': '创建时间',
+
+  // components/Article/components/article/ArticleSearch.tsx
+  'app.article.article.articlesearch.05708f44': '展开',
+  'app.article.article.articlesearch.0e56f79c': '收起',
+  'app.article.article.articlesearch.2df1c531': '我的空间',
+  'app.article.article.articlesearch.4290c88f': '公共空间',
+  'app.article.article.articlesearch.43a5a207': '搜索标题',
+  'app.article.article.articlesearch.55a9f9a5': '请选择标签',
+  'app.article.article.articlesearch.6a7ccc6a': '{value0} 字',
+  'app.article.article.articlesearch.6f323566': '字数范围',
+  'app.article.article.articlesearch.73e5f0c2': '搜索文章...',
+  'app.article.article.articlesearch.c0088b15': '共享给我',
+  'app.article.article.articlesearch.ce187aeb': '请选择文章类型',
+  'app.article.article.articlesearch.d8d78e37': '相关性搜索',
+  'app.article.article.articlesearch.f13fb86b': '搜索作者',
+  'app.article.article.articlesearch.fe2c3a26': '请选择目录',
+
+  // components/Article/components/article/ArticleSummary.tsx
+  'app.article.article.articlesummary.54557824': '请选择一个模型',
+  'app.article.article.articlesummary.548f51db': '接受',
+  'app.article.article.articlesummary.60f5f0c8': '请输入文章总结或摘要',
+  'app.article.article.articlesummary.65b24e88': '生成',
+  'app.article.article.articlesummary.78021264': '保存',
+  'app.article.article.articlesummary.90bc4fbb': '润色',
+  'app.article.article.articlesummary.9e7f2eed': '上限',
+  'app.article.article.articlesummary.ecff6211': '字',
+  'app.article.article.articlesummary.fd917650':
+    '总结/摘要内容为空，无法润色，请先输入内容或接受上一轮生成内容',
+
+  // components/Article/components/article/CharacterCount.tsx
+  'app.article.article.charactercount.b67f2e87': '字数：',
+
+  // components/Article/components/editor/FloatingQuickActions.tsx
+  'app.article.editor.floatingquickactions.5cfffe28': '文章元数据',
+  'app.article.editor.floatingquickactions.9d941b9b': '历史版本',
+  'app.article.editor.floatingquickactions.aa525073': '内容滚动条',
+  'app.article.editor.floatingquickactions.b19f6435': '到顶部',
+  'app.article.editor.floatingquickactions.c2376a49': '到底部',
+  'app.article.editor.floatingquickactions.d0d913a9': '文章快捷操作',
+
+  // components/Article/components/editor/RawTextArea.tsx
+  'app.article.editor.rawtextarea.5b329fd3': '图片上传失败',
+  'app.article.editor.rawtextarea.c123c525': '文件上传失败',
+
+  // components/Article/components/editor/RichTextArea.tsx
+  'app.article.editor.richtextarea.3ac1b6a9': '注',
+  'app.article.editor.richtextarea.772414d7': '添加批注',
+  'app.article.editor.richtextarea.ab02172a': '正在加载编辑器……',
+  'app.article.editor.richtextarea.ab9dbf52': '翻译结果',
+
+  // components/Article/components/editor/RichTextContext.tsx
+  'app.article.editor.richtextcontext.0a5f9390': '文本对齐',
+  'app.article.editor.richtextcontext.158fc602': '文本列表',
+  'app.article.editor.richtextcontext.26ce764b': '文本工具',
+  'app.article.editor.richtextcontext.386caa53': '翻译并插入引用',
+  'app.article.editor.richtextcontext.425156a9': '其他文本',
+  'app.article.editor.richtextcontext.4383f4c2': '文本背景色',
+  'app.article.editor.richtextcontext.5463c81d': '无序列表【Mod-Shift-8】',
+  'app.article.editor.richtextcontext.5f50ffc6': '字体族',
+  'app.article.editor.richtextcontext.61000ae1': '文本下标【Mod-,】',
+  'app.article.editor.richtextcontext.6334cde6': '文本斜体【Mod-I】',
+  'app.article.editor.richtextcontext.6d52f7d4': '文本上标【Mod-.】',
+  'app.article.editor.richtextcontext.6e52f611': '字体大小',
+  'app.article.editor.richtextcontext.6ee668d6': '翻译本段',
+  'app.article.editor.richtextcontext.7049b9d2': '文本格式化',
+  'app.article.editor.richtextcontext.75b177fb': '字',
+  'app.article.editor.richtextcontext.89920612': '文本删除线【Mod-Shift-S】',
+  'app.article.editor.richtextcontext.8d0fb29e': '翻译并替换选中内容',
+  'app.article.editor.richtextcontext.904d0278': '解读',
+  'app.article.editor.richtextcontext.971e0f7b': '数学公式【Mod-M】',
+  'app.article.editor.richtextcontext.b060e21d': '文本下划线【Mod-U】',
+  'app.article.editor.richtextcontext.b267a805': '行高',
+  'app.article.editor.richtextcontext.b66ccf99': '文本翻译',
+  'app.article.editor.richtextcontext.b9bfc9bc': '翻译并替换本段',
+  'app.article.editor.richtextcontext.bf7c3465': '文本代码【Mod-E】',
+  'app.article.editor.richtextcontext.c9c3dc07': '文本加粗【Mod-B】',
+  'app.article.editor.richtextcontext.d0891109': '左对齐【Mod-Shift-L】',
+  'app.article.editor.richtextcontext.d70cb7fd': '解读功能暂未实现',
+  'app.article.editor.richtextcontext.d7355ca6': '文本颜色',
+  'app.article.editor.richtextcontext.e2579ac7': '任务列表【Mod-Shift-9】',
+  'app.article.editor.richtextcontext.e2f3554d': '右对齐【Mod-Shift-R】',
+  'app.article.editor.richtextcontext.e63a45fc': '翻译选中内容',
+  'app.article.editor.richtextcontext.e9a097b6': '居中对齐【Mod-Shift-E】',
+  'app.article.editor.richtextcontext.eb30ca2a': '翻译并插入选中内容',
+  'app.article.editor.richtextcontext.ec9f8eb3': '有序列表【Mod-Shift-7】',
+  'app.article.editor.richtextcontext.f37c2f04': '文本链接【Mod-K】',
+  'app.article.editor.richtextcontext.f5375a63': '文本引用【Mod-Shift-B】',
+
+  // components/Article/components/editor/SearchReplaceBar.tsx
+  'app.article.editor.searchreplacebar.09736f6a': '展开或收起替换',
+  'app.article.editor.searchreplacebar.0b12ff3e': '正则表达式无效',
+  'app.article.editor.searchreplacebar.2d287c9e': '下一处（Enter）',
+  'app.article.editor.searchreplacebar.3cb938b1': '下一处',
+  'app.article.editor.searchreplacebar.3fcdb272': '搜索文章内容',
+  'app.article.editor.searchreplacebar.4e0e5892': '展开替换',
+  'app.article.editor.searchreplacebar.53c5615e': '替换',
+  'app.article.editor.searchreplacebar.5c99541d': '全部替换',
+  'app.article.editor.searchreplacebar.6168b3d3': '上一处（Shift + Enter）',
+  'app.article.editor.searchreplacebar.63f331de': '关闭搜索',
+  'app.article.editor.searchreplacebar.6429e3da': '编辑模式下可替换',
+  'app.article.editor.searchreplacebar.7effc9be': '替换为',
+  'app.article.editor.searchreplacebar.8e4ba8aa': '上一处',
+  'app.article.editor.searchreplacebar.8f15a37c': '使用正则表达式',
+  'app.article.editor.searchreplacebar.aedca075': '无效',
+  'app.article.editor.searchreplacebar.c6d80116': '正则表达式无效：{value0}',
+  'app.article.editor.searchreplacebar.cda6279d': '收起替换',
+  'app.article.editor.searchreplacebar.f9152b29': '区分大小写',
+
+  // components/Article/components/sidebar/CatalogTreeSidebar.tsx
+  'app.article.sidebar.catalogtreesidebar.01fb9674':
+    '只有管理员可以在公共空间中新建根目录',
+  'app.article.sidebar.catalogtreesidebar.0211f860': '目录名称不能为空',
+  'app.article.sidebar.catalogtreesidebar.06b6ac39': '目录已删除',
+  'app.article.sidebar.catalogtreesidebar.0827a64a': '修改文章标题',
+  'app.article.sidebar.catalogtreesidebar.11b4a1d0': '移动目录失败',
+  'app.article.sidebar.catalogtreesidebar.1250a36b': '与我分享',
+  'app.article.sidebar.catalogtreesidebar.17318c0b': '公共空间',
+  'app.article.sidebar.catalogtreesidebar.180cab67':
+    '选择这些文章要移动到的目标目录。',
+  'app.article.sidebar.catalogtreesidebar.183b962e': '已在本地匹配',
+  'app.article.sidebar.catalogtreesidebar.18c9d0ce':
+    '成功导入 {value0} 篇 Markdown 文章',
+  'app.article.sidebar.catalogtreesidebar.1b387b9e': '批量删除文章',
+  'app.article.sidebar.catalogtreesidebar.1ee37afb': '删除文章',
+  'app.article.sidebar.catalogtreesidebar.23142b3c': '文章 #{value0}',
+  'app.article.sidebar.catalogtreesidebar.240fb806': '请选择目标目录',
+  'app.article.sidebar.catalogtreesidebar.27ff4125': '文章 {value0}',
+  'app.article.sidebar.catalogtreesidebar.29f43e74': '目录顺序已更新',
+  'app.article.sidebar.catalogtreesidebar.2b756ee2': '移动文章到目录',
+  'app.article.sidebar.catalogtreesidebar.2c103490': '操作失败',
+  'app.article.sidebar.catalogtreesidebar.2f5c8c67': '文章标题',
+  'app.article.sidebar.catalogtreesidebar.325c7985': '重命名目录',
+  'app.article.sidebar.catalogtreesidebar.33a7e8cc': '{value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.347cd9d3': '退出批量',
+  'app.article.sidebar.catalogtreesidebar.3828305e': '批量移动失败',
+  'app.article.sidebar.catalogtreesidebar.3a8a9393':
+    '正在导入 Markdown 压缩包…',
+  'app.article.sidebar.catalogtreesidebar.3ad589f1':
+    '压缩包中没有 Markdown 文件',
+  'app.article.sidebar.catalogtreesidebar.419b3908': '文章已移动',
+  'app.article.sidebar.catalogtreesidebar.4b407ec6': 'Markdown 压缩包导入失败',
+  'app.article.sidebar.catalogtreesidebar.4da89de3': '新建子目录',
+  'app.article.sidebar.catalogtreesidebar.4e2e8c7a': '获取目录树失败',
+  'app.article.sidebar.catalogtreesidebar.544545a8':
+    '确定要删除目录"{value0}"吗？其下所有子目录和文章将被一并删除，此操作不可恢复。',
+  'app.article.sidebar.catalogtreesidebar.55e850ef':
+    '个目录/文章，点击“搜索正文”进入主页深度搜索',
+  'app.article.sidebar.catalogtreesidebar.5ae3afc5': '子目录创建成功',
+  'app.article.sidebar.catalogtreesidebar.5ca16f2e': '标题修改成功',
+  'app.article.sidebar.catalogtreesidebar.5febc6e1': '已复制到我的空间',
+  'app.article.sidebar.catalogtreesidebar.645da5fa': '删除目录',
+  'app.article.sidebar.catalogtreesidebar.65fe10a7': '搜索目录',
+  'app.article.sidebar.catalogtreesidebar.6b1d69c4': '文章"{value0}"创建成功',
+  'app.article.sidebar.catalogtreesidebar.6d740c66':
+    '确定要删除文章"{value0}"吗？此操作不可恢复。',
+  'app.article.sidebar.catalogtreesidebar.7021bd0c': '子目录名称',
+  'app.article.sidebar.catalogtreesidebar.70367c34': '取消',
+  'app.article.sidebar.catalogtreesidebar.792ec85d': '文章“{value0}”导入成功',
+  'app.article.sidebar.catalogtreesidebar.7ab460dd': '批量删除失败',
+  'app.article.sidebar.catalogtreesidebar.7c224c9b': '复制失败',
+  'app.article.sidebar.catalogtreesidebar.7f6d4b42': '已删除 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.80381937': '已撤回公共状态',
+  'app.article.sidebar.catalogtreesidebar.820a16e1': '新建根目录',
+  'app.article.sidebar.catalogtreesidebar.85eef335': '创建子目录失败',
+  'app.article.sidebar.catalogtreesidebar.89801373': '目录名称',
+  'app.article.sidebar.catalogtreesidebar.98a6be5b': '重命名失败',
+  'app.article.sidebar.catalogtreesidebar.98bcffda':
+    '只能移动到自己创建的公共目录',
+  'app.article.sidebar.catalogtreesidebar.9a21ac76': '文章已删除',
+  'app.article.sidebar.catalogtreesidebar.9c31861b':
+    '请选择复制到您的私有空间中的目标目录：',
+  'app.article.sidebar.catalogtreesidebar.a03ad4ba': '创建目录失败',
+  'app.article.sidebar.catalogtreesidebar.a424aa2f': '确认删除',
+  'app.article.sidebar.catalogtreesidebar.a57d8df5':
+    '确定删除选中的 {value0} 篇文章吗？此操作不可恢复。',
+  'app.article.sidebar.catalogtreesidebar.a8739d38': '撤回失败',
+  'app.article.sidebar.catalogtreesidebar.ab9f1b64': '复制操作需要选择目标目录',
+  'app.article.sidebar.catalogtreesidebar.ac8cee4e': '删除目录失败',
+  'app.article.sidebar.catalogtreesidebar.afb24336': '已移动 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.b08df0b3': 'Markdown 文章导入失败',
+  'app.article.sidebar.catalogtreesidebar.b93805da': '撤回公共状态',
+  'app.article.sidebar.catalogtreesidebar.bb1317b8': '修改标题失败',
+  'app.article.sidebar.catalogtreesidebar.be63f4fa': '已导出 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.c0034784': '目录创建成功',
+  'app.article.sidebar.catalogtreesidebar.c7b1216b': '文章顺序已更新',
+  'app.article.sidebar.catalogtreesidebar.c896d7d9': '批量移动文章',
+  'app.article.sidebar.catalogtreesidebar.c9315cff':
+    '已导入 {value0} 篇，后续内容导入失败',
+  'app.article.sidebar.catalogtreesidebar.d3e3a6f3': '目录已重命名',
+  'app.article.sidebar.catalogtreesidebar.d413cdcc': '调整文章顺序失败',
+  'app.article.sidebar.catalogtreesidebar.d4fac406': '创建文章失败',
+  'app.article.sidebar.catalogtreesidebar.dac7b73b':
+    '不能把目录移动到自己的子目录中',
+  'app.article.sidebar.catalogtreesidebar.db2ac64b': '文章标题不能为空',
+  'app.article.sidebar.catalogtreesidebar.e288954c': '已发布至公共空间',
+  'app.article.sidebar.catalogtreesidebar.eb13ae75': '新建文章',
+  'app.article.sidebar.catalogtreesidebar.ebc0b300': '删除文章失败',
+  'app.article.sidebar.catalogtreesidebar.eccd2f1e': '我的空间（私有）',
+  'app.article.sidebar.catalogtreesidebar.ed355c6e': '复制到我的空间',
+  'app.article.sidebar.catalogtreesidebar.edc62e31': '目录 #{value0}',
+  'app.article.sidebar.catalogtreesidebar.f2eb2c96': '请选择撤回后的私有目录',
+  'app.article.sidebar.catalogtreesidebar.f424c6c4':
+    '请选择撤回后的目标目录（不选则放在根目录下）：',
+  'app.article.sidebar.catalogtreesidebar.f731ddbc': '移动文章失败',
+  'app.article.sidebar.catalogtreesidebar.f8e63045': '未命名文章',
+  'app.article.sidebar.catalogtreesidebar.f978a3e4': '选择目标目录',
+  'app.article.sidebar.catalogtreesidebar.fb9c9ede': '导出文章失败',
+  'app.article.sidebar.catalogtreesidebar.fbb37314': '批量操作',
+
+  // components/Article/components/sidebar/CommentsPanel/CommentCard.tsx
+  'app.article.commentspanel.commentcard.021cb45d': '取消',
+  'app.article.commentspanel.commentcard.1e23fd30': '编辑',
+  'app.article.commentspanel.commentcard.2baaa25a': '匿名用户',
+  'app.article.commentspanel.commentcard.40327ef8': '保存',
+  'app.article.commentspanel.commentcard.68b5a5b1': '评论已删除',
+  'app.article.commentspanel.commentcard.fbf3488d': '删除',
+
+  // components/Article/components/sidebar/CommentsPanel/index.tsx
+  'app.article.commentspanel.090fdf48': '条',
+  'app.article.commentspanel.099efd24': '文章正在保存，请稍后再添加批注',
+  'app.article.commentspanel.1dfa2171': '当前用户没有批注权限',
+  'app.article.commentspanel.29e3dc27': '请先选择文章',
+  'app.article.commentspanel.2c8a502f': '请重新选择需要批注的内容',
+  'app.article.commentspanel.36857387': '已选中文本',
+  'app.article.commentspanel.3abafc40': '切换到编辑或修订模式后可添加批注',
+  'app.article.commentspanel.4c3e55da': '暂无进行中的批注',
+  'app.article.commentspanel.550110b0': '暂无已解决批注',
+  'app.article.commentspanel.5de5651e': '请先输入批注内容',
+  'app.article.commentspanel.605e86df': '文章高亮标记同步失败，请稍后重试',
+  'app.article.commentspanel.6fa3af44': '批注',
+  'app.article.commentspanel.76614cbe': '输入批注内容，并在正文中选中一段文本',
+  'app.article.commentspanel.7c1a276a': '进行中',
+  'app.article.commentspanel.802c3792': '批注创建失败，请稍后重试',
+  'app.article.commentspanel.854c2fd4': '已解决',
+  'app.article.commentspanel.945ef85b': '当前未选中文本',
+  'app.article.commentspanel.a9a21514': '请先保存当前文章，再添加批注',
+  'app.article.commentspanel.bd406a8b': '添加批注',
+  'app.article.commentspanel.e4bf81a9': '批注扩展未加载，请刷新后重试',
+  'app.article.commentspanel.e6ffee38': '请先在正文中选中需要批注的内容',
+  'app.article.commentspanel.e721f0a4': '请先选中文本',
+
+  // components/Article/components/sidebar/CommentsPanel/ReplyComposer.tsx
+  'app.article.commentspanel.replycomposer.663d32ba': '回复',
+  'app.article.commentspanel.replycomposer.dcf0fecd': '回复这个批注线程...',
+
+  // components/Article/components/sidebar/CommentsPanel/ThreadItem.tsx
+  'app.article.commentspanel.threaditem.0c7ad594': '解决',
+  'app.article.commentspanel.threaditem.1650959b': '已解决',
+  'app.article.commentspanel.threaditem.16f6df6c': '删除',
+  'app.article.commentspanel.threaditem.28165fbc': '当前用户没有批注权限',
+  'app.article.commentspanel.threaditem.5e0613b9': '匿名用户',
+  'app.article.commentspanel.threaditem.6538a581': '条回复',
+  'app.article.commentspanel.threaditem.8779bb88': '进行中',
+  'app.article.commentspanel.threaditem.97b77a92': '解决于',
+  'app.article.commentspanel.threaditem.c7e5e32e': '请先选择文章',
+  'app.article.commentspanel.threaditem.f72272d7': '重新打开',
+
+  // components/Article/components/sidebar/CommentsPanel/utils.ts
+  'app.article.commentspanel.utils.37494f5e': '匿名用户',
+
+  // components/Article/components/sidebar/EmptySidebar.tsx
+  'app.article.sidebar.emptysidebar.bb2aac16': '请先选择一篇文章',
+
+  // components/Article/components/sidebar/HistorySidebar/ArticleHistoryCompare.tsx
+  'app.article.historysidebar.articlehistorycompare.1146d73c': '上一个差异',
+  'app.article.historysidebar.articlehistorycompare.1df0ad4d':
+    '当前文章还没有可对比的历史版本',
+  'app.article.historysidebar.articlehistorycompare.5a096142': '对比',
+  'app.article.historysidebar.articlehistorycompare.84f7e479': '当前版本',
+  'app.article.historysidebar.articlehistorycompare.9fa8804d': '无差异',
+  'app.article.historysidebar.articlehistorycompare.b24c8a0a': '右侧文章版本',
+  'app.article.historysidebar.articlehistorycompare.f6f6809a': '下一个差异',
+  'app.article.historysidebar.articlehistorycompare.fd9a5c58': '左侧文章版本',
+  'app.article.historysidebar.articlehistorycompare.ffa54d79': '返回文章',
+
+  // components/Article/components/sidebar/HistorySidebar/ArticleHistoryPanel.tsx
+  'app.article.historysidebar.articlehistorypanel.3cc868ab': '未知用户',
+  'app.article.historysidebar.articlehistorypanel.4d05751e': '版本管理',
+  'app.article.historysidebar.articlehistorypanel.6a9c490d':
+    '点击历史版本进入左右对比',
+  'app.article.historysidebar.articlehistorypanel.9a1879c4': '当前版本',
+  'app.article.historysidebar.articlehistorypanel.cc1ef391': '暂无修改时间',
+  'app.article.historysidebar.articlehistorypanel.d6c69180': '暂无历史版本',
+  'app.article.historysidebar.articlehistorypanel.dd95649a': '无标题文章',
+
+  // components/Article/components/sidebar/PublishToPublicModal.tsx
+  'app.article.sidebar.publishtopublicmodal.1457d415':
+    '发布至公共空间 — "{value0}"',
+  'app.article.sidebar.publishtopublicmodal.2e50661f':
+    '请选择公共空间中的目标目录',
+  'app.article.sidebar.publishtopublicmodal.369c1b48': '发布',
+  'app.article.sidebar.publishtopublicmodal.4473dfbc': '请选择',
+  'app.article.sidebar.publishtopublicmodal.55aadc8d': '加载中...',
+  'app.article.sidebar.publishtopublicmodal.5a696bdf': '目录',
+  'app.article.sidebar.publishtopublicmodal.6400bd3c':
+    '在公共空间中的目标位置：',
+  'app.article.sidebar.publishtopublicmodal.688555dc': '文章',
+  'app.article.sidebar.publishtopublicmodal.a870e400': '发布失败',
+  'app.article.sidebar.publishtopublicmodal.b6d39045': '取消',
+  'app.article.sidebar.publishtopublicmodal.caac65d1': '已发布至公共空间',
+  'app.article.sidebar.publishtopublicmodal.fce6d565': '获取公共空间目录失败',
+
+  // components/Article/components/sidebar/SelectTargetCatalogModal.tsx
+  'app.article.sidebar.selecttargetcatalogmodal.264963dc': '确定',
+  'app.article.sidebar.selecttargetcatalogmodal.30ec6af4': '加载中...',
+  'app.article.sidebar.selecttargetcatalogmodal.4bdf2d62': '取消',
+  'app.article.sidebar.selecttargetcatalogmodal.9256b9f4': '操作失败',
+  'app.article.sidebar.selecttargetcatalogmodal.b18e9e7f': '获取目标目录失败',
+
+  // components/Article/components/sidebar/ShareSettingModal.tsx
+  'app.article.sidebar.sharesettingmodal.056e97c7': '可批注',
+  'app.article.sidebar.sharesettingmodal.07b876ab': '分享设置 - "{value0}"',
+  'app.article.sidebar.sharesettingmodal.0e062413': '文章权限',
+  'app.article.sidebar.sharesettingmodal.0f9528ad': '复制文章链接',
+  'app.article.sidebar.sharesettingmodal.110bda0f': '添加权限',
+  'app.article.sidebar.sharesettingmodal.13aed24a': '输入角色编码或名称搜索',
+  'app.article.sidebar.sharesettingmodal.1cc01d34': '保存',
+  'app.article.sidebar.sharesettingmodal.1ee7ac1c': '可新建子内容',
+  'app.article.sidebar.sharesettingmodal.2f7bb1b0': '完全控制',
+  'app.article.sidebar.sharesettingmodal.3b96ca3d': '移除失败',
+  'app.article.sidebar.sharesettingmodal.4993527a': '可读',
+  'app.article.sidebar.sharesettingmodal.51571f1f': '加载分享列表失败',
+  'app.article.sidebar.sharesettingmodal.53a2285b': '请选择角色',
+  'app.article.sidebar.sharesettingmodal.5d90aa2f': '已有文章权限',
+  'app.article.sidebar.sharesettingmodal.61929b75': '关闭',
+  'app.article.sidebar.sharesettingmodal.652f9ab6': '目录权限',
+  'app.article.sidebar.sharesettingmodal.92329e10': '文章链接已复制到剪贴板',
+  'app.article.sidebar.sharesettingmodal.925ad117': '移除',
+  'app.article.sidebar.sharesettingmodal.93f4c10e': '已添加的权限',
+  'app.article.sidebar.sharesettingmodal.946c2d4a': '输入用户名或邮箱搜索',
+  'app.article.sidebar.sharesettingmodal.a1891177': '可编辑',
+  'app.article.sidebar.sharesettingmodal.a9234faf': '权限已更新',
+  'app.article.sidebar.sharesettingmodal.a95fadad': '角色',
+  'app.article.sidebar.sharesettingmodal.ae4048a6': '权限更新失败',
+  'app.article.sidebar.sharesettingmodal.bc122df2': '用户',
+  'app.article.sidebar.sharesettingmodal.cfb12895': '可访问',
+  'app.article.sidebar.sharesettingmodal.df36575a': '请选择用户',
+  'app.article.sidebar.sharesettingmodal.e0f5b9c3': '已移除 {value0} 的权限',
+  'app.article.sidebar.sharesettingmodal.edeabb46': '分享成功',
+  'app.article.sidebar.sharesettingmodal.f2eca02d': '复制失败',
+  'app.article.sidebar.sharesettingmodal.fdb1c8a3': '分享失败',
+
+  // components/Article/components/sidebar/SpaceTree.tsx
+  'app.article.sidebar.spacetree.1166af46': '可访问',
+  'app.article.sidebar.spacetree.171ba34e': '删除目录',
+  'app.article.sidebar.spacetree.2498f80b': '移动',
+  'app.article.sidebar.spacetree.26e7e3fb': '未知',
+  'app.article.sidebar.spacetree.2fdd9f34': '移动到目录',
+  'app.article.sidebar.spacetree.36e5a20b': '重命名',
+  'app.article.sidebar.spacetree.3b1a521f': '清空',
+  'app.article.sidebar.spacetree.40d0beb3': '可编辑',
+  'app.article.sidebar.spacetree.50034169': '导入 Markdown 压缩包',
+  'app.article.sidebar.spacetree.546c963a': '导出',
+  'app.article.sidebar.spacetree.5867a669': '撤回公共状态',
+  'app.article.sidebar.spacetree.5a5ff0ed': '可读',
+  'app.article.sidebar.spacetree.5a99b362': '可新建子内容',
+  'app.article.sidebar.spacetree.5b56d2a6': '分享设置',
+  'app.article.sidebar.spacetree.625e893f': '导入 Markdown 文章',
+  'app.article.sidebar.spacetree.66797756': '已退出共享',
+  'app.article.sidebar.spacetree.6f09acef': '完全控制',
+  'app.article.sidebar.spacetree.720fa76a': '已选择',
+  'app.article.sidebar.spacetree.7d722924': '可批注',
+  'app.article.sidebar.spacetree.84483664': '发布至公共空间',
+  'app.article.sidebar.spacetree.96e52f5b': '删除文章',
+  'app.article.sidebar.spacetree.aab54257': '退出共享',
+  'app.article.sidebar.spacetree.b04574e1': '删除',
+  'app.article.sidebar.spacetree.b8cb3d2b': '复制到我的空间',
+  'app.article.sidebar.spacetree.bd3ed3d7': '在此目录下新建文章',
+  'app.article.sidebar.spacetree.ce3a66c8': '新建子目录',
+  'app.article.sidebar.spacetree.d40c4e29': '修改标题',
+  'app.article.sidebar.spacetree.db52c85e': '篇文章',
+  'app.article.sidebar.spacetree.dd47a0d8': '当前权限：{value0}',
+  'app.article.sidebar.spacetree.df1c9393': '退出共享失败',
+  'app.article.sidebar.spacetree.f817a1f4': '(无标题)',
+
+  // components/Article/components/sidebar/TableOfContents.tsx
+  'app.article.sidebar.tableofcontents.5738d1de': '章节列表',
+  'app.article.sidebar.tableofcontents.66440a48': '折叠',
+  'app.article.sidebar.tableofcontents.b037db96': '展开',
+
+  // components/Article/components/sidebar/WritingManager.tsx
+  'app.article.sidebar.writingmanager.10ca2c0a': '续写字数上限',
+  'app.article.sidebar.writingmanager.5e5f07aa': '前文占比',
+  'app.article.sidebar.writingmanager.72fe37cb': '保存成功',
+  'app.article.sidebar.writingmanager.91c75304': '续写或翻译时携带的上下文数量',
+  'app.article.sidebar.writingmanager.cb6fbd7f': '后文占比',
+  'app.article.sidebar.writingmanager.dd1ba7a2': '上下文字数',
+
+  // components/Article/extension/ai-completion/AiCompletionPlugin.ts
+  'app.article.aicompletion.aicompletionplugin.6d39fe2a': 'AI 补全失败',
+
+  // components/Article/extension/ai-completion/context-builder.ts
+  'app.article.aicompletion.contextbuilder.99a16105': '[图片: {value0}]',
+
+  // components/Article/extension/ai-writer/AiWriterView.tsx
+  'app.article.aiwriter.aiwriterview.1ecb6975': '请输入你的提示内容',
+  'app.article.aiwriter.aiwriterview.48938e9c': '生成',
+  'app.article.aiwriter.aiwriterview.5c597642': '插入',
+  'app.article.aiwriter.aiwriterview.d5ec04e7': '取消',
+
+  // components/Article/extension/audio/audio-input-dialog.tsx
+  'app.article.audio.audioinputdialog.0cd920cf': 'none - 不预加载',
+  'app.article.audio.audioinputdialog.1d70edfe': '取消',
+  'app.article.audio.audioinputdialog.2239adf2': '禁用远程播放',
+  'app.article.audio.audioinputdialog.31c4e234': 'metadata - 预加载元数据',
+  'app.article.audio.audioinputdialog.35a3ed41': 'nodownload - 隐藏下载按钮',
+  'app.article.audio.audioinputdialog.3e4dd0e8': 'nofullscreen - 隐藏全屏入口',
+  'app.article.audio.audioinputdialog.3e81a62e': '自动播放',
+  'app.article.audio.audioinputdialog.42b265ad':
+    'noremoteplayback - 隐藏远程播放入口',
+  'app.article.audio.audioinputdialog.44a7acbc': '(unset) - 不启用 CORS',
+  'app.article.audio.audioinputdialog.5a8b5e28': '循环播放',
+  'app.article.audio.audioinputdialog.5b9714e4': '请输入有效的音频地址',
+  'app.article.audio.audioinputdialog.5ed302df': '插入音频',
+  'app.article.audio.audioinputdialog.5f28c9f0': 'auto - 自动预加载音频',
+  'app.article.audio.audioinputdialog.69c8de86': '静音',
+  'app.article.audio.audioinputdialog.7a0b36c2':
+    'noplaybackrate - 隐藏倍速菜单（部分浏览器）',
+  'app.article.audio.audioinputdialog.b433d259': '插入',
+  'app.article.audio.audioinputdialog.b810e238': '更新',
+  'app.article.audio.audioinputdialog.d120250b': '修改音频',
+  'app.article.audio.audioinputdialog.d4f43676':
+    'use-credentials - 携带跨域凭证',
+  'app.article.audio.audioinputdialog.d5857855': '请输入音频地址',
+  'app.article.audio.audioinputdialog.da7b209a':
+    'nodownload noremoteplayback - 隐藏下载和远程播放',
+  'app.article.audio.audioinputdialog.daec1504': '音频地址',
+  'app.article.audio.audioinputdialog.dc2d0661': '(unset) - 不限制原生控制项',
+  'app.article.audio.audioinputdialog.ea892324': 'anonymous - 不携带跨域凭证',
+
+  // components/Article/extension/audio/audio-view.tsx
+  'app.article.audio.audioview.49f91be4': '删除音频',
+  'app.article.audio.audioview.97917f5f': '下载音频',
+  'app.article.audio.audioview.e60337a9': '修改音频',
+  'app.article.audio.audioview.ebe743fc': '音频下载失败',
+
+  // components/Article/extension/canvas/canvas-block-view.tsx
+  'app.article.canvas.canvasblockview.030f50a0': '重做',
+  'app.article.canvas.canvasblockview.04628a98':
+    '自由绘制画布将在后续 Provider 中接入。',
+  'app.article.canvas.canvasblockview.0eac6b9a':
+    '描述你想生成的图表，例如：用户下单到退款的完整流程',
+  'app.article.canvas.canvasblockview.0f778d3c': '编辑',
+  'app.article.canvas.canvasblockview.10017ddf': '思维导图操作帮助',
+  'app.article.canvas.canvasblockview.10062817':
+    '思维导图文件已经上传，但文章保存失败。请保持编辑窗口并重试保存。',
+  'app.article.canvas.canvasblockview.107310c6': '编辑 Draw.io 图表',
+  'app.article.canvas.canvasblockview.1441344d': '（正在上传预览）',
+  'app.article.canvas.canvasblockview.144b67c1': '同级主题',
+  'app.article.canvas.canvasblockview.16e7ab8b': '插入父主题',
+  'app.article.canvas.canvasblockview.18b1c971': '恢复 100%',
+  'app.article.canvas.canvasblockview.191fcfcf': '方向键',
+  'app.article.canvas.canvasblockview.1eae6744': '主题下移',
+  'app.article.canvas.canvasblockview.1ed0ebcf':
+    '使用 Mind Elixir 创建和编辑结构化思维导图。',
+  'app.article.canvas.canvasblockview.203fff44': '选择节点后新增子主题（Tab）',
+  'app.article.canvas.canvasblockview.23d28ca1': '退出全屏',
+  'app.article.canvas.canvasblockview.29efe486': '删除选中主题',
+  'app.article.canvas.canvasblockview.2ac62e48': 'F2 / 双击',
+  'app.article.canvas.canvasblockview.2b59a543': '自由画布',
+  'app.article.canvas.canvasblockview.2c75d219': '当前浏览器不支持全屏展示',
+  'app.article.canvas.canvasblockview.2d9c67c0': '空格 + 拖动',
+  'app.article.canvas.canvasblockview.32a54de6': '生成中',
+  'app.article.canvas.canvasblockview.37cf48ce': '缩放与通用操作',
+  'app.article.canvas.canvasblockview.3b4b04ec':
+    '流程图预览上传失败，图表源数据已经保存，请重试。',
+  'app.article.canvas.canvasblockview.41403531': '右键主题',
+  'app.article.canvas.canvasblockview.4b2c9a18':
+    '描述你想生成的思维导图，例如：制定一个新产品上线计划',
+  'app.article.canvas.canvasblockview.4bbd8f23': '选择与调整',
+  'app.article.canvas.canvasblockview.4df4d9e1': 'AI 生成（尚不支持）',
+  'app.article.canvas.canvasblockview.50ecb4c9': '无法进入全屏模式',
+  'app.article.canvas.canvasblockview.556451cd': '切换双向布局',
+  'app.article.canvas.canvasblockview.5a10395c': '（正在读取源文件）',
+  'app.article.canvas.canvasblockview.5d4207ed': '缩小',
+  'app.article.canvas.canvasblockview.5f612f64': '放大',
+  'app.article.canvas.canvasblockview.5f84bc55':
+    '流程图文件已经上传，但文章保存失败。请保持编辑窗口并重试保存。',
+  'app.article.canvas.canvasblockview.614295ff': '导出的 SVG 文件格式无效',
+  'app.article.canvas.canvasblockview.6e78f039': '编辑选中主题（F2 或双击）',
+  'app.article.canvas.canvasblockview.6e8f0035': '打开主题操作菜单',
+  'app.article.canvas.canvasblockview.70533b71':
+    'AI 未返回有效的思维导图数据，请调整描述后重试。',
+  'app.article.canvas.canvasblockview.79f8e04c': '主题上移',
+  'app.article.canvas.canvasblockview.7c3adfd6': '编辑选中主题',
+  'app.article.canvas.canvasblockview.8795d6bf':
+    'AI 未返回有效的 Draw.io 图表数据，请调整描述后重试。',
+  'app.article.canvas.canvasblockview.90684e96': '导图居中',
+  'app.article.canvas.canvasblockview.932d0846': '思维导图操作失败',
+  'app.article.canvas.canvasblockview.9442c76b': '思维导图',
+  'app.article.canvas.canvasblockview.94b0b121':
+    '选择节点后新增同级主题（Enter）',
+  'app.article.canvas.canvasblockview.95cf7345':
+    '先单击选择一个主题，再使用快捷键；按 ? 可开关此帮助。',
+  'app.article.canvas.canvasblockview.991be50b': '关闭帮助',
+  'app.article.canvas.canvasblockview.9976e86a': '创建与编辑',
+  'app.article.canvas.canvasblockview.9abf51ff': 'Draw.io 图表',
+  'app.article.canvas.canvasblockview.9c876095': '保存并退出',
+  'app.article.canvas.canvasblockview.a1370d69': '导出的文件不是 SVG',
+  'app.article.canvas.canvasblockview.a1afdfbf': '新增子主题',
+  'app.article.canvas.canvasblockview.a1f4c1b5': '移动画布',
+  'app.article.canvas.canvasblockview.a1f87b57': '子主题',
+  'app.article.canvas.canvasblockview.a7193766': '（正在上传源文件）',
+  'app.article.canvas.canvasblockview.a77adb9d': '切换选中主题',
+  'app.article.canvas.canvasblockview.a8725ed2': '删除画布',
+  'app.article.canvas.canvasblockview.b3065c75': '切换右向布局',
+  'app.article.canvas.canvasblockview.b709a807': '中心主题',
+  'app.article.canvas.canvasblockview.b94af55c': '快捷键帮助（?）',
+  'app.article.canvas.canvasblockview.bc858025': '在前面新增同级主题',
+  'app.article.canvas.canvasblockview.c094f96d': '在后面新增同级主题',
+  'app.article.canvas.canvasblockview.c170ad88':
+    'AI 图表生成失败，请稍后重试。',
+  'app.article.canvas.canvasblockview.c40ac313':
+    '流程图源文件读取失败，请稍后重试。',
+  'app.article.canvas.canvasblockview.c5414bed': '撤销',
+  'app.article.canvas.canvasblockview.cbf06f86': '编辑思维导图',
+  'app.article.canvas.canvasblockview.d50d5865': '删除选中主题（Delete）',
+  'app.article.canvas.canvasblockview.d9c0be0d':
+    '流程图源文件上传失败，旧文件仍然保留，请重试。',
+  'app.article.canvas.canvasblockview.dc071f65':
+    '适用于流程图、架构图和 UML 图。',
+  'app.article.canvas.canvasblockview.df7e368b': '在新标签页打开',
+  'app.article.canvas.canvasblockview.e13328ad': '恢复默认',
+  'app.article.canvas.canvasblockview.e16c9016':
+    'SVG 缺少有效的尺寸信息，无法生成自适应预览',
+  'app.article.canvas.canvasblockview.e2f35955':
+    '思维导图源文件读取失败，请稍后重试。',
+  'app.article.canvas.canvasblockview.e6615090': '切换左向布局',
+  'app.article.canvas.canvasblockview.edf8deaf': '全屏',
+  'app.article.canvas.canvasblockview.ef3cb9ca':
+    '思维导图保存失败，旧文件仍然保留，请重试。',
+  'app.article.canvas.canvasblockview.f5c69a59': 'Draw.io 图表编辑器',
+  'app.article.canvas.canvasblockview.fca1320d': '复制 / 剪切 / 粘贴主题',
+
+  // components/Article/extension/canvas/mindmap-editor.tsx
+  'app.article.canvas.mindmapeditor.4013c274': '请先选择一个非中心主题节点',
+  'app.article.canvas.mindmapeditor.978b1c69': '思维导图编辑器尚未初始化',
+
+  // components/Article/extension/FloatingResult/FloatingResultExtension.ts
+  'app.article.floatingresult.floatingresultextension.5a9848b1': '结果',
+
+  // components/Article/extension/FloatingResult/FloatingResultView.tsx
+  'app.article.floatingresult.floatingresultview.2d210a33': '复制',
+  'app.article.floatingresult.floatingresultview.467e545f': '结果',
+  'app.article.floatingresult.floatingresultview.4effdc77': '关闭',
+  'app.article.floatingresult.floatingresultview.f4eae5f5': '已复制',
+
+  // components/Article/extension/image/image-input-dialog.tsx
+  'app.article.image.imageinputdialog.087fcf11': '图片高度',
+  'app.article.image.imageinputdialog.0dab141a': '图片内容说明',
+  'app.article.image.imageinputdialog.13ae2a60': '插入图片',
+  'app.article.image.imageinputdialog.412a3297': 'Alt 文本',
+  'app.article.image.imageinputdialog.498e200a': '请输入图片地址',
+  'app.article.image.imageinputdialog.7a8a1f88': '鼠标悬停时显示的标题',
+  'app.article.image.imageinputdialog.7b6bd501':
+    '尺寸留空时使用图片原始大小；在编辑器中拖动图片四角会保持宽高比。',
+  'app.article.image.imageinputdialog.7c01f1e5': '插入',
+  'app.article.image.imageinputdialog.7cf8b53a': '更新',
+  'app.article.image.imageinputdialog.8674be98': '原始宽度',
+  'app.article.image.imageinputdialog.9439d1cb': '图片标题',
+  'app.article.image.imageinputdialog.aba31061': '修改图片',
+  'app.article.image.imageinputdialog.bee2c25e': '宽度',
+  'app.article.image.imageinputdialog.c7da297b':
+    '请输入有效的 HTTP 或 HTTPS 图片地址',
+  'app.article.image.imageinputdialog.db65d8e7': '图片地址',
+  'app.article.image.imageinputdialog.dc49744e': '图片宽度',
+  'app.article.image.imageinputdialog.e1ce6692': '取消',
+  'app.article.image.imageinputdialog.e355fd16': '原始高度',
+  'app.article.image.imageinputdialog.feab32c6': '高度',
+
+  // components/Article/extension/image/image-preview.tsx
+  'app.article.image.imagepreview.0ac68cec': '适应窗口',
+  'app.article.image.imagepreview.21216d85': '缩小',
+  'app.article.image.imagepreview.2bcaf666': '定位到正文',
+  'app.article.image.imagepreview.3b348d0f': '图片复制失败',
+  'app.article.image.imagepreview.3f7c93c4': '放大',
+  'app.article.image.imagepreview.539ae68a': '复制图片',
+  'app.article.image.imagepreview.56c04ac0': '图片已复制',
+  'app.article.image.imagepreview.6825f70e': '定位',
+  'app.article.image.imagepreview.a4eef18f': '下一张',
+  'app.article.image.imagepreview.e068a8ee': '图片转换失败',
+  'app.article.image.imagepreview.fd0a862b': '上一张',
+
+  // components/Article/extension/image/image-view.tsx
+  'app.article.image.imageview.0c3aba3a': '拖动左下角调整图片大小',
+  'app.article.image.imageview.499b5749': '拖动右下角调整图片大小',
+  'app.article.image.imageview.e8bd64ae': '拖动右上角调整图片大小',
+  'app.article.image.imageview.fe15423f': '拖动左上角调整图片大小',
+
+  // components/Article/extension/InsecureImagePasteHandler.ts
+  'app.article.extension.insecureimagepastehandler.a81cc2f4':
+    '有 {value0} 张 HTTP 图片转存失败，已保留原始地址。',
+  'app.article.extension.insecureimagepastehandler.cbf7c27c':
+    'HTTP 图片转存失败',
+
+  // components/Article/extension/MathFormula/MathFormulaModal.tsx
+  'app.article.mathformula.mathformulamodal.00f836fe': '块级公式',
+  'app.article.mathformula.mathformulamodal.1c3452c2': '预览：',
+  'app.article.mathformula.mathformulamodal.404f8313': '行内公式',
+  'app.article.mathformula.mathformulamodal.480646f1': '编辑数学公式',
+  'app.article.mathformula.mathformulamodal.48c97624':
+    '公式解析错误，请检查 LaTeX 语法',
+  'app.article.mathformula.mathformulamodal.62e2f16f':
+    '请输入 LaTeX 公式，例如：x^2 + y^2 = z^2',
+  'app.article.mathformula.mathformulamodal.794a238f': '保存',
+  'app.article.mathformula.mathformulamodal.891b20d7': '二次公式',
+  'app.article.mathformula.mathformulamodal.b5347b75': '示例：',
+  'app.article.mathformula.mathformulamodal.be18a95c': '输入公式后显示预览...',
+  'app.article.mathformula.mathformulamodal.bfaec07d': '质能方程',
+  'app.article.mathformula.mathformulamodal.c08bcd0f': '积分',
+  'app.article.mathformula.mathformulamodal.c4397fd5': '求和',
+  'app.article.mathformula.mathformulamodal.e74c03ef': 'LaTeX 代码：',
+  'app.article.mathformula.mathformulamodal.fe95a273': '取消',
+
+  // components/Article/extension/mermaid/mermaid-input-dialog.tsx
+  'app.article.mermaid.mermaidinputdialog.12bb7e7c': '插入',
+  'app.article.mermaid.mermaidinputdialog.3948bca5': '更新',
+  'app.article.mermaid.mermaidinputdialog.6f7612ef':
+    'Mermaid 语法错误，请检查代码',
+  'app.article.mermaid.mermaidinputdialog.cf744d77': '取消',
+  'app.article.mermaid.mermaidinputdialog.f9aecd74': 'mermaid 图表',
+
+  // components/Article/extension/mermaid/mermaid-view.tsx
+  'app.article.mermaid.mermaidview.043407b5': 'Mermaid 渲染错误',
+
+  // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.bf9e0257': '设置链接失败：',
+
+  // components/Article/extension/MyMention/suggestion.ts
+  'app.article.mymention.suggestion.05a3660a': '田七',
+  'app.article.mymention.suggestion.3657b147': '吴九',
+  'app.article.mymention.suggestion.660f3264': '王五本是端',
+  'app.article.mymention.suggestion.711fe082': '郑六六六',
+  'app.article.mymention.suggestion.7acd9bb8': '周八',
+  'app.article.mymention.suggestion.92a0dd0f': '李四',
+  'app.article.mymention.suggestion.f359f44e': '张老三',
+
+  // components/Article/extension/MyTranslatorExtension.ts
+  'app.article.extension.mytranslatorextension.743079c2': '翻译结果',
+  'app.article.extension.mytranslatorextension.fb70510c': 'AI 翻译失败',
+
+  // components/Article/extension/table/InsertTableModal.tsx
+  'app.article.table.inserttablemodal.2aeb002e': '列数',
+  'app.article.table.inserttablemodal.2db4cb94': '插入表格',
+  'app.article.table.inserttablemodal.2dfbed4a': '编辑器不可用',
+  'app.article.table.inserttablemodal.6179be83': '行数',
+  'app.article.table.inserttablemodal.721e928a': '请输入列数',
+  'app.article.table.inserttablemodal.832a2b0b': '请输入行数',
+  'app.article.table.inserttablemodal.cbd45850': '插入表格成功',
+
+  // components/Article/extension/video/video-input-dialog.tsx
+  'app.article.video.videoinputdialog.010dd2f4':
+    'https://.../poster.jpg（可选）',
+  'app.article.video.videoinputdialog.06a9c1b4': '4:3 - 传统视频',
+  'app.article.video.videoinputdialog.0e694370': 'metadata - 预加载元数据',
+  'app.article.video.videoinputdialog.2188df59': '取消',
+  'app.article.video.videoinputdialog.2892e362': '1:1 - 方形视频',
+  'app.article.video.videoinputdialog.2b0b63c4': '显示 Bilibili 封面',
+  'app.article.video.videoinputdialog.2c31080c': '视频地址',
+  'app.article.video.videoinputdialog.2d5ca29f': '宽高比',
+  'app.article.video.videoinputdialog.3fbee250': '使用链接中的分 P',
+  'app.article.video.videoinputdialog.455aab44': '修改视频',
+  'app.article.video.videoinputdialog.48235d52': '请输入有效的视频地址',
+  'app.article.video.videoinputdialog.50515f5a': '静音',
+  'app.article.video.videoinputdialog.6279631c': 'none - 不预加载',
+  'app.article.video.videoinputdialog.6545d06e': '自动播放',
+  'app.article.video.videoinputdialog.65d2e1d7': '循环播放',
+  'app.article.video.videoinputdialog.71426b28': '9:16 - 竖屏视频',
+  'app.article.video.videoinputdialog.7fcb924d': '分 P',
+  'app.article.video.videoinputdialog.827feba9': '插入视频',
+  'app.article.video.videoinputdialog.86e1f5e4': '显示控制栏',
+  'app.article.video.videoinputdialog.8756a7f4': 'auto - 自动预加载视频',
+  'app.article.video.videoinputdialog.8813bf19': '封面地址',
+  'app.article.video.videoinputdialog.964ed747': 'Bilibili 专属参数',
+  'app.article.video.videoinputdialog.a1cdad55': '插入',
+  'app.article.video.videoinputdialog.b27629e5': '请输入视频地址',
+  'app.article.video.videoinputdialog.b98dd22a':
+    'MP4、HLS、DASH、YouTube、Vimeo、Bilibili 等链接',
+  'app.article.video.videoinputdialog.bad440e7': '视频播放器',
+  'app.article.video.videoinputdialog.be2d3ac6': '起始时间',
+  'app.article.video.videoinputdialog.beeba062': '显示弹幕',
+  'app.article.video.videoinputdialog.c5eaec7c': '视频宽度',
+  'app.article.video.videoinputdialog.c7a4068b': '更新',
+  'app.article.video.videoinputdialog.ca7fe8d8': '秒',
+  'app.article.video.videoinputdialog.f78c4706': '16:9 - 横屏视频',
+  'app.article.video.videoinputdialog.fc1522d3': '移动端行内播放',
+  'app.article.video.videoinputdialog.fd717fc2': '播放器标题',
+
+  // components/Article/extension/video/video-view.tsx
+  'app.article.video.videoview.206c6cb0': '拖动左下角调整视频大小',
+  'app.article.video.videoview.36604867': '在新标签页打开原视频',
+  'app.article.video.videoview.4273898e': '拖动左上角调整视频大小',
+  'app.article.video.videoview.55e4160d': '修改视频',
+  'app.article.video.videoview.8c50b675': '拖动右上角调整视频大小',
+  'app.article.video.videoview.b2b00143': '拖动右下角调整视频大小',
+  'app.article.video.videoview.fceb4604': '删除视频',
+
+  // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.00c51681': '左右屏切换',
+  'app.article.article.richtexteditor.02d2ccab': '转换为 Markdown 纯文本',
+  'app.article.article.richtexteditor.063fe6cb': '包含加粗',
+  'app.article.article.richtexteditor.085675d0': '富文本显示',
+  'app.article.article.richtexteditor.0a8ad355': '编辑区域宽度设置',
+  'app.article.article.richtexteditor.1a3b2c4c': '编辑模式',
+  'app.article.article.richtexteditor.1efcfc72': '保存文章内容',
+  'app.article.article.richtexteditor.217f82a7': '保存并离开',
+  'app.article.article.richtexteditor.3e2a3e24': '文本粘贴格式',
+  'app.article.article.richtexteditor.4c0f72e8': '左右同显',
+  'app.article.article.richtexteditor.4c5df57d': '修订模式',
+  'app.article.article.richtexteditor.5376d252': '请选择粘贴格式',
+  'app.article.article.richtexteditor.54070f86': '设置封面',
+  'app.article.article.richtexteditor.5911ae67': '分享文章',
+  'app.article.article.richtexteditor.5a542f71': '包含背景色',
+  'app.article.article.richtexteditor.5df51bee': '背景颜色',
+  'app.article.article.richtexteditor.6159855b': '取消',
+  'app.article.article.richtexteditor.62c3f9c2': '加载文章失败',
+  'app.article.article.richtexteditor.64c78d0a': '阅读模式',
+  'app.article.article.richtexteditor.6dca2349': '包含斜体',
+  'app.article.article.richtexteditor.6efad4b2': '修改封面',
+  'app.article.article.richtexteditor.753f5191': '包含颜色',
+  'app.article.article.richtexteditor.871b7b7d': '返回主页',
+  'app.article.article.richtexteditor.90976cea': '请先创建或打开一篇文章',
+  'app.article.article.richtexteditor.97c58b63': '不保存，直接离开',
+  'app.article.article.richtexteditor.9f25c632': '请输入文章标题',
+  'app.article.article.richtexteditor.9f483e3b': '文章加载中...',
+  'app.article.article.richtexteditor.a04c4cbf': '转换为富文本',
+  'app.article.article.richtexteditor.a1f72f28': '纯文本显示',
+  'app.article.article.richtexteditor.a6cff621':
+    '是否先保存当前文章，再打开新的文章？',
+  'app.article.article.richtexteditor.b16bb3a4': '包含装饰',
+  'app.article.article.richtexteditor.bae6dd75': '插入表格',
+  'app.article.article.richtexteditor.c03a915d':
+    '是否先保存当前文章，再离开编辑页面？',
+  'app.article.article.richtexteditor.c201e8db': '不保存，直接打开',
+  'app.article.article.richtexteditor.cf9fa79d': '导出 Markdown',
+  'app.article.article.richtexteditor.d560e34c':
+    '编辑器异常，无法转换，请刷新页面后重试',
+  'app.article.article.richtexteditor.dfb05fb1': '包含字号',
+  'app.article.article.richtexteditor.ea13a210': '当前文章有未保存内容',
+  'app.article.article.richtexteditor.ef5831a5': '保存并打开',
+  'app.article.article.richtexteditor.f6ca8ac8': '保存失败，请处理后再切换文章',
+  'app.article.article.richtexteditor.ff88c1b3': '包含字体',
+
+  // components/Article/stores/articleInfoStore.ts
+  'app.article.stores.articleinfostore.02987a0c':
+    '编辑器实例不存在，无法保存文章',
+  'app.article.stores.articleinfostore.1e7b0d05':
+    '文章 ID 不存在，无法保存到后端',
+  'app.article.stores.articleinfostore.384a3815': '文章在保存中，请勿重复保存',
+  'app.article.stores.articleinfostore.526657be': '文章保存失败，请联系管理员',
+  'app.article.stores.articleinfostore.58fae5ff':
+    '当前文章为只读权限，无法保存',
+  'app.article.stores.articleinfostore.778a7882': '文章内容没有变化，无需保存',
+  'app.article.stores.articleinfostore.a0aae622':
+    '内容未改变或小于 10 个字符，不予保存',
+  'app.article.stores.articleinfostore.ac77322b': '创建文章[{value0}]失败',
+  'app.article.stores.articleinfostore.b33c4f48': '文章保存成功',
+  'app.article.stores.articleinfostore.cd6ea56b': '原始文本内容为空，无法保存',
+
+  // components/ArticleListContent/index.tsx
+  'app.common.articlelistcontent.fea05c1d': '发布在',
+
+  // components/CacheMonitor/index.tsx
+  'app.common.cachemonitor.0c51f07e': '节点-{value0}',
+  'app.common.cachemonitor.0e14cb4f': '清空所有缓存',
+  'app.common.cachemonitor.1343744b': '缓存Key:',
+  'app.common.cachemonitor.5910789e': '刷新',
+  'app.common.cachemonitor.9e36543c': '缓存节点数量:',
+  'app.common.cachemonitor.d0088af9': 'KeepAlive 缓存监控',
+  'app.common.cachemonitor.d10ae479': '删除',
+  'app.common.cachemonitor.e18661b9': '名称:',
+  'app.common.cachemonitor.eb35d0c7': '暂无缓存节点',
+
+  // components/DynamicForm/HistoryTab.tsx
+  'app.common.dynamicform.historytab.153c61e2': '创建时间',
+  'app.common.dynamicform.historytab.2f1f93e4': '更新时间',
+  'app.common.dynamicform.historytab.918bfa8e': '记录信息',
+  'app.common.dynamicform.historytab.a1f234ee': '创建人',
+  'app.common.dynamicform.historytab.e63d8ef0': '暂无',
+  'app.common.dynamicform.historytab.f302cb43': '更新人',
+
+  // components/DynamicForm/index.tsx
+  'app.common.dynamicform.06ef01d2': '确定要',
+  'app.common.dynamicform.1004e217': '历史记录',
+  'app.common.dynamicform.1d8d7d36': '最小值',
+  'app.common.dynamicform.3d950905': '创建',
+  'app.common.dynamicform.3f1de104': '{value0}成功',
+  'app.common.dynamicform.44bf94aa': '上传文件',
+  'app.common.dynamicform.5074f263': '结束日期',
+  'app.common.dynamicform.5506bfd5': '确认提交',
+  'app.common.dynamicform.5b34d296': '确认',
+  'app.common.dynamicform.6614bb9f': '提交',
+  'app.common.dynamicform.665a89dd': '取消',
+  'app.common.dynamicform.7a84342d': '开始日期',
+  'app.common.dynamicform.881e9e21': '更新',
+  'app.common.dynamicform.c79d3b69': '请输入{value0}',
+  'app.common.dynamicform.cf2f910b': '最大值',
+  'app.common.dynamicform.e4ca6870': '基本信息',
+  'app.common.dynamicform.eb2fd6f5': '此记录吗？',
+  'app.common.dynamicform.f7be2880': '加载{value0}选项失败',
+
+  // components/DynamicForm/NumberRange.tsx
+  'app.common.dynamicform.numberrange.ad495dba': '最大值',
+  'app.common.dynamicform.numberrange.fddf04fa': '最小值',
+
+  // components/DynamicForm/RegionPicker.tsx
+  'app.common.dynamicform.regionpicker.0a15dc77': '西城区',
+  'app.common.dynamicform.regionpicker.0d450b4f': '长宁区',
+  'app.common.dynamicform.regionpicker.19150792': '朝阳区',
+  'app.common.dynamicform.regionpicker.2fea4aaa': '市辖区',
+  'app.common.dynamicform.regionpicker.4bfe0a8b': '请选择省市区',
+  'app.common.dynamicform.regionpicker.4fe14009': '东城区',
+  'app.common.dynamicform.regionpicker.9ed0b920': '黄浦区',
+  'app.common.dynamicform.regionpicker.d8764a82': '上海市',
+  'app.common.dynamicform.regionpicker.f1f57899': '丰台区',
+  'app.common.dynamicform.regionpicker.f2b540c1': '北京市',
+  'app.common.dynamicform.regionpicker.febd71ea': '徐汇区',
+
+  // components/DynamicIcon/IconPicker.tsx
+  'app.common.dynamicicon.iconpicker.1380381f': '未找到图标',
+  'app.common.dynamicicon.iconpicker.96e8d11b': '请选择图标',
+  'app.common.dynamicicon.iconpicker.d947bad9': '搜索图标名称...',
+
+  // components/JsonEditor/JsonEditor.tsx
+  'app.common.jsoneditor.jsoneditor.00f86a78': '美化',
+  'app.common.jsoneditor.jsoneditor.10d77de0': '美化 (Shift+Alt+F)',
+  'app.common.jsoneditor.jsoneditor.86365c96': '非法',
+  'app.common.jsoneditor.jsoneditor.9906a5fb': 'JSON 格式错误',
+  'app.common.jsoneditor.jsoneditor.9a85fda1':
+    '顶层必须是 JSON 对象 {} 或数组 []',
+  'app.common.jsoneditor.jsoneditor.fc3ef774': '合法',
+
+  // components/MyColorPicker/index.tsx
+  'app.common.mycolorpicker.92bbb81c': '颜色改变通知失败',
+
+  // components/MyRightSiderPanel/MyRightSiderPanel.tsx
+  'app.common.myrightsiderpanel.myrightsiderpanel.1cd22814': '搜索',
+  'app.common.myrightsiderpanel.myrightsiderpanel.47d5d305': '— 已加载全部 —',
+  'app.common.myrightsiderpanel.myrightsiderpanel.8df12d57': '回到顶部',
+  'app.common.myrightsiderpanel.myrightsiderpanel.b5b1bf98': '加载中...',
+
+  // components/MyRightSiderPanel/OperationsMenu.tsx
+  'app.common.myrightsiderpanel.operationsmenu.017e90af': '确认',
+  'app.common.myrightsiderpanel.operationsmenu.19891573': '取消',
+  'app.common.myrightsiderpanel.operationsmenu.86989ab5':
+    '确定要执行「{value0}」吗？',
+  'app.common.myrightsiderpanel.operationsmenu.cb7b3d8f': '确认操作',
+
+  // components/MyRightSiderPanel/PinnedSection.tsx
+  'app.common.myrightsiderpanel.pinnedsection.a84c5184': '置顶',
+
+  // components/MyTagTree/index.tsx
+  'app.common.mytagtree.13a5ec9f': '全部收起',
+  'app.common.mytagtree.35dc27d4': '展开顶层',
+  'app.common.mytagtree.657065b0': '添加',
+  'app.common.mytagtree.8d5ae0f6': '新标签',
+  'app.common.mytagtree.a18eaa8a': '全部展开',
+
+  // components/RightContent/AvatarDropdown.tsx
+  'app.common.rightcontent.avatardropdown.706f2fce': '退出登录',
+  'app.common.rightcontent.avatardropdown.9782bb0d': '修改密码',
+  'app.common.rightcontent.avatardropdown.9bb2d293': '主题设置',
+  'app.common.rightcontent.avatardropdown.c59e1f9b': '个人设置',
+
+  // components/RightContent/index.tsx
+  'app.common.rightcontent.9eef3df3': '使用文档',
+
+  // components/RightContent/LangDropdown.tsx
+  'app.common.rightcontent.langdropdown.04240d81': '繁體中文',
+  'app.common.rightcontent.langdropdown.065e2d15': '简体中文',
+  'app.common.rightcontent.langdropdown.0860a9ed': '语言切换',
+
+  // components/RightContent/ThemeSwitch.tsx
+  'app.common.rightcontent.themeswitch.1a807ba5': '外观设置',
+  'app.common.rightcontent.themeswitch.506a0a1f': '主题色选择',
+  'app.common.rightcontent.themeswitch.f3d8be4b': '亮色模式',
+  'app.common.rightcontent.themeswitch.f4b2ea8a': '暗色模式',
+
+  // components/RightContent/VersionDropdown.tsx
+  'app.common.rightcontent.versiondropdown.6ea94a4e': '历史版本',
+
+  // components/SearchForm/FieldRenderer.tsx
+  'app.common.searchform.fieldrenderer.2c40f64a': '最小值',
+  'app.common.searchform.fieldrenderer.f0a25ed0': '最大值',
+
+  // components/SearchForm/index.tsx
+  'app.common.searchform.2568e9d7': '展开',
+  'app.common.searchform.2d197959': '查询',
+  'app.common.searchform.4205b408': '收起',
+  'app.common.searchform.852d31a0': '重置',
+  'app.common.searchform.8969d113': '快捷键: Ctrl+{value0}',
+
+  // components/SimpleTable/index.tsx
+  'app.common.simpletable.dd289960': '共 {value0} 条记录',
+  'app.common.simpletable.f4f16d80': '加载数据失败',
+
+  // components/TabsLayout/index.tsx
+  'app.common.tabslayout.59d57173': '关闭其他',
+  'app.common.tabslayout.ffa65211': '关闭所有',
+
+  // components/TagSelect/index.tsx
+  'app.common.tagselect.419af95d': '展开',
+  'app.common.tagselect.5d7b827b': '全部',
+  'app.common.tagselect.a524cbd2': '收起',
+
+  // components/TagsSelector/index.tsx
+  'app.common.tagsselector.c7484dbc': '请选择标签',
+
+  // components/TimeHeader/index.tsx
+  'app.common.timeheader.2a4f53e3': '显示星期',
+  'app.common.timeheader.4196a805': '隐藏星期',
+  'app.common.timeheader.4611918c': '周日',
+  'app.common.timeheader.4f23b946': '周四',
+  'app.common.timeheader.58ac84b3': '周一',
+  'app.common.timeheader.675b1554': '周六',
+  'app.common.timeheader.7206be4b': '周二',
+  'app.common.timeheader.854ce9d9': '分钟',
+  'app.common.timeheader.85d18353': '加载中...',
+  'app.common.timeheader.90f6c680': '周五',
+  'app.common.timeheader.a378ca10': '季',
+  'app.common.timeheader.b3893a65': '周三',
+  'app.common.timeheader.c3fa2749': '日',
+  'app.common.timeheader.d109a055': '周',
+  'app.common.timeheader.d3362408': '年',
+  'app.common.timeheader.d5ad045e': '半年',
+  'app.common.timeheader.ebcd1799': '月',
+  'app.common.timeheader.f94c518c': 'YYYY-[第]w[周]',
+  'app.common.timeheader.fe0d88ca': '小时',
+
+  // components/Video/BilibiliPlayer.tsx
+  'app.common.video.bilibiliplayer.0d86babb':
+    'Bilibili 视频加载失败，请检查地址和访问权限',
+
+  // components/Video/resolveVideoSource.ts
+  'app.common.video.resolvevideosource.847ba6e4':
+    '不支持 {value0}: 协议的视频地址',
+  'app.common.video.resolvevideosource.ee587116': '未提供视频地址',
+
+  // components/Video/VideoPlayer.tsx
+  'app.common.video.videoplayer.0b99a4e7': '视频播放器',
+  'app.common.video.videoplayer.3bd19798': '视频地址无效',
+  'app.common.video.videoplayer.91b20a66':
+    '视频加载或播放失败，请检查地址和访问权限',
+  'app.common.video.videoplayer.dfa2c97a': '正在加载视频…',
+
+  // pages/account/center/components/Applications/index.tsx
+  'app.account.applications.0d59c621': '编辑',
+  'app.account.applications.34bd768c': '新增用户',
+  'app.account.applications.3b917554': '活跃用户',
+  'app.account.applications.780332d4': '分享',
+  'app.account.applications.a15b8e60': '万',
+  'app.account.applications.f696b3c7': '下载',
+
+  // pages/account/center/components/Articles/index.tsx
+  'app.account.articles.d2c86c67': '蚂蚁集团',
+  'app.account.articles.d32a4d57': '设计语言',
+
+  // pages/account/center/index.tsx
+  'app.account.center.0fd2a016': '团队',
+  'app.account.center.2423a1be': '项目',
+  'app.account.center.a01c617f': '应用',
+  'app.account.center.c8c439e1': '标签',
+  'app.account.center.f78d731f': '文章',
+
+  // pages/account/settings/components/base.tsx
+  'app.account.components.base.079998ff': '请输入您的所在城市!',
+  'app.account.components.base.0d29e3b0': '请输入您的国家或地区!',
+  'app.account.components.base.2da05b59': '邮箱',
+  'app.account.components.base.3fb7d772': '个人简介',
+  'app.account.components.base.50235b25': '请输入您的昵称!',
+  'app.account.components.base.521ff7ec': '请输入您的联系电话!',
+  'app.account.components.base.53132d6a': '联系电话',
+  'app.account.components.base.621c27f1': '请输入您的邮箱!',
+  'app.account.components.base.6904fe0e': '昵称',
+  'app.account.components.base.6a13482c': '街道地址',
+  'app.account.components.base.7aebda63': '所在省市',
+  'app.account.components.base.7fa856f0': '更新基本信息成功',
+  'app.account.components.base.823dbd8c': '国家/地区',
+  'app.account.components.base.a2dd9e07': '头像',
+  'app.account.components.base.b72753ae': '更换头像',
+  'app.account.components.base.dbe83b6f': '请输入您的街道地址!',
+  'app.account.components.base.dc48ea7a': '更新基本信息',
+  'app.account.components.base.dfcec571': '中国',
+  'app.account.components.base.ec37ef1d': '请输入个人简介!',
+  'app.account.components.base.ef3d3d4d': '请输入您的所在省!',
+
+  // pages/account/settings/components/binding.tsx
+  'app.account.components.binding.18193cfa': '当前未绑定钉钉账号',
+  'app.account.components.binding.1f42edd3': '绑定',
+  'app.account.components.binding.49b79681': '当前未绑定淘宝账号',
+  'app.account.components.binding.690c91e8': '当前未绑定支付宝账号',
+  'app.account.components.binding.74b81b21': '绑定钉钉',
+  'app.account.components.binding.bdf50ec9': '绑定淘宝',
+  'app.account.components.binding.e992c0d8': '绑定支付宝',
+
+  // pages/account/settings/components/ChangePasswordModal.tsx
+  'app.account.components.changepasswordmodal.01a20a77': '确认修改',
+  'app.account.components.changepasswordmodal.07487ab2':
+    '密码修改成功，请重新登录',
+  'app.account.components.changepasswordmodal.192f052e':
+    '获取公钥失败，请联系管理员',
+  'app.account.components.changepasswordmodal.254b3180':
+    '修改失败，请检查原密码是否正确',
+  'app.account.components.changepasswordmodal.3400d748':
+    '密码长度不能少于 6 位',
+  'app.account.components.changepasswordmodal.43a36df3':
+    '新密码不能与原密码相同',
+  'app.account.components.changepasswordmodal.4494a4a9': '请输入新密码',
+  'app.account.components.changepasswordmodal.4adb4fff':
+    '两次输入的新密码不一致',
+  'app.account.components.changepasswordmodal.4b44b122': '修改密码',
+  'app.account.components.changepasswordmodal.61595278': '新密码',
+  'app.account.components.changepasswordmodal.6daa422a':
+    '获取用户名失败，请联系管理员',
+  'app.account.components.changepasswordmodal.aec1363e': '原密码',
+  'app.account.components.changepasswordmodal.cc2213b2': '请再次输入新密码',
+  'app.account.components.changepasswordmodal.d005f2ab': '修改失败，请稍后重试',
+  'app.account.components.changepasswordmodal.de68d7c6': '请输入原密码',
+  'app.account.components.changepasswordmodal.df6b77ee': '取消',
+  'app.account.components.changepasswordmodal.fcf61618': '确认新密码',
+
+  // pages/account/settings/components/notification.tsx
+  'app.account.components.notification.1e8bd9cd':
+    '系统消息将以站内信的形式通知',
+  'app.account.components.notification.4f599a47': '待办任务',
+  'app.account.components.notification.74cf0b34': '用户消息',
+  'app.account.components.notification.9bc09d9a': '开',
+  'app.account.components.notification.a643a86c':
+    '待办任务将以站内信的形式通知',
+  'app.account.components.notification.ce412638': '系统消息',
+  'app.account.components.notification.dc1dd4e1': '关',
+  'app.account.components.notification.ec0409fb':
+    '其他用户的消息将以站内信的形式通知',
+
+  // pages/account/settings/components/security.tsx
+  'app.account.components.security.10ec7e3e': '修改',
+  'app.account.components.security.1c202130': '设置',
+  'app.account.components.security.2d675b1b': '密保问题',
+  'app.account.components.security.4f263cce': '绑定',
+  'app.account.components.security.4f80067a': '中',
+  'app.account.components.security.5242ba16': 'MFA 设备',
+  'app.account.components.security.67bef1fd': '弱 Weak',
+  'app.account.components.security.686c37e1': '已绑定手机：{value0}',
+  'app.account.components.security.6e3aa914':
+    '未设置密保问题，密保问题可有效保护账户安全【未实现】',
+  'app.account.components.security.b0edbb49': '账户密码',
+  'app.account.components.security.c16120ef': '已绑定邮箱：{value0}',
+  'app.account.components.security.daae1714': '当前密码强度：',
+  'app.account.components.security.dca27984': '强',
+  'app.account.components.security.ed29990a': '备用邮箱',
+  'app.account.components.security.f38e46d0':
+    '未绑定 MFA 设备，绑定后，可以进行二次确认【未实现】',
+  'app.account.components.security.fafa5019': '密保手机',
+
+  // pages/account/settings/index.tsx
+  'app.account.settings.0bc17387': '账号绑定',
+  'app.account.settings.518f6bc3': '基本设置',
+  'app.account.settings.6e7dd522': '安全设置',
+  'app.account.settings.c809225e': '新消息通知',
+
+  // pages/Administration/MenuManagement/assignMenusModal.tsx
+  'app.administration.menumanagement.assignmenusmodal.18e5104f': '菜单路径',
+  'app.administration.menumanagement.assignmenusmodal.1ffcd32c':
+    '菜单分配失败: {value0}',
+  'app.administration.menumanagement.assignmenusmodal.539070aa': '菜单分配成功',
+  'app.administration.menumanagement.assignmenusmodal.543fafe5': '描述',
+  'app.administration.menumanagement.assignmenusmodal.69254608': '菜单编码',
+  'app.administration.menumanagement.assignmenusmodal.8e3536de':
+    '请选择至少一个菜单',
+  'app.administration.menumanagement.assignmenusmodal.9558c886':
+    '为用户 {value0} 分配菜单',
+  'app.administration.menumanagement.assignmenusmodal.a770c87f': '分配',
+  'app.administration.menumanagement.assignmenusmodal.b19fbad1':
+    '为角色 {value0} 分配菜单',
+  'app.administration.menumanagement.assignmenusmodal.d1347172': '菜单名称',
+  'app.administration.menumanagement.assignmenusmodal.dff84585': '取消',
+  'app.administration.menumanagement.assignmenusmodal.f3421ea9': '父菜单',
+
+  // pages/Administration/MenuManagement/index.tsx
+  'app.administration.menumanagement.09c7f7b2': '请输入上级菜单 ID',
+  'app.administration.menumanagement.1d48964a': '删除用户操作',
+  'app.administration.menumanagement.2dac04a1': '菜单名称',
+  'app.administration.menumanagement.31f4e630': '更新时间',
+  'app.administration.menumanagement.370f07aa': '菜单编码',
+  'app.administration.menumanagement.4120c92b': '请输入菜单编码',
+  'app.administration.menumanagement.489e0fa9': '请选择且只选择一条记录',
+  'app.administration.menumanagement.54737232': '导出全部',
+  'app.administration.menumanagement.5944dfe3': '新增',
+  'app.administration.menumanagement.5c9b2d33': '管理操作权限',
+  'app.administration.menumanagement.625c9366': '导出',
+  'app.administration.menumanagement.6508914c': '请输入创建人',
+  'app.administration.menumanagement.68645428': '正常',
+  'app.administration.menumanagement.72cc438c': '创建时间',
+  'app.administration.menumanagement.73f96419': '状态',
+  'app.administration.menumanagement.9269eaf4': '完成',
+  'app.administration.menumanagement.95156197': '请输入菜单地址',
+  'app.administration.menumanagement.98d02641': '请输入菜单名称',
+  'app.administration.menumanagement.9a2cd713': '更新人',
+  'app.administration.menumanagement.9e200b59': '初始',
+  'app.administration.menumanagement.b280d1f3': '菜单地址',
+  'app.administration.menumanagement.b51a1a6e': '删除',
+  'app.administration.menumanagement.b5dbc5ac': '描述',
+  'app.administration.menumanagement.bf5ee8ab': '注销',
+  'app.administration.menumanagement.c69d48ad': '顺序',
+  'app.administration.menumanagement.d21f17a0': '上级菜单 ID',
+  'app.administration.menumanagement.dd19304b': '编辑',
+  'app.administration.menumanagement.e0e81eca': '创建人',
+  'app.administration.menumanagement.e4ef6337': '导出用户操作',
+  'app.administration.menumanagement.e69960e8': '请选择创建时间',
+  'app.administration.menumanagement.fcc2a328': '导出全部用户操作',
+
+  // pages/Administration/MenuManagement/MenuForm.tsx
+  'app.administration.menumanagement.menuform.06cde785':
+    '菜单编码长度应在2-32个字符之间',
+  'app.administration.menumanagement.menuform.0e1668b0': '初始',
+  'app.administration.menumanagement.menuform.30879b5a': '图标',
+  'app.administration.menumanagement.menuform.32df64b0': '排序ID',
+  'app.administration.menumanagement.menuform.373fe867': '请选择父菜单ID',
+  'app.administration.menumanagement.menuform.376479f1': '描述',
+  'app.administration.menumanagement.menuform.3d152d3b': '菜单编码',
+  'app.administration.menumanagement.menuform.3ef9e209': '正常',
+  'app.administration.menumanagement.menuform.424d2893': '请输入菜单URL',
+  'app.administration.menumanagement.menuform.4910a4fb':
+    '菜单编码只能包含字母、数字、下划线',
+  'app.administration.menumanagement.menuform.5ff84228': '{value0}菜单失败',
+  'app.administration.menumanagement.menuform.6d4337cd': '创建',
+  'app.administration.menumanagement.menuform.6d49e858': '请输入菜单编码',
+  'app.administration.menumanagement.menuform.6e5fd88c': '新增菜单',
+  'app.administration.menumanagement.menuform.732e088b': '菜单名称',
+  'app.administration.menumanagement.menuform.7f295b47': '取消',
+  'app.administration.menumanagement.menuform.81b2d59a': '是',
+  'app.administration.menumanagement.menuform.8e8aed74': '请输入排序ID',
+  'app.administration.menumanagement.menuform.8fde0775': '父菜单ID',
+  'app.administration.menumanagement.menuform.9438d897': '请输入菜单描述信息',
+  'app.administration.menumanagement.menuform.962a70f1': '菜单 URL',
+  'app.administration.menumanagement.menuform.997708e7':
+    '菜单名称只能包含字母、数字、下划线、空格和中文',
+  'app.administration.menumanagement.menuform.ab2deb94': '菜单管理',
+  'app.administration.menumanagement.menuform.b6c1c726': '更新',
+  'app.administration.menumanagement.menuform.ba308cbd': '查看菜单',
+  'app.administration.menumanagement.menuform.bbccf323': '完成',
+  'app.administration.menumanagement.menuform.bbf306c6': '注销',
+  'app.administration.menumanagement.menuform.d4a2ba41': '否',
+  'app.administration.menumanagement.menuform.dfaf5270': '状态',
+  'app.administration.menumanagement.menuform.e077f78d': '编辑菜单',
+  'app.administration.menumanagement.menuform.e72fd20f': '返回',
+  'app.administration.menumanagement.menuform.e854750c': '请选择图标',
+  'app.administration.menumanagement.menuform.f4e143e2': '显示标志',
+  'app.administration.menumanagement.menuform.f5bead53': '加载中...',
+  'app.administration.menumanagement.menuform.f69c11b9': '请输入菜单名称',
+  'app.administration.menumanagement.menuform.f87bdbda':
+    '菜单名称长度应在2-32个字符之间',
+  'app.administration.menumanagement.menuform.f9aff1e3': '{value0}菜单成功',
+
+  // pages/Administration/MenuOperationManagement/assignOperationsModal.tsx
+  'app.administration.menuoperationmanagement.assignoperationsmodal.022e88bb':
+    '请选择至少一个权限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.045ccc08':
+    '权限分配成功',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.16677176':
+    '取消',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.27a54f93':
+    '描述',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.5030849e':
+    '分配',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.512860ba':
+    '权限编码',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.88c7c888':
+    '为角色 {value0} 分配权限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.bcb54330':
+    '权限名称',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.d39ef32c':
+    '为用户 {value0} 分配权限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.e064ee96':
+    '菜单编码',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.f8373591':
+    '权限分配失败: {value0}',
+
+  // pages/Administration/MenuOperationManagement/manageOperationsModal.tsx
+  'app.administration.menuoperationmanagement.manageoperationsmodal.070a129e':
+    '新增操作权限',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.0ac05fe3':
+    '取消',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.0cd6383d':
+    '描述',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.1d5641ba':
+    '状态',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.2d23b4a5':
+    '请输入操作代码',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81':
+    '状态切换失败',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.680040eb':
+    '操作',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.6994b13f':
+    '保存',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b':
+    '保存成功',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.813d641d':
+    '请输入操作名称',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.81580528':
+    '停用',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.937823e5':
+    '启用',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9':
+    '编辑',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.a56ab5d4':
+    '操作代码',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.aec3ec38':
+    '操作名称',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76':
+    '状态切换成功',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.b994840f':
+    '保存失败',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.e36153a8':
+    '请选择状态',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.ee250568':
+    '{value0} - 操作权限管理',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.f289caec':
+    '获取操作权限失败',
+
+  // pages/Administration/RoleManagement/assignUsersModal.tsx
+  'app.administration.rolemanagement.assignusersmodal.155d3a5b': '姓名',
+  'app.administration.rolemanagement.assignusersmodal.15ad839e': '分配',
+  'app.administration.rolemanagement.assignusersmodal.1add1dfc': '用户名',
+  'app.administration.rolemanagement.assignusersmodal.29d800c1': '状态',
+  'app.administration.rolemanagement.assignusersmodal.3eaa66d8': '初始',
+  'app.administration.rolemanagement.assignusersmodal.453f9b5a': '取消',
+  'app.administration.rolemanagement.assignusersmodal.4b5bbc47':
+    '请选择至少一个用户',
+  'app.administration.rolemanagement.assignusersmodal.506c5b26':
+    '用户取消分配失败: {value0}',
+  'app.administration.rolemanagement.assignusersmodal.54db523f':
+    '用户分配失败: {value0}',
+  'app.administration.rolemanagement.assignusersmodal.5fe25560': '手机号',
+  'app.administration.rolemanagement.assignusersmodal.a277ed43': '取消分配',
+  'app.administration.rolemanagement.assignusersmodal.a41be1b9': '正常',
+  'app.administration.rolemanagement.assignusersmodal.b61afcbb': '邮箱',
+  'app.administration.rolemanagement.assignusersmodal.c6be296d':
+    '用户取消分配成功',
+  'app.administration.rolemanagement.assignusersmodal.f0c79820': '注销',
+  'app.administration.rolemanagement.assignusersmodal.f38b94b8':
+    '为角色 {value0} 分配用户',
+  'app.administration.rolemanagement.assignusersmodal.f7c95bdd': '用户分配成功',
+
+  // pages/Administration/RoleManagement/index.tsx
+  'app.administration.rolemanagement.158d4631': '分配菜单',
+  'app.administration.rolemanagement.1e1b108c': '创建时间',
+  'app.administration.rolemanagement.3a3a05a2': '完成',
+  'app.administration.rolemanagement.4a4d61a5': '创建人',
+  'app.administration.rolemanagement.5091206d': '新增',
+  'app.administration.rolemanagement.5287e26a': '导出角色操作',
+  'app.administration.rolemanagement.5815c49f': '请选择且只选择一条记录',
+  'app.administration.rolemanagement.5daf81c0': '状态',
+  'app.administration.rolemanagement.5ffea36f': '导出全部角色操作',
+  'app.administration.rolemanagement.63cdb38c': '分配用户',
+  'app.administration.rolemanagement.6434eed0': '正常',
+  'app.administration.rolemanagement.66fe4023': '请输入角色编码',
+  'app.administration.rolemanagement.69104da2': '编辑',
+  'app.administration.rolemanagement.7f9a77ce': '注销角色操作',
+  'app.administration.rolemanagement.848cca2d': '角色名',
+  'app.administration.rolemanagement.97e4e26c': '描述',
+  'app.administration.rolemanagement.9a5dd799': '导出全部',
+  'app.administration.rolemanagement.a40a406e': '角色编码',
+  'app.administration.rolemanagement.bca8a187': '初始',
+  'app.administration.rolemanagement.c37f93ce': '请选择创建时间',
+  'app.administration.rolemanagement.c4241368': '注销',
+  'app.administration.rolemanagement.c456f9fb': '更新时间',
+  'app.administration.rolemanagement.cf038efb': '请输入创建人',
+  'app.administration.rolemanagement.d982c119': '请输入角色名',
+  'app.administration.rolemanagement.e072be94': '更新人',
+  'app.administration.rolemanagement.f42921ba': '导出',
+  'app.administration.rolemanagement.f513b216': '分配权限',
+
+  // pages/Administration/RoleManagement/RoleForm.tsx
+  'app.administration.rolemanagement.roleform.1a54e8d4': '正常',
+  'app.administration.rolemanagement.roleform.34419c56': '初始',
+  'app.administration.rolemanagement.roleform.3c3f061e': '角色名称',
+  'app.administration.rolemanagement.roleform.3eff5ab2':
+    '角色名称只能包含字母、数字、下划线、空格和中文',
+  'app.administration.rolemanagement.roleform.41f237b2': '角色管理',
+  'app.administration.rolemanagement.roleform.4c3d7aa2':
+    '角色名称长度应在2-32个字符之间',
+  'app.administration.rolemanagement.roleform.53b9f065': '加载中...',
+  'app.administration.rolemanagement.roleform.5962a1cf': '请输入角色编码',
+  'app.administration.rolemanagement.roleform.5dcbaa37':
+    '角色编码只能包含字母、数字、下划线',
+  'app.administration.rolemanagement.roleform.6129c5ee': '描述',
+  'app.administration.rolemanagement.roleform.663bfd49': '新增角色',
+  'app.administration.rolemanagement.roleform.7e561a7e': '请输入角色描述信息',
+  'app.administration.rolemanagement.roleform.843ee2fd': '完成',
+  'app.administration.rolemanagement.roleform.89af1f10': '{value0}角色成功',
+  'app.administration.rolemanagement.roleform.8d51139e': '注销',
+  'app.administration.rolemanagement.roleform.9533a139': '{value0}角色失败',
+  'app.administration.rolemanagement.roleform.99d060b3': '编辑角色',
+  'app.administration.rolemanagement.roleform.b2ad9443': '取消',
+  'app.administration.rolemanagement.roleform.be955653': '请输入角色名称',
+  'app.administration.rolemanagement.roleform.c7593aa0': '角色编码',
+  'app.administration.rolemanagement.roleform.ca88ef30': '返回',
+  'app.administration.rolemanagement.roleform.ccf51344': '状态',
+  'app.administration.rolemanagement.roleform.dd127eb6': '查看角色',
+  'app.administration.rolemanagement.roleform.e6712707': '更新',
+  'app.administration.rolemanagement.roleform.e703964d':
+    '角色编码长度应在2-32个字符之间',
+  'app.administration.rolemanagement.roleform.ec6a795a': '创建',
+
+  // pages/Administration/UserManagement/assignRoleModal.tsx
+  'app.administration.usermanagement.assignrolemodal.006e400c': '角色名称',
+  'app.administration.usermanagement.assignrolemodal.068d8acb':
+    '角色分配失败: {value0}',
+  'app.administration.usermanagement.assignrolemodal.738e7bbe': '角色分配成功',
+  'app.administration.usermanagement.assignrolemodal.847b6e67':
+    '请选择至少一个角色',
+  'app.administration.usermanagement.assignrolemodal.8e2405ff': '角色编码',
+  'app.administration.usermanagement.assignrolemodal.91f57db6': '取消',
+  'app.administration.usermanagement.assignrolemodal.b7f8970d': '描述',
+  'app.administration.usermanagement.assignrolemodal.ba93ba47':
+    '为用户 {value0} 分配角色',
+  'app.administration.usermanagement.assignrolemodal.c81d51bf': '分配',
+
+  // pages/Administration/UserManagement/index.tsx
+  'app.administration.usermanagement.0213d713': '请输入用户名',
+  'app.administration.usermanagement.101bf14c': '描述',
+  'app.administration.usermanagement.10a7a066':
+    '确定要注销用户 "{value0}" 吗？此操作不可撤销。',
+  'app.administration.usermanagement.18a9c348': '请输入创建人',
+  'app.administration.usermanagement.25ab89de': '取消',
+  'app.administration.usermanagement.27d8ddf2': '新增',
+  'app.administration.usermanagement.31d8f455': '导出',
+  'app.administration.usermanagement.3a69d6a4': '确认',
+  'app.administration.usermanagement.3ebdcf2b': '请选择且只选择一条记录',
+  'app.administration.usermanagement.3ff3c6ae': '请选择创建时间',
+  'app.administration.usermanagement.41289e54': '导出全部用户操作',
+  'app.administration.usermanagement.4a689783': '确认注销',
+  'app.administration.usermanagement.4dddeb37': '用户注销失败，请重试',
+  'app.administration.usermanagement.5046c5fa': '完成',
+  'app.administration.usermanagement.653497af': '初始',
+  'app.administration.usermanagement.7cb324b0': '创建时间',
+  'app.administration.usermanagement.81f6c997': '状态',
+  'app.administration.usermanagement.89cb5e5c': '分配角色',
+  'app.administration.usermanagement.8f30deb9': '创建人',
+  'app.administration.usermanagement.9291cf19': '用户名',
+  'app.administration.usermanagement.930de5f2': '更新人',
+  'app.administration.usermanagement.95349e47': '导出用户操作',
+  'app.administration.usermanagement.acf4d00a': '更新时间',
+  'app.administration.usermanagement.ad5a479d': '邮箱',
+  'app.administration.usermanagement.c3cbc231': '分配菜单',
+  'app.administration.usermanagement.c8855b36': '编辑',
+  'app.administration.usermanagement.dfec38d6': '请输入邮箱',
+  'app.administration.usermanagement.e09d88c1': '分配权限',
+  'app.administration.usermanagement.e7f36e4d': '注销',
+  'app.administration.usermanagement.efbf1604': '手机号',
+  'app.administration.usermanagement.f1168551': '用户注销成功',
+  'app.administration.usermanagement.fb4217ba': '请输入手机号',
+  'app.administration.usermanagement.ff54ba35': '导出全部',
+  'app.administration.usermanagement.ffcafe9a': '正常',
+
+  // pages/Administration/UserManagement/UserForm.tsx
+  'app.administration.usermanagement.userform.0497bef2': '更新',
+  'app.administration.usermanagement.userform.06765ed4': '接收短信通知',
+  'app.administration.usermanagement.userform.1973baac': '男',
+  'app.administration.usermanagement.userform.2010d9bd': '用户名',
+  'app.administration.usermanagement.userform.21c76f85':
+    '请输入正确的手机号格式',
+  'app.administration.usermanagement.userform.23ccb958': '创建',
+  'app.administration.usermanagement.userform.27a4aead': '{value0}用户成功',
+  'app.administration.usermanagement.userform.282771f1': '手机号',
+  'app.administration.usermanagement.userform.309e4f1f': '加载中...',
+  'app.administration.usermanagement.userform.3d6e374b': '请选择所在地区',
+  'app.administration.usermanagement.userform.3e5db104': '邮箱',
+  'app.administration.usermanagement.userform.3ec81285': '请选择出生日期',
+  'app.administration.usermanagement.userform.4288e1de': '未知',
+  'app.administration.usermanagement.userform.473e0758': '初始',
+  'app.administration.usermanagement.userform.4f12da58': '请输入邮箱地址',
+  'app.administration.usermanagement.userform.52436c95': '取消',
+  'app.administration.usermanagement.userform.56f168db': '请输入手机号',
+  'app.administration.usermanagement.userform.58bb3ea8': '请输入用户描述信息',
+  'app.administration.usermanagement.userform.5c561906': '返回',
+  'app.administration.usermanagement.userform.70b2a5ea': '出生日期',
+  'app.administration.usermanagement.userform.81f596aa': '接收邮件通知',
+  'app.administration.usermanagement.userform.838a6480': '{value0}用户失败',
+  'app.administration.usermanagement.userform.864941c0': '编辑用户',
+  'app.administration.usermanagement.userform.8a1217de': '状态',
+  'app.administration.usermanagement.userform.92b81d65': '查看用户',
+  'app.administration.usermanagement.userform.945abf39': '头像',
+  'app.administration.usermanagement.userform.953cb973': '完成',
+  'app.administration.usermanagement.userform.95e42584': '所在地区',
+  'app.administration.usermanagement.userform.ae33339c': '正常',
+  'app.administration.usermanagement.userform.bdde238b':
+    '用户名只能包含字母、数字、下划线和中文',
+  'app.administration.usermanagement.userform.d47d5f82': '个人设置',
+  'app.administration.usermanagement.userform.d96d3a92': '用户管理',
+  'app.administration.usermanagement.userform.dbc0d0ee':
+    '用户名长度应在2-20个字符之间',
+  'app.administration.usermanagement.userform.dc818210': '性别',
+  'app.administration.usermanagement.userform.e6a7787e': '描述',
+  'app.administration.usermanagement.userform.e787ffa3': '新增用户',
+  'app.administration.usermanagement.userform.ebbe66a5': '女',
+  'app.administration.usermanagement.userform.ed726e9b':
+    '图片大小不能超过2MB！',
+  'app.administration.usermanagement.userform.f607f504': '注销',
+  'app.administration.usermanagement.userform.f64c1174': '请输入用户名',
+  'app.administration.usermanagement.userform.f98b0a91': '请输入正确的邮箱格式',
+  'app.administration.usermanagement.userform.fcd81126': '只能上传图片文件！',
+
+  // pages/AI/ChatManagement/index.tsx
+  'app.ai.chatmanagement.01a924f4': '展开设置面板',
+  'app.ai.chatmanagement.0f538c46': '助手',
+  'app.ai.chatmanagement.a0b69878': '展开会话列表',
+  'app.ai.chatmanagement.a3b58fb8': '模型',
+  'app.ai.chatmanagement.c9bd6fae': '知识库',
+  'app.ai.chatmanagement.e7f7c4e7': '会话',
+  'app.ai.chatmanagement.fbe4bdea': '新对话',
+
+  // pages/dashboard/analysis/components/IntroduceRow.tsx
+  'app.dashboard.components.introducerow.0e40f2d1': '转化率',
+  'app.dashboard.components.introducerow.110eb060': '支付笔数',
+  'app.dashboard.components.introducerow.6da2a9ed': '日同比',
+  'app.dashboard.components.introducerow.88618372': '访问量',
+  'app.dashboard.components.introducerow.b335ab7e': '周同比',
+  'app.dashboard.components.introducerow.c7eb3b01': '运营活动效果',
+  'app.dashboard.components.introducerow.d280b490': '日访问量',
+  'app.dashboard.components.introducerow.d7b039ec': '总销售额',
+  'app.dashboard.components.introducerow.d97ce6bf': '指标说明',
+  'app.dashboard.components.introducerow.dfab7972': '日销售额',
+
+  // pages/dashboard/analysis/components/OfflineData.tsx
+  'app.dashboard.components.offlinedata.bfcb4771': '转化率',
+
+  // pages/dashboard/analysis/components/ProportionSales.tsx
+  'app.dashboard.components.proportionsales.1d726261': '门店',
+  'app.dashboard.components.proportionsales.93f5cf21': '销售额类别占比',
+  'app.dashboard.components.proportionsales.9baa8fca': '线上',
+  'app.dashboard.components.proportionsales.a37a2380': '销售额',
+  'app.dashboard.components.proportionsales.de295727': '全部渠道',
+
+  // pages/dashboard/analysis/components/SalesCard.tsx
+  'app.dashboard.components.salescard.0052ad23': '工专路 {value0} 号店',
+  'app.dashboard.components.salescard.0fa2ef0c': '门店访问量排名',
+  'app.dashboard.components.salescard.5437341a': '销售额',
+  'app.dashboard.components.salescard.749b8393': '销售量',
+  'app.dashboard.components.salescard.96d011e8': '本月',
+  'app.dashboard.components.salescard.a18b7079': '今日',
+  'app.dashboard.components.salescard.a8f8432e': '门店销售额排名',
+  'app.dashboard.components.salescard.ae69c84d': '本周',
+  'app.dashboard.components.salescard.dfef68fd': '本年',
+  'app.dashboard.components.salescard.eeabc81d': '访问量',
+
+  // pages/dashboard/analysis/components/TopSearch.tsx
+  'app.dashboard.components.topsearch.0ca9a4cf': '周涨幅',
+  'app.dashboard.components.topsearch.146bef7c': '搜索用户数',
+  'app.dashboard.components.topsearch.452a6961': '排名',
+  'app.dashboard.components.topsearch.ac33ccca': '线上热门搜索',
+  'app.dashboard.components.topsearch.b061cd2c': '搜索关键词',
+  'app.dashboard.components.topsearch.da4c0cf9': '用户数',
+  'app.dashboard.components.topsearch.db2872e3': '人均搜索次数',
+  'app.dashboard.components.topsearch.fc8548e8': '指标说明',
+
+  // pages/dashboard/analysis/index.tsx
+  'app.dashboard.analysis.aed0b7fc': '操作二',
+  'app.dashboard.analysis.f2178ac4': '操作一',
+
+  // pages/dashboard/monitor/components/ActiveChart/index.tsx
+  'app.dashboard.activechart.25cbe617': '目标评估',
+  'app.dashboard.activechart.413f9141': '有望达到预期',
+  'app.dashboard.activechart.5be78515': '亿元',
+
+  // pages/dashboard/monitor/components/Map/index.tsx
+  'app.dashboard.map.3ef961e2': '重试',
+  'app.dashboard.map.691abf03': '地图数据加载失败',
+  'app.dashboard.map.f77d28cd': '交易量: {value0}',
+
+  // pages/dashboard/monitor/index.tsx
+  'app.dashboard.monitor.10001bb0': '每秒交易总额',
+  'app.dashboard.monitor.11ed5995': '元',
+  'app.dashboard.monitor.211e2617': '今日交易总额',
+  'app.dashboard.monitor.6e219e6e': '资源剩余',
+  'app.dashboard.monitor.c228b605': '活动实时交易情况',
+  'app.dashboard.monitor.d30554b9': '销售目标完成率',
+  'app.dashboard.monitor.df440681': '券核效率',
+  'app.dashboard.monitor.e4f04a60': '各品类占比',
+  'app.dashboard.monitor.e9153c01': '优',
+  'app.dashboard.monitor.f3550187': '活动情况预测',
+  'app.dashboard.monitor.f65e1e2c': '热门搜索',
+  'app.dashboard.monitor.f6f41cfd': '活动剩余时间',
+
+  // pages/dashboard/workplace/components/EditableLinkGroup/index.tsx
+  'app.dashboard.editablelinkgroup.14ffdee3': '添加',
+
+  // pages/dashboard/workplace/index.tsx
+  'app.dashboard.workplace.208da994': '吴彦祖',
+  'app.dashboard.workplace.36735aec': '操作六',
+  'app.dashboard.workplace.38018fec': '操作四',
+  'app.dashboard.workplace.382fab58': '海纳百川，有容乃大',
+  'app.dashboard.workplace.41e8fecf': '团队',
+  'app.dashboard.workplace.496745c4': '操作一',
+  'app.dashboard.workplace.695c582f': '操作五',
+  'app.dashboard.workplace.8a8ad9ce': '全部项目',
+  'app.dashboard.workplace.9239f213': '早安，',
+  'app.dashboard.workplace.ba570e06': '快速开始 / 便捷导航',
+  'app.dashboard.workplace.bacd55b3': '操作三',
+  'app.dashboard.workplace.c21a0f88': '操作二',
+  'app.dashboard.workplace.c9cb7439': '，祝你开心每一天！',
+  'app.dashboard.workplace.ce65c7e0': '动态',
+  'app.dashboard.workplace.d120e1fd': '进行中的项目',
+  'app.dashboard.workplace.d6af3066':
+    '蚂蚁集团－某某某事业群－某某平台部－某某技术部－UED',
+  'app.dashboard.workplace.d99f9413': '项目访问',
+  'app.dashboard.workplace.ecc1a898': '项目数',
+  'app.dashboard.workplace.f4b66736': 'XX 指数',
+  'app.dashboard.workplace.f56fa4a3': '交互专家',
+  'app.dashboard.workplace.fe00260d': '团队内排名',
+
+  // pages/Personal/StickyNote/stickyNote.tsx
+  'app.common.stickynote.stickynote.087e8e9a': '按住并拖动便笺',
+  'app.common.stickynote.stickynote.6d1ebd27': 'id：{value0} 保存失败',
+  'app.common.stickynote.stickynote.9e111f6e': '便笺位置保存失败',
+  'app.common.stickynote.stickynote.ac13b0e7': '便笺尺寸更新失败',
+  'app.common.stickynote.stickynote.eee92d96': '颜色更新失败',
+
+  // pages/Personal/StickyNote/stickyNoteContext.tsx
+  'app.common.stickynote.stickynotecontext.ac8e3c4a': '标题',
+  'app.common.stickynote.stickynotecontext.ee153502': '内容',
+  'app.common.stickynote.stickynotecontext.faa6ce38': '添加便笺失败',
+
+  // pages/profile/advanced/index.tsx
+  'app.examples.advanced.0025cc72': '订单金额',
+  'app.examples.advanced.03574d00': '待审批',
+  'app.examples.advanced.05488d64': '部门初审',
+  'app.examples.advanced.05b70e71': '驳回',
+  'app.examples.advanced.08d5871a': '联系方式',
+  'app.examples.advanced.09ea49d3': 'XX公司 - YY部',
+  'app.examples.advanced.0cb73d75': '操作二',
+  'app.examples.advanced.0fccb00b': '选项三',
+  'app.examples.advanced.13589dee': '过期时间',
+  'app.examples.advanced.16fa7297': '会员卡号',
+  'app.examples.advanced.1feeac01': '生效日期',
+  'app.examples.advanced.21518ac5': '学名',
+  'app.examples.advanced.248621c7': '用户信息',
+  'app.examples.advanced.26266779': '负责人',
+  'app.examples.advanced.2a59d0e4': '身份证',
+  'app.examples.advanced.2ccd5e71': '财务复核',
+  'app.examples.advanced.3299c0f6': '吴加号',
+  'app.examples.advanced.346abfca': '信息组',
+  'app.examples.advanced.386ebda7': '操作日志三',
+  'app.examples.advanced.386fcf9b': '数据说明',
+  'app.examples.advanced.3a50b234': '成功',
+  'app.examples.advanced.3d35d601': '周毛毛',
+  'app.examples.advanced.3e3d5cb2': '联系地址',
+  'app.examples.advanced.5216ef11': '操作一',
+  'app.examples.advanced.544d902d': '操作人',
+  'app.examples.advanced.5633edea': '选项一',
+  'app.examples.advanced.5d4d6ccb': '操作类型',
+  'app.examples.advanced.64d74d55': '主操作',
+  'app.examples.advanced.6a6baa76': '单号：234231029431',
+  'app.examples.advanced.6b70a1b7':
+    '这段描述很长很长很长很长很长很长很长很长很长很长很长很长很长很长...',
+  'app.examples.advanced.6e1f474b': '所属部门',
+  'app.examples.advanced.721b5164': '状态',
+  'app.examples.advanced.76260b30': '关联单据',
+  'app.examples.advanced.76285ada': '用户近半年来电记录',
+  'app.examples.advanced.787d18b4': '耗时：2小时25分钟',
+  'app.examples.advanced.78ca3836': '催一下',
+  'app.examples.advanced.7aa4d518': 'XX 服务',
+  'app.examples.advanced.7db78c09': '付小小',
+  'app.examples.advanced.823bd697':
+    '曲丽丽 18100000000 浙江省杭州市西湖区黄姑山路工专路交叉路口',
+  'app.examples.advanced.84204ec6': '创建人',
+  'app.examples.advanced.8be096e3': '多层级信息组',
+  'app.examples.advanced.8d661755': '曲丽丽',
+  'app.examples.advanced.8e2c5edc': '请于两个工作日内确认',
+  'app.examples.advanced.8e808f84': '某某数据',
+  'app.examples.advanced.909d7941': '选项二',
+  'app.examples.advanced.920b4951': '描述',
+  'app.examples.advanced.92f445fd':
+    'Citrullus lanatus (Thunb.) Matsum. et Nakai一年生蔓生藤本；茎、枝粗壮，具明显的棱。卷须较粗..',
+  'app.examples.advanced.95221b5c': '组名称',
+  'app.examples.advanced.9e18575a': '用户姓名',
+  'app.examples.advanced.a33fc6a5': '完成',
+  'app.examples.advanced.a67bd555': '该数据更新时间',
+  'app.examples.advanced.ab4d12be': '备注',
+  'app.examples.advanced.ac055aa3': '创建时间',
+  'app.examples.advanced.b1948d57': '订购产品',
+  'app.examples.advanced.baa76298': '创建项目',
+  'app.examples.advanced.c0c263e1': '操作三',
+  'app.examples.advanced.cd71e986': '执行结果',
+  'app.examples.advanced.cf8abc80': '操作日志一',
+  'app.examples.advanced.d78746c6': '详情',
+  'app.examples.advanced.d9905835': '操作日志二',
+  'app.examples.advanced.e54b26aa': '林东东',
+  'app.examples.advanced.ec20ffad': '未响应',
+  'app.examples.advanced.ec5112cf': '流程进度',
+  'app.examples.advanced.f3915925': '规则',
+  'app.examples.advanced.f652bf9f': '操作时间',
+  'app.examples.advanced.fed2d63b': '角色码',
+
+  // pages/profile/basic/index.tsx
+  'app.examples.basic.1017a55c': '用户姓名',
+  'app.examples.basic.2d9f5c56': '浙江省杭州市西湖区万塘路18号',
+  'app.examples.basic.2f47a431': '商品条码',
+  'app.examples.basic.39a35677': '销售单号',
+  'app.examples.basic.56f22ec9': '已取货',
+  'app.examples.basic.59477b4a': '退货进度',
+  'app.examples.basic.660f802f': '取货单号',
+  'app.examples.basic.6f8d66a0': '无',
+  'app.examples.basic.7a2904c7': '取货地址',
+  'app.examples.basic.7f6bf451': '当前进度',
+  'app.examples.basic.81b6c6ed': '商品名称',
+  'app.examples.basic.826a26c1': '联系电话',
+  'app.examples.basic.8359758a': '金额',
+  'app.examples.basic.981de19e': '用户信息',
+  'app.examples.basic.9d0ad273': '状态',
+  'app.examples.basic.a08d2308': '付小小',
+  'app.examples.basic.a62cf544': '操作员ID',
+  'app.examples.basic.b29aac27': '成功',
+  'app.examples.basic.b591d803': '常用快递',
+  'app.examples.basic.b8b75dcb': '耗时',
+  'app.examples.basic.bc92f24f': '时间',
+  'app.examples.basic.bd9795a2': '退款申请',
+  'app.examples.basic.c0e3e2a7': '商品编号',
+  'app.examples.basic.ca708c27': '进行中',
+  'app.examples.basic.ceb7caab': '菜鸟仓储',
+  'app.examples.basic.d4ba6d4e': '单价',
+  'app.examples.basic.d9bd9f84': '数量（件）',
+  'app.examples.basic.d9e80b9e': '总计',
+  'app.examples.basic.e7d990c8': '子订单',
+  'app.examples.basic.eb9f7e7e': '退货商品',
+  'app.examples.basic.ef60f971': '备注',
+
+  // pages/result/fail/index.tsx
+  'app.examples.fail.2ac413c5': '返回修改',
+  'app.examples.fail.34502364': '立即升级',
+  'app.examples.fail.4beef5a6': '提交失败',
+  'app.examples.fail.808c47cc': '您的账户还不具备申请资格',
+  'app.examples.fail.aa88cbba': '请核对并修改以下信息后，再重新提交。',
+  'app.examples.fail.acd92a32': '立即解冻',
+  'app.examples.fail.d532d7ab': '您的账户已被冻结',
+  'app.examples.fail.d5e431c4': '您提交的内容有如下错误：',
+
+  // pages/result/success/index.tsx
+  'app.examples.success.0ff9caaf': '部门初审',
+  'app.examples.success.1f94f3b6': '项目名称',
+  'app.examples.success.373aa34b': '创建项目',
+  'app.examples.success.43f86710': '生效时间',
+  'app.examples.success.5989a176': '提交成功',
+  'app.examples.success.6d95480d': '财务复核',
+  'app.examples.success.74b566b9': '返回列表',
+  'app.examples.success.77c307fb': '打印',
+  'app.examples.success.7a9b6d03': '周毛毛',
+  'app.examples.success.7cee48fc': '催一下',
+  'app.examples.success.8a5b98c8':
+    '提交结果页用于反馈一系列操作任务的处理结果， 如果仅是简单操作，使用 Message 全局提示反馈即可。 本文字区域可以展示简单的补充说明，如果有类似展示 "单据"的需求，下面这个灰色区域可以呈现比较复杂的内容。',
+  'app.examples.success.8e5de35e': '完成',
+  'app.examples.success.94337d28': '查看项目',
+  'app.examples.success.aa69f004': '负责人',
+  'app.examples.success.ea80fdc8': '项目 ID',
+  'app.examples.success.eb295135': '曲丽丽',
+
+  // pages/table-list/index.tsx
+  'app.common.tablelist.5bc46a1a': '请选择删除项',
+
+  // pages/Tools/CacheTest/index.tsx
+  'app.tools.cachetest.04abe282': 'KeepAlive 缓存测试页面',
+  'app.tools.cachetest.09a4d497': '说明页面切换被正确监听',
+  'app.tools.cachetest.0e0a8bc4': '页面状态已被缓存',
+  'app.tools.cachetest.0e5dcd9f': '说明状态被缓存',
+  'app.tools.cachetest.124d1e02': '说明状态持续更新',
+  'app.tools.cachetest.1452c9ee': '用户',
+  'app.tools.cachetest.150da999': '渲染时间:',
+  'app.tools.cachetest.2075c253': '输入内容保持：',
+  'app.tools.cachetest.2234b323': '激活次数:',
+  'app.tools.cachetest.2f1fa651': '显示页面激活/失活的实际时间',
+  'app.tools.cachetest.36a199f4': '(空)',
+  'app.tools.cachetest.3dbacb3a': '渲染时间不变：',
+  'app.tools.cachetest.460c29fb': '缓存正常工作',
+  'app.tools.cachetest.47389856': '组件ID:',
+  'app.tools.cachetest.52132a65': '第{value0}次激活页面 (从缓存恢复)',
+  'app.tools.cachetest.5a7a9581': '缓存验证指标:',
+  'app.tools.cachetest.5ba894aa': '用户操作状态保持 = 数据状态被缓存 ✅',
+  'app.tools.cachetest.64e5d82e': '系统事件时间：',
+  'app.tools.cachetest.6586eff9': '页面失活 (保存到缓存)',
+  'app.tools.cachetest.673638f1': '共',
+  'app.tools.cachetest.6878dd80': '缓存状态',
+  'app.tools.cachetest.6ecd2c1d': '点击测试 (+1)',
+  'app.tools.cachetest.723a4b56': '按钮点击次数',
+  'app.tools.cachetest.739c67ea': '说明组件没有重新创建',
+  'app.tools.cachetest.7816168b': '✅ 缓存生效',
+  'app.tools.cachetest.7883af87': '激活次数递增：',
+  'app.tools.cachetest.8eb39d85': '条记录',
+  'app.tools.cachetest.959b0f17': '操作时间显示实际操作时间 = 正常行为 ✅',
+  'app.tools.cachetest.973e79c8': '输入框测试',
+  'app.tools.cachetest.9adc823d': '系统',
+  'app.tools.cachetest.a1a768f2': '点击次数累计：',
+  'app.tools.cachetest.a5287c16': '说明组件实例被缓存',
+  'app.tools.cachetest.a89e0480': '用户点击按钮 (第{value0}次)',
+  'app.tools.cachetest.aa10c669': '等待第二次激活',
+  'app.tools.cachetest.ab9a2bd5': '首次激活页面',
+  'app.tools.cachetest.b4f0f526': '操作时间线',
+  'app.tools.cachetest.b94da554': '组件ID 不变：',
+  'app.tools.cachetest.c1ff57ac': '次',
+  'app.tools.cachetest.c572f1d3': '输入内容测试',
+  'app.tools.cachetest.c75a6fce': '请切换到其他页面再回来',
+  'app.tools.cachetest.cacdc10e': '测试说明',
+  'app.tools.cachetest.d546f82c': '当前值:',
+  'app.tools.cachetest.d56451c4': '组件ID 和渲染时间保持不变 = 组件被缓存 ✅',
+  'app.tools.cachetest.e2965c40': '页面激活次数',
+  'app.tools.cachetest.e2cb1c50': '暂无操作记录，请进行一些操作',
+  'app.tools.cachetest.e8eb43b6': '输入内容: "{value0}"',
+  'app.tools.cachetest.ec212740': '显示用户实际操作的时间',
+  'app.tools.cachetest.eeadfb3a': '关于操作时间：',
+  'app.tools.cachetest.f19ebcc7': '用户操作时间：',
+  'app.tools.cachetest.f1c36ea2': '激活次数递增 = 页面切换被正确监听 ✅',
+  'app.tools.cachetest.f60d444f': '⏳ 等待验证',
+  'app.tools.cachetest.f6407ed0': '正确的缓存行为：',
+
+  // pages/Tools/TextFormatter/index.tsx
+  'app.tools.textformatter.0af2d944': '压缩表格中的空格',
+  'app.tools.textformatter.0df2dc8a': '格式化结果：',
+  'app.tools.textformatter.170c4b73': '边框对齐：',
+  'app.tools.textformatter.23fa410c': '添加空行',
+  'app.tools.textformatter.261ec42c': '消除换行',
+  'app.tools.textformatter.2eea7883': '左对齐',
+  'app.tools.textformatter.34d844c6': '英文数字前后空格',
+  'app.tools.textformatter.37d44d7e': '列表处理配置',
+  'app.tools.textformatter.402035e1': '自动去除列表前缀',
+  'app.tools.textformatter.45a09311': '单元格分隔符：',
+  'app.tools.textformatter.4fc3ef35': 'Markdown 表格配置',
+  'app.tools.textformatter.52172e3c': '压缩空格',
+  'app.tools.textformatter.65c685a2': '项目编号：',
+  'app.tools.textformatter.670ce0bb': '个字符',
+  'app.tools.textformatter.6a3ad96f': '删除前缀',
+  'app.tools.textformatter.77c86872': '复制到剪切板',
+  'app.tools.textformatter.89d380c2': '原始文本：',
+  'app.tools.textformatter.8a3da6b9': '中文模式',
+  'app.tools.textformatter.99a2f03f': '结束符：',
+  'app.tools.textformatter.9a334944': '居中对齐',
+  'app.tools.textformatter.a0aa110e': '替换标点符号',
+  'app.tools.textformatter.a791e7e6': '单行标序',
+  'app.tools.textformatter.b73857da': '启用列表处理',
+  'app.tools.textformatter.b9f976f4': '启用 Markdown 表格处理',
+  'app.tools.textformatter.bb5164a0': '基础配置',
+  'app.tools.textformatter.c8558274': '右对齐',
+  'app.tools.textformatter.ca2f1061': '去除表格中的加粗',
+  'app.tools.textformatter.d334f423': '请输入要格式化的文本...',
+  'app.tools.textformatter.d569aca5': '格式化后的文本将显示在这里...',
+  'app.tools.textformatter.da0b1ed2': '从剪切板填充',
+  'app.tools.textformatter.e96afb0e': '句点结尾',
+  'app.tools.textformatter.f79dd04c': '英文模式',
+
+  // pages/User/login/index.tsx
+  'app.user.login.04fc89cd': '验证码错误',
+  'app.user.login.367e4f12': '获取验证码成功！验证码为：1234',
+  'app.user.login.3956237e': '请输入密码',
+  'app.user.login.bfe08e19': '获取公钥失败，请联系管理员',
+
+  // pages/User/register-result/index.tsx
+  'app.user.registerresult.1b7f5da1': '返回首页',
+  'app.user.registerresult.383d3f65':
+    '激活邮件已发送到你的邮箱中，邮件有效期为24小时。请及时登录邮箱，点击邮件中的链接激活帐户。',
+  'app.user.registerresult.691bfd2a': '查看邮箱',
+  'app.user.registerresult.b48e5b4c': '注册成功',
+  'app.user.registerresult.d7245add': '你的账户：',
+
+  // pages/User/register/index.tsx
+  'app.user.register.063458db': '请输入手机号!',
+  'app.user.register.33a1be33':
+    '请至少输入 6 个字符。请不要使用容易被猜到的密码。',
+  'app.user.register.4b20f201': '手机号格式错误!',
+  'app.user.register.4cd908cb': '请输入验证码!',
+  'app.user.register.65ba0858': '获取验证码',
+  'app.user.register.6cb6303f': '强度：中',
+  'app.user.register.749cf570': '邮箱',
+  'app.user.register.859eb883': '使用已有账户登录',
+  'app.user.register.937768e1': '请输入密码!',
+  'app.user.register.9e9b663f': '注册',
+  'app.user.register.a5cd621a': '注册成功！',
+  'app.user.register.ae04324f': '强度：太短',
+  'app.user.register.b4e2531c': '手机号',
+  'app.user.register.c694e888': '邮箱地址格式错误!',
+  'app.user.register.d3723e22': '至少6位密码，区分大小写',
+  'app.user.register.e3f448cb': '两次输入的密码不匹配!',
+  'app.user.register.e45bd1a8': '验证码',
+  'app.user.register.e99e63f6': '强度：强',
+  'app.user.register.eca1e2f1': '确认密码',
+  'app.user.register.ed7c6b00': '请输入邮箱地址!',
+
+  // pages/Welcome.tsx
+  'app.common.pages.welcome.08263c8c': '输入框测试:',
+  'app.common.pages.welcome.2903160a': '点击计数 +1',
+  'app.common.pages.welcome.29a05a85':
+    '缓存状态检测 - 激活次数: {value0}, 最后激活: {value1}',
+  'app.common.pages.welcome.538f17c3': '输入的内容:',
+  'app.common.pages.welcome.5badb394': '✅ 缓存正常工作',
+  'app.common.pages.welcome.97116082': '计数器:',
+  'app.common.pages.welcome.c2199239': '输入一些内容测试缓存',
+  'app.common.pages.welcome.c8a02b06': 'Welcome 页面缓存测试',
+  'app.common.pages.welcome.cd2de43d': '❌ 缓存可能未生效',
+  'app.common.pages.welcome.cd31da57': '激活次数:',
+  'app.common.pages.welcome.ea022c68': '最后激活时间:',
+  'app.common.pages.welcome.eaf9e2e5': '组件渲染时间:',
+
+  // pages/Writing/BasicWriting/index.tsx
+  'app.article.basicwriting.01999ddb': '标签',
+  'app.article.basicwriting.0a29472b': '当前页面版本为 V',
+  'app.article.basicwriting.14c29613': '其他用户已更新了这篇文章。',
+  'app.article.basicwriting.2236d518': '目录 #{value0}',
+  'app.article.basicwriting.2467722a': '版本',
+  'app.article.basicwriting.373c02f4': '目录',
+  'app.article.basicwriting.38e985f0': '忽略一次',
+  'app.article.basicwriting.3b9e7e6b': '章节',
+  'app.article.basicwriting.3ce391de': '批注',
+  'app.article.basicwriting.574a5bae': '管理',
+  'app.article.basicwriting.84bc4bdd': '{value0} 已更新了这篇文章。',
+  'app.article.basicwriting.8cea23b4': '重新加载',
+  'app.article.basicwriting.8d83623f': '本次打开期间不再提示',
+  'app.article.basicwriting.8fe68723': '。重新加载将获取最新内容。',
+  'app.article.basicwriting.9b131c70': '插入到文章当前光标处',
+  'app.article.basicwriting.c0217ad0': '，最新版本为 V',
+  'app.article.basicwriting.da357884': '文章 #{value0}',
+  'app.article.basicwriting.dd658217': '当前文章已有更新',
+
+  // requestErrorConfig.ts
+  'app.common.requesterrorconfig.52de81bc':
+    '请求失败！错误码【{value0}】错误信息【{value1}】',
+
+  // services/ant-design-pro/ai.chat.ts
+  'app.common.antdesignpro.ai.chat.33352e37': '无法获取响应流',
+  'app.common.antdesignpro.ai.chat.b6424a33': '读取流失败',
+  'app.common.antdesignpro.ai.chat.e21b95dd': '网络请求失败',
+
+  // services/ant-design-pro/api.ts
+  'app.common.antdesignpro.api.49247735': 'Blob 请求出错',
+
+  // services/upload.ts
+  'app.common.services.upload.263e57c3': '远程图片转存失败',
+  'app.common.services.upload.729aaf7c': '文件删除失败',
+  'app.common.services.upload.b38b2539': '文件读取失败',
+  'app.common.services.upload.d77586ac': '上传失败',
+
+  // types/rt.article.type.ts
+  'app.common.types.rt.article.type.2817ece5': '博客',
+  'app.common.types.rt.article.type.2f3a3e0a': '笔记',
+  'app.common.types.rt.article.type.9ad2d392': '小说',
+  'app.common.types.rt.article.type.bc62506e': '通用类型',
+  'app.common.types.rt.article.type.be56f6e8': '散文',
+
+  // types/rt.editor.type.ts
+  'app.common.types.rt.editor.type.3b8decd9': '楷体',
+  'app.common.types.rt.editor.type.55495f11': '默认',
+  'app.common.types.rt.editor.type.67eec7ce': '宋体',
+  'app.common.types.rt.editor.type.b97a1e3e': '微软雅黑',
+  'app.common.types.rt.editor.type.c3d73643': '默认字体',
+  'app.common.types.rt.editor.type.e4cfb332': '黑体',
+
+  // utils/calendarUtil.ts
+  'app.common.utils.calendarutil.11e81d5c': '周三',
+  'app.common.utils.calendarutil.1b241ce1': '周五',
+  'app.common.utils.calendarutil.5a0c1272': '周日',
+  'app.common.utils.calendarutil.887410d1': '周一',
+  'app.common.utils.calendarutil.ac4d1700': '周六',
+  'app.common.utils.calendarutil.d3bf62d9': '周四',
+  'app.common.utils.calendarutil.e23120a1': '周二',
+
+  // utils/chinaDivision.ts
+  'app.common.utils.chinadivision.0a881867': '澳门特别行政区',
+  'app.common.utils.chinadivision.2be98fb7': '香港特别行政区',
+  'app.common.utils.chinadivision.31227882': '台湾省',
+
+  // utils/crypto/gmCrypto.ts
+  'app.common.crypto.gmcrypto.5baf066b': '无法找到安全的随机数生成器',
+
+  // utils/fileUtil.ts
+  'app.common.utils.fileutil.6c0b0d8c': '资源下载失败: {value0}',
+};

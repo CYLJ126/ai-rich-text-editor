@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React, {useEffect, useState} from 'react';
 import {Button, Form, Input, message, Modal, Select, Table} from 'antd';
 import {
@@ -48,7 +49,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                 setOperations(response.records);
             }
         } catch (error) {
-            message.error('获取操作权限失败');
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.f289caec"));
             console.error('获取操作权限失败:', error);
         } finally {
             setLoading(false);
@@ -107,14 +108,14 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             }
 
             if (response) {
-                message.success('保存成功');
+                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b"));
                 setEditingKey(null);
                 loadOperations().then();
             } else {
-                message.error('保存失败');
+                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f"));
             }
         } catch (error) {
-            message.error('保存失败');
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f"));
             console.error('保存操作权限失败:', error);
         }
     };
@@ -139,13 +140,13 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                 operationCode: record.operationCode,
             });
             if (response) {
-                message.success('状态切换成功');
+                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76"));
                 loadOperations().then();
             } else {
-                message.error('状态切换失败');
+                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81"));
             }
         } catch (error) {
-            message.error('状态切换失败');
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81"));
             console.error('状态切换失败:', error);
         }
     };
@@ -156,7 +157,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
     // 列定义
     const columns = [
         {
-            title: '操作代码',
+            title: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.a56ab5d4"),
             dataIndex: 'operationCode',
             key: 'operationCode',
             width: 120,
@@ -165,7 +166,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                     return (
                         <Form.Item
                             name="operationCode"
-                            rules={[{required: true, message: '请输入操作代码'}]}
+                            rules={[{required: true, message: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.2d23b4a5")}]}
                             noStyle
                         >
                             <Input/>
@@ -176,7 +177,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             },
         },
         {
-            title: '操作名称',
+            title: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.aec3ec38"),
             dataIndex: 'operationName',
             key: 'operationName',
             width: 120,
@@ -185,7 +186,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                     return (
                         <Form.Item
                             name="operationName"
-                            rules={[{required: true, message: '请输入操作名称'}]}
+                            rules={[{required: true, message: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.813d641d")}]}
                             noStyle
                         >
                             <Input/>
@@ -196,17 +197,17 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             },
         },
         {
-            title: '状态',
+            title: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.1d5641ba"),
             dataIndex: 'status',
             key: 'status',
             width: 100,
             render: (text: number, record: Operation) => {
                 if (isEditing(record)) {
                     return (
-                        <Form.Item name="status" rules={[{required: true, message: '请选择状态'}]} noStyle>
+                        <Form.Item name="status" rules={[{required: true, message: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.e36153a8")}]} noStyle>
                             <Select style={{width: '100%'}}>
-                                <Option value={1}>启用</Option>
-                                <Option value={3}>停用</Option>
+                                <Option value={1}>{i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.937823e5")}</Option>
+                                <Option value={3}>{i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.81580528")}</Option>
                             </Select>
                         </Form.Item>
                     );
@@ -217,14 +218,14 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                         value={text}
                         onChange={(value) => handleStatusChange(record, value)}
                     >
-                        <Option value={1}>启用</Option>
-                        <Option value={3}>停用</Option>
+                        <Option value={1}>{i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.937823e5")}</Option>
+                        <Option value={3}>{i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.81580528")}</Option>
                     </Select>
                 );
             },
         },
         {
-            title: '描述',
+            title: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.0cd6383d"),
             dataIndex: 'description',
             key: 'description',
             render: (text: string, record: Operation) => {
@@ -239,7 +240,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             },
         },
         {
-            title: '操作',
+            title: i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.680040eb"),
             key: 'action',
             width: 140,
             render: (_: any, record: Operation) => {
@@ -252,15 +253,15 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                             style={{marginRight: 8}}
                             onClick={() => handleSave(record)}
                         >
-                            保存
+                            {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.6994b13f")}
                         </Button>
                         <Button size="small" onClick={handleCancel}>
-                            取消
+                            {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.0ac05fe3")}
                         </Button>
                     </>
                 ) : (
                     <Button type="link" size="small" onClick={() => setEditingKey(record.id)}>
-                        编辑
+                        {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9")}
                     </Button>
                 );
             },
@@ -269,7 +270,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
 
     return (
         <Modal
-            title={`${menuName} - 操作权限管理`}
+            title={i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.ee250568", {value0: menuName})}
             open={visible}
             onCancel={onClose}
             footer={null}
@@ -277,7 +278,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
         >
             <div style={{marginBottom: 16}}>
                 <Button type="primary" onClick={handleAdd}>
-                    新增操作权限
+                    {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.070a129e")}
                 </Button>
             </div>
             <Form form={form} component={false}>

@@ -1,11 +1,12 @@
+import {i18nText} from '@/utils/i18n';
 export const weekDays = [
-    {value: 1, label: '周一'},
-    {value: 2, label: '周二'},
-    {value: 3, label: '周三'},
-    {value: 4, label: '周四'},
-    {value: 5, label: '周五'},
-    {value: 6, label: '周六'},
-    {value: 7, label: '周日'},
+    {value: 1, label: i18nText("app.common.utils.calendarutil.887410d1")},
+    {value: 2, label: i18nText("app.common.utils.calendarutil.e23120a1")},
+    {value: 3, label: i18nText("app.common.utils.calendarutil.11e81d5c")},
+    {value: 4, label: i18nText("app.common.utils.calendarutil.d3bf62d9")},
+    {value: 5, label: i18nText("app.common.utils.calendarutil.1b241ce1")},
+    {value: 6, label: i18nText("app.common.utils.calendarutil.ac4d1700")},
+    {value: 7, label: i18nText("app.common.utils.calendarutil.5a0c1272")},
 ];
 
 /**

@@ -1,59 +1,62 @@
-import React, {useEffect, useImperativeHandle, useRef, useState} from 'react'
-import {Button} from "antd";
+import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Button } from 'antd';
+import { i18nText } from '@/utils/i18n';
 
-export default props => {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+export default (props) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
   // 存储每个按钮的 ref
-  const itemRefs = useRef<(HTMLElement | null)[]>([])
+  const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
   const selectItem = (index: number) => {
-    const item = props.items[index]
+    const item = props.items[index];
     if (item) {
-      props.command({id: item})
+      props.command({ id: item });
     }
-  }
+  };
 
   const upHandler = () => {
-    setSelectedIndex((selectedIndex + props.items.length - 1) % props.items.length)
-  }
+    setSelectedIndex(
+      (selectedIndex + props.items.length - 1) % props.items.length,
+    );
+  };
 
   const downHandler = () => {
-    setSelectedIndex((selectedIndex + 1) % props.items.length)
-  }
+    setSelectedIndex((selectedIndex + 1) % props.items.length);
+  };
 
   const enterHandler = () => {
-    selectItem(selectedIndex)
-  }
+    selectItem(selectedIndex);
+  };
 
-  useEffect(() => setSelectedIndex(0), [props.items])
+  useEffect(() => setSelectedIndex(0), [props.items]);
 
   // selectedIndex 变化时，自动滚动到对应项
   useEffect(() => {
-    const el = itemRefs.current[selectedIndex]
+    const el = itemRefs.current[selectedIndex];
     if (el) {
       el.scrollIntoView({
         block: 'nearest', // 仅在必要时滚动，不强制居中
-      })
+      });
     }
-  }, [selectedIndex])
+  }, [selectedIndex]);
 
   useImperativeHandle(props.ref, () => ({
-    onKeyDown: ({event}) => {
+    onKeyDown: ({ event }) => {
       if (event.key === 'ArrowUp') {
-        upHandler()
-        return true
+        upHandler();
+        return true;
       }
       if (event.key === 'ArrowDown') {
-        downHandler()
-        return true
+        downHandler();
+        return true;
       }
       if (event.key === 'Enter') {
-        enterHandler()
-        return true
+        enterHandler();
+        return true;
       }
-      return false
+      return false;
     },
-  }))
+  }));
 
   return (
     <div
@@ -68,8 +71,8 @@ export default props => {
         overflow-y-auto
       "
       style={{
-        scrollbarWidth: 'none',      // Firefox
-        msOverflowStyle: 'none',     // IE / Edge
+        scrollbarWidth: 'none', // Firefox
+        msOverflowStyle: 'none', // IE / Edge
       }}
     >
       {props.items.length ? (
@@ -78,7 +81,7 @@ export default props => {
             key={index}
             // 将每个按钮的 DOM 元素存入 itemRefs
             ref={(el) => {
-              itemRefs.current[index] = el
+              itemRefs.current[index] = el;
             }}
             onClick={() => selectItem(index)}
             className={`
@@ -87,10 +90,7 @@ export default props => {
               !border-none
               !shadow-none
               !rounded-[3px]
-              ${index === selectedIndex
-              ? '!bg-purple-200'
-              : '!bg-purple-100'
-            }
+              ${index === selectedIndex ? '!bg-purple-200' : '!bg-purple-100'}
               hover:!bg-purple-200
             `}
           >
@@ -99,9 +99,9 @@ export default props => {
         ))
       ) : (
         <div className="px-[2px] py-[2px] text-slate-400 text-sm">
-          No result
+          {i18nText('app.common.noResults')}
         </div>
       )}
     </div>
-  )
-}
+  );
+};

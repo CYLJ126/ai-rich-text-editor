@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { PageContainer } from '@ant-design/pro-components';
 import {
   Alert,
@@ -42,8 +43,8 @@ const CacheTestContent: React.FC = () => {
         time: now,
         action:
           newCount === 1
-            ? '首次激活页面'
-            : `第${newCount}次激活页面 (从缓存恢复)`,
+            ? i18nText("app.tools.cachetest.ab9a2bd5")
+            : i18nText("app.tools.cachetest.52132a65", {value0: newCount}),
         type: 'system',
       };
 
@@ -58,7 +59,7 @@ const CacheTestContent: React.FC = () => {
 
     const newEntry: TimelineItem = {
       time: now,
-      action: '页面失活 (保存到缓存)',
+      action: i18nText("app.tools.cachetest.6586eff9"),
       type: 'system',
     };
 
@@ -94,7 +95,7 @@ const CacheTestContent: React.FC = () => {
 
   const handleButtonClick = () => {
     setButtonClickCount((prev) => prev + 1);
-    addUserAction(`用户点击按钮 (第${buttonClickCount + 1}次)`);
+    addUserAction(i18nText("app.tools.cachetest.a89e0480", {value0: buttonClickCount + 1}));
   };
 
   return (
@@ -102,21 +103,21 @@ const CacheTestContent: React.FC = () => {
       <Alert
         title={
           <div>
-            <Tag color="blue">组件ID: {componentId.current}</Tag>
-            <Tag color="green">渲染时间: {renderTime.current}</Tag>
-            <Tag color="orange">激活次数: {activateCount}</Tag>
+            <Tag color="blue">{i18nText("app.tools.cachetest.47389856")} {componentId.current}</Tag>
+            <Tag color="green">{i18nText("app.tools.cachetest.150da999")} {renderTime.current}</Tag>
+            <Tag color="orange">{i18nText("app.tools.cachetest.2234b323")} {activateCount}</Tag>
           </div>
         }
         description={
           <div>
             <p>
-              <strong>缓存验证指标:</strong>
+              <strong>{i18nText("app.tools.cachetest.5a7a9581")}</strong>
             </p>
             <ul style={{ marginBottom: 0 }}>
-              <li>组件ID 和渲染时间保持不变 = 组件被缓存 ✅</li>
-              <li>激活次数递增 = 页面切换被正确监听 ✅</li>
-              <li>用户操作状态保持 = 数据状态被缓存 ✅</li>
-              <li>操作时间显示实际操作时间 = 正常行为 ✅</li>
+              <li>{i18nText("app.tools.cachetest.d56451c4")}</li>
+              <li>{i18nText("app.tools.cachetest.f1c36ea2")}</li>
+              <li>{i18nText("app.tools.cachetest.5ba894aa")}</li>
+              <li>{i18nText("app.tools.cachetest.959b0f17")}</li>
             </ul>
           </div>
         }
@@ -124,19 +125,19 @@ const CacheTestContent: React.FC = () => {
         style={{ marginBottom: 16 }}
       />
 
-      <Title level={2}>KeepAlive 缓存测试页面</Title>
+      <Title level={2}>{i18nText("app.tools.cachetest.04abe282")}</Title>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>
           <Card>
             <Statistic
-              title="页面激活次数"
+              title={i18nText("app.tools.cachetest.e2965c40")}
               value={activateCount}
-              suffix="次"
+              suffix={i18nText("app.tools.cachetest.c1ff57ac")}
               valueStyle={{ color: activateCount > 1 ? '#3f8600' : '#cf1322' }}
             />
             <Text type="secondary">
-              {activateCount > 1 ? '缓存正常工作' : '等待第二次激活'}
+              {activateCount > 1 ? i18nText("app.tools.cachetest.460c29fb") : i18nText("app.tools.cachetest.aa10c669")}
             </Text>
           </Card>
         </Col>
@@ -144,9 +145,9 @@ const CacheTestContent: React.FC = () => {
         <Col span={6}>
           <Card>
             <Statistic
-              title="按钮点击次数"
+              title={i18nText("app.tools.cachetest.723a4b56")}
               value={buttonClickCount}
-              suffix="次"
+              suffix={i18nText("app.tools.cachetest.c1ff57ac")}
               valueStyle={{ color: '#1890ff' }}
             />
             <Button
@@ -154,31 +155,31 @@ const CacheTestContent: React.FC = () => {
               onClick={handleButtonClick}
               style={{ marginTop: 8 }}
             >
-              点击测试 (+1)
+              {i18nText("app.tools.cachetest.6ecd2c1d")}
             </Button>
           </Card>
         </Col>
 
         <Col span={6}>
-          <Card title="输入框测试">
+          <Card title={i18nText("app.tools.cachetest.973e79c8")}>
             <Input
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
-                addUserAction(`输入内容: "${e.target.value}"`);
+                addUserAction(i18nText("app.tools.cachetest.e8eb43b6", {value0: e.target.value}));
               }}
-              placeholder="输入内容测试"
+              placeholder={i18nText("app.tools.cachetest.c572f1d3")}
             />
             <div style={{ marginTop: 8 }}>
               <Text type="secondary">
-                当前值: <Text code>{inputValue || '(空)'}</Text>
+                {i18nText("app.tools.cachetest.d546f82c")} <Text code>{inputValue || i18nText("app.tools.cachetest.36a199f4")}</Text>
               </Text>
             </div>
           </Card>
         </Col>
 
         <Col span={6}>
-          <Card title="缓存状态">
+          <Card title={i18nText("app.tools.cachetest.6878dd80")}>
             <div style={{ textAlign: 'center' }}>
               <div
                 style={{
@@ -187,12 +188,12 @@ const CacheTestContent: React.FC = () => {
                   fontWeight: 'bold',
                 }}
               >
-                {activateCount > 1 ? '✅ 缓存生效' : '⏳ 等待验证'}
+                {activateCount > 1 ? i18nText("app.tools.cachetest.7816168b") : i18nText("app.tools.cachetest.f60d444f")}
               </div>
               <Text type="secondary">
                 {activateCount > 1
-                  ? '页面状态已被缓存'
-                  : '请切换到其他页面再回来'}
+                  ? i18nText("app.tools.cachetest.0e0a8bc4")
+                  : i18nText("app.tools.cachetest.c75a6fce")}
               </Text>
             </div>
           </Card>
@@ -202,15 +203,15 @@ const CacheTestContent: React.FC = () => {
       <Row>
         <Col span={24}>
           <Card
-            title="操作时间线"
-            extra={<Text type="secondary">共 {timeline.length} 条记录</Text>}
+            title={i18nText("app.tools.cachetest.b4f0f526")}
+            extra={<Text type="secondary">{i18nText("app.tools.cachetest.673638f1")} {timeline.length} {i18nText("app.tools.cachetest.8eb39d85")}</Text>}
           >
             <Timeline
               items={timeline.map((item, index) => ({
                 children: (
                   <div>
                     <Tag color={item.type === 'system' ? 'blue' : 'green'}>
-                      {item.type === 'system' ? '系统' : '用户'}
+                      {item.type === 'system' ? i18nText("app.tools.cachetest.9adc823d") : i18nText("app.tools.cachetest.1452c9ee")}
                     </Tag>
                     <Text strong>{item.time}</Text> - {item.action}
                   </div>
@@ -219,42 +220,42 @@ const CacheTestContent: React.FC = () => {
               }))}
             />
             {timeline.length === 0 && (
-              <Text type="secondary">暂无操作记录，请进行一些操作</Text>
+              <Text type="secondary">{i18nText("app.tools.cachetest.e2cb1c50")}</Text>
             )}
           </Card>
         </Col>
       </Row>
 
-      <Card style={{ marginTop: 16 }} title="测试说明">
+      <Card style={{ marginTop: 16 }} title={i18nText("app.tools.cachetest.cacdc10e")}>
         <Row gutter={16}>
           <Col span={12}>
-            <Title level={4}>正确的缓存行为：</Title>
+            <Title level={4}>{i18nText("app.tools.cachetest.f6407ed0")}</Title>
             <ul>
               <li>
-                <Text strong>组件ID 不变：</Text> 说明组件实例被缓存
+                <Text strong>{i18nText("app.tools.cachetest.b94da554")}</Text> {i18nText("app.tools.cachetest.a5287c16")}
               </li>
               <li>
-                <Text strong>渲染时间不变：</Text> 说明组件没有重新创建
+                <Text strong>{i18nText("app.tools.cachetest.3dbacb3a")}</Text> {i18nText("app.tools.cachetest.739c67ea")}
               </li>
               <li>
-                <Text strong>输入内容保持：</Text> 说明状态被缓存
+                <Text strong>{i18nText("app.tools.cachetest.2075c253")}</Text> {i18nText("app.tools.cachetest.0e5dcd9f")}
               </li>
               <li>
-                <Text strong>点击次数累计：</Text> 说明状态持续更新
+                <Text strong>{i18nText("app.tools.cachetest.a1a768f2")}</Text> {i18nText("app.tools.cachetest.124d1e02")}
               </li>
               <li>
-                <Text strong>激活次数递增：</Text> 说明页面切换被正确监听
+                <Text strong>{i18nText("app.tools.cachetest.7883af87")}</Text> {i18nText("app.tools.cachetest.09a4d497")}
               </li>
             </ul>
           </Col>
           <Col span={12}>
-            <Title level={4}>关于操作时间：</Title>
+            <Title level={4}>{i18nText("app.tools.cachetest.eeadfb3a")}</Title>
             <ul>
               <li>
-                <Text strong>系统事件时间：</Text> 显示页面激活/失活的实际时间
+                <Text strong>{i18nText("app.tools.cachetest.64e5d82e")}</Text> {i18nText("app.tools.cachetest.2f1fa651")}
               </li>
               <li>
-                <Text strong>用户操作时间：</Text> 显示用户实际操作的时间
+                <Text strong>{i18nText("app.tools.cachetest.f19ebcc7")}</Text> {i18nText("app.tools.cachetest.ec212740")}
               </li>
             </ul>
           </Col>

@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import Editor, {OnMount} from '@monaco-editor/react';
 import {theme} from 'antd';
 import {createStyles} from 'antd-style';
@@ -148,11 +149,11 @@ function safeParse(
   try {
     const parsed = JSON.parse(trimmed);
     if (typeof parsed !== 'object' || parsed === null) {
-      return [null, '顶层必须是 JSON 对象 {} 或数组 []'];
+      return [null, i18nText("app.common.jsoneditor.jsoneditor.9a85fda1")];
     }
     return [parsed as Record<string, unknown> | unknown[], null];
   } catch (e) {
-    return [null, e instanceof SyntaxError ? e.message : 'JSON 格式错误'];
+    return [null, e instanceof SyntaxError ? e.message : i18nText("app.common.jsoneditor.jsoneditor.9906a5fb")];
   }
 }
 
@@ -368,7 +369,7 @@ const JsonEditor = forwardRef<JsonEditorRef, JsonEditorProps>((props, ref) => {
             {displayValue.trim() && (
               <span className={cx(styles.badge, isValid ? 'valid' : 'invalid')}>
                 {isValid ? <IconCheck/> : <IconError/>}
-                {isValid ? '合法' : '非法'}
+                {isValid ? i18nText("app.common.jsoneditor.jsoneditor.fc3ef774") : i18nText("app.common.jsoneditor.jsoneditor.86365c96")}
               </span>
             )}
           </div>
@@ -379,10 +380,10 @@ const JsonEditor = forwardRef<JsonEditorRef, JsonEditorProps>((props, ref) => {
                 className={styles.formatBtn}
                 onClick={handleFormat}
                 disabled={!!error || !displayValue.trim()}
-                title="美化 (Shift+Alt+F)"
+                title={i18nText("app.common.jsoneditor.jsoneditor.10d77de0")}
               >
                 <IconFormat/>
-                美化
+                {i18nText("app.common.jsoneditor.jsoneditor.00f86a78")}
               </button>
             )}
           </div>

@@ -1,0 +1,2320 @@
+export default {
+  'app.common.search.placeholder': '搜尋...',
+  'app.common.noResults': '暫無結果',
+  'app.common.create': '建立',
+  'app.common.noData': '暫無資料',
+  'app.common.close': '關閉',
+  'app.common.backHome': '返回首頁',
+  'app.common.logo': '網站標誌',
+  'app.common.avatar': '頭像',
+  'app.ai.markdown.content': 'Markdown 內容',
+  'app.ai.chat': 'AI 對話',
+  'app.ai.tokens.input': '輸入',
+  'app.ai.tokens.output': '輸出',
+  'app.exception.403.description': '抱歉，您無權存取此頁面。',
+  'app.exception.500.description': '抱歉，頁面發生錯誤。',
+  'app.admin.you': '你',
+  'app.admin.morePages': '想新增更多頁面？請參考',
+  'app.admin.useBlock': '區塊使用說明',
+  'app.examples.firstMenuItem': '第一個選單項目',
+  'app.examples.secondMenuItem': '第二個選單項目',
+  'app.login.motto': '遲做總比不做好。',
+  'app.article.mermaid.codePlaceholder': '請輸入 Mermaid 程式碼',
+  'app.article.code.copy': '複製程式碼',
+  'app.article.code.delete': '刪除程式碼區塊',
+  'app.article.code.fold': '摺疊程式碼區塊',
+  'app.article.table.addColumnBefore': '在前面新增欄',
+  'app.article.table.addColumnAfter': '在後面新增欄',
+  'app.article.table.deleteColumn': '刪除欄',
+  'app.article.table.addRowBefore': '在前面新增列',
+  'app.article.table.addRowAfter': '在後面新增列',
+  'app.article.table.deleteRow': '刪除列',
+  'app.article.table.mergeCells': '合併儲存格',
+  'app.article.table.splitCell': '分割儲存格',
+  'app.article.table.toggleHeaderCell': '切換標題儲存格',
+  'app.article.table.alignment': '對齊方式',
+  'app.article.table.alignTop': '頂端對齊',
+  'app.article.table.alignMiddle': '置中對齊',
+  'app.article.table.alignBottom': '底端對齊',
+  'app.article.table.clearContents': '清除內容',
+  'app.article.slash.aiWriter.title': 'AI 寫作',
+  'app.article.slash.aiWriter.description': '使用自訂提示詞詢問 AI。',
+  'app.article.slash.text.title': '文字',
+  'app.article.slash.text.description': '開始輸入純文字。',
+  'app.article.slash.heading1.title': '一級標題',
+  'app.article.slash.heading1.description': '大型章節標題。',
+  'app.article.slash.heading2.title': '二級標題',
+  'app.article.slash.heading2.description': '中型章節標題。',
+  'app.article.slash.heading3.title': '三級標題',
+  'app.article.slash.heading3.description': '小型章節標題。',
+  'app.article.slash.bulletList.title': '項目符號清單',
+  'app.article.slash.bulletList.description': '建立簡單的項目符號清單。',
+  'app.article.slash.numberedList.title': '編號清單',
+  'app.article.slash.numberedList.description': '建立帶編號的清單。',
+  'app.article.slash.taskList.title': '工作清單',
+  'app.article.slash.taskList.description': '建立工作清單。',
+  'app.article.slash.divider.title': '分隔線',
+  'app.article.slash.divider.description': '建立水平分隔線。',
+  'app.article.slash.table.title': '表格',
+  'app.article.slash.table.description': '插入表格。',
+  'app.article.slash.quote.title': '引用',
+  'app.article.slash.quote.description': '插入引用區塊。',
+  'app.article.slash.code.title': '程式碼',
+  'app.article.slash.code.description': '插入程式碼片段。',
+  'app.article.slash.mermaid.title': 'Mermaid 圖表',
+  'app.article.slash.mermaid.description': '轉譯 Mermaid 圖表。',
+  'app.article.slash.drawio.title': 'Draw.io 圖表',
+  'app.article.slash.drawio.description': '建立流程圖、架構圖或 UML 圖。',
+  'app.article.slash.mindMap.title': '心智圖',
+  'app.article.slash.mindMap.description': '使用 Mind Elixir 建立心智圖。',
+  'app.article.slash.canvas.title': '自由畫布',
+  'app.article.slash.canvas.description': '插入可擴充的自由繪製畫布。',
+  'app.article.slash.image.title': '圖片',
+  'app.article.slash.image.description': '透過連結插入圖片。',
+  'app.article.slash.audio.title': '音訊',
+  'app.article.slash.audio.description': '插入原生音訊播放器。',
+  'app.article.slash.video.title': '影片',
+  'app.article.slash.video.description': '插入影片或平台播放器。',
+  'app.ai.continuation.failed': 'AI 續寫失敗：{value0}',
+  'app.common.notBound': '未綁定',
+  'app.sticky.delete.failed': '刪除便箋失敗：{value0}',
+  'app.sticky.delete.failedWithId': 'ID {value0} 刪除失敗',
+  // app.tsx
+  'app.common.app.223c3ddf': 'OpenAPI 文檔',
+
+  // components/AI/AssistantSider/AssistantEditForm.tsx
+  'app.ai.assistantsider.assistanteditform.11eda565': '請選擇關聯知識庫',
+  'app.ai.assistantsider.assistanteditform.11f99d0c': '排序只能輸入自然數',
+  'app.ai.assistantsider.assistanteditform.184f3007': '請選擇模型',
+  'app.ai.assistantsider.assistanteditform.1bb46147': '頻率懲罰',
+  'app.ai.assistantsider.assistanteditform.29139660': '名稱',
+  'app.ai.assistantsider.assistanteditform.2e9efc22': '上下文窗口數',
+  'app.ai.assistantsider.assistanteditform.31f9d90f': '加載中...',
+  'app.ai.assistantsider.assistanteditform.32b24e67': '排序',
+  'app.ai.assistantsider.assistanteditform.45964902': '模型提供商',
+  'app.ai.assistantsider.assistanteditform.48848d89': '是否開啟查詢重寫功能',
+  'app.ai.assistantsider.assistanteditform.507fe7c4': '文本類型',
+  'app.ai.assistantsider.assistanteditform.523a0aed': '創建',
+  'app.ai.assistantsider.assistanteditform.5f90c572': '頭像',
+  'app.ai.assistantsider.assistanteditform.64612d40': '請選擇文本類型',
+  'app.ai.assistantsider.assistanteditform.69412fd9': '請輸入系統提示詞',
+  'app.ai.assistantsider.assistanteditform.6a06c9d2': '更新',
+  'app.ai.assistantsider.assistanteditform.6bc38fd6': '上下文策略',
+  'app.ai.assistantsider.assistanteditform.74cb1c86': '請選擇模型提供商',
+  'app.ai.assistantsider.assistanteditform.850250a0': '溫度',
+  'app.ai.assistantsider.assistanteditform.90ac8f4c': '取消',
+  'app.ai.assistantsider.assistanteditform.9138e5ac': '最大 Token 數',
+  'app.ai.assistantsider.assistanteditform.9dab7d2e': '請輸入排序值',
+  'app.ai.assistantsider.assistanteditform.a65186f6': '系統提示詞',
+  'app.ai.assistantsider.assistanteditform.aadb1845': '啟用',
+  'app.ai.assistantsider.assistanteditform.b8f87b98': '描述',
+  'app.ai.assistantsider.assistanteditform.bdd27c6f': '推理力度',
+  'app.ai.assistantsider.assistanteditform.be19244b': '請選擇推理力度',
+  'app.ai.assistantsider.assistanteditform.ce644caf': '存在懲罰',
+  'app.ai.assistantsider.assistanteditform.d10cecd7': '請輸入描述',
+  'app.ai.assistantsider.assistanteditform.de86d311': '模型',
+  'app.ai.assistantsider.assistanteditform.e2f16e48': '請選擇上下文策略',
+  'app.ai.assistantsider.assistanteditform.e99cb099': '請輸入助手名稱',
+  'app.ai.assistantsider.assistanteditform.f18ca8e1': '額外參數',
+  'app.ai.assistantsider.assistanteditform.f2f9da7e': '狀態',
+  'app.ai.assistantsider.assistanteditform.f33aab5b': '關聯知識庫',
+  'app.ai.assistantsider.assistanteditform.f78d585f': '請選擇頭像',
+  'app.ai.assistantsider.assistanteditform.fdc4f734': '是否開啟全局記憶功能',
+  'app.ai.assistantsider.assistanteditform.ff41fea7': '禁用',
+
+  // components/AI/AssistantSider/index.tsx
+  'app.ai.assistantsider.194f73c6': '未命名助手',
+  'app.ai.assistantsider.1e93d851': '置頂',
+  'app.ai.assistantsider.2cbcebe1': '添加助手',
+  'app.ai.assistantsider.3ea5581a': '設為默認',
+  'app.ai.assistantsider.4d7df07f': '啟用',
+  'app.ai.assistantsider.77356810': '編輯',
+  'app.ai.assistantsider.78e32761': '編輯助手',
+  'app.ai.assistantsider.a7802f68': '禁用',
+  'app.ai.assistantsider.b9d095bb': '默認助手',
+  'app.ai.assistantsider.da9a1203': '刪除',
+  'app.ai.assistantsider.ed37ce7f': '取消置頂',
+  'app.ai.assistantsider.fdac443f': '暫無助手',
+
+  // components/AI/ChatContext.tsx
+  'app.ai.ai.chatcontext.4de0880b': '生成失敗',
+  'app.ai.ai.chatcontext.59457b9c': '未找到可重試的用戶消息',
+  'app.ai.ai.chatcontext.8bf7b2ac': '生成失敗：{value0}',
+  'app.ai.ai.chatcontext.906732b5': '未知錯誤',
+
+  // components/AI/ChatInput/index.tsx
+  'app.ai.chatinput.024309b7': '引用',
+  'app.ai.chatinput.36b0293e': '上傳文件',
+  'app.ai.chatinput.36f4a4dc': '發送',
+  'app.ai.chatinput.377a72a8': '視覺',
+  'app.ai.chatinput.3b36c153': '深思',
+  'app.ai.chatinput.3d1e59a1': '生成圖片',
+  'app.ai.chatinput.5d73cd74': '聯網搜索',
+  'app.ai.chatinput.6056ef00': '深度思考（使用 thinking 模型）',
+  'app.ai.chatinput.84a6ca33': '停止',
+  'app.ai.chatinput.b4975a10': '輸入消息... (Enter 發送，Shift+Enter 換行)',
+  'app.ai.chatinput.b81bd99e': '生圖',
+  'app.ai.chatinput.c5b56cce': '啟用視覺（上傳圖片）',
+  'app.ai.chatinput.cc513812': '聯網',
+  'app.ai.chatinput.f9af39e3': '上傳圖片',
+
+  // components/AI/ChattingSider/AIMessagesAndSend.tsx
+  'app.ai.chattingsider.aimessagesandsend.0b329198':
+    '請先在會話或助手上配置模型',
+  'app.ai.chattingsider.aimessagesandsend.3c8eef1a': '隨便聊聊歷史唄',
+  'app.ai.chattingsider.aimessagesandsend.4b73734d': '來點編程乾貨',
+  'app.ai.chattingsider.aimessagesandsend.58cb572f': 'AI 方向的內容來一波',
+  'app.ai.chattingsider.aimessagesandsend.5f052c3e':
+    '週末想看電影，有影評參考嗎',
+  'app.ai.chattingsider.aimessagesandsend.87cf7332':
+    '自律得自由，健身計劃有木有',
+  'app.ai.chattingsider.aimessagesandsend.ad681f39':
+    '職場那些事兒，庫裡聊了多少',
+  'app.ai.chattingsider.aimessagesandsend.b3d53dd3':
+    '最近想去旅行，有攻略推薦不',
+  'app.ai.chattingsider.aimessagesandsend.ba144aa6':
+    '輸入消息... (Enter 發送，Shift+Enter 換行)',
+  'app.ai.chattingsider.aimessagesandsend.d302e450': '請先選擇一個對話',
+  'app.ai.chattingsider.aimessagesandsend.d915adaf': '書法相關的文章都有啥',
+  'app.ai.chattingsider.aimessagesandsend.ffc90320':
+    '讓我來看看庫裡有哪些美食推薦',
+
+  // components/AI/ChattingSider/ChattingSider.tsx
+  'app.ai.chattingsider.chattingsider.12a37b37': '助手配置',
+  'app.ai.chattingsider.chattingsider.52b5a4b2': '新對話',
+  'app.ai.chattingsider.chattingsider.6928e7b6': '會話列表',
+  'app.ai.chattingsider.chattingsider.c473f194': '會話配置',
+  'app.ai.chattingsider.chattingsider.edc1c0f9': '消息列表',
+
+  // components/AI/ConversationEditSider/index.tsx
+  'app.ai.conversationeditsider.0687c731': '請選擇會話助手',
+  'app.ai.conversationeditsider.07ec8e9f': '請選擇知識庫',
+  'app.ai.conversationeditsider.0ab0f18f': '默認',
+  'app.ai.conversationeditsider.12a65d45': '頻率懲罰 (Frequency Penalty)',
+  'app.ai.conversationeditsider.231cea64': '請選擇上下文策略',
+  'app.ai.conversationeditsider.334a9280': '收起',
+  'app.ai.conversationeditsider.41891402': '推理力度',
+  'app.ai.conversationeditsider.41e6fd93': '請選擇文本類型（默認繼承助手配置）',
+  'app.ai.conversationeditsider.42d80d37': '開啟後將跨會話保留用戶記憶偏好',
+  'app.ai.conversationeditsider.4d85a313': '文本類型',
+  'app.ai.conversationeditsider.58427c4b': '會話模型',
+  'app.ai.conversationeditsider.58867126': '知識庫',
+  'app.ai.conversationeditsider.5fdc5eae': '統計信息',
+  'app.ai.conversationeditsider.62ff5ba2': '請選擇推理力度（默認繼承助手配置）',
+  'app.ai.conversationeditsider.6662039e': '展開',
+  'app.ai.conversationeditsider.6c6afe30': '最大生成 Token 數',
+  'app.ai.conversationeditsider.6f24e3da':
+    '控制輸出隨機性，值越高越有創意，值越低越確定',
+  'app.ai.conversationeditsider.6f5745a2': '溫度 (Temperature)',
+  'app.ai.conversationeditsider.813d269c': '會話助手',
+  'app.ai.conversationeditsider.825004cb': '請輸入最大 Token 數',
+  'app.ai.conversationeditsider.882e3e5c':
+    '正值鼓勵模型討論新話題，減少重複內容，範圍 -2 ~ 2',
+  'app.ai.conversationeditsider.88ce2098': '最新消息時間',
+  'app.ai.conversationeditsider.8b16a937':
+    '正值降低模型逐字重複相同內容的可能性，範圍 -2 ~ 2',
+  'app.ai.conversationeditsider.9510816f': '會話名稱',
+  'app.ai.conversationeditsider.9711270d': '開啟後將做查詢重寫',
+  'app.ai.conversationeditsider.97c91e97': '系統提示詞',
+  'app.ai.conversationeditsider.99776c3b': 'Top K 解碼採樣參數',
+  'app.ai.conversationeditsider.9f4ed39f': '請輸入會話名稱',
+  'app.ai.conversationeditsider.a0ecc096': '額外模型參數',
+  'app.ai.conversationeditsider.a195d9c8':
+    'top P 核採樣概率閾值，與 Temperature 建議只調其一',
+  'app.ai.conversationeditsider.b487910f': '上下文窗口大小',
+  'app.ai.conversationeditsider.bfe6a5c4': '上下文策略',
+  'app.ai.conversationeditsider.c1e2ab7f': '存在懲罰 (Presence Penalty)',
+  'app.ai.conversationeditsider.cd1cfaa9': '請輸入系統提示詞',
+  'app.ai.conversationeditsider.da22cddd': '請選擇會話模型',
+  'app.ai.conversationeditsider.e71aa4e5': '查詢重寫功能',
+  'app.ai.conversationeditsider.f8e418d5': '全局記憶功能',
+  'app.ai.conversationeditsider.fbd7966f': '總消息條數',
+  'app.ai.conversationeditsider.ff28b9a5': '總消息條數：',
+
+  // components/AI/ConversationSider/ConversationItem.tsx
+  'app.ai.conversationsider.conversationitem.0d5aead2': '歸檔',
+  'app.ai.conversationsider.conversationitem.0f5b6c47': '暫無消息',
+  'app.ai.conversationsider.conversationitem.18dc6285': '刪除',
+  'app.ai.conversationsider.conversationitem.2784005e': '更多操作',
+  'app.ai.conversationsider.conversationitem.4ba1bf3f': '重命名',
+  'app.ai.conversationsider.conversationitem.7fc567bc': '新會話',
+  'app.ai.conversationsider.conversationitem.c287471d': '編輯',
+  'app.ai.conversationsider.conversationitem.c48f7be6': '取消置頂',
+  'app.ai.conversationsider.conversationitem.de1f7f60': '置頂會話',
+
+  // components/AI/ConversationSider/index.tsx
+  'app.ai.conversationsider.15836fee': '刪除',
+  'app.ai.conversationsider.1f94196e': '未命名會話',
+  'app.ai.conversationsider.3ebb1bab': '暫無會話',
+  'app.ai.conversationsider.457448ca': '歸檔',
+  'app.ai.conversationsider.4b00b34b': '取消置頂',
+  'app.ai.conversationsider.5e946133': '編輯',
+  'app.ai.conversationsider.ae76d902': '新建會話',
+  'app.ai.conversationsider.e6531ed9': '置頂',
+
+  // components/AI/MessageList/index.tsx
+  'app.ai.messagelist.02de627d': '編輯(暫不支持)',
+  'app.ai.messagelist.05108a38': '刪除',
+  'app.ai.messagelist.0713d7de': '重新生成',
+  'app.ai.messagelist.0d82f2b9': '選擇或新建一個對話',
+  'app.ai.messagelist.0f53d91f': '已複製到剪貼板',
+  'app.ai.messagelist.13230391': '幫我寫一段 Python 代碼',
+  'app.ai.messagelist.16275bbd': '幫我優化這段 SQL 查詢',
+  'app.ai.messagelist.17a4f1a6': '回到底部',
+  'app.ai.messagelist.1eec5711': '複製',
+  'app.ai.messagelist.20b10ebc': '踩',
+  'app.ai.messagelist.25ac4727': '查看優化內容',
+  'app.ai.messagelist.38e21bae': '從左側選擇已有對話，或點擊「新建」開始',
+  'app.ai.messagelist.483d3123': '寫一封正式的商務郵件',
+  'app.ai.messagelist.860b4fea': '新對話',
+  'app.ai.messagelist.936ef569': '贊',
+  'app.ai.messagelist.a2fddccc': '分析一下當前 AI 發展趨勢',
+  'app.ai.messagelist.a3385fd8': '引用(暫不支持)',
+  'app.ai.messagelist.aed36983': '給我推薦一份健康的早餐食譜',
+  'app.ai.messagelist.b91ea936': '已複製',
+  'app.ai.messagelist.c7cb946f': '查看原內容',
+  'app.ai.messagelist.d18769a8': '已加載全部消息',
+  'app.ai.messagelist.d714de45': '複製失敗',
+  'app.ai.messagelist.d8e49c27': '開始你的第一條消息',
+  'app.ai.messagelist.fad04a49': '用簡潔的語言解釋量子計算',
+
+  // components/AI/MessageList/MessageBubble.tsx
+  'app.ai.messagelist.messagebubble.25583446': '重試',
+  'app.ai.messagelist.messagebubble.75e8d98a': '消息發送失敗，請重試',
+
+  // components/AI/ModelSelector/index.tsx
+  'app.ai.modelselector.2152358c': '選擇模型',
+
+  // components/AI/ModelSider/index.tsx
+  'app.ai.modelsider.0a9ab3f2': '暫無模型',
+  'app.ai.modelsider.0d4f4305': '編輯模型',
+  'app.ai.modelsider.2bfc5643': '取消置頂',
+  'app.ai.modelsider.3e8d9edb': '設為默認',
+  'app.ai.modelsider.3f982cb6': '刪除',
+  'app.ai.modelsider.6e61d44b': '啟用',
+  'app.ai.modelsider.71c9c6d0': '置頂',
+  'app.ai.modelsider.764a9874': '添加模型',
+  'app.ai.modelsider.896ba845': '模型',
+  'app.ai.modelsider.baefd5e8': '禁用',
+  'app.ai.modelsider.cc8fb513': '編輯',
+  'app.ai.modelsider.ce802c5c': '未命名模型',
+  'app.ai.modelsider.d91788c0': '請設置一個默認模型！',
+  'app.ai.modelsider.ed41fa9b': '默認模型',
+
+  // components/AI/ModelSider/ModelEditForm.tsx
+  'app.ai.modelsider.modeleditform.0795c3e4': '請選擇模型提供商',
+  'app.ai.modelsider.modeleditform.0aed44a0': '貨幣單位',
+  'app.ai.modelsider.modeleditform.0dcb5e49': '上下文窗口大小',
+  'app.ai.modelsider.modeleditform.110bd4b4': '請選擇貨幣單位',
+  'app.ai.modelsider.modeleditform.13459154': '請選擇是否支持思考',
+  'app.ai.modelsider.modeleditform.15696882': '請輸入模型 ID',
+  'app.ai.modelsider.modeleditform.1a077c0b': '最大輸出 token 數',
+  'app.ai.modelsider.modeleditform.28d1eb62': '最大重試次數',
+  'app.ai.modelsider.modeleditform.2a8c9b2a': '請輸入輸入單價',
+  'app.ai.modelsider.modeleditform.2af436d1': '禁用',
+  'app.ai.modelsider.modeleditform.301d9e41': '組織 ID 1',
+  'app.ai.modelsider.modeleditform.345c1867': '請輸入模型名稱',
+  'app.ai.modelsider.modeleditform.39c90149': '請輸入代理',
+  'app.ai.modelsider.modeleditform.3ea69b66': '取消',
+  'app.ai.modelsider.modeleditform.3f2b7a7d': 'API 密鑰',
+  'app.ai.modelsider.modeleditform.420de5ba': '是否支持搜索',
+  'app.ai.modelsider.modeleditform.44a1b9eb': '請輸入併發請求數限制',
+  'app.ai.modelsider.modeleditform.4af5509c': '是否支持視覺',
+  'app.ai.modelsider.modeleditform.4f11f17f': '每日最大請求數',
+  'app.ai.modelsider.modeleditform.535e21e7': '啟用',
+  'app.ai.modelsider.modeleditform.6892fb9f': '請輸入排序值',
+  'app.ai.modelsider.modeleditform.6a0f084a': '是否支持思考',
+  'app.ai.modelsider.modeleditform.6bfbd6d0': '請選擇是否支持搜索',
+  'app.ai.modelsider.modeleditform.6dadd797': '組織 ID 2',
+  'app.ai.modelsider.modeleditform.6fcc72fc': '請輸入請求超時時間（秒）',
+  'app.ai.modelsider.modeleditform.72aa0f0c': '請選擇是否支持函數',
+  'app.ai.modelsider.modeleditform.743ba271': '名稱',
+  'app.ai.modelsider.modeleditform.7a726839': '默認參數',
+  'app.ai.modelsider.modeleditform.7e8f8c2f': '是否支持提示緩存',
+  'app.ai.modelsider.modeleditform.818065d1':
+    '請輸入每分鐘最大 Token 數（TPM）',
+  'app.ai.modelsider.modeleditform.82e55cff': '請求超時時間（秒）',
+  'app.ai.modelsider.modeleditform.8363b67c': '狀態',
+  'app.ai.modelsider.modeleditform.8716d64a': '每分鐘最大 Token 數（TPM）',
+  'app.ai.modelsider.modeleditform.8c89526c': '請輸入輸出單價',
+  'app.ai.modelsider.modeleditform.8f23ef75': '代理',
+  'app.ai.modelsider.modeleditform.948c1217': '輸出單價',
+  'app.ai.modelsider.modeleditform.9f5b8505': '請輸入最大重試次數',
+  'app.ai.modelsider.modeleditform.a16a06e4': '請輸入組織 ID',
+  'app.ai.modelsider.modeleditform.a223d373': '描述',
+  'app.ai.modelsider.modeleditform.a46c7b8a': '加載中...',
+  'app.ai.modelsider.modeleditform.b1e6a82c': '請選擇是否支持視覺',
+  'app.ai.modelsider.modeleditform.b2b54bc3': '否',
+  'app.ai.modelsider.modeleditform.b32031aa': '模型 ID',
+  'app.ai.modelsider.modeleditform.b41d4008': '請輸入 API 密鑰',
+  'app.ai.modelsider.modeleditform.b598ad3b': '請輸入 API 版本',
+  'app.ai.modelsider.modeleditform.b9ed74af': '請輸入 API 基礎 URL',
+  'app.ai.modelsider.modeleditform.bae60abc': '組織 ID',
+  'app.ai.modelsider.modeleditform.bb3d9ba5': '模型提供商',
+  'app.ai.modelsider.modeleditform.be1c57f4': '更新',
+  'app.ai.modelsider.modeleditform.c0c098dc': '創建',
+  'app.ai.modelsider.modeleditform.d94dc205': '排序',
+  'app.ai.modelsider.modeleditform.de3083d4': '輸入單價',
+  'app.ai.modelsider.modeleditform.de79ea68': '請輸入每分鐘最大請求數（RPM）',
+  'app.ai.modelsider.modeleditform.e0874fdf': '併發請求數限制',
+  'app.ai.modelsider.modeleditform.e53e93df': '請選擇是否支持提示緩存',
+  'app.ai.modelsider.modeleditform.e8843de3': '是否支持函數',
+  'app.ai.modelsider.modeleditform.e95e2bdd': 'API 版本',
+  'app.ai.modelsider.modeleditform.eebd8105': '請輸入每日最大請求數',
+  'app.ai.modelsider.modeleditform.f013f731': '排序只能輸入自然數',
+  'app.ai.modelsider.modeleditform.f4aea1c2': '請輸入描述',
+  'app.ai.modelsider.modeleditform.f8d44568': '是',
+  'app.ai.modelsider.modeleditform.fb4b43e1': 'API 基礎 URL',
+  'app.ai.modelsider.modeleditform.fb74f081': '每分鐘最大請求數（RPM）',
+
+  // components/AI/PromptSider/index.tsx
+  'app.ai.promptsider.d9ac182e': '提示詞側邊欄',
+
+  // components/AI/RagSider/ArticleRagSider.tsx
+  'app.ai.ragsider.articleragsider.44bf3769': '搜索中...',
+  'app.ai.ragsider.articleragsider.5f6fc64e': '已加載全部結果',
+  'app.ai.ragsider.articleragsider.84187a13': '暫無相關文章',
+  'app.ai.ragsider.articleragsider.9b6eab23': '加載更多...',
+
+  // components/AI/RagSider/index.tsx
+  'app.ai.ragsider.8c8e1f9b': '暫不支持',
+
+  // components/AI/ThinkingBlock/index.tsx
+  'app.ai.thinkingblock.88d59063': '正在思考中...',
+  'app.ai.thinkingblock.beb4c75f': '思考過程',
+
+  // components/AI/TokenBadge/index.tsx
+  'app.ai.tokenbadge.129dce39': '輸出：',
+  'app.ai.tokenbadge.9adaac0b': '提示詞：',
+  'app.ai.tokenbadge.bbaec5f9': '思考：',
+  'app.ai.tokenbadge.c668c14a': '合計：',
+
+  // components/Article/ArticleHome.tsx
+  'app.article.article.articlehome.327a85a5': 'ARTE - 文章列表',
+  'app.article.article.articlehome.be8b77fe': '加載更多...',
+  'app.article.article.articlehome.c9824fab': '共找到',
+  'app.article.article.articlehome.da627558': '暫無文章',
+  'app.article.article.articlehome.fff6d41f': '條相關內容',
+
+  // components/Article/components/article/ArticleCard.tsx
+  'app.article.article.articlecard.4ff7fa02': '作為檢索候選',
+  'app.article.article.articlecard.63d211db': '文章封面',
+  'app.article.article.articlecard.90c2ecec': '未命名文章',
+  'app.article.article.articlecard.a934b067': '暫無摘要',
+  'app.article.article.articlecard.cf59b962': '在新標籤中打開',
+
+  // components/Article/components/article/ArticleCoverModal.tsx
+  'app.article.article.articlecovermodal.15c989b4': '封面保存失敗',
+  'app.article.article.articlecovermodal.20028740': '封面已保存',
+  'app.article.article.articlecovermodal.2eb6f68a': '封面已清除',
+  'app.article.article.articlecovermodal.3480ee81': '設置文章封面',
+  'app.article.article.articlecovermodal.37b367c7': '封面上傳成功',
+  'app.article.article.articlecovermodal.404e21e3': '清除封面',
+  'app.article.article.articlecovermodal.5ef295fa': '暫無封面',
+  'app.article.article.articlecovermodal.6907f718': '取消',
+  'app.article.article.articlecovermodal.707ea8b9': '上傳封面',
+  'app.article.article.articlecovermodal.73a463b2': '請選擇圖片文件',
+  'app.article.article.articlecovermodal.799b2c41': '文章封面',
+  'app.article.article.articlecovermodal.84318691': '請先打開一篇文章',
+  'app.article.article.articlecovermodal.d18c4b48': '封面上傳失敗',
+  'app.article.article.articlecovermodal.f29e631f': '保存封面',
+
+  // components/Article/components/article/ArticleMetaInfo.tsx
+  'app.article.article.articlemetainfo.24e1530f': '可編輯',
+  'app.article.article.articlemetainfo.3add4155': '最後修改時間：',
+  'app.article.article.articlemetainfo.3b0cc08e': '權限：',
+  'app.article.article.articlemetainfo.69110004': '未保存',
+  'app.article.article.articlemetainfo.77eb28ec': '保存失敗',
+  'app.article.article.articlemetainfo.7cbe191f': '可批註',
+  'app.article.article.articlemetainfo.88245809': '最後修改人：',
+  'app.article.article.articlemetainfo.8cca2c36': '作者：',
+  'app.article.article.articlemetainfo.9e428673': '狀態：',
+  'app.article.article.articlemetainfo.b313084b': '完全控制',
+  'app.article.article.articlemetainfo.bcf8f5f6': '字數：',
+  'app.article.article.articlemetainfo.c41cdef1': '未知',
+  'app.article.article.articlemetainfo.c79d59f9': '可讀',
+  'app.article.article.articlemetainfo.d59f41e1': '創建時間：',
+  'app.article.article.articlemetainfo.d90f1a4a': '保存成功',
+  'app.article.article.articlemetainfo.dc6acae2': '保存中',
+  'app.article.article.articlemetainfo.dc81e0e5': '未變化',
+
+  // components/Article/components/article/ArticlePopover.tsx
+  'app.article.article.articlepopover.259e9393': '字',
+  'app.article.article.articlepopover.6d310fb2': '更新時間',
+  'app.article.article.articlepopover.e788c7ff': '字數',
+  'app.article.article.articlepopover.e93b6a84': '相關內容',
+  'app.article.article.articlepopover.f9f765cb': '作者',
+  'app.article.article.articlepopover.fafb71d2': '創建時間',
+
+  // components/Article/components/article/ArticleSearch.tsx
+  'app.article.article.articlesearch.05708f44': '展開',
+  'app.article.article.articlesearch.0e56f79c': '收起',
+  'app.article.article.articlesearch.2df1c531': '我的空間',
+  'app.article.article.articlesearch.4290c88f': '公共空間',
+  'app.article.article.articlesearch.43a5a207': '搜索標題',
+  'app.article.article.articlesearch.55a9f9a5': '請選擇標籤',
+  'app.article.article.articlesearch.6a7ccc6a': '{value0} 字',
+  'app.article.article.articlesearch.6f323566': '字數範圍',
+  'app.article.article.articlesearch.73e5f0c2': '搜索文章...',
+  'app.article.article.articlesearch.c0088b15': '共享給我',
+  'app.article.article.articlesearch.ce187aeb': '請選擇文章類型',
+  'app.article.article.articlesearch.d8d78e37': '相關性搜索',
+  'app.article.article.articlesearch.f13fb86b': '搜索作者',
+  'app.article.article.articlesearch.fe2c3a26': '請選擇目錄',
+
+  // components/Article/components/article/ArticleSummary.tsx
+  'app.article.article.articlesummary.54557824': '請選擇一個模型',
+  'app.article.article.articlesummary.548f51db': '接受',
+  'app.article.article.articlesummary.60f5f0c8': '請輸入文章總結或摘要',
+  'app.article.article.articlesummary.65b24e88': '生成',
+  'app.article.article.articlesummary.78021264': '保存',
+  'app.article.article.articlesummary.90bc4fbb': '潤色',
+  'app.article.article.articlesummary.9e7f2eed': '上限',
+  'app.article.article.articlesummary.ecff6211': '字',
+  'app.article.article.articlesummary.fd917650':
+    '總結/摘要內容為空，無法潤色，請先輸入內容或接受上一輪生成內容',
+
+  // components/Article/components/article/CharacterCount.tsx
+  'app.article.article.charactercount.b67f2e87': '字數：',
+
+  // components/Article/components/editor/FloatingQuickActions.tsx
+  'app.article.editor.floatingquickactions.5cfffe28': '文章元數據',
+  'app.article.editor.floatingquickactions.9d941b9b': '歷史版本',
+  'app.article.editor.floatingquickactions.aa525073': '內容滾動條',
+  'app.article.editor.floatingquickactions.b19f6435': '到頂部',
+  'app.article.editor.floatingquickactions.c2376a49': '到底部',
+  'app.article.editor.floatingquickactions.d0d913a9': '文章快捷操作',
+
+  // components/Article/components/editor/RawTextArea.tsx
+  'app.article.editor.rawtextarea.5b329fd3': '圖片上傳失敗',
+  'app.article.editor.rawtextarea.c123c525': '文件上傳失敗',
+
+  // components/Article/components/editor/RichTextArea.tsx
+  'app.article.editor.richtextarea.3ac1b6a9': '注',
+  'app.article.editor.richtextarea.772414d7': '添加批註',
+  'app.article.editor.richtextarea.ab02172a': '正在加載編輯器……',
+  'app.article.editor.richtextarea.ab9dbf52': '翻譯結果',
+
+  // components/Article/components/editor/RichTextContext.tsx
+  'app.article.editor.richtextcontext.0a5f9390': '文本對齊',
+  'app.article.editor.richtextcontext.158fc602': '文本列表',
+  'app.article.editor.richtextcontext.26ce764b': '文本工具',
+  'app.article.editor.richtextcontext.386caa53': '翻譯並插入引用',
+  'app.article.editor.richtextcontext.425156a9': '其他文本',
+  'app.article.editor.richtextcontext.4383f4c2': '文本背景色',
+  'app.article.editor.richtextcontext.5463c81d': '無序列表【Mod-Shift-8】',
+  'app.article.editor.richtextcontext.5f50ffc6': '字體族',
+  'app.article.editor.richtextcontext.61000ae1': '文本下標【Mod-,】',
+  'app.article.editor.richtextcontext.6334cde6': '文本斜體【Mod-I】',
+  'app.article.editor.richtextcontext.6d52f7d4': '文本上標【Mod-.】',
+  'app.article.editor.richtextcontext.6e52f611': '字體大小',
+  'app.article.editor.richtextcontext.6ee668d6': '翻譯本段',
+  'app.article.editor.richtextcontext.7049b9d2': '文本格式化',
+  'app.article.editor.richtextcontext.75b177fb': '字',
+  'app.article.editor.richtextcontext.89920612': '文本刪除線【Mod-Shift-S】',
+  'app.article.editor.richtextcontext.8d0fb29e': '翻譯並替換選中內容',
+  'app.article.editor.richtextcontext.904d0278': '解讀',
+  'app.article.editor.richtextcontext.971e0f7b': '數學公式【Mod-M】',
+  'app.article.editor.richtextcontext.b060e21d': '文本下劃線【Mod-U】',
+  'app.article.editor.richtextcontext.b267a805': '行高',
+  'app.article.editor.richtextcontext.b66ccf99': '文本翻譯',
+  'app.article.editor.richtextcontext.b9bfc9bc': '翻譯並替換本段',
+  'app.article.editor.richtextcontext.bf7c3465': '文本代碼【Mod-E】',
+  'app.article.editor.richtextcontext.c9c3dc07': '文本加粗【Mod-B】',
+  'app.article.editor.richtextcontext.d0891109': '左對齊【Mod-Shift-L】',
+  'app.article.editor.richtextcontext.d70cb7fd': '解讀功能暫未實現',
+  'app.article.editor.richtextcontext.d7355ca6': '文本顏色',
+  'app.article.editor.richtextcontext.e2579ac7': '任務列表【Mod-Shift-9】',
+  'app.article.editor.richtextcontext.e2f3554d': '右對齊【Mod-Shift-R】',
+  'app.article.editor.richtextcontext.e63a45fc': '翻譯選中內容',
+  'app.article.editor.richtextcontext.e9a097b6': '居中對齊【Mod-Shift-E】',
+  'app.article.editor.richtextcontext.eb30ca2a': '翻譯並插入選中內容',
+  'app.article.editor.richtextcontext.ec9f8eb3': '有序列表【Mod-Shift-7】',
+  'app.article.editor.richtextcontext.f37c2f04': '文本鏈接【Mod-K】',
+  'app.article.editor.richtextcontext.f5375a63': '文本引用【Mod-Shift-B】',
+
+  // components/Article/components/editor/SearchReplaceBar.tsx
+  'app.article.editor.searchreplacebar.09736f6a': '展開或收起替換',
+  'app.article.editor.searchreplacebar.0b12ff3e': '正則表達式無效',
+  'app.article.editor.searchreplacebar.2d287c9e': '下一處（Enter）',
+  'app.article.editor.searchreplacebar.3cb938b1': '下一處',
+  'app.article.editor.searchreplacebar.3fcdb272': '搜索文章內容',
+  'app.article.editor.searchreplacebar.4e0e5892': '展開替換',
+  'app.article.editor.searchreplacebar.53c5615e': '替換',
+  'app.article.editor.searchreplacebar.5c99541d': '全部替換',
+  'app.article.editor.searchreplacebar.6168b3d3': '上一處（Shift + Enter）',
+  'app.article.editor.searchreplacebar.63f331de': '關閉搜索',
+  'app.article.editor.searchreplacebar.6429e3da': '編輯模式下可替換',
+  'app.article.editor.searchreplacebar.7effc9be': '替換為',
+  'app.article.editor.searchreplacebar.8e4ba8aa': '上一處',
+  'app.article.editor.searchreplacebar.8f15a37c': '使用正則表達式',
+  'app.article.editor.searchreplacebar.aedca075': '無效',
+  'app.article.editor.searchreplacebar.c6d80116': '正則表達式無效：{value0}',
+  'app.article.editor.searchreplacebar.cda6279d': '收起替換',
+  'app.article.editor.searchreplacebar.f9152b29': '區分大小寫',
+
+  // components/Article/components/sidebar/CatalogTreeSidebar.tsx
+  'app.article.sidebar.catalogtreesidebar.01fb9674':
+    '只有管理員可以在公共空間中新建根目錄',
+  'app.article.sidebar.catalogtreesidebar.0211f860': '目錄名稱不能為空',
+  'app.article.sidebar.catalogtreesidebar.06b6ac39': '目錄已刪除',
+  'app.article.sidebar.catalogtreesidebar.0827a64a': '修改文章標題',
+  'app.article.sidebar.catalogtreesidebar.11b4a1d0': '移動目錄失敗',
+  'app.article.sidebar.catalogtreesidebar.1250a36b': '與我分享',
+  'app.article.sidebar.catalogtreesidebar.17318c0b': '公共空間',
+  'app.article.sidebar.catalogtreesidebar.180cab67':
+    '選擇這些文章要移動到的目標目錄。',
+  'app.article.sidebar.catalogtreesidebar.183b962e': '已在本地匹配',
+  'app.article.sidebar.catalogtreesidebar.18c9d0ce':
+    '成功導入 {value0} 篇 Markdown 文章',
+  'app.article.sidebar.catalogtreesidebar.1b387b9e': '批量刪除文章',
+  'app.article.sidebar.catalogtreesidebar.1ee37afb': '刪除文章',
+  'app.article.sidebar.catalogtreesidebar.23142b3c': '文章 #{value0}',
+  'app.article.sidebar.catalogtreesidebar.240fb806': '請選擇目標目錄',
+  'app.article.sidebar.catalogtreesidebar.27ff4125': '文章 {value0}',
+  'app.article.sidebar.catalogtreesidebar.29f43e74': '目錄順序已更新',
+  'app.article.sidebar.catalogtreesidebar.2b756ee2': '移動文章到目錄',
+  'app.article.sidebar.catalogtreesidebar.2c103490': '操作失敗',
+  'app.article.sidebar.catalogtreesidebar.2f5c8c67': '文章標題',
+  'app.article.sidebar.catalogtreesidebar.325c7985': '重命名目錄',
+  'app.article.sidebar.catalogtreesidebar.33a7e8cc': '{value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.347cd9d3': '退出批量',
+  'app.article.sidebar.catalogtreesidebar.3828305e': '批量移動失敗',
+  'app.article.sidebar.catalogtreesidebar.3a8a9393':
+    '正在導入 Markdown 壓縮包…',
+  'app.article.sidebar.catalogtreesidebar.3ad589f1':
+    '壓縮包中沒有 Markdown 文件',
+  'app.article.sidebar.catalogtreesidebar.419b3908': '文章已移動',
+  'app.article.sidebar.catalogtreesidebar.4b407ec6': 'Markdown 壓縮包導入失敗',
+  'app.article.sidebar.catalogtreesidebar.4da89de3': '新建子目錄',
+  'app.article.sidebar.catalogtreesidebar.4e2e8c7a': '獲取目錄樹失敗',
+  'app.article.sidebar.catalogtreesidebar.544545a8':
+    '確定要刪除目錄"{value0}"嗎？其下所有子目錄和文章將被一併刪除，此操作不可恢復。',
+  'app.article.sidebar.catalogtreesidebar.55e850ef':
+    '個目錄/文章，點擊“搜索正文”進入主頁深度搜索',
+  'app.article.sidebar.catalogtreesidebar.5ae3afc5': '子目錄創建成功',
+  'app.article.sidebar.catalogtreesidebar.5ca16f2e': '標題修改成功',
+  'app.article.sidebar.catalogtreesidebar.5febc6e1': '已複製到我的空間',
+  'app.article.sidebar.catalogtreesidebar.645da5fa': '刪除目錄',
+  'app.article.sidebar.catalogtreesidebar.65fe10a7': '搜索目錄',
+  'app.article.sidebar.catalogtreesidebar.6b1d69c4': '文章"{value0}"創建成功',
+  'app.article.sidebar.catalogtreesidebar.6d740c66':
+    '確定要刪除文章"{value0}"嗎？此操作不可恢復。',
+  'app.article.sidebar.catalogtreesidebar.7021bd0c': '子目錄名稱',
+  'app.article.sidebar.catalogtreesidebar.70367c34': '取消',
+  'app.article.sidebar.catalogtreesidebar.792ec85d': '文章“{value0}”導入成功',
+  'app.article.sidebar.catalogtreesidebar.7ab460dd': '批量刪除失敗',
+  'app.article.sidebar.catalogtreesidebar.7c224c9b': '複製失敗',
+  'app.article.sidebar.catalogtreesidebar.7f6d4b42': '已刪除 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.80381937': '已撤回公共狀態',
+  'app.article.sidebar.catalogtreesidebar.820a16e1': '新建根目錄',
+  'app.article.sidebar.catalogtreesidebar.85eef335': '創建子目錄失敗',
+  'app.article.sidebar.catalogtreesidebar.89801373': '目錄名稱',
+  'app.article.sidebar.catalogtreesidebar.98a6be5b': '重命名失敗',
+  'app.article.sidebar.catalogtreesidebar.98bcffda':
+    '只能移動到自己創建的公共目錄',
+  'app.article.sidebar.catalogtreesidebar.9a21ac76': '文章已刪除',
+  'app.article.sidebar.catalogtreesidebar.9c31861b':
+    '請選擇複製到您的私有空間中的目標目錄：',
+  'app.article.sidebar.catalogtreesidebar.a03ad4ba': '創建目錄失敗',
+  'app.article.sidebar.catalogtreesidebar.a424aa2f': '確認刪除',
+  'app.article.sidebar.catalogtreesidebar.a57d8df5':
+    '確定刪除選中的 {value0} 篇文章嗎？此操作不可恢復。',
+  'app.article.sidebar.catalogtreesidebar.a8739d38': '撤回失敗',
+  'app.article.sidebar.catalogtreesidebar.ab9f1b64': '複製操作需要選擇目標目錄',
+  'app.article.sidebar.catalogtreesidebar.ac8cee4e': '刪除目錄失敗',
+  'app.article.sidebar.catalogtreesidebar.afb24336': '已移動 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.b08df0b3': 'Markdown 文章導入失敗',
+  'app.article.sidebar.catalogtreesidebar.b93805da': '撤回公共狀態',
+  'app.article.sidebar.catalogtreesidebar.bb1317b8': '修改標題失敗',
+  'app.article.sidebar.catalogtreesidebar.be63f4fa': '已導出 {value0} 篇文章',
+  'app.article.sidebar.catalogtreesidebar.c0034784': '目錄創建成功',
+  'app.article.sidebar.catalogtreesidebar.c7b1216b': '文章順序已更新',
+  'app.article.sidebar.catalogtreesidebar.c896d7d9': '批量移動文章',
+  'app.article.sidebar.catalogtreesidebar.c9315cff':
+    '已導入 {value0} 篇，後續內容導入失敗',
+  'app.article.sidebar.catalogtreesidebar.d3e3a6f3': '目錄已重命名',
+  'app.article.sidebar.catalogtreesidebar.d413cdcc': '調整文章順序失敗',
+  'app.article.sidebar.catalogtreesidebar.d4fac406': '創建文章失敗',
+  'app.article.sidebar.catalogtreesidebar.dac7b73b':
+    '不能把目錄移動到自己的子目錄中',
+  'app.article.sidebar.catalogtreesidebar.db2ac64b': '文章標題不能為空',
+  'app.article.sidebar.catalogtreesidebar.e288954c': '已發佈至公共空間',
+  'app.article.sidebar.catalogtreesidebar.eb13ae75': '新建文章',
+  'app.article.sidebar.catalogtreesidebar.ebc0b300': '刪除文章失敗',
+  'app.article.sidebar.catalogtreesidebar.eccd2f1e': '我的空間（私有）',
+  'app.article.sidebar.catalogtreesidebar.ed355c6e': '複製到我的空間',
+  'app.article.sidebar.catalogtreesidebar.edc62e31': '目錄 #{value0}',
+  'app.article.sidebar.catalogtreesidebar.f2eb2c96': '請選擇撤回後的私有目錄',
+  'app.article.sidebar.catalogtreesidebar.f424c6c4':
+    '請選擇撤回後的目標目錄（不選則放在根目錄下）：',
+  'app.article.sidebar.catalogtreesidebar.f731ddbc': '移動文章失敗',
+  'app.article.sidebar.catalogtreesidebar.f8e63045': '未命名文章',
+  'app.article.sidebar.catalogtreesidebar.f978a3e4': '選擇目標目錄',
+  'app.article.sidebar.catalogtreesidebar.fb9c9ede': '導出文章失敗',
+  'app.article.sidebar.catalogtreesidebar.fbb37314': '批量操作',
+
+  // components/Article/components/sidebar/CommentsPanel/CommentCard.tsx
+  'app.article.commentspanel.commentcard.021cb45d': '取消',
+  'app.article.commentspanel.commentcard.1e23fd30': '編輯',
+  'app.article.commentspanel.commentcard.2baaa25a': '匿名用戶',
+  'app.article.commentspanel.commentcard.40327ef8': '保存',
+  'app.article.commentspanel.commentcard.68b5a5b1': '評論已刪除',
+  'app.article.commentspanel.commentcard.fbf3488d': '刪除',
+
+  // components/Article/components/sidebar/CommentsPanel/index.tsx
+  'app.article.commentspanel.090fdf48': '條',
+  'app.article.commentspanel.099efd24': '文章正在保存，請稍後再添加批註',
+  'app.article.commentspanel.1dfa2171': '當前用戶沒有批註權限',
+  'app.article.commentspanel.29e3dc27': '請先選擇文章',
+  'app.article.commentspanel.2c8a502f': '請重新選擇需要批註的內容',
+  'app.article.commentspanel.36857387': '已選中文本',
+  'app.article.commentspanel.3abafc40': '切換到編輯或修訂模式後可添加批註',
+  'app.article.commentspanel.4c3e55da': '暫無進行中的批註',
+  'app.article.commentspanel.550110b0': '暫無已解決批註',
+  'app.article.commentspanel.5de5651e': '請先輸入批註內容',
+  'app.article.commentspanel.605e86df': '文章高亮標記同步失敗，請稍後重試',
+  'app.article.commentspanel.6fa3af44': '批註',
+  'app.article.commentspanel.76614cbe': '輸入批註內容，並在正文中選中一段文本',
+  'app.article.commentspanel.7c1a276a': '進行中',
+  'app.article.commentspanel.802c3792': '批註創建失敗，請稍後重試',
+  'app.article.commentspanel.854c2fd4': '已解決',
+  'app.article.commentspanel.945ef85b': '當前未選中文本',
+  'app.article.commentspanel.a9a21514': '請先保存當前文章，再添加批註',
+  'app.article.commentspanel.bd406a8b': '添加批註',
+  'app.article.commentspanel.e4bf81a9': '批註擴展未加載，請刷新後重試',
+  'app.article.commentspanel.e6ffee38': '請先在正文中選中需要批註的內容',
+  'app.article.commentspanel.e721f0a4': '請先選中文本',
+
+  // components/Article/components/sidebar/CommentsPanel/ReplyComposer.tsx
+  'app.article.commentspanel.replycomposer.663d32ba': '回覆',
+  'app.article.commentspanel.replycomposer.dcf0fecd': '回覆這個批註線程...',
+
+  // components/Article/components/sidebar/CommentsPanel/ThreadItem.tsx
+  'app.article.commentspanel.threaditem.0c7ad594': '解決',
+  'app.article.commentspanel.threaditem.1650959b': '已解決',
+  'app.article.commentspanel.threaditem.16f6df6c': '刪除',
+  'app.article.commentspanel.threaditem.28165fbc': '當前用戶沒有批註權限',
+  'app.article.commentspanel.threaditem.5e0613b9': '匿名用戶',
+  'app.article.commentspanel.threaditem.6538a581': '條回覆',
+  'app.article.commentspanel.threaditem.8779bb88': '進行中',
+  'app.article.commentspanel.threaditem.97b77a92': '解決於',
+  'app.article.commentspanel.threaditem.c7e5e32e': '請先選擇文章',
+  'app.article.commentspanel.threaditem.f72272d7': '重新打開',
+
+  // components/Article/components/sidebar/CommentsPanel/utils.ts
+  'app.article.commentspanel.utils.37494f5e': '匿名用戶',
+
+  // components/Article/components/sidebar/EmptySidebar.tsx
+  'app.article.sidebar.emptysidebar.bb2aac16': '請先選擇一篇文章',
+
+  // components/Article/components/sidebar/HistorySidebar/ArticleHistoryCompare.tsx
+  'app.article.historysidebar.articlehistorycompare.1146d73c': '上一個差異',
+  'app.article.historysidebar.articlehistorycompare.1df0ad4d':
+    '當前文章還沒有可對比的歷史版本',
+  'app.article.historysidebar.articlehistorycompare.5a096142': '對比',
+  'app.article.historysidebar.articlehistorycompare.84f7e479': '當前版本',
+  'app.article.historysidebar.articlehistorycompare.9fa8804d': '無差異',
+  'app.article.historysidebar.articlehistorycompare.b24c8a0a': '右側文章版本',
+  'app.article.historysidebar.articlehistorycompare.f6f6809a': '下一個差異',
+  'app.article.historysidebar.articlehistorycompare.fd9a5c58': '左側文章版本',
+  'app.article.historysidebar.articlehistorycompare.ffa54d79': '返回文章',
+
+  // components/Article/components/sidebar/HistorySidebar/ArticleHistoryPanel.tsx
+  'app.article.historysidebar.articlehistorypanel.3cc868ab': '未知用戶',
+  'app.article.historysidebar.articlehistorypanel.4d05751e': '版本管理',
+  'app.article.historysidebar.articlehistorypanel.6a9c490d':
+    '點擊歷史版本進入左右對比',
+  'app.article.historysidebar.articlehistorypanel.9a1879c4': '當前版本',
+  'app.article.historysidebar.articlehistorypanel.cc1ef391': '暫無修改時間',
+  'app.article.historysidebar.articlehistorypanel.d6c69180': '暫無歷史版本',
+  'app.article.historysidebar.articlehistorypanel.dd95649a': '無標題文章',
+
+  // components/Article/components/sidebar/PublishToPublicModal.tsx
+  'app.article.sidebar.publishtopublicmodal.1457d415':
+    '發佈至公共空間 — "{value0}"',
+  'app.article.sidebar.publishtopublicmodal.2e50661f':
+    '請選擇公共空間中的目標目錄',
+  'app.article.sidebar.publishtopublicmodal.369c1b48': '發佈',
+  'app.article.sidebar.publishtopublicmodal.4473dfbc': '請選擇',
+  'app.article.sidebar.publishtopublicmodal.55aadc8d': '加載中...',
+  'app.article.sidebar.publishtopublicmodal.5a696bdf': '目錄',
+  'app.article.sidebar.publishtopublicmodal.6400bd3c':
+    '在公共空間中的目標位置：',
+  'app.article.sidebar.publishtopublicmodal.688555dc': '文章',
+  'app.article.sidebar.publishtopublicmodal.a870e400': '發佈失敗',
+  'app.article.sidebar.publishtopublicmodal.b6d39045': '取消',
+  'app.article.sidebar.publishtopublicmodal.caac65d1': '已發佈至公共空間',
+  'app.article.sidebar.publishtopublicmodal.fce6d565': '獲取公共空間目錄失敗',
+
+  // components/Article/components/sidebar/SelectTargetCatalogModal.tsx
+  'app.article.sidebar.selecttargetcatalogmodal.264963dc': '確定',
+  'app.article.sidebar.selecttargetcatalogmodal.30ec6af4': '加載中...',
+  'app.article.sidebar.selecttargetcatalogmodal.4bdf2d62': '取消',
+  'app.article.sidebar.selecttargetcatalogmodal.9256b9f4': '操作失敗',
+  'app.article.sidebar.selecttargetcatalogmodal.b18e9e7f': '獲取目標目錄失敗',
+
+  // components/Article/components/sidebar/ShareSettingModal.tsx
+  'app.article.sidebar.sharesettingmodal.056e97c7': '可批註',
+  'app.article.sidebar.sharesettingmodal.07b876ab': '分享設置 - "{value0}"',
+  'app.article.sidebar.sharesettingmodal.0e062413': '文章權限',
+  'app.article.sidebar.sharesettingmodal.0f9528ad': '複製文章鏈接',
+  'app.article.sidebar.sharesettingmodal.110bda0f': '添加權限',
+  'app.article.sidebar.sharesettingmodal.13aed24a': '輸入角色編碼或名稱搜索',
+  'app.article.sidebar.sharesettingmodal.1cc01d34': '保存',
+  'app.article.sidebar.sharesettingmodal.1ee7ac1c': '可新建子內容',
+  'app.article.sidebar.sharesettingmodal.2f7bb1b0': '完全控制',
+  'app.article.sidebar.sharesettingmodal.3b96ca3d': '移除失敗',
+  'app.article.sidebar.sharesettingmodal.4993527a': '可讀',
+  'app.article.sidebar.sharesettingmodal.51571f1f': '加載分享列表失敗',
+  'app.article.sidebar.sharesettingmodal.53a2285b': '請選擇角色',
+  'app.article.sidebar.sharesettingmodal.5d90aa2f': '已有文章權限',
+  'app.article.sidebar.sharesettingmodal.61929b75': '關閉',
+  'app.article.sidebar.sharesettingmodal.652f9ab6': '目錄權限',
+  'app.article.sidebar.sharesettingmodal.92329e10': '文章鏈接已複製到剪貼板',
+  'app.article.sidebar.sharesettingmodal.925ad117': '移除',
+  'app.article.sidebar.sharesettingmodal.93f4c10e': '已添加的權限',
+  'app.article.sidebar.sharesettingmodal.946c2d4a': '輸入用戶名或郵箱搜索',
+  'app.article.sidebar.sharesettingmodal.a1891177': '可編輯',
+  'app.article.sidebar.sharesettingmodal.a9234faf': '權限已更新',
+  'app.article.sidebar.sharesettingmodal.a95fadad': '角色',
+  'app.article.sidebar.sharesettingmodal.ae4048a6': '權限更新失敗',
+  'app.article.sidebar.sharesettingmodal.bc122df2': '用戶',
+  'app.article.sidebar.sharesettingmodal.cfb12895': '可訪問',
+  'app.article.sidebar.sharesettingmodal.df36575a': '請選擇用戶',
+  'app.article.sidebar.sharesettingmodal.e0f5b9c3': '已移除 {value0} 的權限',
+  'app.article.sidebar.sharesettingmodal.edeabb46': '分享成功',
+  'app.article.sidebar.sharesettingmodal.f2eca02d': '複製失敗',
+  'app.article.sidebar.sharesettingmodal.fdb1c8a3': '分享失敗',
+
+  // components/Article/components/sidebar/SpaceTree.tsx
+  'app.article.sidebar.spacetree.1166af46': '可訪問',
+  'app.article.sidebar.spacetree.171ba34e': '刪除目錄',
+  'app.article.sidebar.spacetree.2498f80b': '移動',
+  'app.article.sidebar.spacetree.26e7e3fb': '未知',
+  'app.article.sidebar.spacetree.2fdd9f34': '移動到目錄',
+  'app.article.sidebar.spacetree.36e5a20b': '重命名',
+  'app.article.sidebar.spacetree.3b1a521f': '清空',
+  'app.article.sidebar.spacetree.40d0beb3': '可編輯',
+  'app.article.sidebar.spacetree.50034169': '導入 Markdown 壓縮包',
+  'app.article.sidebar.spacetree.546c963a': '導出',
+  'app.article.sidebar.spacetree.5867a669': '撤回公共狀態',
+  'app.article.sidebar.spacetree.5a5ff0ed': '可讀',
+  'app.article.sidebar.spacetree.5a99b362': '可新建子內容',
+  'app.article.sidebar.spacetree.5b56d2a6': '分享設置',
+  'app.article.sidebar.spacetree.625e893f': '導入 Markdown 文章',
+  'app.article.sidebar.spacetree.66797756': '已退出共享',
+  'app.article.sidebar.spacetree.6f09acef': '完全控制',
+  'app.article.sidebar.spacetree.720fa76a': '已選擇',
+  'app.article.sidebar.spacetree.7d722924': '可批註',
+  'app.article.sidebar.spacetree.84483664': '發佈至公共空間',
+  'app.article.sidebar.spacetree.96e52f5b': '刪除文章',
+  'app.article.sidebar.spacetree.aab54257': '退出共享',
+  'app.article.sidebar.spacetree.b04574e1': '刪除',
+  'app.article.sidebar.spacetree.b8cb3d2b': '複製到我的空間',
+  'app.article.sidebar.spacetree.bd3ed3d7': '在此目錄下新建文章',
+  'app.article.sidebar.spacetree.ce3a66c8': '新建子目錄',
+  'app.article.sidebar.spacetree.d40c4e29': '修改標題',
+  'app.article.sidebar.spacetree.db52c85e': '篇文章',
+  'app.article.sidebar.spacetree.dd47a0d8': '當前權限：{value0}',
+  'app.article.sidebar.spacetree.df1c9393': '退出共享失敗',
+  'app.article.sidebar.spacetree.f817a1f4': '(無標題)',
+
+  // components/Article/components/sidebar/TableOfContents.tsx
+  'app.article.sidebar.tableofcontents.5738d1de': '章節列表',
+  'app.article.sidebar.tableofcontents.66440a48': '摺疊',
+  'app.article.sidebar.tableofcontents.b037db96': '展開',
+
+  // components/Article/components/sidebar/WritingManager.tsx
+  'app.article.sidebar.writingmanager.10ca2c0a': '續寫字數上限',
+  'app.article.sidebar.writingmanager.5e5f07aa': '前文佔比',
+  'app.article.sidebar.writingmanager.72fe37cb': '保存成功',
+  'app.article.sidebar.writingmanager.91c75304': '續寫或翻譯時攜帶的上下文數量',
+  'app.article.sidebar.writingmanager.cb6fbd7f': '後文佔比',
+  'app.article.sidebar.writingmanager.dd1ba7a2': '上下文字數',
+
+  // components/Article/extension/ai-completion/AiCompletionPlugin.ts
+  'app.article.aicompletion.aicompletionplugin.6d39fe2a': 'AI 補全失敗',
+
+  // components/Article/extension/ai-completion/context-builder.ts
+  'app.article.aicompletion.contextbuilder.99a16105': '[圖片: {value0}]',
+
+  // components/Article/extension/ai-writer/AiWriterView.tsx
+  'app.article.aiwriter.aiwriterview.1ecb6975': '請輸入你的提示內容',
+  'app.article.aiwriter.aiwriterview.48938e9c': '生成',
+  'app.article.aiwriter.aiwriterview.5c597642': '插入',
+  'app.article.aiwriter.aiwriterview.d5ec04e7': '取消',
+
+  // components/Article/extension/audio/audio-input-dialog.tsx
+  'app.article.audio.audioinputdialog.0cd920cf': 'none - 不預加載',
+  'app.article.audio.audioinputdialog.1d70edfe': '取消',
+  'app.article.audio.audioinputdialog.2239adf2': '禁用遠程播放',
+  'app.article.audio.audioinputdialog.31c4e234': 'metadata - 預加載元數據',
+  'app.article.audio.audioinputdialog.35a3ed41': 'nodownload - 隱藏下載按鈕',
+  'app.article.audio.audioinputdialog.3e4dd0e8': 'nofullscreen - 隱藏全屏入口',
+  'app.article.audio.audioinputdialog.3e81a62e': '自動播放',
+  'app.article.audio.audioinputdialog.42b265ad':
+    'noremoteplayback - 隱藏遠程播放入口',
+  'app.article.audio.audioinputdialog.44a7acbc': '(unset) - 不啟用 CORS',
+  'app.article.audio.audioinputdialog.5a8b5e28': '循環播放',
+  'app.article.audio.audioinputdialog.5b9714e4': '請輸入有效的音頻地址',
+  'app.article.audio.audioinputdialog.5ed302df': '插入音頻',
+  'app.article.audio.audioinputdialog.5f28c9f0': 'auto - 自動預加載音頻',
+  'app.article.audio.audioinputdialog.69c8de86': '靜音',
+  'app.article.audio.audioinputdialog.7a0b36c2':
+    'noplaybackrate - 隱藏倍速菜單（部分瀏覽器）',
+  'app.article.audio.audioinputdialog.b433d259': '插入',
+  'app.article.audio.audioinputdialog.b810e238': '更新',
+  'app.article.audio.audioinputdialog.d120250b': '修改音頻',
+  'app.article.audio.audioinputdialog.d4f43676':
+    'use-credentials - 攜帶跨域憑證',
+  'app.article.audio.audioinputdialog.d5857855': '請輸入音頻地址',
+  'app.article.audio.audioinputdialog.da7b209a':
+    'nodownload noremoteplayback - 隱藏下載和遠程播放',
+  'app.article.audio.audioinputdialog.daec1504': '音頻地址',
+  'app.article.audio.audioinputdialog.dc2d0661': '(unset) - 不限制原生控制項',
+  'app.article.audio.audioinputdialog.ea892324': 'anonymous - 不攜帶跨域憑證',
+
+  // components/Article/extension/audio/audio-view.tsx
+  'app.article.audio.audioview.49f91be4': '刪除音頻',
+  'app.article.audio.audioview.97917f5f': '下載音頻',
+  'app.article.audio.audioview.e60337a9': '修改音頻',
+  'app.article.audio.audioview.ebe743fc': '音頻下載失敗',
+
+  // components/Article/extension/canvas/canvas-block-view.tsx
+  'app.article.canvas.canvasblockview.030f50a0': '重做',
+  'app.article.canvas.canvasblockview.04628a98':
+    '自由繪製畫布將在後續 Provider 中接入。',
+  'app.article.canvas.canvasblockview.0eac6b9a':
+    '描述你想生成的圖表，例如：用戶下單到退款的完整流程',
+  'app.article.canvas.canvasblockview.0f778d3c': '編輯',
+  'app.article.canvas.canvasblockview.10017ddf': '思維導圖操作幫助',
+  'app.article.canvas.canvasblockview.10062817':
+    '思維導圖文件已經上傳，但文章保存失敗。請保持編輯窗口並重試保存。',
+  'app.article.canvas.canvasblockview.107310c6': '編輯 Draw.io 圖表',
+  'app.article.canvas.canvasblockview.1441344d': '（正在上傳預覽）',
+  'app.article.canvas.canvasblockview.144b67c1': '同級主題',
+  'app.article.canvas.canvasblockview.16e7ab8b': '插入父主題',
+  'app.article.canvas.canvasblockview.18b1c971': '恢復 100%',
+  'app.article.canvas.canvasblockview.191fcfcf': '方向鍵',
+  'app.article.canvas.canvasblockview.1eae6744': '主題下移',
+  'app.article.canvas.canvasblockview.1ed0ebcf':
+    '使用 Mind Elixir 創建和編輯結構化思維導圖。',
+  'app.article.canvas.canvasblockview.203fff44': '選擇節點後新增子主題（Tab）',
+  'app.article.canvas.canvasblockview.23d28ca1': '退出全屏',
+  'app.article.canvas.canvasblockview.29efe486': '刪除選中主題',
+  'app.article.canvas.canvasblockview.2ac62e48': 'F2 / 雙擊',
+  'app.article.canvas.canvasblockview.2b59a543': '自由畫布',
+  'app.article.canvas.canvasblockview.2c75d219': '當前瀏覽器不支持全屏展示',
+  'app.article.canvas.canvasblockview.2d9c67c0': '空格 + 拖動',
+  'app.article.canvas.canvasblockview.32a54de6': '生成中',
+  'app.article.canvas.canvasblockview.37cf48ce': '縮放與通用操作',
+  'app.article.canvas.canvasblockview.3b4b04ec':
+    '流程圖預覽上傳失敗，圖表源數據已經保存，請重試。',
+  'app.article.canvas.canvasblockview.41403531': '右鍵主題',
+  'app.article.canvas.canvasblockview.4b2c9a18':
+    '描述你想生成的思維導圖，例如：制定一個新產品上線計劃',
+  'app.article.canvas.canvasblockview.4bbd8f23': '選擇與調整',
+  'app.article.canvas.canvasblockview.4df4d9e1': 'AI 生成（尚不支持）',
+  'app.article.canvas.canvasblockview.50ecb4c9': '無法進入全屏模式',
+  'app.article.canvas.canvasblockview.556451cd': '切換雙向佈局',
+  'app.article.canvas.canvasblockview.5a10395c': '（正在讀取源文件）',
+  'app.article.canvas.canvasblockview.5d4207ed': '縮小',
+  'app.article.canvas.canvasblockview.5f612f64': '放大',
+  'app.article.canvas.canvasblockview.5f84bc55':
+    '流程圖文件已經上傳，但文章保存失敗。請保持編輯窗口並重試保存。',
+  'app.article.canvas.canvasblockview.614295ff': '導出的 SVG 文件格式無效',
+  'app.article.canvas.canvasblockview.6e78f039': '編輯選中主題（F2 或雙擊）',
+  'app.article.canvas.canvasblockview.6e8f0035': '打開主題操作菜單',
+  'app.article.canvas.canvasblockview.70533b71':
+    'AI 未返回有效的思維導圖數據，請調整描述後重試。',
+  'app.article.canvas.canvasblockview.79f8e04c': '主題上移',
+  'app.article.canvas.canvasblockview.7c3adfd6': '編輯選中主題',
+  'app.article.canvas.canvasblockview.8795d6bf':
+    'AI 未返回有效的 Draw.io 圖表數據，請調整描述後重試。',
+  'app.article.canvas.canvasblockview.90684e96': '導圖居中',
+  'app.article.canvas.canvasblockview.932d0846': '思維導圖操作失敗',
+  'app.article.canvas.canvasblockview.9442c76b': '思維導圖',
+  'app.article.canvas.canvasblockview.94b0b121':
+    '選擇節點後新增同級主題（Enter）',
+  'app.article.canvas.canvasblockview.95cf7345':
+    '先單擊選擇一個主題，再使用快捷鍵；按 ? 可開關此幫助。',
+  'app.article.canvas.canvasblockview.991be50b': '關閉幫助',
+  'app.article.canvas.canvasblockview.9976e86a': '創建與編輯',
+  'app.article.canvas.canvasblockview.9abf51ff': 'Draw.io 圖表',
+  'app.article.canvas.canvasblockview.9c876095': '保存並退出',
+  'app.article.canvas.canvasblockview.a1370d69': '導出的文件不是 SVG',
+  'app.article.canvas.canvasblockview.a1afdfbf': '新增子主題',
+  'app.article.canvas.canvasblockview.a1f4c1b5': '移動畫布',
+  'app.article.canvas.canvasblockview.a1f87b57': '子主題',
+  'app.article.canvas.canvasblockview.a7193766': '（正在上傳源文件）',
+  'app.article.canvas.canvasblockview.a77adb9d': '切換選中主題',
+  'app.article.canvas.canvasblockview.a8725ed2': '刪除畫布',
+  'app.article.canvas.canvasblockview.b3065c75': '切換右向佈局',
+  'app.article.canvas.canvasblockview.b709a807': '中心主題',
+  'app.article.canvas.canvasblockview.b94af55c': '快捷鍵幫助（?）',
+  'app.article.canvas.canvasblockview.bc858025': '在前面新增同級主題',
+  'app.article.canvas.canvasblockview.c094f96d': '在後面新增同級主題',
+  'app.article.canvas.canvasblockview.c170ad88':
+    'AI 圖表生成失敗，請稍後重試。',
+  'app.article.canvas.canvasblockview.c40ac313':
+    '流程圖源文件讀取失敗，請稍後重試。',
+  'app.article.canvas.canvasblockview.c5414bed': '撤銷',
+  'app.article.canvas.canvasblockview.cbf06f86': '編輯思維導圖',
+  'app.article.canvas.canvasblockview.d50d5865': '刪除選中主題（Delete）',
+  'app.article.canvas.canvasblockview.d9c0be0d':
+    '流程圖源文件上傳失敗，舊文件仍然保留，請重試。',
+  'app.article.canvas.canvasblockview.dc071f65':
+    '適用於流程圖、架構圖和 UML 圖。',
+  'app.article.canvas.canvasblockview.df7e368b': '在新標籤頁打開',
+  'app.article.canvas.canvasblockview.e13328ad': '恢復默認',
+  'app.article.canvas.canvasblockview.e16c9016':
+    'SVG 缺少有效的尺寸信息，無法生成自適應預覽',
+  'app.article.canvas.canvasblockview.e2f35955':
+    '思維導圖源文件讀取失敗，請稍後重試。',
+  'app.article.canvas.canvasblockview.e6615090': '切換左向佈局',
+  'app.article.canvas.canvasblockview.edf8deaf': '全屏',
+  'app.article.canvas.canvasblockview.ef3cb9ca':
+    '思維導圖保存失敗，舊文件仍然保留，請重試。',
+  'app.article.canvas.canvasblockview.f5c69a59': 'Draw.io 圖表編輯器',
+  'app.article.canvas.canvasblockview.fca1320d': '複製 / 剪切 / 粘貼主題',
+
+  // components/Article/extension/canvas/mindmap-editor.tsx
+  'app.article.canvas.mindmapeditor.4013c274': '請先選擇一個非中心主題節點',
+  'app.article.canvas.mindmapeditor.978b1c69': '思維導圖編輯器尚未初始化',
+
+  // components/Article/extension/FloatingResult/FloatingResultExtension.ts
+  'app.article.floatingresult.floatingresultextension.5a9848b1': '結果',
+
+  // components/Article/extension/FloatingResult/FloatingResultView.tsx
+  'app.article.floatingresult.floatingresultview.2d210a33': '複製',
+  'app.article.floatingresult.floatingresultview.467e545f': '結果',
+  'app.article.floatingresult.floatingresultview.4effdc77': '關閉',
+  'app.article.floatingresult.floatingresultview.f4eae5f5': '已複製',
+
+  // components/Article/extension/image/image-input-dialog.tsx
+  'app.article.image.imageinputdialog.087fcf11': '圖片高度',
+  'app.article.image.imageinputdialog.0dab141a': '圖片內容說明',
+  'app.article.image.imageinputdialog.13ae2a60': '插入圖片',
+  'app.article.image.imageinputdialog.412a3297': 'Alt 文本',
+  'app.article.image.imageinputdialog.498e200a': '請輸入圖片地址',
+  'app.article.image.imageinputdialog.7a8a1f88': '鼠標懸停時顯示的標題',
+  'app.article.image.imageinputdialog.7b6bd501':
+    '尺寸留空時使用圖片原始大小；在編輯器中拖動圖片四角會保持寬高比。',
+  'app.article.image.imageinputdialog.7c01f1e5': '插入',
+  'app.article.image.imageinputdialog.7cf8b53a': '更新',
+  'app.article.image.imageinputdialog.8674be98': '原始寬度',
+  'app.article.image.imageinputdialog.9439d1cb': '圖片標題',
+  'app.article.image.imageinputdialog.aba31061': '修改圖片',
+  'app.article.image.imageinputdialog.bee2c25e': '寬度',
+  'app.article.image.imageinputdialog.c7da297b':
+    '請輸入有效的 HTTP 或 HTTPS 圖片地址',
+  'app.article.image.imageinputdialog.db65d8e7': '圖片地址',
+  'app.article.image.imageinputdialog.dc49744e': '圖片寬度',
+  'app.article.image.imageinputdialog.e1ce6692': '取消',
+  'app.article.image.imageinputdialog.e355fd16': '原始高度',
+  'app.article.image.imageinputdialog.feab32c6': '高度',
+
+  // components/Article/extension/image/image-preview.tsx
+  'app.article.image.imagepreview.0ac68cec': '適應窗口',
+  'app.article.image.imagepreview.21216d85': '縮小',
+  'app.article.image.imagepreview.2bcaf666': '定位到正文',
+  'app.article.image.imagepreview.3b348d0f': '圖片複製失敗',
+  'app.article.image.imagepreview.3f7c93c4': '放大',
+  'app.article.image.imagepreview.539ae68a': '複製圖片',
+  'app.article.image.imagepreview.56c04ac0': '圖片已複製',
+  'app.article.image.imagepreview.6825f70e': '定位',
+  'app.article.image.imagepreview.a4eef18f': '下一張',
+  'app.article.image.imagepreview.e068a8ee': '圖片轉換失敗',
+  'app.article.image.imagepreview.fd0a862b': '上一張',
+
+  // components/Article/extension/image/image-view.tsx
+  'app.article.image.imageview.0c3aba3a': '拖動左下角調整圖片大小',
+  'app.article.image.imageview.499b5749': '拖動右下角調整圖片大小',
+  'app.article.image.imageview.e8bd64ae': '拖動右上角調整圖片大小',
+  'app.article.image.imageview.fe15423f': '拖動左上角調整圖片大小',
+
+  // components/Article/extension/InsecureImagePasteHandler.ts
+  'app.article.extension.insecureimagepastehandler.a81cc2f4':
+    '有 {value0} 張 HTTP 圖片轉存失敗，已保留原始地址。',
+  'app.article.extension.insecureimagepastehandler.cbf7c27c':
+    'HTTP 圖片轉存失敗',
+
+  // components/Article/extension/MathFormula/MathFormulaModal.tsx
+  'app.article.mathformula.mathformulamodal.00f836fe': '塊級公式',
+  'app.article.mathformula.mathformulamodal.1c3452c2': '預覽：',
+  'app.article.mathformula.mathformulamodal.404f8313': '行內公式',
+  'app.article.mathformula.mathformulamodal.480646f1': '編輯數學公式',
+  'app.article.mathformula.mathformulamodal.48c97624':
+    '公式解析錯誤，請檢查 LaTeX 語法',
+  'app.article.mathformula.mathformulamodal.62e2f16f':
+    '請輸入 LaTeX 公式，例如：x^2 + y^2 = z^2',
+  'app.article.mathformula.mathformulamodal.794a238f': '保存',
+  'app.article.mathformula.mathformulamodal.891b20d7': '二次公式',
+  'app.article.mathformula.mathformulamodal.b5347b75': '示例：',
+  'app.article.mathformula.mathformulamodal.be18a95c': '輸入公式後顯示預覽...',
+  'app.article.mathformula.mathformulamodal.bfaec07d': '質能方程',
+  'app.article.mathformula.mathformulamodal.c08bcd0f': '積分',
+  'app.article.mathformula.mathformulamodal.c4397fd5': '求和',
+  'app.article.mathformula.mathformulamodal.e74c03ef': 'LaTeX 代碼：',
+  'app.article.mathformula.mathformulamodal.fe95a273': '取消',
+
+  // components/Article/extension/mermaid/mermaid-input-dialog.tsx
+  'app.article.mermaid.mermaidinputdialog.12bb7e7c': '插入',
+  'app.article.mermaid.mermaidinputdialog.3948bca5': '更新',
+  'app.article.mermaid.mermaidinputdialog.6f7612ef':
+    'Mermaid 語法錯誤，請檢查代碼',
+  'app.article.mermaid.mermaidinputdialog.cf744d77': '取消',
+  'app.article.mermaid.mermaidinputdialog.f9aecd74': 'mermaid 圖表',
+
+  // components/Article/extension/mermaid/mermaid-view.tsx
+  'app.article.mermaid.mermaidview.043407b5': 'Mermaid 渲染錯誤',
+
+  // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.bf9e0257': '設置鏈接失敗：',
+
+  // components/Article/extension/MyMention/suggestion.ts
+  'app.article.mymention.suggestion.05a3660a': '田七',
+  'app.article.mymention.suggestion.3657b147': '吳九',
+  'app.article.mymention.suggestion.660f3264': '王五本是端',
+  'app.article.mymention.suggestion.711fe082': '鄭六六六',
+  'app.article.mymention.suggestion.7acd9bb8': '周八',
+  'app.article.mymention.suggestion.92a0dd0f': '李四',
+  'app.article.mymention.suggestion.f359f44e': '張老三',
+
+  // components/Article/extension/MyTranslatorExtension.ts
+  'app.article.extension.mytranslatorextension.743079c2': '翻譯結果',
+  'app.article.extension.mytranslatorextension.fb70510c': 'AI 翻譯失敗',
+
+  // components/Article/extension/table/InsertTableModal.tsx
+  'app.article.table.inserttablemodal.2aeb002e': '列數',
+  'app.article.table.inserttablemodal.2db4cb94': '插入表格',
+  'app.article.table.inserttablemodal.2dfbed4a': '編輯器不可用',
+  'app.article.table.inserttablemodal.6179be83': '行數',
+  'app.article.table.inserttablemodal.721e928a': '請輸入列數',
+  'app.article.table.inserttablemodal.832a2b0b': '請輸入行數',
+  'app.article.table.inserttablemodal.cbd45850': '插入表格成功',
+
+  // components/Article/extension/video/video-input-dialog.tsx
+  'app.article.video.videoinputdialog.010dd2f4':
+    'https://.../poster.jpg（可選）',
+  'app.article.video.videoinputdialog.06a9c1b4': '4:3 - 傳統視頻',
+  'app.article.video.videoinputdialog.0e694370': 'metadata - 預加載元數據',
+  'app.article.video.videoinputdialog.2188df59': '取消',
+  'app.article.video.videoinputdialog.2892e362': '1:1 - 方形視頻',
+  'app.article.video.videoinputdialog.2b0b63c4': '顯示 Bilibili 封面',
+  'app.article.video.videoinputdialog.2c31080c': '視頻地址',
+  'app.article.video.videoinputdialog.2d5ca29f': '寬高比',
+  'app.article.video.videoinputdialog.3fbee250': '使用鏈接中的分 P',
+  'app.article.video.videoinputdialog.455aab44': '修改視頻',
+  'app.article.video.videoinputdialog.48235d52': '請輸入有效的視頻地址',
+  'app.article.video.videoinputdialog.50515f5a': '靜音',
+  'app.article.video.videoinputdialog.6279631c': 'none - 不預加載',
+  'app.article.video.videoinputdialog.6545d06e': '自動播放',
+  'app.article.video.videoinputdialog.65d2e1d7': '循環播放',
+  'app.article.video.videoinputdialog.71426b28': '9:16 - 豎屏視頻',
+  'app.article.video.videoinputdialog.7fcb924d': '分 P',
+  'app.article.video.videoinputdialog.827feba9': '插入視頻',
+  'app.article.video.videoinputdialog.86e1f5e4': '顯示控制欄',
+  'app.article.video.videoinputdialog.8756a7f4': 'auto - 自動預加載視頻',
+  'app.article.video.videoinputdialog.8813bf19': '封面地址',
+  'app.article.video.videoinputdialog.964ed747': 'Bilibili 專屬參數',
+  'app.article.video.videoinputdialog.a1cdad55': '插入',
+  'app.article.video.videoinputdialog.b27629e5': '請輸入視頻地址',
+  'app.article.video.videoinputdialog.b98dd22a':
+    'MP4、HLS、DASH、YouTube、Vimeo、Bilibili 等鏈接',
+  'app.article.video.videoinputdialog.bad440e7': '視頻播放器',
+  'app.article.video.videoinputdialog.be2d3ac6': '起始時間',
+  'app.article.video.videoinputdialog.beeba062': '顯示彈幕',
+  'app.article.video.videoinputdialog.c5eaec7c': '視頻寬度',
+  'app.article.video.videoinputdialog.c7a4068b': '更新',
+  'app.article.video.videoinputdialog.ca7fe8d8': '秒',
+  'app.article.video.videoinputdialog.f78c4706': '16:9 - 橫屏視頻',
+  'app.article.video.videoinputdialog.fc1522d3': '移動端行內播放',
+  'app.article.video.videoinputdialog.fd717fc2': '播放器標題',
+
+  // components/Article/extension/video/video-view.tsx
+  'app.article.video.videoview.206c6cb0': '拖動左下角調整視頻大小',
+  'app.article.video.videoview.36604867': '在新標籤頁打開原視頻',
+  'app.article.video.videoview.4273898e': '拖動左上角調整視頻大小',
+  'app.article.video.videoview.55e4160d': '修改視頻',
+  'app.article.video.videoview.8c50b675': '拖動右上角調整視頻大小',
+  'app.article.video.videoview.b2b00143': '拖動右下角調整視頻大小',
+  'app.article.video.videoview.fceb4604': '刪除視頻',
+
+  // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.00c51681': '左右屏切換',
+  'app.article.article.richtexteditor.02d2ccab': '轉換為 Markdown 純文本',
+  'app.article.article.richtexteditor.063fe6cb': '包含加粗',
+  'app.article.article.richtexteditor.085675d0': '富文本顯示',
+  'app.article.article.richtexteditor.0a8ad355': '編輯區域寬度設置',
+  'app.article.article.richtexteditor.1a3b2c4c': '編輯模式',
+  'app.article.article.richtexteditor.1efcfc72': '保存文章內容',
+  'app.article.article.richtexteditor.217f82a7': '保存並離開',
+  'app.article.article.richtexteditor.3e2a3e24': '文本粘貼格式',
+  'app.article.article.richtexteditor.4c0f72e8': '左右同顯',
+  'app.article.article.richtexteditor.4c5df57d': '修訂模式',
+  'app.article.article.richtexteditor.5376d252': '請選擇粘貼格式',
+  'app.article.article.richtexteditor.54070f86': '設置封面',
+  'app.article.article.richtexteditor.5911ae67': '分享文章',
+  'app.article.article.richtexteditor.5a542f71': '包含背景色',
+  'app.article.article.richtexteditor.5df51bee': '背景顏色',
+  'app.article.article.richtexteditor.6159855b': '取消',
+  'app.article.article.richtexteditor.62c3f9c2': '加載文章失敗',
+  'app.article.article.richtexteditor.64c78d0a': '閱讀模式',
+  'app.article.article.richtexteditor.6dca2349': '包含斜體',
+  'app.article.article.richtexteditor.6efad4b2': '修改封面',
+  'app.article.article.richtexteditor.753f5191': '包含顏色',
+  'app.article.article.richtexteditor.871b7b7d': '返回主頁',
+  'app.article.article.richtexteditor.90976cea': '請先創建或打開一篇文章',
+  'app.article.article.richtexteditor.97c58b63': '不保存，直接離開',
+  'app.article.article.richtexteditor.9f25c632': '請輸入文章標題',
+  'app.article.article.richtexteditor.9f483e3b': '文章加載中...',
+  'app.article.article.richtexteditor.a04c4cbf': '轉換為富文本',
+  'app.article.article.richtexteditor.a1f72f28': '純文本顯示',
+  'app.article.article.richtexteditor.a6cff621':
+    '是否先保存當前文章，再打開新的文章？',
+  'app.article.article.richtexteditor.b16bb3a4': '包含裝飾',
+  'app.article.article.richtexteditor.bae6dd75': '插入表格',
+  'app.article.article.richtexteditor.c03a915d':
+    '是否先保存當前文章，再離開編輯頁面？',
+  'app.article.article.richtexteditor.c201e8db': '不保存，直接打開',
+  'app.article.article.richtexteditor.cf9fa79d': '導出 Markdown',
+  'app.article.article.richtexteditor.d560e34c':
+    '編輯器異常，無法轉換，請刷新頁面後重試',
+  'app.article.article.richtexteditor.dfb05fb1': '包含字號',
+  'app.article.article.richtexteditor.ea13a210': '當前文章有未保存內容',
+  'app.article.article.richtexteditor.ef5831a5': '保存並打開',
+  'app.article.article.richtexteditor.f6ca8ac8': '保存失敗，請處理後再切換文章',
+  'app.article.article.richtexteditor.ff88c1b3': '包含字體',
+
+  // components/Article/stores/articleInfoStore.ts
+  'app.article.stores.articleinfostore.02987a0c':
+    '編輯器實例不存在，無法保存文章',
+  'app.article.stores.articleinfostore.1e7b0d05':
+    '文章 ID 不存在，無法保存到後端',
+  'app.article.stores.articleinfostore.384a3815': '文章在保存中，請勿重複保存',
+  'app.article.stores.articleinfostore.526657be': '文章保存失敗，請聯繫管理員',
+  'app.article.stores.articleinfostore.58fae5ff':
+    '當前文章為只讀權限，無法保存',
+  'app.article.stores.articleinfostore.778a7882': '文章內容沒有變化，無需保存',
+  'app.article.stores.articleinfostore.a0aae622':
+    '內容未改變或小於 10 個字符，不予保存',
+  'app.article.stores.articleinfostore.ac77322b': '創建文章[{value0}]失敗',
+  'app.article.stores.articleinfostore.b33c4f48': '文章保存成功',
+  'app.article.stores.articleinfostore.cd6ea56b': '原始文本內容為空，無法保存',
+
+  // components/ArticleListContent/index.tsx
+  'app.common.articlelistcontent.fea05c1d': '發佈在',
+
+  // components/CacheMonitor/index.tsx
+  'app.common.cachemonitor.0c51f07e': '節點-{value0}',
+  'app.common.cachemonitor.0e14cb4f': '清空所有緩存',
+  'app.common.cachemonitor.1343744b': '緩存Key:',
+  'app.common.cachemonitor.5910789e': '刷新',
+  'app.common.cachemonitor.9e36543c': '緩存節點數量:',
+  'app.common.cachemonitor.d0088af9': 'KeepAlive 緩存監控',
+  'app.common.cachemonitor.d10ae479': '刪除',
+  'app.common.cachemonitor.e18661b9': '名稱:',
+  'app.common.cachemonitor.eb35d0c7': '暫無緩存節點',
+
+  // components/DynamicForm/HistoryTab.tsx
+  'app.common.dynamicform.historytab.153c61e2': '創建時間',
+  'app.common.dynamicform.historytab.2f1f93e4': '更新時間',
+  'app.common.dynamicform.historytab.918bfa8e': '記錄信息',
+  'app.common.dynamicform.historytab.a1f234ee': '創建人',
+  'app.common.dynamicform.historytab.e63d8ef0': '暫無',
+  'app.common.dynamicform.historytab.f302cb43': '更新人',
+
+  // components/DynamicForm/index.tsx
+  'app.common.dynamicform.06ef01d2': '確定要',
+  'app.common.dynamicform.1004e217': '歷史記錄',
+  'app.common.dynamicform.1d8d7d36': '最小值',
+  'app.common.dynamicform.3d950905': '創建',
+  'app.common.dynamicform.3f1de104': '{value0}成功',
+  'app.common.dynamicform.44bf94aa': '上傳文件',
+  'app.common.dynamicform.5074f263': '結束日期',
+  'app.common.dynamicform.5506bfd5': '確認提交',
+  'app.common.dynamicform.5b34d296': '確認',
+  'app.common.dynamicform.6614bb9f': '提交',
+  'app.common.dynamicform.665a89dd': '取消',
+  'app.common.dynamicform.7a84342d': '開始日期',
+  'app.common.dynamicform.881e9e21': '更新',
+  'app.common.dynamicform.c79d3b69': '請輸入{value0}',
+  'app.common.dynamicform.cf2f910b': '最大值',
+  'app.common.dynamicform.e4ca6870': '基本信息',
+  'app.common.dynamicform.eb2fd6f5': '此記錄嗎？',
+  'app.common.dynamicform.f7be2880': '加載{value0}選項失敗',
+
+  // components/DynamicForm/NumberRange.tsx
+  'app.common.dynamicform.numberrange.ad495dba': '最大值',
+  'app.common.dynamicform.numberrange.fddf04fa': '最小值',
+
+  // components/DynamicForm/RegionPicker.tsx
+  'app.common.dynamicform.regionpicker.0a15dc77': '西城區',
+  'app.common.dynamicform.regionpicker.0d450b4f': '長寧區',
+  'app.common.dynamicform.regionpicker.19150792': '朝陽區',
+  'app.common.dynamicform.regionpicker.2fea4aaa': '市轄區',
+  'app.common.dynamicform.regionpicker.4bfe0a8b': '請選擇省市區',
+  'app.common.dynamicform.regionpicker.4fe14009': '東城區',
+  'app.common.dynamicform.regionpicker.9ed0b920': '黃浦區',
+  'app.common.dynamicform.regionpicker.d8764a82': '上海市',
+  'app.common.dynamicform.regionpicker.f1f57899': '豐臺區',
+  'app.common.dynamicform.regionpicker.f2b540c1': '北京市',
+  'app.common.dynamicform.regionpicker.febd71ea': '徐彙區',
+
+  // components/DynamicIcon/IconPicker.tsx
+  'app.common.dynamicicon.iconpicker.1380381f': '未找到圖標',
+  'app.common.dynamicicon.iconpicker.96e8d11b': '請選擇圖標',
+  'app.common.dynamicicon.iconpicker.d947bad9': '搜索圖標名稱...',
+
+  // components/JsonEditor/JsonEditor.tsx
+  'app.common.jsoneditor.jsoneditor.00f86a78': '美化',
+  'app.common.jsoneditor.jsoneditor.10d77de0': '美化 (Shift+Alt+F)',
+  'app.common.jsoneditor.jsoneditor.86365c96': '非法',
+  'app.common.jsoneditor.jsoneditor.9906a5fb': 'JSON 格式錯誤',
+  'app.common.jsoneditor.jsoneditor.9a85fda1':
+    '頂層必須是 JSON 對象 {} 或數組 []',
+  'app.common.jsoneditor.jsoneditor.fc3ef774': '合法',
+
+  // components/MyColorPicker/index.tsx
+  'app.common.mycolorpicker.92bbb81c': '顏色改變通知失敗',
+
+  // components/MyRightSiderPanel/MyRightSiderPanel.tsx
+  'app.common.myrightsiderpanel.myrightsiderpanel.1cd22814': '搜索',
+  'app.common.myrightsiderpanel.myrightsiderpanel.47d5d305': '— 已加載全部 —',
+  'app.common.myrightsiderpanel.myrightsiderpanel.8df12d57': '回到頂部',
+  'app.common.myrightsiderpanel.myrightsiderpanel.b5b1bf98': '加載中...',
+
+  // components/MyRightSiderPanel/OperationsMenu.tsx
+  'app.common.myrightsiderpanel.operationsmenu.017e90af': '確認',
+  'app.common.myrightsiderpanel.operationsmenu.19891573': '取消',
+  'app.common.myrightsiderpanel.operationsmenu.86989ab5':
+    '確定要執行「{value0}」嗎？',
+  'app.common.myrightsiderpanel.operationsmenu.cb7b3d8f': '確認操作',
+
+  // components/MyRightSiderPanel/PinnedSection.tsx
+  'app.common.myrightsiderpanel.pinnedsection.a84c5184': '置頂',
+
+  // components/MyTagTree/index.tsx
+  'app.common.mytagtree.13a5ec9f': '全部收起',
+  'app.common.mytagtree.35dc27d4': '展開頂層',
+  'app.common.mytagtree.657065b0': '添加',
+  'app.common.mytagtree.8d5ae0f6': '新標籤',
+  'app.common.mytagtree.a18eaa8a': '全部展開',
+
+  // components/RightContent/AvatarDropdown.tsx
+  'app.common.rightcontent.avatardropdown.706f2fce': '退出登錄',
+  'app.common.rightcontent.avatardropdown.9782bb0d': '修改密碼',
+  'app.common.rightcontent.avatardropdown.9bb2d293': '主題設置',
+  'app.common.rightcontent.avatardropdown.c59e1f9b': '個人設置',
+
+  // components/RightContent/index.tsx
+  'app.common.rightcontent.9eef3df3': '使用文檔',
+
+  // components/RightContent/LangDropdown.tsx
+  'app.common.rightcontent.langdropdown.04240d81': '繁體中文',
+  'app.common.rightcontent.langdropdown.065e2d15': '簡體中文',
+  'app.common.rightcontent.langdropdown.0860a9ed': '語言切換',
+
+  // components/RightContent/ThemeSwitch.tsx
+  'app.common.rightcontent.themeswitch.1a807ba5': '外觀設置',
+  'app.common.rightcontent.themeswitch.506a0a1f': '主題色選擇',
+  'app.common.rightcontent.themeswitch.f3d8be4b': '亮色模式',
+  'app.common.rightcontent.themeswitch.f4b2ea8a': '暗色模式',
+
+  // components/RightContent/VersionDropdown.tsx
+  'app.common.rightcontent.versiondropdown.6ea94a4e': '歷史版本',
+
+  // components/SearchForm/FieldRenderer.tsx
+  'app.common.searchform.fieldrenderer.2c40f64a': '最小值',
+  'app.common.searchform.fieldrenderer.f0a25ed0': '最大值',
+
+  // components/SearchForm/index.tsx
+  'app.common.searchform.2568e9d7': '展開',
+  'app.common.searchform.2d197959': '查詢',
+  'app.common.searchform.4205b408': '收起',
+  'app.common.searchform.852d31a0': '重置',
+  'app.common.searchform.8969d113': '快捷鍵: Ctrl+{value0}',
+
+  // components/SimpleTable/index.tsx
+  'app.common.simpletable.dd289960': '共 {value0} 條記錄',
+  'app.common.simpletable.f4f16d80': '加載數據失敗',
+
+  // components/TabsLayout/index.tsx
+  'app.common.tabslayout.59d57173': '關閉其他',
+  'app.common.tabslayout.ffa65211': '關閉所有',
+
+  // components/TagSelect/index.tsx
+  'app.common.tagselect.419af95d': '展開',
+  'app.common.tagselect.5d7b827b': '全部',
+  'app.common.tagselect.a524cbd2': '收起',
+
+  // components/TagsSelector/index.tsx
+  'app.common.tagsselector.c7484dbc': '請選擇標籤',
+
+  // components/TimeHeader/index.tsx
+  'app.common.timeheader.2a4f53e3': '顯示星期',
+  'app.common.timeheader.4196a805': '隱藏星期',
+  'app.common.timeheader.4611918c': '週日',
+  'app.common.timeheader.4f23b946': '週四',
+  'app.common.timeheader.58ac84b3': '週一',
+  'app.common.timeheader.675b1554': '週六',
+  'app.common.timeheader.7206be4b': '週二',
+  'app.common.timeheader.854ce9d9': '分鐘',
+  'app.common.timeheader.85d18353': '加載中...',
+  'app.common.timeheader.90f6c680': '週五',
+  'app.common.timeheader.a378ca10': '季',
+  'app.common.timeheader.b3893a65': '週三',
+  'app.common.timeheader.c3fa2749': '日',
+  'app.common.timeheader.d109a055': '周',
+  'app.common.timeheader.d3362408': '年',
+  'app.common.timeheader.d5ad045e': '半年',
+  'app.common.timeheader.ebcd1799': '月',
+  'app.common.timeheader.f94c518c': 'YYYY-[第]w[周]',
+  'app.common.timeheader.fe0d88ca': '小時',
+
+  // components/Video/BilibiliPlayer.tsx
+  'app.common.video.bilibiliplayer.0d86babb':
+    'Bilibili 視頻加載失敗，請檢查地址和訪問權限',
+
+  // components/Video/resolveVideoSource.ts
+  'app.common.video.resolvevideosource.847ba6e4':
+    '不支持 {value0}: 協議的視頻地址',
+  'app.common.video.resolvevideosource.ee587116': '未提供視頻地址',
+
+  // components/Video/VideoPlayer.tsx
+  'app.common.video.videoplayer.0b99a4e7': '視頻播放器',
+  'app.common.video.videoplayer.3bd19798': '視頻地址無效',
+  'app.common.video.videoplayer.91b20a66':
+    '視頻加載或播放失敗，請檢查地址和訪問權限',
+  'app.common.video.videoplayer.dfa2c97a': '正在加載視頻…',
+
+  // pages/account/center/components/Applications/index.tsx
+  'app.account.applications.0d59c621': '編輯',
+  'app.account.applications.34bd768c': '新增用戶',
+  'app.account.applications.3b917554': '活躍用戶',
+  'app.account.applications.780332d4': '分享',
+  'app.account.applications.a15b8e60': '萬',
+  'app.account.applications.f696b3c7': '下載',
+
+  // pages/account/center/components/Articles/index.tsx
+  'app.account.articles.d2c86c67': '螞蟻集團',
+  'app.account.articles.d32a4d57': '設計語言',
+
+  // pages/account/center/index.tsx
+  'app.account.center.0fd2a016': '團隊',
+  'app.account.center.2423a1be': '項目',
+  'app.account.center.a01c617f': '應用',
+  'app.account.center.c8c439e1': '標籤',
+  'app.account.center.f78d731f': '文章',
+
+  // pages/account/settings/components/base.tsx
+  'app.account.components.base.079998ff': '請輸入您的所在城市!',
+  'app.account.components.base.0d29e3b0': '請輸入您的國家或地區!',
+  'app.account.components.base.2da05b59': '郵箱',
+  'app.account.components.base.3fb7d772': '個人簡介',
+  'app.account.components.base.50235b25': '請輸入您的暱稱!',
+  'app.account.components.base.521ff7ec': '請輸入您的聯繫電話!',
+  'app.account.components.base.53132d6a': '聯繫電話',
+  'app.account.components.base.621c27f1': '請輸入您的郵箱!',
+  'app.account.components.base.6904fe0e': '暱稱',
+  'app.account.components.base.6a13482c': '街道地址',
+  'app.account.components.base.7aebda63': '所在省市',
+  'app.account.components.base.7fa856f0': '更新基本信息成功',
+  'app.account.components.base.823dbd8c': '國家/地區',
+  'app.account.components.base.a2dd9e07': '頭像',
+  'app.account.components.base.b72753ae': '更換頭像',
+  'app.account.components.base.dbe83b6f': '請輸入您的街道地址!',
+  'app.account.components.base.dc48ea7a': '更新基本信息',
+  'app.account.components.base.dfcec571': '中國',
+  'app.account.components.base.ec37ef1d': '請輸入個人簡介!',
+  'app.account.components.base.ef3d3d4d': '請輸入您的所在省!',
+
+  // pages/account/settings/components/binding.tsx
+  'app.account.components.binding.18193cfa': '當前未綁定釘釘賬號',
+  'app.account.components.binding.1f42edd3': '綁定',
+  'app.account.components.binding.49b79681': '當前未綁定淘寶賬號',
+  'app.account.components.binding.690c91e8': '當前未綁定支付寶賬號',
+  'app.account.components.binding.74b81b21': '綁定釘釘',
+  'app.account.components.binding.bdf50ec9': '綁定淘寶',
+  'app.account.components.binding.e992c0d8': '綁定支付寶',
+
+  // pages/account/settings/components/ChangePasswordModal.tsx
+  'app.account.components.changepasswordmodal.01a20a77': '確認修改',
+  'app.account.components.changepasswordmodal.07487ab2':
+    '密碼修改成功，請重新登錄',
+  'app.account.components.changepasswordmodal.192f052e':
+    '獲取公鑰失敗，請聯繫管理員',
+  'app.account.components.changepasswordmodal.254b3180':
+    '修改失敗，請檢查原密碼是否正確',
+  'app.account.components.changepasswordmodal.3400d748':
+    '密碼長度不能少於 6 位',
+  'app.account.components.changepasswordmodal.43a36df3':
+    '新密碼不能與原密碼相同',
+  'app.account.components.changepasswordmodal.4494a4a9': '請輸入新密碼',
+  'app.account.components.changepasswordmodal.4adb4fff':
+    '兩次輸入的新密碼不一致',
+  'app.account.components.changepasswordmodal.4b44b122': '修改密碼',
+  'app.account.components.changepasswordmodal.61595278': '新密碼',
+  'app.account.components.changepasswordmodal.6daa422a':
+    '獲取用戶名失敗，請聯繫管理員',
+  'app.account.components.changepasswordmodal.aec1363e': '原密碼',
+  'app.account.components.changepasswordmodal.cc2213b2': '請再次輸入新密碼',
+  'app.account.components.changepasswordmodal.d005f2ab': '修改失敗，請稍後重試',
+  'app.account.components.changepasswordmodal.de68d7c6': '請輸入原密碼',
+  'app.account.components.changepasswordmodal.df6b77ee': '取消',
+  'app.account.components.changepasswordmodal.fcf61618': '確認新密碼',
+
+  // pages/account/settings/components/notification.tsx
+  'app.account.components.notification.1e8bd9cd':
+    '系統消息將以站內信的形式通知',
+  'app.account.components.notification.4f599a47': '待辦任務',
+  'app.account.components.notification.74cf0b34': '用戶消息',
+  'app.account.components.notification.9bc09d9a': '開',
+  'app.account.components.notification.a643a86c':
+    '待辦任務將以站內信的形式通知',
+  'app.account.components.notification.ce412638': '系統消息',
+  'app.account.components.notification.dc1dd4e1': '關',
+  'app.account.components.notification.ec0409fb':
+    '其他用戶的消息將以站內信的形式通知',
+
+  // pages/account/settings/components/security.tsx
+  'app.account.components.security.10ec7e3e': '修改',
+  'app.account.components.security.1c202130': '設置',
+  'app.account.components.security.2d675b1b': '密保問題',
+  'app.account.components.security.4f263cce': '綁定',
+  'app.account.components.security.4f80067a': '中',
+  'app.account.components.security.5242ba16': 'MFA 設備',
+  'app.account.components.security.67bef1fd': '弱 Weak',
+  'app.account.components.security.686c37e1': '已綁定手機：{value0}',
+  'app.account.components.security.6e3aa914':
+    '未設置密保問題，密保問題可有效保護賬戶安全【未實現】',
+  'app.account.components.security.b0edbb49': '賬戶密碼',
+  'app.account.components.security.c16120ef': '已綁定郵箱：{value0}',
+  'app.account.components.security.daae1714': '當前密碼強度：',
+  'app.account.components.security.dca27984': '強',
+  'app.account.components.security.ed29990a': '備用郵箱',
+  'app.account.components.security.f38e46d0':
+    '未綁定 MFA 設備，綁定後，可以進行二次確認【未實現】',
+  'app.account.components.security.fafa5019': '密保手機',
+
+  // pages/account/settings/index.tsx
+  'app.account.settings.0bc17387': '賬號綁定',
+  'app.account.settings.518f6bc3': '基本設置',
+  'app.account.settings.6e7dd522': '安全設置',
+  'app.account.settings.c809225e': '新消息通知',
+
+  // pages/Administration/MenuManagement/assignMenusModal.tsx
+  'app.administration.menumanagement.assignmenusmodal.18e5104f': '菜單路徑',
+  'app.administration.menumanagement.assignmenusmodal.1ffcd32c':
+    '菜單分配失敗: {value0}',
+  'app.administration.menumanagement.assignmenusmodal.539070aa': '菜單分配成功',
+  'app.administration.menumanagement.assignmenusmodal.543fafe5': '描述',
+  'app.administration.menumanagement.assignmenusmodal.69254608': '菜單編碼',
+  'app.administration.menumanagement.assignmenusmodal.8e3536de':
+    '請選擇至少一個菜單',
+  'app.administration.menumanagement.assignmenusmodal.9558c886':
+    '為用戶 {value0} 分配菜單',
+  'app.administration.menumanagement.assignmenusmodal.a770c87f': '分配',
+  'app.administration.menumanagement.assignmenusmodal.b19fbad1':
+    '為角色 {value0} 分配菜單',
+  'app.administration.menumanagement.assignmenusmodal.d1347172': '菜單名稱',
+  'app.administration.menumanagement.assignmenusmodal.dff84585': '取消',
+  'app.administration.menumanagement.assignmenusmodal.f3421ea9': '父菜單',
+
+  // pages/Administration/MenuManagement/index.tsx
+  'app.administration.menumanagement.09c7f7b2': '請輸入上級菜單 ID',
+  'app.administration.menumanagement.1d48964a': '刪除用戶操作',
+  'app.administration.menumanagement.2dac04a1': '菜單名稱',
+  'app.administration.menumanagement.31f4e630': '更新時間',
+  'app.administration.menumanagement.370f07aa': '菜單編碼',
+  'app.administration.menumanagement.4120c92b': '請輸入菜單編碼',
+  'app.administration.menumanagement.489e0fa9': '請選擇且只選擇一條記錄',
+  'app.administration.menumanagement.54737232': '導出全部',
+  'app.administration.menumanagement.5944dfe3': '新增',
+  'app.administration.menumanagement.5c9b2d33': '管理操作權限',
+  'app.administration.menumanagement.625c9366': '導出',
+  'app.administration.menumanagement.6508914c': '請輸入創建人',
+  'app.administration.menumanagement.68645428': '正常',
+  'app.administration.menumanagement.72cc438c': '創建時間',
+  'app.administration.menumanagement.73f96419': '狀態',
+  'app.administration.menumanagement.9269eaf4': '完成',
+  'app.administration.menumanagement.95156197': '請輸入菜單地址',
+  'app.administration.menumanagement.98d02641': '請輸入菜單名稱',
+  'app.administration.menumanagement.9a2cd713': '更新人',
+  'app.administration.menumanagement.9e200b59': '初始',
+  'app.administration.menumanagement.b280d1f3': '菜單地址',
+  'app.administration.menumanagement.b51a1a6e': '刪除',
+  'app.administration.menumanagement.b5dbc5ac': '描述',
+  'app.administration.menumanagement.bf5ee8ab': '註銷',
+  'app.administration.menumanagement.c69d48ad': '順序',
+  'app.administration.menumanagement.d21f17a0': '上級菜單 ID',
+  'app.administration.menumanagement.dd19304b': '編輯',
+  'app.administration.menumanagement.e0e81eca': '創建人',
+  'app.administration.menumanagement.e4ef6337': '導出用戶操作',
+  'app.administration.menumanagement.e69960e8': '請選擇創建時間',
+  'app.administration.menumanagement.fcc2a328': '導出全部用戶操作',
+
+  // pages/Administration/MenuManagement/MenuForm.tsx
+  'app.administration.menumanagement.menuform.06cde785':
+    '菜單編碼長度應在2-32個字符之間',
+  'app.administration.menumanagement.menuform.0e1668b0': '初始',
+  'app.administration.menumanagement.menuform.30879b5a': '圖標',
+  'app.administration.menumanagement.menuform.32df64b0': '排序ID',
+  'app.administration.menumanagement.menuform.373fe867': '請選擇父菜單ID',
+  'app.administration.menumanagement.menuform.376479f1': '描述',
+  'app.administration.menumanagement.menuform.3d152d3b': '菜單編碼',
+  'app.administration.menumanagement.menuform.3ef9e209': '正常',
+  'app.administration.menumanagement.menuform.424d2893': '請輸入菜單URL',
+  'app.administration.menumanagement.menuform.4910a4fb':
+    '菜單編碼只能包含字母、數字、下劃線',
+  'app.administration.menumanagement.menuform.5ff84228': '{value0}菜單失敗',
+  'app.administration.menumanagement.menuform.6d4337cd': '創建',
+  'app.administration.menumanagement.menuform.6d49e858': '請輸入菜單編碼',
+  'app.administration.menumanagement.menuform.6e5fd88c': '新增菜單',
+  'app.administration.menumanagement.menuform.732e088b': '菜單名稱',
+  'app.administration.menumanagement.menuform.7f295b47': '取消',
+  'app.administration.menumanagement.menuform.81b2d59a': '是',
+  'app.administration.menumanagement.menuform.8e8aed74': '請輸入排序ID',
+  'app.administration.menumanagement.menuform.8fde0775': '父菜單ID',
+  'app.administration.menumanagement.menuform.9438d897': '請輸入菜單描述信息',
+  'app.administration.menumanagement.menuform.962a70f1': '菜單 URL',
+  'app.administration.menumanagement.menuform.997708e7':
+    '菜單名稱只能包含字母、數字、下劃線、空格和中文',
+  'app.administration.menumanagement.menuform.ab2deb94': '菜單管理',
+  'app.administration.menumanagement.menuform.b6c1c726': '更新',
+  'app.administration.menumanagement.menuform.ba308cbd': '查看菜單',
+  'app.administration.menumanagement.menuform.bbccf323': '完成',
+  'app.administration.menumanagement.menuform.bbf306c6': '註銷',
+  'app.administration.menumanagement.menuform.d4a2ba41': '否',
+  'app.administration.menumanagement.menuform.dfaf5270': '狀態',
+  'app.administration.menumanagement.menuform.e077f78d': '編輯菜單',
+  'app.administration.menumanagement.menuform.e72fd20f': '返回',
+  'app.administration.menumanagement.menuform.e854750c': '請選擇圖標',
+  'app.administration.menumanagement.menuform.f4e143e2': '顯示標誌',
+  'app.administration.menumanagement.menuform.f5bead53': '加載中...',
+  'app.administration.menumanagement.menuform.f69c11b9': '請輸入菜單名稱',
+  'app.administration.menumanagement.menuform.f87bdbda':
+    '菜單名稱長度應在2-32個字符之間',
+  'app.administration.menumanagement.menuform.f9aff1e3': '{value0}菜單成功',
+
+  // pages/Administration/MenuOperationManagement/assignOperationsModal.tsx
+  'app.administration.menuoperationmanagement.assignoperationsmodal.022e88bb':
+    '請選擇至少一個權限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.045ccc08':
+    '權限分配成功',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.16677176':
+    '取消',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.27a54f93':
+    '描述',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.5030849e':
+    '分配',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.512860ba':
+    '權限編碼',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.88c7c888':
+    '為角色 {value0} 分配權限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.bcb54330':
+    '權限名稱',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.d39ef32c':
+    '為用戶 {value0} 分配權限',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.e064ee96':
+    '菜單編碼',
+  'app.administration.menuoperationmanagement.assignoperationsmodal.f8373591':
+    '權限分配失敗: {value0}',
+
+  // pages/Administration/MenuOperationManagement/manageOperationsModal.tsx
+  'app.administration.menuoperationmanagement.manageoperationsmodal.070a129e':
+    '新增操作權限',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.0ac05fe3':
+    '取消',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.0cd6383d':
+    '描述',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.1d5641ba':
+    '狀態',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.2d23b4a5':
+    '請輸入操作代碼',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81':
+    '狀態切換失敗',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.680040eb':
+    '操作',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.6994b13f':
+    '保存',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b':
+    '保存成功',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.813d641d':
+    '請輸入操作名稱',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.81580528':
+    '停用',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.937823e5':
+    '啟用',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9':
+    '編輯',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.a56ab5d4':
+    '操作代碼',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.aec3ec38':
+    '操作名稱',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76':
+    '狀態切換成功',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.b994840f':
+    '保存失敗',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.e36153a8':
+    '請選擇狀態',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.ee250568':
+    '{value0} - 操作權限管理',
+  'app.administration.menuoperationmanagement.manageoperationsmodal.f289caec':
+    '獲取操作權限失敗',
+
+  // pages/Administration/RoleManagement/assignUsersModal.tsx
+  'app.administration.rolemanagement.assignusersmodal.155d3a5b': '姓名',
+  'app.administration.rolemanagement.assignusersmodal.15ad839e': '分配',
+  'app.administration.rolemanagement.assignusersmodal.1add1dfc': '用戶名',
+  'app.administration.rolemanagement.assignusersmodal.29d800c1': '狀態',
+  'app.administration.rolemanagement.assignusersmodal.3eaa66d8': '初始',
+  'app.administration.rolemanagement.assignusersmodal.453f9b5a': '取消',
+  'app.administration.rolemanagement.assignusersmodal.4b5bbc47':
+    '請選擇至少一個用戶',
+  'app.administration.rolemanagement.assignusersmodal.506c5b26':
+    '用戶取消分配失敗: {value0}',
+  'app.administration.rolemanagement.assignusersmodal.54db523f':
+    '用戶分配失敗: {value0}',
+  'app.administration.rolemanagement.assignusersmodal.5fe25560': '手機號',
+  'app.administration.rolemanagement.assignusersmodal.a277ed43': '取消分配',
+  'app.administration.rolemanagement.assignusersmodal.a41be1b9': '正常',
+  'app.administration.rolemanagement.assignusersmodal.b61afcbb': '郵箱',
+  'app.administration.rolemanagement.assignusersmodal.c6be296d':
+    '用戶取消分配成功',
+  'app.administration.rolemanagement.assignusersmodal.f0c79820': '註銷',
+  'app.administration.rolemanagement.assignusersmodal.f38b94b8':
+    '為角色 {value0} 分配用戶',
+  'app.administration.rolemanagement.assignusersmodal.f7c95bdd': '用戶分配成功',
+
+  // pages/Administration/RoleManagement/index.tsx
+  'app.administration.rolemanagement.158d4631': '分配菜單',
+  'app.administration.rolemanagement.1e1b108c': '創建時間',
+  'app.administration.rolemanagement.3a3a05a2': '完成',
+  'app.administration.rolemanagement.4a4d61a5': '創建人',
+  'app.administration.rolemanagement.5091206d': '新增',
+  'app.administration.rolemanagement.5287e26a': '導出角色操作',
+  'app.administration.rolemanagement.5815c49f': '請選擇且只選擇一條記錄',
+  'app.administration.rolemanagement.5daf81c0': '狀態',
+  'app.administration.rolemanagement.5ffea36f': '導出全部角色操作',
+  'app.administration.rolemanagement.63cdb38c': '分配用戶',
+  'app.administration.rolemanagement.6434eed0': '正常',
+  'app.administration.rolemanagement.66fe4023': '請輸入角色編碼',
+  'app.administration.rolemanagement.69104da2': '編輯',
+  'app.administration.rolemanagement.7f9a77ce': '註銷角色操作',
+  'app.administration.rolemanagement.848cca2d': '角色名',
+  'app.administration.rolemanagement.97e4e26c': '描述',
+  'app.administration.rolemanagement.9a5dd799': '導出全部',
+  'app.administration.rolemanagement.a40a406e': '角色編碼',
+  'app.administration.rolemanagement.bca8a187': '初始',
+  'app.administration.rolemanagement.c37f93ce': '請選擇創建時間',
+  'app.administration.rolemanagement.c4241368': '註銷',
+  'app.administration.rolemanagement.c456f9fb': '更新時間',
+  'app.administration.rolemanagement.cf038efb': '請輸入創建人',
+  'app.administration.rolemanagement.d982c119': '請輸入角色名',
+  'app.administration.rolemanagement.e072be94': '更新人',
+  'app.administration.rolemanagement.f42921ba': '導出',
+  'app.administration.rolemanagement.f513b216': '分配權限',
+
+  // pages/Administration/RoleManagement/RoleForm.tsx
+  'app.administration.rolemanagement.roleform.1a54e8d4': '正常',
+  'app.administration.rolemanagement.roleform.34419c56': '初始',
+  'app.administration.rolemanagement.roleform.3c3f061e': '角色名稱',
+  'app.administration.rolemanagement.roleform.3eff5ab2':
+    '角色名稱只能包含字母、數字、下劃線、空格和中文',
+  'app.administration.rolemanagement.roleform.41f237b2': '角色管理',
+  'app.administration.rolemanagement.roleform.4c3d7aa2':
+    '角色名稱長度應在2-32個字符之間',
+  'app.administration.rolemanagement.roleform.53b9f065': '加載中...',
+  'app.administration.rolemanagement.roleform.5962a1cf': '請輸入角色編碼',
+  'app.administration.rolemanagement.roleform.5dcbaa37':
+    '角色編碼只能包含字母、數字、下劃線',
+  'app.administration.rolemanagement.roleform.6129c5ee': '描述',
+  'app.administration.rolemanagement.roleform.663bfd49': '新增角色',
+  'app.administration.rolemanagement.roleform.7e561a7e': '請輸入角色描述信息',
+  'app.administration.rolemanagement.roleform.843ee2fd': '完成',
+  'app.administration.rolemanagement.roleform.89af1f10': '{value0}角色成功',
+  'app.administration.rolemanagement.roleform.8d51139e': '註銷',
+  'app.administration.rolemanagement.roleform.9533a139': '{value0}角色失敗',
+  'app.administration.rolemanagement.roleform.99d060b3': '編輯角色',
+  'app.administration.rolemanagement.roleform.b2ad9443': '取消',
+  'app.administration.rolemanagement.roleform.be955653': '請輸入角色名稱',
+  'app.administration.rolemanagement.roleform.c7593aa0': '角色編碼',
+  'app.administration.rolemanagement.roleform.ca88ef30': '返回',
+  'app.administration.rolemanagement.roleform.ccf51344': '狀態',
+  'app.administration.rolemanagement.roleform.dd127eb6': '查看角色',
+  'app.administration.rolemanagement.roleform.e6712707': '更新',
+  'app.administration.rolemanagement.roleform.e703964d':
+    '角色編碼長度應在2-32個字符之間',
+  'app.administration.rolemanagement.roleform.ec6a795a': '創建',
+
+  // pages/Administration/UserManagement/assignRoleModal.tsx
+  'app.administration.usermanagement.assignrolemodal.006e400c': '角色名稱',
+  'app.administration.usermanagement.assignrolemodal.068d8acb':
+    '角色分配失敗: {value0}',
+  'app.administration.usermanagement.assignrolemodal.738e7bbe': '角色分配成功',
+  'app.administration.usermanagement.assignrolemodal.847b6e67':
+    '請選擇至少一個角色',
+  'app.administration.usermanagement.assignrolemodal.8e2405ff': '角色編碼',
+  'app.administration.usermanagement.assignrolemodal.91f57db6': '取消',
+  'app.administration.usermanagement.assignrolemodal.b7f8970d': '描述',
+  'app.administration.usermanagement.assignrolemodal.ba93ba47':
+    '為用戶 {value0} 分配角色',
+  'app.administration.usermanagement.assignrolemodal.c81d51bf': '分配',
+
+  // pages/Administration/UserManagement/index.tsx
+  'app.administration.usermanagement.0213d713': '請輸入用戶名',
+  'app.administration.usermanagement.101bf14c': '描述',
+  'app.administration.usermanagement.10a7a066':
+    '確定要註銷用戶 "{value0}" 嗎？此操作不可撤銷。',
+  'app.administration.usermanagement.18a9c348': '請輸入創建人',
+  'app.administration.usermanagement.25ab89de': '取消',
+  'app.administration.usermanagement.27d8ddf2': '新增',
+  'app.administration.usermanagement.31d8f455': '導出',
+  'app.administration.usermanagement.3a69d6a4': '確認',
+  'app.administration.usermanagement.3ebdcf2b': '請選擇且只選擇一條記錄',
+  'app.administration.usermanagement.3ff3c6ae': '請選擇創建時間',
+  'app.administration.usermanagement.41289e54': '導出全部用戶操作',
+  'app.administration.usermanagement.4a689783': '確認註銷',
+  'app.administration.usermanagement.4dddeb37': '用戶註銷失敗，請重試',
+  'app.administration.usermanagement.5046c5fa': '完成',
+  'app.administration.usermanagement.653497af': '初始',
+  'app.administration.usermanagement.7cb324b0': '創建時間',
+  'app.administration.usermanagement.81f6c997': '狀態',
+  'app.administration.usermanagement.89cb5e5c': '分配角色',
+  'app.administration.usermanagement.8f30deb9': '創建人',
+  'app.administration.usermanagement.9291cf19': '用戶名',
+  'app.administration.usermanagement.930de5f2': '更新人',
+  'app.administration.usermanagement.95349e47': '導出用戶操作',
+  'app.administration.usermanagement.acf4d00a': '更新時間',
+  'app.administration.usermanagement.ad5a479d': '郵箱',
+  'app.administration.usermanagement.c3cbc231': '分配菜單',
+  'app.administration.usermanagement.c8855b36': '編輯',
+  'app.administration.usermanagement.dfec38d6': '請輸入郵箱',
+  'app.administration.usermanagement.e09d88c1': '分配權限',
+  'app.administration.usermanagement.e7f36e4d': '註銷',
+  'app.administration.usermanagement.efbf1604': '手機號',
+  'app.administration.usermanagement.f1168551': '用戶註銷成功',
+  'app.administration.usermanagement.fb4217ba': '請輸入手機號',
+  'app.administration.usermanagement.ff54ba35': '導出全部',
+  'app.administration.usermanagement.ffcafe9a': '正常',
+
+  // pages/Administration/UserManagement/UserForm.tsx
+  'app.administration.usermanagement.userform.0497bef2': '更新',
+  'app.administration.usermanagement.userform.06765ed4': '接收短信通知',
+  'app.administration.usermanagement.userform.1973baac': '男',
+  'app.administration.usermanagement.userform.2010d9bd': '用戶名',
+  'app.administration.usermanagement.userform.21c76f85':
+    '請輸入正確的手機號格式',
+  'app.administration.usermanagement.userform.23ccb958': '創建',
+  'app.administration.usermanagement.userform.27a4aead': '{value0}用戶成功',
+  'app.administration.usermanagement.userform.282771f1': '手機號',
+  'app.administration.usermanagement.userform.309e4f1f': '加載中...',
+  'app.administration.usermanagement.userform.3d6e374b': '請選擇所在地區',
+  'app.administration.usermanagement.userform.3e5db104': '郵箱',
+  'app.administration.usermanagement.userform.3ec81285': '請選擇出生日期',
+  'app.administration.usermanagement.userform.4288e1de': '未知',
+  'app.administration.usermanagement.userform.473e0758': '初始',
+  'app.administration.usermanagement.userform.4f12da58': '請輸入郵箱地址',
+  'app.administration.usermanagement.userform.52436c95': '取消',
+  'app.administration.usermanagement.userform.56f168db': '請輸入手機號',
+  'app.administration.usermanagement.userform.58bb3ea8': '請輸入用戶描述信息',
+  'app.administration.usermanagement.userform.5c561906': '返回',
+  'app.administration.usermanagement.userform.70b2a5ea': '出生日期',
+  'app.administration.usermanagement.userform.81f596aa': '接收郵件通知',
+  'app.administration.usermanagement.userform.838a6480': '{value0}用戶失敗',
+  'app.administration.usermanagement.userform.864941c0': '編輯用戶',
+  'app.administration.usermanagement.userform.8a1217de': '狀態',
+  'app.administration.usermanagement.userform.92b81d65': '查看用戶',
+  'app.administration.usermanagement.userform.945abf39': '頭像',
+  'app.administration.usermanagement.userform.953cb973': '完成',
+  'app.administration.usermanagement.userform.95e42584': '所在地區',
+  'app.administration.usermanagement.userform.ae33339c': '正常',
+  'app.administration.usermanagement.userform.bdde238b':
+    '用戶名只能包含字母、數字、下劃線和中文',
+  'app.administration.usermanagement.userform.d47d5f82': '個人設置',
+  'app.administration.usermanagement.userform.d96d3a92': '用戶管理',
+  'app.administration.usermanagement.userform.dbc0d0ee':
+    '用戶名長度應在2-20個字符之間',
+  'app.administration.usermanagement.userform.dc818210': '性別',
+  'app.administration.usermanagement.userform.e6a7787e': '描述',
+  'app.administration.usermanagement.userform.e787ffa3': '新增用戶',
+  'app.administration.usermanagement.userform.ebbe66a5': '女',
+  'app.administration.usermanagement.userform.ed726e9b':
+    '圖片大小不能超過2MB！',
+  'app.administration.usermanagement.userform.f607f504': '註銷',
+  'app.administration.usermanagement.userform.f64c1174': '請輸入用戶名',
+  'app.administration.usermanagement.userform.f98b0a91': '請輸入正確的郵箱格式',
+  'app.administration.usermanagement.userform.fcd81126': '只能上傳圖片文件！',
+
+  // pages/AI/ChatManagement/index.tsx
+  'app.ai.chatmanagement.01a924f4': '展開設置面板',
+  'app.ai.chatmanagement.0f538c46': '助手',
+  'app.ai.chatmanagement.a0b69878': '展開會話列表',
+  'app.ai.chatmanagement.a3b58fb8': '模型',
+  'app.ai.chatmanagement.c9bd6fae': '知識庫',
+  'app.ai.chatmanagement.e7f7c4e7': '會話',
+  'app.ai.chatmanagement.fbe4bdea': '新對話',
+
+  // pages/dashboard/analysis/components/IntroduceRow.tsx
+  'app.dashboard.components.introducerow.0e40f2d1': '轉化率',
+  'app.dashboard.components.introducerow.110eb060': '支付筆數',
+  'app.dashboard.components.introducerow.6da2a9ed': '日同比',
+  'app.dashboard.components.introducerow.88618372': '訪問量',
+  'app.dashboard.components.introducerow.b335ab7e': '周同比',
+  'app.dashboard.components.introducerow.c7eb3b01': '運營活動效果',
+  'app.dashboard.components.introducerow.d280b490': '日訪問量',
+  'app.dashboard.components.introducerow.d7b039ec': '總銷售額',
+  'app.dashboard.components.introducerow.d97ce6bf': '指標說明',
+  'app.dashboard.components.introducerow.dfab7972': '日銷售額',
+
+  // pages/dashboard/analysis/components/OfflineData.tsx
+  'app.dashboard.components.offlinedata.bfcb4771': '轉化率',
+
+  // pages/dashboard/analysis/components/ProportionSales.tsx
+  'app.dashboard.components.proportionsales.1d726261': '門店',
+  'app.dashboard.components.proportionsales.93f5cf21': '銷售額類別佔比',
+  'app.dashboard.components.proportionsales.9baa8fca': '線上',
+  'app.dashboard.components.proportionsales.a37a2380': '銷售額',
+  'app.dashboard.components.proportionsales.de295727': '全部渠道',
+
+  // pages/dashboard/analysis/components/SalesCard.tsx
+  'app.dashboard.components.salescard.0052ad23': '工專路 {value0} 號店',
+  'app.dashboard.components.salescard.0fa2ef0c': '門店訪問量排名',
+  'app.dashboard.components.salescard.5437341a': '銷售額',
+  'app.dashboard.components.salescard.749b8393': '銷售量',
+  'app.dashboard.components.salescard.96d011e8': '本月',
+  'app.dashboard.components.salescard.a18b7079': '今日',
+  'app.dashboard.components.salescard.a8f8432e': '門店銷售額排名',
+  'app.dashboard.components.salescard.ae69c84d': '本週',
+  'app.dashboard.components.salescard.dfef68fd': '本年',
+  'app.dashboard.components.salescard.eeabc81d': '訪問量',
+
+  // pages/dashboard/analysis/components/TopSearch.tsx
+  'app.dashboard.components.topsearch.0ca9a4cf': '周漲幅',
+  'app.dashboard.components.topsearch.146bef7c': '搜索用戶數',
+  'app.dashboard.components.topsearch.452a6961': '排名',
+  'app.dashboard.components.topsearch.ac33ccca': '線上熱門搜索',
+  'app.dashboard.components.topsearch.b061cd2c': '搜索關鍵詞',
+  'app.dashboard.components.topsearch.da4c0cf9': '用戶數',
+  'app.dashboard.components.topsearch.db2872e3': '人均搜索次數',
+  'app.dashboard.components.topsearch.fc8548e8': '指標說明',
+
+  // pages/dashboard/analysis/index.tsx
+  'app.dashboard.analysis.aed0b7fc': '操作二',
+  'app.dashboard.analysis.f2178ac4': '操作一',
+
+  // pages/dashboard/monitor/components/ActiveChart/index.tsx
+  'app.dashboard.activechart.25cbe617': '目標評估',
+  'app.dashboard.activechart.413f9141': '有望達到預期',
+  'app.dashboard.activechart.5be78515': '億元',
+
+  // pages/dashboard/monitor/components/Map/index.tsx
+  'app.dashboard.map.3ef961e2': '重試',
+  'app.dashboard.map.691abf03': '地圖數據加載失敗',
+  'app.dashboard.map.f77d28cd': '交易量: {value0}',
+
+  // pages/dashboard/monitor/index.tsx
+  'app.dashboard.monitor.10001bb0': '每秒交易總額',
+  'app.dashboard.monitor.11ed5995': '元',
+  'app.dashboard.monitor.211e2617': '今日交易總額',
+  'app.dashboard.monitor.6e219e6e': '資源剩餘',
+  'app.dashboard.monitor.c228b605': '活動實時交易情況',
+  'app.dashboard.monitor.d30554b9': '銷售目標完成率',
+  'app.dashboard.monitor.df440681': '券核效率',
+  'app.dashboard.monitor.e4f04a60': '各品類佔比',
+  'app.dashboard.monitor.e9153c01': '優',
+  'app.dashboard.monitor.f3550187': '活動情況預測',
+  'app.dashboard.monitor.f65e1e2c': '熱門搜索',
+  'app.dashboard.monitor.f6f41cfd': '活動剩餘時間',
+
+  // pages/dashboard/workplace/components/EditableLinkGroup/index.tsx
+  'app.dashboard.editablelinkgroup.14ffdee3': '添加',
+
+  // pages/dashboard/workplace/index.tsx
+  'app.dashboard.workplace.208da994': '吳彥祖',
+  'app.dashboard.workplace.36735aec': '操作六',
+  'app.dashboard.workplace.38018fec': '操作四',
+  'app.dashboard.workplace.382fab58': '海納百川，有容乃大',
+  'app.dashboard.workplace.41e8fecf': '團隊',
+  'app.dashboard.workplace.496745c4': '操作一',
+  'app.dashboard.workplace.695c582f': '操作五',
+  'app.dashboard.workplace.8a8ad9ce': '全部項目',
+  'app.dashboard.workplace.9239f213': '早安，',
+  'app.dashboard.workplace.ba570e06': '快速開始 / 便捷導航',
+  'app.dashboard.workplace.bacd55b3': '操作三',
+  'app.dashboard.workplace.c21a0f88': '操作二',
+  'app.dashboard.workplace.c9cb7439': '，祝你開心每一天！',
+  'app.dashboard.workplace.ce65c7e0': '動態',
+  'app.dashboard.workplace.d120e1fd': '進行中的項目',
+  'app.dashboard.workplace.d6af3066':
+    '螞蟻集團－某某某事業群－某某平臺部－某某技術部－UED',
+  'app.dashboard.workplace.d99f9413': '項目訪問',
+  'app.dashboard.workplace.ecc1a898': '項目數',
+  'app.dashboard.workplace.f4b66736': 'XX 指數',
+  'app.dashboard.workplace.f56fa4a3': '交互專家',
+  'app.dashboard.workplace.fe00260d': '團隊內排名',
+
+  // pages/Personal/StickyNote/stickyNote.tsx
+  'app.common.stickynote.stickynote.087e8e9a': '按住並拖動便箋',
+  'app.common.stickynote.stickynote.6d1ebd27': 'id：{value0} 保存失敗',
+  'app.common.stickynote.stickynote.9e111f6e': '便箋位置保存失敗',
+  'app.common.stickynote.stickynote.ac13b0e7': '便箋尺寸更新失敗',
+  'app.common.stickynote.stickynote.eee92d96': '顏色更新失敗',
+
+  // pages/Personal/StickyNote/stickyNoteContext.tsx
+  'app.common.stickynote.stickynotecontext.ac8e3c4a': '標題',
+  'app.common.stickynote.stickynotecontext.ee153502': '內容',
+  'app.common.stickynote.stickynotecontext.faa6ce38': '添加便箋失敗',
+
+  // pages/profile/advanced/index.tsx
+  'app.examples.advanced.0025cc72': '訂單金額',
+  'app.examples.advanced.03574d00': '待審批',
+  'app.examples.advanced.05488d64': '部門初審',
+  'app.examples.advanced.05b70e71': '駁回',
+  'app.examples.advanced.08d5871a': '聯繫方式',
+  'app.examples.advanced.09ea49d3': 'XX公司 - YY部',
+  'app.examples.advanced.0cb73d75': '操作二',
+  'app.examples.advanced.0fccb00b': '選項三',
+  'app.examples.advanced.13589dee': '過期時間',
+  'app.examples.advanced.16fa7297': '會員卡號',
+  'app.examples.advanced.1feeac01': '生效日期',
+  'app.examples.advanced.21518ac5': '學名',
+  'app.examples.advanced.248621c7': '用戶信息',
+  'app.examples.advanced.26266779': '負責人',
+  'app.examples.advanced.2a59d0e4': '身份證',
+  'app.examples.advanced.2ccd5e71': '財務複核',
+  'app.examples.advanced.3299c0f6': '吳加號',
+  'app.examples.advanced.346abfca': '信息組',
+  'app.examples.advanced.386ebda7': '操作日誌三',
+  'app.examples.advanced.386fcf9b': '數據說明',
+  'app.examples.advanced.3a50b234': '成功',
+  'app.examples.advanced.3d35d601': '周毛毛',
+  'app.examples.advanced.3e3d5cb2': '聯繫地址',
+  'app.examples.advanced.5216ef11': '操作一',
+  'app.examples.advanced.544d902d': '操作人',
+  'app.examples.advanced.5633edea': '選項一',
+  'app.examples.advanced.5d4d6ccb': '操作類型',
+  'app.examples.advanced.64d74d55': '主操作',
+  'app.examples.advanced.6a6baa76': '單號：234231029431',
+  'app.examples.advanced.6b70a1b7':
+    '這段描述很長很長很長很長很長很長很長很長很長很長很長很長很長很長...',
+  'app.examples.advanced.6e1f474b': '所屬部門',
+  'app.examples.advanced.721b5164': '狀態',
+  'app.examples.advanced.76260b30': '關聯單據',
+  'app.examples.advanced.76285ada': '用戶近半年來電記錄',
+  'app.examples.advanced.787d18b4': '耗時：2小時25分鐘',
+  'app.examples.advanced.78ca3836': '催一下',
+  'app.examples.advanced.7aa4d518': 'XX 服務',
+  'app.examples.advanced.7db78c09': '付小小',
+  'app.examples.advanced.823bd697':
+    '曲麗麗 18100000000 浙江省杭州市西湖區黃姑山路工專路交叉路口',
+  'app.examples.advanced.84204ec6': '創建人',
+  'app.examples.advanced.8be096e3': '多層級信息組',
+  'app.examples.advanced.8d661755': '曲麗麗',
+  'app.examples.advanced.8e2c5edc': '請於兩個工作日內確認',
+  'app.examples.advanced.8e808f84': '某某數據',
+  'app.examples.advanced.909d7941': '選項二',
+  'app.examples.advanced.920b4951': '描述',
+  'app.examples.advanced.92f445fd':
+    'Citrullus lanatus (Thunb.) Matsum. et Nakai一年生蔓生藤本；莖、枝粗壯，具明顯的稜。卷鬚較粗..',
+  'app.examples.advanced.95221b5c': '組名稱',
+  'app.examples.advanced.9e18575a': '用戶姓名',
+  'app.examples.advanced.a33fc6a5': '完成',
+  'app.examples.advanced.a67bd555': '該數據更新時間',
+  'app.examples.advanced.ab4d12be': '備註',
+  'app.examples.advanced.ac055aa3': '創建時間',
+  'app.examples.advanced.b1948d57': '訂購產品',
+  'app.examples.advanced.baa76298': '創建項目',
+  'app.examples.advanced.c0c263e1': '操作三',
+  'app.examples.advanced.cd71e986': '執行結果',
+  'app.examples.advanced.cf8abc80': '操作日誌一',
+  'app.examples.advanced.d78746c6': '詳情',
+  'app.examples.advanced.d9905835': '操作日誌二',
+  'app.examples.advanced.e54b26aa': '林東東',
+  'app.examples.advanced.ec20ffad': '未響應',
+  'app.examples.advanced.ec5112cf': '流程進度',
+  'app.examples.advanced.f3915925': '規則',
+  'app.examples.advanced.f652bf9f': '操作時間',
+  'app.examples.advanced.fed2d63b': '角色碼',
+
+  // pages/profile/basic/index.tsx
+  'app.examples.basic.1017a55c': '用戶姓名',
+  'app.examples.basic.2d9f5c56': '浙江省杭州市西湖區萬塘路18號',
+  'app.examples.basic.2f47a431': '商品條碼',
+  'app.examples.basic.39a35677': '銷售單號',
+  'app.examples.basic.56f22ec9': '已取貨',
+  'app.examples.basic.59477b4a': '退貨進度',
+  'app.examples.basic.660f802f': '取貨單號',
+  'app.examples.basic.6f8d66a0': '無',
+  'app.examples.basic.7a2904c7': '取貨地址',
+  'app.examples.basic.7f6bf451': '當前進度',
+  'app.examples.basic.81b6c6ed': '商品名稱',
+  'app.examples.basic.826a26c1': '聯繫電話',
+  'app.examples.basic.8359758a': '金額',
+  'app.examples.basic.981de19e': '用戶信息',
+  'app.examples.basic.9d0ad273': '狀態',
+  'app.examples.basic.a08d2308': '付小小',
+  'app.examples.basic.a62cf544': '操作員ID',
+  'app.examples.basic.b29aac27': '成功',
+  'app.examples.basic.b591d803': '常用快遞',
+  'app.examples.basic.b8b75dcb': '耗時',
+  'app.examples.basic.bc92f24f': '時間',
+  'app.examples.basic.bd9795a2': '退款申請',
+  'app.examples.basic.c0e3e2a7': '商品編號',
+  'app.examples.basic.ca708c27': '進行中',
+  'app.examples.basic.ceb7caab': '菜鳥倉儲',
+  'app.examples.basic.d4ba6d4e': '單價',
+  'app.examples.basic.d9bd9f84': '數量（件）',
+  'app.examples.basic.d9e80b9e': '總計',
+  'app.examples.basic.e7d990c8': '子訂單',
+  'app.examples.basic.eb9f7e7e': '退貨商品',
+  'app.examples.basic.ef60f971': '備註',
+
+  // pages/result/fail/index.tsx
+  'app.examples.fail.2ac413c5': '返回修改',
+  'app.examples.fail.34502364': '立即升級',
+  'app.examples.fail.4beef5a6': '提交失敗',
+  'app.examples.fail.808c47cc': '您的賬戶還不具備申請資格',
+  'app.examples.fail.aa88cbba': '請核對並修改以下信息後，再重新提交。',
+  'app.examples.fail.acd92a32': '立即解凍',
+  'app.examples.fail.d532d7ab': '您的賬戶已被凍結',
+  'app.examples.fail.d5e431c4': '您提交的內容有如下錯誤：',
+
+  // pages/result/success/index.tsx
+  'app.examples.success.0ff9caaf': '部門初審',
+  'app.examples.success.1f94f3b6': '項目名稱',
+  'app.examples.success.373aa34b': '創建項目',
+  'app.examples.success.43f86710': '生效時間',
+  'app.examples.success.5989a176': '提交成功',
+  'app.examples.success.6d95480d': '財務複核',
+  'app.examples.success.74b566b9': '返回列表',
+  'app.examples.success.77c307fb': '打印',
+  'app.examples.success.7a9b6d03': '周毛毛',
+  'app.examples.success.7cee48fc': '催一下',
+  'app.examples.success.8a5b98c8':
+    '提交結果頁用於反饋一系列操作任務的處理結果， 如果僅是簡單操作，使用 Message 全局提示反饋即可。 本文字區域可以展示簡單的補充說明，如果有類似展示 "單據"的需求，下面這個灰色區域可以呈現比較複雜的內容。',
+  'app.examples.success.8e5de35e': '完成',
+  'app.examples.success.94337d28': '查看項目',
+  'app.examples.success.aa69f004': '負責人',
+  'app.examples.success.ea80fdc8': '項目 ID',
+  'app.examples.success.eb295135': '曲麗麗',
+
+  // pages/table-list/index.tsx
+  'app.common.tablelist.5bc46a1a': '請選擇刪除項',
+
+  // pages/Tools/CacheTest/index.tsx
+  'app.tools.cachetest.04abe282': 'KeepAlive 緩存測試頁面',
+  'app.tools.cachetest.09a4d497': '說明頁面切換被正確監聽',
+  'app.tools.cachetest.0e0a8bc4': '頁面狀態已被緩存',
+  'app.tools.cachetest.0e5dcd9f': '說明狀態被緩存',
+  'app.tools.cachetest.124d1e02': '說明狀態持續更新',
+  'app.tools.cachetest.1452c9ee': '用戶',
+  'app.tools.cachetest.150da999': '渲染時間:',
+  'app.tools.cachetest.2075c253': '輸入內容保持：',
+  'app.tools.cachetest.2234b323': '激活次數:',
+  'app.tools.cachetest.2f1fa651': '顯示頁面激活/失活的實際時間',
+  'app.tools.cachetest.36a199f4': '(空)',
+  'app.tools.cachetest.3dbacb3a': '渲染時間不變：',
+  'app.tools.cachetest.460c29fb': '緩存正常工作',
+  'app.tools.cachetest.47389856': '組件ID:',
+  'app.tools.cachetest.52132a65': '第{value0}次激活頁面 (從緩存恢復)',
+  'app.tools.cachetest.5a7a9581': '緩存驗證指標:',
+  'app.tools.cachetest.5ba894aa': '用戶操作狀態保持 = 數據狀態被緩存 ✅',
+  'app.tools.cachetest.64e5d82e': '系統事件時間：',
+  'app.tools.cachetest.6586eff9': '頁面失活 (保存到緩存)',
+  'app.tools.cachetest.673638f1': '共',
+  'app.tools.cachetest.6878dd80': '緩存狀態',
+  'app.tools.cachetest.6ecd2c1d': '點擊測試 (+1)',
+  'app.tools.cachetest.723a4b56': '按鈕點擊次數',
+  'app.tools.cachetest.739c67ea': '說明組件沒有重新創建',
+  'app.tools.cachetest.7816168b': '✅ 緩存生效',
+  'app.tools.cachetest.7883af87': '激活次數遞增：',
+  'app.tools.cachetest.8eb39d85': '條記錄',
+  'app.tools.cachetest.959b0f17': '操作時間顯示實際操作時間 = 正常行為 ✅',
+  'app.tools.cachetest.973e79c8': '輸入框測試',
+  'app.tools.cachetest.9adc823d': '系統',
+  'app.tools.cachetest.a1a768f2': '點擊次數累計：',
+  'app.tools.cachetest.a5287c16': '說明組件實例被緩存',
+  'app.tools.cachetest.a89e0480': '用戶點擊按鈕 (第{value0}次)',
+  'app.tools.cachetest.aa10c669': '等待第二次激活',
+  'app.tools.cachetest.ab9a2bd5': '首次激活頁面',
+  'app.tools.cachetest.b4f0f526': '操作時間線',
+  'app.tools.cachetest.b94da554': '組件ID 不變：',
+  'app.tools.cachetest.c1ff57ac': '次',
+  'app.tools.cachetest.c572f1d3': '輸入內容測試',
+  'app.tools.cachetest.c75a6fce': '請切換到其他頁面再回來',
+  'app.tools.cachetest.cacdc10e': '測試說明',
+  'app.tools.cachetest.d546f82c': '當前值:',
+  'app.tools.cachetest.d56451c4': '組件ID 和渲染時間保持不變 = 組件被緩存 ✅',
+  'app.tools.cachetest.e2965c40': '頁面激活次數',
+  'app.tools.cachetest.e2cb1c50': '暫無操作記錄，請進行一些操作',
+  'app.tools.cachetest.e8eb43b6': '輸入內容: "{value0}"',
+  'app.tools.cachetest.ec212740': '顯示用戶實際操作的時間',
+  'app.tools.cachetest.eeadfb3a': '關於操作時間：',
+  'app.tools.cachetest.f19ebcc7': '用戶操作時間：',
+  'app.tools.cachetest.f1c36ea2': '激活次數遞增 = 頁面切換被正確監聽 ✅',
+  'app.tools.cachetest.f60d444f': '⏳ 等待驗證',
+  'app.tools.cachetest.f6407ed0': '正確的緩存行為：',
+
+  // pages/Tools/TextFormatter/index.tsx
+  'app.tools.textformatter.0af2d944': '壓縮表格中的空格',
+  'app.tools.textformatter.0df2dc8a': '格式化結果：',
+  'app.tools.textformatter.170c4b73': '邊框對齊：',
+  'app.tools.textformatter.23fa410c': '添加空行',
+  'app.tools.textformatter.261ec42c': '消除換行',
+  'app.tools.textformatter.2eea7883': '左對齊',
+  'app.tools.textformatter.34d844c6': '英文數字前後空格',
+  'app.tools.textformatter.37d44d7e': '列表處理配置',
+  'app.tools.textformatter.402035e1': '自動去除列表前綴',
+  'app.tools.textformatter.45a09311': '單元格分隔符：',
+  'app.tools.textformatter.4fc3ef35': 'Markdown 表格配置',
+  'app.tools.textformatter.52172e3c': '壓縮空格',
+  'app.tools.textformatter.65c685a2': '項目編號：',
+  'app.tools.textformatter.670ce0bb': '個字符',
+  'app.tools.textformatter.6a3ad96f': '刪除前綴',
+  'app.tools.textformatter.77c86872': '複製到剪切板',
+  'app.tools.textformatter.89d380c2': '原始文本：',
+  'app.tools.textformatter.8a3da6b9': '中文模式',
+  'app.tools.textformatter.99a2f03f': '結束符：',
+  'app.tools.textformatter.9a334944': '居中對齊',
+  'app.tools.textformatter.a0aa110e': '替換標點符號',
+  'app.tools.textformatter.a791e7e6': '單行標序',
+  'app.tools.textformatter.b73857da': '啟用列表處理',
+  'app.tools.textformatter.b9f976f4': '啟用 Markdown 表格處理',
+  'app.tools.textformatter.bb5164a0': '基礎配置',
+  'app.tools.textformatter.c8558274': '右對齊',
+  'app.tools.textformatter.ca2f1061': '去除表格中的加粗',
+  'app.tools.textformatter.d334f423': '請輸入要格式化的文本...',
+  'app.tools.textformatter.d569aca5': '格式化後的文本將顯示在這裡...',
+  'app.tools.textformatter.da0b1ed2': '從剪切板填充',
+  'app.tools.textformatter.e96afb0e': '句點結尾',
+  'app.tools.textformatter.f79dd04c': '英文模式',
+
+  // pages/User/login/index.tsx
+  'app.user.login.04fc89cd': '驗證碼錯誤',
+  'app.user.login.367e4f12': '獲取驗證碼成功！驗證碼為：1234',
+  'app.user.login.3956237e': '請輸入密碼',
+  'app.user.login.bfe08e19': '獲取公鑰失敗，請聯繫管理員',
+
+  // pages/User/register-result/index.tsx
+  'app.user.registerresult.1b7f5da1': '返回首頁',
+  'app.user.registerresult.383d3f65':
+    '激活郵件已發送到你的郵箱中，郵件有效期為24小時。請及時登錄郵箱，點擊郵件中的鏈接激活帳戶。',
+  'app.user.registerresult.691bfd2a': '查看郵箱',
+  'app.user.registerresult.b48e5b4c': '註冊成功',
+  'app.user.registerresult.d7245add': '你的賬戶：',
+
+  // pages/User/register/index.tsx
+  'app.user.register.063458db': '請輸入手機號!',
+  'app.user.register.33a1be33':
+    '請至少輸入 6 個字符。請不要使用容易被猜到的密碼。',
+  'app.user.register.4b20f201': '手機號格式錯誤!',
+  'app.user.register.4cd908cb': '請輸入驗證碼!',
+  'app.user.register.65ba0858': '獲取驗證碼',
+  'app.user.register.6cb6303f': '強度：中',
+  'app.user.register.749cf570': '郵箱',
+  'app.user.register.859eb883': '使用已有賬戶登錄',
+  'app.user.register.937768e1': '請輸入密碼!',
+  'app.user.register.9e9b663f': '註冊',
+  'app.user.register.a5cd621a': '註冊成功！',
+  'app.user.register.ae04324f': '強度：太短',
+  'app.user.register.b4e2531c': '手機號',
+  'app.user.register.c694e888': '郵箱地址格式錯誤!',
+  'app.user.register.d3723e22': '至少6位密碼，區分大小寫',
+  'app.user.register.e3f448cb': '兩次輸入的密碼不匹配!',
+  'app.user.register.e45bd1a8': '驗證碼',
+  'app.user.register.e99e63f6': '強度：強',
+  'app.user.register.eca1e2f1': '確認密碼',
+  'app.user.register.ed7c6b00': '請輸入郵箱地址!',
+
+  // pages/Welcome.tsx
+  'app.common.pages.welcome.08263c8c': '輸入框測試:',
+  'app.common.pages.welcome.2903160a': '點擊計數 +1',
+  'app.common.pages.welcome.29a05a85':
+    '緩存狀態檢測 - 激活次數: {value0}, 最後激活: {value1}',
+  'app.common.pages.welcome.538f17c3': '輸入的內容:',
+  'app.common.pages.welcome.5badb394': '✅ 緩存正常工作',
+  'app.common.pages.welcome.97116082': '計數器:',
+  'app.common.pages.welcome.c2199239': '輸入一些內容測試緩存',
+  'app.common.pages.welcome.c8a02b06': 'Welcome 頁面緩存測試',
+  'app.common.pages.welcome.cd2de43d': '❌ 緩存可能未生效',
+  'app.common.pages.welcome.cd31da57': '激活次數:',
+  'app.common.pages.welcome.ea022c68': '最後激活時間:',
+  'app.common.pages.welcome.eaf9e2e5': '組件渲染時間:',
+
+  // pages/Writing/BasicWriting/index.tsx
+  'app.article.basicwriting.01999ddb': '標籤',
+  'app.article.basicwriting.0a29472b': '當前頁面版本為 V',
+  'app.article.basicwriting.14c29613': '其他用戶已更新了這篇文章。',
+  'app.article.basicwriting.2236d518': '目錄 #{value0}',
+  'app.article.basicwriting.2467722a': '版本',
+  'app.article.basicwriting.373c02f4': '目錄',
+  'app.article.basicwriting.38e985f0': '忽略一次',
+  'app.article.basicwriting.3b9e7e6b': '章節',
+  'app.article.basicwriting.3ce391de': '批註',
+  'app.article.basicwriting.574a5bae': '管理',
+  'app.article.basicwriting.84bc4bdd': '{value0} 已更新了這篇文章。',
+  'app.article.basicwriting.8cea23b4': '重新加載',
+  'app.article.basicwriting.8d83623f': '本次打開期間不再提示',
+  'app.article.basicwriting.8fe68723': '。重新加載將獲取最新內容。',
+  'app.article.basicwriting.9b131c70': '插入到文章當前光標處',
+  'app.article.basicwriting.c0217ad0': '，最新版本為 V',
+  'app.article.basicwriting.da357884': '文章 #{value0}',
+  'app.article.basicwriting.dd658217': '當前文章已有更新',
+
+  // requestErrorConfig.ts
+  'app.common.requesterrorconfig.52de81bc':
+    '請求失敗！錯誤碼【{value0}】錯誤信息【{value1}】',
+
+  // services/ant-design-pro/ai.chat.ts
+  'app.common.antdesignpro.ai.chat.33352e37': '無法獲取響應流',
+  'app.common.antdesignpro.ai.chat.b6424a33': '讀取流失敗',
+  'app.common.antdesignpro.ai.chat.e21b95dd': '網絡請求失敗',
+
+  // services/ant-design-pro/api.ts
+  'app.common.antdesignpro.api.49247735': 'Blob 請求出錯',
+
+  // services/upload.ts
+  'app.common.services.upload.263e57c3': '遠程圖片轉存失敗',
+  'app.common.services.upload.729aaf7c': '文件刪除失敗',
+  'app.common.services.upload.b38b2539': '文件讀取失敗',
+  'app.common.services.upload.d77586ac': '上傳失敗',
+
+  // types/rt.article.type.ts
+  'app.common.types.rt.article.type.2817ece5': '博客',
+  'app.common.types.rt.article.type.2f3a3e0a': '筆記',
+  'app.common.types.rt.article.type.9ad2d392': '小說',
+  'app.common.types.rt.article.type.bc62506e': '通用類型',
+  'app.common.types.rt.article.type.be56f6e8': '散文',
+
+  // types/rt.editor.type.ts
+  'app.common.types.rt.editor.type.3b8decd9': '楷體',
+  'app.common.types.rt.editor.type.55495f11': '默認',
+  'app.common.types.rt.editor.type.67eec7ce': '宋體',
+  'app.common.types.rt.editor.type.b97a1e3e': '微軟雅黑',
+  'app.common.types.rt.editor.type.c3d73643': '默認字體',
+  'app.common.types.rt.editor.type.e4cfb332': '黑體',
+
+  // utils/calendarUtil.ts
+  'app.common.utils.calendarutil.11e81d5c': '週三',
+  'app.common.utils.calendarutil.1b241ce1': '週五',
+  'app.common.utils.calendarutil.5a0c1272': '週日',
+  'app.common.utils.calendarutil.887410d1': '週一',
+  'app.common.utils.calendarutil.ac4d1700': '週六',
+  'app.common.utils.calendarutil.d3bf62d9': '週四',
+  'app.common.utils.calendarutil.e23120a1': '週二',
+
+  // utils/chinaDivision.ts
+  'app.common.utils.chinadivision.0a881867': '澳門特別行政區',
+  'app.common.utils.chinadivision.2be98fb7': '香港特別行政區',
+  'app.common.utils.chinadivision.31227882': '臺灣省',
+
+  // utils/crypto/gmCrypto.ts
+  'app.common.crypto.gmcrypto.5baf066b': '無法找到安全的隨機數生成器',
+
+  // utils/fileUtil.ts
+  'app.common.utils.fileutil.6c0b0d8c': '資源下載失敗: {value0}',
+};

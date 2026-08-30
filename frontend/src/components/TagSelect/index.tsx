@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import { DownOutlined, UpOutlined } from '@ant-design/icons';
 import { Button, Tag } from 'antd';
 import { clsx } from 'clsx';
@@ -104,9 +105,9 @@ const TagSelect: FC<TagSelectProps> & {
   };
   const checkedAll = allTags.length === value?.length && allTags.length > 0;
   const {
-    expandText = '展开',
-    collapseText = '收起',
-    selectAllText = '全部',
+    expandText = i18nText("app.common.tagselect.419af95d"),
+    collapseText = i18nText("app.common.tagselect.a524cbd2"),
+    selectAllText = i18nText("app.common.tagselect.5d7b827b"),
   } = actionsText;
   const cls = clsx(styles.tagSelect, className, {
     [styles.hasExpandTag]: expandable,

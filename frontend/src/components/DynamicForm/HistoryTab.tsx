@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import React from 'react';
 import {Descriptions} from 'antd';
 
@@ -12,11 +13,11 @@ interface HistoryTabProps {
 
 const HistoryTab: React.FC<HistoryTabProps> = ({data}) => {
     return (
-        <Descriptions title="记录信息" column={2} bordered>
-            <Descriptions.Item label="创建时间">{data.createTime || '暂无'}</Descriptions.Item>
-            <Descriptions.Item label="创建人">{data.createBy || '暂无'}</Descriptions.Item>
-            <Descriptions.Item label="更新时间">{data.updateTime || '暂无'}</Descriptions.Item>
-            <Descriptions.Item label="更新人">{data.updateBy || '暂无'}</Descriptions.Item>
+        <Descriptions title={i18nText("app.common.dynamicform.historytab.918bfa8e")} column={2} bordered>
+            <Descriptions.Item label={i18nText("app.common.dynamicform.historytab.153c61e2")}>{data.createTime || i18nText("app.common.dynamicform.historytab.e63d8ef0")}</Descriptions.Item>
+            <Descriptions.Item label={i18nText("app.common.dynamicform.historytab.a1f234ee")}>{data.createBy || i18nText("app.common.dynamicform.historytab.e63d8ef0")}</Descriptions.Item>
+            <Descriptions.Item label={i18nText("app.common.dynamicform.historytab.2f1f93e4")}>{data.updateTime || i18nText("app.common.dynamicform.historytab.e63d8ef0")}</Descriptions.Item>
+            <Descriptions.Item label={i18nText("app.common.dynamicform.historytab.f302cb43")}>{data.updateBy || i18nText("app.common.dynamicform.historytab.e63d8ef0")}</Descriptions.Item>
         </Descriptions>
     );
 };

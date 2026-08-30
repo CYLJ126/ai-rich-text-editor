@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {MinusCircleOutlined} from '@ant-design/icons';
 import {Badge, Button, Cascader, Checkbox, Select} from 'antd';
 import React, {useMemo, useState} from 'react';
@@ -135,7 +136,7 @@ const TagsSelector: React.FC<TagsSelectorProps> = ({
       value={selectedTags.map((tag) => tag.id)}
       options={allTags.map((tag) => ({label: tag.name, value: tag.id}))}
       onChange={handleSelectChange}
-      placeholder="请选择标签"
+      placeholder={i18nText("app.common.tagsselector.c7484dbc")}
       showSearch={false}
       allowClear
       popupMatchSelectWidth={false}

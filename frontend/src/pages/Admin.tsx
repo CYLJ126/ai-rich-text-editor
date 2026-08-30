@@ -3,6 +3,7 @@ import { PageContainer } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, Card, Typography } from 'antd';
 import React from 'react';
+import { i18nText } from '@/utils/i18n';
 
 const Admin: React.FC = () => {
   const intl = useIntl();
@@ -30,17 +31,18 @@ const Admin: React.FC = () => {
         />
         <Typography.Title level={2} style={{ textAlign: 'center' }}>
           <SmileTwoTone /> Ant Design Pro{' '}
-          <HeartTwoTone twoToneColor="#eb2f96" /> You
+          <HeartTwoTone twoToneColor="#eb2f96" />
+          {i18nText('app.admin.you')}
         </Typography.Title>
       </Card>
       <p style={{ textAlign: 'center', marginTop: 24 }}>
-        Want to add more pages? Please refer to{' '}
+        {i18nText('app.admin.morePages')}{' '}
         <a
           href="https://pro.ant.design/docs/block-cn"
           target="_blank"
           rel="noopener noreferrer"
         >
-          use block
+          {i18nText('app.admin.useBlock')}
         </a>
         。
       </p>

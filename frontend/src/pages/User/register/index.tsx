@@ -1,3 +1,4 @@
+import {i18nText} from '@/utils/i18n';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {history, Link} from '@umijs/max';
 import {Button, Col, Form, Input, message, Popover, Progress, Row, Select, Space,} from 'antd';
@@ -60,17 +61,17 @@ const Register: FC = () => {
   const passwordStatusMap = {
     ok: (
       <div className={styles.success}>
-        <span>强度：强</span>
+        <span>{i18nText("app.user.register.e99e63f6")}</span>
       </div>
     ),
     pass: (
       <div className={styles.warning}>
-        <span>强度：中</span>
+        <span>{i18nText("app.user.register.6cb6303f")}</span>
       </div>
     ),
     poor: (
       <div className={styles.error}>
-        <span>强度：太短</span>
+        <span>{i18nText("app.user.register.ae04324f")}</span>
       </div>
     ),
   };
@@ -108,7 +109,7 @@ const Register: FC = () => {
     onSuccess: (data, params) => {
       if (data.status === 'ok') {
         queryClient.invalidateQueries({queryKey: ['current-user']});
-        message.success('注册成功！');
+        message.success(i18nText("app.user.register.a5cd621a"));
         history.push({
           pathname: `/user/register-result?account=${params.mail}`,
         });
@@ -121,7 +122,7 @@ const Register: FC = () => {
   const checkConfirm = (_: any, value: string) => {
     const promise = Promise;
     if (value && value !== form.getFieldValue('password')) {
-      return promise.reject('两次输入的密码不匹配!');
+      return promise.reject(i18nText("app.user.register.e3f448cb"));
     }
     return promise.resolve();
   };
@@ -130,7 +131,7 @@ const Register: FC = () => {
     // 没有值的情况
     if (!value) {
       setVisible(!!value);
-      return promise.reject('请输入密码!');
+      return promise.reject(i18nText("app.user.register.937768e1"));
     }
     // 有值的情况
     if (!open) {
@@ -152,22 +153,22 @@ const Register: FC = () => {
   const passwordStatus = getPasswordStatus(password);
   return (
     <div className={styles.main}>
-      <h3>注册</h3>
+      <h3>{i18nText("app.user.register.9e9b663f")}</h3>
       <Form form={form} name="UserRegister" onFinish={onFinish}>
         <FormItem
           name="email"
           rules={[
             {
               required: true,
-              message: '请输入邮箱地址!',
+              message: i18nText("app.user.register.ed7c6b00"),
             },
             {
               type: 'email',
-              message: '邮箱地址格式错误!',
+              message: i18nText("app.user.register.c694e888"),
             },
           ]}
         >
-          <Input size="large" placeholder="邮箱" />
+          <Input size="large" placeholder={i18nText("app.user.register.749cf570")} />
         </FormItem>
         <Popover
           getPopupContainer={(node) => {
@@ -190,7 +191,7 @@ const Register: FC = () => {
                     marginTop: 10,
                   }}
                 >
-                  <span>请至少输入 6 个字符。请不要使用容易被猜到的密码。</span>
+                  <span>{i18nText("app.user.register.33a1be33")}</span>
                 </div>
               </div>
             )
@@ -217,7 +218,7 @@ const Register: FC = () => {
             <Input
               size="large"
               type="password"
-              placeholder="至少6位密码，区分大小写"
+              placeholder={i18nText("app.user.register.d3723e22")}
             />
           </FormItem>
         </Popover>
@@ -226,25 +227,25 @@ const Register: FC = () => {
           rules={[
             {
               required: true,
-              message: '确认密码',
+              message: i18nText("app.user.register.eca1e2f1"),
             },
             {
               validator: checkConfirm,
             },
           ]}
         >
-          <Input size="large" type="password" placeholder="确认密码" />
+          <Input size="large" type="password" placeholder={i18nText("app.user.register.eca1e2f1")} />
         </FormItem>
         <FormItem
           name="mobile"
           rules={[
             {
               required: true,
-              message: '请输入手机号!',
+              message: i18nText("app.user.register.063458db"),
             },
             {
               pattern: /^\d{11}$/,
-              message: '手机号格式错误!',
+              message: i18nText("app.user.register.4b20f201"),
             },
           ]}
         >
@@ -261,7 +262,7 @@ const Register: FC = () => {
               <Option value="87">+87</Option>
             </Select>
 
-            <Input size="large" placeholder="手机号" />
+            <Input size="large" placeholder={i18nText("app.user.register.b4e2531c")} />
           </Space.Compact>
         </FormItem>
         <Row gutter={8}>
@@ -271,11 +272,11 @@ const Register: FC = () => {
               rules={[
                 {
                   required: true,
-                  message: '请输入验证码!',
+                  message: i18nText("app.user.register.4cd908cb"),
                 },
               ]}
             >
-              <Input size="large" placeholder="验证码" />
+              <Input size="large" placeholder={i18nText("app.user.register.e45bd1a8")} />
             </FormItem>
           </Col>
           <Col span={8}>
@@ -285,7 +286,7 @@ const Register: FC = () => {
               className={styles.getCaptcha}
               onClick={onGetCaptcha}
             >
-              {count ? `${count} s` : '获取验证码'}
+              {count ? `${count} s` : i18nText("app.user.register.65ba0858")}
             </Button>
           </Col>
         </Row>
@@ -298,10 +299,10 @@ const Register: FC = () => {
               type="primary"
               htmlType="submit"
             >
-              <span>注册</span>
+              <span>{i18nText("app.user.register.9e9b663f")}</span>
             </Button>
             <Link to="/user/login" prefetch>
-              <span>使用已有账户登录</span>
+              <span>{i18nText("app.user.register.859eb883")}</span>
             </Link>
           </div>
         </FormItem>
