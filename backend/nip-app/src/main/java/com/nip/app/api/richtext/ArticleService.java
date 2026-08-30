@@ -73,6 +73,11 @@ public interface ArticleService extends IService<ArticleDto> {
     Boolean moveToCatalog(Integer articleId, Integer catalogId);
 
     /**
+     * 批量更新文章排序
+     */
+    Boolean reorder(List<ArticleDto> list);
+
+    /**
      * 批量移动文章到指定目录
      *
      * @param articleIds 文章ID列表
