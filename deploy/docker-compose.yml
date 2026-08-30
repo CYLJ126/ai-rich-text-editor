@@ -1,0 +1,294 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: nip-mysql
+    profiles:
+      - mysql
+      - middleware
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nip_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nip}
+      MYSQL_USER: ${MYSQL_USER:-nip}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nip}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init/00-create-databases.sql:/docker-entrypoint-initdb.d/00-create-databases.sql:ro
+      - ./mysql/sql/nip-base-ddl-mysql.sql:/docker-entrypoint-initdb.d/10-nip-base-ddl-mysql.sql:ro
+      - ./mysql/sql/nip-home-ddl-mysql.sql:/docker-entrypoint-initdb.d/20-nip-home-ddl-mysql.sql:ro
+      - ./mysql/sql/nip-home-dml-mysql.sql:/docker-entrypoint-initdb.d/30-nip-home-dml-mysql.sql:ro
+      - ./mysql/sql/nip-rbac-ddl-mysql.sql:/docker-entrypoint-initdb.d/40-nip-rbac-ddl-mysql.sql:ro
+      - ./mysql/sql/nip-rbac-dml-mysql.sql:/docker-entrypoint-initdb.d/50-nip-rbac-dml-mysql.sql:ro
+      - ./mysql/sql/nip-rt-ddl-mysql.sql:/docker-entrypoint-initdb.d/60-nip-rt-ddl-mysql.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - nip
+
+  mysql-init:
+    image: mysql:8.4
+    container_name: nip-mysql-init
+    profiles:
+      - mysql-init
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nip}
+      MYSQL_USER: ${MYSQL_USER:-nip}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nip}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+    volumes:
+      - ./mysql/init/run-init.sh:/run-init.sh:ro
+      - ./mysql/sql:/sql:ro
+    entrypoint: ["sh", "/run-init.sh"]
+    networks:
+      - nip
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: nip-redis
+    profiles:
+      - redis
+      - middleware
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - nip
+
+  elasticsearch:
+    build:
+      context: ./elasticsearch
+      dockerfile: Dockerfile
+    container_name: es8
+    profiles:
+      - es
+      - kibana
+      - middleware
+    environment:
+      node.name: es01
+      cluster.name: dev-cluster
+      discovery.type: single-node
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      xpack.security.enabled: "true"
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms1g -Xmx1g}
+      TZ: Asia/Shanghai
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u elastic:$${ELASTIC_PASSWORD} http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow\\&timeout=5s >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+    networks:
+      - nip
+
+  kibana:
+    image: kibana:8.13.4
+    container_name: kibana8
+    profiles:
+      - kibana
+      - es
+      - middleware
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    environment:
+      SERVER_HOST: 0.0.0.0
+      ELASTICSEARCH_HOSTS: ${KIBANA_ELASTICSEARCH_HOSTS:-http://elasticsearch:9200}
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${KB_ENC_KEY}
+      XPACK_REPORTING_ENCRYPTIONKEY: ${KB_ENC_KEY}
+      XPACK_SECURITY_ENCRYPTIONKEY: ${KB_SEC_KEY}
+      TZ: Asia/Shanghai
+    networks:
+      - nip
+
+  drawio:
+    image: jgraph/drawio:latest
+    container_name: nip-drawio
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "${DRAWIO_PORT:-8080}:8080"
+    networks:
+      - nip
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        NIP_APP_JAR_FILE: ${NIP_APP_JAR_FILE:-artifacts/.missing.jar}
+    container_name: nip-backend
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx2g}
+      SERVER_PORT: ${SERVER_PORT:-12636}
+      SERVER_SERVLET_CONTEXT_PATH: ${SERVER_SERVLET_CONTEXT_PATH:-/nip}
+      SPRING_APPLICATION_NAME: ${SPRING_APPLICATION_NAME:-NobodyIsPerfect}
+      LOGGING_CONFIG: ${LOGGING_CONFIG:-classpath:log4j2.xml}
+      LOG_PATH: ${LOG_PATH:-/usr/local/data/log/NobodyIsPerfect}
+      LOG_FILE_NAME: ${LOG_FILE_NAME:-NobodyIsPerfect}
+      THREAD_POOL_BUSINESS_CORE_SIZE: ${THREAD_POOL_BUSINESS_CORE_SIZE:-5}
+      THREAD_POOL_BUSINESS_MAX_SIZE: ${THREAD_POOL_BUSINESS_MAX_SIZE:-50}
+      THREAD_POOL_BUSINESS_KEEP_ALIVE_TIME: ${THREAD_POOL_BUSINESS_KEEP_ALIVE_TIME:-300}
+      THREAD_POOL_BUSINESS_QUEUE_SIZE: ${THREAD_POOL_BUSINESS_QUEUE_SIZE:-1024}
+      SPRING_DATASOURCE_DRUID_APP_URL: ${APP_DB_URL:-jdbc:mysql://mysql:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+      SPRING_DATASOURCE_DRUID_APP_USERNAME: ${APP_DB_USERNAME:-nip}
+      SPRING_DATASOURCE_DRUID_APP_PASSWORD: ${APP_DB_PASSWORD:-nip}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_URL: ${CHLOROPHYLL_DB_URL:-jdbc:mysql://mysql:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_USERNAME: ${CHLOROPHYLL_DB_USERNAME:-nip}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_PASSWORD: ${CHLOROPHYLL_DB_PASSWORD:-nip}
+      SPRING_DATASOURCE_DRUID_MIN_IDLE: ${SPRING_DATASOURCE_DRUID_MIN_IDLE:-5}
+      SPRING_DATASOURCE_DRUID_MAX_ACTIVE: ${SPRING_DATASOURCE_DRUID_MAX_ACTIVE:-10}
+      SPRING_DATASOURCE_DRUID_MAX_WAIT: ${SPRING_DATASOURCE_DRUID_MAX_WAIT:-5000}
+      SPRING_DATASOURCE_DRUID_VALIDATION_QUERY: ${SPRING_DATASOURCE_DRUID_VALIDATION_QUERY:-select 1}
+      SPRING_DATASOURCE_DRUID_TEST_WHILE_IDLE: ${SPRING_DATASOURCE_DRUID_TEST_WHILE_IDLE:-true}
+      SPRING_DATASOURCE_DRUID_TEST_ON_BORROW: ${SPRING_DATASOURCE_DRUID_TEST_ON_BORROW:-false}
+      SPRING_DATASOURCE_DRUID_TEST_ON_RETURN: ${SPRING_DATASOURCE_DRUID_TEST_ON_RETURN:-false}
+      SPRING_DATASOURCE_DRUID_TIME_BETWEEN_EVICTION_RUNS_MILLIS: ${SPRING_DATASOURCE_DRUID_TIME_BETWEEN_EVICTION_RUNS_MILLIS:-60000}
+      SPRING_DATASOURCE_DRUID_MIN_EVICTABLE_IDLE_TIME_MILLIS: ${SPRING_DATASOURCE_DRUID_MIN_EVICTABLE_IDLE_TIME_MILLIS:-300000}
+      SPRING_DATASOURCE_DRUID_MAX_EVICTABLE_IDLE_TIME_MILLIS: ${SPRING_DATASOURCE_DRUID_MAX_EVICTABLE_IDLE_TIME_MILLIS:-900000}
+      SPRING_DATASOURCE_DRUID_WEB_STAT_FILTER_ENABLED: ${SPRING_DATASOURCE_DRUID_WEB_STAT_FILTER_ENABLED:-true}
+      SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_ENABLED: ${SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_ENABLED:-true}
+      SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_URL_PATTERN: ${SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_URL_PATTERN:-/druid/*}
+      SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_RESET_ENABLE: ${SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_RESET_ENABLE:-false}
+      SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_LOGIN_USERNAME: ${SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_LOGIN_USERNAME:-admin}
+      SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_LOGIN_PASSWORD: ${SPRING_DATASOURCE_DRUID_STAT_VIEW_SERVLET_LOGIN_PASSWORD:-Aa111111}
+      SPRING_DATASOURCE_DRUID_FILTER_STAT_ENABLED: ${SPRING_DATASOURCE_DRUID_FILTER_STAT_ENABLED:-true}
+      SPRING_DATASOURCE_DRUID_FILTER_STAT_LOG_SLOW_SQL: ${SPRING_DATASOURCE_DRUID_FILTER_STAT_LOG_SLOW_SQL:-true}
+      SPRING_DATASOURCE_DRUID_FILTER_STAT_SLOW_SQL_MILLIS: ${SPRING_DATASOURCE_DRUID_FILTER_STAT_SLOW_SQL_MILLIS:-1000}
+      SPRING_DATASOURCE_DRUID_FILTER_STAT_MERGE_SQL: ${SPRING_DATASOURCE_DRUID_FILTER_STAT_MERGE_SQL:-true}
+      SPRING_DATASOURCE_DRUID_FILTER_WALL_CONFIG_MULTI_STATEMENT_ALLOW: ${SPRING_DATASOURCE_DRUID_FILTER_WALL_CONFIG_MULTI_STATEMENT_ALLOW:-true}
+      SPRING_ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-http://elasticsearch:9200}
+      SPRING_ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:-elastic}
+      SPRING_ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD}
+      SPRING_ELASTICSEARCH_VERSION: ${SPRING_ELASTICSEARCH_VERSION:-8}
+      ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-http://elasticsearch:9200}
+      ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:-elastic}
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD}
+      ELASTICSEARCH_CONNECT_TIMEOUT: ${ELASTICSEARCH_CONNECT_TIMEOUT:-10s}
+      ELASTICSEARCH_SOCKET_TIMEOUT: ${ELASTICSEARCH_SOCKET_TIMEOUT:-60s}
+      ELASTICSEARCH_CONNECTION_REQUEST_TIMEOUT: ${ELASTICSEARCH_CONNECTION_REQUEST_TIMEOUT:-10s}
+      ELASTICSEARCH_POOL_MAX_CONN_TOTAL: ${ELASTICSEARCH_POOL_MAX_CONN_TOTAL:-40}
+      ELASTICSEARCH_POOL_MAX_CONN_PER_ROUTE: ${ELASTICSEARCH_POOL_MAX_CONN_PER_ROUTE:-20}
+      ELASTICSEARCH_BULK_BATCH_SIZE: ${ELASTICSEARCH_BULK_BATCH_SIZE:-500}
+      ELASTICSEARCH_BULK_MAX_BYTES_PER_BATCH: ${ELASTICSEARCH_BULK_MAX_BYTES_PER_BATCH:-5242880}
+      ELASTICSEARCH_BULK_FLUSH_INTERVAL: ${ELASTICSEARCH_BULK_FLUSH_INTERVAL:-15s}
+      ELASTICSEARCH_INDEX_DOCUMENT_INDEX: ${ELASTICSEARCH_INDEX_DOCUMENT_INDEX:-articles}
+      ELASTICSEARCH_INDEX_CHUNK_INDEX: ${ELASTICSEARCH_INDEX_CHUNK_INDEX:-article_chunks}
+      ELASTICSEARCH_INDEX_DOCUMENT_SHARDS: ${ELASTICSEARCH_INDEX_DOCUMENT_SHARDS:-1}
+      ELASTICSEARCH_INDEX_DOCUMENT_REPLICAS: ${ELASTICSEARCH_INDEX_DOCUMENT_REPLICAS:-0}
+      ELASTICSEARCH_INDEX_CHUNK_SHARDS: ${ELASTICSEARCH_INDEX_CHUNK_SHARDS:-1}
+      ELASTICSEARCH_INDEX_CHUNK_REPLICAS: ${ELASTICSEARCH_INDEX_CHUNK_REPLICAS:-0}
+      REDIS_ADDRESS: ${REDIS_ADDRESS:-redis://redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      CACHE_CACHE_TYPE: ${CACHE_CACHE_TYPE:-redis}
+      CACHE_SCAN_PACKAGES: ${CACHE_SCAN_PACKAGES:-com.nip.app.pojo,com.nip.ai.pojo.model}
+      CACHE_DEFAULT_EXPIRE: ${CACHE_DEFAULT_EXPIRE:-60000}
+      CACHE_DEFAULT_MAX_SIZE: ${CACHE_DEFAULT_MAX_SIZE:-65536}
+      CACHE_DEFAULT_CACHE_KEY_PREFIX: ${CACHE_DEFAULT_CACHE_KEY_PREFIX:-NIP}
+      JWT_HEADER: ${JWT_HEADER:-Authorization}
+      JWT_TOKEN_START_WITH: ${JWT_TOKEN_START_WITH:-Bearer}
+      JWT_BASE64_SECRET_KEY: ${JWT_BASE64_SECRET_KEY:-YmEyOTE3YWJiOTdlNGRlMTllNzMwOTlmMGRkNzM0NjBkMDAyZjdhNGViNzE0NmU4OTk2YTEyNGFhZjE4YmE3Y2RkYWVlOGZkZDczMjRhMWM4ZDIwZmQ1ZDgzMDBiNGIw}
+      JWT_TOKEN_VALIDITY_IN_SECONDS: ${JWT_TOKEN_VALIDITY_IN_SECONDS:-7200000}
+      JWT_ONLINE_KEY: ${JWT_ONLINE_KEY:-nip_online:}
+      JWT_CODE_KEY: ${JWT_CODE_KEY:-nip_code:}
+      JWT_DETECT: ${JWT_DETECT:-1800000}
+      JWT_RENEW: ${JWT_RENEW:-3600000}
+      JWT_DEFAULT_PASSWORD: ${JWT_DEFAULT_PASSWORD:-Aa111111}
+      LOGIN_CACHE_ENABLE: ${LOGIN_CACHE_ENABLE:-true}
+      LOGIN_SINGLE_LOGIN: ${LOGIN_SINGLE_LOGIN:-true}
+      LOGIN_LOGIN_CODE_CODE_TYPE: ${LOGIN_LOGIN_CODE_CODE_TYPE:-arithmetic}
+      LOGIN_LOGIN_CODE_EXPIRATION: ${LOGIN_LOGIN_CODE_EXPIRATION:-2}
+      LOGIN_LOGIN_CODE_WIDTH: ${LOGIN_LOGIN_CODE_WIDTH:-111}
+      LOGIN_LOGIN_CODE_HEIGHT: ${LOGIN_LOGIN_CODE_HEIGHT:-36}
+      LOGIN_LOGIN_CODE_LENGTH: ${LOGIN_LOGIN_CODE_LENGTH:-2}
+      LOGIN_LOGIN_CODE_FONT_NAME: ${LOGIN_LOGIN_CODE_FONT_NAME:-}
+      LOGIN_LOGIN_CODE_FONT_SIZE: ${LOGIN_LOGIN_CODE_FONT_SIZE:-25}
+      SECURITY_SM2_PRIVATE_KEY: ${SECURITY_SM2_PRIVATE_KEY:-266fcc0cd2495bbabd00d602bb6ade55d0cbe0ea587cc00025a9264516a34809}
+      SECURITY_SM2_PUBLIC_KEY: ${SECURITY_SM2_PUBLIC_KEY:-04a47da566fc10ac4458db04457226097c4c262a86b2325d01dfe7637c8e580af59b56e015756095d370e49d5ddab10c0c838ae1129555a70f4f0f10ca63b9e8d1}
+      RICH_TEXT_STORAGE_TYPE: ${RICH_TEXT_STORAGE_TYPE:-LOCAL}
+      RICH_TEXT_STORAGE_LOCAL_IMAGE_PATH: ${RICH_TEXT_STORAGE_LOCAL_IMAGE_PATH:-/app/data/uploads/richtext/images}
+      RICH_TEXT_STORAGE_LOCAL_FILE_PATH: ${RICH_TEXT_STORAGE_LOCAL_FILE_PATH:-/app/data/uploads/richtext/files}
+      RICH_TEXT_STORAGE_QINIU_ACCESS_KEY: ${RICH_TEXT_STORAGE_QINIU_ACCESS_KEY:-}
+      RICH_TEXT_STORAGE_QINIU_SECRET_KEY: ${RICH_TEXT_STORAGE_QINIU_SECRET_KEY:-}
+      RICH_TEXT_STORAGE_QINIU_BUCKET: ${RICH_TEXT_STORAGE_QINIU_BUCKET:-}
+      RICH_TEXT_STORAGE_QINIU_DOMAIN: ${RICH_TEXT_STORAGE_QINIU_DOMAIN:-}
+      RICH_TEXT_STORAGE_QINIU_IMAGE_EXPIRE_DAYS: ${RICH_TEXT_STORAGE_QINIU_IMAGE_EXPIRE_DAYS:-7}
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:-10MB}
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:-10MB}
+      HTTP_PROXY_HOST: ${HTTP_PROXY_HOST:-}
+      HTTP_PROXY_PORT: ${HTTP_PROXY_PORT:-0}
+    ports:
+      - "${BACKEND_PORT:-12636}:12636"
+    volumes:
+      - backend-logs:/usr/local/data/log/NobodyIsPerfect
+      - backend-uploads:/app/data/uploads
+    networks:
+      - nip
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NIP_FRONT_DIST_FILE: ${NIP_FRONT_DIST_FILE:-artifacts/.missing.zip}
+    container_name: nip-frontend
+    depends_on:
+      - backend
+      - drawio
+    environment:
+      TZ: Asia/Shanghai
+      NGINX_HTTPS_PORT: ${FRONTEND_HTTPS_PORT:-8000}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-50m}
+      NGINX_BACKEND_UPSTREAM: ${NGINX_BACKEND_UPSTREAM:-http://backend:12636}
+      NGINX_DRAWIO_UPSTREAM: ${NGINX_DRAWIO_UPSTREAM:-http://drawio:8080}
+      NGINX_ROOT_REDIRECT: ${NGINX_ROOT_REDIRECT:-/Writing/BasicWriting}
+      NGINX_SPA_FALLBACK: ${NGINX_SPA_FALLBACK:-/Welcome/index.html}
+      NGINX_SSL_SESSION_TIMEOUT: ${NGINX_SSL_SESSION_TIMEOUT:-5m}
+      NGINX_SSL_PROTOCOLS: ${NGINX_SSL_PROTOCOLS:-TLSv1 TLSv1.1 TLSv1.2}
+      NGINX_SSL_CIPHERS: ${NGINX_SSL_CIPHERS:-ECDHE-RSA-AES128-GCM-SHA256:HIGH:!aNULL:!MD5:!RC4:!DHE}
+    ports:
+      - "${FRONTEND_HTTPS_PORT:-8000}:${FRONTEND_HTTPS_PORT:-8000}"
+    networks:
+      - nip
+
+networks:
+  nip:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  es-data:
+  backend-logs:
+  backend-uploads:

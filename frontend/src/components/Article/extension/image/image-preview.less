@@ -1,0 +1,75 @@
+.closeButton {
+  color: rgba(255, 255, 255, 0.82) !important;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin: 8px auto 0;
+  padding: 2px 8px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 999px;
+
+  :global(.ant-btn:not(:disabled)) {
+    color: rgba(255, 255, 255, 0.82);
+  }
+}
+
+.counter {
+  min-width: 64px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: transparent;
+  border-radius: 6px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragging {
+  cursor: grabbing;
+}
+
+.canvas {
+  display: flex;
+  width: max-content;
+  height: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.previewImage {
+  display: block;
+  max-width: none;
+  flex: none;
+  user-select: none;
+  pointer-events: none;
+  transition: width 0.16s ease-out, height 0.16s ease-out;
+}

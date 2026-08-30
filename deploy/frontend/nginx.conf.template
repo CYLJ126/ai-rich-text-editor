@@ -1,0 +1,87 @@
+server {
+    listen ${NGINX_HTTPS_PORT} ssl;
+    server_name ${NGINX_SERVER_NAME};
+    charset utf-8;
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+
+    error_page 497 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+
+    ssl_session_timeout ${NGINX_SSL_SESSION_TIMEOUT};
+    ssl_protocols ${NGINX_SSL_PROTOCOLS};
+    ssl_ciphers ${NGINX_SSL_CIPHERS};
+    ssl_prefer_server_ciphers on;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    error_page 404 /404.html;
+    location = /404.html {
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+    }
+
+    location ^~ /eladmin_back {
+        proxy_pass ${NGINX_BACKEND_UPSTREAM}/nip;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /nip/webSocket/ {
+        proxy_pass ${NGINX_BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+    }
+
+    location ^~ /nip {
+        proxy_pass ${NGINX_BACKEND_UPSTREAM};
+        proxy_request_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "close";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /drawio {
+        return 301 /drawio/;
+    }
+
+    location ^~ /drawio/ {
+        proxy_pass ${NGINX_DRAWIO_UPSTREAM}/;
+        proxy_redirect ${NGINX_DRAWIO_UPSTREAM}/ /drawio/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /drawio;
+    }
+
+    location = / {
+        return 302 ${NGINX_ROOT_REDIRECT};
+    }
+
+    location @router {
+        rewrite ^.*$ ${NGINX_SPA_FALLBACK} last;
+    }
+
+    location / {
+        try_files $uri $uri/ $uri/index.html @router;
+        gzip on;
+        gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    }
+}

@@ -1,0 +1,149 @@
+// 数学公式扩展样式
+.tiptap {
+  // Mathematics extension styles
+  .tiptap-mathematics-render {
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease-in-out;
+
+    &--editable {
+      cursor: pointer;
+
+      &:hover {
+        background-color: rgba(24, 144, 255, 0.1);
+        border: 1px solid rgba(24, 144, 255, 0.3);
+        padding: 0.125rem 0.25rem;
+      }
+    }
+
+    &[data-type='inline-math'] {
+      display: inline-block;
+      margin: 0 2px;
+
+      &:hover {
+        transform: scale(1.02);
+      }
+    }
+
+    &[data-type='block-math'] {
+      display: block;
+      margin: 1rem 0;
+      padding: 1rem;
+      text-align: center;
+      background-color: rgba(0, 0, 0, 0.02);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-radius: 6px;
+
+      &:hover {
+        background-color: rgba(24, 144, 255, 0.05);
+        border-color: rgba(24, 144, 255, 0.2);
+        box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+      }
+    }
+
+    // 错误状态样式
+    &.inline-math-error,
+    &.block-math-error {
+      background-color: #fff2f0;
+      color: #ff4d4f;
+      border: 1px solid #ffccc7;
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+      position: relative;
+
+      &::after {
+        content: '数学公式解析错误';
+        position: absolute;
+        top: -24px;
+        left: 0;
+        font-size: 12px;
+        color: #ff4d4f;
+        background-color: #fff;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid #ffccc7;
+        white-space: nowrap;
+        z-index: 10;
+      }
+    }
+
+    // 选中状态
+    &.ProseMirror-selectednode {
+      outline: 2px solid rgba(24, 144, 255, 0.6);
+      outline-offset: 2px;
+    }
+
+    // 焦点状态
+    &:focus {
+      outline: 2px solid rgba(24, 144, 255, 0.6);
+      outline-offset: 2px;
+    }
+  }
+
+  // KaTeX 样式优化
+  .katex {
+    font-size: 1em;
+    line-height: 1.2;
+
+    .katex-html {
+      color: inherit;
+    }
+  }
+
+  // 暗色模式适配
+  &[data-theme='dark'] {
+    .tiptap-mathematics-render {
+      &--editable:hover {
+        background-color: rgba(24, 144, 255, 0.15);
+      }
+
+      &[data-type='block-math'] {
+        background-color: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.1);
+
+        &:hover {
+          background-color: rgba(24, 144, 255, 0.1);
+          border-color: rgba(24, 144, 255, 0.3);
+        }
+      }
+
+      &.inline-math-error,
+      &.block-math-error {
+        background-color: rgba(255, 77, 79, 0.1);
+        color: #ff7875;
+        border-color: rgba(255, 77, 79, 0.3);
+      }
+    }
+  }
+}
+
+// 数学公式工具栏按钮样式
+.math-formula-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+
+  .ant-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      color: #1890ff;
+      border-color: #1890ff;
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .tiptap {
+    .tiptap-mathematics-render {
+      &[data-type='block-math'] {
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+        font-size: 0.9em;
+      }
+    }
+  }
+}

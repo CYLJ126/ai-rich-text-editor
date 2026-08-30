@@ -1,0 +1,32 @@
+spring:
+  autoconfigure:
+    exclude:
+      - @spring.ai.embedding.exclude@
+  ai:
+    embedding:
+      provider: @spring.ai.embedding.provider@   # bge-large（1024 维度）或 bge-small（Bge 512 维度）
+      transformer:
+        onnx:
+          model-uri: @spring.ai.embedding.transformer.onnx.model-uri@
+          gpu-device-id: @spring.ai.embedding.transformer.onnx.gpu-device-id@   # -1 表示使用 CPU，Mac 上可尝试 0 调用 GPU（需配合 CoreML）
+        tokenizer:
+          uri: @spring.ai.embedding.transformer.tokenizer.uri@
+          options:
+            padding: @spring.ai.embedding.transformer.tokenizer.options.padding@   # 重要，防止输入长度不一致报错
+    mcp:
+      client: # 客户端配置
+        name: @spring.ai.mcp.client.name@
+      server: # 服务端配置
+        name: @spring.ai.mcp.server.name@
+        protocol: streamable   # 使用 streamable HTTP 传输协议
+        streamable-http:
+          mcp-endpoint: @spring.ai.mcp.server.endpoint@   # 自定义 MCP 端点路径
+          disallow-delete: @spring.ai.mcp.server.disallow-delete@   # 是否禁止删除操作
+    deepseek:
+      api-key: @spring.ai.deepseek.api-key@
+      chat:
+        base-url: https://api.deepseek.com
+logging:
+  level:
+    org.springframework.ai: @logging.level.org.springframework.ai@   # spring ai 包日志级别
+    org.springframework.ai.chat.client.advisor: @logging.level.org.springframework.ai.chat.client.advisor@   # 可单独配置 advisor 包的日志级别

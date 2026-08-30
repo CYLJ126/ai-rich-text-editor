@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nip.app.mapper.richtext.CatalogMapper">
+
+    <resultMap id="catalogMap" type="com.nip.app.pojo.richtext.CatalogDto">
+        <id property="id" column="id" jdbcType="INTEGER"/>
+        <result property="name" column="name" jdbcType="VARCHAR"/>
+        <result property="fatherId" column="father_id" jdbcType="INTEGER"/>
+        <result property="orderId" column="order_id" jdbcType="INTEGER"/>
+        <result property="description" column="description" jdbcType="VARCHAR"/>
+        <result property="isPublic" column="is_public" jdbcType="TINYINT"/>
+        <result property="createBy" column="create_by" jdbcType="VARCHAR"/>
+        <result property="updateBy" column="update_by" jdbcType="VARCHAR"/>
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="update_time" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="baseColumn">
+        id, name, father_id, order_id, description, is_public, create_by, update_by, create_time, update_time
+    </sql>
+
+    <sql id="baseWhere">
+        <where>
+            <if test="id != null">
+                AND id = #{id}
+            </if>
+            <if test="name != null and name != ''">
+                AND name = #{name}
+            </if>
+            <if test="fatherId != null">
+                AND father_id = #{fatherId}
+            </if>
+            <if test="isPublic != null">
+                AND is_public = #{isPublic}
+            </if>
+            <if test="createBy != null and createBy != ''">
+                AND create_by = #{createBy}
+            </if>
+        </where>
+    </sql>
+
+    <select id="listAll" parameterType="com.nip.app.pojo.richtext.CatalogDto" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog <include refid="baseWhere" />
+    </select>
+
+    <update id="updateOrder">
+        update nip_rt_catalog
+        set father_id = #{fatherId},
+            order_id = #{orderId},
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        where id = #{id}
+    </update>
+
+    <delete id="removeRecursive">
+        with recursive rec_query as (select id, father_id
+                                     from nip_rt_catalog
+                                     where id = #{id,jdbcType=INTEGER}
+                                     union all
+                                     select recu.id, recu.father_id
+                                     from nip_rt_catalog recu join rec_query
+                                     where recu.father_id = rec_query.id)
+        delete
+        from nip_rt_catalog
+        where id in (select id from rec_query)
+    </delete>
+
+    <select id="listPublicCatalogs" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog where is_public = 1
+    </select>
+
+    <select id="listByIds" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="listAncestorIds" resultType="integer">
+        with recursive ancestors as (
+            select id, father_id from nip_rt_catalog where id = #{id}
+            union all
+            select c.id, c.father_id from nip_rt_catalog c
+            inner join ancestors a on c.id = a.father_id
+        )
+        select id from ancestors
+    </select>
+
+    <select id="listDescendantIds" resultType="integer">
+        with recursive descendants as (
+            select id, father_id from nip_rt_catalog where id = #{id}
+            union all
+            select c.id, c.father_id from nip_rt_catalog c
+            inner join descendants d on c.father_id = d.id
+        )
+        select id from descendants where id != #{id}
+    </select>
+
+    <select id="getByIdUnfiltered" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog where id = #{id}
+    </select>
+
+    <select id="listMyPrivateCatalogs" parameterType="com.nip.app.pojo.richtext.CatalogDto" resultMap="catalogMap">
+        select <include refid="baseColumn" /> from nip_rt_catalog
+        <where>
+            <if test="id != null">AND id = #{id}</if>
+            <if test="name != null and name != ''">AND name = #{name}</if>
+            <if test="fatherId != null">AND father_id = #{fatherId}</if>
+            <if test="createBy != null and createBy != ''">AND create_by = #{createBy}</if>
+            AND (is_public = 0 or is_public is null)
+        </where>
+    </select>
+</mapper>

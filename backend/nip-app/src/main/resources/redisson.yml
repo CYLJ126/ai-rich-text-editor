@@ -1,0 +1,12 @@
+singleServerConfig: # 单点模式
+  password: @redis.singleServerConfig.password@
+  clientName:
+  address: @redis.singleServerConfig.address@
+#replicatedServersConfig: # 使用主从模式，一主一从，减少部署开销，redis 仅作为缓存查询，即使 redis 不可用，也不影响业务
+#  password:
+#  clientName:
+#  readMode: "MASTER" # 主从不会自动切换，所以配置从主节点读，主节点不可读时，自动切换到从mysql读
+#  subscriptionMode: "MASTER"
+#  nodeAddresses: # 一主一从模式
+#    - redis://redis.master:8001
+#    - redis://redis.slave:8002

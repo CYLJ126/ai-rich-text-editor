@@ -1,0 +1,163 @@
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 1,
+    "analysis": {
+      "analyzer": {
+        "ik_smart_analyzer": {
+          "type": "custom",
+          "tokenizer": "ik_smart",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "ik_max_word_analyzer": {
+          "type": "custom",
+          "tokenizer": "ik_max_word",
+          "filter": [
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "chunk_id": {
+        "type": "keyword"
+      },
+      "article_id": {
+        "type": "integer"
+      },
+      "tiptap_node_id": {
+        "type": "keyword"
+      },
+      "tiptap_node_ids": {
+        "type": "keyword"
+      },
+      "chunk_type": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "ik_max_word_analyzer",
+        "search_analyzer": "ik_smart_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 1024
+          }
+        }
+      },
+      "content_with_breadcrumb": {
+        "type": "text",
+        "index": false
+      },
+      "breadcrumb": {
+        "type": "keyword"
+      },
+      "bold_terms": {
+        "type": "text",
+        "analyzer": "ik_max_word_analyzer",
+        "search_analyzer": "ik_smart_analyzer"
+      },
+      "highlight_terms": {
+        "type": "text",
+        "analyzer": "ik_max_word_analyzer",
+        "search_analyzer": "ik_smart_analyzer"
+      },
+      "has_strikethrough": {
+        "type": "boolean"
+      },
+      "section_heading": {
+        "type": "text",
+        "analyzer": "ik_smart_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "section_heading_id": {
+        "type": "keyword"
+      },
+      "heading_level": {
+        "type": "integer"
+      },
+      "chunk_index": {
+        "type": "integer"
+      },
+      "prev_chunk_id": {
+        "type": "keyword"
+      },
+      "next_chunk_id": {
+        "type": "keyword"
+      },
+      "token_count": {
+        "type": "integer"
+      },
+      "overlap_tokens": {
+        "type": "integer"
+      },
+      "embedding": {
+        "type": "dense_vector",
+        "dims": ${dimension},
+        "index": true,
+        "similarity": "cosine"
+      },
+      "article_meta": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "text",
+            "analyzer": "ik_max_word_analyzer",
+            "search_analyzer": "ik_smart_analyzer"
+          },
+          "author": {
+            "type": "keyword"
+          },
+          "character_count": {
+            "type": "integer"
+          },
+          "catalog_id": {
+            "type": "integer"
+          },
+          "tag_ids": {
+            "type": "integer"
+          },
+          "article_type": {
+            "type": "keyword"
+          },
+          "access_level": {
+            "type": "keyword"
+          },
+          "is_public": {
+            "type": "boolean"
+          },
+          "create_by": {
+            "type": "keyword"
+          },
+          "update_time": {
+            "type": "date"
+          },
+          "row_version": {
+            "type": "integer"
+          }
+        }
+      },
+      "media_refs": {
+        "type": "keyword"
+      },
+      "code_language": {
+        "type": "keyword"
+      },
+      "create_time": {
+        "type": "date"
+      },
+      "update_time": {
+        "type": "date"
+      }
+    }
+  }
+}

@@ -1,0 +1,85 @@
+
+.articleFloatingActions {
+  position: absolute;
+  right: 20px;
+  bottom: 48px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.articleFloatingActionsOpen {
+  pointer-events: auto;
+
+  .articleFloatingMenu {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  .articleFloatingTrigger {
+    transform: rotate(360deg) scale(1.1);
+  }
+}
+
+.articleFloatingMenu {
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 12px;
+  background: var(--ant-color-bg-elevated);
+  box-shadow: var(--ant-box-shadow-secondary);
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  transform-origin: right bottom;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.articleFloatingMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ant-color-text);
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--ant-color-fill-secondary);
+    outline: none;
+  }
+}
+
+.articleFloatingTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--ant-color-bg-container);
+  background: var(--ant-color-fill);
+  font-size: 21px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--ant-color-primary-border);
+    outline-offset: 3px;
+  }
+}

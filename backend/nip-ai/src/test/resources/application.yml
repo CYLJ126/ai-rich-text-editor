@@ -1,0 +1,45 @@
+spring:
+  elasticsearch:
+    uris: http://your-elastic-host:7480
+    connection-timeout: 15s # 连接超时
+    socket-timeout: 20s # Socket 超时
+  ai:
+    retry:
+      max-retries: 1
+    deepseek:
+      api-key: your-deepseek-key
+      chat:
+        base-url: https://api.deepseek.com
+    openai:
+      api-key: your-openai-key
+      chat:
+        base-url: https://openrouter.ai/api
+    ollama:
+      base-url: http://your-ollama-host:8120
+      init:
+        max-retries: 2
+      chat:
+        options:
+          model: deepseek-r1:8b
+    vertex:
+      ai:
+        gemini:
+          api-key: your-gemini-key
+          project-id: your-project-id
+          location: us-west3
+    mistralai:
+      api-key: your-mistralai-key
+    dashscope:
+      api-key: your-dashscope-key
+    vectorstore:
+      elasticsearch:
+        index-name: spring-ai-demo # 索引名称
+        dimensions: 1536 # 向量维度
+        similarity: cosine # 相似度算法
+        initialize-schema: true # 是否初始化 schema
+        batch-size: 50 # 批量大小
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    org.springframework.ai.chat.client.advisor: DEBUG # 可单独配置 advisor 包的日志级别
+    org.springframework.boot.autoconfigure: INFO

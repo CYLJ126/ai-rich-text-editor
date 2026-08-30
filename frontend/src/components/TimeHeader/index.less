@@ -1,0 +1,87 @@
+.headerContainer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 0 0 0;
+  flex-wrap: nowrap;
+  overflow: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.switchButton {
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  svg {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+.timePicker {
+  height: 30px;
+  border: none;
+
+  &:hover &:focus-within {
+  }
+
+  :global(.ant-picker-input) {
+    background-color: transparent;
+
+    input {
+      font-weight: bold !important;
+      font-size: 18px !important;
+      text-align: center;
+    }
+
+    &:hover &:focus {
+      background-color: transparent;
+      cursor: pointer;
+    }
+  }
+
+  :global(.anticon) {
+    display: none;
+  }
+
+  :global(.ant-picker-clear) {
+    display: none;
+  }
+}
+
+.timeSelect {
+  height: 34px !important;
+  min-width: 110px;
+  border: 2px solid;
+  font-size: 16px;
+  padding: 6px 11px 4px 11px;
+  font-weight: bold;
+  text-align: center;
+
+  .ant-select-arrow {
+    display: none;
+  }
+
+  :global(.ant-select-suffix) {
+    display: none;
+  }
+
+  :global(.ant-select-clear) {
+    display: none;
+  }
+}
+
+.childrenContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}

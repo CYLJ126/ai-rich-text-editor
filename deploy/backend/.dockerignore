@@ -1,0 +1,6 @@
+.git
+.idea
+**/target
+arthas-output
+@log.path@
+hs_err_pid*.log

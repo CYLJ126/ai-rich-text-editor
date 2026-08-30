@@ -1,0 +1,80 @@
+.tableContainer {
+}
+
+.buttonBar {
+  white-space: nowrap;
+  height: 32px;
+  margin: 0 0 5px 0;
+
+  :global(.ant-btn) {
+    height: 28px;
+    font-size: 15px;
+    border: none;
+  }
+}
+
+.summary {
+  padding-left: 3px;
+  white-space: nowrap;
+  font-weight: bold;
+}
+
+.headLine {
+  height: 1px;
+  margin: 0;
+  border: none;
+}
+
+.table {
+  :global(.ant-table-cell) {
+    padding: 2px !important;
+  }
+
+  :global(.ant-pagination) {
+    margin: 0 !important;
+    padding: 0 5px 0 0;
+
+    :global(.ant-pagination-total-text) {
+      height: 25px !important;
+      margin-top: 2px;
+    }
+
+    :global(.ant-pagination-prev) {
+      margin-top: -1px;
+    }
+
+    :global(.ant-pagination-next) {
+      margin-top: -1px;
+    }
+
+    :global(.ant-pagination-item) {
+      height: 25px !important;
+      border-radius: 5px;
+      margin-top: 4px;
+
+      > a {
+        height: 25px !important;
+        margin-top: -3px;
+        padding: 0 2px 0 2px;
+        text-align: center;
+      }
+    }
+
+    :global(.ant-select-selector) {
+      height: 25px !important;
+      margin-top: 4px;
+    }
+
+    :global(.ant-select-arrow) {
+      margin-top: -4px !important;
+    }
+
+    :global(.ant-pagination-options-quick-jumper) {
+      margin-top: 1px;
+
+      > input {
+        height: 25px !important;
+      }
+    }
+  }
+}

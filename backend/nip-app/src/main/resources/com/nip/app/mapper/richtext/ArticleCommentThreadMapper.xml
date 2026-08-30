@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nip.app.mapper.richtext.ArticleCommentThreadMapper">
+
+    <resultMap id="threadWithCommentsMap" type="com.nip.app.pojo.richtext.ArticleCommentThreadDto">
+        <id property="id" column="thread_pk_id" jdbcType="INTEGER"/>
+        <result property="articleId" column="thread_article_id" jdbcType="INTEGER"/>
+        <result property="threadId" column="thread_id" jdbcType="VARCHAR"/>
+        <result property="resolvedAt" column="thread_resolved_at" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="thread_is_delete" jdbcType="TINYINT"/>
+        <result property="createBy" column="thread_create_by" jdbcType="VARCHAR"/>
+        <result property="updateBy" column="thread_update_by" jdbcType="VARCHAR"/>
+        <result property="createTime" column="thread_create_time" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="thread_update_time" jdbcType="TIMESTAMP"/>
+        <collection property="comments" ofType="com.nip.app.pojo.richtext.ArticleCommentDto"
+                    notNullColumn="comment_pk_id">
+            <id property="id" column="comment_pk_id" jdbcType="INTEGER"/>
+            <result property="articleId" column="comment_article_id" jdbcType="INTEGER"/>
+            <result property="threadId" column="comment_thread_id" jdbcType="VARCHAR"/>
+            <result property="commentId" column="comment_id" jdbcType="VARCHAR"/>
+            <result property="content" column="comment_content" jdbcType="VARCHAR"/>
+            <result property="deletedAt" column="comment_deleted_at" jdbcType="TIMESTAMP"/>
+            <result property="isDelete" column="comment_is_delete" jdbcType="TINYINT"/>
+            <result property="createBy" column="comment_create_by" jdbcType="VARCHAR"/>
+            <result property="updateBy" column="comment_update_by" jdbcType="VARCHAR"/>
+            <result property="createTime" column="comment_create_time" jdbcType="TIMESTAMP"/>
+            <result property="updateTime" column="comment_update_time" jdbcType="TIMESTAMP"/>
+        </collection>
+    </resultMap>
+
+    <select id="listThreadsWithComments" resultMap="threadWithCommentsMap" resultOrdered="true">
+        SELECT t.id AS thread_pk_id,
+               t.article_id AS thread_article_id,
+               t.thread_id AS thread_id,
+               t.resolved_at AS thread_resolved_at,
+               t.is_delete AS thread_is_delete,
+               t.create_by AS thread_create_by,
+               t.update_by AS thread_update_by,
+               t.create_time AS thread_create_time,
+               t.update_time AS thread_update_time,
+               c.id AS comment_pk_id,
+               c.article_id AS comment_article_id,
+               c.thread_id AS comment_thread_id,
+               c.comment_id AS comment_id,
+               c.content AS comment_content,
+               c.deleted_at AS comment_deleted_at,
+               c.is_delete AS comment_is_delete,
+               c.create_by AS comment_create_by,
+               c.update_by AS comment_update_by,
+               c.create_time AS comment_create_time,
+               c.update_time AS comment_update_time
+        FROM nip_rt_article_comment_thread t
+        LEFT JOIN nip_rt_article_comment c
+          ON c.article_id = t.article_id
+         AND c.thread_id = t.thread_id
+         AND c.is_delete = 0
+        WHERE t.article_id = #{articleId}
+          AND t.is_delete = 0
+        ORDER BY t.create_time ASC, c.create_time ASC
+    </select>
+
+</mapper>

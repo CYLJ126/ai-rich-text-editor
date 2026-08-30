@@ -1,0 +1,32 @@
+.cascader {
+  :global(.ant-select-content) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+
+    :global(.ant-select-content-item) {
+      flex: none;
+    }
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.optionCheckbox {
+  margin-right: 5px;
+}
+
+.closeIcon {
+  color: #ffffff;
+  width: 10px;
+  height: 10px;
+  top: 7px !important;
+  right: 7px !important;
+}
+
+.closeIcon:hover {
+  cursor: pointer;
+}

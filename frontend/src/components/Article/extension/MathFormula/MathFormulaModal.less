@@ -1,0 +1,230 @@
+// ./extensions/MathFormula/MathFormulaModal.less
+.math-formula-modal {
+  .ant-modal-header {
+    padding-bottom: 16px;
+    margin-bottom: 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .ant-modal-body {
+    padding: 0;
+  }
+
+  .ant-modal-content {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  &__content {
+    padding: 20px 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  // 类型选择器
+  &__type-selector {
+    .ant-radio-group {
+      display: flex;
+      gap: 24px;
+    }
+
+    .ant-radio-wrapper {
+      font-size: 14px;
+      color: #333;
+    }
+  }
+
+  // 标签
+  &__label {
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 8px;
+    font-weight: 400;
+  }
+
+  // 输入区域
+  &__input-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__textarea {
+    width: 100%;
+    min-height: 90px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    line-height: 1.6;
+    color: #333;
+    background-color: #fff;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+
+    &::placeholder {
+      color: #bfbfbf;
+    }
+
+    &:hover {
+      border-color: #40a9ff;
+    }
+
+    &:focus {
+      border-color: #1890ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    }
+  }
+
+  // 预览区域
+  &__preview-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__preview {
+    min-height: 64px;
+    padding: 16px 20px;
+    background-color: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    transition: background-color 0.2s ease;
+
+    // 块级公式居中显示
+    &--block {
+      .katex-display {
+        margin: 0;
+      }
+    }
+
+    // 错误状态
+    &--error {
+      background-color: #fff2f0;
+      border-color: #ffccc7;
+    }
+  }
+
+  &__preview-placeholder {
+    font-size: 13px;
+    color: #bfbfbf;
+    font-style: italic;
+  }
+
+  &__preview-error-text {
+    font-size: 13px;
+    color: #ff4d4f;
+    line-height: 1.5;
+    word-break: break-all;
+  }
+
+  // KaTeX 渲染优化
+  .katex {
+    font-size: 1.1em;
+    color: #333;
+  }
+
+  .katex-display {
+    margin: 0 !important;
+  }
+
+  // 示例区域
+  &__examples-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__example-btn {
+    border-radius: 4px;
+    font-size: 13px;
+    color: #555;
+    border-color: #d9d9d9;
+    background-color: #fafafa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: #1890ff;
+      border-color: #1890ff;
+      background-color: #e6f7ff;
+    }
+
+    &:active {
+      color: #096dd9;
+      border-color: #096dd9;
+    }
+  }
+
+  // 底部按钮
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 4px;
+
+    .ant-btn {
+      min-width: 72px;
+    }
+
+    .ant-btn-primary {
+      background-color: #1890ff;
+
+      &:hover {
+        background-color: #40a9ff;
+      }
+
+      &:disabled {
+        background-color: #f5f5f5;
+        border-color: #d9d9d9;
+        color: #bfbfbf;
+      }
+    }
+  }
+}
+
+// 暗色模式
+[data-theme='dark'] {
+  .math-formula-modal {
+    &__textarea {
+      background-color: #1f1f1f;
+      color: #e8e8e8;
+      border-color: #434343;
+
+      &:hover {
+        border-color: #177ddc;
+      }
+
+      &:focus {
+        border-color: #177ddc;
+        box-shadow: 0 0 0 2px rgba(23, 125, 220, 0.2);
+      }
+    }
+
+    &__preview {
+      background-color: #1a1a1a;
+      border-color: #303030;
+
+      &--error {
+        background-color: rgba(255, 77, 79, 0.1);
+        border-color: rgba(255, 77, 79, 0.3);
+      }
+    }
+
+    &__label {
+      color: #e8e8e8;
+    }
+
+    .katex {
+      color: #e8e8e8;
+    }
+  }
+}

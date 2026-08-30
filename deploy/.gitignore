@@ -1,0 +1,4 @@
+.env
+backend/artifacts/
+frontend/artifacts/
+.idea

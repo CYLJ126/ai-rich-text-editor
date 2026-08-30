@@ -1,0 +1,1339 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "e8a3b8e5-47d9-4c2a-9e4a-13a075ceda1d",
+        "level": 2,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "My Rich Text Editor",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "ff60be34-03a8-4c7d-9352-84181a97f704",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "基于 ",
+          "type": "text"
+        },
+        {
+          "text": "Tiptap",
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "rel": "noopener noreferrer nofollow",
+                "href": "https://tiptap.dev/",
+                "class": "text-foreground! underline underline-offset-[3px] transition-colors cursor-pointer",
+                "title": null,
+                "target": "_blank"
+              }
+            }
+          ]
+        },
+        {
+          "text": " + ",
+          "type": "text"
+        },
+        {
+          "text": "Vercel AI SDK",
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "rel": "noopener noreferrer nofollow",
+                "href": "https://sdk.vercel.ai/",
+                "class": "text-foreground! underline underline-offset-[3px] transition-colors cursor-pointer",
+                "title": null,
+                "target": "_blank"
+              }
+            }
+          ]
+        },
+        {
+          "text": " + ",
+          "type": "text"
+        },
+        {
+          "text": "Tailwindcss",
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "rel": "noopener noreferrer nofollow",
+                "href": "https://tailwindcss.com/",
+                "class": "text-foreground! underline underline-offset-[3px] transition-colors cursor-pointer",
+                "title": null,
+                "target": "_blank"
+              }
+            }
+          ]
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "6541dbfc-f552-4871-ad53-8c312a24d6dc",
+        "level": 2,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "行内字体样式",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "3ec50858-f796-458d-9ca6-328eb7206a53",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "提及：",
+          "type": "text",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5e28493a-5932-4848-91f8-45af50cf8e92",
+            "label": null,
+            "mentionSuggestionChar": "@"
+          }
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "张老三",
+            "label": null,
+            "mentionSuggestionChar": "@"
+          }
+        },
+        {
+          "text": " ",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "e97abfd6-6cd1-4ffd-b20f-b3e1b3cf32b9",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "字体样式",
+          "type": "text",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": "：This is just a ",
+          "type": "text"
+        },
+        {
+          "text": "Editor",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(127, 59, 131)",
+                "fontSize": "20px",
+                "fontFamily": null,
+                "lineHeight": null,
+                "backgroundColor": "rgb(230, 246, 253)"
+              }
+            }
+          ]
+        },
+        {
+          "text": " in ",
+          "type": "text"
+        },
+        {
+          "text": "React",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": null,
+                "fontSize": "18px",
+                "fontFamily": null,
+                "lineHeight": null,
+                "backgroundColor": "rgb(230, 246, 253)"
+              }
+            }
+          ]
+        },
+        {
+          "text": ". ",
+          "type": "text"
+        },
+        {
+          "text": "You",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(127, 59, 131)",
+                "fontSize": "48px",
+                "fontFamily": null,
+                "lineHeight": "1.15",
+                "backgroundColor": "rgb(246, 193, 20)"
+              }
+            }
+          ]
+        },
+        {
+          "text": " can ",
+          "type": "text"
+        },
+        {
+          "text": "clone",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(206, 36, 22)",
+                "fontSize": null,
+                "fontFamily": null,
+                "lineHeight": null,
+                "backgroundColor": null
+              }
+            }
+          ]
+        },
+        {
+          "text": " the ",
+          "type": "text"
+        },
+        {
+          "text": "repository",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(206, 36, 22)",
+                "fontSize": "18px",
+                "fontFamily": "Georgia, serif",
+                "lineHeight": null,
+                "backgroundColor": null
+              }
+            }
+          ]
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "text": "and",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(206, 36, 22)",
+                "fontSize": null,
+                "fontFamily": null,
+                "lineHeight": null,
+                "backgroundColor": null
+              }
+            }
+          ]
+        },
+        {
+          "text": " copy ",
+          "type": "text"
+        },
+        {
+          "text": "components",
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "color": "rgb(36, 132, 182)",
+                "fontSize": null,
+                "fontFamily": null,
+                "lineHeight": null,
+                "backgroundColor": null
+              }
+            }
+          ]
+        },
+        {
+          "text": " as you need.",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "f79b3fe3-f980-4d5e-b191-eec9bf0ee365",
+        "level": 2,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "列表",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "b0a69f97-8929-4295-9c39-a3e080be64b0",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "无序列表 ",
+          "type": "text",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": "* ",
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "attrs": {
+        "id": "5bc5d972-6d03-4bbd-a3d1-99902a77db6e"
+      },
+      "content": [
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "1a88c189-a407-4909-a341-091ea2dd109a"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "0d13e199-ff65-4a54-b8ad-b2f10f08c2d6",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "一级",
+                  "type": "text"
+                }
+              ]
+            },
+            {
+              "type": "bulletList",
+              "attrs": {
+                "id": "f8da25eb-d758-41d6-9786-e16af0d0ae40"
+              },
+              "content": [
+                {
+                  "type": "listItem",
+                  "attrs": {
+                    "id": "8ef984a5-fe57-4dc2-acac-4c4612dd1308"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "id": "a2300e5f-7d4b-4030-b305-856516df0b24",
+                        "textAlign": null
+                      },
+                      "content": [
+                        {
+                          "text": "一。二级",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "068f804c-83ab-4459-831a-489b918d7d52"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "388b1ff7-d682-4896-90ea-156f6ceab4fe",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "二级",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "ebf4e3d1-3992-429e-aca0-1ceb68be3943",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "有序列表 ",
+          "type": "text",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": "1. ",
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "orderedList",
+      "attrs": {
+        "id": "b48ba4b6-a9cd-494b-a9b9-b88be94eec3a",
+        "type": null,
+        "start": 1
+      },
+      "content": [
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "2601078d-6364-4da3-90ee-65fbf51dbee3"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "c0234281-60c9-4f5d-90fe-60f1f808b527",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "一级",
+                  "type": "text"
+                }
+              ]
+            },
+            {
+              "type": "orderedList",
+              "attrs": {
+                "id": "dd7b6caa-d369-4fed-801b-c595a8ed65c0",
+                "type": null,
+                "start": 1
+              },
+              "content": [
+                {
+                  "type": "listItem",
+                  "attrs": {
+                    "id": "8b9166a6-71f3-48b4-a476-fa60e7ea7bad"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "id": "6beaa7b7-ec04-4322-96b8-c69a446e668e",
+                        "textAlign": null
+                      },
+                      "content": [
+                        {
+                          "text": "一。二级",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "2c6f1ed8-33d2-4766-b201-58749e6c5ad7"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "ab9dc46b-a6fc-4ed0-9b7d-d2508b83a2cf",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "二级",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "ca48c305-9d77-4f83-8c6c-7830c9819386",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "任务列表 ",
+          "type": "text",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": "[]",
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "id": "4726e59c-52a0-42fb-adb5-2600df813864"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "id": "9a7113bb-cda3-4d3c-b194-99adc5b7c162",
+            "checked": true
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "f6830f99-424e-4f92-92b1-00d984b58e3f",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "一级",
+                  "type": "text"
+                }
+              ]
+            },
+            {
+              "type": "taskList",
+              "attrs": {
+                "id": "2d04d5a3-4ba8-4be8-b383-05e779972399"
+              },
+              "content": [
+                {
+                  "type": "taskItem",
+                  "attrs": {
+                    "id": "ae96b702-c1c1-4521-880d-98d7d0134aa6",
+                    "checked": true
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "id": "31b693ed-d87d-4e3b-8a34-8be53b9903ce",
+                        "textAlign": null
+                      },
+                      "content": [
+                        {
+                          "text": "一。二级",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "id": "d1675af4-34af-4783-9959-354097d917b5",
+            "checked": false
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "96ee816a-e0cb-4982-af65-9cb5d7ef876d",
+                "textAlign": null
+              },
+              "content": [
+                {
+                  "text": "二级",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "6639ee5a-7a06-48c0-8a30-7c4b8dc60bcb",
+        "level": 3,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "代码",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "198a1b68-8285-4ce5-8e5b-20e43d711e39",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "This is just a template Editor in React. You can clone the repository and copy components as you need.",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "id": "0af9f11a-6f58-4287-b81c-467a87e8f124",
+        "language": "typescript"
+      },
+      "content": [
+        {
+          "text": "import { BlockEditor } from \"./components/editor\";\n\nexport default function App() {\n  const [editor, setEditor] = useState<Editor>();\n  return (\n     <BlockEditor\n       onCreate={setEditor}\n       onUpdate={setEditor}\n     />\n  )\n}",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "2e17e44f-3254-4e2b-8d4e-734f7b34465d",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "All the editor specific codes are inside ",
+          "type": "text"
+        },
+        {
+          "text": "/src/components/editor",
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "text": " .",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "id": "62448901-f1f6-4d0c-99e2-f962149ab7e1",
+        "language": "plaintext"
+      },
+      "content": [
+        {
+          "text": ".\n├── src                   \n│   ├── assets     \n│   └── components    \n│       ├── editor        \n│       └── ui       \n│   ├── hooks     \n│   └── lib       \n└── ...",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "0d4d32f9-f2b0-4b48-ac84-1304c3caa4d1",
+        "level": 3,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "Mermaid 图表",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mermaid",
+      "attrs": {
+        "id": "b14ef589-607e-4bd1-8b5f-05cf4bf2e4aa",
+        "data-content-type": "mermaid"
+      },
+      "content": [
+        {
+          "text": "sequenceDiagram",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "30bf349b-3570-4262-a946-b468acada1a6"
+          }
+        },
+        {
+          "text": "    autonumber",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "9be2d76f-3b54-4239-88ba-7d26a8078a05"
+          }
+        },
+        {
+          "text": "    Alice->>John: Hello John, how are you?",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "f88ee354-a645-4a6b-930c-60176abd7eee"
+          }
+        },
+        {
+          "text": "    loop HealthCheck",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "083fb79d-6441-473b-9015-0d6429015eeb"
+          }
+        },
+        {
+          "text": "        John->>John: Fight against hypochondria",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "f964c811-36a1-4100-be30-b978d137a996"
+          }
+        },
+        {
+          "text": "    end",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "2e0c4f13-787f-40fc-8162-76783a876731"
+          }
+        },
+        {
+          "text": "    Note right of John: Rational thoughts!",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "8a3b4e5a-6344-4a2f-a591-af9469fe6ef5"
+          }
+        },
+        {
+          "text": "    John-->>Alice: Great!",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "03a5c849-835e-4c06-baa5-f6d8f0c7b8f8"
+          }
+        },
+        {
+          "text": "    John->>Bob: How about you?",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak",
+          "attrs": {
+            "id": "db62ba3a-3759-4d36-ac4b-4c42bd033756"
+          }
+        },
+        {
+          "text": "    Bob-->>John: Jolly good!",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "5bd777dc-3d46-4acc-9ea0-e1479f69d712",
+        "level": 3,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "数学公式",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "75b4da1f-8177-453b-a30f-eb6fd98cb283",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "行内公式：",
+          "type": "text"
+        },
+        {
+          "type": "inlineMath",
+          "attrs": {
+            "id": "e15e58f5-7066-45b0-b903-2d56c3d91324",
+            "latex": "E = mc^2"
+          }
+        },
+        {
+          "text": "或",
+          "type": "text"
+        },
+        {
+          "type": "inlineMath",
+          "attrs": {
+            "id": "9718b1ad-1f2b-4143-8def-a6ef5f0e5441",
+            "latex": "a^2 = \\sqrt{b^2 + c^2}"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "3e427832-03cc-4b4d-ba87-b98df39e75f8",
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "行间公式：",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "blockMath",
+      "attrs": {
+        "id": "54f07518-fe3f-4bd7-a0fd-e83bd37cd2f1",
+        "latex": "\\hat{f} (\\xi)=\\int_{-\\infty}^{\\infty}f(x)e^{-2\\pi ix\\xi}dx"
+      }
+    },
+    {
+      "type": "blockMath",
+      "attrs": {
+        "id": "c45cd583-a8f3-4304-b66b-cf4ba99efc0d",
+        "latex": "A=\\begin{bmatrix}a&bc&d \\end{bmatrix}"
+      }
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "b7a46279-0061-4cd3-b79c-1783c153e12a",
+        "level": 3,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "表格",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "id": "0e23cb75-a911-4212-b4af-3e597a1edac6"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "530a34fe-54ef-400d-a02f-44ea8cdb1f0e"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "id": "cf3687d5-21aa-4c81-ac33-3c85399d9271",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "80fb6c89-b197-49a7-a0da-c256042759e6",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "Name",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "id": "0b21608c-793e-4d69-8f34-0d7f622264b6",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "010bdb64-606a-425b-90b7-40a9b4d14445",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "Code",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "id": "dc641199-27c1-4d41-93d1-93c9061f3e31",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "44f8cdfc-4941-4793-a4ac-c40a394ea1ba",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "Price",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "45dcad90-2d74-46c6-aa1c-0ad1fca6d0f4"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "d1d275f5-5b3a-467f-be0e-97006751bbb8",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "84dbea1c-ead1-456e-b4b8-74f171237c95",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "I-Phone",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "7a935a88-ff69-42b6-ad61-538af1b0ed5f",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "60ae492b-db8c-4bd1-afc2-12cb26036330",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "0001",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "ec05faa0-8dad-4591-a2e5-0c251862e62b",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "a0e30b53-7bdc-449e-8357-f6228482d557",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "$1000",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "ada0b533-ae52-4190-b2d7-ed460ad5b31b"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "62369f32-8e31-47aa-b85e-f5050b9086e7",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "5cdfc315-1d9d-4d36-8119-bbd7c6397d18",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "Samsung",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "a9abc029-420f-45fe-8c3b-6e589aa2417b",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "0f36a48c-f8ed-454a-8b18-710255d40903",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "0002",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "09004a7d-6add-4204-9767-3e28bed0eeb4",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "ec1671b6-b3c3-471b-8509-228dd71aa035",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "$1000",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "a306f58b-df96-464f-b1d4-8c504455aca2"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "ca703251-d273-473c-a327-635a3df88a1c",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "def93659-df02-4b2b-91f5-c98a48ce757c",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "Total",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "5040025a-07af-4e78-b977-dff58b5213ab",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "f057a39e-7886-402a-a4d0-809b3e8b0601",
+                    "textAlign": null
+                  },
+                  "content": [
+                    {
+                      "text": "$2000",
+                      "type": "text",
+                      "marks": [
+                        {
+                          "type": "bold"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "5c01f7ed-1227-4042-b6f9-bf95ddc6b215",
+                "align": null,
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "verticalAlign": "top"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "7003e347-2724-4b65-a2a6-9a4ff1aa2fbb",
+                    "textAlign": null
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "7e673d2a-6f60-4ad0-94be-39eedb870077",
+        "level": 2,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "图片",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "id": "835dda5f-d5fc-42ad-b680-a8bb27c1ca70",
+        "alt": "image-20241020214625670",
+        "src": "http://image.haiqingd.top/image-20241020214625670.png",
+        "title": null,
+        "width": 1457,
+        "height": 308
+      }
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "57e7e8b3-8166-4d62-81e5-cbe11d61cbbf",
+        "level": 3,
+        "textAlign": null
+      },
+      "content": [
+        {
+          "text": "Youtube视频",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "youtube",
+      "attrs": {
+        "id": "776ec924-c887-47f1-91a9-fb64f9c51cdf",
+        "src": "https://www.youtube.com/watch?v=7WHDjZHEYMU",
+        "start": "0",
+        "width": "640",
+        "height": "480"
+      }
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "2fe1f45d-2c69-49ad-854f-8f57a448f1fd",
+        "textAlign": null
+      }
+    }
+  ]
+}

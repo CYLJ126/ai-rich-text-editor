@@ -1,0 +1,33 @@
+.customSplitter {
+  .antSplitterPanel {
+    scrollbar-width: none;
+  }
+}
+
+.articleEditorHost {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+
+  &[data-show-scrollbar='true'] {
+    :global(.tiptap-editor-content),
+    :global(#raw-text) {
+      scrollbar-width: thin !important;
+      scrollbar-color: var(--ant-color-border) transparent;
+    }
+
+    :global(.tiptap-editor-content::-webkit-scrollbar),
+    :global(#raw-text::-webkit-scrollbar) {
+      display: block !important;
+      width: 8px;
+    }
+
+    :global(.tiptap-editor-content::-webkit-scrollbar-thumb),
+    :global(#raw-text::-webkit-scrollbar-thumb) {
+      background: var(--ant-color-border);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background-clip: padding-box;
+    }
+  }
+}

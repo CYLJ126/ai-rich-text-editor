@@ -1,0 +1,81 @@
+.container {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  user-select: none;
+  touch-action: none;
+
+  .dragIcon {
+    position: absolute;
+    color: #bfbfbf;
+    line-height: 1;
+    pointer-events: none;
+    background: #fff;
+    border-radius: 2px;
+    opacity: 0;
+    transition:
+      color 0.2s,
+      opacity 0.2s;
+  }
+
+  &:hover,
+  &:active {
+    .lineVertical,
+    .lineHorizontal {
+      background-color: #1677ff;
+    }
+
+    .dragIcon {
+      color: #1677ff;
+      opacity: 1;
+    }
+  }
+}
+
+/* 鼠标纵向移动，改变高度，显示为横线 */
+.vertical {
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+  flex-direction: row;
+
+  .lineVertical {
+    width: 100%;
+    height: 2px;
+    margin: 0;
+    border: none;
+    background-color: #d9d9d9;
+    transition: background-color 0.2s;
+  }
+
+  .dragIcon {
+    padding: 0 6px;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+}
+
+/* 鼠标横向移动，改变宽度，显示为竖线 */
+.horizontal {
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  flex-direction: column;
+
+  .lineHorizontal {
+    width: 2px;
+    height: 100%;
+    margin: 0;
+    border: none;
+    background-color: #d9d9d9;
+    transition: background-color 0.2s;
+  }
+
+  .dragIcon {
+    padding: 6px 0;
+    font-size: 16px;
+  }
+}

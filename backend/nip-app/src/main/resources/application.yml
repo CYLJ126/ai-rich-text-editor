@@ -1,0 +1,186 @@
+# Server 配置
+server:
+  port: @server.port@
+  servlet:
+    context-path: @server.servlet.context-path@
+
+# 日志配置
+logging:
+  config: @logging.config@
+
+# 业务线程池配置
+threadPool:
+  business: # 业务线程池
+    coreSize: @threadPool.business.coreSize@
+    maxSize: @threadPool.business.maxSize@
+    keepAliveTime: @threadPool.business.keepAliveTime@
+    queueSize: @threadPool.business.queueSize@
+
+# Spring 应用配置
+spring:
+  profiles:
+    include: core, ai
+  application:
+    name: @spring.application.name@
+  servlet:
+    multipart:
+      max-file-size: @spring.servlet.multipart.max-file-size@
+      max-request-size: @spring.servlet.multipart.max-request-size@
+  datasource:
+    druid:
+      db-type: @spring.datasource.druid.db-type@
+      # 最小连接数
+      min-idle: @spring.datasource.druid.min-idle@
+      # 最大连接数
+      max-active: @spring.datasource.druid.max-active@
+      # 连接有效性检测时间
+      time-between-eviction-runs-millis: @spring.datasource.druid.time-between-eviction-runs-millis@
+      # 连接在池中最小生存的时间
+      min-evictable-idle-time-millis: @spring.datasource.druid.min-evictable-idle-time-millis@
+      # 连接在池中最大生存的时间
+      max-evictable-idle-time-millis: @spring.datasource.druid.max-evictable-idle-time-millis@
+      test-while-idle: @spring.datasource.druid.test-while-idle@
+      test-on-borrow: @spring.datasource.druid.test-on-borrow@
+      test-on-return: @spring.datasource.druid.test-on-return@
+      # 检测连接是否有效
+      validation-query: @spring.datasource.druid.validation-query@
+      # 配置监控统计
+      web-stat-filter:
+        enabled: @spring.datasource.druid.webStatFilter.enabled@
+      stat-view-servlet:
+        enabled: @spring.datasource.druid.stat-view-servlet.enabled@
+        url-pattern: @spring.datasource.druid.stat-view-servlet.url-pattern@
+        reset-enable: @spring.datasource.druid.stat-view-servlet.reset-enable@
+        login-username: @spring.datasource.druid.stat-view-servlet.login-username@
+        login-password: @spring.datasource.druid.stat-view-servlet.login-password@
+      filter:
+        stat:
+          enabled: @spring.datasource.druid.filter.stat.enabled@
+          # 记录慢SQL
+          log-slow-sql: @spring.datasource.druid.filter.stat.log-slow-sql@
+          slow-sql-millis: @spring.datasource.druid.filter.stat.slow-sql-millis@
+          merge-sql: @spring.datasource.druid.filter.stat.merge-sql@
+        wall:
+          config:
+            multi-statement-allow: @spring.datasource.druid.filter.wall.config.multi-statement-allow@
+      # 获取连接超时时间
+      max-wait: @spring.datasource.druid.max-wait@
+      app:
+        url: @spring.datasource.druid.app.url@
+        username: @spring.datasource.druid.app.username@
+        password: @spring.datasource.druid.app.password@
+        driver-class-name: com.mysql.cj.jdbc.Driver
+      chlorophyll:
+        url: @spring.datasource.druid.chlorophyll.url@
+        username: @spring.datasource.druid.chlorophyll.username@
+        password: @spring.datasource.druid.chlorophyll.password@
+        driver-class-name: com.mysql.cj.jdbc.Driver
+
+# Elasticsearch 配置
+elasticsearch:
+  uris:
+    - @elasticsearch.uris@
+  username: @elasticsearch.username@
+  password: @elasticsearch.password@
+  connect-timeout: @elasticsearch.connect-timeout@
+  socket-timeout: @elasticsearch.socket-timeout@
+  connection-request-timeout: @elasticsearch.connection-request-timeout@
+  pool:
+    max-conn-total: @elasticsearch.pool.max-conn-total@
+    max-conn-per-route: @elasticsearch.pool.max-conn-per-route@
+  bulk:
+    batch-size: @elasticsearch.bulk.batch-size@
+    max-bytes-per-batch: @elasticsearch.bulk.max-bytes-per-batch@
+    flush-interval: @elasticsearch.bulk.flush-interval@
+  index:
+    document-index: @elasticsearch.index.document-index@
+    chunk-index: @elasticsearch.index.chunk-index@
+    document-shards: @elasticsearch.index.document-shards@
+    document-replicas: @elasticsearch.index.document-replicas@
+    chunk-shards: @elasticsearch.index.chunk-shards@
+    chunk-replicas: @elasticsearch.index.chunk-replicas@
+
+# 代理配置
+http:
+  proxy:
+    host: @http.proxy.host@
+    port: @http.proxy.port@
+
+# 安全配置 - SM2 密钥
+security:
+  sm2:
+    # 默认使用的 SM2 私钥和公钥
+    privateKey: @security.sm2.privateKey@
+    publicKey: @security.sm2.publicKey@
+
+# JWT 配置
+# 参见 WebSecurityProperties 类
+jwt:
+  header: @jwt.header@
+  # 令牌前缀
+  token-start-with: @jwt.token-start-with@
+  # 必须使用最少88位的Base64对该令牌进行编码
+  base64-secret-key: @jwt.base64-secret-key@
+  # 令牌过期时间 此处单位/毫秒 ，默认2小时，可在此网站生成 https://www.convertworld.com/zh-hans/time/milliseconds.html
+  token-validity-in-seconds: @jwt.token-validity-in-seconds@
+  # 在线用户key
+  online-key: @jwt.online-key@
+  # 验证码
+  code-key: @jwt.code-key@
+  # token 续期检查时间范围（默认30分钟，单位默认毫秒），在token即将过期的一段时间内用户操作了，则给用户的token续期
+  detect: @jwt.detect@
+  # 续期时间范围，默认 1小时，这里单位毫秒
+  renew: @jwt.renew@
+  # 默认密码
+  default-password: @jwt.default-password@
+
+# 富文本文件存储配置
+rich-text:
+  history:
+    max-versions: @rich-text.history.max-versions@
+  es-sync:
+    # 同一篇文章首次变更后，最多每 5 分钟同步一次 ES
+    delay-ms: @rich-text.es-sync.delay-ms@
+    # 扫描到期任务的间隔
+    scan-interval-ms: @rich-text.es-sync.scan-interval-ms@
+    # ES 写入失败后的重试间隔
+    retry-delay-ms: @rich-text.es-sync.retry-delay-ms@
+    # 单次扫描最多处理的文章数量
+    batch-size: @rich-text.es-sync.batch-size@
+  storage:
+    # 可选：QINIU / LOCAL
+    type: @rich-text.storage.type@
+    local:
+      # 本地图片保存目录
+      image-path: @rich-text.storage.local.image-path@
+      # 本地文件保存目录
+      file-path: @rich-text.storage.local.file-path@
+    qiniu:
+      access-key: @rich-text.storage.qiniu.access-key@
+      secret-key: @rich-text.storage.qiniu.secret-key@
+      bucket: @rich-text.storage.qiniu.bucket@
+      domain: @rich-text.storage.qiniu.domain@
+      image-expire-days: @rich-text.storage.qiniu.image-expire-days@
+
+# 登录相关配置
+login:
+  # 登录缓存
+  cache-enable: @login.cache-enable@
+  #  是否限制单用户登录
+  single-login: @login.single-login@
+  #  验证码
+  login-code:
+    #  验证码类型配置 查看 LoginProperties 类
+    code-type: @login.login-code.code-type@
+    #  登录图形验证码有效时间/分钟
+    expiration: @login.login-code.expiration@
+    #  验证码宽度
+    width: @login.login-code.width@
+    #  验证码高度
+    height: @login.login-code.height@
+    # 内容长度
+    length: @login.login-code.length@
+    # 字体名称，为空则使用默认字体，如遇到线上乱码，设置其他字体即可
+    font-name: @login.login-code.font-name@
+    # 字体大小
+    font-size: @login.login-code.font-size@

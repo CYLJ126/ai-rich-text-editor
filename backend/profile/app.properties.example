@@ -1,0 +1,91 @@
+# ======================== Server 配置 ========================
+server.port=12636
+server.servlet.context-path=/nip
+# ======================== redis 配置 ========================
+redis.singleServerConfig.address=redis://127.0.0.1:6379
+redis.singleServerConfig.password=
+# ======================== app 数据库连接池配置 ========================
+spring.datasource.druid.app.url=your-database-url-here
+spring.datasource.druid.app.username=your-database-username-here
+spring.datasource.druid.app.password=your-database-password-here
+# ======================== 另一个数据库连接池配置（暂无用处，可扩展多数据源），见 com.nip.app.config.DataSourceConfig ========================
+spring.datasource.druid.chlorophyll.url=your-database-url-here
+spring.datasource.druid.chlorophyll.username=your-database-username-here
+spring.datasource.druid.chlorophyll.password=your-database-password-here
+# ======================== Elasticsearch 配置 ========================
+elasticsearch.uris=your-elasticsearch-uris-here
+elasticsearch.username=your-elasticsearch-username-here
+elasticsearch.password=your-elasticsearch-password-here
+elasticsearch.connect-timeout=10s
+elasticsearch.socket-timeout=60s
+elasticsearch.connection-request-timeout=10s
+elasticsearch.pool.max-conn-total=40
+elasticsearch.pool.max-conn-per-route=20
+elasticsearch.bulk.batch-size=500
+elasticsearch.bulk.max-bytes-per-batch=5242880
+elasticsearch.bulk.flush-interval=15s
+elasticsearch.index.document-index=articles
+elasticsearch.index.chunk-index=article_chunks
+elasticsearch.index.document-shards=3
+elasticsearch.index.document-replicas=1
+elasticsearch.index.chunk-shards=5
+elasticsearch.index.chunk-replicas=1
+# ======================== 安全配置 ========================
+security.sm2.privateKey=your-sm2-private-key-here
+security.sm2.publicKey=your-sm2-public-key-here
+# ======================== 代理配置 ========================
+http.proxy.host=your-proxy-host-here
+http.proxy.port=your-proxy-port-here
+# ======================== 文件上传下载配置 ========================
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=10MB
+# ======================== 日志配置 ========================
+# es 交互时的日志级别
+logging.level.org.apache.hc.client5.http.wire=INFO
+logging.level.org.apache.hc.core5=INFO
+# spring ai 包日志级别
+logging.level.org.springframework.ai=DEBUG
+# spring ai advisor 日志级别
+logging.level.org.springframework.ai.chat.client.advisor=DEBUG
+# ======================== 文章相关配置 ========================
+# 历史版本最大数量
+rich-text.history.max-versions=20
+# ES 同步延迟时间，单位毫秒
+rich-text.es-sync.delay-ms=300000
+# ES 同步扫描间隔，单位毫秒
+rich-text.es-sync.scan-interval-ms=10000
+# ES 同步重试延迟时间，单位毫秒
+rich-text.es-sync.retry-delay-ms=60000
+# ES 同步批量大小
+rich-text.es-sync.batch-size=100
+# 存储类型
+rich-text.storage.type=QINIU
+rich-text.storage.local.image-path=your-local-image-path-here
+rich-text.storage.local.file-path=your-local-file-path-here
+rich-text.storage.qiniu.access-key=your-qiniu-access-key-here
+rich-text.storage.qiniu.secret-key=your-qiniu-secret-key-here
+rich-text.storage.qiniu.bucket=your-qiniu-bucket-here
+rich-text.storage.qiniu.domain=your-qiniu-domain-here
+rich-text.storage.qiniu.image-expire-days=7
+# ======================== 嵌入模型配置 ========================
+# bge-large（1024 维度）或 bge-small（Bge 512 维度），bge 需要配置 onnx 文件
+spring.ai.embedding.provider=bge-large
+# 注：在 bge-small 时需要
+spring.ai.embedding.exclude=
+# 注：以下配置在 bge-large 时需要
+# onnx文件
+spring.ai.embedding.transformer.onnx.model-uri=file://your-onnx-model-path-here
+spring.ai.embedding.transformer.tokenizer.uri=file://your-tokenizer-path-here
+# -1 表示使用 CPU，Mac 上可尝试 0 调用 GPU（需配合 CoreML）
+spring.ai.embedding.transformer.onnx.gpu-device-id=-1
+# 重要，防止输入长度不一致报错
+spring.ai.embedding.transformer.tokenizer.options.padding=true
+# ======================== Spring AI 配置 ========================
+spring.ai.deepseek.api-key=your-deepseek-api-key-here
+# ======================== mcp client 配置 ========================
+spring.ai.mcp.client.name=nip-mcp-client
+# ======================== mcp server 配置 ========================
+spring.ai.mcp.server.name=nip-mcp-server
+# 配置路径为 项目根路径加端点路径，如 http://localhost:8000/nip/mcp
+spring.ai.mcp.server.endpoint=/mcp
+spring.ai.mcp.server.disallow-delete=true

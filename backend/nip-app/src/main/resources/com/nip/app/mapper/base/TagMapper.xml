@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nip.app.mapper.base.TagMapper">
+    
+    <resultMap id="tagMap" type="com.nip.app.pojo.base.TagDto">
+        <id property="id" column="id" jdbcType="INTEGER" />
+        <result property="name" column="name" jdbcType="VARCHAR" />
+        <result property="status" column="status" jdbcType="VARCHAR" />
+        <result property="description" column="description" jdbcType="VARCHAR" />
+        <result property="fatherId" column="father_id" jdbcType="INTEGER" />
+        <result property="createBy" column="create_by" jdbcType="INTEGER" />
+        <result property="updateBy" column="update_by" jdbcType="INTEGER" />
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP" />
+        <result property="updateTime" column="update_time" jdbcType="TIMESTAMP" />
+    </resultMap>
+    
+    <sql id="baseColumn">
+        distinct (id), name, status, order_id, description, father_id, create_by, update_by, create_time, update_time
+    </sql>
+    
+    <sql id="baseWhere">
+        <where>
+            <if test="id != null">
+                AND id = #{id}
+            </if>
+            <if test="name != null and name != ''">
+                AND name = #{name}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="description != null and description != ''">
+                AND description like concat('%', #{description}, '%')
+            </if>
+            <if test="fatherIds != null and fatherIds.size() > 0">
+                AND father_id in
+                <foreach collection="fatherIds" item="item" separator="," open="(" close=")">
+                    #{item,jdbcType=INTEGER}
+                </foreach>
+            </if>
+        </where>
+    </sql>
+
+    <select id="listRecursive" parameterType="com.nip.app.pojo.base.param.TagParam" resultMap="tagMap">
+        with recursive rec_query as (
+        select <include refid="baseColumn" /> from nip_base_tag <include refid="baseWhere" />
+        union all
+        select recu.id, recu.name, recu.status, recu.order_id, recu.description, recu.father_id, recu.create_by, recu.update_by, recu.create_time, recu.update_time
+        from nip_base_tag recu join rec_query where recu.father_id = rec_query.id
+        )
+        select <include refid="baseColumn" /> from rec_query
+    </select>
+
+    <select id="listAntiRecursive" parameterType="com.nip.app.pojo.base.param.TagParam" resultMap="tagMap">
+        with recursive rec_query as (
+        select <include refid="baseColumn" /> from nip_base_tag <include refid="baseWhere" />
+        union all
+        select recu.id, recu.name, recu.status, recu.order_id, recu.description, recu.father_id, recu.create_by, recu.update_by, recu.create_time, recu.update_time
+        from nip_base_tag recu join rec_query where recu.id = rec_query.father_id
+        )
+        select <include refid="baseColumn" /> from rec_query
+    </select>
+
+    <update id="updateOrder">
+        <foreach collection="list" item="tagDto" separator=";">
+            update nip_base_tag set order_id = #{tagDto.orderId} where id = #{tagDto.id}
+        </foreach>
+    </update>
+
+    <delete id="removeRecursive" >
+        with recursive rec_query as (select distinct (id), father_id
+                                     from nip_base_tag
+                                     where id = #{id,jdbcType=INTEGER}
+                                     union all
+                                     select recu.id, recu.father_id
+                                     from nip_base_tag recu join rec_query
+                                     where recu.father_id = rec_query.id)
+        delete
+        from nip_base_tag
+        where id in (select id from rec_query)
+    </delete>
+
+    <select id="listByParam" parameterType="com.nip.app.pojo.base.param.TagParam" resultMap="tagMap">
+        select <include refid="baseColumn" /> from nip_base_tag <include refid="baseWhere" />
+    </select>
+</mapper>

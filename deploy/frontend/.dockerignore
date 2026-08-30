@@ -1,0 +1,7 @@
+.git
+node_modules
+.umi
+.umi-production
+coverage
+dist
+dist.zip

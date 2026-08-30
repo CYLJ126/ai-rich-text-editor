@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nip.app.mapper.richtext.ArticleMapper">
+
+    <resultMap id="articleMap" type="com.nip.app.pojo.richtext.ArticleDto">
+        <id property="id" column="id" jdbcType="INTEGER"/>
+        <result property="author" column="author" jdbcType="VARCHAR"/>
+        <result property="title" column="title" jdbcType="VARCHAR"/>
+        <result property="summary" column="summary" jdbcType="VARCHAR"/>
+        <result property="cover" column="cover" jdbcType="VARCHAR"/>
+        <result property="catalogId" column="catalog_id" jdbcType="INTEGER"/>
+        <result property="orderId" column="order_id" jdbcType="INTEGER"/>
+        <result property="contentJson" column="content_json" jdbcType="VARCHAR"/>
+        <result property="contentMd" column="content_md" jdbcType="VARCHAR"/>
+        <result property="contentText" column="content_text" jdbcType="VARCHAR"/>
+        <result property="isPublic" column="is_public" jdbcType="TINYINT"/>
+        <result property="isDelete" column="is_delete" jdbcType="TINYINT"/>
+        <result property="accessLevel" column="access_level" jdbcType="VARCHAR"/>
+        <result property="articleType" column="article_type" jdbcType="VARCHAR"/>
+        <result property="characterCount" column="character_count" jdbcType="INTEGER"/>
+        <result property="rowVersion" column="row_version" jdbcType="INTEGER"/>
+        <result property="createBy" column="create_by" jdbcType="VARCHAR"/>
+        <result property="updateBy" column="update_by" jdbcType="VARCHAR"/>
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="update_time" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="baseColumn">
+        id, author, title, summary, cover, catalog_id, order_id, content_json, content_md, content_text,
+        is_public, create_by, update_by, create_time, update_time, is_delete, access_level, article_type,
+        character_count, row_version
+    </sql>
+    <sql id="withoutContent">
+        id
+        , author, title, summary, cover, catalog_id, order_id, is_public, create_by, update_by,
+          create_time, update_time, is_delete, access_level, article_type, character_count, row_version
+    </sql>
+    <sql id="editorColumn">
+        id, author, title, summary, cover, catalog_id, order_id, content_json,
+        is_public, create_by, update_by, create_time, update_time, is_delete, access_level, article_type,
+        character_count, row_version
+    </sql>
+
+    <select id="listPublicArticles" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article where is_public = 1 and is_delete = 0
+    </select>
+
+    <select id="listByIds" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        and is_delete = 0
+    </select>
+
+    <select id="listPublicByCatalogId" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where is_public = 1 and catalog_id = #{catalogId} and is_delete = 0
+    </select>
+
+    <select id="getByIdUnfiltered" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article where id = #{id} and is_delete = 0
+    </select>
+
+    <select id="getByIdWithContentUnfiltered" resultMap="articleMap">
+        select <include refid="baseColumn" /> from nip_rt_article where id = #{id} and is_delete = 0
+    </select>
+
+    <select id="getEditorArticleById" resultMap="articleMap">
+        select <include refid="editorColumn" /> from nip_rt_article where id = #{id} and is_delete = 0
+    </select>
+
+    <select id="getContentTextById" resultType="java.lang.String">
+        select content_text from nip_rt_article where id = #{id} and is_delete = 0
+    </select>
+
+    <select id="getByIdWithContentForUpdate" resultMap="articleMap">
+        select <include refid="baseColumn" />
+        from nip_rt_article
+        where id = #{id} and is_delete = 0
+        for update
+    </select>
+
+    <select id="listAllWithContentUnfiltered" resultMap="articleMap">
+        select
+        <include refid="baseColumn"/>
+        from nip_rt_article
+        where is_delete = 0
+        order by id asc
+    </select>
+
+    <select id="listRecentAccessible" resultMap="articleMap">
+        with recursive shared_catalogs as (
+            select cast(s.resource_id as signed) as id
+            from nip_rt_share s
+            where s.resource_type = 'CATALOG'
+              and (
+                (s.target_type = 'USER' and s.target_user = #{currentUser})
+                <if test="targetRoles != null and targetRoles.size() > 0">
+                  or (s.target_type = 'ROLE' and s.target_role in
+                  <foreach collection="targetRoles" item="role" open="(" separator="," close=")">
+                    #{role}
+                  </foreach>)
+                </if>
+              )
+            union
+            select c.id
+            from nip_rt_catalog c
+                     inner join shared_catalogs sc on c.father_id = sc.id
+        )
+        select <include refid="withoutContent" /> from nip_rt_article a
+        where a.is_delete = 0 and (a.create_by = #{currentUser}
+           or a.is_public = 1
+           or exists (
+                select 1
+                from nip_rt_share s
+                where s.resource_type = 'ARTICLE'
+                  and s.resource_id = a.id
+                  and (
+                    (s.target_type = 'USER' and s.target_user = #{currentUser})
+                    <if test="targetRoles != null and targetRoles.size() > 0">
+                      or (s.target_type = 'ROLE' and s.target_role in
+                      <foreach collection="targetRoles" item="role" open="(" separator="," close=")">
+                        #{role}
+                      </foreach>)
+                    </if>
+                  )
+            )
+           or a.catalog_id in (select id from shared_catalogs))
+        order by a.update_time desc
+        limit #{limit}
+    </select>
+
+    <select id="listByCatalogIdUnfiltered" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where catalog_id = #{catalogId} and is_delete = 0
+        order by order_id asc
+    </select>
+
+    <select id="listMyPrivateArticles" resultMap="articleMap">
+        select <include refid="withoutContent" /> from nip_rt_article
+        where (is_public = 0 or is_public is null)
+          and create_by = #{currentUser} and is_delete = 0
+    </select>
+
+</mapper>

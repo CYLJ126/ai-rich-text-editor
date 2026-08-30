@@ -1,0 +1,44 @@
+{
+  "provider": "deepseek",
+  "modelId": "deepseek-v4-flash",
+  "modelName": "DeepSeek V4 Flash",
+  "modelType": "chat",
+  "apiKey": "",
+  "apiBaseUrl": "https://api.deepseek.com",
+  "apiVersion": "",
+  "orgId": null,
+  "defaultParam": {
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "response_format": "text",
+    "reasoning_effort_list": [
+      "high",
+      "max"
+    ],
+    "response_format_list": [
+      "text",
+      "json_object"
+    ]
+  },
+  "contextWindow": 1000000,
+  "max_tokens": 384000,
+  "supportVision": true,
+  "supportFunction": true,
+  "supportThinking": true,
+  "supportSearch": false,
+  "supportPromptCaching": true,
+  "inputUnitPrice": 1.00,
+  "outputUnitPrice": 2.00,
+  "priceCurrency": "CNY",
+  "timeoutSeconds": 120,
+  "maxRetries": 3,
+  "icon": "deepseek",
+  "status": "1",
+  "proxy": null,
+  "requestsPerMinute": 500,
+  "tokensPerMinute": 5000000,
+  "dailyRequestLimit": 100000,
+  "concurrencyLimit": 50,
+  "sortOrder": 1,
+  "description": "DeepSeek V4 Flash 是深度求索于2026年4月发布的轻量版模型，284B总参数/13B激活参数，支持100万token上下文和384K最大输出，兼容OpenAI接口，支持Function Calling、视觉理解与深度思考，性价比极高。"
+}

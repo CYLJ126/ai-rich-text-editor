@@ -1,0 +1,156 @@
+.editorContainer {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+.editorContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+
+  :global {
+    .tiptap {
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      box-sizing: border-box;
+      padding: 5px 5px 5px 15px;
+      border: none;
+      outline: none;
+      box-shadow: none;
+
+      p {
+        margin-bottom: 0;
+      }
+
+      .simple-blockquote {
+        padding-left: 5px;
+        margin-bottom: 0;
+        font-style: italic;
+        color: oklch(70.4% 0.04 256.788);
+        border-left: 0.25rem solid oklch(70.4% 0.04 256.788);
+
+        p:first-child::before {
+          margin-right: 2px;
+          content: '\201C';
+        }
+
+        p:last-child::after {
+          margin-left: 2px;
+          content: '\201D';
+        }
+      }
+
+      // 有序列表样式
+      ol[data-type='orderedList'] {
+        padding-left: 1rem;
+        margin-top: 0.25rem;
+        li {
+          margin-bottom: 0;
+        }
+      }
+
+      // 无序列表样式
+      ul[data-type='bulletList'] {
+        padding-left: 1.25rem;
+        margin-top: 0.25rem;
+        li {
+          margin-bottom: 0;
+        }
+      }
+
+      // 任务列表样式
+      ul[data-type='taskList'] {
+        list-style: none;
+        margin-left: 0;
+        padding: 0;
+
+        li {
+          align-items: flex-start;
+          display: flex;
+
+          > label {
+            flex: 0 0 auto;
+            margin-right: 0.5rem;
+            user-select: none;
+          }
+
+          > div {
+            flex: 1 1 auto;
+          }
+        }
+
+        input[type='checkbox'] {
+          cursor: pointer;
+        }
+
+        /* 任务完成，已勾选，则字体设置为灰色，加上删除线 */
+        li[data-checked='true'] {
+          // 设置为灰色，透明度50%
+          color: rgba(0, 0, 0, 0.5);
+          text-decoration: line-through;
+        }
+      }
+      li[data-type='taskItem'] {
+        margin-bottom: 0;
+        margin-top: 0;
+
+        p {
+          margin-bottom: 0;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 使用父子选择器提高优先级，确保覆盖 DraggableLine 中：
+ *
+ * .container {
+ *   position: relative;
+ * }
+ *
+ * .horizontal {
+ *   width: 6px;
+ *   height: 100%;
+ * }
+ */
+.editorContainer > .widthResizeHandle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  z-index: 20;
+  opacity: 0.1;
+
+  width: 6px;
+  height: auto;
+  margin: 0;
+}
+
+/**
+ * 底部横线。
+ *
+ * bottom: -3px：
+ * 拖动区域高度为 6px，使拖动线的中心与编辑器底边重合。
+ */
+.editorContainer > .heightResizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: -3px;
+  left: 0;
+  z-index: 20;
+  opacity: 0.1;
+
+  width: auto;
+  height: 6px;
+  margin: 0;
+}

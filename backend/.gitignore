@@ -1,0 +1,42 @@
+# Package Files #
+*.war
+*.nar
+*.ear
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Log file
+**/*.log
+*.log.gz
+
+### IDEA ###
+.idea/*
+*.iml
+*/target/*
+*/*.iml
+*.iws
+/.gradle/
+
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.local
+*.class
+
+# Other files and folders
+.settings/
+
+# Executables
+*.swf
+*.air
+*.ipa
+*.apk
+
+# Mac General
+._*
+.DS_Store
+.AppleDouble
+.LSOverride

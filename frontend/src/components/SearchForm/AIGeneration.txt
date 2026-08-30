@@ -1,0 +1,51 @@
+我有很多列表页，其中大部分的搜索条件都比较类似，比如输入框、下拉选择、时间范围选择等。我希望实现一个组件，支持我传入一组配置，即可生成搜索条件（控件）表单，在输入查询条件，点击查询或重置时，刷新表格数据。
+
+样式要求：
+
+1. 支持大、中、小三种尺寸；大尺寸高32px宽320px字体20px，中尺寸高28px宽280px字体16px，小尺寸高24px宽240px字体13px；
+2. 在父元素框中从左到右，从上到下依次排列；响应式布局，自适应屏幕，自动换行；
+3. label最长长度要限制，文字太多时，换行；
+4. 每个控件框宽和高保持一致；
+
+各控件属性名：
+
+1. fieldName：字段名，对应后端参数；
+2. fieldType：控件类型，支持：
+   1. Input输入框：支持配置文本框、数字框、密码框等；
+   2. Select下拉框、Checkbox.Group复选框组、TreeSelect树形选择、Cascader级联选择：支持配置单选、多选，下拉列表默认范围，或给个链接在点击时从后端获取；
+   3. Switch或 Radio开关/布尔选择：是否启用、是否删除；
+   4. DatePicker时间选择、DatePicker.RangePicker时间范围选择：支持配置格式化类型，如"YYYY-MM-DD"，支持精度，如年季月日还是时分秒或毫秒；
+   5. 数字范围输入：金额区间、数量区间；
+   6. slot/ render：自定义插槽，可自行添加不支持的控件；
+   7. 其他选择器：滑块（Slider）用于范围选择、颜色选择器、评分（Rate）、上传组件、地区选择（省市区）；
+3. label：显示的标签名；
+4. transformFunction：在向后端提交时的内容转换函数，默认没有，如设置则在提交前对该字段做处理，如自定义时间格式化方法；
+5. placeholder：提示内容；
+6. defaultValue：默认值，如时间可取当前时间；
+7. options：下拉选项，用于 select 等组件；
+8. optionUrl：下拉选项加载 Url；
+9. optionKeyMap：自定义 options 的 label/value 字段名；
+10. disabled：是否禁用；
+11. clearable：是否允许清空（适用于 select/date 等）；
+12. dependOn：依赖条件，如我有merchant和orgCode两个框，orgCode的下拉列表向后端请求时的参数为merchant的值{”merchants": ["merchant1", "merchant2"]}；
+13. visableFunction：显隐计算函数，如组件是否显隐依赖另一控件值，计算是否显示；
+14. rules：校验规则（可选，用于提交前校验）
+15. joinFunction：多值连接函数（如多选时用逗号拼接），不提供，则为列表形式，提供了按此格式化为字符串；
+16. debounce：防抖延迟（ms），常用于 input 搜索；
+17. extraProps：透传给底层组件的额外 props（如 Select 的 `filterOption`）；
+18. extraClassName：自定义类名；
+19. extraStyle：自定义样式；
+20. onChange：值变化回调：`(value, field) => void`；
+21. render：自定义渲染函数：`(props) => ReactNode`（用于自定义类型）
+22. onSearch：`(value: any) => void`，搜索回调；
+23. onFocus：`() => void`，聚焦回调；
+24. onBlur：`() => void`，失焦回调；
+
+要求：
+
+1. 我传入定义的属性，为我自动渲染出对应的搜索框；
+2. 查询、重置按钮：重置后恢复到默认值或空，两个按钮点击后均以处理后的表单向后端发起查询；
+3. 折叠按钮：如有多行时，支持折叠（可配置折叠为一行还是两行），折叠后显示的字段是哪些；
+4. 按钮支持配置快捷键；
+
+请按上述要求为我实现一个这样的组件，如有遗漏属性或类型，可补充或优化。

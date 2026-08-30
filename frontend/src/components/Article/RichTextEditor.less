@@ -1,0 +1,41 @@
+.editorLayout {
+  .mainContent {
+    .toolbar {
+      height: 33px;
+      border: none;
+      display: flex;
+      align-items: center;
+    }
+
+    .editorContainer {
+      display: flex;
+      position: relative;
+
+      .articleLoadingMask {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(1px);
+      }
+    }
+  }
+
+  .sidebar {
+    border: none;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 14px;
+  }
+}
+
+.customSplitter {
+  .antSplitterPanel {
+    scrollbar-width: none;
+  }
+}

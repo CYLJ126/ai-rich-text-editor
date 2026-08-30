@@ -1,0 +1,450 @@
+.stickyNote {
+  // 使用 CSS 变量支持动态主题色
+  --theme-color: #81d3f8;
+
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 5px;
+
+  /**
+   * 不要在整个便笺上设置以下属性：
+   *
+   * user-select: none;
+   * touch-action: none;
+   *
+   * 否则会影响标题输入框、Tiptap 文本选择以及编辑器内部拖动手柄。
+   */
+}
+
+/**
+ * 拖动整个便笺时的样式。
+ */
+.dragging {
+  cursor: grabbing;
+  transition: none !important;
+
+  /**
+   * 避免拖动时浏览器尝试选择便笺中的文本。
+   * 该属性只在拖动期间生效。
+   */
+  user-select: none;
+
+  .dragIcon {
+    cursor: grabbing;
+  }
+}
+
+/**
+ * 便笺标题栏。
+ */
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+}
+
+/**
+ * 标题输入框。
+ */
+.title {
+  width: 100%;
+  height: 30px;
+  padding-right: 30px;
+  padding-left: 30px;
+
+  color: #ffffff !important;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+
+  background-color: var(--theme-color);
+  border: none;
+  border-radius: 5px 5px 0 0;
+
+  &:hover {
+    background-color: var(--theme-color) !important;
+  }
+
+  &:focus,
+  &:focus-within {
+    background-color: var(--theme-color) !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /**
+   * 覆盖 Ant Design Input 的内部样式。
+   */
+  :global(.ant-input) {
+    color: #ffffff !important;
+    background-color: var(--theme-color) !important;
+
+    &:hover {
+      background-color: var(--theme-color) !important;
+    }
+
+    &:focus {
+      background-color: var(--theme-color) !important;
+      box-shadow: none !important;
+    }
+  }
+}
+
+/**
+ * TagsOutlined 是整个便笺唯一的位置拖动手柄。
+ *
+ * 注意：
+ * 这里不能设置 pointer-events: none，
+ * 否则无法收到 onPointerDown、onPointerMove 和 onPointerUp。
+ */
+.dragIcon {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  z-index: 30;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 24px;
+  height: 24px;
+
+  color: #ffffff;
+  cursor: grab;
+
+  transform: translateY(-50%);
+
+  /**
+   * 仅禁止拖动图标上的文本选择和触摸滚动。
+   * 不会影响 Tiptap 编辑器中的文本选择和节点拖动。
+   */
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
+
+  &:hover {
+    opacity: 0.85;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  /**
+   * Pointer 事件由 Ant Design Icon 最外层 span 接收，
+   * 内部 svg 不单独作为事件目标。
+   */
+  svg {
+    width: 22px;
+    height: 22px;
+    pointer-events: none;
+  }
+}
+
+.card {
+  :global(.ant-card-head) {
+    height: 35px;
+    padding: 3px;
+  }
+
+  :global(.ant-card-body) {
+    padding: 3px;
+  }
+}
+
+/**
+ * 主题色选择器。
+ */
+.colorPicker {
+  width: 19px !important;
+  min-width: 19px !important;
+  height: 19px !important;
+  min-height: 19px !important;
+
+  :global(.ant-color-picker-color-block) {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  :global(.ant-color-picker-trigger) {
+    width: 19px !important;
+    height: 19px !important;
+    border-radius: 2px !important;
+  }
+}
+
+/**
+ * 操作按钮栏。
+ */
+.buttonBar {
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  padding: 2px;
+
+  overflow: hidden;
+
+  background-color: #ffffff;
+  border-radius: 0;
+}
+
+/**
+ * 文本与 Markdown 切换按钮。
+ */
+.textIcon {
+  margin-left: 5px;
+
+  color: var(--theme-color);
+  cursor: pointer;
+
+  transition:
+    color 0.3s ease,
+    opacity 0.3s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/**
+ * 删除按钮。
+ */
+.deleteIcon {
+  margin-left: 5px;
+
+  color: var(--theme-color);
+  cursor: pointer;
+
+  transition:
+    color 0.3s ease,
+    opacity 0.3s ease;
+
+  &:hover {
+    color: #ff4d4f;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/**
+ * 保留原有的宽度按钮样式。
+ */
+.addWidthIcon {
+  margin-left: 4px;
+
+  color: var(--theme-color);
+  cursor: pointer;
+
+  transition:
+    color 0.3s ease,
+    opacity 0.3s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/**
+ * 截止日期。
+ */
+.endDate {
+  float: right;
+
+  width: 78px;
+  padding: 0;
+
+  background-color: #ffffff;
+  border: none;
+  box-shadow: none;
+
+  &:hover,
+  &:focus,
+  &:focus-within {
+    background-color: #ffffff;
+    border: none;
+    box-shadow: none;
+  }
+
+  :global(.ant-picker-input) {
+    input {
+      color: var(--theme-color);
+      font-size: 13px;
+      text-align: right;
+      cursor: pointer;
+    }
+
+    input:hover {
+      background-color: #ffffff;
+    }
+  }
+
+  /**
+   * 隐藏日期选择器图标。
+   */
+  :global(.anticon) {
+    display: none;
+  }
+}
+
+/**
+ * 标签栏。
+ */
+.tagBar {
+  display: flex;
+  align-items: center;
+
+  box-sizing: border-box;
+  height: 23px;
+
+  background-color: #f0f0f0;
+  border-radius: 0;
+}
+
+/**
+ * 添加标签按钮。
+ */
+.tagAdd {
+  flex-shrink: 0;
+
+  margin: 1px 0 0 2px;
+
+  cursor: pointer;
+
+  transition:
+    color 0.3s ease,
+    opacity 0.3s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  svg {
+    width: 19px;
+    height: 19px;
+    color: var(--theme-color);
+  }
+}
+
+/**
+ * 标签滚动容器。
+ */
+.tagContainer {
+  display: flex;
+  flex: 1;
+  align-items: center;
+
+  min-width: 0;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  white-space: nowrap;
+
+  // Firefox 隐藏滚动条
+  scrollbar-width: none;
+
+  // IE 和旧版 Edge 隐藏滚动条
+  -ms-overflow-style: none;
+
+  // Chrome、Safari 和新版 Edge 隐藏滚动条
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/**
+ * SimpleEditor 外层样式。
+ *
+ * 该元素同时包含：
+ * 1. Tiptap 编辑器内容；
+ * 2. 右侧宽度调整线；
+ * 3. 底部高度调整线。
+ *
+ * 不要在这里绑定整个便笺的位置拖动行为。
+ */
+.content {
+  box-sizing: border-box;
+  min-height: 150px !important;
+
+  overflow: visible;
+
+  background-color: var(--theme-color);
+  border: none;
+  border-radius: 0 0 5px 5px;
+
+  :global(.tiptap) {
+    border-radius: 0 0 5px 5px;
+  }
+
+  scrollbar-width: none;
+
+  &:hover {
+    background-color: var(--theme-color) !important;
+  }
+
+  &:focus,
+  &:focus-within {
+    background-color: var(--theme-color) !important;
+    box-shadow: none !important;
+  }
+
+  /**
+   * 覆盖可能存在的 Ant Design Input 样式。
+   */
+  :global(.ant-input) {
+    background-color: var(--theme-color) !important;
+
+    &:hover {
+      background-color: var(--theme-color) !important;
+    }
+
+    &:focus {
+      background-color: var(--theme-color) !important;
+      box-shadow: none !important;
+    }
+  }
+
+  /**
+   * SimpleEditor 内部实际滚动容器。
+   */
+  :global(.ant-input-textarea),
+  :global(.ProseMirror),
+  :global(.tiptap) {
+    background-color: var(--theme-color);
+
+    :global(.my-link) {
+      color: var(--ant-color-primary-hover);
+    }
+  }
+
+  /**
+   * 隐藏滚动条，但保留滚动能力。
+   */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}

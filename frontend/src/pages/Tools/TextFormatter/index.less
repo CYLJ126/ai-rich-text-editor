@@ -1,0 +1,107 @@
+.container {
+  padding: 16px;
+
+  .configSection {
+    margin-bottom: 16px;
+    border-radius: 6px;
+
+    :global {
+      .ant-collapse-item {
+        border-bottom: none;
+      }
+
+      .ant-collapse-header {
+        padding: 12px 16px;
+        font-weight: 600;
+        font-size: 16px;
+      }
+
+      .ant-collapse-content-box {
+        padding: 0 16px 12px;
+      }
+    }
+
+    .configRow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 8px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .label {
+        font-weight: 500;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .textSection {
+    .textLabel {
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #262626;
+    }
+
+    .textArea {
+      height: 200px;
+      margin-bottom: 16px;
+      resize: vertical;
+    }
+  }
+
+  .prefixRemove {
+    width: 200px;
+
+    :global(.ant-input-number-group-addon) {
+      font-size: 12px;
+    }
+  }
+
+  .serialMark {
+    width: 150px;
+  }
+
+  .endWithInput {
+    width: 60px;
+  }
+
+  .divider {
+    margin: 24px 0;
+  }
+}
+
+// 暗色主题支持
+[data-theme='dark'] .container {
+  .configSection {
+    background-color: #262626;
+    border-color: #434343;
+
+    :global {
+      .ant-collapse-header {
+        color: #f0f0f0;
+      }
+
+      .ant-collapse-content-box {
+        background-color: #262626;
+      }
+    }
+
+    .configRow .label {
+      color: #bfbfbf;
+    }
+  }
+
+  .textSection {
+    .textLabel {
+      color: #f0f0f0;
+    }
+
+    .textArea.readOnly {
+      background-color: #1f1f1f;
+    }
+  }
+}

@@ -1,0 +1,8 @@
+#基本配置，在环境配置文件application-env.yml中通过spring.config.additional-location属性引入
+cache:
+  cache-type: @cache.cache-type@
+  scan-packages: @cache.scan-packages@
+  default:
+    cache-key-prefix: @cache.default.cache-key-prefix@
+    expire: @cache.default.expire@
+    max-size: @cache.default.max-size@

@@ -1,0 +1,127 @@
+.carousel {
+  width: var(--news-tab-width);
+  height: 94px;
+}
+
+.card {
+  :hover {
+    cursor: pointer;
+  }
+
+  :global(.ant-card-body) {
+    height: 55px;
+  }
+}
+
+.popoverContent {
+  width: calc(80vh);
+  height: calc(65vh);
+  overflow: auto;
+  scrollbar-width: none;
+
+  :global(.ant-card-head) {
+    width: calc(80vh);
+  }
+
+  :global(.ant-card-body) {
+    width: calc(80vh);
+  }
+}
+
+.logoImg {
+  height: 30px !important;
+  width: auto !important;
+}
+
+.websiteModule {
+  font-size: 20px;
+  font-weight: bold;
+  text-align: right;
+  margin-right: 5px;
+  color: #81d3f8;
+}
+
+.newsTabs {
+  :global(.ant-tabs-tab) {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    // 设置父容器为 flex 容器
+    display: flex;
+    // 让子元素水平居中
+    justify-content: center;
+    // 让子元素垂直居中
+    align-items: center;
+  }
+}
+
+// 新增气泡卡片样式
+.newsPopover {
+  // 限制最大尺寸
+  max-width: 80vw !important;
+  max-height: 70vh !important;
+
+  // 定位修正
+  .ant-popover-inner {
+    overflow: hidden !important;
+    border-radius: 8px;
+  }
+
+  .ant-popover-arrow {
+    display: none; // 隐藏默认箭头
+  }
+}
+
+.popoverContentWrapper {
+  // 尺寸限制
+  max-width: 800px;
+  max-height: 60vh;
+  width: auto !important;
+
+  // 滚动支持
+  overflow-y: auto;
+  padding-right: 12px;
+  scrollbar-width: thin;
+
+  // 滚动条美化
+  &::-webkit-scrollbar {
+    width: 6px;
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+
+  // 卡片样式调整
+  .card {
+    width: 100% !important;
+    max-width: none;
+    margin-bottom: 12px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    :global {
+      .ant-card-head {
+        min-width: 280px;
+      }
+
+      .ant-card-body {
+        padding: 12px !important;
+      }
+    }
+  }
+}
+
+// 父容器防止尺寸变化
+#website-content-grid {
+  overflow: visible !important;
+  contain: strict;
+
+  > div {
+    overflow: visible !important;
+  }
+}
