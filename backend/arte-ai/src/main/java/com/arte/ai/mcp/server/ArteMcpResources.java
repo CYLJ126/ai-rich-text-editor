@@ -22,10 +22,10 @@ import java.util.List;
 @Service
 public class ArteMcpResources {
 
-    private static final String SPRING_LOGO_URI_STR = "resource://spring-logo-str";
-    private static final String SPRING_LOGO_URI_BYTE = "resource://spring-logo-byte";
+    private static final String ARTE_LOGO_URI_STR = "resource://arte-logo-str";
+    private static final String ARTE_LOGO_URI_BYTE = "resource://arte-logo-byte";
 
-    private static final String SPRING_LOGO_PATH = "static/img/spring-logo.svg";
+    private static final String ARTE_LOGO_PATH = "static/img/arte-logo.svg";
 
     /**
      * 返回文本资源
@@ -34,14 +34,14 @@ public class ArteMcpResources {
      * @throws IOException 读取文件时出错
      */
     @McpResource(
-            uri = SPRING_LOGO_URI_STR,
-            name = "Spring Logo Svg Str",
-            description = "Spring Logo Svg Str",
+            uri = ARTE_LOGO_URI_STR,
+            name = "ARTE Logo SVG String",
+            description = "ARTE project logo as an SVG string",
             mimeType = "image/svg+xml"
     )
-    public String getSpringLogoStr() throws IOException {
-        log.info("返回 Spring Logo SVG Str");
-        return new ClassPathResource(SPRING_LOGO_PATH).getContentAsString(StandardCharsets.UTF_8);
+    public String getArteLogoStr() throws IOException {
+        log.info("返回 ARTE Logo SVG Str");
+        return new ClassPathResource(ARTE_LOGO_PATH).getContentAsString(StandardCharsets.UTF_8);
     }
 
     /**
@@ -51,20 +51,20 @@ public class ArteMcpResources {
      * @throws IOException 读取文件时出错
      */
     @McpResource(
-            uri = SPRING_LOGO_URI_BYTE,
-            name = "Spring Logo Svg Byte",
-            description = "Spring Logo Svg Byte",
+            uri = ARTE_LOGO_URI_BYTE,
+            name = "ARTE Logo SVG Bytes",
+            description = "ARTE project logo as Base64-encoded SVG bytes",
             mimeType = "image/svg+xml"
     )
-    public McpSchema.ReadResourceResult getSpringLogoByte() throws IOException {
-        log.info("返回 Spring Logo SVG Byte");
-        ClassPathResource resource = new ClassPathResource(SPRING_LOGO_PATH);
+    public McpSchema.ReadResourceResult getArteLogoByte() throws IOException {
+        log.info("返回 ARTE Logo SVG Byte");
+        ClassPathResource resource = new ClassPathResource(ARTE_LOGO_PATH);
         byte[] bytes;
         try (InputStream inputStream = resource.getInputStream()) {
             bytes = inputStream.readAllBytes();
         }
         String base64 = Base64.getEncoder().encodeToString(bytes);
-        McpSchema.BlobResourceContents contents = McpSchema.BlobResourceContents.builder(SPRING_LOGO_URI_BYTE, base64)
+        McpSchema.BlobResourceContents contents = McpSchema.BlobResourceContents.builder(ARTE_LOGO_URI_BYTE, base64)
                 .mimeType("image/svg+xml")
                 .build();
         return McpSchema.ReadResourceResult.builder(List.of(contents)).build();
