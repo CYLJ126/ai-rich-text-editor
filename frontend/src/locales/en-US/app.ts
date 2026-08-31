@@ -1494,6 +1494,7 @@ export default {
   'app.common.timeheader.ebcd1799': 'Month',
   'app.common.timeheader.f94c518c': 'YYYY-[Week]w',
   'app.common.timeheader.fe0d88ca': 'hours',
+  'app.common.timeheader.weekLabel': 'Week {value}',
 
   // components/Video/BilibiliPlayer.tsx
   'app.common.video.bilibiliplayer.0d86babb':

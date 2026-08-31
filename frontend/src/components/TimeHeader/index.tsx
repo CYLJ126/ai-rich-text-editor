@@ -85,6 +85,12 @@ const buildDayLabel = (date: Dayjs, withWeekday: boolean): string => {
   return `${base} ${WEEKDAY_MAP[date.day()]}`;
 };
 
+/**
+ * 根据周 ID 生成本地化标签，例如：第2631周 / 第2631週 / Week 2631
+ */
+const buildWeekLabel = (value: number | string): string =>
+  i18nText('app.common.timeheader.weekLabel', { value });
+
 // 时间单位配置
 const TIME_UNIT_CONFIG = {
   minute: {
@@ -268,7 +274,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
           }
         }
         const nextIndex = currentIndex + (direction === 'prev' ? -1 : 1);
-        // ✅ 边界保护 防止越界返回 undefined
+        // 边界保护 防止越界返回 undefined
         if (nextIndex < 0 || nextIndex >= timeOptions.length) return current;
         return timeOptions[nextIndex];
       }
@@ -297,7 +303,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
           weekList?.forEach((weekInfo: any) => {
             options.push({
               value: weekInfo.value,
-              label: weekInfo.label,
+              label: buildWeekLabel(weekInfo.value),
               time: weekInfo.time,
               type: 'week',
             });
