@@ -1,22 +1,15 @@
 {
-  "name": "Nobody Is Perfect",
-  "short_name": "Nobody Is Perfect",
+  "name": "AI Rich Text Editor",
+  "short_name": "AI Rich Text Editor",
   "display": "standalone",
   "start_url": "./?utm_source=homescreen",
   "theme_color": "#002140",
   "background_color": "#001529",
   "icons": [
     {
-      "src": "icons/icon-192x192.png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "icons/icon-128x128.png",
-      "sizes": "128x128"
-    },
-    {
-      "src": "icons/icon-512x512.png",
-      "sizes": "512x512"
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
   ]
 }
