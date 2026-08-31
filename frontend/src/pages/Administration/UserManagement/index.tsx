@@ -236,11 +236,11 @@ export default function UserPage() {
 
   const exportRows = (records: any[]) => {
     if (!records?.length) {
-      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      message.warning(i18nText('app.administration.common.export.selectRecords')).then();
       return;
     }
     downloadCsv('users.csv', records, exportColumns);
-    message.success(i18nText('app.administration.common.export.success'));
+    message.success(i18nText('app.administration.common.export.success')).then();
   };
 
   const exportAll = async () => {
@@ -249,7 +249,7 @@ export default function UserPage() {
       exportRows(records);
     } catch (error) {
       console.error('导出全部用户失败：', error);
-      message.error(i18nText('app.administration.common.export.failed'));
+      message.error(i18nText('app.administration.common.export.failed')).then();
     }
   };
 
@@ -294,10 +294,10 @@ export default function UserPage() {
             try {
               const result = await deactivateUser(userName);
               if (!result) throw new Error('Deactivate user returned false');
-              message.success(i18nText("app.administration.usermanagement.f1168551"));
+              message.success(i18nText("app.administration.usermanagement.f1168551")).then();
               await tableRef.current?.refresh();
             } catch (error) {
-              message.error(i18nText("app.administration.usermanagement.4dddeb37"));
+              message.error(i18nText("app.administration.usermanagement.4dddeb37")).then();
               console.error('注销用户失败：', error);
             }
           },
@@ -372,6 +372,7 @@ export default function UserPage() {
           collapsedRows={1}
           searchShortcut="Enter"
           resetShortcut="r"
+          style={{ marginBottom: 10 }}
         />
         <SimpleTable
           ref={tableRef}
