@@ -18,7 +18,6 @@ export default {
   'app.admin.useBlock': '区块使用说明',
   'app.examples.firstMenuItem': '第一个菜单项',
   'app.examples.secondMenuItem': '第二个菜单项',
-  'app.login.motto': '迟做总比不做好。',
   'app.article.mermaid.codePlaceholder': '请输入 Mermaid 代码',
   'app.article.code.copy': '复制代码',
   'app.article.code.delete': '删除代码块',

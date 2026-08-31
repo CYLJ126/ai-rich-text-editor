@@ -19,7 +19,6 @@ export default {
   'app.admin.useBlock': 'using blocks',
   'app.examples.firstMenuItem': 'First menu item',
   'app.examples.secondMenuItem': 'Second menu item',
-  'app.login.motto': 'Better late than never.',
   'app.article.mermaid.codePlaceholder': 'Enter Mermaid code',
   'app.article.code.copy': 'Copy code',
   'app.article.code.delete': 'Delete code block',

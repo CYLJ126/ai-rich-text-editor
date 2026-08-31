@@ -238,7 +238,7 @@ const Login: React.FC = () => {
             />
           }
           title="AI Rich Text Editor"
-          subTitle={intl.formatMessage({ id: 'app.login.motto' })}
+          subTitle="Better late than never"
           initialValues={{
             autoLogin: true,
           }}
