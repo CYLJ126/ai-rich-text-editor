@@ -168,7 +168,7 @@ function getTabIdentityPath(pathname: string, search?: string): string {
   if (!parentPath) return pathname;
 
   const mode = new URLSearchParams(search || '').get('mode');
-  return mode === 'create' || mode === 'edit' ? parentPath : pathname;
+  return mode === 'create' || mode === 'edit' || mode === 'view' ? parentPath : pathname;
 }
 
 /**
