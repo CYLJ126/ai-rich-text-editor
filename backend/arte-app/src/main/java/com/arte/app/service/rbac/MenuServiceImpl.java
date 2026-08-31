@@ -106,7 +106,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, MenuDto> implements
             // TODO: 逐出子菜单缓存和关联的角色、用户权限缓存
             // 逐出操作权限缓存
             menuOperationService.deactivateMenuOperation(new MenuOperationParam()
-                    .setMenuCode(param.getMenuCode())
+                    .setMenuCodes(Set.of(param.getMenuCode()))
                     .setStatus(StatusEnum.CLOSED));
         }
         return result;

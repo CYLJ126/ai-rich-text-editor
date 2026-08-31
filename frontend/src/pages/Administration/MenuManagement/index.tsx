@@ -231,7 +231,7 @@ export default function MenuPage() {
   };
 
   const handleReset = (values: Record<string, any>) => {
-    console.log('重置后的值:', values);
+    console.log('reset values to:', values);
   };
 
   const exportColumns = [
@@ -262,7 +262,7 @@ export default function MenuPage() {
       const records = await fetchAllPages(listMenu, tableRef.current?.getQueryParams?.() ?? {});
       exportRows(records);
     } catch (error) {
-      console.error('导出全部菜单失败：', error);
+      console.error('export all menus failed:', error);
       message.error(i18nText('app.administration.common.export.failed')).then();
     }
   };
@@ -325,7 +325,7 @@ export default function MenuPage() {
               message.success(i18nText('app.administration.menumanagement.deleteSuccess')).then();
               await tableRef.current?.refresh();
             } catch (error) {
-              console.error('删除菜单失败：', error);
+              console.error('delete menu failed:', error);
               message.error(i18nText('app.administration.menumanagement.deleteFailed')).then();
             }
           },

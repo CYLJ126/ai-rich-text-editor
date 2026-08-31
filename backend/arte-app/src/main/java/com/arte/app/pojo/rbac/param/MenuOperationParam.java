@@ -10,6 +10,7 @@ import lombok.experimental.Accessors;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Set;
 
 /**
  * @author CYLJ126 ≧◔◡◔≦
@@ -29,7 +30,7 @@ public class MenuOperationParam extends BaseParam<MenuOperationDto> implements S
     /**
      * 菜单代码
      */
-    private String menuCode;
+    private Set<String> menuCodes;
 
     /**
      * 菜单操作代码
@@ -45,8 +46,4 @@ public class MenuOperationParam extends BaseParam<MenuOperationDto> implements S
      * 状态，参考 StatusEnum，1-启用；3-停用
      */
     private StatusEnum status;
-
-    public String getAuthority() {
-        return menuCode + ":" + operationCode;
-    }
 }

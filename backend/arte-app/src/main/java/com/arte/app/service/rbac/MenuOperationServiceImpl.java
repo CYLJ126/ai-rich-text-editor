@@ -96,7 +96,7 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
         } else if (StatusEnum.DOING.equals(targetStatus)) {
             return activateMenuOperation(menuOperationParam);
         } else {
-            log.info("操作权限状态异常，菜单：{}，操作码：{}，状态：{}", menuOperationParam.getMenuCode(), menuOperationParam.getOperationCode(), targetStatus);
+            log.info("操作权限状态异常，菜单：{}，操作码：{}，状态：{}", menuOperationParam.getMenuCodes(), menuOperationParam.getOperationCode(), targetStatus);
             return false;
         }
     }
@@ -150,7 +150,7 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
     private static QueryWrapper<MenuOperationDto> getQueryWrapper(MenuOperationParam menuOperationParam) {
         QueryWrapper<MenuOperationDto> wrapper = new QueryWrapper<>();
         wrapper.eq(Objects.nonNull(menuOperationParam.getId()), MenuOperationPo.COL_ID, menuOperationParam.getId());
-        wrapper.eq(Objects.nonNull(menuOperationParam.getMenuCode()), MenuOperationPo.COL_MENU_CODE, menuOperationParam.getMenuCode());
+        wrapper.in(CollUtil.isNotEmpty(menuOperationParam.getMenuCodes()), MenuOperationPo.COL_MENU_CODE, menuOperationParam.getMenuCodes());
         wrapper.eq(CharSequenceUtil.isNotBlank(menuOperationParam.getOperationCode()), MenuOperationPo.COL_OPERATION_CODE, menuOperationParam.getOperationCode());
         wrapper.eq(CharSequenceUtil.isNotBlank(menuOperationParam.getOperationName()), MenuOperationPo.COL_OPERATION_NAME, menuOperationParam.getOperationName());
         wrapper.eq(Objects.nonNull(menuOperationParam.getStatus()), MenuOperationPo.COL_STATUS, menuOperationParam.getStatus());
