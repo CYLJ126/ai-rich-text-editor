@@ -248,7 +248,22 @@ export const layout: RunTimeLayoutConfig = ({
     // Replace ProLayout's default ErrorBoundary with our offline-aware version,
     // so chunk load errors show friendly messages instead of "Something went wrong."
     ErrorBoundary,
-    menuHeaderRender: undefined,
+    menuHeaderRender: (_logo, title) => (
+      <a>
+        <img
+          src="/logo.svg"
+          alt="logo"
+          style={{
+            display: 'block',
+            width: 29,
+            minWidth: 29,
+            height: 29,
+            flex: '0 0 29px',
+          }}
+        />
+        {title}
+      </a>
+    ),
     // 自定义 403 页面
     // unAccessible: <div>unAccessible</div>,
 

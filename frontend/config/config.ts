@@ -79,7 +79,7 @@ export default defineConfig({
   publicPath: PUBLIC_PATH,
 
   /** 浏览器标签页图标 */
-  favicons: [join(PUBLIC_PATH, 'pro_icon.svg')],
+  favicons: [join(PUBLIC_PATH, 'logo.svg')],
 
   /**
    * @name targets 兼容性设置
