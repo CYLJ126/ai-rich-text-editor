@@ -8,7 +8,7 @@ import {
 } from '@/services/ant-design-pro/rbac';
 import {Button, message, Modal} from 'antd';
 
-interface AssignMenusModalProps {
+export interface AssignMenusModalProps {
     visible: boolean;
     sourceName: string; // 角色名或用户名
     sourceType: 'role' | 'user'; // 区分角色还是用户
@@ -64,36 +64,29 @@ const AssignMenusModal: React.FC<AssignMenusModalProps> = ({
     };
 
     // 分配菜单
-    const handleAssignMenus = () => {
+    const handleAssignMenus = async () => {
         const selectedMenus = menuTableRef.current?.getSelectedRows() || [];
-        if (selectedMenus.length === 0) {
-            message.warning(i18nText("app.administration.menumanagement.assignmenusmodal.8e3536de")).then();
-            return;
-        }
 
         const menuCodes = selectedMenus.map((menu: any) => menu.menuCode);
-        let assignPromise;
-
-        if (sourceType === 'role') {
-            assignPromise = assignMenusToRole({
+        const assignPromise = sourceType === 'role'
+            ? assignMenusToRole({
                 roleCode: sourceName,
                 menus: menuCodes,
-            });
-        } else {
-            assignPromise = assignMenusToUser({
+            })
+            : assignMenusToUser({
                 userName: sourceName,
                 menus: menuCodes,
             });
-        }
 
-        assignPromise
-            .then(() => {
-                message.success(i18nText("app.administration.menumanagement.assignmenusmodal.539070aa")).then();
-                onSuccess();
-            })
-            .catch((error) => {
-                message.error(i18nText("app.administration.menumanagement.assignmenusmodal.1ffcd32c", {value0: error.message})).then();
-            });
+        try {
+            const result = await assignPromise;
+            if (!result) throw new Error('Assign menus returned false');
+            message.success(i18nText("app.administration.menumanagement.assignmenusmodal.539070aa"));
+            onSuccess();
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : '';
+            message.error(i18nText("app.administration.menumanagement.assignmenusmodal.1ffcd32c", {value0: errorMessage}));
+        }
     };
 
     // 获取弹窗标题

@@ -8,7 +8,7 @@ import {
 } from '@/services/ant-design-pro/rbac';
 import {Button, message, Modal} from 'antd';
 
-interface AssignOperationsModalProps {
+export interface AssignOperationsModalProps {
     visible: boolean;
     sourceName: string; // 角色名或用户名
     sourceType: 'role' | 'user'; // 区分角色还是用户
@@ -59,38 +59,31 @@ const AssignOperationsModal: React.FC<AssignOperationsModalProps> = ({
     };
 
     // 分配权限
-    const handleAssignOperations = () => {
+    const handleAssignOperations = async () => {
         const selectedOperations = operationTableRef.current?.getSelectedRows() || [];
-        if (selectedOperations.length === 0) {
-            message.warning(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.022e88bb")).then();
-            return;
-        }
 
         const operationCodes = selectedOperations.map(
-            (operation: any) => operation.menuCode + ':' + operation.operationCode,
+            (operation: any) => `${operation.menuCode}:${operation.operationCode}`,
         );
-        let assignPromise;
-
-        if (sourceType === 'role') {
-            assignPromise = assignOperationsToRole({
+        const assignPromise = sourceType === 'role'
+            ? assignOperationsToRole({
                 roleCode: sourceName,
                 menuOperations: operationCodes,
-            });
-        } else {
-            assignPromise = assignOperationsToUser({
+            })
+            : assignOperationsToUser({
                 userName: sourceName,
                 menuOperations: operationCodes,
             });
-        }
 
-        assignPromise
-            .then(() => {
-                message.success(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.045ccc08")).then();
-                onSuccess();
-            })
-            .catch((error) => {
-                message.error(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.f8373591", {value0: error.message})).then();
-            });
+        try {
+            const result = await assignPromise;
+            if (!result) throw new Error('Assign operations returned false');
+            message.success(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.045ccc08"));
+            onSuccess();
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : '';
+            message.error(i18nText("app.administration.menuoperationmanagement.assignoperationsmodal.f8373591", {value0: errorMessage}));
+        }
     };
 
     // 获取弹窗标题

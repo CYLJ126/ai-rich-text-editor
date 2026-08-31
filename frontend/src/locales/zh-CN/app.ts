@@ -1525,6 +1525,9 @@ export default {
   'app.administration.menumanagement.assignmenusmodal.f3421ea9': '父菜单',
 
   // pages/Administration/MenuManagement/index.tsx
+  'app.administration.common.export.failed': '导出失败，请重试',
+  'app.administration.common.export.selectRecords': '请至少选择一条要导出的记录',
+  'app.administration.common.export.success': '导出成功',
   'app.administration.menumanagement.09c7f7b2': '请输入上级菜单 ID',
   'app.administration.menumanagement.1d48964a': '删除用户操作',
   'app.administration.menumanagement.2dac04a1': '菜单名称',
@@ -1556,6 +1559,11 @@ export default {
   'app.administration.menumanagement.e4ef6337': '导出用户操作',
   'app.administration.menumanagement.e69960e8': '请选择创建时间',
   'app.administration.menumanagement.fcc2a328': '导出全部用户操作',
+  'app.administration.menumanagement.deleteConfirmTitle': '确认删除',
+  'app.administration.menumanagement.deleteConfirmContent':
+    '确定要删除菜单“{value0}”吗？关联操作权限将同时停用。',
+  'app.administration.menumanagement.deleteSuccess': '菜单删除成功',
+  'app.administration.menumanagement.deleteFailed': '菜单删除失败，请重试',
 
   // pages/Administration/MenuManagement/MenuForm.tsx
   'app.administration.menumanagement.menuform.06cde785':
@@ -1718,6 +1726,11 @@ export default {
   'app.administration.rolemanagement.e072be94': '更新人',
   'app.administration.rolemanagement.f42921ba': '导出',
   'app.administration.rolemanagement.f513b216': '分配权限',
+  'app.administration.rolemanagement.deactivateConfirmTitle': '确认注销',
+  'app.administration.rolemanagement.deactivateConfirmContent':
+    '确定要注销角色“{value0}”吗？',
+  'app.administration.rolemanagement.deactivateSuccess': '角色注销成功',
+  'app.administration.rolemanagement.deactivateFailed': '角色注销失败，请重试',
 
   // pages/Administration/RoleManagement/RoleForm.tsx
   'app.administration.rolemanagement.roleform.1a54e8d4': '正常',

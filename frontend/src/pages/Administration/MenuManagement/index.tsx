@@ -1,12 +1,13 @@
 import {i18nText} from '@/utils/i18n';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ActionButton, SimpleTable, type TableColumn } from '@/components';
 import PageWrapper from '@/components/PageWrapper';
 import SearchForm from '@/components/SearchForm';
 import type { SearchFieldConfig } from '@/components/SearchForm/SearchFormTypes';
-import { listMenu } from '@/services/ant-design-pro/rbac';
+import { deactivateMenu, listMenu } from '@/services/ant-design-pro/rbac';
+import {downloadCsv, fetchAllPages} from '@/utils/tableExport';
 import ManageOperationsModal from '../MenuOperationManagement/manageOperationsModal';
 
 const columns: TableColumn[] = [
@@ -233,6 +234,39 @@ export default function MenuPage() {
     console.log('重置后的值:', values);
   };
 
+  const exportColumns = [
+    {title: i18nText("app.administration.menumanagement.370f07aa"), dataIndex: 'menuCode'},
+    {title: i18nText("app.administration.menumanagement.2dac04a1"), dataIndex: 'menuName'},
+    {title: i18nText("app.administration.menumanagement.d21f17a0"), dataIndex: 'fatherId'},
+    {title: i18nText("app.administration.menumanagement.c69d48ad"), dataIndex: 'orderId'},
+    {title: i18nText("app.administration.menumanagement.73f96419"), dataIndex: 'status'},
+    {title: i18nText("app.administration.menumanagement.b280d1f3"), dataIndex: 'menuUrl'},
+    {title: i18nText("app.administration.menumanagement.b5dbc5ac"), dataIndex: 'description'},
+    {title: i18nText("app.administration.menumanagement.e0e81eca"), dataIndex: 'createBy'},
+    {title: i18nText("app.administration.menumanagement.9a2cd713"), dataIndex: 'updateBy'},
+    {title: i18nText("app.administration.menumanagement.72cc438c"), dataIndex: 'createTime'},
+    {title: i18nText("app.administration.menumanagement.31f4e630"), dataIndex: 'updateTime'},
+  ];
+
+  const exportRows = (records: any[]) => {
+    if (!records?.length) {
+      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      return;
+    }
+    downloadCsv('menus.csv', records, exportColumns);
+    message.success(i18nText('app.administration.common.export.success'));
+  };
+
+  const exportAll = async () => {
+    try {
+      const records = await fetchAllPages(listMenu, tableRef.current?.getQueryParams?.() ?? {});
+      exportRows(records);
+    } catch (error) {
+      console.error('导出全部菜单失败：', error);
+      message.error(i18nText('app.administration.common.export.failed'));
+    }
+  };
+
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
@@ -244,6 +278,7 @@ export default function MenuPage() {
     {
       text: i18nText("app.administration.menumanagement.dd19304b"),
       authority: 'menu:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.menumanagement.489e0fa9")).then();
@@ -257,6 +292,7 @@ export default function MenuPage() {
     {
       text: i18nText("app.administration.menumanagement.5c9b2d33"),
       authority: 'menu:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.menumanagement.489e0fa9")).then();
@@ -271,18 +307,41 @@ export default function MenuPage() {
     },
     {
       text: i18nText("app.administration.menumanagement.b51a1a6e"),
-      authority: 'menu:update',
-      handler: () => message.info(i18nText("app.administration.menumanagement.1d48964a")),
+      authority: 'menu:delete',
+      requiresSelection: true,
+      handler: (records: any) => {
+        if (records?.length !== 1) {
+          message.warning(i18nText("app.administration.menumanagement.489e0fa9"));
+          return;
+        }
+        const menu = records[0];
+        Modal.confirm({
+          title: i18nText('app.administration.menumanagement.deleteConfirmTitle'),
+          content: i18nText('app.administration.menumanagement.deleteConfirmContent', {value0: menu.menuName}),
+          onOk: async () => {
+            try {
+              const result = await deactivateMenu({id: menu.id, menuCode: menu.menuCode});
+              if (!result) throw new Error('Deactivate menu returned false');
+              message.success(i18nText('app.administration.menumanagement.deleteSuccess'));
+              await tableRef.current?.refresh();
+            } catch (error) {
+              console.error('删除菜单失败：', error);
+              message.error(i18nText('app.administration.menumanagement.deleteFailed'));
+            }
+          },
+        });
+      },
     },
     {
       text: i18nText("app.administration.menumanagement.625c9366"),
       authority: 'menu:export',
-      handler: () => message.info(i18nText("app.administration.menumanagement.e4ef6337")),
+      requiresSelection: true,
+      handler: (records: any) => exportRows(records),
     },
     {
       text: i18nText("app.administration.menumanagement.54737232"),
       authority: 'menu:export',
-      handler: () => message.info(i18nText("app.administration.menumanagement.fcc2a328")),
+      handler: () => exportAll(),
     },
   ];
 
@@ -309,7 +368,6 @@ export default function MenuPage() {
           fetchData={fetchTableData}
           tableHeight={760}
           actionButtons={actionButtons}
-          initialParams={{ status: 'active' }}
           defaultPageSize={20}
           doubleClick={(record: any) => {
             navigate(

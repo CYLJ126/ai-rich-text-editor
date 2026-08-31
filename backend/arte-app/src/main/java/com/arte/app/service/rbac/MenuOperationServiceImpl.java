@@ -105,10 +105,12 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
         PageView<MenuOperationDto> menuOperations = this.selectMenuOperations(param);
         int size = (int) menuOperations.getSize();
         Set<String> keysToEvict = new HashSet<>(size);
+        Set<String> authoritiesToCancel = new HashSet<>(size);
         List<Integer> idsToClose = new ArrayList<>(size);
         menuOperations.forEach(menuOperation -> {
             idsToClose.add(menuOperation.getId());
             keysToEvict.add(menuOperation.getOperationCode());
+            authoritiesToCancel.add(menuOperation.getAuthority());
         });
         boolean result = CollUtil.split(idsToClose, 1000).stream().allMatch(idBatch -> {
             UpdateWrapper<MenuOperationDto> updateWrapper = new UpdateWrapper<>();
@@ -119,8 +121,8 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
         if (result) {
             menuOperationCache.multiEvict(keysToEvict);
             // 逐出用户和角色的操作权限缓存
-            roleService.cancelOperationsToRole(Collections.emptyList(), Collections.singletonList(param.getAuthority()));
-            userService.cancelOperationsToUser(Collections.emptyList(), Collections.singletonList(param.getAuthority()));
+            roleService.cancelOperationsToRole(Collections.emptyList(), authoritiesToCancel);
+            userService.cancelOperationsToUser(Collections.emptyList(), authoritiesToCancel);
         }
         return result;
     }

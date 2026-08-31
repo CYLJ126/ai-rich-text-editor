@@ -66,6 +66,8 @@ public class MenuController {
     @PostMapping("/deactivateMenu")
     @PreAuthorize("@pcs.check('menu:delete')")
     public ResultContext<Boolean> deactivateMenu(@RequestBody MenuParam param) {
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.menuIdRequired"));
+        Assert.notBlank(param.getMenuCode(), MessageUtils.get("error.field.menuCodeRequired"));
         return ResultContext.wrap(param, menuService::deactivateMenu);
     }
 

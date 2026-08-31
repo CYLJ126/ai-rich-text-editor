@@ -58,6 +58,8 @@ public class RoleController {
     @PostMapping("/deactivateRole")
     @PreAuthorize("@pcs.check('role:delete')")
     public ResultContext<Boolean> deactivateRole(@RequestBody RoleParam param) {
+        Assert.notNull(param.getId(), MessageUtils.get("error.field.roleIdRequired"));
+        Assert.notBlank(param.getRoleCode(), MessageUtils.get("error.field.roleCodeRequired"));
         return ResultContext.wrap(param, roleService::deactivateRole);
     }
 

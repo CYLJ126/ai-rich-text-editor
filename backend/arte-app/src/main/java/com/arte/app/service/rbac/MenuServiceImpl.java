@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.app.api.rbac.MenuOperationService;
 import com.arte.app.api.rbac.MenuService;
 import com.arte.app.mapper.rbac.MenuMapper;
+import com.arte.app.pojo.BaseDto;
 import com.arte.app.pojo.rbac.MenuDto;
 import com.arte.app.pojo.rbac.MenuPo;
 import com.arte.app.pojo.rbac.param.MenuOperationParam;
@@ -20,6 +21,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,6 +94,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, MenuDto> implements
     }
 
     @Override
+    @Transactional(rollbackFor = Throwable.class)
     public Boolean deactivateMenu(MenuParam param) {
         UpdateWrapper<MenuDto> wrapper = new UpdateWrapper<>();
         wrapper.set(MenuPo.COL_STATUS, StatusEnum.CLOSED);
@@ -102,7 +105,9 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, MenuDto> implements
             menuCache.evict(param.getMenuCode());
             // TODO: 逐出子菜单缓存和关联的角色、用户权限缓存
             // 逐出操作权限缓存
-            menuOperationService.deactivateMenuOperation(new MenuOperationParam().setMenuCode(param.getMenuCode()));
+            menuOperationService.deactivateMenuOperation(new MenuOperationParam()
+                    .setMenuCode(param.getMenuCode())
+                    .setStatus(StatusEnum.CLOSED));
         }
         return result;
     }
@@ -135,6 +140,9 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, MenuDto> implements
         wrapper.eq(Objects.nonNull(param.getFatherId()), MenuPo.COL_PARENT_ID, param.getFatherId());
         wrapper.eq(Objects.nonNull(param.getStatus()), MenuPo.COL_STATUS, param.getStatus());
         wrapper.eq(Objects.nonNull(param.getShowFlag()), MenuPo.COL_SHOW_FLAG, param.getShowFlag());
+        wrapper.eq(CharSequenceUtil.isNotBlank(param.getCreateBy()), BaseDto.COL_CREATE_BY, param.getCreateBy());
+        wrapper.ge(Objects.nonNull(param.getCreateTimeFloor()), BaseDto.COL_CREATE_TIME, param.getCreateTimeFloor());
+        wrapper.le(Objects.nonNull(param.getCreateTimeCeil()), BaseDto.COL_CREATE_TIME, param.getCreateTimeCeil());
         wrapper.orderByAsc(MenuPo.COL_ORDER_ID);
         return wrapper;
     }

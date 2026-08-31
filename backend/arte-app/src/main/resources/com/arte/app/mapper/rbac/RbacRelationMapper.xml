@@ -8,6 +8,7 @@
                  left join arte_rbac_relation rr on r.role_code = rr.target
         where rr.binding_type = 'user_to_role'
           and rr.source = #{userName}
+          and r.status = 1
     </select>
 
     <select id="listMenusByUserName" resultType="com.arte.app.pojo.rbac.MenuDto">
@@ -16,6 +17,7 @@
                  left join arte_rbac_relation rr on r.menu_code = rr.target
         where rr.binding_type = 'user_to_menu'
           and rr.source = #{userName}
+          and r.status = 1
     </select>
 
     <select id="listBySourceName" resultType="com.arte.app.pojo.rbac.RbacRelationDto">

@@ -4,7 +4,7 @@ import {SimpleTable, TableColumn} from '@/components';
 import {assignRolesToUser, listRolesByUser} from '@/services/ant-design-pro/rbac';
 import {Button, message, Modal} from 'antd';
 
-interface AssignRoleModalProps {
+export interface AssignRoleModalProps {
     visible: boolean;
     userName: string;
     onCancel: () => void;
@@ -43,26 +43,23 @@ const AssignRoleModal: React.FC<AssignRoleModalProps> = ({
     };
 
     // 分配角色
-    const handleAssignRoles = () => {
+    const handleAssignRoles = async () => {
         const selectedRoles = roleTableRef.current?.getSelectedRows() || [];
-        if (selectedRoles.length === 0) {
-            message.warning(i18nText("app.administration.usermanagement.assignrolemodal.847b6e67")).then();
-            return;
-        }
 
         const param = {
             userName: userName,
             roles: selectedRoles.map((role: any) => role.roleCode),
         };
 
-        assignRolesToUser(param)
-            .then(() => {
-                message.success(i18nText("app.administration.usermanagement.assignrolemodal.738e7bbe")).then();
-                onSuccess();
-            })
-            .catch((error) => {
-                message.error(i18nText("app.administration.usermanagement.assignrolemodal.068d8acb", {value0: error.message})).then();
-            });
+        try {
+            const result = await assignRolesToUser(param);
+            if (!result) throw new Error('Assign roles returned false');
+            message.success(i18nText("app.administration.usermanagement.assignrolemodal.738e7bbe"));
+            onSuccess();
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : '';
+            message.error(i18nText("app.administration.usermanagement.assignrolemodal.068d8acb", {value0: errorMessage}));
+        }
     };
 
     return (
@@ -86,7 +83,7 @@ const AssignRoleModal: React.FC<AssignRoleModalProps> = ({
                 columns={roleColumns}
                 fetchData={fetchRoleData}
                 tableHeight={400}
-                defaultPageSize={20}
+                defaultPageSize={500}
                 rowKey="id"
                 defaultSelectedField="assigned"
             />
