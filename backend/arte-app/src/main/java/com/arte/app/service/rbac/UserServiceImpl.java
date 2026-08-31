@@ -15,6 +15,7 @@ import com.arte.app.common.enums.TagTypeEnum;
 import com.arte.app.config.bean.WebSecurityProperties;
 import com.arte.app.mapper.rbac.UserMapper;
 import com.arte.app.pojo.base.TagDto;
+import com.arte.app.pojo.BaseDto;
 import com.arte.app.pojo.rbac.*;
 import com.arte.app.pojo.rbac.param.RbacRelationParam;
 import com.arte.app.pojo.rbac.param.RoleParam;
@@ -373,6 +374,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDto> implements
         wrapper.eq(CharSequenceUtil.isNotBlank(param.getMobile()), UserPo.COL_MOBILE, param.getMobile());
         wrapper.eq(CharSequenceUtil.isNotBlank(param.getEmail()), UserPo.COL_EMAIL, param.getEmail());
         wrapper.eq(Objects.nonNull(param.getStatus()), UserPo.COL_STATUS, param.getStatus());
+        wrapper.eq(CharSequenceUtil.isNotBlank(param.getCreateBy()), BaseDto.COL_CREATE_BY, param.getCreateBy());
+        wrapper.ge(Objects.nonNull(param.getCreateTimeFloor()), BaseDto.COL_CREATE_TIME, param.getCreateTimeFloor());
+        wrapper.le(Objects.nonNull(param.getCreateTimeCeil()), BaseDto.COL_CREATE_TIME, param.getCreateTimeCeil());
         return wrapper;
     }
 

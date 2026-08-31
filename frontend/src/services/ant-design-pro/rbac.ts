@@ -20,8 +20,8 @@ export async function updateMenu(data: any) {
   return jsonPost('/rbac/menu/updateMenu', data);
 }
 
-export async function deactivateMenu(id: number) {
-  return jsonPost('/rbac/menu/deactivateMenu', {id: id});
+export async function deactivateMenu(param: {id: number; menuCode: string}) {
+  return jsonPost('/rbac/menu/deactivateMenu', param);
 }
 
 export async function getMenuByCode(menuCode: string) {

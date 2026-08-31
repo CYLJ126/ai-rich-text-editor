@@ -95,7 +95,7 @@ public class MenuPo extends BaseDto implements Serializable {
 
     public static final String COL_MENU_URL = "menu_url";
 
-    public static final String COL_PARENT_ID = "parent_id";
+    public static final String COL_PARENT_ID = "father_id";
 
     public static final String COL_ORDER_ID = "order_id";
 

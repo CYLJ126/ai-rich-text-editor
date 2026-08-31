@@ -4,7 +4,7 @@ import {SimpleTable, TableColumn} from '@/components';
 import {assignRoleToUsers, listUserByTarget} from '@/services/ant-design-pro/rbac';
 import {Button, message, Modal} from 'antd';
 
-interface AssignUsersModalProps {
+export interface AssignUsersModalProps {
     visible: boolean;
     roleCode: string; // 角色编码
     onCancel: () => void;
@@ -19,7 +19,7 @@ const userColumns: TableColumn[] = [
     },
     {
         title: i18nText("app.administration.rolemanagement.assignusersmodal.155d3a5b"),
-        dataIndex: 'name',
+        dataIndex: 'userName',
         width: 100,
     },
     {
@@ -29,7 +29,7 @@ const userColumns: TableColumn[] = [
     },
     {
         title: i18nText("app.administration.rolemanagement.assignusersmodal.5fe25560"),
-        dataIndex: 'phone',
+        dataIndex: 'mobile',
         width: 150,
     },
     {
@@ -101,7 +101,7 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
     };
 
     // 分配用户
-    const handleAssignUsers = () => {
+    const handleAssignUsers = async () => {
         const selectedUsers = userTableRef.current?.getSelectedRows() || [];
         if (selectedUsers.length === 0) {
             message.warning(i18nText("app.administration.rolemanagement.assignusersmodal.4b5bbc47")).then();
@@ -110,22 +110,23 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
 
         const userNames = selectedUsers.map((user: any) => user.userName);
 
-        assignRoleToUsers({
-            roleCode: roleCode,
-            userNames: userNames,
-            assignOrCancel: true,
-        })
-            .then(() => {
-                message.success(i18nText("app.administration.rolemanagement.assignusersmodal.f7c95bdd")).then();
-                onSuccess();
-            })
-            .catch((error) => {
-                message.error(i18nText("app.administration.rolemanagement.assignusersmodal.54db523f", {value0: error.message})).then();
+        try {
+            const result = await assignRoleToUsers({
+                roleCode: roleCode,
+                userNames: userNames,
+                assignOrCancel: true,
             });
+            if (!result) throw new Error('Assign users returned false');
+            message.success(i18nText("app.administration.rolemanagement.assignusersmodal.f7c95bdd"));
+            onSuccess();
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : '';
+            message.error(i18nText("app.administration.rolemanagement.assignusersmodal.54db523f", {value0: errorMessage}));
+        }
     };
 
     // 取消分配用户
-    const handleCancelUsers = () => {
+    const handleCancelUsers = async () => {
         const selectedUsers = userTableRef.current?.getSelectedRows() || [];
         if (selectedUsers.length === 0) {
             message.warning(i18nText("app.administration.rolemanagement.assignusersmodal.4b5bbc47")).then();
@@ -134,18 +135,19 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
 
         const userNames = selectedUsers.map((user: any) => user.userName);
 
-        assignRoleToUsers({
-            roleCode: roleCode,
-            userNames: userNames,
-            assignOrCancel: false,
-        })
-            .then(() => {
-                message.success(i18nText("app.administration.rolemanagement.assignusersmodal.c6be296d")).then();
-                onSuccess();
-            })
-            .catch((error) => {
-                message.error(i18nText("app.administration.rolemanagement.assignusersmodal.506c5b26", {value0: error.message})).then();
+        try {
+            const result = await assignRoleToUsers({
+                roleCode: roleCode,
+                userNames: userNames,
+                assignOrCancel: false,
             });
+            if (!result) throw new Error('Cancel assigned users returned false');
+            message.success(i18nText("app.administration.rolemanagement.assignusersmodal.c6be296d"));
+            onSuccess();
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : '';
+            message.error(i18nText("app.administration.rolemanagement.assignusersmodal.506c5b26", {value0: errorMessage}));
+        }
     };
 
     return (
@@ -172,7 +174,7 @@ const AssignUsersModal: React.FC<AssignUsersModalProps> = ({
                 columns={userColumns}
                 fetchData={fetchUsersData}
                 tableHeight={400}
-                defaultPageSize={9999}
+                defaultPageSize={500}
                 rowKey="id"
                 defaultSelectedField="assigned"
             />

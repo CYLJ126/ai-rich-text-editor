@@ -1525,6 +1525,9 @@ export default {
   'app.administration.menumanagement.assignmenusmodal.f3421ea9': '父菜單',
 
   // pages/Administration/MenuManagement/index.tsx
+  'app.administration.common.export.failed': '導出失敗，請重試',
+  'app.administration.common.export.selectRecords': '請至少選擇一條要導出的記錄',
+  'app.administration.common.export.success': '導出成功',
   'app.administration.menumanagement.09c7f7b2': '請輸入上級菜單 ID',
   'app.administration.menumanagement.1d48964a': '刪除用戶操作',
   'app.administration.menumanagement.2dac04a1': '菜單名稱',
@@ -1556,6 +1559,11 @@ export default {
   'app.administration.menumanagement.e4ef6337': '導出用戶操作',
   'app.administration.menumanagement.e69960e8': '請選擇創建時間',
   'app.administration.menumanagement.fcc2a328': '導出全部用戶操作',
+  'app.administration.menumanagement.deleteConfirmTitle': '確認刪除',
+  'app.administration.menumanagement.deleteConfirmContent':
+    '確定要刪除菜單「{value0}」嗎？關聯操作權限將同時停用。',
+  'app.administration.menumanagement.deleteSuccess': '菜單刪除成功',
+  'app.administration.menumanagement.deleteFailed': '菜單刪除失敗，請重試',
 
   // pages/Administration/MenuManagement/MenuForm.tsx
   'app.administration.menumanagement.menuform.06cde785':
@@ -1718,6 +1726,11 @@ export default {
   'app.administration.rolemanagement.e072be94': '更新人',
   'app.administration.rolemanagement.f42921ba': '導出',
   'app.administration.rolemanagement.f513b216': '分配權限',
+  'app.administration.rolemanagement.deactivateConfirmTitle': '確認註銷',
+  'app.administration.rolemanagement.deactivateConfirmContent':
+    '確定要註銷角色「{value0}」嗎？',
+  'app.administration.rolemanagement.deactivateSuccess': '角色註銷成功',
+  'app.administration.rolemanagement.deactivateFailed': '角色註銷失敗，請重試',
 
   // pages/Administration/RoleManagement/RoleForm.tsx
   'app.administration.rolemanagement.roleform.1a54e8d4': '正常',

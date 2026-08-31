@@ -9,6 +9,7 @@ import com.arte.app.api.rbac.RbacRelationService;
 import com.arte.app.api.rbac.RoleService;
 import com.arte.app.common.enums.RbacRelationEnum;
 import com.arte.app.mapper.rbac.RoleMapper;
+import com.arte.app.pojo.BaseDto;
 import com.arte.app.pojo.rbac.RbacRelationDto;
 import com.arte.app.pojo.rbac.RbacRelationPo;
 import com.arte.app.pojo.rbac.RoleDto;
@@ -112,6 +113,9 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, RoleDto> implements
     @Override
     public Collection<String> getAuthorities(RoleParam param) {
         RoleDto role = getRoleByCode(param.getRoleCode());
+        if (role == null || StatusEnum.CLOSED.equals(role.getStatus())) {
+            return Collections.emptySet();
+        }
         Set<String> menuOperations = new HashSet<>(role.getMenuOperations());
         if (CollUtil.isEmpty(menuOperations)) {
             RbacRelationParam rbacRelationParam = new RbacRelationParam();
@@ -176,6 +180,9 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, RoleDto> implements
         wrapper.eq(CharSequenceUtil.isNotBlank(roleParam.getRoleCode()), RolePo.COL_ROLE_CODE, roleParam.getRoleCode());
         wrapper.eq(CharSequenceUtil.isNotBlank(roleParam.getRoleName()), RolePo.COL_ROLE_NAME, roleParam.getRoleName());
         wrapper.eq(Objects.nonNull(roleParam.getStatus()), RolePo.COL_STATUS, roleParam.getStatus());
+        wrapper.eq(CharSequenceUtil.isNotBlank(roleParam.getCreateBy()), BaseDto.COL_CREATE_BY, roleParam.getCreateBy());
+        wrapper.ge(Objects.nonNull(roleParam.getCreateTimeFloor()), BaseDto.COL_CREATE_TIME, roleParam.getCreateTimeFloor());
+        wrapper.le(Objects.nonNull(roleParam.getCreateTimeCeil()), BaseDto.COL_CREATE_TIME, roleParam.getCreateTimeCeil());
         return wrapper;
     }
 }

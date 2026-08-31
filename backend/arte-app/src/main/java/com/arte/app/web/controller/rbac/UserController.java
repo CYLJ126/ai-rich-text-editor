@@ -54,6 +54,7 @@ public class UserController {
     @PostMapping("/deactivateUser")
     @PreAuthorize("@pcs.check('user:delete')")
     public ResultContext<Boolean> deactivateUser(@RequestBody UserParam param) {
+        Assert.notBlank(param.getUserName(), MessageUtils.get("error.field.userNameRequired"));
         return ResultContext.wrap(param, userService::deactivateUser);
     }
 

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * <p>
@@ -45,7 +46,11 @@ public class RbacRelationServiceImpl extends ServiceImpl<RbacRelationMapper, Rba
     @Override
     public Boolean bind(String source, List<String> targets, RbacRelationEnum type) {
         deleteBySource(source, type);
-        List<RbacRelationDto> relations = targets.stream().map(targetCode -> {
+        List<String> safeTargets = Objects.requireNonNullElse(targets, List.of());
+        if (safeTargets.isEmpty()) {
+            return true;
+        }
+        List<RbacRelationDto> relations = safeTargets.stream().distinct().map(targetCode -> {
             RbacRelationDto relation = new RbacRelationDto();
             relation.setBindingType(type);
             relation.setSource(source);

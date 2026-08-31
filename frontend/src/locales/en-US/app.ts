@@ -1651,6 +1651,10 @@ export default {
   'app.administration.menumanagement.assignmenusmodal.f3421ea9': 'Parent Menu',
 
   // pages/Administration/MenuManagement/index.tsx
+  'app.administration.common.export.failed': 'Export failed. Please try again.',
+  'app.administration.common.export.selectRecords':
+    'Select at least one record to export.',
+  'app.administration.common.export.success': 'Export completed.',
   'app.administration.menumanagement.09c7f7b2': 'Enter parent menu ID',
   'app.administration.menumanagement.1d48964a': 'Delete User Operation',
   'app.administration.menumanagement.2dac04a1': 'Menu Name',
@@ -1682,6 +1686,12 @@ export default {
   'app.administration.menumanagement.e4ef6337': 'Export User Operation',
   'app.administration.menumanagement.e69960e8': 'Select creation time',
   'app.administration.menumanagement.fcc2a328': 'Export All User Operations',
+  'app.administration.menumanagement.deleteConfirmTitle': 'Confirm deletion',
+  'app.administration.menumanagement.deleteConfirmContent':
+    'Delete menu “{value0}”? Its related operations will also be disabled.',
+  'app.administration.menumanagement.deleteSuccess': 'Menu deleted.',
+  'app.administration.menumanagement.deleteFailed':
+    'Failed to delete the menu. Please try again.',
 
   // pages/Administration/MenuManagement/MenuForm.tsx
   'app.administration.menumanagement.menuform.06cde785':
@@ -1849,6 +1859,13 @@ export default {
   'app.administration.rolemanagement.e072be94': 'Updated By',
   'app.administration.rolemanagement.f42921ba': 'Export',
   'app.administration.rolemanagement.f513b216': 'Assign Permissions',
+  'app.administration.rolemanagement.deactivateConfirmTitle':
+    'Confirm deactivation',
+  'app.administration.rolemanagement.deactivateConfirmContent':
+    'Deactivate role “{value0}”?',
+  'app.administration.rolemanagement.deactivateSuccess': 'Role deactivated.',
+  'app.administration.rolemanagement.deactivateFailed':
+    'Failed to deactivate the role. Please try again.',
 
   // pages/Administration/RoleManagement/RoleForm.tsx
   'app.administration.rolemanagement.roleform.1a54e8d4': 'Normal',

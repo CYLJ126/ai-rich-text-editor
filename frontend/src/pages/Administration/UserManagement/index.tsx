@@ -7,6 +7,7 @@ import PageWrapper from '@/components/PageWrapper';
 import SearchForm from '@/components/SearchForm';
 import type { SearchFieldConfig } from '@/components/SearchForm/SearchFormTypes';
 import { deactivateUser, listUser } from '@/services/ant-design-pro/rbac';
+import {downloadCsv, fetchAllPages} from '@/utils/tableExport';
 import AssignMenusModal from '../MenuManagement/assignMenusModal';
 import AssignOperationsModal from '../MenuOperationManagement/assignOperationsModal';
 import AssignRoleModal from './assignRoleModal';
@@ -146,7 +147,7 @@ const columns: TableColumn[] = [
 
 const searchFields: SearchFieldConfig[] = [
   {
-    fieldName: 'name',
+    fieldName: 'userName',
     fieldType: 'input',
     label: i18nText("app.administration.usermanagement.9291cf19"),
     placeholder: i18nText("app.administration.usermanagement.0213d713"),
@@ -221,6 +222,37 @@ export default function UserPage() {
     console.log('重置后的值:', values);
   };
 
+  const exportColumns = [
+    {title: i18nText("app.administration.usermanagement.9291cf19"), dataIndex: 'userName'},
+    {title: i18nText("app.administration.usermanagement.efbf1604"), dataIndex: 'mobile'},
+    {title: i18nText("app.administration.usermanagement.ad5a479d"), dataIndex: 'email'},
+    {title: i18nText("app.administration.usermanagement.81f6c997"), dataIndex: 'status'},
+    {title: i18nText("app.administration.usermanagement.101bf14c"), dataIndex: 'description'},
+    {title: i18nText("app.administration.usermanagement.8f30deb9"), dataIndex: 'createBy'},
+    {title: i18nText("app.administration.usermanagement.930de5f2"), dataIndex: 'updateBy'},
+    {title: i18nText("app.administration.usermanagement.7cb324b0"), dataIndex: 'createTime'},
+    {title: i18nText("app.administration.usermanagement.acf4d00a"), dataIndex: 'updateTime'},
+  ];
+
+  const exportRows = (records: any[]) => {
+    if (!records?.length) {
+      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      return;
+    }
+    downloadCsv('users.csv', records, exportColumns);
+    message.success(i18nText('app.administration.common.export.success'));
+  };
+
+  const exportAll = async () => {
+    try {
+      const records = await fetchAllPages(listUser, tableRef.current?.getQueryParams?.() ?? {});
+      exportRows(records);
+    } catch (error) {
+      console.error('导出全部用户失败：', error);
+      message.error(i18nText('app.administration.common.export.failed'));
+    }
+  };
+
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
@@ -232,6 +264,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.usermanagement.c8855b36"),
       authority: 'user:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
@@ -244,7 +277,8 @@ export default function UserPage() {
     },
     {
       text: i18nText("app.administration.usermanagement.e7f36e4d"),
-      authority: 'user:update',
+      authority: 'user:delete',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
@@ -258,13 +292,10 @@ export default function UserPage() {
           cancelText: i18nText("app.administration.usermanagement.25ab89de"),
           onOk: async () => {
             try {
-              deactivateUser(userName).then((result) => {
-                if (result) {
-                  message.success(i18nText("app.administration.usermanagement.f1168551"));
-                  // 刷新表格数据
-                  tableRef.current?.query();
-                }
-              });
+              const result = await deactivateUser(userName);
+              if (!result) throw new Error('Deactivate user returned false');
+              message.success(i18nText("app.administration.usermanagement.f1168551"));
+              await tableRef.current?.refresh();
             } catch (error) {
               message.error(i18nText("app.administration.usermanagement.4dddeb37"));
               console.error('注销用户失败：', error);
@@ -276,6 +307,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.usermanagement.89cb5e5c"),
       authority: 'user:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
@@ -288,6 +320,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.usermanagement.c3cbc231"),
       authority: 'user:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
@@ -300,6 +333,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.usermanagement.e09d88c1"),
       authority: 'user:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.usermanagement.3ebdcf2b")).then();
@@ -312,12 +346,13 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.usermanagement.31d8f455"),
       authority: 'user:export',
-      handler: () => message.info(i18nText("app.administration.usermanagement.95349e47")),
+      requiresSelection: true,
+      handler: (records: any) => exportRows(records),
     },
     {
       text: i18nText("app.administration.usermanagement.ff54ba35"),
       authority: 'user:export',
-      handler: () => message.info(i18nText("app.administration.usermanagement.41289e54")),
+      handler: () => exportAll(),
     },
   ];
 
@@ -344,7 +379,6 @@ export default function UserPage() {
           fetchData={fetchTableData}
           tableHeight={760}
           actionButtons={actionButtons}
-          initialParams={{ status: 'active' }}
           defaultPageSize={20}
           doubleClick={(record: any) => {
             navigate(

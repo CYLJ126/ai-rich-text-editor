@@ -1,12 +1,13 @@
 import {i18nText} from '@/utils/i18n';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ActionButton, SimpleTable, type TableColumn } from '@/components';
 import PageWrapper from '@/components/PageWrapper';
 import SearchForm from '@/components/SearchForm';
 import type { SearchFieldConfig } from '@/components/SearchForm/SearchFormTypes';
-import { listRole } from '@/services/ant-design-pro/rbac';
+import { deactivateRole, listRole } from '@/services/ant-design-pro/rbac';
+import {downloadCsv, fetchAllPages} from '@/utils/tableExport';
 import AssignMenusModal from '../MenuManagement/assignMenusModal';
 import AssignOperationsModal from '../MenuOperationManagement/assignOperationsModal';
 import AssignUsersModal from './assignUsersModal';
@@ -188,7 +189,7 @@ const searchFields: SearchFieldConfig[] = [
   },
 ];
 
-export default function UserPage() {
+export default function RolePage() {
   const tableRef = useRef<any>(null);
   const navigate = useNavigate();
   // 添加权限分配弹窗状态管理
@@ -207,6 +208,36 @@ export default function UserPage() {
     console.log('重置后的值:', values);
   };
 
+  const exportColumns = [
+    {title: i18nText("app.administration.rolemanagement.a40a406e"), dataIndex: 'roleCode'},
+    {title: i18nText("app.administration.rolemanagement.848cca2d"), dataIndex: 'roleName'},
+    {title: i18nText("app.administration.rolemanagement.5daf81c0"), dataIndex: 'status'},
+    {title: i18nText("app.administration.rolemanagement.97e4e26c"), dataIndex: 'description'},
+    {title: i18nText("app.administration.rolemanagement.4a4d61a5"), dataIndex: 'createBy'},
+    {title: i18nText("app.administration.rolemanagement.e072be94"), dataIndex: 'updateBy'},
+    {title: i18nText("app.administration.rolemanagement.1e1b108c"), dataIndex: 'createTime'},
+    {title: i18nText("app.administration.rolemanagement.c456f9fb"), dataIndex: 'updateTime'},
+  ];
+
+  const exportRows = (records: any[]) => {
+    if (!records?.length) {
+      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      return;
+    }
+    downloadCsv('roles.csv', records, exportColumns);
+    message.success(i18nText('app.administration.common.export.success'));
+  };
+
+  const exportAll = async () => {
+    try {
+      const records = await fetchAllPages(listRole, tableRef.current?.getQueryParams?.() ?? {});
+      exportRows(records);
+    } catch (error) {
+      console.error('导出全部角色失败：', error);
+      message.error(i18nText('app.administration.common.export.failed'));
+    }
+  };
+
   // 操作按钮
   const actionButtons: ActionButton[] = [
     {
@@ -218,6 +249,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.rolemanagement.69104da2"),
       authority: 'role:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
@@ -230,12 +262,35 @@ export default function UserPage() {
     },
     {
       text: i18nText("app.administration.rolemanagement.c4241368"),
-      authority: 'role:update',
-      handler: () => message.info(i18nText("app.administration.rolemanagement.7f9a77ce")),
+      authority: 'role:delete',
+      requiresSelection: true,
+      handler: (records: any) => {
+        if (records?.length !== 1) {
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f"));
+          return;
+        }
+        const role = records[0];
+        Modal.confirm({
+          title: i18nText('app.administration.rolemanagement.deactivateConfirmTitle'),
+          content: i18nText('app.administration.rolemanagement.deactivateConfirmContent', {value0: role.roleName}),
+          onOk: async () => {
+            try {
+              const result = await deactivateRole({id: role.id, roleCode: role.roleCode});
+              if (!result) throw new Error('Deactivate role returned false');
+              message.success(i18nText('app.administration.rolemanagement.deactivateSuccess'));
+              await tableRef.current?.refresh();
+            } catch (error) {
+              console.error('注销角色失败：', error);
+              message.error(i18nText('app.administration.rolemanagement.deactivateFailed'));
+            }
+          },
+        });
+      },
     },
     {
       text: i18nText("app.administration.rolemanagement.63cdb38c"),
       authority: 'role:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
@@ -248,6 +303,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.rolemanagement.158d4631"),
       authority: 'role:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
@@ -260,6 +316,7 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.rolemanagement.f513b216"),
       authority: 'role:update',
+      requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
           message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
@@ -272,12 +329,13 @@ export default function UserPage() {
     {
       text: i18nText("app.administration.rolemanagement.f42921ba"),
       authority: 'role:export',
-      handler: () => message.info(i18nText("app.administration.rolemanagement.5287e26a")),
+      requiresSelection: true,
+      handler: (records: any) => exportRows(records),
     },
     {
       text: i18nText("app.administration.rolemanagement.9a5dd799"),
       authority: 'role:export',
-      handler: () => message.info(i18nText("app.administration.rolemanagement.5ffea36f")),
+      handler: () => exportAll(),
     },
   ];
 
@@ -304,7 +362,6 @@ export default function UserPage() {
           fetchData={fetchTableData}
           tableHeight={760}
           actionButtons={actionButtons}
-          initialParams={{ status: 'active' }}
           defaultPageSize={20}
           doubleClick={(record: any) => {
             navigate(

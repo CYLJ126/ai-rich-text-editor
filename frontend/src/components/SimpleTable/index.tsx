@@ -45,8 +45,9 @@ interface ApiResponse {
   success: boolean;
   current: number;
   totalPage: number;
-  data: any[];
-  statistics: Statistics;
+  records: any[];
+  total: number;
+  statistics?: Statistics;
 }
 
 interface AdvancedTableProps {
@@ -60,14 +61,19 @@ interface AdvancedTableProps {
       },
   ) => Promise<ApiResponse>;
   initialParams?: QueryParam;
+  initQueryParam?: QueryParam;
   actionButtons?: ActionButton[];
   rowKey?: string;
   defaultSize?: number;
+  defaultPageSize?: number;
   defaultSelectedField?: string; // 用于设置默认选中行的字段名，值为true/false
+  showStatistics?: boolean;
+  tableHeight?: number;
+  doubleClick?: (record: any) => void;
 }
 
 // 格式化统计信息
-const formatStatistics = (stats: Statistics): string => {
+const formatStatistics = (stats?: Statistics): string => {
   if (!stats) {
     return '';
   }
@@ -78,26 +84,30 @@ const formatStatistics = (stats: Statistics): string => {
       .join(' | ');
 };
 
-const SimpleTable = forwardRef((props, ref) => {
+const SimpleTable = forwardRef<any, AdvancedTableProps>((props, ref) => {
   const {
     columns,
     fetchData,
-    initQueryParam = {},
+    initialParams,
+    initQueryParam,
     actionButtons = [],
     rowKey = 'id',
-    defaultSize = 50,
+    defaultSize,
+    defaultPageSize,
     showStatistics = true,
     tableHeight = 750,
     defaultSelectedField,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    doubleClick = (_) => {
+    doubleClick = (_: any) => {
     },
   } = props;
+  const initialQueryParam = initialParams ?? initQueryParam ?? {};
+  const initialPageSize = defaultPageSize ?? defaultSize ?? 50;
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
     current: 1,
-    size: defaultSize,
+    size: initialPageSize,
     total: 0,
   });
   const [statistics, setStatistics] = useState<string>();
@@ -107,7 +117,7 @@ const SimpleTable = forwardRef((props, ref) => {
     field?: string;
     order?: 'ascend' | 'descend'
   }>({});
-  const [queryParam, setQueryParam] = useState<QueryParam>({...initQueryParam});
+  const [queryParam, setQueryParam] = useState<QueryParam>({...initialQueryParam});
   const {initialState} = useModel('@@initialState');
   const buttons = actionButtons.filter((button: ActionButton) =>
       initialState?.currentUser?.menuOperations?.includes(button.authority),
@@ -221,8 +231,16 @@ const SimpleTable = forwardRef((props, ref) => {
   // 暴露刷新方法给父组件
   useImperativeHandle(ref, () => ({
     refresh: () => loadData(),
-    query: (params: QueryParam) => setQueryParam(params),
+    query: (params?: QueryParam) => {
+      if (params) {
+        setQueryParam(params);
+        return;
+      }
+      void loadData();
+    },
     getSelectedRows: () => selectedRows,
+    getQueryParams: () => ({...queryParam}),
+    getCurrentPageRows: () => [...data],
   }));
   return (
       <div className={styles.tableContainer}>

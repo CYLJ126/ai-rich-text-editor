@@ -21,7 +21,7 @@ interface Operation {
     rowVersion: string;
 }
 
-interface ManageOperationsModalProps {
+export interface ManageOperationsModalProps {
     visible: boolean;
     menuCode: string;
     menuName: string;
@@ -64,6 +64,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
 
     // 新增操作权限
     const handleAdd = () => {
+        if (editingKey !== null) return;
         const newOperation: Operation = {
             id: -1,
             menuCode,
@@ -82,8 +83,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
     // 保存操作权限
     const handleSave = async (record: Operation) => {
         try {
-            // 获取表单当前值
-            const formValues = form.getFieldsValue();
+            const formValues = await form.validateFields();
             let response;
             if (record.id === -1) {
                 // 新增操作
@@ -153,6 +153,11 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
 
     // 编辑单元格
     const isEditing = (record: Operation) => record.id === editingKey;
+
+    const handleEdit = (record: Operation) => {
+        form.setFieldsValue(record);
+        setEditingKey(record.id);
+    };
 
     // 列定义
     const columns = [
@@ -260,7 +265,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                         </Button>
                     </>
                 ) : (
-                    <Button type="link" size="small" onClick={() => setEditingKey(record.id)}>
+                    <Button type="link" size="small" onClick={() => handleEdit(record)}>
                         {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9")}
                     </Button>
                 );
@@ -277,7 +282,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             width={800}
         >
             <div style={{marginBottom: 16}}>
-                <Button type="primary" onClick={handleAdd}>
+                <Button type="primary" onClick={handleAdd} disabled={editingKey !== null}>
                     {i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.070a129e")}
                 </Button>
             </div>
@@ -290,13 +295,6 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                     pagination={false}
                     rowClassName="editable-row"
                     size="small"
-                    onRow={(record: Operation) => ({
-                        onClick: () => {
-                            if (!isEditing(record)) {
-                                form.setFieldsValue(record);
-                            }
-                        },
-                    })}
                 />
             </Form>
         </Modal>
