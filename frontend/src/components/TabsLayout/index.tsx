@@ -154,6 +154,24 @@ export interface TabItem {
 const HOME_PATH = '/HomePage';
 
 /**
+ * 新增、编辑表单复用对应管理页的标签，不额外创建表单标签。
+ * 查看模式仍使用独立标签，便于同时查看多条记录。
+ */
+const MANAGEMENT_FORM_PARENT_PATHS: Record<string, string> = {
+  '/Administration/UserManagement/UserForm': '/Administration/UserManagement',
+  '/Administration/MenuManagement/MenuForm': '/Administration/MenuManagement',
+  '/Administration/RoleManagement/RoleForm': '/Administration/RoleManagement',
+};
+
+function getTabIdentityPath(pathname: string, search?: string): string {
+  const parentPath = MANAGEMENT_FORM_PARENT_PATHS[pathname];
+  if (!parentPath) return pathname;
+
+  const mode = new URLSearchParams(search || '').get('mode');
+  return mode === 'create' || mode === 'edit' ? parentPath : pathname;
+}
+
+/**
  * 不需要显示 Tab 标签栏的路径前缀列表
  * 匹配规则：pathname === prefix 或 pathname.startsWith(prefix + '/')
  */
@@ -193,11 +211,15 @@ const TabsLayout: React.FC = () => {
 
   // 根据路径生成标签页信息
   const generateTabInfo = (pathname: string, search?: string): TabItem => {
-    const key = `${pathname}${search || ''}`;
-    const menuIntlInfo = getMenuIntlInfo(pathname);
+    const identityPath = getTabIdentityPath(pathname, search);
+    const reusesManagementTab = identityPath !== pathname;
+    const key = reusesManagementTab
+      ? identityPath
+      : `${pathname}${search || ''}`;
+    const menuIntlInfo = getMenuIntlInfo(identityPath);
     let label = intl.formatMessage(menuIntlInfo) || 'tempPage';
     // 如果有查询参数，可以在这里处理标签显示
-    if (search) {
+    if (search && !reusesManagementTab) {
       const params = new URLSearchParams(search);
       const id = params.get('id');
       if (id) {
@@ -218,12 +240,15 @@ const TabsLayout: React.FC = () => {
    * 规则：
    * 1. 若新标签是 HomePage → 插入到最前面（index 0）
    * 2. 若新标签不是 HomePage → 追加到末尾
-   * 3. 若已存在相同 key → 不重复插入，直接返回原数组
+   * 3. 若已存在相同 key → 更新其当前路由，不重复插入
    */
   const insertTab = (prevTabs: TabItem[], newTab: TabItem): TabItem[] => {
-    // 已存在，直接返回
-    const exists = prevTabs.some((t) => t.key === newTab.key);
-    if (exists) return prevTabs;
+    const existingIndex = prevTabs.findIndex((t) => t.key === newTab.key);
+    if (existingIndex >= 0) {
+      const nextTabs = [...prevTabs];
+      nextTabs[existingIndex] = newTab;
+      return nextTabs;
+    }
 
     if (newTab.pathname === HOME_PATH) {
       // HomePage 插入到最前面
