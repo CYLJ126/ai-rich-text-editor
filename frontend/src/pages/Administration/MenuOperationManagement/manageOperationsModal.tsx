@@ -49,7 +49,7 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                 setOperations(response.records);
             }
         } catch (error) {
-            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.f289caec"));
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.f289caec")).then();
             console.error('获取操作权限失败:', error);
         } finally {
             setLoading(false);
@@ -108,14 +108,14 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
             }
 
             if (response) {
-                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b"));
+                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b")).then();
                 setEditingKey(null);
                 loadOperations().then();
             } else {
-                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f"));
+                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f")).then();
             }
         } catch (error) {
-            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f"));
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.b994840f")).then();
             console.error('保存操作权限失败:', error);
         }
     };
@@ -140,13 +140,13 @@ const ManageOperationsModal: React.FC<ManageOperationsModalProps> = ({
                 operationCode: record.operationCode,
             });
             if (response) {
-                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76"));
+                message.success(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76")).then();
                 loadOperations().then();
             } else {
-                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81"));
+                message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81")).then();
             }
         } catch (error) {
-            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81"));
+            message.error(i18nText("app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81")).then();
             console.error('状态切换失败:', error);
         }
     };
