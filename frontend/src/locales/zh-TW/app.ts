@@ -1367,12 +1367,13 @@ export default {
   'app.common.timeheader.a378ca10': '季',
   'app.common.timeheader.b3893a65': '週三',
   'app.common.timeheader.c3fa2749': '日',
-  'app.common.timeheader.d109a055': '周',
+  'app.common.timeheader.d109a055': '週',
   'app.common.timeheader.d3362408': '年',
   'app.common.timeheader.d5ad045e': '半年',
   'app.common.timeheader.ebcd1799': '月',
-  'app.common.timeheader.f94c518c': 'YYYY-[第]w[周]',
+  'app.common.timeheader.f94c518c': 'YYYY-[第]w[週]',
   'app.common.timeheader.fe0d88ca': '小時',
+  'app.common.timeheader.weekLabel': '第{value}週',
 
   // components/Video/BilibiliPlayer.tsx
   'app.common.video.bilibiliplayer.0d86babb':

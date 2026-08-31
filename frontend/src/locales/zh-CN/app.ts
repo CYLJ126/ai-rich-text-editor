@@ -1373,6 +1373,7 @@ export default {
   'app.common.timeheader.ebcd1799': '月',
   'app.common.timeheader.f94c518c': 'YYYY-[第]w[周]',
   'app.common.timeheader.fe0d88ca': '小时',
+  'app.common.timeheader.weekLabel': '第{value}周',
 
   // components/Video/BilibiliPlayer.tsx
   'app.common.video.bilibiliplayer.0d86babb':
