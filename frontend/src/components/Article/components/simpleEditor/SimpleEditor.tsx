@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState,} from 'react';
+import React, {forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react';
 import {EditorContent, useEditor} from '@tiptap/react';
 import {Editor} from '@tiptap/core';
 import {offset} from '@floating-ui/dom';
@@ -97,6 +97,11 @@ export interface SimpleEditorProps {
   characterCountCeil?: number;
 }
 
+export interface SimpleEditorRef {
+  /** 编辑器内容设置 */
+  setContent: (content: string) => void;
+}
+
 interface RenderedSize {
   width: number;
   height: number;
@@ -108,316 +113,303 @@ interface RenderedSize {
  * width 和 height 始终由父组件控制。
  * 组件内部的 renderedSize 只记录 DOM 实际尺寸，不会直接修改容器宽高。
  */
-const SimpleEditor: React.FC<SimpleEditorProps> = ({
-                                                     defaultContent,
-                                                     onFocus,
-                                                     onBlur,
-                                                     onUpdate,
-                                                     onDestroy,
-                                                     onPaste,
-                                                     onDelete,
-                                                     onSave,
-                                                     className,
+const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
+  (props, ref) => {
+    const {
+      defaultContent, onFocus, onBlur, onUpdate, onDestroy, onPaste, onDelete, onSave, className,
+      width = '100%', height = '100%', onWidthChange, onHeightChange,
+      horizontalResizable = false, verticalResizable = false,
+      minWidth = 100, maxWidth = window.innerWidth, minHeight = 100, maxHeight = window.innerHeight,
+      showResizeIcon = true, readOnly = false, draggable = false, showScrollbar = true,
+      characterCountCeil = 20000,
+    } = props;
+    const {editorRef, editButtons} = useRichTextData();
+    const containerRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<string>(defaultContent || '');
+    const onFocusCbRef = useRef(onFocus);
+    const onBlurCbRef = useRef(onBlur);
+    const onUpdateCbRef = useRef(onUpdate);
+    const onDestroyCbRef = useRef(onDestroy);
+    const onPasteCbRef = useRef(onPaste);
+    const onDeleteCbRef = useRef(onDelete);
+    const onSaveCbRef = useRef(onSave);
 
-                                                     width = '100%',
-                                                     height = '100%',
+    const [initialed, setInitialed] = useState(false);
 
-                                                     onWidthChange,
-                                                     onHeightChange,
+    /**
+     * 这里只记录容器最终渲染出来的像素尺寸。
+     *
+     * 当 width="100%" 或 height="100%" 时，DraggableLine 仍然需要一个
+     * number 类型的实际起始尺寸，因此通过 ResizeObserver 获取。
+     *
+     * 这个状态不会反向设置容器 style，因此不影响受控模式。
+     */
+    const [renderedSize, setRenderedSize] = useState<RenderedSize>({
+      width: typeof width === 'number' ? width : minWidth,
+      height: typeof height === 'number' ? height : minHeight,
+    });
 
-                                                     horizontalResizable = false,
-                                                     verticalResizable = false,
+    // 每次 render 同步最新回调，避免 Tiptap 内部持有过期闭包。
+    onFocusCbRef.current = onFocus;
+    onBlurCbRef.current = onBlur;
+    onUpdateCbRef.current = onUpdate;
+    onDestroyCbRef.current = onDestroy;
+    onPasteCbRef.current = onPaste;
+    onDeleteCbRef.current = onDelete;
+    onSaveCbRef.current = onSave;
 
-                                                     minWidth = 100,
-                                                     maxWidth = window.innerWidth,
-                                                     minHeight = 100,
-                                                     maxHeight = window.innerHeight,
+    const extensions = useMemo(
+      () => [
+        TiptapStarterKit,
+        TiptapHeading,
+        Highlight.configure({
+          multicolor: true,
+        }),
+        SearchHighlight,
+        ContentHelperExtension,
+        MyTranslatorExtension,
+        TiptapTextAlign,
+        TiptapTable,
+        TiptapTableHeader,
+        TableRow,
+        TiptapTableCell,
+        ...configTaskList(),
+        codeBlock,
+        TiptapSubscript,
+        TiptapSuperscript,
+        TipTapMarkdown,
+        MyTextStyle,
+        PasteStyleHandler,
+        PasteCodeBlockHandler,
+        selection,
 
-                                                     showResizeIcon = true,
+        configureMathFormula({
+          enableClickEdit: true,
+        }),
 
-                                                     readOnly = false,
-                                                     draggable = false,
-                                                     showScrollbar = true,
+        CharacterCount.configure({
+          limit: characterCountCeil,
+        }),
 
-                                                     characterCountCeil = 20000,
-                                                   }) => {
-  const {editorRef, editButtons} = useRichTextData();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<string>(defaultContent || '');
-  const onFocusCbRef = useRef(onFocus);
-  const onBlurCbRef = useRef(onBlur);
-  const onUpdateCbRef = useRef(onUpdate);
-  const onDestroyCbRef = useRef(onDestroy);
-  const onPasteCbRef = useRef(onPaste);
-  const onDeleteCbRef = useRef(onDelete);
-  const onSaveCbRef = useRef(onSave);
+        MyKeyboardShortcuts.configure({
+          save: () => {
+            return onSaveCbRef.current?.() ?? false;
+          },
+        }),
+      ],
+      [],
+    );
 
-  const [initialed, setInitialed] = useState(false);
-
-  /**
-   * 这里只记录容器最终渲染出来的像素尺寸。
-   *
-   * 当 width="100%" 或 height="100%" 时，DraggableLine 仍然需要一个
-   * number 类型的实际起始尺寸，因此通过 ResizeObserver 获取。
-   *
-   * 这个状态不会反向设置容器 style，因此不影响受控模式。
-   */
-  const [renderedSize, setRenderedSize] = useState<RenderedSize>({
-    width: typeof width === 'number' ? width : minWidth,
-    height: typeof height === 'number' ? height : minHeight,
-  });
-
-  // 每次 render 同步最新回调，避免 Tiptap 内部持有过期闭包。
-  onFocusCbRef.current = onFocus;
-  onBlurCbRef.current = onBlur;
-  onUpdateCbRef.current = onUpdate;
-  onDestroyCbRef.current = onDestroy;
-  onPasteCbRef.current = onPaste;
-  onDeleteCbRef.current = onDelete;
-  onSaveCbRef.current = onSave;
-
-  const extensions = useMemo(
-    () => [
-      TiptapStarterKit,
-      TiptapHeading,
-      Highlight.configure({
-        multicolor: true,
-      }),
-      SearchHighlight,
-      ContentHelperExtension,
-      MyTranslatorExtension,
-      TiptapTextAlign,
-      TiptapTable,
-      TiptapTableHeader,
-      TableRow,
-      TiptapTableCell,
-      ...configTaskList(),
-      codeBlock,
-      TiptapSubscript,
-      TiptapSuperscript,
-      TipTapMarkdown,
-      MyTextStyle,
-      PasteStyleHandler,
-      PasteCodeBlockHandler,
-      selection,
-
-      configureMathFormula({
-        enableClickEdit: true,
-      }),
-
-      CharacterCount.configure({
-        limit: characterCountCeil,
-      }),
-
-      MyKeyboardShortcuts.configure({
-        save: () => {
-          return onSaveCbRef.current?.() ?? false;
-        },
-      }),
-    ],
-    [],
-  );
-
-  const editor = useEditor(
-    {
-      extensions,
-      contentType: 'markdown',
-      content: '',
-      editable: !readOnly,
-      onFocus: ({editor}: { editor: Editor }) => {
-        onFocusCbRef.current?.(editor);
-      },
-      onBlur: ({editor}: { editor: Editor }) => {
-        const markdown = editor.getMarkdown();
-        contentRef.current = markdown;
-        onBlurCbRef.current?.(markdown, editor);
-      },
-      onUpdate: ({editor}: { editor: Editor }) => {
-        const markdown = editor.getMarkdown();
-        contentRef.current = markdown;
-        onUpdateCbRef.current?.(markdown, editor);
-      },
-      onDestroy: () => {
-        onDestroyCbRef.current?.(contentRef.current);
-      },
-    },
-    [],
-  );
-
-  editorRef.current = editor;
-
-  /**
-   * 初始化默认内容。
-   * defaultContent 是默认值，而不是受控 content，因此这里只初始化一次。
-   */
-  useEffect(() => {
-    if (initialed || !editorRef.current) {
-      return;
-    }
-    if (defaultContent) {
-      editorRef.current.commands.setContent(defaultContent, {
+    const editor = useEditor(
+      {
+        extensions,
         contentType: 'markdown',
-      });
-      contentRef.current = defaultContent;
-    }
-    setInitialed(true);
-  }, [defaultContent, editorRef, initialed]);
+        content: '',
+        editable: !readOnly,
+        onFocus: ({editor}: { editor: Editor }) => {
+          onFocusCbRef.current?.(editor);
+        },
+        onBlur: ({editor}: { editor: Editor }) => {
+          const markdown = editor.getMarkdown();
+          contentRef.current = markdown;
+          onBlurCbRef.current?.(markdown, editor);
+        },
+        onUpdate: ({editor}: { editor: Editor }) => {
+          const markdown = editor.getMarkdown();
+          contentRef.current = markdown;
+          onUpdateCbRef.current?.(markdown, editor);
+        },
+        onDestroy: () => {
+          onDestroyCbRef.current?.(contentRef.current);
+        },
+      },
+      [],
+    );
 
-  /**
-   * readOnly 可能在编辑器创建之后发生变化，需要主动同步 editable 状态。
-   */
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    editor.setEditable(!readOnly);
-  }, [editor, readOnly]);
+    editorRef.current = editor;
 
-  /**
-   * 获取编辑器容器的实际像素尺寸。
-   *
-   * 例如：
-   * width="100%" 最终可能渲染为 900px；
-   * DraggableLine 拖动时以 900 为起点进行计算。
-   */
-  useEffect(() => {
-    const container = containerRef.current;
+    /**
+     * 初始化默认内容。
+     * defaultContent 是默认值，而不是受控 content，因此这里只初始化一次。
+     */
+    useEffect(() => {
+      if (initialed || !editorRef.current) {
+        return;
+      }
+      if (defaultContent) {
+        editorRef.current.commands.setContent(defaultContent, {
+          contentType: 'markdown',
+        });
+        contentRef.current = defaultContent;
+      }
+      setInitialed(true);
+    }, [defaultContent, editorRef, initialed]);
 
-    if (!container) {
-      return;
-    }
+    /**
+     * readOnly 可能在编辑器创建之后发生变化，需要主动同步 editable 状态。
+     */
+    useEffect(() => {
+      if (!editor) {
+        return;
+      }
+      editor.setEditable(!readOnly);
+    }, [editor, readOnly]);
 
-    const updateRenderedSize = () => {
-      const rect = container.getBoundingClientRect();
+    /**
+     * 获取编辑器容器的实际像素尺寸。
+     *
+     * 例如：
+     * width="100%" 最终可能渲染为 900px；
+     * DraggableLine 拖动时以 900 为起点进行计算。
+     */
+    useEffect(() => {
+      const container = containerRef.current;
 
-      setRenderedSize((previous) => {
-        const nextWidth =
-          rect.width > 0 ? rect.width : previous.width;
+      if (!container) {
+        return;
+      }
 
-        const nextHeight =
-          rect.height > 0 ? rect.height : previous.height;
+      const updateRenderedSize = () => {
+        const rect = container.getBoundingClientRect();
 
-        if (
-          previous.width === nextWidth &&
-          previous.height === nextHeight
-        ) {
-          return previous;
-        }
+        setRenderedSize((previous) => {
+          const nextWidth =
+            rect.width > 0 ? rect.width : previous.width;
 
-        return {
-          width: nextWidth,
-          height: nextHeight,
-        };
-      });
-    };
+          const nextHeight =
+            rect.height > 0 ? rect.height : previous.height;
 
-    updateRenderedSize();
+          if (
+            previous.width === nextWidth &&
+            previous.height === nextHeight
+          ) {
+            return previous;
+          }
 
-    const resizeObserver = new ResizeObserver(updateRenderedSize);
-    resizeObserver.observe(container);
+          return {
+            width: nextWidth,
+            height: nextHeight,
+          };
+        });
+      };
 
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
+      updateRenderedSize();
 
-  return (
-    <>
-      {/* Tiptap 节点拖动手柄 */}
-      {!readOnly && draggable && editor && (
-        <DragHandle
-          editor={editor}
-          computePositionConfig={{
-            middleware: [
-              offset({
-                mainAxis: -4,
-                crossAxis: 0,
-              }),
-            ],
+      const resizeObserver = new ResizeObserver(updateRenderedSize);
+      resizeObserver.observe(container);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }, []);
+
+    useImperativeHandle(ref, () => ({
+      setContent: (content: string) => {
+        editorRef.current.commands.setContent(content, {
+          contentType: 'markdown',
+        });
+        contentRef.current = content;
+      }
+    }));
+
+    return (
+      <>
+        {/* Tiptap 节点拖动手柄 */}
+        {!readOnly && draggable && editor && (
+          <DragHandle
+            editor={editor}
+            computePositionConfig={{
+              middleware: [
+                offset({
+                  mainAxis: -4,
+                  crossAxis: 0,
+                }),
+              ],
+            }}
+          >
+            <GripVerticalIcon className="text-muted-foreground"/>
+          </DragHandle>
+        )}
+
+        <div
+          ref={containerRef}
+          className={[
+            styles.editorContainer,
+            className,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          style={{
+            width,
+            height,
+            position: 'relative',
+            overflow: 'visible',
           }}
         >
-          <GripVerticalIcon className="text-muted-foreground"/>
-        </DragHandle>
-      )}
-
-      <div
-        ref={containerRef}
-        className={[
-          styles.editorContainer,
-          className,
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        style={{
-          width,
-          height,
-          position: 'relative',
-          overflow: 'visible',
-        }}
-      >
-        <EditorContent
-          editor={editor}
-          className={styles.editorContent}
-          style={{
-            scrollbarWidth: showScrollbar ? 'thin' : 'none',
-          }}
-        />
-
-        {/* 右侧竖线：鼠标横向拖动，调整编辑器宽度 */}
-        {horizontalResizable && (
-          <DraggableLine
-            direction="horizontal"
-            size={renderedSize.width}
-            minSize={minWidth}
-            maxSize={maxWidth}
-            showDragIcon={showResizeIcon}
-            className={styles.widthResizeHandle}
-            onSizeChange={(nextWidth) => {
-              onWidthChange?.(nextWidth);
+          <EditorContent
+            editor={editor}
+            className={styles.editorContent}
+            style={{
+              scrollbarWidth: showScrollbar ? 'thin' : 'none',
             }}
+          />
+
+          {/* 右侧竖线：鼠标横向拖动，调整编辑器宽度 */}
+          {horizontalResizable && (
+            <DraggableLine
+              direction="horizontal"
+              size={renderedSize.width}
+              minSize={minWidth}
+              maxSize={maxWidth}
+              showDragIcon={showResizeIcon}
+              className={styles.widthResizeHandle}
+              onSizeChange={(nextWidth) => {
+                onWidthChange?.(nextWidth);
+              }}
+            />
+          )}
+
+          {/* 底部横线：鼠标纵向拖动，调整编辑器高度 */}
+          {verticalResizable && (
+            <DraggableLine
+              direction="vertical"
+              size={renderedSize.height}
+              minSize={minHeight}
+              maxSize={maxHeight}
+              showDragIcon={showResizeIcon}
+              className={styles.heightResizeHandle}
+              onSizeChange={(nextHeight) => {
+                onHeightChange?.(nextHeight);
+              }}
+            />
+          )}
+        </div>
+
+        {/* 悬浮按钮 */}
+        {!readOnly && (
+          <BubbleToolbarButton
+            editor={editor}
+            editButtons={editButtons}
           />
         )}
 
-        {/* 底部横线：鼠标纵向拖动，调整编辑器高度 */}
-        {verticalResizable && (
-          <DraggableLine
-            direction="vertical"
-            size={renderedSize.height}
-            minSize={minHeight}
-            maxSize={maxHeight}
-            showDragIcon={showResizeIcon}
-            className={styles.heightResizeHandle}
-            onSizeChange={(nextHeight) => {
-              onHeightChange?.(nextHeight);
-            }}
-          />
-        )}
-      </div>
-
-      {/* 悬浮按钮 */}
-      {!readOnly && (
-        <BubbleToolbarButton
-          editor={editor}
-          editButtons={editButtons}
-        />
-      )}
-
-      {/* 表格操作手柄 */}
-      {!readOnly && <TableHandle editor={editor}/>}
-    </>
-  );
-};
+        {/* 表格操作手柄 */}
+        {!readOnly && <TableHandle editor={editor}/>}
+      </>
+    );
+  });
 
 /**
  * RichTextProvider 必须位于 SimpleEditor 外层，
  * 因为 SimpleEditor 内部调用了 useRichTextData。
  */
-const SimpleEditorLayout: React.FC<SimpleEditorProps> = (props) => {
-  return (
-    <RichTextProvider>
-      <SimpleEditor {...props} />
-    </RichTextProvider>
-  );
-};
+const SimpleEditorLayout = forwardRef<SimpleEditorRef, SimpleEditorProps>(
+  (props, ref) => {
+    return (
+      <RichTextProvider>
+        <SimpleEditor ref={ref} {...props} />
+      </RichTextProvider>
+    );
+  });
 
 export default SimpleEditorLayout;
