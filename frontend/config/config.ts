@@ -78,6 +78,9 @@ export default defineConfig({
 
   publicPath: PUBLIC_PATH,
 
+  /** 浏览器标签页图标 */
+  favicons: [join(PUBLIC_PATH, 'pro_icon.svg')],
+
   /**
    * @name targets 兼容性设置
    * @description 设置 ie11 不一定完美兼容，需要检查自己使用的所有依赖
@@ -143,7 +146,7 @@ export default defineConfig({
    * @doc https://umijs.org/docs/max/data-flow#%E5%85%A8%E5%B1%80%E5%88%9D%E5%A7%8B%E7%8A%B6%E6%80%81
    */
   initialState: {},
-  title: 'Nobody Is Perfect',
+  title: 'AI Rich Text Editor',
   /**
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu

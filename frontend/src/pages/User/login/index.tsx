@@ -1,4 +1,3 @@
-import { i18nText } from '@/utils/i18n';
 import {
   AlipayCircleOutlined,
   LockOutlined,
@@ -26,9 +25,10 @@ import React, { startTransition, useState } from 'react';
 import { Footer } from '@/components';
 import { getPubKey, login } from '@/services/ant-design-pro/base';
 import { getFakeCaptcha } from '@/services/ant-design-pro/login';
+import { GMCrypto } from '@/utils/crypto/gmCrypto';
+import { i18nText } from '@/utils/i18n';
 import Settings from '../../../../config/defaultSettings';
 import { initialUserTags } from './initialBaseInfo';
-import { GMCrypto } from '@/utils/crypto/gmCrypto';
 
 /**
  * Validate redirect URL to prevent open redirect attacks.
@@ -227,10 +227,10 @@ const Login: React.FC = () => {
           logo={
             <img
               alt={intl.formatMessage({ id: 'app.common.logo' })}
-              src="/balloon-flat.svg"
+              src="/logo.svg"
             />
           }
-          title="Nobody Is Perfect"
+          title="AI Rich Text Editor"
           subTitle={intl.formatMessage({ id: 'app.login.motto' })}
           initialValues={{
             autoLogin: true,

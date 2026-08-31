@@ -1,164 +1,74 @@
-<h1 align="center">Ant Design Pro</h1>
+## 项目结构
 
-<div align="center">
+**app.tsx**
 
-An out-of-box UI solution for enterprise applications as a React boilerplate.
+主入口文件，包含布局、路由、水印等配置，从后端加载菜单的逻辑在此。
 
-[![CI](https://github.com/ant-design/ant-design-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/ant-design/ant-design-pro/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/ant-design/ant-design-pro.svg)](https://github.com/ant-design/ant-design-pro/releases)
-[![Build With Utoo](https://img.shields.io/badge/build%20with-utoo-028fe4.svg)](https://utoo.land)
-[![Build With Umi](https://img.shields.io/badge/build%20with-umi-028fe4.svg)](https://umijs.org/)
-[![Checked with Biome](https://img.shields.io/badge/Checked_with-Biome-60a5fa?style=flat&logo=biome)](https://biomejs.dev)
-[![Ant Design](https://badgen.net/badge/icon/Ant%20Design?icon=https://gw.alipayobjects.com/zos/antfincdn/Pp4WPgVDB3/KDpgvguMpGfqaHPjicRK.svg&label)](https://ant.design/)
+**assets**
 
-Language: English | [简体中文](./README.zh-CN.md)
+资源目录，包含全局资源，如图片、字体等。
 
-<img width="1718" height="1191" alt="light theme preview" src="https://github.com/user-attachments/assets/74ad0b4a-e086-4955-8edd-9f2cff31aee8" />
-<img width="1718" height="1191" alt="dark theme preview" src="https://github.com/user-attachments/assets/d4bcb7c1-42c7-4c0f-b130-1193a931f9f7" />
+**config**
 
-</div>
+配置目录，包含全局配置。routes.ts 废弃，从后端获取。
 
-- Preview: https://preview.pro.ant.design
-- Documentation: [docs/cheatsheet.en-US.md](./docs/cheatsheet.en-US.md)
-- ChangeLog: https://github.com/ant-design/ant-design-pro/releases
-- FAQ: [docs/cheatsheet.en-US.md#faq](./docs/cheatsheet.en-US.md#faq)
-- **v6 Released!** — [What's new in v6](https://github.com/ant-design/ant-design-pro/releases/tag/v6.0.0)
+**components**
 
-## Features
+组件目录，包含全局组件。
 
-- :bulb: **TypeScript**: A language for application-scale JavaScript
-- :scroll: **Blocks**: Build page with block template
-- :gem: **Neat Design**: Built on [Ant Design 6](https://ant.design/) specification
-- :triangular_ruler: **Common Templates**: Typical templates for enterprise applications
-- :rocket: **State of The Art Development**: Newest development stack of React 19/[Umi Max 4](https://umijs.org/)/[antd 6](https://ant.design/)/[utoopack](https://utoo.land)
-- :iphone: **Responsive**: Designed for variable screen sizes
-- :art: **Theming**: Customizable theme with [Tailwind CSS v4](https://tailwindcss.com/) + [antd-style](https://github.com/ant-design/antd-style)
-- :globe_with_meridians: **International**: Built-in i18n solution
-- :gear: **Best Practices**: Solid workflow to make your code healthy
-- :1234: **Mock development**: Easy to use mock development solution
-- :robot: **AI Assistant**: Built-in AI chatbot page powered by [Ant Design X](https://x.ant.design/)
-- :white_check_mark: **UI Test**: Fly safely with unit and e2e tests
+（一）页面和布局等基础组件
 
-## Templates
+- `Footer`：`src/components/Footer` ：页脚组件，用于在页面底部显示页脚信息。
+- `HeaderDropdown`：`src/components/HeaderDropdown` ：头部下拉菜单组件，用于在页面顶部显示下拉菜单，包含用户信息、设置等。
+- `PageWrapper`：`src/components/PageWrapper` ：页面包装器组件，用于在页面顶部和底部添加页脚和头部下拉菜单。
+- `RightContent`：`src/components/RightContent` ：右侧内容组件，用于在页面右侧显示内容。
+- `TabsLayout`：`src/components/TabsLayout` ：选项卡布局组件，用于在页面顶部显示选项卡，每个选项卡对应一个路由。
 
-```
-- Welcome
-- Dashboard
-  - Analysis
-  - Monitor
-  - Workplace
-- Form
-  - Basic Form
-  - Step Form
-  - Advanced Form
-- List
-  - Search List (Articles/Projects/Applications)
-  - Table List
-  - Basic List
-  - Card List
-- Profile
-  - Basic Profile
-  - Advanced Profile
-- Result
-  - Success
-  - Fail
-- Exception
-  - 403
-  - 404
-  - 500
-- Account
-  - Account Center
-  - Account Settings
-- AI Assistant
-- User
-  - Login
-  - Register
-  - Register Result
+（二）表单、表格等相关组件
+
+- `DynamicForm`：`src/components/DynamicForm` ：动态表单组件，用于根据后端返回的表单配置动态生成表单。
+- `SearchForm`：`src/components/SearchForm` ：搜索表单组件，用于在页面顶部显示搜索表单。
+- `SimpleTable`：`src/components/SimpleTable` ：简单表格组件，用于在页面显示简单表格。
+
+（三）其他组件
+
+- `MyColorPicker`：`src/components/MyColorPicker` ：颜色选择器组件，用于选择颜色。
+- `ProgressBar`：`src/components/ProgressBar` ：进度条组件，用于显示操作进度。
+- `TagsSelector`：`src/components/TagsSelector` ：标签选择器组件，用于选择标签。
+- `TimeHeader`：`src/components/TimeHeader` ：时间头组件，用于在页面顶部显示时间信息。
+- `RichTextEditor`：`src/components/RichTextEditor` ：基于 Tiptap 的富文本编辑器组件，默认支持 Markdown。
+
+**icons**
+
+图标目录，包含全局图标组件，可以自己添加图标，如到 [svgrepo](https://www.svgrepo.com/) 下载图标，然后添加到 `src/icons` 目录下。
+
+app.tsx 中，从后端获取菜单信息并转换成前端路由时，不支持后端指定图标名，转换成对应图标，所以需要一个 IconMap 来映射图标名和图标组件。
+
+**layouts**
+
+布局目录，包含包含全局布局组件，通常不修改。
+
+**locales**
+
+国际化目录，包含全局国际化组件，可以自己添加国际化配置。
+
+一般如果添加了菜单或页面提示信息什么的，需要在 `locales` 目录下添加对应的国际化配置，只添加 US、ZN、TW 三个配置即可。要使用国际化，可：
+
+```ts
+import { history, useIntl, useLocation } from '@umijs/max';
+
+const intl = useIntl();
+let label = intl.formatMessage(intlCode); // intlCode 要在 locales 中定义，如 menu.HomePage
 ```
 
-## Usage
+## 页面
 
-### Get Started
+`src/pages` 目录下包含所有页面组件。
 
-Clone or download this repository to your local machine:
-
-```bash
-git clone --depth=1 https://github.com/ant-design/ant-design-pro.git myapp
-cd myapp
-```
-
-### Installation
-
-```bash
-npm install
-```
-
-### Development
-
-```bash
-# Start development server (full version by default)
-npm start
-```
-
-### Simplify to Simple Version
-
-This project includes all blocks by default. If you need a minimal version, run:
-
-```bash
-npm run simple
-```
-
-This will:
-- Remove extra page directories (dashboard, form, list/*, profile, result, exception, account, etc.)
-- Remove extra mock files
-- Replace routes with simple version
-- Remove extra dependencies from package.json
-
-**Note**: This operation is irreversible and will permanently delete files.
-
-### Build
-
-```bash
-npm run build
-```
-
-## AI Skills (Claude Code)
-
-This project ships with two built-in [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) in `.claude/skills/`:
-
-| Skill | Trigger | Description |
-|---|---|---|
-| `/pro-upgrade` | "upgrade pro", "update to latest" | Auto-upgrade to the latest Ant Design Pro version. Diffs the latest template, merges framework changes while preserving your business code. |
-| `/antd` | antd-related code or questions | Query antd component APIs, props, tokens, demos; lint for deprecated usage; migrate between versions — all via `@ant-design/cli`. |
-
-**Usage in Claude Code:**
-
-```bash
-# Upgrade the project to latest Pro version
-/pro-upgrade
-
-# Query antd component info, debug issues, run lint, etc.
-/antd
-```
-
-> 💡 If your project was cloned from this repo, these skills are already included — no installation needed. To get the latest skill definitions, pull the updates from the template or run `npx skills add ant-design/ant-design-pro` to refresh them.
-
-## Browsers support
-
-Modern browsers.
-
-| [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_48x48.png" alt="Edge" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Edge | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_48x48.png" alt="Firefox" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Firefox | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_48x48.png" alt="Chrome" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Chrome | [<img src="https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_48x48.png" alt="Safari" width="24px" height="24px" />](http://godban.github.io/browsers-support-badges/)</br>Safari |
-| --- | --- | --- | --- |
-| Edge | last 2 versions | last 2 versions | last 2 versions |
-
-## Contributing
-
-Any type of contribution is welcome, here are some examples of how you may contribute to this project:
-
-- Use Ant Design Pro in your daily work.
-- Submit [issues](http://github.com/ant-design/ant-design-pro/issues) to report bugs or ask questions.
-- Propose [pull requests](http://github.com/ant-design/ant-design-pro/pulls) to improve our code.
-
-<a href="https://openomy.app/github/ant-design/ant-design-pro" target="_blank" style="display: block; width: 100%;" align="center">
-  <img src="https://openomy.app/svg?repo=ant-design/ant-design-pro&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
-</a>
+- `account`：`src/pages/account` ：个人账号管理页面，包含用户信息、密码修改等功能。
+- `Administration`：`src/pages/Administration` ：管理员页面，包含用户管理、菜单管理、角色管理等功能。
+- `HomePage`：`src/pages/HomePage` ：首页，包含欢迎信息、操作统计等功能。
+- `Learn`：`src/pages/Learn` ：学习页面，包含组件使用示例、功能验证等功能。
+- `Tools`：`src/pages/Tools` ：工具页面，包含一些常用的工具，如格式化文档等。
+  - `CacheTest`：`src/pages/Tools/CacheTest` ：缓存测试页面，用于测试 KeepAlive 页面缓存功能。
+- `user`：`src/pages/user` ：用户页面，包含登录页、注册页等。
