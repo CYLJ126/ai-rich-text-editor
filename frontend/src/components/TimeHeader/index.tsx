@@ -67,13 +67,13 @@ export interface HeaderProps {
 
 // 星期映射（中文）
 export const WEEKDAY_MAP = [
-  i18nText('app.common.timeheader.4611918c'),
-  i18nText('app.common.timeheader.58ac84b3'),
-  i18nText('app.common.timeheader.7206be4b'),
-  i18nText('app.common.timeheader.b3893a65'),
-  i18nText('app.common.timeheader.4f23b946'),
-  i18nText('app.common.timeheader.90f6c680'),
-  i18nText('app.common.timeheader.675b1554'),
+  i18nText('app.common.timeheader.Sunday'),
+  i18nText('app.common.timeheader.Monday'),
+  i18nText('app.common.timeheader.Tuesday'),
+  i18nText('app.common.timeheader.Wednesday'),
+  i18nText('app.common.timeheader.Thursday'),
+  i18nText('app.common.timeheader.Friday'),
+  i18nText('app.common.timeheader.Saturday'),
 ];
 
 /**
