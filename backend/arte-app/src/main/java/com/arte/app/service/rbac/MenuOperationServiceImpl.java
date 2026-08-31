@@ -60,18 +60,19 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
 
     @Override
     public MenuOperationDto getMenuOperation(MenuOperationParam param) {
-        return cacheableDataSource.get(param.getOperationCode(), (key) -> this.getOne(getQueryWrapper(param)));
+        return cacheableDataSource.get(getCacheKey(param), (key) -> this.getOne(getQueryWrapper(param)));
     }
 
     @Override
     public Boolean addMenuOperation(MenuOperationDto param) {
-        if (menuOperationCache.exists(param.getOperationCode())) {
+        String cacheKey = param.getAuthority();
+        if (menuOperationCache.exists(cacheKey)) {
             log.info("操作权限已存在，菜单：{}，操作码：{}", param.getMenuCode(), param.getOperationCode());
             return false;
         }
         boolean result = this.save(param);
         if (result) {
-            menuOperationCache.put(param.getOperationCode(), param);
+            menuOperationCache.put(cacheKey, param);
         }
         return result;
     }
@@ -79,7 +80,7 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
     @Override
     public Boolean updateMenuOperation(MenuOperationDto param) {
         AtomicBoolean result = new AtomicBoolean(false);
-        cacheableDataSource.putAndUpdate(param.getOperationCode(), param, (key, tempMenuOperation) -> {
+        cacheableDataSource.putAndUpdate(param.getAuthority(), param, (key, tempMenuOperation) -> {
             result.set(this.updateById(tempMenuOperation));
         });
         return result.get();
@@ -109,7 +110,7 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
         List<Integer> idsToClose = new ArrayList<>(size);
         menuOperations.forEach(menuOperation -> {
             idsToClose.add(menuOperation.getId());
-            keysToEvict.add(menuOperation.getOperationCode());
+            keysToEvict.add(menuOperation.getAuthority());
             authoritiesToCancel.add(menuOperation.getAuthority());
         });
         boolean result = CollUtil.split(idsToClose, 1000).stream().allMatch(idBatch -> {
@@ -142,9 +143,17 @@ public class MenuOperationServiceImpl extends ServiceImpl<MenuOperationMapper, M
             return this.update(updateWrapper);
         });
         if (result) {
-            menuOperationCache.multiPut(menuOperations.stream().collect(Collectors.toMap(MenuOperationDto::getOperationCode, Function.identity())));
+            menuOperationCache.multiPut(menuOperations.stream().collect(Collectors.toMap(MenuOperationDto::getAuthority, Function.identity())));
         }
         return result;
+    }
+
+    private static String getCacheKey(MenuOperationParam param) {
+        Set<String> menuCodes = param.getMenuCodes();
+        if (CollUtil.size(menuCodes) != 1 || CharSequenceUtil.isBlank(param.getOperationCode())) {
+            throw new IllegalArgumentException("查询菜单操作缓存时，必须指定唯一的菜单编码和操作编码");
+        }
+        return menuCodes.iterator().next() + ":" + param.getOperationCode();
     }
 
     private static QueryWrapper<MenuOperationDto> getQueryWrapper(MenuOperationParam menuOperationParam) {
