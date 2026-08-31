@@ -57,8 +57,10 @@ export interface HeaderProps {
   theme?: ThemeConfig;
   className?: string;
   style?: React.CSSProperties;
+  /** 仅 type=day 时生效：是否显示切换显示周几的按钮 */
+  showWeekdayToggleIcon?: boolean;
   /** 仅 type=day 时生效：是否在日期后显示星期，默认 false */
-  showWeekday?: boolean;
+  showWeekdayProp?: boolean;
   /** 仅 type=day 时生效：showWeekday 状态变化回调 */
   onShowWeekdayChange?: (showWeekday: boolean) => void;
 }
@@ -182,7 +184,8 @@ const TimeHeader: React.FC<HeaderProps> = ({
   theme = {},
   className,
   style,
-  showWeekday: showWeekdayProp = false,
+  showWeekdayToggleIcon = true,
+  showWeekdayProp = false,
   onShowWeekdayChange,
 }) => {
   const { styles: colorStyle } = useStyles(theme);
@@ -405,7 +408,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
         />
 
         {/* 仅 day 类型显示星期切换按钮 */}
-        {isDay && (
+        {isDay && showWeekdayToggleIcon && (
           <Tooltip
             title={
               showWeekday
