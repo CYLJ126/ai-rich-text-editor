@@ -177,25 +177,25 @@ public class MyDateUtil {
     public static Pair<Integer, String> dayOfWeek(LocalDate day) {
         switch (day.getDayOfWeek()) {
             case MONDAY -> {
-                return Pair.of(1, "周一");
+                return Pair.of(1, "Monday");
             }
             case TUESDAY -> {
-                return Pair.of(2, "周二");
+                return Pair.of(2, "Tuesday");
             }
             case WEDNESDAY -> {
-                return Pair.of(3, "周三");
+                return Pair.of(3, "Wednesday");
             }
             case THURSDAY -> {
-                return Pair.of(4, "周四");
+                return Pair.of(4, "Thursday");
             }
             case FRIDAY -> {
-                return Pair.of(5, "周五");
+                return Pair.of(5, "Friday");
             }
             case SATURDAY -> {
-                return Pair.of(6, "周六");
+                return Pair.of(6, "Saturday");
             }
             case SUNDAY -> {
-                return Pair.of(7, "周日");
+                return Pair.of(7, "Sunday");
             }
             default -> throw new IllegalArgumentException(MessageUtils.get("error.common.dateInvalid"));
         }
