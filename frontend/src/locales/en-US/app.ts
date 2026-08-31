@@ -1764,46 +1764,28 @@ export default {
     'Failed to assign permissions: {value0}',
 
   // pages/Administration/MenuOperationManagement/manageOperationsModal.tsx
-  'app.administration.menuoperationmanagement.manageoperationsmodal.070a129e':
-    'New Operation Permission',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.0ac05fe3':
-    'Cancel',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.0cd6383d':
-    'Description',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.1d5641ba':
-    'Status',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.2d23b4a5':
-    'Enter operation code',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81':
-    'Failed to Change Status',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.680040eb':
-    'Operation',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.6994b13f':
-    'Save',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b':
-    'Saved Successfully',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.813d641d':
-    'Enter operation name',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.81580528':
-    'Inactive',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.937823e5':
-    'Enabled',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9':
-    'Edit',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.a56ab5d4':
-    'Operation Code',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.aec3ec38':
-    'Operation Name',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76':
-    'Status Changed Successfully',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.b994840f':
-    'Save Failed',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.e36153a8':
-    'Select status',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.ee250568':
-    '{value0} - Operation Permission Management',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.f289caec':
-    'Failed to Get Operation Permissions',
+  'app.administration.manageoperationsmodal.menuCode': 'Menu Code',
+  'app.administration.manageoperationsmodal.enterMenuCode': 'Enter menu code',
+  'app.administration.manageoperationsmodal.newOperationPermission': 'New Operation Permission',
+  'app.administration.manageoperationsmodal.cancel': 'Cancel',
+  'app.administration.manageoperationsmodal.description': 'Description',
+  'app.administration.manageoperationsmodal.status': 'Status',
+  'app.administration.manageoperationsmodal.enterOperationCode': 'Enter operation code',
+  'app.administration.manageoperationsmodal.failedToChangeStatus': 'Failed to Change Status',
+  'app.administration.manageoperationsmodal.operation': 'Operation',
+  'app.administration.manageoperationsmodal.save': 'Save',
+  'app.administration.manageoperationsmodal.savedSuccessfully': 'Saved Successfully',
+  'app.administration.manageoperationsmodal.enterOperationName': 'Enter operation name',
+  'app.administration.manageoperationsmodal.inactive': 'Inactive',
+  'app.administration.manageoperationsmodal.enabled': 'Enabled',
+  'app.administration.manageoperationsmodal.edit': 'Edit',
+  'app.administration.manageoperationsmodal.operationCode': 'Operation Code',
+  'app.administration.manageoperationsmodal.operationName': 'Operation Name',
+  'app.administration.manageoperationsmodal.statusChangedSuccessfully': 'Status Changed Successfully',
+  'app.administration.manageoperationsmodal.saveFailed': 'Save Failed',
+  'app.administration.manageoperationsmodal.selectStatus': 'Select status',
+  'app.administration.manageoperationsmodal.operationPermissionManagement': '{value0} - Operation Permission Management',
+  'app.administration.manageoperationsmodal.failedToGetOperationPermissions': 'Failed to Get Operation Permissions',
 
   // pages/Administration/RoleManagement/assignUsersModal.tsx
   'app.administration.rolemanagement.assignusersmodal.155d3a5b': 'Name',

@@ -1632,46 +1632,28 @@ export default {
     '權限分配失敗: {value0}',
 
   // pages/Administration/MenuOperationManagement/manageOperationsModal.tsx
-  'app.administration.menuoperationmanagement.manageoperationsmodal.070a129e':
-    '新增操作權限',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.0ac05fe3':
-    '取消',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.0cd6383d':
-    '描述',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.1d5641ba':
-    '狀態',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.2d23b4a5':
-    '請輸入操作代碼',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.41a14c81':
-    '狀態切換失敗',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.680040eb':
-    '操作',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.6994b13f':
-    '保存',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.6bc14f4b':
-    '保存成功',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.813d641d':
-    '請輸入操作名稱',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.81580528':
-    '停用',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.937823e5':
-    '啟用',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.a16152e9':
-    '編輯',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.a56ab5d4':
-    '操作代碼',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.aec3ec38':
-    '操作名稱',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.aeef8e76':
-    '狀態切換成功',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.b994840f':
-    '保存失敗',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.e36153a8':
-    '請選擇狀態',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.ee250568':
-    '{value0} - 操作權限管理',
-  'app.administration.menuoperationmanagement.manageoperationsmodal.f289caec':
-    '獲取操作權限失敗',
+  'app.administration.manageoperationsmodal.menuCode': '菜單編碼',
+  'app.administration.manageoperationsmodal.enterMenuCode': '請輸入菜單編碼',
+  'app.administration.manageoperationsmodal.newOperationPermission': '新增操作權限',
+  'app.administration.manageoperationsmodal.cancel':'取消',
+  'app.administration.manageoperationsmodal.description': '描述',
+  'app.administration.manageoperationsmodal.status': '狀態',
+  'app.administration.manageoperationsmodal.enterOperationCode': '請輸入操作代碼',
+  'app.administration.manageoperationsmodal.failedToChangeStatus': '狀態切換失敗',
+  'app.administration.manageoperationsmodal.operation': '操作',
+  'app.administration.manageoperationsmodal.save': '保存',
+  'app.administration.manageoperationsmodal.savedSuccessfully': '保存成功',
+  'app.administration.manageoperationsmodal.enterOperationName': '請輸入操作名稱',
+  'app.administration.manageoperationsmodal.inactive': '停用',
+  'app.administration.manageoperationsmodal.enabled': '啟用',
+  'app.administration.manageoperationsmodal.edit': '編輯',
+  'app.administration.manageoperationsmodal.operationCode': '操作代碼',
+  'app.administration.manageoperationsmodal.operationName': '操作名稱',
+  'app.administration.manageoperationsmodal.statusChangedSuccessfully': '狀態切換成功',
+  'app.administration.manageoperationsmodal.saveFailed': '保存失敗',
+  'app.administration.manageoperationsmodal.selectStatus': '請選擇狀態',
+  'app.administration.manageoperationsmodal.operationPermissionManagement': '{value0} - 操作權限管理',
+  'app.administration.manageoperationsmodal.failedToGetOperationPermissions': '獲取操作權限失敗',
 
   // pages/Administration/RoleManagement/assignUsersModal.tsx
   'app.administration.rolemanagement.assignusersmodal.155d3a5b': '姓名',
