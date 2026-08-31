@@ -10,14 +10,16 @@ import {
   getRoleByCode,
   updateRole,
 } from '@/services/ant-design-pro/rbac';
+import {useComponentHeight} from '@/utils/useDynamicHeight';
+
 
 const RoleForm: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const mode =
-    (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
+  const mode = (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
   const roleCode = searchParams.get('roleCode');
   const id = searchParams.get('id');
+  const componentHeight = useComponentHeight();
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -231,14 +233,14 @@ const RoleForm: React.FC = () => {
       <div style={{ padding: '50px 0', textAlign: 'center' }}>
         <Spin
           size="large"
-          tip={i18nText('app.administration.rolemanagement.roleform.53b9f065')}
+          description={i18nText('app.administration.rolemanagement.roleform.53b9f065')}
         />
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px', height: componentHeight }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -253,7 +255,7 @@ const RoleForm: React.FC = () => {
             <span>{getPageTitle()}</span>
           </div>
         }
-        style={{ minHeight: 'calc(100vh - 48px)' }}
+        style={{ height: componentHeight }}
       >
         <DynamicForm
           fields={fields}

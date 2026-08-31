@@ -221,11 +221,11 @@ export default function RolePage() {
 
   const exportRows = (records: any[]) => {
     if (!records?.length) {
-      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      message.warning(i18nText('app.administration.common.export.selectRecords')).then();
       return;
     }
     downloadCsv('roles.csv', records, exportColumns);
-    message.success(i18nText('app.administration.common.export.success'));
+    message.success(i18nText('app.administration.common.export.success')).then();
   };
 
   const exportAll = async () => {
@@ -234,7 +234,7 @@ export default function RolePage() {
       exportRows(records);
     } catch (error) {
       console.error('导出全部角色失败：', error);
-      message.error(i18nText('app.administration.common.export.failed'));
+      message.error(i18nText('app.administration.common.export.failed')).then();
     }
   };
 
@@ -266,7 +266,7 @@ export default function RolePage() {
       requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning(i18nText("app.administration.rolemanagement.5815c49f"));
+          message.warning(i18nText("app.administration.rolemanagement.5815c49f")).then();
           return;
         }
         const role = records[0];
@@ -277,11 +277,11 @@ export default function RolePage() {
             try {
               const result = await deactivateRole({id: role.id, roleCode: role.roleCode});
               if (!result) throw new Error('Deactivate role returned false');
-              message.success(i18nText('app.administration.rolemanagement.deactivateSuccess'));
+              message.success(i18nText('app.administration.rolemanagement.deactivateSuccess')).then();
               await tableRef.current?.refresh();
             } catch (error) {
               console.error('注销角色失败：', error);
-              message.error(i18nText('app.administration.rolemanagement.deactivateFailed'));
+              message.error(i18nText('app.administration.rolemanagement.deactivateFailed')).then();
             }
           },
         });
@@ -355,6 +355,7 @@ export default function RolePage() {
           collapsedRows={1}
           searchShortcut="Enter"
           resetShortcut="r"
+          style={{ marginBottom: 10 }}
         />
         <SimpleTable
           ref={tableRef}

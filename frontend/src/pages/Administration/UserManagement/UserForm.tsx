@@ -10,14 +10,15 @@ import {
   getUserByName,
   updateUser,
 } from '@/services/ant-design-pro/rbac';
+import {useComponentHeight} from '@/utils/useDynamicHeight';
 
 const UserForm: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const mode =
-    (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
+  const mode = (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
   const userName = searchParams.get('userName');
   const id = searchParams.get('id');
+  const componentHeight = useComponentHeight();
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -128,33 +129,6 @@ const UserForm: React.FC = () => {
       clearable: true,
     },
     {
-      fieldName: 'avatar',
-      fieldType: 'upload',
-      label: i18nText('app.administration.usermanagement.userform.945abf39'),
-      extraProps: {
-        listType: 'picture-card',
-        maxCount: 1,
-        accept: 'image/*',
-        beforeUpload: (file: File) => {
-          const isImage = file.type.startsWith('image/');
-          if (!isImage) {
-            message.error(
-              i18nText('app.administration.usermanagement.userform.fcd81126'),
-            );
-            return false;
-          }
-          const isLt2M = file.size / 1024 / 1024 < 2;
-          if (!isLt2M) {
-            message.error(
-              i18nText('app.administration.usermanagement.userform.ed726e9b'),
-            );
-            return false;
-          }
-          return true;
-        },
-      },
-    },
-    {
       fieldName: 'birthDate',
       fieldType: 'date-picker',
       label: i18nText('app.administration.usermanagement.userform.70b2a5ea'),
@@ -194,13 +168,40 @@ const UserForm: React.FC = () => {
       defaultValue: 0,
     },
     {
+      fieldName: 'avatar',
+      fieldType: 'upload',
+      label: i18nText('app.administration.usermanagement.userform.945abf39'),
+      extraProps: {
+        listType: 'picture-card',
+        maxCount: 1,
+        accept: 'image/*',
+        beforeUpload: (file: File) => {
+          const isImage = file.type.startsWith('image/');
+          if (!isImage) {
+            message.error(
+              i18nText('app.administration.usermanagement.userform.fcd81126'),
+            ).then();
+            return false;
+          }
+          const isLt2M = file.size / 1024 / 1024 < 2;
+          if (!isLt2M) {
+            message.error(
+              i18nText('app.administration.usermanagement.userform.ed726e9b'),
+            ).then();
+            return false;
+          }
+          return true;
+        },
+      },
+    },
+    {
       fieldName: 'description',
       fieldType: 'textarea',
       label: i18nText('app.administration.usermanagement.userform.e6a7787e'),
       placeholder: i18nText(
         'app.administration.usermanagement.userform.58bb3ea8',
       ),
-      fullWidth: true,
+      span: 12,
       extraProps: {
         rows: 4,
         maxLength: 500,
@@ -211,10 +212,11 @@ const UserForm: React.FC = () => {
       fieldName: 'settings',
       fieldType: 'custom',
       label: i18nText('app.administration.usermanagement.userform.d47d5f82'),
-      fullWidth: true,
+      span: 12,
       render: (props) => (
         <div
           style={{
+            height: 108,
             padding: '12px',
             border: '1px solid #d9d9d9',
             borderRadius: '6px',
@@ -333,7 +335,7 @@ const UserForm: React.FC = () => {
                 : 'app.administration.usermanagement.userform.0497bef2',
             ),
           }),
-        );
+        ).then();
         navigate('/Administration/UserManagement');
       } else {
         message.error(
@@ -344,7 +346,7 @@ const UserForm: React.FC = () => {
                 : 'app.administration.usermanagement.userform.0497bef2',
             ),
           }),
-        );
+        ).then();
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -378,14 +380,14 @@ const UserForm: React.FC = () => {
       <div style={{ padding: '50px 0', textAlign: 'center' }}>
         <Spin
           size="large"
-          tip={i18nText('app.administration.usermanagement.userform.309e4f1f')}
+          description={i18nText('app.administration.usermanagement.userform.309e4f1f')}
         />
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px', height: componentHeight }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -400,7 +402,7 @@ const UserForm: React.FC = () => {
             <span>{getPageTitle()}</span>
           </div>
         }
-        style={{ minHeight: 'calc(100vh - 48px)' }}
+        style={{ height: componentHeight }}
       >
         <DynamicForm
           fields={fields}

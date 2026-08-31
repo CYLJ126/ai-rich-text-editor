@@ -10,14 +10,15 @@ import {
   getMenuByCode,
   updateMenu,
 } from '@/services/ant-design-pro/rbac';
+import {useComponentHeight} from '@/utils/useDynamicHeight';
 
 const MenuForm: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const mode =
-    (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
+  const mode = (searchParams.get('mode') as 'create' | 'edit' | 'view') || 'create';
   const menuCode = searchParams.get('menuCode');
   const id = searchParams.get('id');
+  const componentHeight = useComponentHeight();
 
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -262,7 +263,7 @@ const MenuForm: React.FC = () => {
                 : 'app.administration.menumanagement.menuform.b6c1c726',
             ),
           }),
-        );
+        ).then();
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -296,14 +297,14 @@ const MenuForm: React.FC = () => {
       <div style={{ padding: '50px 0', textAlign: 'center' }}>
         <Spin
           size="large"
-          tip={i18nText('app.administration.menumanagement.menuform.f5bead53')}
+          description={i18nText('app.administration.menumanagement.menuform.f5bead53')}
         />
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px', height: componentHeight }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -318,7 +319,7 @@ const MenuForm: React.FC = () => {
             <span>{getPageTitle()}</span>
           </div>
         }
-        style={{ minHeight: 'calc(100vh - 48px)' }}
+        style={{ height: componentHeight }}
       >
         <DynamicForm
           fields={fields}

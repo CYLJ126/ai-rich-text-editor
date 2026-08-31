@@ -250,11 +250,11 @@ export default function MenuPage() {
 
   const exportRows = (records: any[]) => {
     if (!records?.length) {
-      message.warning(i18nText('app.administration.common.export.selectRecords'));
+      message.warning(i18nText('app.administration.common.export.selectRecords')).then();
       return;
     }
     downloadCsv('menus.csv', records, exportColumns);
-    message.success(i18nText('app.administration.common.export.success'));
+    message.success(i18nText('app.administration.common.export.success')).then();
   };
 
   const exportAll = async () => {
@@ -263,7 +263,7 @@ export default function MenuPage() {
       exportRows(records);
     } catch (error) {
       console.error('导出全部菜单失败：', error);
-      message.error(i18nText('app.administration.common.export.failed'));
+      message.error(i18nText('app.administration.common.export.failed')).then();
     }
   };
 
@@ -311,7 +311,7 @@ export default function MenuPage() {
       requiresSelection: true,
       handler: (records: any) => {
         if (records?.length !== 1) {
-          message.warning(i18nText("app.administration.menumanagement.489e0fa9"));
+          message.warning(i18nText("app.administration.menumanagement.489e0fa9")).then();
           return;
         }
         const menu = records[0];
@@ -322,11 +322,11 @@ export default function MenuPage() {
             try {
               const result = await deactivateMenu({id: menu.id, menuCode: menu.menuCode});
               if (!result) throw new Error('Deactivate menu returned false');
-              message.success(i18nText('app.administration.menumanagement.deleteSuccess'));
+              message.success(i18nText('app.administration.menumanagement.deleteSuccess')).then();
               await tableRef.current?.refresh();
             } catch (error) {
               console.error('删除菜单失败：', error);
-              message.error(i18nText('app.administration.menumanagement.deleteFailed'));
+              message.error(i18nText('app.administration.menumanagement.deleteFailed')).then();
             }
           },
         });
@@ -361,6 +361,7 @@ export default function MenuPage() {
           collapsedRows={1}
           searchShortcut="Enter"
           resetShortcut="r"
+          style={{ marginBottom: 10 }}
         />
         <SimpleTable
           ref={tableRef}
