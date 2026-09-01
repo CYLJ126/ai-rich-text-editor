@@ -198,7 +198,7 @@ public class WebsiteInfoServiceImpl extends ServiceImpl<WebsiteInfoMapper, Websi
         parserMap.put(WebsiteResolveTypeEnum.JSON, applicationContext.getBean(NewsListJsonParser.class));
         parserMap.put(WebsiteResolveTypeEnum.STRING, applicationContext.getBean(NewsListStringParser.class));
         parserMap.put(WebsiteResolveTypeEnum.ESCAPE_STR, applicationContext.getBean(NewsListEscapeStrParser.class));
-//        load();
+        load();
     }
 
     private NewsListParser getParser(WebsiteResolveTypeEnum resolveType) {
