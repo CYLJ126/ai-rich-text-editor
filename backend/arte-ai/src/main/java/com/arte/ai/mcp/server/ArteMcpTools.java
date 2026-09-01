@@ -52,17 +52,29 @@ public class ArteMcpTools {
 
     /**
      * 随机返回一个姓氏和给定的名组合
-     * 注：只是简单示例，实际使用时，@Tool 和 @McpTool 应该使用两个方法，去调用同一个内部逻辑方法，比如某个 service 的方法
+     *
+     * @param requestContext 请求上下文
+     * @param firstName 名
+     * @return 姓氏和名的组合
+     */
+    @McpTool(name = "random-name", description = "Generate a random name")
+    public String randomNameForMcpTool(McpSyncRequestContext requestContext, @McpToolParam(description = "First name") String firstName) {
+        printTransportParams(requestContext);
+        String lastName = lastNameList.get(ThreadLocalRandom.current().nextInt(lastNameList.size()));
+        log.info("McpTool-随机返回一个姓氏和给定的名组合，姓氏【{}】，名字【{}】", lastName, firstName);
+        return lastName + firstName;
+    }
+
+    /**
+     * 随机返回一个姓氏和给定的名组合
      *
      * @param firstName 名
      * @return 姓氏和名的组合
      */
     @Tool(name = "random-name", description = "Generate a random name")
-    @McpTool(name = "random-name", description = "Generate a random name")
-    public String randomNameForMcp(McpSyncRequestContext requestContext, @McpToolParam(description = "First name") String firstName) {
-        printTransportParams(requestContext);
+    public String randomNameForTool(@McpToolParam(description = "First name") String firstName) {
         String lastName = lastNameList.get(ThreadLocalRandom.current().nextInt(lastNameList.size()));
-        log.info("随机返回一个姓氏和给定的名组合，姓氏【{}】，名字【{}】", lastName, firstName);
+        log.info("Tool-随机返回一个姓氏和给定的名组合，姓氏【{}】，名字【{}】", lastName, firstName);
         return lastName + firstName;
     }
 

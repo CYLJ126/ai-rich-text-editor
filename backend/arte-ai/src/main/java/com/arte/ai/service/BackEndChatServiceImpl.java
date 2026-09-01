@@ -109,7 +109,6 @@ public class BackEndChatServiceImpl implements BackEndChatService {
                     aSpec.param(AbstractAdvisor.REQUEST_DTO, chatRequestDto);
                 })
                 .advisors(advisors)
-                .tools(arteMcpTools)
                 .stream();
         return fluxReturn(streamResponseSpec, chatRequestParam.getAssistantMessageId());
     }
