@@ -16,7 +16,7 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.rolemanagement.a40a406e"),
     dataIndex: 'roleCode',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 1,
   },
@@ -30,7 +30,7 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.rolemanagement.5daf81c0"),
     dataIndex: 'status',
-    width: 100,
+    width: 70,
     sorter: true,
     order: 3,
     render: (text: number) => {
@@ -104,21 +104,21 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.rolemanagement.97e4e26c"),
     dataIndex: 'description',
-    width: 100,
+    width: 120,
     sorter: true,
     order: 4,
   },
   {
     title: i18nText("app.administration.rolemanagement.4a4d61a5"),
     dataIndex: 'createBy',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 5,
   },
   {
     title: i18nText("app.administration.rolemanagement.e072be94"),
     dataIndex: 'updateBy',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 6,
   },

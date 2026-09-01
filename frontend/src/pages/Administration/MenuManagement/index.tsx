@@ -28,7 +28,7 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.menumanagement.d21f17a0"),
     dataIndex: 'fatherId',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 3,
   },
@@ -42,7 +42,7 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.menumanagement.73f96419"),
     dataIndex: 'status',
-    width: 50,
+    width: 70,
     sorter: true,
     order: 5,
     render: (text: number) => {
@@ -116,28 +116,28 @@ const columns: TableColumn[] = [
   {
     title: i18nText("app.administration.menumanagement.b280d1f3"),
     dataIndex: 'menuUrl',
-    width: 150,
+    width: 180,
     sorter: true,
     order: 6,
   },
   {
     title: i18nText("app.administration.menumanagement.b5dbc5ac"),
     dataIndex: 'description',
-    width: 100,
+    width: 120,
     sorter: true,
     order: 7,
   },
   {
     title: i18nText("app.administration.menumanagement.e0e81eca"),
     dataIndex: 'createBy',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 8,
   },
   {
     title: i18nText("app.administration.menumanagement.9a2cd713"),
     dataIndex: 'updateBy',
-    width: 100,
+    width: 80,
     sorter: true,
     order: 9,
   },
