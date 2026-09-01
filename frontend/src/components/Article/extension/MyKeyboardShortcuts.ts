@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { formatSelection } from '@/components/Article/components/editor/formatSelection';
 import { toggleLink } from '@/components/Article/extension/MyLink';
 
 /**
@@ -33,7 +34,13 @@ export const MyKeyboardShortcuts = Extension.create<KeyboardShortcutsOptions>({
         return true;
       },
       'Mod-k': () => {
+        // 插入链接（如果当前粘贴板中有链接地址，则选中文字后直接 Mod + V 就能为文字添加链接）
         toggleLink(this.editor);
+        return true;
+      },
+      'Mod-Shift-f': () => {
+        // 格式化选中文本
+        formatSelection(this.editor);
         return true;
       },
       'Mod-Alt-Shift-t': () => {
@@ -46,14 +53,17 @@ export const MyKeyboardShortcuts = Extension.create<KeyboardShortcutsOptions>({
         return true;
       },
       'Mod-Shift-Enter': () => {
+        // 在表格中，向上插入一行
         if (!this.editor.isActive('table')) return false;
         return this.editor.commands.addRowBefore();
       },
       'Mod-Enter': () => {
+        // 在表格中，向下插入一行
         if (!this.editor.isActive('table')) return false;
         return this.editor.commands.addRowAfter();
       },
       'Mod-Backspace': () => {
+        // 在表格中，删除当前行
         if (!this.editor.isActive('table')) return false;
         return this.editor.commands.deleteRow();
       },

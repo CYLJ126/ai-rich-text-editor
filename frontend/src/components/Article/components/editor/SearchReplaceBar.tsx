@@ -255,6 +255,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
         !enabled ||
         editor.view.dom.offsetParent === null ||
         !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey ||
         event.altKey
       ) {
         return;
