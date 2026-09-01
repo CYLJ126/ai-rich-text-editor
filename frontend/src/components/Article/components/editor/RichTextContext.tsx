@@ -15,33 +15,20 @@ import {
   UnderlineOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
-import type {Editor, JSONContent} from '@tiptap/core';
+import type {Editor} from '@tiptap/core';
 import {message} from 'antd';
 import React, {createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState,} from 'react';
 import {MyColorPicker} from '@/components';
 import {DropdownToolbarButton} from '@/components/Article/components';
 import {toggleLink} from '@/components/Article/extension/MyLink';
 import {FONT_FAMILY_OPTIONS, FONT_SIZE_OPTIONS, LINE_HEIGHT_OPTIONS, type ToolbarButtonItem,} from '@/types/rt.type';
-import {type CustomProperty, TextProcessor} from '@/utils/textProcessor';
+import {formatSelection} from './formatSelection';
 
 // ─── useContext 属性 ───
 export interface RichTextContextType {
   editorRef: React.RefObject<any>; // 编辑器实例引用
   editButtons: ToolbarButtonItem[]; // 编辑按钮
 }
-
-const formatProperty: CustomProperty = {
-  zhOrEn: true,
-  punctuationMark: true,
-  clearBreakLine: false,
-  compressSpace: true,
-  withSpace: true,
-  pasteFromClipboard: false,
-  rewriteClipboard: false,
-  isHandleClipboard: false,
-  handleList: false,
-  handleMarkdownTable: false,
-};
 
 const RichTextContext = createContext<RichTextContextType | undefined>(
   undefined,
@@ -202,59 +189,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
         key: 'text-format',
         label: i18nText("app.article.editor.richtextcontext.7049b9d2"),
         icon: <FormatPainterOutlined />,
-        onClick: () => {
-          const rawSelection =
-            editorRef.current?.commands?.getSelectionInfo() as any;
-          if (!rawSelection?.hasSelection) return;
-          const contentLevel = editorRef.current?.commands?.getContentLevel();
-          const formattedText = TextProcessor.handleChinese(
-            formatProperty,
-            rawSelection.text,
-          );
-          if (contentLevel === 'inline') {
-            // 一段内容
-            editorRef.current?.commands?.replaceSelectionInline([
-              { type: 'text', text: formattedText } as JSONContent,
-            ]);
-          } else {
-            // 多段内容：深度递归格式化所有 text 节点
-            function formatNode(node: any): any {
-              if (node.type === 'text' && typeof node.text === 'string') {
-                // 格式化后如果文本为空，返回 null 标记为需要过滤
-                const formatted = TextProcessor.handleChinese(
-                  formatProperty,
-                  node.text,
-                );
-                if (formatted === '') return null;
-                return {
-                  ...node,
-                  text: formatted,
-                };
-              }
-              if (node.content && Array.isArray(node.content)) {
-                return {
-                  ...node,
-                  // 过滤掉 null（即空文本节点）
-                  content: node.content
-                    .map((child: any) => formatNode(child))
-                    .filter((child: any) => child !== null),
-                };
-              }
-              return node;
-            }
-
-            // 只取干净的 doc 结构，避免多余字段干扰 nodeFromJSON
-            const cleanDoc: JSONContent = {
-              type: 'doc',
-              content: (rawSelection.content?.content ?? []).map((para: any) =>
-                formatNode(para),
-              ),
-            };
-            editorRef.current?.commands?.replaceSelectionBlockMulti(cleanDoc);
-          }
-          // 使选中区域保持不变，不加这行代码需要点一下才会恢复原选择内容，加这行代码在格式化后会自动跳一下，恢复成原选择内容
-          editorRef.current?.chain().focus('end');
-        },
+        onClick: () => formatSelection(editorRef.current),
       },
       {
         key: 'text-type',

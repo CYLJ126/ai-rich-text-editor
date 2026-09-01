@@ -508,7 +508,7 @@ export default {
   'app.article.editor.richtextcontext.6d52f7d4': '文本上标【Mod-.】',
   'app.article.editor.richtextcontext.6e52f611': '字体大小',
   'app.article.editor.richtextcontext.6ee668d6': '翻译本段',
-  'app.article.editor.richtextcontext.7049b9d2': '文本格式化',
+  'app.article.editor.richtextcontext.7049b9d2': '文本格式化【Mod-Shift-F】',
   'app.article.editor.richtextcontext.75b177fb': '字',
   'app.article.editor.richtextcontext.89920612': '文本删除线【Mod-Shift-S】',
   'app.article.editor.richtextcontext.8d0fb29e': '翻译并替换选中内容',
