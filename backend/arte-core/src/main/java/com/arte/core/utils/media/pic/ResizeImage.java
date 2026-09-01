@@ -52,9 +52,9 @@ public class ResizeImage {
     }
 
     public static void main(String[] args) throws IOException {
-        String path = "D:\\home\\data\\eladmin\\pantone\\1 - 副本.JPG";
+        String path = "D:\\home\\data\\nip\\pantone\\1 - 副本.JPG";
         BufferedImage bufferedImage = ImageIO.read(new File(path));
         BufferedImage resizeImage = resizeImageByWidth(bufferedImage, 1000);
-        ImageIO.write(resizeImage, "png", new File("D:\\home\\data\\eladmin\\pantone\\1 - 调整.JPG"));
+        ImageIO.write(resizeImage, "png", new File("D:\\home\\data\\nip\\pantone\\1 - 调整.JPG"));
     }
 }

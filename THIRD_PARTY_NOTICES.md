@@ -10,19 +10,6 @@ runtime dependencies. It is not a complete list of transitive dependencies. Rele
 artifacts must retain the license and notice files shipped inside dependency JARs,
 and each release should generate a version-resolved SBOM and license report.
 
-## Incorporated source
-
-The following files retain notices from the Apache-2.0 licensed
-[eladmin](https://github.com/elunez/eladmin) project (copyright Zheng Jie and/or
-the original authors):
-
-- `backend/arte-app/src/main/java/com/arte/app/config/bean/LoginProperties.java`
-- `backend/arte-app/src/main/java/com/arte/app/pojo/rbac/LoginCodeDto.java`
-- `backend/arte-core/src/main/java/com/arte/core/annotations/AnonymousAccess.java`
-
-Those files and modifications to them remain subject to Apache License 2.0. The
-license text is included at [LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt).
-
 ## Major direct backend dependencies
 
 | Components / Maven coordinates | License noted by upstream | Upstream |

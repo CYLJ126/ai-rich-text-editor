@@ -24,7 +24,7 @@ cd docker
 APP_DB_URL=jdbc:mysql://your-mysql-host:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
 APP_DB_USERNAME=your_user
 APP_DB_PASSWORD=your_password
-CHLOROPHYLL_DB_URL=jdbc:mysql://your-mysql-host:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+CHLOROPHYLL_DB_URL=jdbc:mysql://your-mysql-host:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
 CHLOROPHYLL_DB_USERNAME=your_user
 CHLOROPHYLL_DB_PASSWORD=your_password
 REDIS_ADDRESS=redis://your-redis-host:6379

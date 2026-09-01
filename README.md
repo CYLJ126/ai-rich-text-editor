@@ -26,7 +26,8 @@ Security issues should be reported according to [SECURITY.md](SECURITY.md).
 
 Unless a file or directory says otherwise, the portions of this repository for
 which the ARTE copyright holders have the right to grant a license are available
-under the [MIT License](LICENSE).
+under the [MIT License](LICENSE), and the third-party libraries, models, materials 
+and deployment components are applicable to their respective licenses.
 
 The MIT License does **not** replace or override the licenses, copyright notices,
 or attribution requirements of third-party code, libraries, assets, models, or

@@ -22,7 +22,7 @@ if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
     -h "${MYSQL_HOST}" \
     -P "${MYSQL_PORT}" \
     -uroot \
-    -e "CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS eladmin DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%'; GRANT ALL PRIVILEGES ON eladmin.* TO '${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then
+    -e "CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS nip DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%'; GRANT ALL PRIVILEGES ON nip.* TO '${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then
     echo "Database check finished."
   else
     echo "Root database check skipped; continuing with ${MYSQL_USER}."
