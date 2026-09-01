@@ -1,10 +1,9 @@
 import {i18nText} from '@/utils/i18n';
 import {
-  BookOutlined,
+  BookOutlined, CommentOutlined,
   DownloadOutlined,
   EditOutlined,
   FileUnknownOutlined,
-  HighlightOutlined,
   HomeOutlined,
   LayoutOutlined,
   MediumOutlined,
@@ -190,7 +189,7 @@ function getOperationModeMeta(mode: OperationMode) {
   const meta: Record<OperationMode, { label: string; icon: React.ReactNode }> =
     {
       read: { label: i18nText("app.article.article.richtexteditor.64c78d0a"), icon: <BookOutlined /> },
-      revise: { label: i18nText("app.article.article.richtexteditor.4c5df57d"), icon: <HighlightOutlined /> },
+      revise: { label: i18nText("app.article.article.richtexteditor.4c5df57d"), icon: <CommentOutlined /> },
       edit: { label: i18nText("app.article.article.richtexteditor.1a3b2c4c"), icon: <EditOutlined /> },
     };
   return meta[mode];
@@ -608,7 +607,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 {
                   label: i18nText("app.article.article.richtexteditor.4c5df57d"),
                   value: 'revise',
-                  icon: <HighlightOutlined />,
+                  icon: <CommentOutlined />,
                   disabled: !canUseOperationMode('revise', articleInfo),
                 },
                 {
@@ -628,22 +627,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           ),
         },
       ];
-    }, [
-      editor,
-      rawText,
-      confirmBeforeArticleSwitch,
-      setEditorMode,
-      sizes,
-      setSizes,
-      onShareArticle,
-      editorMode,
-      operationMode,
-      articleInfo,
-      pasteStyleOnPaste,
-      editorStyle,
-      setEditorStyle,
-      setArticleLoading,
-    ]);
+    }, [editor, rawText, confirmBeforeArticleSwitch, setEditorMode, onShareArticle, operationMode, articleInfo, pasteStyleOnPaste, setEditorStyle, setArticleLoading, setArticleInfo, setActiveJumpInfo, onBackHome, articleInfo?.cover, setViewSize, setRawText, saveArticle, onSaved, articleInfo?.title, operationModeMeta?.icon, setOperationMode]);
 
     // ─── 根据权限和阅读模式过滤操作类按钮 ───
     const filteredOperationButtons = useMemo<ToolbarButtonItem[]>(() => {
@@ -654,7 +638,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       return operationButtons
         .filter((item) => buttonKeys.includes(item.key))
         .sort((a, b) => (a.order || 0) - (b.order || 0));
-    }, [operationButtons, articleInfo, operationMode]);
+    }, [operationButtons, operationMode, articleInfo?.canWrite]);
 
     // ─── 编辑类按钮 ───
     const fullEditButtons = useMemo<ToolbarButtonItem[]>(() => {
@@ -668,13 +652,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
         ...editButtons,
       ];
-    }, [
-      operationMode,
-      articleInfo,
-      handleOpenInsertModal,
-      editor,
-      editButtons,
-    ]);
+    }, [operationMode, handleOpenInsertModal, editButtons]);
 
     // ─── 编辑器高度自适应 ───
     useEffect(() => {

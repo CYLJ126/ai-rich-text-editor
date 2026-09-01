@@ -489,7 +489,6 @@ export default {
   'app.article.editor.rawtextarea.c123c525': '文件上传失败',
 
   // components/Article/components/editor/RichTextArea.tsx
-  'app.article.editor.richtextarea.3ac1b6a9': '注',
   'app.article.editor.richtextarea.772414d7': '添加批注',
   'app.article.editor.richtextarea.ab02172a': '正在加载编辑器……',
   'app.article.editor.richtextarea.ab9dbf52': '翻译结果',
@@ -509,7 +508,6 @@ export default {
   'app.article.editor.richtextcontext.6e52f611': '字体大小',
   'app.article.editor.richtextcontext.6ee668d6': '翻译本段',
   'app.article.editor.richtextcontext.7049b9d2': '文本格式化【Mod-Shift-F】',
-  'app.article.editor.richtextcontext.75b177fb': '字',
   'app.article.editor.richtextcontext.89920612': '文本删除线【Mod-Shift-S】',
   'app.article.editor.richtextcontext.8d0fb29e': '翻译并替换选中内容',
   'app.article.editor.richtextcontext.904d0278': '解读',
