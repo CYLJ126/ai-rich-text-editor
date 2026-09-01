@@ -5,13 +5,44 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.arte</groupId>
     <artifactId>arte</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <description>AI Rich Text Editor</description>
+    <url>https://github.com/CYLJ126/ai-rich-text-editor</url>
+    <version>1.0-SNAPSHOT</version><!-- RELEASE：发布版本时修改为版本名称  -->
     <packaging>pom</packaging>
     <modules>
         <module>arte-core</module>
         <module>arte-app</module>
         <module>arte-ai</module>
     </modules>
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:https://github.com/CYLJ126/ai-rich-text-editor.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/CYLJ126/ai-rich-text-editor.git</developerConnection>
+        <url>https://github.com/CYLJ126/ai-rich-text-editor</url>
+        <tag>HEAD</tag><!-- RELEASE：发布版本时修改为版本名称  -->
+    </scm>
+    <developers>
+        <developer>
+            <id>cylj126</id>
+            <name>zhangsc</name>
+            <url>https://github.com/CYLJ126</url>
+        </developer>
+        <developer>
+            <id>haiqingd</id>
+            <name>Cheng Wenyuan</name>
+            <url>https://github.com/haiqingd</url>
+        </developer>
+    </developers>
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/CYLJ126/ai-rich-text-editor/issues</url>
+    </issueManagement>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
