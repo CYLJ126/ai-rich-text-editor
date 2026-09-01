@@ -37,3 +37,4 @@ backend/model.onnx*
 *.class
 # local env with real credentials
 backend/profile/app.properties
+**/model.onnx.data
