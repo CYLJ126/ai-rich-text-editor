@@ -7,7 +7,6 @@ import {configAiExtensions, defaultExtensions, useArticleInfoStore, useEditorSto
 import {BubbleToolbarButton, TableHandle,} from '@/components/Article/components';
 import {
   CommentsExtension,
-  COMMENT_COMPOSER_OPEN_EVENT,
   type CommentsProvider,
   FloatingResultExtension,
   FloatingResultView,
@@ -45,7 +44,6 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   const setViewSize = useEditorStore((state) => state.setViewSize);
   const setEditorStyle = useEditorStore((state) => state.setEditorStyle);
   const operationMode = useEditorStore((state) => state.operationMode);
-  const setActivePanel = useEditorStore((state) => state.setActivePanel);
   const floatingState = useEditorStore((state) => state.floatingState);
   const setFloatingState = useEditorStore((state) => state.setFloatingState);
 
@@ -157,22 +155,11 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   }, [operationMode]);
 
   const bubbleEditButtons = useMemo<ToolbarButtonItem[]>(
-    () => {
-      const commentButton: ToolbarButtonItem = {
-        key: 'add-comment',
-        label: i18nText("app.article.editor.richtextarea.772414d7"),
-        children: i18nText("app.article.editor.richtextarea.3ac1b6a9"),
-        onClick: () => {
-          setActivePanel('comments');
-          window.dispatchEvent(new CustomEvent(COMMENT_COMPOSER_OPEN_EVENT));
-        },
-      };
-
-      return operationMode === 'edit'
-        ? [...editButtons, commentButton]
-        : [commentButton];
-    },
-    [editButtons, operationMode, setActivePanel],
+    () =>
+      operationMode === 'edit'
+        ? editButtons
+        : editButtons.filter((button) => button.key === 'add-comment'),
+    [editButtons, operationMode],
   );
 
   useEffect(() => {

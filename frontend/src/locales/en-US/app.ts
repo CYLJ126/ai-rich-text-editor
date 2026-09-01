@@ -515,7 +515,6 @@ export default {
   'app.article.editor.rawtextarea.c123c525': 'Failed to Upload File',
 
   // components/Article/components/editor/RichTextArea.tsx
-  'app.article.editor.richtextarea.3ac1b6a9': 'Comment',
   'app.article.editor.richtextarea.772414d7': 'Add Comment',
   'app.article.editor.richtextarea.ab02172a': 'Loading Editor...',
   'app.article.editor.richtextarea.ab9dbf52': 'Translation Result',
@@ -535,7 +534,6 @@ export default {
   'app.article.editor.richtextcontext.6e52f611': 'Font Size',
   'app.article.editor.richtextcontext.6ee668d6': 'Translate Paragraph',
   'app.article.editor.richtextcontext.7049b9d2': 'Text Formatting [Mod-Shift-F]',
-  'app.article.editor.richtextcontext.75b177fb': 'character',
   'app.article.editor.richtextcontext.89920612': 'Strikethrough [Mod-Shift-S]',
   'app.article.editor.richtextcontext.8d0fb29e': 'Translate and Replace Selected Content',
   'app.article.editor.richtextcontext.904d0278': 'Explain',

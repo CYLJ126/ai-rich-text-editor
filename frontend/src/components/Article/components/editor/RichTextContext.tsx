@@ -3,6 +3,7 @@ import {
   AlignCenterOutlined,
   BgColorsOutlined,
   BoldOutlined,
+  CommentOutlined,
   FontColorsOutlined,
   FontSizeOutlined,
   FormatPainterOutlined,
@@ -20,7 +21,9 @@ import {message} from 'antd';
 import React, {createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState,} from 'react';
 import {MyColorPicker} from '@/components';
 import {DropdownToolbarButton} from '@/components/Article/components';
+import {COMMENT_COMPOSER_OPEN_EVENT} from '@/components/Article/extension';
 import {toggleLink} from '@/components/Article/extension/MyLink';
+import {useEditorStore} from '@/components/Article/stores/editorStore';
 import {FONT_FAMILY_OPTIONS, FONT_SIZE_OPTIONS, LINE_HEIGHT_OPTIONS, type ToolbarButtonItem,} from '@/types/rt.type';
 import {formatSelection} from './formatSelection';
 
@@ -36,6 +39,7 @@ const RichTextContext = createContext<RichTextContextType | undefined>(
 
 export function RichTextProvider({ children }: { children: ReactNode }) {
   const editorRef = useRef<Editor>(null as unknown as Editor);
+  const setActivePanel = useEditorStore((state) => state.setActivePanel);
   const [fontColor, setFontColor] = useState<string | undefined>(
     localStorage.getItem('editor-font-color') || '#ce2416',
   );
@@ -345,7 +349,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
         label: i18nText("app.article.editor.richtextcontext.5f50ffc6"),
         renderCustom: () => (
           <DropdownToolbarButton
-            icon={<span>{i18nText("app.article.editor.richtextcontext.75b177fb")}</span>}
+            icon={'字'}
             options={FONT_FAMILY_OPTIONS}
             activeValue={currentFontFamily}
             onSelect={(val) => {
@@ -374,6 +378,15 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
           />
         ),
       },
+      {
+        key: 'add-comment',
+        label: i18nText("app.article.editor.richtextarea.772414d7"),
+        icon: <CommentOutlined />,
+        onClick: () => {
+          setActivePanel('comments');
+          window.dispatchEvent(new CustomEvent(COMMENT_COMPOSER_OPEN_EVENT));
+        },
+      },
     ],
     [
       fontColor,
@@ -381,6 +394,7 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
       currentFontSize,
       currentFontFamily,
       currentLineHeight,
+      setActivePanel,
     ],
   );
 
