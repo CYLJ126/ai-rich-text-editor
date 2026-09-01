@@ -4,7 +4,7 @@ export interface ModalBridgeHandler {
   openModal: (
     type: MathFormulaType,
     currentLatex: string,
-    onUpdate: (newLatex: string) => void,
+    onUpdate: (newLatex: string, newType: MathFormulaType) => void,
   ) => void;
 }
 

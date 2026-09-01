@@ -7,7 +7,7 @@ interface ModalState {
   open: boolean;
   type: MathFormulaType;
   latex: string;
-  onUpdate?: (newLatex: string) => void;
+  onUpdate?: (newLatex: string, newType: MathFormulaType) => void;
 }
 
 const CLOSED: ModalState = { open: false, type: 'block', latex: '' };
@@ -35,7 +35,7 @@ const MathFormulaView: React.FC = () => {
   const handleModalConfirm = useCallback(
     (latex: string, type: MathFormulaType) => {
       setModalState((prev) => {
-        prev.onUpdate?.(latex);
+        prev.onUpdate?.(latex, type);
         return CLOSED;
       });
     },
