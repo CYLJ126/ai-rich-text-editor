@@ -163,7 +163,7 @@ services:
       SPRING_DATASOURCE_DRUID_APP_URL: ${APP_DB_URL:-jdbc:mysql://mysql:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
       SPRING_DATASOURCE_DRUID_APP_USERNAME: ${APP_DB_USERNAME:-arte}
       SPRING_DATASOURCE_DRUID_APP_PASSWORD: ${APP_DB_PASSWORD:-arte}
-      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_URL: ${CHLOROPHYLL_DB_URL:-jdbc:mysql://mysql:3306/eladmin?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+      SPRING_DATASOURCE_DRUID_CHLOROPHYLL_URL: ${CHLOROPHYLL_DB_URL:-jdbc:mysql://mysql:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
       SPRING_DATASOURCE_DRUID_CHLOROPHYLL_USERNAME: ${CHLOROPHYLL_DB_USERNAME:-arte}
       SPRING_DATASOURCE_DRUID_CHLOROPHYLL_PASSWORD: ${CHLOROPHYLL_DB_PASSWORD:-arte}
       SPRING_DATASOURCE_DRUID_MIN_IDLE: ${SPRING_DATASOURCE_DRUID_MIN_IDLE:-5}

@@ -77,8 +77,8 @@ public class ArteMcpTools {
             // 走 Spring AI 的本地 @Tool 调用链是不会有 transportContext 的
             return;
         }
-        String authorization = requestContext.transportContext().get("authorization").toString();
+//        String authorization = requestContext.transportContext().get("authorization").toString();
         String host = requestContext.transportContext().get("host").toString();
-        log.info("传输元数据：主机：{}，授权：{}", host, authorization);
+        log.info("传输元数据：主机：{}", host);
     }
 }

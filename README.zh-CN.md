@@ -23,7 +23,7 @@ ARTE（AI Rich Text Editor）是一个由 Java 后端和 Web 前端组成的 AI 
 ## 许可证
 
 除非文件或目录中另有说明，对于 ARTE 版权所有者有权授权的仓库内容，均采用
-[MIT License](LICENSE) 发布。
+[MIT License](LICENSE) 发布，第三方库、模型、素材和部署组件分别适用其各自许可证。
 
 MIT License **不会**取代或覆盖第三方代码、依赖库、素材、模型或服务的许可证、版权声明及
 署名要求。特别是，部分后端源文件保留了其上游项目的 Apache-2.0 声明，运行时依赖也继续

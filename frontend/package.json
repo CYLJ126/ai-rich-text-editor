@@ -1,6 +1,7 @@
 {
   "name": "ai-rich-text-editor",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "description": "A rich text editor for AI applications",
   "repository": "git@github.com:CYLJ126/ai-rich-text-editor.git",
