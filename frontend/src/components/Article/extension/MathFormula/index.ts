@@ -1,39 +1,17 @@
-import {Mathematics} from '@tiptap/extension-mathematics';
+import {InputRule} from '@tiptap/core';
+import {
+  BlockMath,
+  InlineMath,
+  Mathematics,
+  type MathematicsOptions,
+} from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import './MathFormula.less';
 import modalBridge, {type MathFormulaType} from './modalBridge';
 
-declare module '@tiptap/core' {
-  interface Commands<ReturnType> {
-    mathFormula: {
-      /**
-       * 插入内联公式
-       */
-      insertInlineMathFormula: (attrs?: { latex?: string }) => ReturnType;
-      /**
-       * 插入块级公式
-       */
-      insertBlockMathFormula: (attrs?: { latex?: string }) => ReturnType;
-      /**
-       * 在文本和公式间切换
-       */
-      toggleMathFormula: (attrs?: {
-        latex?: string;
-        forceType?: 'inline' | 'block';
-      }) => ReturnType;
-      /**
-       * 移除内联公式
-       */
-      removeInlineMathFormula: () => ReturnType;
-      /**
-       * 移除块级公式
-       */
-      removeBlockMathFormula: () => ReturnType;
-    };
-  }
-}
+declare module '@tiptap/core' {}
 
-export interface MathFormulaOptions {
+export interface MathFormulaOptions extends MathematicsOptions {
   /**
    * 是否启用点击编辑功能
    * @default true
@@ -43,6 +21,111 @@ export interface MathFormulaOptions {
 
 // 保存当前编辑器实例，供点击回调使用
 let currentEditor: any = null;
+
+const insertMathFormula = (
+  editor: any,
+  latex: string,
+  type: MathFormulaType,
+  replaceSelection = false,
+) => {
+  const chain = editor.chain().focus();
+
+  if (replaceSelection) {
+    chain.deleteSelection();
+  }
+
+  return type === 'block'
+    ? chain.insertBlockMath({ latex }).createParagraphNear().run()
+    : chain.insertInlineMath({ latex }).run();
+};
+
+const MathFormulaBlock = BlockMath.extend({
+  markdownTokenizer: {
+    name: 'blockMath',
+    level: 'block',
+    start: (src: string) => src.match(/^[\t ]{0,3}\$\$/m)?.index ?? -1,
+    tokenize: (src: string) => {
+      const match = src.match(
+        /^[\t ]{0,3}\$\$(?:[\t ]*\r?\n([\s\S]*?)\r?\n[\t ]{0,3}\$\$|[\t ]*([^\r\n]+?)[\t ]*\$\$)[\t ]*(?:\r?\n|$)/,
+      );
+
+      if (!match) return undefined;
+
+      return {
+        type: 'blockMath',
+        raw: match[0],
+        latex: (match[1] ?? match[2]).trim(),
+      };
+    },
+  },
+
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /^\$\$([^$\n]+?)\$\$$/,
+        handler: ({ state, range, match }) => {
+          const $from = state.doc.resolve(range.from);
+          const node = this.type.create({ latex: match[1].trim() });
+          const parent = $from.node(-1);
+          const index = $from.index(-1);
+
+          if (parent.canReplaceWith(index, index + 1, this.type)) {
+            state.tr.replaceWith($from.before(), $from.after(), node);
+          }
+        },
+      }),
+    ];
+  },
+});
+
+const MathFormulaInline = InlineMath.extend({
+  markdownTokenizer: {
+    name: 'inlineMath',
+    level: 'inline',
+    start: (src: string) => {
+      const dollarIndex = src.indexOf('$');
+      const parenthesisIndex = src.indexOf('\\(');
+      const indexes = [dollarIndex, parenthesisIndex].filter(
+        (index) => index >= 0,
+      );
+
+      return indexes.length > 0 ? Math.min(...indexes) : -1;
+    },
+    tokenize: (src: string) => {
+      const match =
+        src.match(/^\$\$(?!\$)([^$\r\n]+?)\$\$(?!\$)/) ??
+        src.match(/^\\\(([^\r\n]+?)\\\)/) ??
+        src.match(/^\$(?!\$)([^$\r\n]+?)\$(?!\$)/);
+
+      if (!match) return undefined;
+
+      return {
+        type: 'inlineMath',
+        raw: match[0],
+        latex: match[1].trim(),
+      };
+    },
+  },
+
+  addInputRules() {
+    const createRule = (find: RegExp) =>
+      new InputRule({
+        find,
+        handler: ({ state, range, match }) => {
+          state.tr.replaceWith(
+            range.from,
+            range.to,
+            this.type.create({ latex: match[1].trim() }),
+          );
+        },
+      });
+
+    return [
+      createRule(/(?<!\$)\$\$([^$\n]+?)\$\$$/),
+      createRule(/\\\(([^\r\n]+?)\\\)$/),
+    ];
+  },
+});
 
 /**
  * 判断当前选区是否应该视为"块级选区"
@@ -86,6 +169,25 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
     };
   },
 
+  addExtensions() {
+    return [
+      MathFormulaBlock.configure({
+        ...this.options.blockOptions,
+        katexOptions: {
+          ...this.options.katexOptions,
+          displayMode: true,
+        },
+      }),
+      MathFormulaInline.configure({
+        ...this.options.inlineOptions,
+        katexOptions: {
+          ...this.options.katexOptions,
+          displayMode: false,
+        },
+      }),
+    ];
+  },
+
   addCommands() {
     return {
       ...this.parent?.(),
@@ -95,7 +197,7 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
        */
       insertInlineMathFormula:
         (attrs?: { latex?: string }) =>
-        ({ commands, state }: any) => {
+        ({ commands, editor, state }: any) => {
           const { latex } = attrs || {};
 
           // 直接传入 latex → 立即插入
@@ -119,13 +221,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
 
           // 无 latex、无选区 → 通过 bridge 打开弹窗
           if (modalBridge.handler) {
-            modalBridge.handler.openModal('inline', '', (newLatex) => {
-              if (newLatex && currentEditor) {
-                currentEditor
-                  .chain()
-                  .focus()
-                  .insertInlineMath({ latex: newLatex })
-                  .run();
+            modalBridge.handler.openModal('inline', '', (newLatex, newType) => {
+              if (newLatex) {
+                insertMathFormula(editor, newLatex, newType);
               }
             });
             return true;
@@ -139,7 +237,7 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
        */
       insertBlockMathFormula:
         (attrs?: { latex?: string }) =>
-        ({ commands, state }: any) => {
+        ({ commands, editor, state }: any) => {
           const { latex } = attrs || {};
 
           if (latex) {
@@ -161,14 +259,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
           }
 
           if (modalBridge.handler) {
-            modalBridge.handler.openModal('block', '', (newLatex) => {
-              if (newLatex && currentEditor) {
-                currentEditor
-                  .chain()
-                  .focus()
-                  .insertBlockMath({ latex: newLatex })
-                  .createParagraphNear()
-                  .run();
+            modalBridge.handler.openModal('block', '', (newLatex, newType) => {
+              if (newLatex) {
+                insertMathFormula(editor, newLatex, newType);
               }
             });
             return true;
@@ -177,22 +270,6 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
           console.warn('[MathFormula] handler 为 null，无法打开弹窗');
           return false;
         },
-
-      /**
-       * 删除内联数学公式
-       */
-      removeInlineMathFormula:
-        () =>
-        ({ commands }: any) =>
-          commands.deleteInlineMath(),
-
-      /**
-       * 删除块级数学公式
-       */
-      removeBlockMathFormula:
-        () =>
-        ({ commands }: any) =>
-          commands.deleteBlockMath(),
 
       /**
        * 智能切换数学公式
@@ -207,7 +284,7 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
        */
       toggleMathFormula:
         (attrs?: { latex?: string; forceType?: 'inline' | 'block' }) =>
-        ({ commands, state }: any) => {
+        ({ commands, editor, state }: any) => {
           const { latex, forceType } = attrs || {};
 
           // ── 工具函数：读取当前选区的纯文本 ────────────────────────
@@ -268,13 +345,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
               return false;
             }
 
-            modalBridge.handler.openModal('inline', '', (newLatex) => {
-              if (!newLatex || !currentEditor) return;
-              currentEditor
-                .chain()
-                .focus()
-                .insertInlineMath({ latex: newLatex })
-                .run();
+            modalBridge.handler.openModal('inline', '', (newLatex, newType) => {
+              if (!newLatex) return;
+              insertMathFormula(editor, newLatex, newType);
             });
 
             return true;
@@ -297,15 +370,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
               return false;
             }
 
-            modalBridge.handler.openModal('block', '', (newLatex) => {
-              if (!newLatex || !currentEditor) return;
-              currentEditor
-                .chain()
-                .focus()
-                .deleteSelection()
-                .insertBlockMath({ latex: newLatex })
-                .createParagraphNear()
-                .run();
+            modalBridge.handler.openModal('block', '', (newLatex, newType) => {
+              if (!newLatex) return;
+              insertMathFormula(editor, newLatex, newType, true);
             });
 
             return true;
@@ -323,14 +390,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
               return false;
             }
 
-            modalBridge.handler.openModal('inline', '', (newLatex) => {
-              if (!newLatex || !currentEditor) return;
-              currentEditor
-                .chain()
-                .focus()
-                .deleteSelection()
-                .insertInlineMath({ latex: newLatex })
-                .run();
+            modalBridge.handler.openModal('inline', '', (newLatex, newType) => {
+              if (!newLatex) return;
+              insertMathFormula(editor, newLatex, newType, true);
             });
 
             return true;
@@ -354,6 +416,24 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
   addKeyboardShortcuts() {
     return {
       ...this.parent?.(),
+      Enter: () => {
+        const { selection } = this.editor.state;
+        const { $from } = selection;
+
+        if (
+          !selection.empty ||
+          !$from.parent.isTextblock ||
+          $from.parent.textContent.trim() !== '$$'
+        ) {
+          return false;
+        }
+
+        return this.editor
+          .chain()
+          .deleteRange({ from: $from.start(), to: $from.end() })
+          .insertBlockMathFormula()
+          .run();
+      },
       'Mod-m': () => this.editor.commands.insertInlineMathFormula(),
       'Mod-Shift-m': () => this.editor.commands.insertBlockMathFormula(),
     };
@@ -369,20 +449,39 @@ export const configureMathFormula = (options: MathFormulaOptions = {}) => {
     if (!options.enableClickEdit || !currentEditor) return;
     if (!modalBridge.handler) return;
 
-    modalBridge.handler.openModal(type, node.attrs.latex ?? '', (newLatex) => {
-      try {
-        const updateCmd =
-          type === 'block' ? 'updateBlockMath' : 'updateInlineMath';
-        currentEditor
-          .chain()
-          .focus()
-          .setNodeSelection(pos)
-          [updateCmd]({ latex: newLatex })
-          .run();
-      } catch (error) {
-        console.error(`Failed to update ${type} math:`, error);
-      }
-    });
+    modalBridge.handler.openModal(
+      type,
+      node.attrs.latex ?? '',
+      (newLatex, newType) => {
+        try {
+          if (newType !== type) {
+            currentEditor
+              .chain()
+              .focus()
+              .insertContentAt(
+                { from: pos, to: pos + node.nodeSize },
+                {
+                  type: newType === 'block' ? 'blockMath' : 'inlineMath',
+                  attrs: { latex: newLatex },
+                },
+              )
+              .run();
+            return;
+          }
+
+          const updateCmd =
+            type === 'block' ? 'updateBlockMath' : 'updateInlineMath';
+          currentEditor
+            .chain()
+            .focus()
+            .setNodeSelection(pos)
+            [updateCmd]({ latex: newLatex })
+            .run();
+        } catch (error) {
+          console.error(`Failed to update ${type} math:`, error);
+        }
+      },
+    );
   };
 
   return MathFormula.configure({
@@ -402,4 +501,3 @@ export type {
 } from './MathFormulaModal';
 export { default as MathFormulaModal } from './MathFormulaModal';
 export { default as MathFormulaView } from './MathFormulaView';
-export default MathFormula;
