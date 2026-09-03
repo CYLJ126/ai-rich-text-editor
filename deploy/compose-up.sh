@@ -73,22 +73,6 @@ prepare_artifact() {
   echo "Prepared ${name}: artifacts/${target_file}"
 }
 
-app_source=$(get_config_value ARTE_APP_JAR_SOURCE)
-front_source=$(get_config_value ARTE_FRONT_DIST_SOURCE)
-
-if [ -z "$app_source" ]; then
-  echo "ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL." >&2
-  exit 1
-fi
-
-if [ -z "$front_source" ]; then
-  echo "ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL." >&2
-  exit 1
-fi
-
-prepare_artifact "arte-app-boot" "$app_source" "./backend/artifacts" "jar" "ARTE_APP_JAR_FILE"
-prepare_artifact "dist" "$front_source" "./frontend/artifacts" "zip" "ARTE_FRONT_DIST_FILE"
-
 compose_options=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -110,5 +94,60 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# shellcheck disable=SC2086
-exec docker compose $compose_options up -d --build --force-recreate "$@"
+prepare_backend=false
+prepare_frontend=false
+skip_dependencies=false
+
+if [ "$#" -eq 0 ]; then
+  prepare_backend=true
+  prepare_frontend=true
+else
+  for service in "$@"; do
+    case "$service" in
+      backend)
+        prepare_backend=true
+        ;;
+      frontend)
+        prepare_backend=true
+        prepare_frontend=true
+        ;;
+    esac
+  done
+fi
+
+if [ "$#" -eq 1 ] && [ "$1" = "frontend" ]; then
+  # shellcheck disable=SC2086
+  running_services=$(docker compose $compose_options ps --services --status running 2>/dev/null || true)
+  if printf '%s\n' "$running_services" | grep -qx backend &&
+     printf '%s\n' "$running_services" | grep -qx drawio; then
+    prepare_backend=false
+    skip_dependencies=true
+    echo "backend and drawio are already running; rebuilding frontend only."
+  fi
+fi
+
+if [ "$prepare_backend" = true ]; then
+  app_source=$(get_config_value ARTE_APP_JAR_SOURCE)
+  if [ -z "$app_source" ]; then
+    echo "ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL." >&2
+    exit 1
+  fi
+  prepare_artifact "arte-app-boot" "$app_source" "./backend/artifacts" "jar" "ARTE_APP_JAR_FILE"
+fi
+
+if [ "$prepare_frontend" = true ]; then
+  front_source=$(get_config_value ARTE_FRONT_DIST_SOURCE)
+  if [ -z "$front_source" ]; then
+    echo "ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL." >&2
+    exit 1
+  fi
+  prepare_artifact "dist" "$front_source" "./frontend/artifacts" "zip" "ARTE_FRONT_DIST_FILE"
+fi
+
+if [ "$skip_dependencies" = true ]; then
+  # shellcheck disable=SC2086
+  exec docker compose $compose_options up -d --build --force-recreate --no-deps "$@"
+else
+  # shellcheck disable=SC2086
+  exec docker compose $compose_options up -d --build --force-recreate "$@"
+fi
