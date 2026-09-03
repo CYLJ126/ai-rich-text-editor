@@ -184,11 +184,10 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
         let selectionContentSize = 0;
 
         if (selection instanceof TextSelection) {
-          editor.state.doc.nodesBetween(from, to, (node, pos) => {
+          editor.state.doc.nodesBetween(from, to, (node) => {
             const nodeName = node.type.name;
             if (nodeName === 'tableHeader' || nodeName === 'tableCell') {
-              const cell = editor.view.nodeDOM(pos) as HTMLTableCellElement;
-              hasSpannedCell = cell.colSpan > 1 || cell.rowSpan > 1;
+              hasSpannedCell = node.attrs.colspan > 1 || node.attrs.rowspan > 1;
               return false;
             }
             return true;
