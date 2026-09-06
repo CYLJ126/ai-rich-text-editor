@@ -1,4 +1,6 @@
-﻿create table if not exists arte_home_website_info
+SET NAMES utf8mb4;
+
+create table if not exists arte_home_website_info
 (
     id                   int auto_increment comment 'ID'
         primary key,
@@ -23,5 +25,3 @@
     proxy                tinyint(1) default 0 not null comment '是否需要代理'
 )
     comment '资讯网站信息';
-
-

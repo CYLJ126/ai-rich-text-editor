@@ -1,0 +1,4 @@
+**
+!deploy/
+!deploy/elasticsearch/
+!deploy/elasticsearch/Dockerfile

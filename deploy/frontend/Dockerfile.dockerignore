@@ -1,0 +1,12 @@
+**
+!frontend/
+!frontend/**
+!deploy/
+!deploy/frontend/
+!deploy/frontend/**
+frontend/node_modules/
+frontend/dist/
+frontend/dist.zip
+frontend/.env
+frontend/.env.*
+deploy/frontend/artifacts/

@@ -1,4 +1,8 @@
 param(
+  [switch]$BuildLocal,
+  [switch]$External,
+  [switch]$Observability,
+  [switch]$Https,
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$ComposeArgs
 )
@@ -7,111 +11,56 @@ $ErrorActionPreference = 'Stop'
 $scriptRoot = $PSScriptRoot
 Set-Location $scriptRoot
 
-function Get-EnvFileValue([string]$Key) {
-  $envPath = Join-Path $scriptRoot '.env'
-  if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
-    return ''
+if (-not (Test-Path -LiteralPath '.env') -and (Test-Path -LiteralPath '.env.example')) {
+  Copy-Item -LiteralPath '.env.example' -Destination '.env'
+  Write-Host 'Created deploy/.env from .env.example. Change the default passwords before exposing the service publicly.'
+}
+
+$baseComposeFile = if ($External) { 'docker-compose.external.yml' } else { 'docker-compose.yml' }
+$composeFiles = @('-f', $baseComposeFile)
+if ($BuildLocal) {
+  $buildComposeFile = if ($External) { 'docker-compose.external.build.yml' } else { 'docker-compose.build.yml' }
+  $composeFiles += @('-f', $buildComposeFile)
+}
+if ($Https) {
+  $composeFiles += @('-f', 'docker-compose.https.yml')
+}
+
+$profileArgs = @()
+if ($Observability) {
+  if ($External) {
+    throw 'Observability profile is only available with bundled Elasticsearch.'
   }
-
-  foreach ($line in Get-Content -Encoding UTF8 -LiteralPath $envPath) {
-    $trimmed = $line.Trim()
-    if ($trimmed.Length -eq 0 -or $trimmed.StartsWith('#')) {
-      continue
-    }
-
-    if ($trimmed -match "^$([regex]::Escape($Key))=(.*)$") {
-      $value = $Matches[1].Trim()
-      if (
-        ($value.StartsWith('"') -and $value.EndsWith('"')) -or
-        ($value.StartsWith("'") -and $value.EndsWith("'"))
-      ) {
-        $value = $value.Substring(1, $value.Length - 2)
-      }
-      return $value
-    }
-  }
-
-  return ''
+  $profileArgs = @('--profile', 'observability')
 }
 
-function Get-ConfigValue([string]$Key) {
-  $value = [Environment]::GetEnvironmentVariable($Key)
-  if (-not [string]::IsNullOrWhiteSpace($value)) {
-    return $value
-  }
-
-  return Get-EnvFileValue $Key
+& docker compose @composeFiles @profileArgs config --quiet
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
 }
 
-function Prepare-Artifact(
-  [string]$Name,
-  [string]$Source,
-  [string]$TargetDirectory,
-  [string]$Extension,
-  [string]$BuildVariable
-) {
-  $uuid = [guid]::NewGuid().ToString()
-  $targetFile = "$Name-$uuid.$Extension"
-  $targetDirectoryPath = Join-Path $scriptRoot $TargetDirectory
-  $targetPath = Join-Path $targetDirectoryPath $targetFile
-
-  New-Item -ItemType Directory -Force -Path $targetDirectoryPath | Out-Null
-  Get-ChildItem -Force -Path $targetDirectoryPath | Remove-Item -Force -Recurse
-
-  if ($Source -match '^https?://') {
-    Write-Host "Downloading $Name artifact..."
-    Invoke-WebRequest -Uri $Source -OutFile $targetPath
-  } else {
-    $localSource = if ([IO.Path]::IsPathRooted($Source)) {
-      $Source
-    } else {
-      Join-Path $scriptRoot $Source
-    }
-
-    if (-not (Test-Path -LiteralPath $localSource -PathType Leaf)) {
-      throw "$Name artifact not found: $Source"
-    }
-
-    Write-Host "Copying local $Name artifact..."
-    Copy-Item -LiteralPath $localSource -Destination $targetPath
-  }
-
-  Set-Item -Path "Env:$BuildVariable" -Value "artifacts/$targetFile"
-  Write-Host "Prepared ${Name}: artifacts/$targetFile"
+$upArgs = @('up', '-d', '--wait', '--wait-timeout', '900')
+if ($BuildLocal) {
+  $upArgs += @('--build', '--pull', 'never')
 }
 
-$appSource = Get-ConfigValue 'ARTE_APP_JAR_SOURCE'
-$frontSource = Get-ConfigValue 'ARTE_FRONT_DIST_SOURCE'
-
-if ([string]::IsNullOrWhiteSpace($appSource)) {
-  throw 'ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL.'
+& docker compose @composeFiles @profileArgs @upArgs @ComposeArgs
+if ($LASTEXITCODE -ne 0) {
+  $exitCode = $LASTEXITCODE
+  & docker compose @composeFiles @profileArgs ps
+  exit $exitCode
 }
 
-if ([string]::IsNullOrWhiteSpace($frontSource)) {
-  throw 'ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL.'
+$frontendBinding = (& docker compose @composeFiles @profileArgs port frontend 8080 | Select-Object -First 1)
+$port = if ($frontendBinding) { ($frontendBinding -split ':')[-1] } else { '8000' }
+Write-Host ''
+Write-Host "AIRichTextEditor is ready: http://localhost:$port"
+if ($Https) {
+  $httpsBinding = (& docker compose @composeFiles @profileArgs port frontend 8443 | Select-Object -First 1)
+  Write-Host "HTTPS is ready: https://localhost:$(($httpsBinding -split ':')[-1])"
 }
-
-Prepare-Artifact 'arte-app-boot' $appSource 'backend/artifacts' 'jar' 'ARTE_APP_JAR_FILE'
-Prepare-Artifact 'dist' $frontSource 'frontend/artifacts' 'zip' 'ARTE_FRONT_DIST_FILE'
-
-$composeOptions = [System.Collections.Generic.List[string]]::new()
-$serviceArgs = [System.Collections.Generic.List[string]]::new()
-for ($index = 0; $index -lt $ComposeArgs.Count; $index++) {
-  if ($ComposeArgs[$index] -eq '--profile') {
-    if ($index + 1 -ge $ComposeArgs.Count) {
-      throw '--profile requires a profile name'
-    }
-    $composeOptions.Add('--profile')
-    $index++
-    $composeOptions.Add($ComposeArgs[$index])
-  } elseif ($ComposeArgs[$index] -eq '--') {
-    for ($index++; $index -lt $ComposeArgs.Count; $index++) {
-      $serviceArgs.Add($ComposeArgs[$index])
-    }
-    break
-  } else {
-    $serviceArgs.Add($ComposeArgs[$index])
-  }
+if ($Observability) {
+  $kibanaBinding = (& docker compose @composeFiles @profileArgs port kibana 5601 | Select-Object -First 1)
+  $kibanaPort = if ($kibanaBinding) { ($kibanaBinding -split ':')[-1] } else { '5601' }
+  Write-Host "Kibana is ready: http://localhost:$kibanaPort"
 }
-
-& docker compose @composeOptions up -d --build --force-recreate @serviceArgs

@@ -1,0 +1,9 @@
+**
+!backend/
+!backend/**
+!deploy/
+!deploy/backend/
+!deploy/backend/**
+backend/profile/app.properties
+backend/**/target/
+deploy/backend/artifacts/

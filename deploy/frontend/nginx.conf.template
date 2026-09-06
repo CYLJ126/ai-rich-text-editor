@@ -1,29 +1,13 @@
 server {
-    listen ${NGINX_HTTPS_PORT} ssl;
+    listen 8080;
+    include /etc/nginx/tls/*.conf;
     server_name ${NGINX_SERVER_NAME};
+    absolute_redirect off;
     charset utf-8;
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
-    error_page 497 https://$host:${NGINX_HTTPS_PORT}$request_uri;
-
-    ssl_certificate /etc/nginx/certs/server.crt;
-    ssl_certificate_key /etc/nginx/certs/server.key;
-
-    ssl_session_timeout ${NGINX_SSL_SESSION_TIMEOUT};
-    ssl_protocols ${NGINX_SSL_PROTOCOLS};
-    ssl_ciphers ${NGINX_SSL_CIPHERS};
-    ssl_prefer_server_ciphers on;
-
     root /usr/share/nginx/html;
     index index.html;
-
-    error_page 404 /404.html;
-    location = /404.html {
-    }
-
-    error_page 500 502 503 504 /50x.html;
-    location = /50x.html {
-    }
 
     location ^~ /arte/webSocket/ {
         proxy_pass ${NGINX_BACKEND_UPSTREAM};

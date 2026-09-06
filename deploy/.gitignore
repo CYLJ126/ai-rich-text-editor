@@ -2,3 +2,5 @@
 backend/artifacts/
 frontend/artifacts/
 .idea
+certs/
+validation.local/

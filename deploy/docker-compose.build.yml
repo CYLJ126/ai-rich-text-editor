@@ -1,0 +1,30 @@
+services:
+  elasticsearch:
+    image: ai-rich-text-editor-elasticsearch:local
+    build:
+      context: ..
+      dockerfile: deploy/elasticsearch/Dockerfile
+
+  elasticsearch-setup:
+    image: ai-rich-text-editor-elasticsearch:local
+
+  content-index-init:
+    image: ai-rich-text-editor-elasticsearch:local
+
+  backend:
+    image: ai-rich-text-editor-backend:local
+    build:
+      context: ..
+      dockerfile: deploy/backend/Dockerfile
+      args:
+        BUILD_PROXY_HOST: ${BUILD_PROXY_HOST:-}
+        BUILD_PROXY_PORT: ${BUILD_PROXY_PORT:-3128}
+
+  frontend:
+    image: ai-rich-text-editor-frontend:local
+    build:
+      context: ..
+      dockerfile: deploy/frontend/Dockerfile
+      args:
+        BUILD_PROXY_URL: ${BUILD_PROXY_URL:-}
+        BUILD_NPM_REGISTRY: ${BUILD_NPM_REGISTRY:-https://registry.npmjs.org}

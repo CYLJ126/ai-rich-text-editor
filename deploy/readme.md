@@ -1,143 +1,137 @@
-# Docker 部署说明
+# Docker 部署
 
-## 1. 修改配置
+这套部署采用成熟开源项目常见的“CI 构建镜像，Compose 只负责运行”模式：
 
-本文档中的命令默认都在 `docker/` 目录下执行：
+- GitHub Release 发布时，GitHub Actions 构建 linux/amd64、linux/arm64 镜像并推送到 GHCR。
+- Release 同时附带完整的 deploy 压缩包。
+- 使用者不需要 Java、Node.js、Maven 或 npm，只需要 Docker Engine / Docker Desktop 和 Compose 插件。
+- 仓库开发者可用一个参数切换为本地源码构建，产出的运行结构与发布镜像一致。
 
-```bash
-cd docker
+## 一键启动
+
+在 deploy 目录运行：
+
+    # Windows PowerShell
+    .\compose-up.ps1
+
+    # Linux / macOS
+    ./compose-up.sh
+
+脚本第一次运行会把 .env.example 复制为 .env，等待 MySQL、Redis、Elasticsearch、后端和前端全部健康后才返回成功。访问：
+
+    http://localhost:8000
+
+.env.example 中的数据库等服务密码是本机验证默认值，部署到公网前必须修改 MySQL、Elasticsearch 及可选 Kibana 的密码。SM2 和 JWT 密钥无需手工编写，首次启动自动生成并持久化。
+
+## 初始化与首次登录
+
+全新数据库会导入管理员 `admin`，初始密码为 `Aa111111`，以及启用状态的角色和菜单。首次登录后请立即修改密码。`JWT_DEFAULT_PASSWORD` 是应用重置密码/创建用户时使用的默认值，不会改写 DML 中管理员的密码哈希。
+
+首次初始化还会创建公共目录“ARTE 使用指南”，将 `118-ARTE简介.md` 和 `119-ARTE全部特性.md` 写入其中，并通过一次性 Compose 服务把两篇文章的检索元数据写入 Elasticsearch。Release 部署包已经包含这两个源文件；直接复制 `deploy` 目录时，也必须保留仓库中的 `docs/public` 相对目录结构。
+
+初始化 DDL、DML 只在 MySQL 数据卷为空时执行；更新 SQL 文件不会更新已有数据库，也不要为应用这次修改而删除真实数据。MySQL 首次初始化会留下一次性标记，Elasticsearch 服务只在该标记存在时写入两篇文章，成功后不会在每次启动重复执行。它不会替已有 MySQL 数据补跑文章初始化。本次修正了初始角色禁用状态、文章字段名称（`character_count`）以及 MySQL 初始化客户端字符集（避免中文乱码）。已有安装如有旧字段、旧角色数据或已导入的乱码，需要先备份再按实际情况迁移，新配置不会修复已存储的乱码。
+
+## SM2 / JWT 密钥自动生成
+
+在 `.env` 中留空 `SECURITY_SM2_PRIVATE_KEY`、`SECURITY_SM2_PUBLIC_KEY`、`JWT_BASE64_SECRET_KEY` 即可。后端首次启动生成 SM2 密钥对和 64 字节随机 JWT 签名密钥，保存在 `backend-secrets` 数据卷中；镜像构建、重启和容器重建都复用原值，不会每次更换。不同新安装生成不同密钥，私密文件仅文件所有者可读写，不进入镜像或日志。
+
+已有 `.env` 显式指定的密钥仍会导入并保存，升级不会偷偷轮换旧密钥。只指定 SM2 私钥也可自动推导公钥；同时指定时会检查是否配对。请将 `backend-secrets` 与数据库一起备份；删除该卷且不提供原密钥会导致重新生成、旧登录令牌失效。更改 Compose 项目名也会切换到另一组数据卷。
+
+## 自带 HTTPS 证书，同时保留 HTTP
+
+将 PEM 格式的完整证书链和未加密私钥放在 `deploy/certs/`（已被 Git 忽略），在 `.env` 设置：
+
+```dotenv
+ARTE_PORT=8000
+ARTE_HTTPS_PORT=8443
+ARTE_TLS_CERT_FILE=./certs/fullchain.pem
+ARTE_TLS_KEY_FILE=./certs/privkey.pem
 ```
 
-部署前先修改 `.env`。当前默认值使用 Docker Compose 内部服务名：
+证书在其他目录时填写绝对路径，Windows 建议使用正斜杠。证书需匹配实际访问域名。启动命令：
 
-- MySQL：`mysql:3306`
-- Redis：`redis:6379`
-- Elasticsearch：`http://elasticsearch:9200`
-- draw.io：`http://drawio:8080`（前端通过 `/drawio/` 同源代理访问）
-- 前端 HTTPS 端口：`8000`
+    .\compose-up.ps1 -Https
+    ./compose-up.sh --https
 
-如需使用外部 draw.io 服务，修改 `.env` 中的 `NGINX_DRAWIO_UPSTREAM`，例如 `http://192.168.31.212:8080`。前端仍访问同源 `/drawio/`，由 nginx 转发到该地址。
+本地源码构建时加上 `-BuildLocal` / `--build-local`。HTTP 仍通过 `http://localhost:8000` 访问；HTTPS 使用 `https://你的域名:8443`，端口均可修改。不强制将 HTTP 跳转到 HTTPS；如只允许内网使用 HTTP，请通过防火墙限制该端口。未传 HTTPS 参数时不需要证书。
 
-如果使用外部已经搭建好的中间件，需要在 `.env` 中改这些配置：
+HTTPS 使用 TLS 1.2/1.3，网页、接口和 WebSocket 共用同一个 Nginx 入口。证书续期由使用者负责；替换证书后重建前端容器，让只读挂载重新读取文件：
 
-```env
-APP_DB_URL=jdbc:mysql://your-mysql-host:3306/arte?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-APP_DB_USERNAME=your_user
-APP_DB_PASSWORD=your_password
-CHLOROPHYLL_DB_URL=jdbc:mysql://your-mysql-host:3306/nip?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-CHLOROPHYLL_DB_USERNAME=your_user
-CHLOROPHYLL_DB_PASSWORD=your_password
-REDIS_ADDRESS=redis://your-redis-host:6379
-REDIS_PASSWORD=
-ELASTICSEARCH_URIS=http://your-es-host:9200
-ELASTICSEARCH_USERNAME=elastic
-ELASTIC_PASSWORD=your_es_password
-KIBANA_ELASTICSEARCH_HOSTS=http://your-es-host:9200
-```
+    docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --no-deps --force-recreate frontend
 
-如果外部中间件部署在 Docker 宿主机上，不要在容器配置里写 `localhost`。容器里的 `localhost` 指的是容器自己，应该改成宿主机局域网 IP，或者使用 `host.docker.internal`。
+源码构建部署需在 HTTPS 文件前再加 `-f docker-compose.build.yml`。之后更新或重建前端也必须携带 HTTPS 覆盖文件，否则会移除 HTTPS 配置。参考 [Nginx 官方 HTTPS 配置](https://nginx.org/en/docs/http/configuring_https_servers.html)。
 
-后端 jar 和前端 dist 包由 `compose-up.sh` 在构建前准备。必须显式配置来源，来源既可以是下载地址，也可以是 Docker 宿主机上的本地文件：
+## 从当前源码构建
 
-```env
-# 本地文件，支持绝对路径或相对 arte-docker/ 目录的路径
-ARTE_APP_JAR_SOURCE=../ai-rich-text-editor/arte-app/target/arte-app-boot.jar
-ARTE_FRONT_DIST_SOURCE=../ai-rich-text-editor-front/dist.zip
+尚未发布 GHCR 镜像，或者需要验证当前修改时：
 
-# 本地绝对路径示例
-# ARTE_APP_JAR_SOURCE=/opt/arte/arte-app-boot.jar
-# ARTE_FRONT_DIST_SOURCE=/opt/arte/dist.zip
+    .\compose-up.ps1 -BuildLocal
 
-# 远程下载示例：每次启动都会重新下载
-# ARTE_APP_JAR_SOURCE=https://example.com/arte-app-boot.jar
-# ARTE_FRONT_DIST_SOURCE=https://example.com/dist.zip
-```
+    ./compose-up.sh --build-local
 
-每次脚本执行都会先清空上一次的构建产物，并复制或下载为包含新 UUID 的文件名，因此 Docker 的 `COPY` 层不会复用旧缓存。
+本地构建使用 docker-compose.build.yml 覆盖镜像来源。后端与前端都在多阶段 Dockerfile 中编译，宿主机不需要安装构建工具。
 
-Linux/macOS 使用 `sh ./compose-up.sh`；Windows PowerShell 使用 `./compose-up.ps1`，后续命令只需替换脚本前缀即可。
+## 使用现有 MySQL 和 Elasticsearch
 
-## 2. 启动方式
+外部依赖模式只启动后端、前端、Redis 和 Draw.io，不会创建 MySQL、Elasticsearch 或执行初始化 DDL/DML。默认直接读取源码仓库的 `backend/profile/app.properties`，并仅使用其中的两组数据源和 Elasticsearch 配置；密钥、存储路径等容器配置仍由 Compose 管理。
 
-只启动后端和前端，适用于外部中间件模式：
+    .\compose-up.ps1 -External
+    ./compose-up.sh --external
 
-```bash
-sh ./compose-up.sh backend frontend
-```
+本地源码构建：
 
-启动项目内置的全部中间件：
+    .\compose-up.ps1 -External -BuildLocal
+    ./compose-up.sh --external --build-local
 
-```bash
-sh ./compose-up.sh --profile middleware --
-```
+配置文件在其他位置时，在 `.env` 设置 `ARTE_BACKEND_CONFIG_FILE`；Release 部署包不包含你的私有后端配置，因此必须提供该文件。容器需能访问配置中的 MySQL/Elasticsearch 地址；如果服务在 Docker 宿主机上，请在配置中使用 `host.docker.internal` 或宿主机局域网 IP，不要使用 `localhost`。
 
-只启动部分中间件：
+## 可选 Kibana
 
-```bash
-sh ./compose-up.sh --profile mysql --profile redis --
-sh ./compose-up.sh --profile es --
-```
+    .\compose-up.ps1 -Observability
 
-内置 MySQL 在全新 volume 下会自动执行挂载的 SQL 文件。如果使用外部 MySQL，或者 SQL 修改后需要重新执行初始化，可以手动运行：
+    ./compose-up.sh --observability
 
-```bash
-docker compose --profile mysql-init run --rm mysql-init
-```
+Kibana 默认只监听 127.0.0.1:5601。Compose 会自动设置 kibana_system 密码，不需要再手工运行 Elasticsearch 初始化脚本。
 
-使用内置 MySQL，并且希望按完整流程启动和初始化：
+本地源码构建并同时启动 Kibana：
 
-```bash
-docker compose --profile mysql --profile redis --profile es up -d --build
-docker compose --profile mysql-init run --rm mysql-init
-```
+    .\compose-up.ps1 -BuildLocal -Observability
 
-## 3. Elasticsearch
+## 更新和运维
 
-内置 Elasticsearch 镜像由 `elasticsearch/Dockerfile` 构建，并在构建阶段安装 IK 插件：
+更新已发布镜像：
 
-```dockerfile
-RUN bin/elasticsearch-plugin install --batch https://get.infini.cloud/elasticsearch/analysis-ik/8.13.4
-```
+    docker compose pull
+    docker compose up -d --wait
 
-Elasticsearch 第一次启动完成后，执行初始化脚本重置 `kibana_system` 用户密码：
+查看状态和日志：
 
-```bash
-./init-es.sh
-```
+    docker compose ps
+    docker compose logs -f backend
 
-Kibana 登录信息：
+停止服务并保留数据：
 
-- 用户名：`elastic`
-- 密码：`.env` 中的 `ELASTIC_PASSWORD`
+    docker compose down
 
-## 4. 常用操作
+删除数据卷会永久删除数据库、索引、上传文件和自动生成的密钥：
 
-停止某一个服务：
+    docker compose down -v
 
-```bash
-docker compose stop frontend
-```
+MySQL 初始化 SQL 只会在全新 mysql-data volume 上运行。旧版 nip 数据升级请先备份，再按需使用 mysql/migrate-nip-to-arte.sql，不要把迁移脚本放进自动初始化目录。
 
-删除某一个服务容器：
+## 镜像发布
 
-```bash
-docker compose rm -sf frontend
-```
+.github/workflows/docker-publish.yml 在 GitHub Release 发布后生成以下镜像：
 
-重新构建并重建某一个服务：
+- ghcr.io/cylj126/ai-rich-text-editor-backend
+- ghcr.io/cylj126/ai-rich-text-editor-frontend
+- ghcr.io/cylj126/ai-rich-text-editor-elasticsearch
 
-```bash
-sh ./compose-up.sh frontend
-```
+标签包含完整版本、主次版本、latest 和提交 SHA，并附带 SBOM 与 provenance。首次发布后，需要在 GitHub Packages 设置中把三个包改为 Public，匿名用户才能直接拉取。
 
-删除所有容器，但保留 volume 数据：
+## 常见问题
 
-```bash
-docker compose down
-```
-
-删除所有容器和 volume 数据：
-
-```bash
-docker compose down -v
-```
+- 请使用 docker compose，不要使用已废弃的 docker-compose。
+- docker compose up --wait 返回非零时，先运行 docker compose ps 和 docker compose logs SERVICE。
+- Docker Desktop 拉取 Docker Hub 出现 EOF 时，检查 Docker Desktop 的代理设置；这是引擎网络问题，不应把临时镜像站地址提交进 Compose。
+- 数据库和 Elasticsearch 不暴露宿主机端口。需要排查时使用 docker compose exec。

@@ -4,85 +4,28 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR"
 
-get_env_file_value() {
-  key="$1"
-  if [ ! -f .env ]; then
-    return 0
-  fi
+build_local=false
+external=false
+observability=false
+https=false
 
-  awk -v key="$key" '
-    /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-    {
-      line = $0
-      sub(/^[[:space:]]*/, "", line)
-      if (index(line, key "=") == 1) {
-        sub(/^[^=]*=/, "", line)
-        sub(/^[[:space:]]*/, "", line)
-        sub(/[[:space:]]*$/, "", line)
-        if ((substr(line, 1, 1) == "\"" && substr(line, length(line), 1) == "\"") ||
-            (substr(line, 1, 1) == "\047" && substr(line, length(line), 1) == "\047")) {
-          line = substr(line, 2, length(line) - 2)
-        }
-        print line
-        exit
-      }
-    }
-  ' .env
-}
-
-get_config_value() {
-  key="$1"
-  value=$(printenv "$key" 2>/dev/null || true)
-  if [ -n "$value" ]; then
-    printf '%s' "$value"
-  else
-    get_env_file_value "$key"
-  fi
-}
-
-prepare_artifact() {
-  name="$1"
-  source_value="$2"
-  target_dir="$3"
-  extension="$4"
-  build_variable="$5"
-
-  uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)
-  target_file="${name}-${uuid}.${extension}"
-  target_path="${target_dir}/${target_file}"
-
-  mkdir -p "$target_dir"
-  rm -f "${target_dir}"/*
-
-  case "$source_value" in
-    http://*|https://*)
-      echo "Downloading ${name} artifact..."
-      curl --fail --location --silent --show-error "$source_value" --output "$target_path"
-      ;;
-    *)
-      if [ ! -f "$source_value" ]; then
-        echo "${name} artifact not found: ${source_value}" >&2
-        exit 1
-      fi
-      echo "Copying local ${name} artifact..."
-      cp "$source_value" "$target_path"
-      ;;
-  esac
-
-  export "${build_variable}=artifacts/${target_file}"
-  echo "Prepared ${name}: artifacts/${target_file}"
-}
-
-compose_options=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --profile)
-      if [ "$#" -lt 2 ]; then
-        echo "--profile requires a profile name" >&2
-        exit 1
-      fi
-      compose_options="${compose_options} --profile $2"
-      shift 2
+    --https)
+      https=true
+      shift
+      ;;
+    --build-local)
+      build_local=true
+      shift
+      ;;
+    --external)
+      external=true
+      shift
+      ;;
+    --observability)
+      observability=true
+      shift
       ;;
     --)
       shift
@@ -94,60 +37,49 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-prepare_backend=false
-prepare_frontend=false
-skip_dependencies=false
+if [ "$external" = true ] && [ "$observability" = true ]; then
+  echo "Observability profile is only available with bundled Elasticsearch." >&2
+  exit 1
+fi
 
-if [ "$#" -eq 0 ]; then
-  prepare_backend=true
-  prepare_frontend=true
+if [ "$external" = true ]; then
+  base_compose_file=docker-compose.external.yml
+  build_compose_file=docker-compose.external.build.yml
 else
-  for service in "$@"; do
-    case "$service" in
-      backend)
-        prepare_backend=true
-        ;;
-      frontend)
-        prepare_backend=true
-        prepare_frontend=true
-        ;;
-    esac
-  done
+  base_compose_file=docker-compose.yml
+  build_compose_file=docker-compose.build.yml
 fi
 
-if [ "$#" -eq 1 ] && [ "$1" = "frontend" ]; then
-  # shellcheck disable=SC2086
-  running_services=$(docker compose $compose_options ps --services --status running 2>/dev/null || true)
-  if printf '%s\n' "$running_services" | grep -qx backend &&
-     printf '%s\n' "$running_services" | grep -qx drawio; then
-    prepare_backend=false
-    skip_dependencies=true
-    echo "backend and drawio are already running; rebuilding frontend only."
-  fi
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  echo "Created deploy/.env from .env.example. Change the default passwords before exposing the service publicly."
 fi
 
-if [ "$prepare_backend" = true ]; then
-  app_source=$(get_config_value ARTE_APP_JAR_SOURCE)
-  if [ -z "$app_source" ]; then
-    echo "ARTE_APP_JAR_SOURCE is required. Set it to a local jar path or an http(s) URL." >&2
-    exit 1
-  fi
-  prepare_artifact "arte-app-boot" "$app_source" "./backend/artifacts" "jar" "ARTE_APP_JAR_FILE"
-fi
+compose() {
+  if [ "$observability" = true ]; then set -- --profile observability "$@"; fi
+  if [ "$https" = true ]; then set -- -f docker-compose.https.yml "$@"; fi
+  if [ "$build_local" = true ]; then set -- -f "$build_compose_file" "$@"; fi
+  docker compose -f "$base_compose_file" "$@"
+}
 
-if [ "$prepare_frontend" = true ]; then
-  front_source=$(get_config_value ARTE_FRONT_DIST_SOURCE)
-  if [ -z "$front_source" ]; then
-    echo "ARTE_FRONT_DIST_SOURCE is required. Set it to a local dist.zip path or an http(s) URL." >&2
-    exit 1
-  fi
-  prepare_artifact "dist" "$front_source" "./frontend/artifacts" "zip" "ARTE_FRONT_DIST_FILE"
-fi
+compose config --quiet
 
-if [ "$skip_dependencies" = true ]; then
-  # shellcheck disable=SC2086
-  exec docker compose $compose_options up -d --build --force-recreate --no-deps "$@"
+if [ "$build_local" = true ]; then
+  compose up -d --wait --wait-timeout 900 --build --pull never "$@"
 else
-  # shellcheck disable=SC2086
-  exec docker compose $compose_options up -d --build --force-recreate "$@"
+  compose up -d --wait --wait-timeout 900 "$@"
+fi
+
+arte_binding=$(compose port frontend 8080 | sed -n '1p')
+arte_port=${arte_binding##*:}
+echo
+echo "AIRichTextEditor is ready: http://localhost:${arte_port}"
+if [ "$https" = true ]; then
+  https_binding=$(compose port frontend 8443 | sed -n '1p')
+  echo "HTTPS is ready: https://localhost:${https_binding##*:}"
+fi
+if [ "$observability" = true ]; then
+  kibana_binding=$(compose port kibana 5601 | sed -n '1p')
+  kibana_port=${kibana_binding##*:}
+  echo "Kibana is ready: http://localhost:${kibana_port}"
 fi

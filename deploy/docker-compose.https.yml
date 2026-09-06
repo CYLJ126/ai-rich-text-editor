@@ -1,0 +1,18 @@
+services:
+  frontend:
+    ports:
+      - "${ARTE_BIND_ADDRESS:-0.0.0.0}:${ARTE_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - type: bind
+        source: ${ARTE_TLS_CERT_FILE:?Set ARTE_TLS_CERT_FILE to your PEM certificate chain}
+        target: /etc/nginx/certs/server.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ARTE_TLS_KEY_FILE:?Set ARTE_TLS_KEY_FILE to your PEM private key}
+        target: /etc/nginx/certs/server.key
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./frontend/https.conf:/etc/nginx/tls/https.conf:ro

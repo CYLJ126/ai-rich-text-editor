@@ -1,0 +1,95 @@
+name: ai-rich-text-editor-external
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  drawio:
+    image: jgraph/drawio:31.4.2
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+
+  backend:
+    image: ${ARTE_REGISTRY:-ghcr.io/cylj126}/${ARTE_IMAGE_NAME:-ai-rich-text-editor}-backend:${ARTE_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx2g}
+      SERVER_PORT: 12636
+      SERVER_SERVLET_CONTEXT_PATH: /arte
+      SPRING_APPLICATION_NAME: AIRichTextEditor
+      LOGGING_CONFIG: classpath:log4j2.xml
+      ARTE_BACKEND_CONFIG_FILE: /app/config/source-app.properties
+      REDIS_ADDRESS: redis://redis:6379
+      REDIS_PASSWORD: ""
+      SPRING_AI_EMBEDDING_PROVIDER: bge-small
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.ai.model.transformers.autoconfigure.TransformersEmbeddingModelAutoConfiguration
+      SPRING_AI_DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-not-configured}
+      JWT_BASE64_SECRET_KEY: ${JWT_BASE64_SECRET_KEY:-}
+      JWT_DEFAULT_PASSWORD: ${JWT_DEFAULT_PASSWORD:-arte@2026}
+      SECURITY_SM2_PRIVATEKEY: ${SECURITY_SM2_PRIVATE_KEY:-}
+      SECURITY_SM2_PUBLICKEY: ${SECURITY_SM2_PUBLIC_KEY:-}
+      RICH_TEXT_STORAGE_TYPE: LOCAL
+      RICH_TEXT_STORAGE_LOCAL_IMAGE_PATH: /app/data/uploads/richtext/images
+      RICH_TEXT_STORAGE_LOCAL_FILE_PATH: /app/data/uploads/richtext/files
+      HTTP_PROXY_HOST: ${HTTP_PROXY_HOST:-}
+      HTTP_PROXY_PORT: ${HTTP_PROXY_PORT:-0}
+    volumes:
+      - backend-logs:/usr/local/data/log/AIRichTextEditor
+      - backend-uploads:/app/data/uploads
+      - backend-secrets:/app/secrets
+      - type: bind
+        source: ${ARTE_BACKEND_CONFIG_FILE:-../backend/profile/app.properties}
+        target: /app/config/source-app.properties
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--max-time", "3", "-X", "POST", "-H", "Connection: close", "-o", "/dev/null", "http://127.0.0.1:12636/arte/auth/getPubKey"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 45s
+
+  frontend:
+    image: ${ARTE_REGISTRY:-ghcr.io/cylj126}/${ARTE_IMAGE_NAME:-ai-rich-text-editor}-frontend:${ARTE_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      drawio:
+        condition: service_started
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-50m}
+      NGINX_BACKEND_UPSTREAM: http://backend:12636
+      NGINX_DRAWIO_UPSTREAM: http://drawio:8080
+      NGINX_ROOT_REDIRECT: ${NGINX_ROOT_REDIRECT:-/Writing/BasicWriting}
+      NGINX_SPA_FALLBACK: ${NGINX_SPA_FALLBACK:-/Welcome/index.html}
+    ports:
+      - "${ARTE_BIND_ADDRESS:-0.0.0.0}:${ARTE_PORT:-8000}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  redis-data:
+  backend-logs:
+  backend-uploads:
+  backend-secrets:

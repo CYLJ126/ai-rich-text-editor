@@ -88,6 +88,10 @@
         select <include refid="editorColumn" /> from arte_rt_article where id = #{id} and is_delete = 0
     </select>
 
+    <select id="getContentMdById" resultType="java.lang.String">
+        select content_md from arte_rt_article where id = #{id} and is_delete = 0
+    </select>
+
     <select id="getContentTextById" resultType="java.lang.String">
         select content_text from arte_rt_article where id = #{id} and is_delete = 0
     </select>

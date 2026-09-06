@@ -1,18 +1,30 @@
+FROM node:22-alpine AS build
+WORKDIR /workspace/frontend
+
+ARG BUILD_PROXY_URL
+ARG BUILD_NPM_REGISTRY=https://registry.npmjs.org
+
+COPY frontend/package.json frontend/yarn.lock ./
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -n "$BUILD_PROXY_URL" ]; then \
+      export HTTP_PROXY="$BUILD_PROXY_URL" HTTPS_PROXY="$BUILD_PROXY_URL"; \
+    fi \
+    && npm install --global --force yarn@1.22.22 --registry="$BUILD_NPM_REGISTRY"
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+    yarn install --frozen-lockfile --ignore-scripts
+
+COPY frontend/ ./
+ENV NODE_OPTIONS=--max-old-space-size=4096
+RUN npm run build
+
 FROM nginx:1.27-alpine
+LABEL org.opencontainers.image.source="https://github.com/CYLJ126/ai-rich-text-editor" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="AIRichTextEditor Frontend"
 
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY deploy/frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /workspace/frontend/dist/ /usr/share/nginx/html/
 
-RUN apk add openssl unzip \
-    && mkdir -p /etc/nginx/certs \
-    && openssl req -x509 -nodes -newkey rsa:2048 -days 36500 \
-        -keyout /etc/nginx/certs/server.key \
-        -out /etc/nginx/certs/server.crt \
-        -subj "/CN=localhost" \
-    && rm -rf /usr/share/nginx/html/*
-
-ARG ARTE_FRONT_DIST_FILE
-COPY ${ARTE_FRONT_DIST_FILE} /tmp/dist.zip
-RUN unzip /tmp/dist.zip -d /usr/share/nginx/html \
-    && rm /tmp/dist.zip
-
-EXPOSE 8000
+EXPOSE 8080 8443
+HEALTHCHECK --interval=10s --timeout=5s --retries=10 \
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1

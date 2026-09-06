@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 -- auto-generated definition
 DROP PROCEDURE IF EXISTS add_index_if_not_exists;
 DELIMITER $$
@@ -40,7 +42,7 @@ create table if not exists arte_rt_article
     update_by    varchar(32)                          not null comment '更新人id',
     create_time  timestamp  default CURRENT_TIMESTAMP not null comment '创建时间',
     update_time  timestamp  default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    word_count   int                                  null comment '字数',
+    character_count int                              null comment '字数',
     order_id     smallint   default 0                 not null comment '目录内排序序号',
     access_level varchar(16)                          null comment '访问权限级别',
     article_type varchar(16)                          null comment '文章类型',
