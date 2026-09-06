@@ -13,6 +13,32 @@ ARTE（AI Rich Text Editor）是一个由 Java 后端和 Web 前端组成的 AI 
 后端和部署说明请参阅 [backend/README.md](backend/README.md) 和
 [deploy/DOCKER_DEPLOY.md](deploy/DOCKER_DEPLOY.md)。
 
+## Docker 一键部署
+
+安装 Docker Desktop，或 Docker Engine 与 Compose 插件，然后在仓库根目录执行：
+
+```powershell
+# Windows PowerShell
+cd deploy
+.\compose-up.ps1
+```
+
+```sh
+# Linux / macOS
+cd deploy
+./compose-up.sh
+```
+
+脚本会等待核心服务全部健康后再返回。启动完成后打开
+[http://localhost:8000](http://localhost:8000)，使用初始管理员账号登录：
+
+- 用户名：`admin`
+- 密码：`Aa111111`
+
+首次登录后请立即修改管理员密码。部署到公网前，还应修改首次运行时复制到
+`deploy/.env` 中的服务密码。HTTPS、本地源码构建、使用现有 MySQL/Elasticsearch
+及日常运维请参阅[详细 Docker 部署手册](deploy/readme.md)。
+
 ## 部署前的安全配置
 
 请将示例配置复制为被 Git 忽略的本地配置文件，并在服务接入网络前替换所有占位值和默认凭据。
