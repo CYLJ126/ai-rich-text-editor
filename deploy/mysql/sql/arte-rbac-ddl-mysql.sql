@@ -1,4 +1,6 @@
-﻿-- auto-generated definition
+SET NAMES utf8mb4;
+
+-- auto-generated definition
 create table if not exists arte_rbac_menu
 (
     id          int auto_increment comment 'ID'
@@ -100,5 +102,3 @@ create table if not exists arte_rbac_user
         unique (user_name)
 )
     comment '用户表';
-
-

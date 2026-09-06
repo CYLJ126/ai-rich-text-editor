@@ -1,0 +1,4 @@
+{"index":{"_index":"articles","_id":"118"}}
+{"article_id":118,"title":"118-ARTE简介","summary":"ARTE 的产品定位、核心体验、典型使用场景与私有部署价值。","author":"admin","catalog_id":118,"tag_ids":[],"article_type":"generic","access_level":"private","is_public":true,"create_by":"admin","update_by":"admin","character_count":2643,"row_version":1,"cover":"/arte/article-covers/connected-knowledge.webp","create_time":"__TIMESTAMP__","update_time":"__TIMESTAMP__"}
+{"index":{"_index":"articles","_id":"119"}}
+{"article_id":119,"title":"119-ARTE全部特性","summary":"ARTE 写作、图表、媒体、搜索、AI、批注、版本与管理能力的完整使用手册。","author":"admin","catalog_id":118,"tag_ids":[],"article_type":"generic","access_level":"private","is_public":true,"create_by":"admin","update_by":"admin","character_count":28620,"row_version":1,"cover":"/arte/article-covers/structured-space.webp","create_time":"__TIMESTAMP__","update_time":"__TIMESTAMP__"}

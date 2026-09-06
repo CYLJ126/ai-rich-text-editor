@@ -1,5 +1,6 @@
 import {i18nText} from '@/utils/i18n';
 import UniqueID from '@tiptap/extension-unique-id';
+import type { Editor } from '@tiptap/core';
 import {EditorContent, useEditor} from '@tiptap/react';
 import dayjs from 'dayjs';
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
@@ -36,7 +37,6 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   visible = true,
   editButtons,
 }) => {
-  const editor = useEditorStore((state) => state.editor);
   const viewSize = useEditorStore((state) => state.viewSize);
   const editorStyle = useEditorStore((state) => state.editorStyle);
   const editAreaHeight = useEditorStore((state) => state.editAreaHeight);
@@ -108,12 +108,14 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
     [onSave],
   );
 
-  const newEditor = useEditor({
+  const editor: Editor | null = useEditor({
+    // 在 React 提交后创建实例，避免预渲染/登录跳转丢弃的 render 留下已销毁实例。
+    immediatelyRender: false,
     content: rawText,
     contentType: 'markdown',
     extensions: assembleExtensions(),
     onUpdate: handleUpdate,
-    onDestroy: ({ editor }: any) => {
+    onDestroy: () => {
       // Tiptap 随后会把 commandManager 置空；先同步移除全局引用，
       // 避免侧栏 effect 在销毁窗口内继续读取 editor.commands。
       if (useEditorStore.getState().editor === editor) {
@@ -131,7 +133,7 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
 
   useEffect(() => {
     console.log('初始化编辑器');
-    setEditor(newEditor ?? undefined);
+    setEditor(editor ?? undefined);
     // 设置宽度
     const viewSize = localStorage.getItem('richText-editor-width');
     viewSize && setViewSize(Number(viewSize));
@@ -143,16 +145,16 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
     return () => {
       // useEditor 会负责销毁实例。这里只清理发布到全局 store 的引用，
       // 避免重复 destroy 后 React/Tiptap 的卸载流程继续读取 commands。
-      if (useEditorStore.getState().editor === newEditor) {
+      if (useEditorStore.getState().editor === editor) {
         setEditor(undefined);
       }
     };
-  }, [newEditor]);
+  }, [editor]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     editor.setEditable(operationMode === 'edit');
-  }, [operationMode]);
+  }, [operationMode, editor]);
 
   const bubbleEditButtons = useMemo<ToolbarButtonItem[]>(
     () =>

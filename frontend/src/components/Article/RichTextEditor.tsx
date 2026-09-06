@@ -744,10 +744,13 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             setOperationMode(newOperationMode);
             setOperationModeMeta(getOperationModeMeta(newOperationMode));
           }
-          const articleContent = res.contentJson
-            ? JSON.parse(res.contentJson)
-            : '';
-          editor.commands.setContent(articleContent);
+          if (res.contentJson) {
+            editor.commands.setContent(JSON.parse(res.contentJson));
+          } else {
+            editor.commands.setContent(res.contentMd || '', {
+              contentType: 'markdown',
+            });
+          }
           editor.commands.setArticleInfo(res);
           // 新文章从全新的插件状态开始，避免撤销栈等状态跨文章复用。
           editor.view.updateState(

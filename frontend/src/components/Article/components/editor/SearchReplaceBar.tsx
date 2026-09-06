@@ -219,6 +219,7 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
   }, [editor]);
 
   useEffect(() => {
+    const editorDom = editor.view.dom;
     const handlePointerDown = (event: PointerEvent) => {
       const position = editor.view.posAtCoords({
         left: event.clientX,
@@ -230,10 +231,10 @@ const SearchReplaceBar: React.FC<SearchReplaceBarProps> = ({
       currentArticlePositionRef.current = editor.state.selection.from;
     };
 
-    editor.view.dom.addEventListener('pointerdown', handlePointerDown);
+    editorDom.addEventListener('pointerdown', handlePointerDown);
     editor.on('selectionUpdate', handleSelectionUpdate);
     return () => {
-      editor.view.dom.removeEventListener('pointerdown', handlePointerDown);
+      editorDom.removeEventListener('pointerdown', handlePointerDown);
       editor.off('selectionUpdate', handleSelectionUpdate);
     };
   }, [editor]);

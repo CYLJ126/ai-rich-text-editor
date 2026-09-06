@@ -584,7 +584,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     @Override
     public ArticleDto getEditorArticleById(Integer articleId) {
-        return baseMapper.getEditorArticleById(articleId);
+        ArticleDto article = baseMapper.getEditorArticleById(articleId);
+        // 初始化的两篇文章没办法存json，所以采用json是空时查md的形式
+        if (article != null && CharSequenceUtil.isEmpty(article.getContentJson())) {
+            article.setContentMd(baseMapper.getContentMdById(articleId));
+        }
+        return article;
     }
 
     /**

@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 DROP PROCEDURE IF EXISTS add_index_if_not_exists;
 DELIMITER $$
 CREATE PROCEDURE add_index_if_not_exists(

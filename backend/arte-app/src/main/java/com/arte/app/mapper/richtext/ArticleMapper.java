@@ -32,6 +32,9 @@ public interface ArticleMapper extends BaseMapper<ArticleDto> {
     /** 按ID查询编辑器所需的文章信息及 JSON 正文（不受拦截器影响） */
     ArticleDto getEditorArticleById(@Param("id") Integer id);
 
+    /** 按ID查询 Markdown 正文（不受拦截器影响） */
+    String getContentMdById(@Param("id") Integer id);
+
     /** Locks the current article row while a history snapshot is being created. */
     ArticleDto getByIdWithContentForUpdate(@Param("id") Integer id);
 

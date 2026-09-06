@@ -1,0 +1,96 @@
+name: Publish Docker images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  images:
+    name: Build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            dockerfile: deploy/backend/Dockerfile
+          - image: frontend
+            dockerfile: deploy/frontend/Dockerfile
+          - image: elasticsearch
+            dockerfile: deploy/elasticsearch/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/cylj126/ai-rich-text-editor-${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: mode=max
+          sbom: true
+
+  release-bundle:
+    name: Attach deployment bundle
+    if: github.event_name == 'release'
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Package deployment files
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          zip -r "ai-rich-text-editor-deploy-${RELEASE_TAG}.zip" deploy \
+            docs/public/118-ARTE简介.md docs/public/119-ARTE全部特性.md \
+            -x "deploy/backend/artifacts/*" "deploy/frontend/artifacts/*" \
+               "deploy/.env" "deploy/certs/*" "deploy/validation.local/*"
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "${RELEASE_TAG}" "ai-rich-text-editor-deploy-${RELEASE_TAG}.zip" --clobber

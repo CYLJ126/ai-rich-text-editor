@@ -35,6 +35,7 @@ for sql_file in \
   /sql/arte-home-dml-mysql.sql \
   /sql/arte-rbac-ddl-mysql.sql \
   /sql/arte-rbac-dml-mysql.sql \
+  /sql/arte-ai-ddl-mysql.sql \
   /sql/arte-rt-ddl-mysql.sql; do
   echo "Running ${sql_file}..."
   MYSQL_PWD="${MYSQL_PASSWORD}" mysql \
