@@ -14,6 +14,35 @@ Java backend and a web frontend.
 See [backend/README.md](backend/README.md) and [deploy/DOCKER_DEPLOY.md](deploy/DOCKER_DEPLOY.md)
 for the available backend and deployment notes.
 
+## Docker quick start
+
+Install Docker Desktop, or Docker Engine with the Compose plugin, then run from
+the repository root:
+
+```powershell
+# Windows PowerShell
+cd deploy
+.\compose-up.ps1
+```
+
+```sh
+# Linux / macOS
+cd deploy
+./compose-up.sh
+```
+
+The script returns after the core services become healthy. Open
+[http://localhost:8000](http://localhost:8000) and sign in with the initial
+administrator account:
+
+- Username: `admin`
+- Password: `Aa111111`
+
+Change the administrator password immediately after the first login. Before
+exposing the service to a network, also replace the service passwords copied to
+`deploy/.env`. For HTTPS, local-source builds, external MySQL/Elasticsearch and
+operations, see the [detailed Docker deployment guide](deploy/DOCKER_DEPLOY.md).
+
 ## Security before deployment
 
 Copy example configuration files to local, ignored files and replace every
