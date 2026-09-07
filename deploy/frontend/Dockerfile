@@ -3,6 +3,7 @@ WORKDIR /workspace/frontend
 
 ARG BUILD_PROXY_URL
 ARG BUILD_NPM_REGISTRY=https://registry.npmjs.org
+ARG TARGETARCH
 
 COPY frontend/package.json frontend/yarn.lock ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -10,7 +11,8 @@ RUN --mount=type=cache,target=/root/.npm \
       export HTTP_PROXY="$BUILD_PROXY_URL" HTTPS_PROXY="$BUILD_PROXY_URL"; \
     fi \
     && npm install --global --force yarn@1.22.22 --registry="$BUILD_NPM_REGISTRY"
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+# Isolate architecture builds and serialize writers to each Yarn v1 cache.
+RUN --mount=type=cache,id=arte-frontend-yarn-${TARGETARCH},target=/usr/local/share/.cache/yarn,sharing=locked \
     yarn install --frozen-lockfile --ignore-scripts
 
 COPY frontend/ ./
