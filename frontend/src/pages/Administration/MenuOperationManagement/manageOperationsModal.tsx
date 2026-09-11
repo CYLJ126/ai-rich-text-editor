@@ -24,6 +24,7 @@ const MENU_CODE_MAP: Record<string, string[]> = {
   'Summary': ['summary'],
   "TagManagement": ['tag', 'tagRelation'],
   "StickyNote": ['sticky'],
+  "PdfHandler": ['pdf'],
 };
 
 interface Operation {

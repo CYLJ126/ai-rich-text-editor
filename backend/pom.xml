@@ -170,12 +170,12 @@
             <dependency>
                 <groupId>org.apache.pdfbox</groupId>
                 <artifactId>pdfbox</artifactId>
-                <version>3.0.5</version>
+                <version>3.0.8</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.pdfbox</groupId>
                 <artifactId>pdfbox-tools</artifactId>
-                <version>3.0.5</version>
+                <version>3.0.8</version>
             </dependency>
             <!-- 二维码生成工具 -->
             <dependency>
