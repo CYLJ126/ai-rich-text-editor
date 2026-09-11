@@ -6,6 +6,12 @@ ARTE（AI Rich Text Editor）是一个支持私有部署的富文本编辑与知
 
 ![文章列表与文档空间](docs/public/assets/captures/editor/readme-overview.png)
 
+## demo 体验地址
+
+http://nas.haiqingd.top:19836/Writing/BasicWriting/?articleId=122
+用户名: guest
+密码: arte@2026
+
 ## Markdown、数学公式与图表
 
 编辑器提供富文本、Markdown 源码和分屏显示模式，支持格式转换、章节导航、正文查找替换和保存状态提示。
