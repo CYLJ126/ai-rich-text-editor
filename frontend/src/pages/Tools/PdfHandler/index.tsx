@@ -44,6 +44,7 @@ import styles from './index.less';
 import {formatPageExpression, parsePageExpression} from './pageSelection';
 import {convertPdfToPictures, extractPdfPages, readPdfMetadata,} from './service';
 import type {PdfMetadata, PdfOperationResult, PdfOutlineEntry, PdfToolKey, SplitValues, ToPicValues,} from './types';
+import {useComponentHeight} from "@/utils/useDynamicHeight";
 
 const { Dragger } = Upload;
 const { Paragraph, Text, Title } = Typography;
@@ -86,6 +87,7 @@ const TOOLS: Array<{
 ];
 
 const PdfHandler: React.FC = () => {
+  const componentHeight = useComponentHeight(37, 640);
   const { message } = App.useApp();
   const [activeTool, setActiveTool] = useState<PdfToolKey>('toPic');
   const [file, setFile] = useState<File>();
@@ -220,7 +222,7 @@ const PdfHandler: React.FC = () => {
         : '尚未选择页面';
 
   return (
-    <div className={styles.page}>
+    <div style={{height: componentHeight}}>
       <Splitter className={styles.workspace}>
         <Splitter.Panel defaultSize="40%" min={340} max="70%">
           <section className={styles.leftPanel}>
