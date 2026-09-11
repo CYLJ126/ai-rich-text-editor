@@ -55,6 +55,7 @@ export default {
   'menu.Tools': 'Tool',
   'menu.Tools.TextFormatter': 'Text Formatter',
   'menu.Tools.CacheTest': 'Cache Test',
+  'menu.Tools.PdfHandler': 'PDF Tools',
   'menu.Personal': 'Personal',
   'menu.Personal.TagManagement': 'Tag Management',
   'menu.Personal.StickyNote': 'Sticky Note',

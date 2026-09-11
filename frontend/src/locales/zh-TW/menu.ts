@@ -55,6 +55,7 @@ export default {
   'menu.Tools': '工具',
   'menu.Tools.TextFormatter': '文本格式化',
   'menu.Tools.CacheTest': '頁面緩存測試',
+  'menu.Tools.PdfHandler': 'PDF 處理',
   'menu.Personal': '個人管理',
   'menu.Personal.TagManagement': '標籤管理',
   'menu.Personal.StickyNote': '便笺',
