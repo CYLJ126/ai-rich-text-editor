@@ -12,7 +12,7 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined,
 } from '@ant-design/icons';
-import type { UploadProps } from 'antd';
+import type {UploadProps} from 'antd';
 import {
   Alert,
   App,
@@ -32,25 +32,26 @@ import {
   Typography,
   Upload,
 } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import styles from './index.less';
-import { formatPageExpression, parsePageExpression } from './pageSelection';
 import {
-  convertPdfToPictures,
-  extractPdfPages,
-  readPdfMetadata,
-} from './service';
-import type {
-  PdfMetadata,
-  PdfOperationResult,
-  PdfOutlineEntry,
-  PdfToolKey,
-  SplitValues,
-  ToPicValues,
-} from './types';
+  getDocument,
+  GlobalWorkerOptions,
+  type PDFDocumentLoadingTask,
+  type PDFDocumentProxy,
+  type RenderTask,
+} from 'pdfjs-dist';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import styles from './index.less';
+import {formatPageExpression, parsePageExpression} from './pageSelection';
+import {convertPdfToPictures, extractPdfPages, readPdfMetadata,} from './service';
+import type {PdfMetadata, PdfOperationResult, PdfOutlineEntry, PdfToolKey, SplitValues, ToPicValues,} from './types';
 
 const { Dragger } = Upload;
 const { Paragraph, Text, Title } = Typography;
+
+GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 const TOOLS: Array<{
   key: PdfToolKey;
@@ -88,7 +89,6 @@ const PdfHandler: React.FC = () => {
   const { message } = App.useApp();
   const [activeTool, setActiveTool] = useState<PdfToolKey>('toPic');
   const [file, setFile] = useState<File>();
-  const [pdfUrl, setPdfUrl] = useState('');
   const [metadata, setMetadata] = useState<PdfMetadata>();
   const [selectedPages, setSelectedPages] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,13 +106,6 @@ const PdfHandler: React.FC = () => {
   const requestSequence = useRef(0);
   const exportAll = Form.useWatch('exportAll', toPicForm) ?? false;
 
-  useEffect(
-    () => () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    },
-    [pdfUrl],
-  );
-
   const pageExpression = useMemo(
     () => formatPageExpression(selectedPages),
     [selectedPages],
@@ -122,7 +115,6 @@ const PdfHandler: React.FC = () => {
     const sequence = requestSequence.current + 1;
     requestSequence.current = sequence;
     setFile(nextFile);
-    setPdfUrl(URL.createObjectURL(nextFile));
     setMetadata(undefined);
     setSelectedPages([]);
     setCurrentPage(1);
@@ -143,7 +135,6 @@ const PdfHandler: React.FC = () => {
     } catch (error) {
       if (requestSequence.current === sequence) {
         setFile(undefined);
-        setPdfUrl('');
         message.error(error instanceof Error ? error.message : 'PDF 读取失败');
       }
     } finally {
@@ -309,11 +300,11 @@ const PdfHandler: React.FC = () => {
         <Splitter.Panel defaultSize="60%" min={420}>
           <PdfPreview
             currentPage={currentPage}
+            file={file}
             fileName={file?.name}
             metadata={metadata}
             outlineMode={outlineMode}
             outlineVisible={outlineVisible}
-            pdfUrl={pdfUrl}
             selectedPages={selectedPages}
             zoom={zoom}
             onCurrentPageChange={setCurrentPage}
@@ -484,11 +475,11 @@ const OperationResult: React.FC<{ result: PdfOperationResult }> = ({
 
 interface PdfPreviewProps {
   currentPage: number;
+  file?: File;
   fileName?: string;
   metadata?: PdfMetadata;
   outlineMode: 'pages' | 'bookmarks';
   outlineVisible: boolean;
-  pdfUrl: string;
   selectedPages: number[];
   zoom: number;
   onCurrentPageChange: (page: number) => void;
@@ -502,11 +493,11 @@ interface PdfPreviewProps {
 const PdfPreview: React.FC<PdfPreviewProps> = (props) => {
   const {
     currentPage,
+    file,
     fileName,
     metadata,
     outlineMode,
     outlineVisible,
-    pdfUrl,
     selectedPages,
     zoom,
     onCurrentPageChange,
@@ -517,15 +508,69 @@ const PdfPreview: React.FC<PdfPreviewProps> = (props) => {
     onZoomChange,
   } = props;
   const pageCount = metadata?.pageCount ?? 0;
-  const pages = useMemo(
-    () => Array.from({ length: pageCount }, (_, index) => index + 1),
-    []);
-  const frameUrl = pdfUrl ? `${pdfUrl}#page=${currentPage}&zoom=${zoom}` : '';
-
+  const viewerRef = useRef<HTMLElement>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  // 元数据异步返回后重新生成页码列表。
+  const pages = Array.from(
+    {length: Math.max(0, Number(pageCount))},
+    (_, index) => index + 1,
+  );
   const goToPage = (page: number | null) => {
-    if (page != null)
-      onCurrentPageChange(Math.min(Math.max(page, 1), pageCount || 1));
+    if (page == null) return;
+    const targetPage = Math.min(Math.max(page, 1), pageCount || 1);
+    onCurrentPageChange(targetPage);
+    requestAnimationFrame(() => {
+      const viewer = viewerRef.current;
+      const target = viewer?.querySelector<HTMLElement>(
+        `[data-pdf-page="${targetPage}"]`,
+      );
+      if (viewer && target) {
+        viewer.scrollTo({
+          top: Math.max(0, target.offsetTop - 12),
+          behavior: 'smooth',
+        });
+      }
+    });
   };
+
+  const handlePreviewScroll = () => {
+    if (scrollFrameRef.current != null) return;
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const viewer = viewerRef.current;
+      if (!viewer) return;
+      const focusY =
+        viewer.getBoundingClientRect().top +
+        Math.min(viewer.clientHeight / 3, 180);
+      let closestPage = currentPage;
+      let closestDistance = Number.POSITIVE_INFINITY;
+      viewer
+        .querySelectorAll<HTMLElement>('[data-pdf-page]')
+        .forEach((item) => {
+          const rect = item.getBoundingClientRect();
+          const distance =
+            focusY < rect.top
+              ? rect.top - focusY
+              : focusY > rect.bottom
+                ? focusY - rect.bottom
+                : 0;
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestPage = Number(item.dataset.pdfPage);
+          }
+        });
+      if (closestPage !== currentPage) onCurrentPageChange(closestPage);
+    });
+  };
+
+  useEffect(
+    () => () => {
+      if (scrollFrameRef.current != null) {
+        cancelAnimationFrame(scrollFrameRef.current);
+      }
+    },
+    [],
+  );
 
   return (
     <section className={styles.previewPanel}>
@@ -555,6 +600,9 @@ const PdfPreview: React.FC<PdfPreviewProps> = (props) => {
             max={pageCount || 1}
             value={currentPage}
             onChange={goToPage}
+            onPressEnter={(event) =>
+              goToPage(Number(event.currentTarget.value))
+            }
             style={{ width: 72 }}
           />
           <Text type="secondary">/ {pageCount || '-'}</Text>
@@ -643,12 +691,17 @@ const PdfPreview: React.FC<PdfPreviewProps> = (props) => {
           </aside>
         ) : null}
 
-        <main className={styles.viewer}>
-          {frameUrl ? (
-            <iframe
-              className={styles.pdfFrame}
-              src={frameUrl}
-              title={fileName || 'PDF preview'}
+        <main
+          className={styles.viewer}
+          ref={viewerRef}
+          onScroll={handlePreviewScroll}
+        >
+          {file ? (
+            <PdfCanvas
+              currentPage={currentPage}
+              file={file}
+              scrollRootRef={viewerRef}
+              zoom={zoom}
             />
           ) : (
             <div className={styles.emptyPreview}>
@@ -661,6 +714,198 @@ const PdfPreview: React.FC<PdfPreviewProps> = (props) => {
         </main>
       </div>
     </section>
+  );
+};
+
+interface PdfCanvasProps {
+  currentPage: number;
+  file: File;
+  scrollRootRef: React.RefObject<HTMLElement | null>;
+  zoom: number;
+}
+
+const PdfCanvas: React.FC<PdfCanvasProps> = ({
+                                               currentPage,
+                                               file,
+                                               scrollRootRef,
+                                               zoom,
+                                             }) => {
+  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let loadingTask: PDFDocumentLoadingTask | undefined;
+
+    const loadPdf = async () => {
+      setLoading(true);
+      setError('');
+      setPdfDocument(undefined);
+      try {
+        const data = await file.arrayBuffer();
+        if (cancelled) return;
+        loadingTask = getDocument({data: new Uint8Array(data)});
+        const document = await loadingTask.promise;
+        if (cancelled) return;
+        setPdfDocument(document);
+        setLoading(false);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error ? loadError.message : 'PDF 预览加载失败',
+          );
+        }
+      }
+    };
+
+    void loadPdf();
+    return () => {
+      cancelled = true;
+      void loadingTask?.destroy();
+    };
+  }, [file]);
+
+  if (error) {
+    return (
+      <Alert message="预览失败" description={error} type="error" showIcon/>
+    );
+  }
+
+  if (loading || !pdfDocument) {
+    return <Spin className={styles.previewSpin}/>;
+  }
+
+  return (
+    <div className={styles.pdfCanvasStage}>
+      {Array.from({length: pdfDocument.numPages}, (_, index) => {
+        const pageNumber = index + 1;
+        return (
+          <PdfPageCanvas
+            active={currentPage === pageNumber}
+            document={pdfDocument}
+            key={pageNumber}
+            page={pageNumber}
+            scrollRootRef={scrollRootRef}
+            zoom={zoom}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+interface PdfPageCanvasProps {
+  active: boolean;
+  document: PDFDocumentProxy;
+  page: number;
+  scrollRootRef: React.RefObject<HTMLElement | null>;
+  zoom: number;
+}
+
+const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
+                                                       active,
+                                                       document,
+                                                       page,
+                                                       scrollRootRef,
+                                                       zoom,
+                                                     }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [nearViewport, setNearViewport] = useState(page <= 2);
+  const [rendering, setRendering] = useState(false);
+  const [renderError, setRenderError] = useState('');
+  const [baseSize, setBaseSize] = useState({width: 793, height: 1123});
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const root = scrollRootRef.current;
+    if (!wrapper || !root) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNearViewport(entry.isIntersecting),
+      {root, rootMargin: '1000px 500px'},
+    );
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [scrollRootRef]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!nearViewport || !canvas) return;
+    let cancelled = false;
+    let renderTask: RenderTask | undefined;
+
+    const renderPage = async () => {
+      setRendering(true);
+      setRenderError('');
+      try {
+        const pdfPage = await document.getPage(page);
+        if (cancelled) return;
+        // PDF 使用 72 DPI，浏览器 CSS 像素使用 96 DPI。
+        const viewport = pdfPage.getViewport({
+          scale: (zoom / 100) * (96 / 72),
+        });
+        setBaseSize({
+          width: (viewport.width * 100) / zoom,
+          height: (viewport.height * 100) / zoom,
+        });
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        renderTask = pdfPage.render({
+          canvas,
+          viewport,
+          transform:
+            outputScale === 1
+              ? undefined
+              : [outputScale, 0, 0, outputScale, 0, 0],
+        });
+        await renderTask.promise;
+      } catch (error) {
+        if (!cancelled) {
+          setRenderError(
+            error instanceof Error ? error.message : 'PDF 页面渲染失败',
+          );
+        }
+      } finally {
+        if (!cancelled) setRendering(false);
+      }
+    };
+
+    void renderPage();
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+    };
+  }, [document, nearViewport, page, zoom]);
+
+  return (
+    <div
+      className={`${styles.pdfPage} ${active ? styles.pdfPageActive : ''}`}
+      data-pdf-page={page}
+      ref={wrapperRef}
+      style={{
+        width: Math.round((baseSize.width * zoom) / 100),
+        height: Math.round((baseSize.height * zoom) / 100),
+      }}
+    >
+      {nearViewport ? (
+        <canvas className={styles.pdfCanvas} ref={canvasRef}/>
+      ) : null}
+      {rendering ? <Spin className={styles.pageSpin} size="small"/> : null}
+      {renderError ? (
+        <Alert
+          className={styles.pageRenderError}
+          message={`第 ${page} 页渲染失败`}
+          description={renderError}
+          type="error"
+          showIcon
+        />
+      ) : null}
+      <span className={styles.previewPageNumber}>{page}</span>
+    </div>
   );
 };
 
