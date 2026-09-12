@@ -11,6 +11,7 @@ import {AliveScope} from 'react-activation';
 import {AvatarDropdown, ErrorBoundary, LangDropdown, OfflineBanner, ThemeSwitch,} from '@/components';
 import TabsLayout from '@/components/TabsLayout';
 import {Toaster} from '@/components/ui/sonner';
+import {getStoredLayoutMenuState, LayoutMenuContextProvider, saveLayoutMenuState,} from '@/contexts/LayoutMenuContext';
 import {ThemeContextProvider, useThemeContext} from '@/contexts/ThemeContext';
 import IconMap from '@/icons/IconMap';
 import {queryCurrentUser} from '@/services/ant-design-pro/base';
@@ -71,11 +72,13 @@ function transfer(rawMenu: any, userMenuCodes: string[]) {
  * */
 export async function getInitialState(): Promise<{
   settings?: Partial<LayoutSettings>;
+  menuVisible?: boolean;
   currentUser?: API.CurrentUser;
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
   settingDrawerOpen?: boolean;
 }> {
+  const layoutMenuState = getStoredLayoutMenuState();
   const fetchUserInfo = async () => {
     try {
       if (!localStorage.getItem('user_token')) {
@@ -112,7 +115,11 @@ export async function getInitialState(): Promise<{
   ) {
     return {
       fetchUserInfo,
-      settings: defaultSettings as Partial<LayoutSettings>,
+      settings: {
+        ...defaultSettings,
+        collapsed: layoutMenuState.collapsed,
+      } as Partial<LayoutSettings>,
+      menuVisible: layoutMenuState.visible,
       settingDrawerOpen: false,
     };
   }
@@ -127,7 +134,11 @@ export async function getInitialState(): Promise<{
   return {
     fetchUserInfo,
     currentUser,
-    settings: defaultSettings as Partial<LayoutSettings>,
+    settings: {
+      ...defaultSettings,
+      collapsed: layoutMenuState.collapsed,
+    } as Partial<LayoutSettings>,
+    menuVisible: layoutMenuState.visible,
     settingDrawerOpen: false,
   };
 }
@@ -161,13 +172,14 @@ export const layout: RunTimeLayoutConfig = ({
   const isUserPage = history.location.pathname.startsWith('/user/');
 
   return {
-    // ✅ 登录页隐藏左侧菜单栏
-    menuRender: isUserPage ? false : undefined,
-    // ✅ 登录页隐藏顶部 header（直接设为 false，而非函数返回 false，避免空白占位）
+    // 登录页隐藏左侧菜单栏
+    menuRender:
+      isUserPage || initialState?.menuVisible === false ? false : undefined,
+    // 登录页隐藏顶部 header（直接设为 false，而非函数返回 false，避免空白占位）
     headerRender: isUserPage ? false : undefined,
-    // ✅ 登录页隐藏底部 Footer
+    // 登录页隐藏底部 Footer
     footerRender: false,
-    // ✅ 登录页不渲染右上角操作按钮
+    // 登录页不渲染右上角操作按钮
     actionsRender: isUserPage
       ? () => []
       : () => [
@@ -209,9 +221,16 @@ export const layout: RunTimeLayoutConfig = ({
       },
     },
     onCollapse: (collapsed) => {
+      saveLayoutMenuState({
+        visible: initialState?.menuVisible !== false,
+        collapsed,
+      });
       setInitialState({
         ...initialState,
-        settings: { ...initialState.settings, collapsed },
+        settings: {
+          ...initialState?.settings,
+          collapsed,
+        } as Partial<LayoutSettings>,
       });
     },
     // defaultCollapsed: true, // 菜单默认折叠
@@ -274,10 +293,10 @@ export const layout: RunTimeLayoutConfig = ({
         return children;
       }
       return (
-        <>
+        <LayoutMenuContextProvider>
           <TabsLayout />
           {children}
-        </>
+        </LayoutMenuContextProvider>
       );
     },
     ...initialState?.settings,

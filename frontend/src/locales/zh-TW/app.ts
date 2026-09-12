@@ -1156,6 +1156,8 @@ export default {
   'app.article.video.videoview.fceb4604': '刪除視頻',
 
   // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.hideSideMenu': '隱藏左側菜單',
+  'app.article.article.richtexteditor.showSideMenu': '顯示左側菜單',
   'app.article.article.richtexteditor.00c51681': '左右屏切換',
   'app.article.article.richtexteditor.02d2ccab': '轉換為 Markdown 純文本',
   'app.article.article.richtexteditor.063fe6cb': '包含加粗',

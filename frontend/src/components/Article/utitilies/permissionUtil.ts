@@ -8,7 +8,15 @@ import {
 } from "@/types/rt.type";
 
 // ─── 只读按钮 ───
-export const readButtons = ['editor-home', 'switch-area', 'switch-page-size', 'bg-color', 'markdown-export', 'operation-mode'];
+export const readButtons = [
+  'layout-menu-toggle',
+  'editor-home',
+  'switch-area',
+  'switch-page-size',
+  'bg-color',
+  'markdown-export',
+  'operation-mode',
+];
 
 // ─── 编辑按钮 ───
 export const writeButtons = [...readButtons, 'article-cover', 'markdown-text', 'save-article', 'text-paste', 'rich-text-convert', 'share-article'];
