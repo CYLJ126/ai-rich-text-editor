@@ -152,7 +152,13 @@
       margin-bottom: 12px;
     }
 
+    .ant-tabs-nav-list {
+      min-width: 100%;
+      justify-content: space-between;
+    }
+
     .ant-tabs-tab {
+      margin: 0 !important;
       padding: 6px 2px;
       font-size: 12px;
     }
@@ -163,6 +169,37 @@
     overflow: auto;
     border: 1px solid #e8e8e8;
     border-radius: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #bfbfbf transparent;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      border-radius: 3px;
+      background-color: #bfbfbf;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: #999;
+    }
+  }
+
+  &__symbol-tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+
+    &--single {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   &__symbol-table {
@@ -320,6 +357,15 @@
 
     &__symbol-table-scroll {
       border-color: #434343;
+      scrollbar-color: #595959 transparent;
+
+      &::-webkit-scrollbar-thumb {
+        background-color: #595959;
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: #737373;
+      }
     }
 
     &__symbol-table {
@@ -359,7 +405,11 @@
       grid-template-columns: 1fr;
     }
 
-    &__symbol-table {
+    &__symbol-tables {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    &__symbol-tables--single &__symbol-table {
       min-width: 660px;
     }
   }
