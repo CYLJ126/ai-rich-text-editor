@@ -494,8 +494,6 @@ export default {
   'app.article.article.articlesummary.65b24e88': 'Generate',
   'app.article.article.articlesummary.78021264': 'Save',
   'app.article.article.articlesummary.90bc4fbb': 'Polish',
-  'app.article.article.articlesummary.9e7f2eed': 'Limit',
-  'app.article.article.articlesummary.ecff6211': 'character',
   'app.article.article.articlesummary.fd917650':
     'The summary is empty and cannot be polished. Enter content or accept the previous generated result first.',
 
@@ -900,6 +898,7 @@ export default {
 
   // components/Article/components/sidebar/WritingManager.tsx
   'app.article.sidebar.writingmanager.10ca2c0a': 'Continuation Character Limit',
+  'app.article.sidebar.articlesummary.9e7f2eed': 'Summary Limit',
   'app.article.sidebar.writingmanager.5e5f07aa': 'Previous Context Ratio',
   'app.article.sidebar.writingmanager.72fe37cb': 'Saved Successfully',
   'app.article.sidebar.writingmanager.91c75304':

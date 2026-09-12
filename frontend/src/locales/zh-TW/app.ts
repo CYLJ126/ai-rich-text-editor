@@ -468,8 +468,6 @@ export default {
   'app.article.article.articlesummary.65b24e88': '生成',
   'app.article.article.articlesummary.78021264': '保存',
   'app.article.article.articlesummary.90bc4fbb': '潤色',
-  'app.article.article.articlesummary.9e7f2eed': '上限',
-  'app.article.article.articlesummary.ecff6211': '字',
   'app.article.article.articlesummary.fd917650':
     '總結/摘要內容為空，無法潤色，請先輸入內容或接受上一輪生成內容',
 
@@ -824,6 +822,7 @@ export default {
 
   // components/Article/components/sidebar/WritingManager.tsx
   'app.article.sidebar.writingmanager.10ca2c0a': '續寫字數上限',
+  'app.article.sidebar.articlesummary.9e7f2eed': '總結字數上限',
   'app.article.sidebar.writingmanager.5e5f07aa': '前文佔比',
   'app.article.sidebar.writingmanager.72fe37cb': '保存成功',
   'app.article.sidebar.writingmanager.91c75304': '續寫或翻譯時攜帶的上下文數量',
