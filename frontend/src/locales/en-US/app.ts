@@ -1262,6 +1262,8 @@ export default {
   'app.article.video.videoview.fceb4604': 'Delete Video',
 
   // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.hideSideMenu': 'Hide Side Menu',
+  'app.article.article.richtexteditor.showSideMenu': 'Show Side Menu',
   'app.article.article.richtexteditor.00c51681': 'Switch Split View',
   'app.article.article.richtexteditor.02d2ccab':
     'Convert to Markdown Plain Text',

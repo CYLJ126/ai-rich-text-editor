@@ -1,6 +1,9 @@
 import {i18nText} from '@/utils/i18n';
 import {
-  BookOutlined, CommentOutlined,
+  AppstoreFilled,
+  AppstoreOutlined,
+  BookOutlined,
+  CommentOutlined,
   DownloadOutlined,
   EditOutlined,
   FileUnknownOutlined,
@@ -14,31 +17,13 @@ import {
   SplitCellsOutlined,
   TableOutlined,
 } from '@ant-design/icons';
-import type { Editor } from '@tiptap/core';
-import { EditorState } from '@tiptap/pm/state';
-import { history } from '@umijs/max';
-import {
-  Button,
-  Input,
-  Modal,
-  message,
-  Popover,
-  Select,
-  Slider,
-  Spin,
-  Splitter,
-} from 'antd';
-import React, {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { MyColorPicker } from '@/components';
-import { useArticleInfoStore, useEditorStore } from '@/components/Article';
+import type {Editor} from '@tiptap/core';
+import {EditorState} from '@tiptap/pm/state';
+import {history} from '@umijs/max';
+import {Button, Input, message, Modal, Popover, Select, Slider, Spin, Splitter,} from 'antd';
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,} from 'react';
+import {MyColorPicker} from '@/components';
+import {useArticleInfoStore, useEditorStore} from '@/components/Article';
 import {
   ArticleCoverModal,
   ArticleMetaInfo,
@@ -49,18 +34,16 @@ import {
   ToolbarButtonGroup,
   useRichTextData,
 } from '@/components/Article/components';
-import { useInsertTable } from '@/components/Article/extension/table/InsertTableModal';
+import {useInsertTable} from '@/components/Article/extension/table/InsertTableModal';
 import {
   canUseOperationMode,
   readButtons,
   resolveInitialOperationMode,
   writeButtons,
 } from '@/components/Article/utitilies';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import {
-  getEditorArticleById,
-  updateArticle,
-} from '@/services/ant-design-pro/richText';
+import {useLayoutMenu} from '@/contexts/LayoutMenuContext';
+import {useThemeContext} from '@/contexts/ThemeContext';
+import {getEditorArticleById, updateArticle,} from '@/services/ant-design-pro/richText';
 import type {
   ArticleInfoType,
   EditorMode,
@@ -69,7 +52,7 @@ import type {
   PasteStyleStorage,
   ToolbarButtonItem,
 } from '@/types/rt.type';
-import { exportFile } from '@/utils/fileUtil';
+import {exportFile} from '@/utils/fileUtil';
 import styles from './RichTextEditor.less';
 
 export interface RichTextEditorRef {
@@ -246,6 +229,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const restoringPositionRef = useRef(false);
 
     const { isDark } = useThemeContext();
+    const {visible: menuVisible, toggleMenu} = useLayoutMenu();
     // 文章封面设置弹窗
     const [coverModalVisible, setCoverModalVisible] = useState(false);
     // 当前操作模式
@@ -366,6 +350,15 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     // ─── 所有操作类按钮 ───
     const operationButtons = useMemo<ToolbarButtonItem[]>(() => {
       return [
+        {
+          key: 'layout-menu-toggle',
+          label: menuVisible
+            ? i18nText('app.article.article.richtexteditor.hideSideMenu')
+            : i18nText('app.article.article.richtexteditor.showSideMenu'),
+          icon: menuVisible ? <AppstoreOutlined/> : <AppstoreFilled/>,
+          order: 0,
+          onClick: toggleMenu,
+        },
         {
           key: 'editor-home',
           label: i18nText("app.article.article.richtexteditor.871b7b7d"),
@@ -627,7 +620,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           ),
         },
       ];
-    }, [editor, rawText, confirmBeforeArticleSwitch, setEditorMode, onShareArticle, operationMode, articleInfo, pasteStyleOnPaste, setEditorStyle, setArticleLoading, setArticleInfo, setActiveJumpInfo, onBackHome, articleInfo?.cover, setViewSize, setRawText, saveArticle, onSaved, articleInfo?.title, operationModeMeta?.icon, setOperationMode]);
+    }, [editor, rawText, confirmBeforeArticleSwitch, setEditorMode, onShareArticle, operationMode, articleInfo, pasteStyleOnPaste, setEditorStyle, setArticleLoading, setArticleInfo, setActiveJumpInfo, onBackHome, articleInfo?.cover, setViewSize, setRawText, saveArticle, onSaved, articleInfo?.title, operationModeMeta?.icon, setOperationMode, menuVisible, toggleMenu]);
 
     // ─── 根据权限和阅读模式过滤操作类按钮 ───
     const filteredOperationButtons = useMemo<ToolbarButtonItem[]>(() => {
