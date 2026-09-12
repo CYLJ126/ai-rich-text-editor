@@ -1,20 +1,10 @@
-import {
-  NodeViewContent,
-  NodeViewWrapper,
-  ReactNodeViewProps,
-} from '@tiptap/react';
-import { common } from 'lowlight';
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Popover } from 'antd';
-import { i18nText } from '@/utils/i18n';
-import {
-  CheckOutlined,
-  CopyOutlined,
-  DeleteOutlined,
-  DownOutlined,
-  UpOutlined,
-} from '@ant-design/icons';
-import { createStyles } from 'antd-style';
+import {CheckOutlined, CopyOutlined, DeleteOutlined, DownOutlined, UpOutlined,} from '@ant-design/icons';
+import {NodeViewContent, NodeViewWrapper, type ReactNodeViewProps,} from '@tiptap/react';
+import {Button, Input, Popover} from 'antd';
+import {createStyles} from 'antd-style';
+import {common} from 'lowlight';
+import {useEffect, useMemo, useState} from 'react';
+import {i18nText} from '@/utils/i18n';
 
 const useStyles = createStyles(({ css, token }) => ({
   wrapper: css`
@@ -196,20 +186,28 @@ const CodeBlockView = ({
   const [search, setSearch] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [isCopied, setCopied] = useState(false);
-  const [lineCount, setLineCount] = useState(1);
   // false-代码块正常显示；true-代码块折叠
   const [foldFlag, setFoldFlag] = useState(false);
+
+  const codeLines = useMemo(
+    () => node.textContent.split('\n'),
+    [node.textContent],
+  );
+  const lineCount = codeLines.length;
+  const canFold = lineCount > 3;
+  const isFolded = foldFlag && canFold;
 
   // 语言列表
   const languages = useMemo(() => {
     return Object.keys(common).sort();
   }, []);
 
-  // 行数统计
+  // 代码不足四行时保持展开
   useEffect(() => {
-    const lines = node.textContent.split('\n');
-    setLineCount(lines.length || 1);
-  }, [node.textContent]);
+    if (!canFold) {
+      setFoldFlag(false);
+    }
+  }, [canFold]);
 
   const languageClassPrefix =
     extension.options.languageClassPrefix ?? 'language-';
@@ -341,29 +339,52 @@ const CodeBlockView = ({
               title={i18nText('app.article.code.delete')}
             />
             {/* 展开收起 */}
-            <Button
-              type="text"
-              size="small"
-              className={s.iconBtn}
-              onClick={() => {
-                setFoldFlag(!foldFlag);
-              }}
-              icon={foldFlag ? <DownOutlined /> : <UpOutlined />}
-              title={i18nText('app.article.code.fold')}
-            />
+            {canFold && (
+              <Button
+                type="text"
+                size="small"
+                className={s.iconBtn}
+                onClick={() => {
+                  setFoldFlag(!foldFlag);
+                }}
+                icon={isFolded ? <DownOutlined/> : <UpOutlined/>}
+                title={i18nText('app.article.code.fold')}
+              />
+            )}
           </div>
         </div>
 
         {/* 代码区域 */}
-        {!foldFlag && (
+        {isFolded ? (
+          <div className={s.codeBody}>
+            <div className={s.lineNumbers}>
+              <span className={s.lineNumber}>1</span>
+              <span className={s.lineNumber}>…</span>
+              <span className={s.lineNumber}>{lineCount}</span>
+            </div>
+
+            <pre className={s.pre}>
+              <code
+                className={cx(
+                  s.code,
+                  language ? `${languageClassPrefix}${language}` : undefined,
+                )}
+              >
+                {[codeLines[0], '……', codeLines[lineCount - 1]].join('\n')}
+              </code>
+            </pre>
+          </div>
+        ) : (
           <div className={s.codeBody}>
             {/* 行号 */}
             <div className={s.lineNumbers}>
-              {Array.from({ length: lineCount }, (_, i) => (
-                <span key={i} className={s.lineNumber}>
-                  {i + 1}
-                </span>
-              ))}
+              {Array.from({length: lineCount}, (_, index) => index + 1).map(
+                (lineNumber) => (
+                  <span key={`line-${lineNumber}`} className={s.lineNumber}>
+                    {lineNumber}
+                  </span>
+                ),
+              )}
             </div>
 
             {/* 代码内容 */}
