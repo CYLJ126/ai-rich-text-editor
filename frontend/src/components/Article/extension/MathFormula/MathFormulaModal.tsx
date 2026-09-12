@@ -190,9 +190,9 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
       centered
       className="math-formula-modal"
     >
-      <div className="gap-1">
+      <div className="math-formula-modal__content">
         {/* 公式类型选择 */}
-        <div className="">
+        <div className="math-formula-modal__type-selector">
           <Radio.Group
             value={formulaType}
             onChange={(e) => setFormulaType(e.target.value as MathFormulaType)}
