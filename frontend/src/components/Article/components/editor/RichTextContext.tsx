@@ -110,15 +110,12 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
             notify={(color) => {
               setFontColor(color);
               localStorage.setItem('editor-font-color', color);
+              editorRef.current?.chain().focus().toggleFontColor(color).run();
             }}
           />
         ),
         onClick: () =>
-          editorRef.current
-            ?.chain()
-            .focus()
-            .toggleFontColor(fontColor ?? '#FF0000')
-            .run(),
+          editorRef.current?.chain().focus().toggleFontColor(fontColor ?? '#FF0000').run()
       },
       {
         key: 'text-background-color',
@@ -131,15 +128,12 @@ export function RichTextProvider({ children }: { children: ReactNode }) {
             notify={(color) => {
               setBackgroundColor(color);
               localStorage.setItem('editor-background-color', color);
+              editorRef.current?.chain().focus().toggleBackgroundColor(color).run();
             }}
           />
         ),
         onClick: () =>
-          editorRef.current
-            ?.chain()
-            .focus()
-            .toggleBackgroundColor(backgroundColor ?? '#ffc078')
-            .run(),
+          editorRef.current?.chain().focus().toggleBackgroundColor(backgroundColor ?? '#ffc078').run()
       },
       {
         key: 'text-align',
