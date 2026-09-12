@@ -140,6 +140,7 @@ function ThemeWrapper({ children }: { children: React.ReactNode }) {
     <ThemeProvider
       appearance={isDark ? 'dark' : 'light'}
       theme={{
+        cssVar: {prefix: 'ant'},
         token: {
           colorPrimary: themeToken.colorPrimary,
           borderRadius: themeToken.borderRadius,
