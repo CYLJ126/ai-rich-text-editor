@@ -25,10 +25,9 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
     const setArticleInfo = useArticleInfoStore((state) => state.setArticleInfo);
     const characterCount = useArticleInfoStore((state) => state.characterCount);
     const [currentModel, setCurrentModel] = useState<ModelConfig | undefined>();
-    const [continuationCharacterCountCeil, setContinuationCharacterCountCeil] =
-      useState<number>(200);
-    const [contextSettings, setContextSettings] =
-      useState<AiContextSettings>(DEFAULT_AI_CONTEXT_SETTINGS);
+    const [continuationCharacterCountCeil, setContinuationCharacterCountCeil] = useState<number>(200);
+    const [summaryCharacterCountCeil, setSummaryCharacterCountCeil] = useState<number>(200);
+    const [contextSettings, setContextSettings] = useState<AiContextSettings>(DEFAULT_AI_CONTEXT_SETTINGS);
     const effectiveContextSettings = useMemo<AiContextSettings>(
       () => ({
         ...contextSettings,
@@ -230,11 +229,29 @@ const WritingManager = forwardRef<WritingManagerRef, WritingManagerProps>(
               style={{ width: 120 }}
             />
           </Flex>
+          <Flex align="center" justify="space-between" className="w-full">
+            <Text type="secondary" className="text-sm whitespace-nowrap">
+              {i18nText("app.article.sidebar.articlesummary.9e7f2eed")}
+            </Text>
+            <InputNumber
+              min={20}
+              max={1000}
+              step={10}
+              changeOnWheel
+              value={summaryCharacterCountCeil}
+              onChange={(value) => {
+                const nextValue = value ?? 200;
+                setSummaryCharacterCountCeil(nextValue);
+              }}
+              style={{width: 120}}
+            />
+          </Flex>
           <ArticleSummary
             articleInfo={articleInfo}
             onSummaryUpdate={updateSummary}
             currentUser={currentUser}
             currentModel={currentModel}
+            characterCountCeil={summaryCharacterCountCeil}
           />
         </Flex>
       </div>
