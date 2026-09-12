@@ -1173,7 +1173,7 @@ export default {
   'app.article.mylink.4ba16ad7': 'Copy link',
   'app.article.mylink.5af302ba': 'Edit link',
   'app.article.mylink.6214de17': 'Save',
-  'app.article.mylink.7a236fa8': 'Enter a valid http or https link',
+  'app.article.mylink.7a236fa8': 'Enter a valid link address',
   'app.article.mylink.88d491ea': 'Failed to copy link',
   'app.article.mylink.a11c65d9': 'Link address',
   'app.article.mylink.bf9e0257': 'Failed to Set Link:',

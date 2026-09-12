@@ -1074,7 +1074,7 @@ export default {
   'app.article.mylink.4ba16ad7': '複製鏈接',
   'app.article.mylink.5af302ba': '編輯鏈接',
   'app.article.mylink.6214de17': '保存',
-  'app.article.mylink.7a236fa8': '請輸入有效的 http 或 https 鏈接',
+  'app.article.mylink.7a236fa8': '請輸入有效的鏈接地址',
   'app.article.mylink.88d491ea': '複製鏈接失敗',
   'app.article.mylink.a11c65d9': '鏈接地址',
   'app.article.mylink.bf9e0257': '設置鏈接失敗：',
