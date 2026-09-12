@@ -10,6 +10,7 @@ import {Highlight} from '@tiptap/extension-highlight';
 import styles from './SimpleEditor.less';
 
 import {
+  configureLink,
   configureMathFormula,
   ContentHelperExtension,
   MyKeyboardShortcuts,
@@ -168,6 +169,7 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
         SearchHighlight,
         ContentHelperExtension,
         MyTranslatorExtension,
+        ...configureLink(),
         TiptapTextAlign,
         TiptapTable,
         TiptapTableHeader,
