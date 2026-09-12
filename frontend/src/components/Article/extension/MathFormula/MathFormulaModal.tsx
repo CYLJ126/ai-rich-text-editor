@@ -21,6 +21,10 @@ interface MathSymbolTableProps {
   onInsert: (latex: string) => void;
 }
 
+interface MathSymbolTablesProps extends MathSymbolTableProps {
+  singleColumn: boolean;
+}
+
 const MathSymbolTable: React.FC<MathSymbolTableProps> = ({
                                                            symbols,
                                                            onInsert,
@@ -65,6 +69,36 @@ const MathSymbolTable: React.FC<MathSymbolTableProps> = ({
     </table>
   </div>
 );
+
+const MathSymbolTables: React.FC<MathSymbolTablesProps> = ({
+                                                             symbols,
+                                                             onInsert,
+                                                             singleColumn,
+                                                           }) => {
+  const splitIndex = Math.ceil(symbols.length / 2);
+  const symbolGroups = singleColumn
+    ? [symbols]
+    : [symbols.slice(0, splitIndex), symbols.slice(splitIndex)];
+
+  return (
+    <div
+      className={[
+        'math-formula-modal__symbol-tables',
+        singleColumn ? 'math-formula-modal__symbol-tables--single' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {symbolGroups.map((group, index) => (
+        <MathSymbolTable
+          key={singleColumn ? 'single' : index === 0 ? 'left' : 'right'}
+          symbols={group}
+          onInsert={onInsert}
+        />
+      ))}
+    </div>
+  );
+};
 
 const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
   open,
@@ -185,7 +219,7 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
       open={open}
       onCancel={onCancel}
       footer={null}
-      width={1200}
+      width={'80%'}
       destroyOnHidden
       centered
       className="math-formula-modal"
@@ -269,14 +303,14 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
         <div className="math-formula-modal__symbols-section">
           <Tabs
             size="small"
-            tabBarGutter={10}
             items={MATH_SYMBOL_SECTIONS.map((section) => ({
               key: section.key,
               label: section.title,
               children: (
-                <MathSymbolTable
+                <MathSymbolTables
                   symbols={section.symbols}
                   onInsert={handleSymbolInsert}
+                  singleColumn={section.key === 'expressions'}
                 />
               ),
             }))}
