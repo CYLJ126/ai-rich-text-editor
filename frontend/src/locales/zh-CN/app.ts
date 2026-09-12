@@ -1067,7 +1067,20 @@ export default {
   'app.article.mermaid.mermaidview.043407b5': 'Mermaid 渲染错误',
 
   // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.09d2505a': '显示文本',
+  'app.article.mylink.1e6f312c': '请输入显示文本',
+  'app.article.mylink.30f41c89': '取消',
+  'app.article.mylink.3965cf81': '链接已复制',
+  'app.article.mylink.4ba16ad7': '复制链接',
+  'app.article.mylink.5af302ba': '编辑链接',
+  'app.article.mylink.6214de17': '保存',
+  'app.article.mylink.7a236fa8': '请输入有效的 http 或 https 链接',
+  'app.article.mylink.88d491ea': '复制链接失败',
+  'app.article.mylink.a11c65d9': '链接地址',
   'app.article.mylink.bf9e0257': '设置链接失败：',
+  'app.article.mylink.c02980f4': '编辑链接',
+  'app.article.mylink.dd733b5e': '在新标签页打开',
+  'app.article.mylink.f1798d4a': '移除链接',
 
   // components/Article/extension/MyMention/suggestion.ts
   'app.article.mymention.suggestion.05a3660a': '田七',

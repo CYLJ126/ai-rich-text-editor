@@ -1166,7 +1166,20 @@ export default {
   'app.article.mermaid.mermaidview.043407b5': 'Mermaid Rendering Error',
 
   // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.09d2505a': 'Display text',
+  'app.article.mylink.1e6f312c': 'Enter display text',
+  'app.article.mylink.30f41c89': 'Cancel',
+  'app.article.mylink.3965cf81': 'Link copied',
+  'app.article.mylink.4ba16ad7': 'Copy link',
+  'app.article.mylink.5af302ba': 'Edit link',
+  'app.article.mylink.6214de17': 'Save',
+  'app.article.mylink.7a236fa8': 'Enter a valid http or https link',
+  'app.article.mylink.88d491ea': 'Failed to copy link',
+  'app.article.mylink.a11c65d9': 'Link address',
   'app.article.mylink.bf9e0257': 'Failed to Set Link:',
+  'app.article.mylink.c02980f4': 'Edit Link',
+  'app.article.mylink.dd733b5e': 'Open in new tab',
+  'app.article.mylink.f1798d4a': 'Remove link',
 
   // components/Article/extension/MyMention/suggestion.ts
   'app.article.mymention.suggestion.05a3660a': 'Tian Qi',
