@@ -1,7 +1,8 @@
 package com.arte.app.common.enums.richtext;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
+import cn.hutool.core.util.ObjectUtil;
 import com.arte.core.enums.MyEnum;
+import com.baomidou.mybatisplus.annotation.IEnum;
 import lombok.Getter;
 
 /**
@@ -24,5 +25,9 @@ public enum ArticleTypeEnum implements IEnum<String>, MyEnum<String> {
     ArticleTypeEnum(String value, String description) {
         this.value = value;
         this.description = description;
+    }
+
+    public static ArticleTypeEnum defaultIfNull(ArticleTypeEnum value) {
+        return ObjectUtil.defaultIfNull(value, GENERIC);
     }
 }

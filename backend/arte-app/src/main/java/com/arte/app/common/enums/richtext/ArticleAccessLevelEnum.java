@@ -1,7 +1,8 @@
 package com.arte.app.common.enums.richtext;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
+import cn.hutool.core.util.ObjectUtil;
 import com.arte.core.enums.MyEnum;
+import com.baomidou.mybatisplus.annotation.IEnum;
 import lombok.Getter;
 
 /**
@@ -22,5 +23,9 @@ public enum ArticleAccessLevelEnum implements IEnum<String>, MyEnum<String> {
     ArticleAccessLevelEnum(String value, String description) {
         this.value = value;
         this.description = description;
+    }
+
+    public static ArticleAccessLevelEnum defaultIfNull(ArticleAccessLevelEnum value) {
+        return ObjectUtil.defaultIfNull(value, PRIVATE);
     }
 }
