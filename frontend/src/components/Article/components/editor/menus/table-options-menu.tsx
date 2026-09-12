@@ -1,4 +1,4 @@
-import { i18nText } from '@/utils/i18n';
+import {i18nText} from '@/utils/i18n';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,12 +12,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { PluginKey, TextSelection } from '@tiptap/pm/state';
-import { CellSelection, deleteCellSelection } from '@tiptap/pm/tables';
-import { Editor, useEditorState } from '@tiptap/react';
-import { EllipsisIcon, EllipsisVerticalIcon, EqualIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {cn} from '@/lib/utils';
+import {PluginKey, TextSelection} from '@tiptap/pm/state';
+import {CellSelection, deleteCellSelection} from '@tiptap/pm/tables';
+import {Editor, useEditorState} from '@tiptap/react';
+import {EllipsisIcon, EllipsisVerticalIcon, EqualIcon} from 'lucide-react';
+import {useMemo, useState} from 'react';
 import {
   columnMenuPluginKey,
   rowMenuPluginKey,
@@ -277,7 +277,49 @@ const CellMenuPopover = ({ editor }: { editor: Editor }) => {
         <DropdownMenuGroup>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              {i18nText('app.article.table.alignment')}
+              {i18nText('app.article.table.horizontalAlignment')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="bg-white dark:bg-neutral-800 ring-neutral-300 dark:ring-neutral-600">
+                <DropdownMenuItem
+                  onClick={() => {
+                    editor
+                      .chain()
+                      .focus()
+                      .setCellAttribute('align', 'left')
+                      .run();
+                  }}
+                >
+                  {i18nText('app.article.table.alignLeft')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    editor
+                      .chain()
+                      .focus()
+                      .setCellAttribute('align', 'center')
+                      .run();
+                  }}
+                >
+                  {i18nText('app.article.table.alignCenter')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    editor
+                      .chain()
+                      .focus()
+                      .setCellAttribute('align', 'right')
+                      .run();
+                  }}
+                >
+                  {i18nText('app.article.table.alignRight')}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              {i18nText('app.article.table.verticalAlignment')}
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent className="bg-white dark:bg-neutral-800 ring-neutral-300 dark:ring-neutral-600">
