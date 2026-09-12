@@ -15,6 +15,12 @@
     .tiptap {
       padding: 8px 30px 8px 30px;
 
+      // Typography 会给 strong 设置固定颜色，导致外层 textStyle 的字体颜色无法继承。
+      // 仅在文章编辑器内恢复颜色继承，同时保留 strong 原有的加粗样式。
+      strong {
+        color: inherit;
+      }
+
       // 标题
       h1, h2, h3, h4, h5, h6 {
         margin-top: 1rem;
