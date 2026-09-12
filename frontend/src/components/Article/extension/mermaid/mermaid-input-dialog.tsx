@@ -1,7 +1,7 @@
 import {i18nText} from '@/utils/i18n';
 import {Button, Input, Modal, Typography} from "antd";
 import mermaid from "mermaid";
-import {useEffect, useRef, useState} from "react";
+import {type KeyboardEvent, useEffect, useRef, useState} from "react";
 
 const {Text} = Typography;
 
@@ -62,7 +62,24 @@ export function MermaidInputDialog({
   };
 
   const handleCancel = () => {
+    parseAbortRef.current = true;
     onOpenChange(false);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCancel();
+      return;
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      if (!loading && code.trim().length > 0) {
+        void handleSubmit();
+      }
+    }
   };
 
   useEffect(() => {
@@ -86,6 +103,7 @@ export function MermaidInputDialog({
       width="55%"
       mask={{closable: false}} // 点击遮罩层不关闭，对应 disablePointerDismissal
       onCancel={handleCancel}
+      keyboard
       closable={false}
       destroyOnHidden
       footer={
@@ -107,6 +125,7 @@ export function MermaidInputDialog({
         className="overflow-auto scrollbar-none"
         autoSize={{minRows: 15, maxRows: 25}}
         value={code}
+        onKeyDown={handleKeyDown}
         onChange={(e) => {
           setCode(e.target.value);
           // 输入时清除旧错误
