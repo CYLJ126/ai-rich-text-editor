@@ -1,15 +1,24 @@
 import {InputRule} from '@tiptap/core';
-import {
-  BlockMath,
-  InlineMath,
-  Mathematics,
-  type MathematicsOptions,
-} from '@tiptap/extension-mathematics';
+import {BlockMath, InlineMath, Mathematics, type MathematicsOptions,} from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import './MathFormula.less';
 import modalBridge, {type MathFormulaType} from './modalBridge';
 
-declare module '@tiptap/core' {}
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    mathFormula: {
+      /** 插入内联数学公式 */
+      insertInlineMathFormula: (attrs?: { latex?: string }) => ReturnType;
+      /** 插入块级数学公式 */
+      insertBlockMathFormula: (attrs?: { latex?: string }) => ReturnType;
+      /** 根据选区智能切换内联或块级数学公式 */
+      toggleMathFormula: (attrs?: {
+        latex?: string;
+        forceType?: MathFormulaType;
+      }) => ReturnType;
+    };
+  }
+}
 
 export interface MathFormulaOptions extends MathematicsOptions {
   /**
