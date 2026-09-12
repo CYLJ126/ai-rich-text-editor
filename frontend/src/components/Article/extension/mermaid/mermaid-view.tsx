@@ -3,11 +3,12 @@ import {Button} from "@/components/ui/button";
 import {Alert} from "@/components/ui/alert";
 import {cn} from "@/lib/utils";
 import {NodeViewContent, NodeViewWrapper, type ReactNodeViewProps} from "@tiptap/react";
-import {EditIcon, TrashIcon} from "lucide-react";
+import {CheckIcon, CopyIcon, EditIcon, TrashIcon} from "lucide-react";
 import mermaid from "mermaid";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {MermaidInputDialog} from "./mermaid-input-dialog";
 import {useEditorStore} from "@/components";
+import ClipboardUtil from "@/utils/ClipboardUtil";
 
 /**
  * 从 TipTap Node 中正确提取带换行的文本
@@ -43,6 +44,7 @@ export function MermaidView({
   const operationMode = useEditorStore(state => state.operationMode);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [openMermaidInputDialog, setOpenMermaidInputDialog] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState<string>();
   const {options} = extension;
 
@@ -61,6 +63,17 @@ export function MermaidView({
       })
       .run();
   }, [editor, getPos, node.nodeSize]);
+
+  const copyCode = useCallback(async () => {
+    if (isCopied) {
+      return;
+    }
+
+    if (await ClipboardUtil.writeText(code)) {
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 2000);
+    }
+  }, [code, isCopied]);
 
   const renderDiagram = useCallback(async () => {
     // 重置错误状态
@@ -110,23 +123,45 @@ export function MermaidView({
         />
       )}
 
-      <div className={`absolute flex space-x-1 top-2 right-2 ${operationMode === "edit" ? "" : "hidden"}`}>
+      <div className="absolute flex space-x-1 top-2 right-2">
         <Button
           variant="secondary"
           size="icon"
           className="opacity-40 hover:opacity-100 size-7 cursor-pointer"
-          onClick={() => setOpenMermaidInputDialog(true)}
+          disabled={isCopied}
+          onClick={copyCode}
+          title={i18nText("app.article.code.copy")}
+          aria-label={i18nText("app.article.code.copy")}
         >
-          <EditIcon className="text-[var(--ant-color-text-tertiary)] dark:text-[var(--ant-color-bg-spotlight)]" strokeWidth={3} />
+          {isCopied ? (
+            <CheckIcon className="text-green-500" strokeWidth={3}/>
+          ) : (
+            <CopyIcon className="text-[var(--ant-color-text-tertiary)] dark:text-[var(--ant-color-bg-spotlight)]"
+                      strokeWidth={3}/>
+          )}
         </Button>
-        <Button
-          variant="destructive"
-          size="icon"
-          className="opacity-40 hover:opacity-100 size-7 cursor-pointer"
-          onClick={deleteNode}
-        >
-          <TrashIcon className="text-[var(--ant-color-text-tertiary)] dark:text-[var(--ant-color-bg-spotlight)]" strokeWidth={3} />
-        </Button>
+        {operationMode === "edit" && (
+          <>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="opacity-40 hover:opacity-100 size-7 cursor-pointer"
+              onClick={() => setOpenMermaidInputDialog(true)}
+            >
+              <EditIcon className="text-[var(--ant-color-text-tertiary)] dark:text-[var(--ant-color-bg-spotlight)]"
+                        strokeWidth={3}/>
+            </Button>
+            <Button
+              variant="destructive"
+              size="icon"
+              className="opacity-40 hover:opacity-100 size-7 cursor-pointer"
+              onClick={deleteNode}
+            >
+              <TrashIcon className="text-[var(--ant-color-text-tertiary)] dark:text-[var(--ant-color-bg-spotlight)]"
+                         strokeWidth={3}/>
+            </Button>
+          </>
+        )}
       </div>
 
       <MermaidInputDialog
