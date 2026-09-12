@@ -1074,7 +1074,7 @@ export default {
   'app.article.mylink.4ba16ad7': '复制链接',
   'app.article.mylink.5af302ba': '编辑链接',
   'app.article.mylink.6214de17': '保存',
-  'app.article.mylink.7a236fa8': '请输入有效的 http 或 https 链接',
+  'app.article.mylink.7a236fa8': '请输入有效的链接地址',
   'app.article.mylink.88d491ea': '复制链接失败',
   'app.article.mylink.a11c65d9': '链接地址',
   'app.article.mylink.bf9e0257': '设置链接失败：',

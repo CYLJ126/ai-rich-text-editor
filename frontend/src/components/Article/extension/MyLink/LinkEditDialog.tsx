@@ -20,19 +20,12 @@ function normalizeLinkUrl(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
 
-  const url = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
-
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return undefined;
-    }
-    return url;
-  } catch {
+  const protocol = trimmed.match(/^([a-z][a-z\d+.-]*):/i)?.[1]?.toLowerCase();
+  if (protocol && protocol !== 'http' && protocol !== 'https') {
     return undefined;
   }
+
+  return trimmed;
 }
 
 function LinkEditDialog({
