@@ -30,8 +30,39 @@ const createSection = (
 
 export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
   createSection(
+    'expressions',
+    '表达式',
+    String.raw`
+1\,1|很窄的正间距（约 3/18 em）
+1\:1|中等数学间距（约 4/18 em）
+1\;1|较宽的数学间距（约 5/18 em）
+1\!1|负的窄间距，用于收紧内容
+1\quad 1|约 1 em 的间距
+1\qquad 1|约 2 em 的间距
+\frac{a}{b}|分数
+x^2|上标；多个字符应写成 x^{n+1}
+x_2|下标；多个字符应写成 x_{i+1}
+x_i^2|同时使用上标和下标
+\sqrt{2}|平方根
+\sqrt[n]{x}|n 次根
+f(x)|函数记号
+\frac{\partial f}{\partial x}|偏导数
+\binom{n}{k}|二项式系数
+\overbrace{a+b}^{n}|上花括号及说明
+\underbrace{a+b}_{n}|下花括号及说明
+\text{当 }x>0|在数学公式中插入普通文字
+\left(\frac{x}{y}\right)|让界定符随内容自动伸缩
+\begin{matrix}a & b \\ c & d\end{matrix}|无括号矩阵；& 分列，\\ 换行
+\begin{pmatrix}a & b \\ c & d\end{pmatrix}|圆括号矩阵
+\begin{bmatrix}a & b \\ c & d\end{bmatrix}|方括号矩阵
+\begin{cases} x, & x\ge 0 \\ -x, & x<0 \end{cases}|左侧花括号的分段表达式
+\left.\begin{array}{l} x=1 \\ y=2 \end{array}\right\}|右侧花括号
+\begin{aligned} a&=b+c \\ &=d \end{aligned}|多行对齐公式
+\begin{cases} \frac{n}{2}, & n\text{ 为偶数} \\[2ex] 3n+1, & n\text{ 为奇数} \end{cases}|带额外行距的分段表达式`,
+  ),
+  createSection(
     'arithmetic',
-    '算术与大型运算符',
+    '算术/大型运算',
     String.raw`
 +|加法
 -|减法或负号
@@ -45,11 +76,13 @@ export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
 \setminus|差集；比 \backslash 更适合作为二元运算符
 \sum|求和符号
 \prod|连乘符号
-\coprod|余积符号`,
+\coprod|余积符号
+\min S|最小值
+\max S|最大值`,
   ),
   createSection(
     'relation',
-    '关系运算符',
+    '关系运算',
     String.raw`
 =|等于
 \ne|不等于，也可输入 \neq
@@ -72,7 +105,7 @@ export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
   ),
   createSection(
     'logic',
-    '逻辑运算符',
+    '逻辑运算',
     String.raw`
 \neg|逻辑非
 \land|逻辑与，也可输入 \wedge
@@ -90,7 +123,7 @@ export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
   ),
   createSection(
     'logarithm',
-    '对数与指数',
+    '对数/指数',
     String.raw`
 \log x|对数；底数未注明时由上下文约定
 \log_b x|以 b 为底的对数
@@ -144,7 +177,7 @@ f''(x)|二阶导数
   ),
   createSection(
     'set',
-    '集合运算符',
+    '集合运算',
     String.raw`
 \emptyset|空集
 \varnothing|空集的另一种常见字形
@@ -170,25 +203,6 @@ A^{\complement}|补集
 \mathbb{Q}|有理数集
 \mathbb{R}|实数集
 \mathbb{C}|复数集`,
-  ),
-  createSection(
-    'common-operators',
-    '其他常用运算符',
-    String.raw`
-\oplus|直和或异或
-\otimes|张量积
-\odot|圆点运算符
-\bigoplus|大型直和运算符
-\bigotimes|大型张量积运算符
-\bigodot|大型圆点运算符
-\bullet|实心圆点运算符
-\star|星形运算符
-\dagger|匕首号；也常表示共轭转置
-\ddagger|双匕首号
-\arg z|复数 z 的辐角
-\gcd(a,b)|最大公约数
-\min S|最小值
-\max S|最大值`,
   ),
   createSection(
     'greek',
@@ -252,7 +266,7 @@ o|omicron（与拉丁字母 o 同形）
   ),
   createSection(
     'accents',
-    '戴帽与修饰符号',
+    '戴帽/修饰',
     String.raw`
 \hat{x}|单字符尖帽
 \widehat{xyz}|多字符宽尖帽
@@ -274,7 +288,7 @@ x''|双撇号`,
   ),
   createSection(
     'arrows-delimiters',
-    '箭头与界定符',
+    '箭头/界定',
     String.raw`
 \leftarrow|左箭头，也可输入 \gets
 \rightarrow|右箭头，也可输入 \to
@@ -312,37 +326,18 @@ x''|双撇号`,
 \hbar|约化普朗克常数
 \ell|手写体小写 l
 \Re z|复数的实部
-\Im z|复数的虚部`,
-  ),
-  createSection(
-    'expressions',
-    '表达式',
-    String.raw`
-1\,1|很窄的正间距（约 3/18 em）
-1\:1|中等数学间距（约 4/18 em）
-1\;1|较宽的数学间距（约 5/18 em）
-1\!1|负的窄间距，用于收紧内容
-1\quad 1|约 1 em 的间距
-1\qquad 1|约 2 em 的间距
-\frac{a}{b}|分数
-x^2|上标；多个字符应写成 x^{n+1}
-x_2|下标；多个字符应写成 x_{i+1}
-x_i^2|同时使用上标和下标
-\sqrt{2}|平方根
-\sqrt[n]{x}|n 次根
-f(x)|函数记号
-\frac{\partial f}{\partial x}|偏导数
-\binom{n}{k}|二项式系数
-\overbrace{a+b}^{n}|上花括号及说明
-\underbrace{a+b}_{n}|下花括号及说明
-\text{当 }x>0|在数学公式中插入普通文字
-\left(\frac{x}{y}\right)|让界定符随内容自动伸缩
-\begin{matrix}a & b \\ c & d\end{matrix}|无括号矩阵；& 分列，\\ 换行
-\begin{pmatrix}a & b \\ c & d\end{pmatrix}|圆括号矩阵
-\begin{bmatrix}a & b \\ c & d\end{bmatrix}|方括号矩阵
-\begin{cases} x, & x\ge 0 \\ -x, & x<0 \end{cases}|左侧花括号的分段表达式
-\left.\begin{array}{l} x=1 \\ y=2 \end{array}\right\}|右侧花括号
-\begin{aligned} a&=b+c \\ &=d \end{aligned}|多行对齐公式
-\begin{cases} \frac{n}{2}, & n\text{ 为偶数} \\[2ex] 3n+1, & n\text{ 为奇数} \end{cases}|带额外行距的分段表达式`,
+\Im z|复数的虚部
+\oplus|直和或异或
+\otimes|张量积
+\odot|圆点运算符
+\bigoplus|大型直和运算符
+\bigotimes|大型张量积运算符
+\bigodot|大型圆点运算符
+\bullet|实心圆点运算符
+\star|星形运算符
+\dagger|匕首号；也常表示共轭转置
+\ddagger|双匕首号
+\arg z|复数 z 的辐角
+\gcd(a,b)|最大公约数`,
   ),
 ];

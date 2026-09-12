@@ -185,14 +185,14 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
       open={open}
       onCancel={onCancel}
       footer={null}
-      width={1000}
+      width={1200}
       destroyOnHidden
       centered
       className="math-formula-modal"
     >
-      <div className="math-formula-modal__content">
+      <div className="gap-1">
         {/* 公式类型选择 */}
-        <div className="math-formula-modal__type-selector">
+        <div className="">
           <Radio.Group
             value={formulaType}
             onChange={(e) => setFormulaType(e.target.value as MathFormulaType)}
@@ -269,6 +269,7 @@ const MathFormulaModal: React.FC<MathFormulaModalProps> = ({
         <div className="math-formula-modal__symbols-section">
           <Tabs
             size="small"
+            tabBarGutter={10}
             items={MATH_SYMBOL_SECTIONS.map((section) => ({
               key: section.key,
               label: section.title,
