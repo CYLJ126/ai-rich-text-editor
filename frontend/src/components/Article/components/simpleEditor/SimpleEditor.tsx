@@ -41,7 +41,24 @@ import {SearchHighlight} from '@/components/Article/extension/SearchHighlight';
 import DraggableLine from '@/components/DraggableLine';
 import {CharacterCount} from "@tiptap/extensions";
 
-export interface SimpleEditorProps {
+// DragHandle 会以该对象的引用作为插件重建条件，必须保持引用稳定。
+const dragHandleComputePositionConfig = {
+  middleware: [
+    offset({
+      mainAxis: -4,
+      crossAxis: 0,
+    }),
+  ],
+};
+
+export interface SimpleEditorAutoSizeConfig {
+  /** 最小显示行数 */
+  minRows?: number;
+  /** 最大显示行数，超过后编辑器内部滚动 */
+  maxRows?: number;
+}
+
+interface SimpleEditorBaseProps {
   /** 编辑器默认内容 */
   defaultContent?: string;
   /** 编辑器获得焦点回调 */
@@ -76,8 +93,6 @@ export interface SimpleEditorProps {
   onHeightChange?: (height: number) => void;
   /** 是否允许横向拖动，即拖动右侧竖线调整宽度 */
   horizontalResizable?: boolean;
-  /** 是否允许纵向拖动，即拖动底部横线调整高度 */
-  verticalResizable?: boolean;
   /** 最小宽度 */
   minWidth?: number;
   /** 最大宽度 */
@@ -98,6 +113,22 @@ export interface SimpleEditorProps {
   characterCountCeil?: number;
 }
 
+/**
+ * autoSize 开启时由内容决定编辑器高度，不能同时启用纵向拖动。
+ */
+export type SimpleEditorProps = SimpleEditorBaseProps & (
+  | {
+  /** 是否根据内容自适应高度，也可配置最小、最大行数 */
+  autoSize?: boolean | SimpleEditorAutoSizeConfig;
+  verticalResizable?: false;
+}
+  | {
+  autoSize?: false;
+  /** 是否允许纵向拖动，即拖动底部横线调整高度 */
+  verticalResizable?: boolean;
+}
+  );
+
 export interface SimpleEditorRef {
   /** 编辑器内容设置 */
   setContent: (content: string) => void;
@@ -111,7 +142,7 @@ interface RenderedSize {
 /**
  * 简单编辑器组件，基于 Tiptap StarterKit 实现，默认支持 Markdown 格式。
  *
- * width 和 height 始终由父组件控制。
+ * 默认由父组件控制 width 和 height；autoSize 开启时 height 由内容决定。
  * 组件内部的 renderedSize 只记录 DOM 实际尺寸，不会直接修改容器宽高。
  */
 const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
@@ -119,12 +150,18 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
     const {
       defaultContent, onFocus, onBlur, onUpdate, onDestroy, onPaste, onDelete, onSave, className,
       width = '100%', height = '100%', onWidthChange, onHeightChange,
-      horizontalResizable = false, verticalResizable = false,
+      horizontalResizable = false, verticalResizable = false, autoSize = false,
       minWidth = 100, maxWidth = window.innerWidth, minHeight = 100, maxHeight = window.innerHeight,
       showResizeIcon = true, readOnly = false, draggable = false, showScrollbar = true,
       characterCountCeil = 20000,
     } = props;
     const {editorRef, editButtons} = useRichTextData();
+    const autoSizeConfig = typeof autoSize === 'object' ? autoSize : undefined;
+    const minRows = Math.max(1, autoSizeConfig?.minRows ?? 1);
+    const maxRows = autoSizeConfig?.maxRows === undefined
+      ? undefined
+      : Math.max(minRows, autoSizeConfig.maxRows);
+    const autoSizeEnabled = Boolean(autoSize);
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<string>(defaultContent || '');
     const onFocusCbRef = useRef(onFocus);
@@ -320,14 +357,7 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
         {!readOnly && draggable && editor && (
           <DragHandle
             editor={editor}
-            computePositionConfig={{
-              middleware: [
-                offset({
-                  mainAxis: -4,
-                  crossAxis: 0,
-                }),
-              ],
-            }}
+            computePositionConfig={dragHandleComputePositionConfig}
           >
             <GripVerticalIcon className="text-muted-foreground"/>
           </DragHandle>
@@ -337,13 +367,14 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
           ref={containerRef}
           className={[
             styles.editorContainer,
+            autoSizeEnabled && styles.autoSize,
             className,
           ]
             .filter(Boolean)
             .join(' ')}
           style={{
             width,
-            height,
+            height: autoSizeEnabled ? undefined : height,
             position: 'relative',
             overflow: 'visible',
           }}
@@ -353,6 +384,12 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
             className={styles.editorContent}
             style={{
               scrollbarWidth: showScrollbar ? 'thin' : 'none',
+              minHeight: autoSizeEnabled
+                ? `calc(${minRows}lh + 10px)`
+                : undefined,
+              maxHeight: autoSizeEnabled && maxRows !== undefined
+                ? `calc(${maxRows}lh + 10px)`
+                : undefined,
             }}
           />
 
@@ -372,7 +409,7 @@ const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(
           )}
 
           {/* 底部横线：鼠标纵向拖动，调整编辑器高度 */}
-          {verticalResizable && (
+          {verticalResizable && !autoSizeEnabled && (
             <DraggableLine
               direction="vertical"
               size={renderedSize.height}
