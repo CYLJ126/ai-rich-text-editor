@@ -10,6 +10,9 @@ hs_err_pid*
 **/*.log
 *.log.gz
 
+# maven
+.mvn/
+
 ### IDEA ###
 .idea/*
 *.iml
