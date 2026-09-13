@@ -111,6 +111,19 @@
   }
 }
 
+.autoSize {
+  height: auto;
+
+  .editorContent {
+    height: auto;
+
+    :global(.tiptap) {
+      height: auto;
+      min-height: inherit;
+    }
+  }
+}
+
 /**
  * 使用父子选择器提高优先级，确保覆盖 DraggableLine 中：
  *

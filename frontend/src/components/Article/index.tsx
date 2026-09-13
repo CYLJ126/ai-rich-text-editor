@@ -12,7 +12,10 @@ export {default as ArticleHome} from './ArticleHome';
 /** 富文本编辑器 */
 export {default as RichTextEditor} from './RichTextEditor';
 /** 简单编辑器 */
-export {SimpleEditor, type SimpleEditorProps} from './components/simpleEditor';
+export {
+  SimpleEditor,
+  type SimpleEditorAutoSizeConfig,
+  type SimpleEditorProps,
+} from './components/simpleEditor';
 
 export {type RichTextEditorProps} from './RichTextEditor';
-
