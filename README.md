@@ -8,7 +8,7 @@ ARTE（AI Rich Text Editor）是一个支持私有部署的富文本编辑与知
 
 ## demo 体验地址
 
-http://nas.haiqingd.top:19836/Writing/BasicWriting/?articleId=122
+https://arte-demo.nas.haiqingd.top:1443/Writing/BasicWriting/?articleId=122
 用户名: guest
 密码: arte@2026
 

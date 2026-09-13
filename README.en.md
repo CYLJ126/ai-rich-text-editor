@@ -6,6 +6,12 @@ ARTE (AI Rich Text Editor) is a self-hostable rich-text editor and knowledge man
 
 ![Article list and document spaces](docs/public/assets/captures/editor/readme-overview.png)
 
+## demo url
+
+https://arte-demo.nas.haiqingd.top:1443/Writing/BasicWriting/?articleId=122
+username: guest
+password: arte@2026
+
 ## Markdown, formulas, and diagrams
 
 The editor provides rich-text, Markdown source, and split-view modes, with format conversion, section navigation, find and replace, and save status.
