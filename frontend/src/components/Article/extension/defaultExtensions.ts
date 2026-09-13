@@ -17,6 +17,7 @@ import {CanvasBlock} from '@/components/Article/extension/canvas';
 import {InsecureImagePasteHandler} from '@/components/Article/extension/InsecureImagePasteHandler';
 import {TiptapImage} from '@/components/Article/extension/image';
 import {configureMathFormula} from '@/components/Article/extension/MathFormula';
+import {configureLink} from '@/components/Article/extension/MyLink';
 import {MyTextStyle} from '@/components/Article/extension/MyTextStyle';
 import {Mermaid} from '@/components/Article/extension/mermaid';
 import NestedReactContentNode from '@/components/Article/extension/NestedReactContentNode';
@@ -72,18 +73,7 @@ export const TiptapStarterKit = StarterKit.configure({
     width: 4,
   },
   heading: false,
-  link: {
-    defaultProtocol: 'https',
-    protocols: ['http', 'https'],
-    // 避免 linkify 将“安装.net”等中文文本误判为裸域名。
-    shouldAutoLink: (url: string) => /^https?:\/\/\S+$/i.test(url),
-    HTMLAttributes: {
-      class: cn(
-        'my-link',
-        'text-foreground! underline underline-offset-[3px] transition-colors cursor-pointer',
-      ),
-    },
-  },
+  link: false,
 });
 
 export const TiptapHeading = Heading.extend({
@@ -369,6 +359,7 @@ export const fileHandlerExtension = FileHandler.configure({
 
 export const defaultExtensions = [
   TiptapStarterKit,
+  ...configureLink(),
   ContentHelperExtension,
   TiptapHeading,
   Highlight.configure({

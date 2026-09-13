@@ -1,5 +1,5 @@
 import {i18nText} from '@/utils/i18n';
-import {Button, Flex, Input, InputNumber, message, Space} from "antd";
+import {Button, Flex, Input, message} from "antd";
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import type {ArticleInfoType} from "@/types/rt.type";
 import {createStyles} from "antd-style";
@@ -16,6 +16,8 @@ export interface ArticleSummaryType {
   currentUser: string | undefined;
   /** 当前模型 */
   currentModel: ModelConfig | undefined;
+  /** 总结字数上限 */
+  characterCountCeil: number | undefined;
 }
 
 const SUMMARY_TYPE = 'article';
@@ -33,14 +35,19 @@ const useStyles = createStyles(({token}) => {
  * 文章摘要/总结组件
  * @constructor
  */
-const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpdate, currentUser, currentModel}) => {
+const ArticleSummary: React.FC<ArticleSummaryType> = ({
+                                                        articleInfo,
+                                                        onSummaryUpdate,
+                                                        currentUser,
+                                                        currentModel,
+                                                        characterCountCeil
+                                                      }) => {
   const {styles} = useStyles();
   const [content, setContent] = useState<string>(articleInfo.summary || '');
   const [aiOutput, setAiOutput] = useState<string>('');
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [showAiInput, setShowAiInput] = useState(false);
   const currentModelRef = useRef<ModelConfig | undefined>(currentModel);
-  const [characterCountCeil, setCharacterCountCeil] = useState(200)
   const [acceptDisabled, setAcceptDisabled] = useState(true);
   const [generateDisabled, setGenerateDisabled] = useState(false);
 
@@ -83,7 +90,7 @@ const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpd
         setAcceptDisabled(false);
       }
     });
-  }, [content, characterCountCeil, articleInfo, currentModel, showAiInput]);
+  }, [content, characterCountCeil, showAiInput, currentUser, articleInfo.id, aiOutput.length]);
 
   useEffect(() => {
     currentModelRef.current = currentModel;
@@ -109,23 +116,6 @@ const ArticleSummary: React.FC<ArticleSummaryType> = ({articleInfo, onSummaryUpd
         onSizeChange={setInputHeight}
       />
       <Flex gap="small" justify="flex-end" className="my-2!">
-        <Space size='small'>
-          <Space.Compact>
-            <InputNumber
-              size='small'
-              changeOnWheel
-              style={{width: 50, marginRight: 5,borderRadius: 5}}
-              styles={{input: {textAlign: 'center'}}}
-              value={characterCountCeil}
-              onChange={(value) => setCharacterCountCeil(value || 200)}
-              placeholder={i18nText("app.article.article.articlesummary.9e7f2eed")}
-              min={50}
-              step={50}
-              max={1000}
-            />
-            <span>{i18nText("app.article.article.articlesummary.ecff6211")}</span>
-          </Space.Compact>
-        </Space>
         <Button className={styles.button} disabled={generateDisabled} onClick={() => generateSummary('summary')}>{i18nText("app.article.article.articlesummary.65b24e88")}</Button>
         <Button className={styles.button} disabled={generateDisabled || !content} onClick={() => generateSummary('polish')}>{i18nText("app.article.article.articlesummary.90bc4fbb")}</Button>
         <Button className={styles.button} disabled={acceptDisabled} onClick={() => {

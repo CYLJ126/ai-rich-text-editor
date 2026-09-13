@@ -31,7 +31,11 @@ export default {
   'app.article.table.mergeCells': '合并单元格',
   'app.article.table.splitCell': '拆分单元格',
   'app.article.table.toggleHeaderCell': '切换表头单元格',
-  'app.article.table.alignment': '对齐方式',
+  'app.article.table.horizontalAlignment': '水平对齐',
+  'app.article.table.alignLeft': '左对齐',
+  'app.article.table.alignCenter': '居中对齐',
+  'app.article.table.alignRight': '右对齐',
+  'app.article.table.verticalAlignment': '垂直对齐',
   'app.article.table.alignTop': '顶部对齐',
   'app.article.table.alignMiddle': '居中对齐',
   'app.article.table.alignBottom': '底部对齐',
@@ -468,8 +472,6 @@ export default {
   'app.article.article.articlesummary.65b24e88': '生成',
   'app.article.article.articlesummary.78021264': '保存',
   'app.article.article.articlesummary.90bc4fbb': '润色',
-  'app.article.article.articlesummary.9e7f2eed': '上限',
-  'app.article.article.articlesummary.ecff6211': '字',
   'app.article.article.articlesummary.fd917650':
     '总结/摘要内容为空，无法润色，请先输入内容或接受上一轮生成内容',
 
@@ -824,6 +826,7 @@ export default {
 
   // components/Article/components/sidebar/WritingManager.tsx
   'app.article.sidebar.writingmanager.10ca2c0a': '续写字数上限',
+  'app.article.sidebar.articlesummary.9e7f2eed': '总结字数上限',
   'app.article.sidebar.writingmanager.5e5f07aa': '前文占比',
   'app.article.sidebar.writingmanager.72fe37cb': '保存成功',
   'app.article.sidebar.writingmanager.91c75304': '续写或翻译时携带的上下文数量',
@@ -1068,7 +1071,20 @@ export default {
   'app.article.mermaid.mermaidview.043407b5': 'Mermaid 渲染错误',
 
   // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.09d2505a': '显示文本',
+  'app.article.mylink.1e6f312c': '请输入显示文本',
+  'app.article.mylink.30f41c89': '取消',
+  'app.article.mylink.3965cf81': '链接已复制',
+  'app.article.mylink.4ba16ad7': '复制链接',
+  'app.article.mylink.5af302ba': '编辑链接',
+  'app.article.mylink.6214de17': '保存',
+  'app.article.mylink.7a236fa8': '请输入有效的链接地址',
+  'app.article.mylink.88d491ea': '复制链接失败',
+  'app.article.mylink.a11c65d9': '链接地址',
   'app.article.mylink.bf9e0257': '设置链接失败：',
+  'app.article.mylink.c02980f4': '编辑链接',
+  'app.article.mylink.dd733b5e': '在新标签页打开',
+  'app.article.mylink.f1798d4a': '移除链接',
 
   // components/Article/extension/MyMention/suggestion.ts
   'app.article.mymention.suggestion.05a3660a': '田七',
@@ -1140,6 +1156,8 @@ export default {
   'app.article.video.videoview.fceb4604': '删除视频',
 
   // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.hideSideMenu': '隐藏左侧菜单',
+  'app.article.article.richtexteditor.showSideMenu': '显示左侧菜单',
   'app.article.article.richtexteditor.00c51681': '左右屏切换',
   'app.article.article.richtexteditor.02d2ccab': '转换为 Markdown 纯文本',
   'app.article.article.richtexteditor.063fe6cb': '包含加粗',

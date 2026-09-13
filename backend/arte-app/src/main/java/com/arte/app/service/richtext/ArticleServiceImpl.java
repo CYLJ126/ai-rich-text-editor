@@ -1,15 +1,11 @@
 package com.arte.app.service.richtext;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.BooleanUtil;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.DeleteByQueryResponse;
 import co.elastic.clients.elasticsearch.core.DeleteResponse;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.app.api.base.TagRelationService;
 import com.arte.app.api.richtext.ArticleService;
 import com.arte.app.common.constant.RichTextRedisScript;
@@ -27,7 +23,10 @@ import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.es.EsSearchResponse;
 import com.arte.core.exception.ArticleException;
 import com.arte.core.exception.BusinessException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.UserContext;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -524,6 +523,8 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
         copy.setTitle(source.getTitle());
         copy.setAuthor(currentUser);
         copy.setSummary(source.getSummary());
+        copy.setAccessLevel(ArticleAccessLevelEnum.PRIVATE);
+        copy.setArticleType(source.getArticleType());
         copy.setCover(source.getCover());
         copy.setCatalogId(targetCatalogId);
         copy.setOrderId(findMaxOrder(targetCatalogId) + 1);

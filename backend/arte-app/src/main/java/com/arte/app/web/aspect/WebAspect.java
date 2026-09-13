@@ -3,15 +3,18 @@ package com.arte.app.web.aspect;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.ClassUtil;
 import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.arte.app.pojo.richtext.ArticleDto;
+import com.arte.app.pojo.richtext.ArticleHistoryPo;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.CommonException;
 import com.arte.core.pojo.IResult;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
-import com.arte.app.pojo.richtext.ArticleDto;
-import com.arte.app.pojo.richtext.ArticleHistoryPo;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.Part;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -20,8 +23,18 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,8 +65,7 @@ public class WebAspect {
         try {
             if (!ClassUtil.isAssignable(returnType, IResult.class)) {
                 Object realResult = pjp.proceed();
-                logger.info("方法{}，消耗时间：{}ms，返回结果摘要：{}", methodName,
-                        System.currentTimeMillis() - start, summarizeResult(realResult));
+                logger.info("方法{}，消耗时间：{}ms，返回结果摘要：{}", methodName, System.currentTimeMillis() - start, summarizeResult(realResult));
                 return realResult;
             }
             result = (ResultContext<?>) pjp.proceed();
@@ -86,8 +98,7 @@ public class WebAspect {
         } finally {
             //清空缓存
             if (result != null) {
-                logger.info("方法{}，消耗时间：{}ms，返回结果摘要：{}", methodName,
-                        System.currentTimeMillis() - start, summarizeResult(result));
+                logger.info("方法{}，消耗时间：{}ms，返回结果摘要：{}", methodName, System.currentTimeMillis() - start, summarizeResult(result));
             }
             UserContext.clear();
             MDC.clear();
@@ -98,45 +109,100 @@ public class WebAspect {
         if (args == null || args.length == 0) {
             return CharSequenceUtil.EMPTY;
         }
-        return Arrays.stream(args)
-                .map(this::summarizeValue)
-                .collect(Collectors.joining(", ", "[", "]"));
+        try {
+            return Arrays.stream(args)
+                    .map(this::summarizeValue)
+                    .filter(CharSequenceUtil::isNotEmpty)
+                    .collect(Collectors.joining(", ", "[", "]"));
+        } catch (RuntimeException exception) {
+            log.debug("请求参数无法生成日志摘要，已忽略，异常：{}: {}",
+                    exception.getClass().getName(), exception.getMessage());
+            return CharSequenceUtil.EMPTY;
+        }
     }
 
     private String summarizeResult(Object result) {
-        if (result instanceof IResult<?> iResult) {
-            return "{code=" + iResult.getCode()
-                    + ", success=" + iResult.getSuccess()
-                    + ", data=" + summarizeValue(iResult.getData()) + "}";
+        try {
+            if (result instanceof IResult<?> iResult) {
+                String dataSummary = summarizeValue(iResult.getData());
+                return "{code=" + iResult.getCode()
+                        + ", success=" + iResult.getSuccess()
+                        + (CharSequenceUtil.isEmpty(dataSummary) ? "" : ", data=" + dataSummary) + "}";
+            }
+            if (result instanceof ResponseEntity<?> response) {
+                String bodySummary = summarizeValue(response.getBody());
+                return "ResponseEntity{status=" + response.getStatusCode()
+                        + (CharSequenceUtil.isEmpty(bodySummary) ? "" : ", body=" + bodySummary) + "}";
+            }
+            return summarizeValue(result);
+        } catch (RuntimeException exception) {
+            log.debug("返回结果无法生成日志摘要，已忽略，类型：{}，异常：{}: {}",
+                    className(result), exception.getClass().getName(), exception.getMessage());
+            return CharSequenceUtil.EMPTY;
         }
-        return summarizeValue(result);
     }
 
     private String summarizeValue(Object value) {
         if (value == null) {
             return CharSequenceUtil.EMPTY;
         }
-        if (value instanceof ArticleDto article) {
-            return "ArticleDto{id=" + article.getId()
-                    + ", contentJsonLength=" + length(article.getContentJson())
-                    + ", contentMdLength=" + length(article.getContentMd())
-                    + ", contentTextLength=" + length(article.getContentText()) + "}";
+        try {
+            if (value instanceof MultipartFile file) {
+                return "MultipartFile{name=" + file.getName()
+                        + ", originalFilename=" + file.getOriginalFilename()
+                        + ", contentType=" + file.getContentType()
+                        + ", size=" + file.getSize() + "}";
+            }
+            if (shouldIgnore(value)) {
+                return CharSequenceUtil.EMPTY;
+            }
+            if (value instanceof ArticleDto article) {
+                return "ArticleDto{id=" + article.getId()
+                        + ", contentJsonLength=" + length(article.getContentJson())
+                        + ", contentMdLength=" + length(article.getContentMd())
+                        + ", contentTextLength=" + length(article.getContentText()) + "}";
+            }
+            if (value instanceof ArticleHistoryPo history) {
+                return "ArticleHistoryPo{id=" + history.getId()
+                        + ", articleId=" + history.getArticleId()
+                        + ", versionNo=" + history.getVersionNo()
+                        + ", contentLength=" + length(history.getContent()) + "}";
+            }
+            if (value instanceof Collection<?> collection) {
+                return value.getClass().getSimpleName() + "{size=" + collection.size() + "}";
+            }
+            if (value instanceof IPage<?> page) {
+                return "Page{current=" + page.getCurrent()
+                        + ", size=" + page.getSize()
+                        + ", total=" + page.getTotal() + "}";
+            }
+            return JSONUtil.toJsonStr(value);
+        } catch (RuntimeException exception) {
+            log.debug("对象无法序列化为日志摘要，已忽略，类型：{}，异常：{}: {}",
+                    className(value), exception.getClass().getName(), exception.getMessage());
+            return CharSequenceUtil.EMPTY;
         }
-        if (value instanceof ArticleHistoryPo history) {
-            return "ArticleHistoryPo{id=" + history.getId()
-                    + ", articleId=" + history.getArticleId()
-                    + ", versionNo=" + history.getVersionNo()
-                    + ", contentLength=" + length(history.getContent()) + "}";
-        }
-        if (value instanceof Collection<?> collection) {
-            return value.getClass().getSimpleName() + "{size=" + collection.size() + "}";
-        }
-        if (value instanceof IPage<?> page) {
-            return "Page{current=" + page.getCurrent()
-                    + ", size=" + page.getSize()
-                    + ", total=" + page.getTotal() + "}";
-        }
-        return JSONUtil.toJsonStr(value);
+    }
+
+    private boolean shouldIgnore(Object value) {
+        Class<?> valueType = value.getClass();
+        return valueType == byte[].class
+                || valueType == Byte[].class
+                || value instanceof ByteBuffer
+                || value instanceof InputStream
+                || value instanceof OutputStream
+                || value instanceof Reader
+                || value instanceof Writer
+                || value instanceof Resource
+                || value instanceof ServletRequest
+                || value instanceof ServletResponse
+                || value instanceof Part
+                || value instanceof ResponseBodyEmitter
+                || value instanceof StreamingResponseBody;
+    }
+
+    private String className(Object value) {
+        return value == null ? "null" : value.getClass().getName();
     }
 
     private int length(String value) {

@@ -2,6 +2,8 @@ package com.arte.app.pojo.richtext;
 
 
 import cn.hutool.core.collection.CollUtil;
+import com.arte.app.common.enums.richtext.ArticleAccessLevelEnum;
+import com.arte.app.common.enums.richtext.ArticleTypeEnum;
 import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Getter;
 import lombok.Setter;
@@ -58,8 +60,8 @@ public class ArticleDto extends ArticlePo implements Serializable {
                 .characterCount(getCharacterCount())
                 .cover(getCover())
                 .tagIds(CollUtil.isNotEmpty(getTags()) ? getTags() : Collections.emptySet())
-                .articleType(getArticleType().getValue())
-                .accessLevel(getAccessLevel().getValue())
+                .articleType(ArticleTypeEnum.defaultIfNull(getArticleType()).getValue())
+                .accessLevel(ArticleAccessLevelEnum.defaultIfNull(getAccessLevel()).getValue())
                 .isPublic(getIsPublic())
                 .createBy(getCreateBy())
                 .updateBy(getUpdateBy())

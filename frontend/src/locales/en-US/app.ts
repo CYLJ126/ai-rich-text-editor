@@ -32,7 +32,11 @@ export default {
   'app.article.table.mergeCells': 'Merge cells',
   'app.article.table.splitCell': 'Split cell',
   'app.article.table.toggleHeaderCell': 'Toggle header cell',
-  'app.article.table.alignment': 'Alignment',
+  'app.article.table.horizontalAlignment': 'Horizontal Align',
+  'app.article.table.alignLeft': 'Align left',
+  'app.article.table.alignCenter': 'Align center',
+  'app.article.table.alignRight': 'Align right',
+  'app.article.table.verticalAlignment': 'Vertical Align',
   'app.article.table.alignTop': 'Align top',
   'app.article.table.alignMiddle': 'Align middle',
   'app.article.table.alignBottom': 'Align bottom',
@@ -494,8 +498,6 @@ export default {
   'app.article.article.articlesummary.65b24e88': 'Generate',
   'app.article.article.articlesummary.78021264': 'Save',
   'app.article.article.articlesummary.90bc4fbb': 'Polish',
-  'app.article.article.articlesummary.9e7f2eed': 'Limit',
-  'app.article.article.articlesummary.ecff6211': 'character',
   'app.article.article.articlesummary.fd917650':
     'The summary is empty and cannot be polished. Enter content or accept the previous generated result first.',
 
@@ -900,6 +902,7 @@ export default {
 
   // components/Article/components/sidebar/WritingManager.tsx
   'app.article.sidebar.writingmanager.10ca2c0a': 'Continuation Character Limit',
+  'app.article.sidebar.articlesummary.9e7f2eed': 'Summary Limit',
   'app.article.sidebar.writingmanager.5e5f07aa': 'Previous Context Ratio',
   'app.article.sidebar.writingmanager.72fe37cb': 'Saved Successfully',
   'app.article.sidebar.writingmanager.91c75304':
@@ -1167,7 +1170,20 @@ export default {
   'app.article.mermaid.mermaidview.043407b5': 'Mermaid Rendering Error',
 
   // components/Article/extension/MyLink/index.ts
+  'app.article.mylink.09d2505a': 'Display text',
+  'app.article.mylink.1e6f312c': 'Enter display text',
+  'app.article.mylink.30f41c89': 'Cancel',
+  'app.article.mylink.3965cf81': 'Link copied',
+  'app.article.mylink.4ba16ad7': 'Copy link',
+  'app.article.mylink.5af302ba': 'Edit link',
+  'app.article.mylink.6214de17': 'Save',
+  'app.article.mylink.7a236fa8': 'Enter a valid link address',
+  'app.article.mylink.88d491ea': 'Failed to copy link',
+  'app.article.mylink.a11c65d9': 'Link address',
   'app.article.mylink.bf9e0257': 'Failed to Set Link:',
+  'app.article.mylink.c02980f4': 'Edit Link',
+  'app.article.mylink.dd733b5e': 'Open in new tab',
+  'app.article.mylink.f1798d4a': 'Remove link',
 
   // components/Article/extension/MyMention/suggestion.ts
   'app.article.mymention.suggestion.05a3660a': 'Tian Qi',
@@ -1246,6 +1262,8 @@ export default {
   'app.article.video.videoview.fceb4604': 'Delete Video',
 
   // components/Article/RichTextEditor.tsx
+  'app.article.article.richtexteditor.hideSideMenu': 'Hide Side Menu',
+  'app.article.article.richtexteditor.showSideMenu': 'Show Side Menu',
   'app.article.article.richtexteditor.00c51681': 'Switch Split View',
   'app.article.article.richtexteditor.02d2ccab':
     'Convert to Markdown Plain Text',
