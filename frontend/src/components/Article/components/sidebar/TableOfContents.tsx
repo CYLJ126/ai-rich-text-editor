@@ -339,23 +339,39 @@ const TableOfContents: React.FC = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // 目录自身的滚动区域，用于让当前章节始终保持可见
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  // 记录上一次文档 JSON 字符串，避免无变化时重复计算
-  const lastDocJsonRef = useRef<string>('');
+  // 只在标题内容或层级变化时重建目录
+  const lastHeadingsRef = useRef<ArticleHeading[]>([]);
   // 保存当前所有被观察的 heading id（扁平列表），用于滚动时计算激活项
   const headingIdsRef = useRef<string[]>([]);
 
   // ── 1. 从 editor 提取目录 ──
   const refreshToc = useCallback(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
 
-    const json = editor.getJSON();
-    const jsonStr = JSON.stringify(json);
+    const flatHeadings: ArticleHeading[] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== 'heading') return true;
+      const text = node.textContent.trim();
+      if (text) {
+        flatHeadings.push({
+          id: (node.attrs.id as string) || textToId(text),
+          text,
+          level: node.attrs.level ?? 1,
+        });
+      }
+      return false;
+    });
+    const previous = lastHeadingsRef.current;
+    if (
+      flatHeadings.length === previous.length &&
+      flatHeadings.every((heading, index) =>
+        heading.id === previous[index].id &&
+        heading.text === previous[index].text &&
+        heading.level === previous[index].level,
+      )
+    ) return;
+    lastHeadingsRef.current = flatHeadings;
 
-    // 无变化时跳过
-    if (jsonStr === lastDocJsonRef.current) return;
-    lastDocJsonRef.current = jsonStr;
-
-    const flatHeadings = extractHeadingsFromDoc(json);
     const tree = buildTocTree(flatHeadings);
 
     setTocItems(tree);
@@ -375,24 +391,22 @@ const TableOfContents: React.FC = () => {
 
   // ── 2. 绑定 editor update 事件 ──
   useEffect(() => {
-    // editor 可能在 RichTextArea 中异步创建，轮询直到可用
-    let rafId: number;
-    const tryBind = () => {
-      if (!editor) {
-        rafId = requestAnimationFrame(tryBind);
-        return;
-      }
-      // 首次提取
-      refreshToc();
-      // 监听后续变化
-      editor.on('update', refreshToc);
+    if (!editor || editor.isDestroyed) return;
+    refreshToc();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = undefined;
+        refreshToc();
+      }, 300);
     };
-    tryBind();
+    editor.on('update', scheduleRefresh);
     return () => {
-      cancelAnimationFrame(rafId);
-      editor?.off('update', refreshToc);
+      if (timer) clearTimeout(timer);
+      editor.off('update', scheduleRefresh);
     };
-  }, [refreshToc, editor, articleInfo]);
+  }, [refreshToc, editor, articleInfo?.id]);
 
   // ── 3. 根据编辑器滚动位置更新当前章节 ──
   useEffect(() => {

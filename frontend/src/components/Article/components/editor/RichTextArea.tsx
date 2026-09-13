@@ -28,6 +28,7 @@ import SearchReplaceBar from './SearchReplaceBar';
 export interface RichTextAreaProps {
   onSave?: () => void; // 内部保存调用父组件的保存逻辑，如 Ctrl + S
   visible?: boolean; // 是否可见
+  syncRawText?: boolean; // 分栏模式下同步 Markdown 源码
   editButtons: ToolbarButtonItem[]; // 编辑按钮
 }
 
@@ -35,6 +36,7 @@ export interface RichTextAreaProps {
 const RichTextArea: React.FC<RichTextAreaProps> = ({
   onSave,
   visible = true,
+  syncRawText = false,
   editButtons,
 }) => {
   const viewSize = useEditorStore((state) => state.viewSize);
@@ -47,7 +49,7 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   const floatingState = useEditorStore((state) => state.floatingState);
   const setFloatingState = useEditorStore((state) => state.setFloatingState);
 
-  const rawText = useArticleInfoStore((state) => state.rawText);
+  const rawText = useArticleInfoStore.getState().rawText;
   const setRawText = useArticleInfoStore((state) => state.setRawText);
   const setCharacterCount = useArticleInfoStore(
     (state) => state.setCharacterCount,
@@ -62,17 +64,53 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   );
 
   const articleInfoRef = useRef<ArticleInfoType | undefined>(undefined);
+  const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rawSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncRawTextRef = useRef(syncRawText);
+  syncRawTextRef.current = syncRawText;
 
   // 编辑器内容更新回调
-  const handleUpdate = ({ editor }: { editor: any }) => {
-    const characters = editor.storage.characterCount.characters();
-    setCharacterCount(characters);
+  const handleUpdate = ({ editor }: { editor: Editor }) => {
+    if (!countTimerRef.current) {
+      countTimerRef.current = setTimeout(() => {
+        countTimerRef.current = null;
+        if (!editor.isDestroyed) {
+          setCharacterCount(editor.storage.characterCount.characters());
+        }
+      }, 250);
+    }
     markRichTextEdited(dayjs());
-    setRawText(editor.getMarkdown());
+    if (rawSyncTimerRef.current) clearTimeout(rawSyncTimerRef.current);
+    if (syncRawTextRef.current) {
+      rawSyncTimerRef.current = setTimeout(() => {
+        rawSyncTimerRef.current = null;
+        if (editor.isDestroyed) return;
+        const { lastRichTextEditTime, lastRawTextEditTime } =
+          useArticleInfoStore.getState();
+        if (
+          lastRichTextEditTime &&
+          (!lastRawTextEditTime || lastRichTextEditTime.isAfter(lastRawTextEditTime))
+        ) {
+          setRawText(editor.getMarkdown());
+        }
+      }, 400);
+    }
     if (operationMode === 'edit') {
       setSavingState(4);
     }
   };
+
+  useEffect(() => () => {
+    if (countTimerRef.current) clearTimeout(countTimerRef.current);
+    if (rawSyncTimerRef.current) clearTimeout(rawSyncTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!syncRawText && rawSyncTimerRef.current) {
+      clearTimeout(rawSyncTimerRef.current);
+      rawSyncTimerRef.current = null;
+    }
+  }, [syncRawText]);
 
   // 配置编辑器扩展
   const assembleExtensions = useCallback(
@@ -111,6 +149,7 @@ const RichTextArea: React.FC<RichTextAreaProps> = ({
   const editor: Editor | null = useEditor({
     // 在 React 提交后创建实例，避免预渲染/登录跳转丢弃的 render 留下已销毁实例。
     immediatelyRender: false,
+    shouldRerenderOnTransaction: false,
     content: rawText,
     contentType: 'markdown',
     extensions: assembleExtensions(),

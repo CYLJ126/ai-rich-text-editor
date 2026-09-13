@@ -1,6 +1,8 @@
 .env
+.env_zsc
 backend/artifacts/
 frontend/artifacts/
 .idea
 certs/
 validation.local/
+docker-compose.zsc.yml
