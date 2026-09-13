@@ -189,6 +189,13 @@ function applyPasteStyleOptions(
   storage?.pasteStyleHandler?.setOptions(patch);
 }
 
+const ArticleMetaInfoWithCount: React.FC<
+  Omit<React.ComponentProps<typeof ArticleMetaInfo>, 'characterCount'>
+> = (props) => {
+  const characterCount = useArticleInfoStore((state) => state.characterCount);
+  return <ArticleMetaInfo {...props} characterCount={characterCount} />;
+};
+
 const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
   ({ onBackHome, editorHeight = 600, onSaved, onShareArticle }, ref) => {
     const { editorRef, editButtons } = useRichTextData();
@@ -206,7 +213,6 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const setOperationMode = useEditorStore((state) => state.setOperationMode);
 
     const saveArticle = useArticleInfoStore((state) => state.saveArticle);
-    const characterCount = useArticleInfoStore((state) => state.characterCount);
     const savingState = useArticleInfoStore((state) => state.savingState);
     const activeJumpInfo = useArticleInfoStore((state) => state.activeJumpInfo);
     const articleInfo = useArticleInfoStore((state) => state.articleInfo);
@@ -225,7 +231,6 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       (state) => state.markRawTextEdited,
     );
     const setSavingState = useArticleInfoStore((state) => state.setSavingState);
-    const rawText = useArticleInfoStore((state) => state.rawText);
     const restoringPositionRef = useRef(false);
 
     const { isDark } = useThemeContext();
@@ -397,7 +402,20 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
                 { label: i18nText("app.article.article.richtexteditor.4c0f72e8"), value: 'split' },
                 { label: i18nText("app.article.article.richtexteditor.085675d0"), value: 'rich-text' },
               ]}
-              onSelect={(val) => setEditorMode(val as EditorMode)}
+              onSelect={(val) => {
+                const nextMode = val as EditorMode;
+                if (nextMode !== 'rich-text' && editor && !editor.isDestroyed) {
+                  const { lastRichTextEditTime, lastRawTextEditTime } =
+                    useArticleInfoStore.getState();
+                  if (
+                    lastRichTextEditTime &&
+                    (!lastRawTextEditTime || lastRichTextEditTime.isAfter(lastRawTextEditTime))
+                  ) {
+                    setRawText(editor.getMarkdown());
+                  }
+                }
+                setEditorMode(nextMode);
+              }}
             />
           ),
         },
@@ -552,7 +570,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             }
             setArticleLoading(true);
             setTimeout(() => {
-              editor.commands.setContent(rawText || '', {
+              editor.commands.setContent(useArticleInfoStore.getState().rawText || '', {
                 contentType: 'markdown',
               });
               editorMode !== 'split' && setEditorMode('split');
@@ -620,7 +638,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           ),
         },
       ];
-    }, [editor, rawText, confirmBeforeArticleSwitch, setEditorMode, onShareArticle, operationMode, articleInfo, pasteStyleOnPaste, setEditorStyle, setArticleLoading, setArticleInfo, setActiveJumpInfo, onBackHome, articleInfo?.cover, setViewSize, setRawText, saveArticle, onSaved, articleInfo?.title, operationModeMeta?.icon, setOperationMode, menuVisible, toggleMenu]);
+    }, [editor, editorMode, confirmBeforeArticleSwitch, setEditorMode, onShareArticle, operationMode, articleInfo, pasteStyleOnPaste, setEditorStyle, setArticleLoading, setArticleInfo, setActiveJumpInfo, onBackHome, articleInfo?.cover, setViewSize, setRawText, saveArticle, onSaved, articleInfo?.title, operationModeMeta?.icon, setOperationMode, menuVisible, toggleMenu]);
 
     // ─── 根据权限和阅读模式过滤操作类按钮 ───
     const filteredOperationButtons = useMemo<ToolbarButtonItem[]>(() => {
@@ -991,6 +1009,7 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
               >
                 <RichTextArea
                   visible={editorMode === 'rich-text'}
+                  syncRawText={editorMode === 'split'}
                   onSave={() => {
                     const currentEditor = useEditorStore.getState().editor;
                     saveArticle(currentEditor, 'manual').then((result) =>
@@ -1005,14 +1024,13 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
           {/* ── 文章元数据 ── */}
           {showMetaInfo && articleInfo?.id && (
-            <ArticleMetaInfo
+            <ArticleMetaInfoWithCount
               createBy={articleInfo?.createBy}
               createTime={articleInfo?.createTime}
               updateBy={articleInfo?.updateBy}
               updateTime={articleInfo?.updateTime}
               effectivePermission={articleInfo?.effectivePermission}
               savingState={savingState}
-              characterCount={characterCount}
               onClose={() => {
                 setShowMetaInfo(false);
                 setEditAreaHeight(editAreaHeight + META_INFO_HEIGHT);

@@ -128,30 +128,19 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
       set(() => ({ savingState: 0 }));
       return false;
     }
-    let content = get().rawText;
+    const lastRichTextEditTime = get().lastRichTextEditTime;
+    const lastRawTextEditTime = get().lastRawTextEditTime;
+    const rawTextIsLatest = Boolean(
+      lastRawTextEditTime &&
+      (!lastRichTextEditTime || lastRawTextEditTime.isAfter(lastRichTextEditTime)),
+    );
+    // 保存时才同步全文，并以最后编辑的一侧为准。
+    const content = rawTextIsLatest ? get().rawText || '' : editor.getMarkdown();
     if (!content) {
       message.warning(i18nText("app.article.stores.articleinfostore.cd6ea56b")).then();
       set(() => ({ savingState: 3 }));
       return false;
     }
-    const lastRichTextEditTime = get().lastRichTextEditTime;
-    const lastRawTextEditTime = get().lastRawTextEditTime;
-    // 当两边都被编辑过时，取最新的一边
-    if (lastRichTextEditTime && lastRawTextEditTime) {
-      if (lastRichTextEditTime > lastRawTextEditTime) {
-        // 原始文本更新 → 转为编辑器内容同步到 rawText
-        content = editor.getMarkdown();
-        set(() => ({ rawText: content }));
-      } else {
-        // 富文本更新 → 将 rawText 同步到编辑器内容
-        editor.commands.setContent(content, { contentType: 'markdown' });
-      }
-    }
-    // 重置时间戳
-    set(() => ({
-      lastRawTextEditTime: undefined,
-      lastRichTextEditTime: undefined,
-    }));
     if (content.length < 10) {
       // 简单预防，避免 ctrl + A 或者复制粘贴等操作，把原本有的大量内容全部替换了
       if (isManualSave) {
@@ -160,6 +149,17 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
       }
       return false;
     }
+    if (rawTextIsLatest) {
+      editor.commands.setContent(content, { contentType: 'markdown' });
+    } else if (content !== get().rawText) {
+      set(() => ({ rawText: content }));
+    }
+    const characterCount = editor.storage.characterCount.characters();
+    set(() => ({
+      characterCount,
+      lastRawTextEditTime: undefined,
+      lastRichTextEditTime: undefined,
+    }));
     set(() => ({ savingState: 1 }));
     try {
       const jsonText = JSON.stringify(editor.getJSON());
@@ -167,7 +167,7 @@ export const useArticleInfoStore = create<ArticleInfoState>((set, get) => ({
         ...articleInfo,
         contentJson: jsonText,
         contentText: content,
-        characterCount: get().characterCount,
+        characterCount,
         updateTime: undefined,
       });
       if (result === undefined || result === null) {
