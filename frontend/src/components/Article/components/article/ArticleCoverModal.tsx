@@ -1,7 +1,7 @@
 import {i18nText} from '@/utils/i18n';
 import {Button, message, Modal, Upload} from "antd";
 import {DeleteOutlined, UploadOutlined} from "@ant-design/icons";
-import React, {useCallback, useState} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import {updateArticle} from "@/services/ant-design-pro/richText";
 import {ArticleInfoType} from "@/types/rt.type";
 import {uploadImage} from "@/services/upload";
@@ -18,6 +18,15 @@ const ArticleCoverModal: React.FC<ArticleModalProps> = ({visible, articleInfo, o
   const [coverDraft, setCoverDraft] = useState<string>(articleInfo?.cover || '');
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverSaving, setCoverSaving] = useState(false);
+
+  // 组件随编辑器常驻挂载，文章信息是异步加载的，useState 初始值只会取到挂载时的空值；
+  // 每次打开弹窗或文章封面变化时，需要重新同步草稿
+  const articleCover = articleInfo?.cover || '';
+  useEffect(() => {
+    if (visible) {
+      setCoverDraft(articleCover);
+    }
+  }, [visible, articleCover]);
 
   // 先上传图片，并返回链接
   const handleCoverUpload = useCallback(async (file: File) => {
