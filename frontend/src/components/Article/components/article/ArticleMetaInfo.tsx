@@ -1,8 +1,8 @@
 import {i18nText} from '@/utils/i18n';
-import React, {useEffect, useState} from "react";
-import {Tag} from "antd";
+import React, {useEffect, useMemo, useState} from "react";
+import {Button, Popover, Tag} from "antd";
 import {MAX_CHARACTER_COUNT} from "@/components/Article/components";
-import {CloseOutlined} from "@ant-design/icons";
+import {AlertOutlined, CloseOutlined, GithubOutlined, ReadOutlined, UnlockOutlined} from "@ant-design/icons";
 import dayjs, {Dayjs} from "dayjs";
 import {ArticleSaveStatus} from "@/types/rt.article.type";
 
@@ -54,6 +54,33 @@ const ArticleMetaInfo: React.FC<ArticleMetaInfoProps> = ({
   const [savingStateTag, setSavingStateTag] = useState(getSavingStateTag(savingState));
   const [permissionTag, setPermissionTag] = useState(getPermissionTag(effectivePermission));
 
+  const githubContent = useMemo(() => {
+    return (
+      <div className='w-33'>
+        <Button
+          icon={<GithubOutlined/>}
+          href="https://github.com/CYLJ126/ai-rich-text-editor"
+          target="_blank" rel="noopener noreferrer"
+          className="w-full h-7! mb-1 justify-start!">{i18nText("app.article.article.articlemetainfo.star")}</Button>
+        <Button
+          icon={<UnlockOutlined/>}
+          href="https://github.com/CYLJ126/ai-rich-text-editor"
+          target="_blank" rel="noopener noreferrer"
+          className="w-full h-7! mb-1 justify-start!">{i18nText("app.article.article.articlemetainfo.newFeature")}</Button>
+        <Button
+          icon={<ReadOutlined/>}
+          href="https://github.com/CYLJ126/ai-rich-text-editor"
+          target="_blank" rel="noopener noreferrer"
+          className="w-full h-7! mb-1 justify-start!">{i18nText("app.article.article.articlemetainfo.guide")}</Button>
+        <Button
+          icon={<AlertOutlined/>}
+          href="https://github.com/CYLJ126/ai-rich-text-editor/issues"
+          target="_blank" rel="noopener noreferrer"
+          className="w-full h-7! justify-start!">{i18nText("app.article.article.articlemetainfo.feedback")}</Button>
+      </div>
+    )
+  }, []);
+
   useEffect(() => {
     setSavingStateTag(getSavingStateTag(savingState));
   }, [savingState]);
@@ -66,10 +93,15 @@ const ArticleMetaInfo: React.FC<ArticleMetaInfoProps> = ({
     <div className="relative flex items-center justify-start gap-6 h-6.5 px-4 text-sm rounded">
       {/* 居左显示 */}
       <div className="flex items-center space-x-4">
+        <Popover content={githubContent} placement='topRight'>
+          <GithubOutlined/>
+        </Popover>
         {createBy && <span>{i18nText("app.article.article.articlemetainfo.8cca2c36")}{createBy}</span>}
-        {createTime && <span>{i18nText("app.article.article.articlemetainfo.d59f41e1")}{dayjs(createTime).format('YYYY-MM-DD HH:mm:ss')}</span>}
+        {createTime &&
+          <span>{i18nText("app.article.article.articlemetainfo.d59f41e1")}{dayjs(createTime).format('YYYY-MM-DD HH:mm:ss')}</span>}
         {updateBy && <span>{i18nText("app.article.article.articlemetainfo.88245809")}{updateBy}</span>}
-        {updateTime && <span>{i18nText("app.article.article.articlemetainfo.3add4155")}{dayjs(updateTime).format('YYYY-MM-DD HH:mm:ss')}</span>}
+        {updateTime &&
+          <span>{i18nText("app.article.article.articlemetainfo.3add4155")}{dayjs(updateTime).format('YYYY-MM-DD HH:mm:ss')}</span>}
       </div>
       {/* 居右显示 */}
       <div className="absolute right-1.25 top-px flex items-center">

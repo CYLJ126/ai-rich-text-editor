@@ -466,6 +466,10 @@ export default {
   'app.article.article.articlemetainfo.d90f1a4a': 'Saved Successfully',
   'app.article.article.articlemetainfo.dc6acae2': 'Saving',
   'app.article.article.articlemetainfo.dc81e0e5': 'Unchanged',
+  'app.article.article.articlemetainfo.star': 'Give a Like!',
+  'app.article.article.articlemetainfo.newFeature': 'What\'s New​',
+  'app.article.article.articlemetainfo.guide': 'Tutorial',
+  'app.article.article.articlemetainfo.feedback': 'Feedback',
 
   // components/Article/components/article/ArticlePopover.tsx
   'app.article.article.articlepopover.259e9393': 'character',

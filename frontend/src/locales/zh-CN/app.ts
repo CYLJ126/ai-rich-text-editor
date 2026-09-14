@@ -440,6 +440,10 @@ export default {
   'app.article.article.articlemetainfo.d90f1a4a': '保存成功',
   'app.article.article.articlemetainfo.dc6acae2': '保存中',
   'app.article.article.articlemetainfo.dc81e0e5': '未变化',
+  'app.article.article.articlemetainfo.star': '点个赞吧！',
+  'app.article.article.articlemetainfo.newFeature': '新功能',
+  'app.article.article.articlemetainfo.guide': '使用指南',
+  'app.article.article.articlemetainfo.feedback': '问题反馈',
 
   // components/Article/components/article/ArticlePopover.tsx
   'app.article.article.articlepopover.259e9393': '字',
