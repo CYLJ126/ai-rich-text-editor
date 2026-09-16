@@ -1,16 +1,7 @@
 package com.arte.app.web.controller.richtext;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.arte.ai.api.BackEndChatService;
 import com.arte.ai.pojo.chat.ChatRequestParam;
 import com.arte.ai.web.controller.AbstractStreamController;
@@ -33,8 +24,16 @@ import com.arte.app.web.websocket.ArticleVersionWebSocketHandler;
 import com.arte.core.annotations.AnonymousAccess;
 import com.arte.core.es.EsSearchResponse;
 import com.arte.core.exception.BusinessException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -640,7 +639,6 @@ public class ArticleController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping("/searchArticlesChunks")
     public ResultContext<EsSearchResponse<ChunkDocument>> searchArticlesChunks(@RequestBody ArticleParam articleParam) {
-        // todo 目前有可能查出没有阅读权限的文章。先放着以后再说
         return ResultContext.wrap(articleParam, articleService::hybridSearch);
     }
 }

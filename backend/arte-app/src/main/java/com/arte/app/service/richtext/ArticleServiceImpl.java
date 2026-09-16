@@ -560,6 +560,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
     @Override
     public EsSearchResponse<ChunkDocument> hybridSearch(ArticleParam param) {
+        // todo 目前有可能查出没有阅读权限的文章。先放着以后再说
         ArticleEsSearchRequest request = buildEsRequest(param);
         return hybridSearchStrategy.search(request);
     }
