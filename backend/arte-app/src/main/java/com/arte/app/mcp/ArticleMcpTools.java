@@ -2,6 +2,7 @@ package com.arte.app.mcp;
 
 import com.arte.app.api.richtext.ArticleService;
 import com.arte.app.common.enums.richtext.ArticleAccessLevelEnum;
+import com.arte.app.pojo.richtext.ArticleDto;
 import com.arte.app.pojo.richtext.ChunkDocument;
 import com.arte.app.pojo.richtext.param.ArticleParam;
 import com.arte.core.es.EsSearchResponse;
@@ -23,6 +24,18 @@ import org.springframework.stereotype.Service;
 public class ArticleMcpTools {
     @Resource
     private ArticleService articleService;
+
+    @McpTool(
+            name = "get-article-by-id",
+            description = "Query the accessible article info by ID"
+    )
+    public ResultContext<ArticleDto> getArticleById(@McpToolParam(
+            description = "Article ID, Integer type",
+            required = false
+    ) Integer id) {
+        log.info("MCP-文章内容查询参数：【id: {}】", id);
+        return ResultContext.wrap(id, articleService::getArticleById);
+    }
 
     @McpTool(
             name = "list-articles",
