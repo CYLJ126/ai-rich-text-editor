@@ -6,29 +6,18 @@ import {
   UserOutlined,
   WeiboCircleOutlined,
 } from '@ant-design/icons';
-import {
-  LoginForm,
-  ProFormCaptcha,
-  ProFormCheckbox,
-  ProFormText,
-} from '@ant-design/pro-components';
-import {
-  FormattedMessage,
-  Helmet,
-  SelectLang,
-  useIntl,
-  useModel,
-} from '@umijs/max';
-import { Alert, App, Button, Tabs } from 'antd';
-import { createStyles } from 'antd-style';
-import React, { startTransition, useState } from 'react';
-import { Footer } from '@/components';
-import { getPubKey, login } from '@/services/ant-design-pro/base';
-import { getFakeCaptcha } from '@/services/ant-design-pro/login';
-import { GMCrypto } from '@/utils/crypto/gmCrypto';
-import { i18nText } from '@/utils/i18n';
+import {LoginForm, ProFormCaptcha, ProFormCheckbox, ProFormText,} from '@ant-design/pro-components';
+import {FormattedMessage, Helmet, SelectLang, useIntl, useModel,} from '@umijs/max';
+import {Alert, App, Button, Tabs} from 'antd';
+import {createStyles} from 'antd-style';
+import React, {startTransition, useState} from 'react';
+import {Footer} from '@/components';
+import {getPubKey, login} from '@/services/ant-design-pro/base';
+import {getFakeCaptcha} from '@/services/ant-design-pro/login';
+import {GMCrypto} from '@/utils/crypto/gmCrypto';
+import {i18nText} from '@/utils/i18n';
 import Settings from '../../../../config/defaultSettings';
-import { initialUserTags } from './initialBaseInfo';
+import {initialUserTags} from './initialBaseInfo';
 
 /**
  * Validate redirect URL to prevent open redirect attacks.
@@ -258,13 +247,13 @@ const Login: React.FC = () => {
                   defaultMessage: '账户密码登录',
                 }),
               },
-              {
-                key: 'mobile',
-                label: intl.formatMessage({
-                  id: 'pages.login.phoneLogin.tab',
-                  defaultMessage: '手机号登录',
-                }),
-              },
+              // {
+              //   key: 'mobile',
+              //   label: intl.formatMessage({
+              //     id: 'pages.login.phoneLogin.tab',
+              //     defaultMessage: '手机号登录',
+              //   }),
+              // },
             ]}
           />
 
