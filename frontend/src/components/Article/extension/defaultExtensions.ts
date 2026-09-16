@@ -223,26 +223,8 @@ const isVideoFile = (file: File) =>
   VIDEO_MIME_TYPES.includes(file.type) || VIDEO_FILE_PATTERN.test(file.name);
 
 export const fileHandlerExtension = FileHandler.configure({
-  allowedMimeTypes: [
-    'image/png',
-    'image/jpeg',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
-    ...MP3_MIME_TYPES,
-    ...VIDEO_MIME_TYPES,
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/zip',
-    'application/x-zip-compressed',
-    'text/plain',
-    'text/csv',
-  ],
+  // Keep this unrestricted: unknown or extensionless files often have an empty
+  // MIME type and should fall through to the generic attachment branch.
   onDrop: (currentEditor, files, pos) => {
     for (const file of files) {
       if (file.type.startsWith('image/')) {
