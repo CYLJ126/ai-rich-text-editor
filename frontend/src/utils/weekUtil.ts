@@ -1,53 +1,82 @@
-import dayjs, {Dayjs} from 'dayjs';
-import weekOfYear from 'dayjs/plugin/weekOfYear';
-import isoWeek from 'dayjs/plugin/isoWeek';
-import weekday from 'dayjs/plugin/weekday';
-
-// 启用需要的插件
-dayjs.extend(weekOfYear);
-dayjs.extend(isoWeek);
-dayjs.extend(weekday);
-
-export interface WeekInfo {
-  year: number; // 2025 年
-  week: number; // 第 45 周
-  value: number; // 如 2025 年第 45 周，则为 2545
-  time: Dayjs; // 指定周内的某个时间点
-}
+import dayjs, {type Dayjs} from 'dayjs';
 
 /**
- * 计算给定日期所在周的信息
- * 与后端 {com.cylj126.core.utils.mytime.MyDateUtil#weekOfYear} 一致
- * @param targetDate
+ * 月内业务周：自然周（周一至周日）与自然月的交集。
+ * 数字 ID 使用 YYMMWW，例如 260905 表示 2026-09-W05。
  */
-export const getWeekInfo = (targetDate: Dayjs): WeekInfo => {
-  const day = targetDate.toDate();
-  const year = day.getFullYear();
-  const jan1 = new Date(year, 0, 1); // 获取当年1月1日
-  // 计算指定日期是当年的第几天（1月1日为第1天）
-  const startOfYear = new Date(year, 0, 1);
-  const timeDiff = day - startOfYear;
-  const dayOfYear = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-  // 计算1月1日是周几（Java中：周一=1，周日=7；JS中：getDay()返回0=周日，1=周一...6=周六）
-  const jan1Day = jan1.getDay(); // JS的周几（0-6）
-  const firstDay = jan1Day === 0 ? 7 : jan1Day; // 转换为Java的周几格式（1-7）
-  // 计算当年第一周的天数（1月1日所在周的天数）
-  const daysOfFirstWeek = 8 - firstDay;
+export interface WeekInfo {
+  year: number;
+  month: number;
+  week: number;
+  value: number;
+  time: Dayjs;
+  periodStart: Dayjs;
+  periodEnd: Dayjs;
+  label: string;
+}
 
-  let week, value;
-  // 如果指定日期在第一周内
-  if (daysOfFirstWeek - dayOfYear >= 0) {
-    value = (year % 100) * 100 + 1;
-    week = 1;
-  } else {
-    // 计算第一周之后的剩余天数
-    const remainingDays = dayOfYear - daysOfFirstWeek;
-    const mod = remainingDays % 7;
-    // 计算周数：剩余天数/7，根据余数调整（整除加1，否则加2）
-    week = Math.floor(remainingDays / 7);
-    week += mod === 0 ? 1 : 2;
-    // 组装周ID（年份后两位*100 + 周数）
-    value = (year % 100) * 100 + week;
+const mondayBasedDay = (date: Dayjs): number =>
+  date.day() === 0 ? 7 : date.day();
+
+const pad = (value: number): string => String(value).padStart(2, '0');
+
+const resolveWeekDays = (
+  year: number,
+  month: number,
+  week: number,
+): Dayjs[] => {
+  if (
+    year < 2000 ||
+    year > 2099 ||
+    month < 1 ||
+    month > 12 ||
+    week < 1 ||
+    week > 6
+  ) {
+    return [];
   }
-  return {year, week, value, time: targetDate};
+  const monthStart = dayjs(`${year}-${pad(month)}-01`);
+  const firstSegmentDays = 8 - mondayBasedDay(monthStart);
+  const segmentStart =
+    week === 1
+      ? monthStart
+      : monthStart.add(firstSegmentDays + (week - 2) * 7, 'day');
+  if (segmentStart.month() + 1 !== month) return [];
+
+  const candidateEnd = segmentStart.add(
+    week === 1 ? firstSegmentDays - 1 : 6,
+    'day',
+  );
+  const segmentEnd = candidateEnd.isAfter(monthStart.endOf('month'), 'day')
+    ? monthStart.endOf('month')
+    : candidateEnd;
+  const days: Dayjs[] = [];
+  for (
+    let cursor = segmentStart;
+    !cursor.isAfter(segmentEnd, 'day');
+    cursor = cursor.add(1, 'day')
+  ) {
+    days.push(cursor);
+  }
+  return days;
 };
+
+export const getWeekDays = (weekId: number): Dayjs[] => {
+  const year = 2000 + Math.floor(weekId / 10_000);
+  const month = Math.floor(weekId / 100) % 100;
+  const week = weekId % 100;
+  return resolveWeekDays(year, month, week);
+};
+
+export const formatWeekLabel = (weekId: number): string => {
+  const days = getWeekDays(weekId);
+  if (days.length === 0) return String(weekId);
+  const start = days[0];
+  const end = days[days.length - 1];
+  return `${start.format('YYYY-MM')}-W${pad(weekId % 100)} · ${start.format('MM/DD')}—${end.format('MM/DD')}`;
+};
+
+export async function getWeekInfoList(time: any, offset: any) {
+  // TODO: implement
+  return Promise.resolve([]);
+}
