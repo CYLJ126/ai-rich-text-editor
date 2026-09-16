@@ -1502,7 +1502,7 @@ export default {
   'app.common.timeheader.85d18353': 'Loading...',
   'app.common.timeheader.a378ca10': 'Quarter',
   'app.common.timeheader.c3fa2749': 'Day',
-  'app.common.timeheader.d109a055': 'Week',
+  'app.common.timeheader.d109a055': 'W',
   'app.common.timeheader.d3362408': 'Year',
   'app.common.timeheader.d5ad045e': 'Six Months',
   'app.common.timeheader.ebcd1799': 'Month',
