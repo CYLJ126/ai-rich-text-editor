@@ -1,17 +1,16 @@
 package com.arte.app.web.controller.base;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.arte.app.api.base.TagRelationService;
 import com.arte.app.pojo.base.TagDto;
 import com.arte.app.pojo.base.TagPo;
 import com.arte.app.pojo.base.TagRelationDto;
 import com.arte.app.pojo.base.TagRelationPo;
 import com.arte.app.service.base.TagServiceImpl;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.ResultContext;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.Resource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,6 +63,9 @@ public class TagRelationController {
     public ResultContext<List<TagDto>> listTagRelations(@RequestBody TagRelationDto param) {
         QueryWrapper<TagRelationDto> queryWrapper = getQueryWrapper(param);
         List<TagRelationDto> relations = tagrelationService.list(queryWrapper);
+        if (CollUtil.isEmpty(relations)) {
+            return ResultContext.success(CollUtil.newArrayList());
+        }
         List<TagDto> tags = relations.stream().map(relation -> TagServiceImpl.getTagById(relation.getTagId()))
                 .sorted(Comparator.comparing(TagPo::getId)).toList();
         return ResultContext.success(tags);
