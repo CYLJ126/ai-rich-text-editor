@@ -58,7 +58,7 @@ export const TiptapStarterKit = StarterKit.configure({
   code: {
     HTMLAttributes: {
       class: cn(
-        'rounded-sm bg-stone-100 text-sky-700 px-1 py-0.5 font-mono font-medium before:content-none after:content-none',
+        'rounded-sm bg-stone-100 text-sky-700 px-1 py-0.5 mx-0.5 font-mono font-medium before:content-none after:content-none',
       ),
       spellcheck: 'false',
     },
