@@ -70,9 +70,9 @@ f(x)|函数记号
 \ast|星号运算符
 \circ|复合运算或小圆运算符
 \setminus|差集；比 \backslash 更适合作为二元运算符
-\sum|求和符号
-\prod|连乘符号
-\coprod|余积符号
+\sum_{i=1}^{n}|求和符号
+\prod_{i=1}^{n}|连乘符号
+\coprod_{i=1}^{n}|余积符号
 \min S|最小值
 \max S|最大值`,
   ),
