@@ -232,6 +232,13 @@ T|Tau（大写，与拉丁字母 T 同形）
 X|Chi（大写，与拉丁字母 X 同形）
 \Psi|Psi（大写）
 \Omega|Omega（大写）
+\mho|Mho，导纳单位，大写 Ω 的倒置形式（大写）
+\digamma|Digamma，双伽玛（大写）
+Ϛ|Stigma，Digamma 的另一种变体（大写）
+Ϙ|Koppa（大写）
+ϟ|Koppa 的另一种变体（大写）
+Ϻ|San（大写）
+Ϡ|Sampi，超 iota（大写）
 \alpha|alpha
 \beta|beta
 \gamma|gamma
@@ -249,7 +256,6 @@ X|Chi（大写，与拉丁字母 X 同形）
 o|omicron（与拉丁字母 o 同形）
 \pi|pi
 \rho|rho
-\varsigma|词尾 sigma
 \sigma|sigma
 \tau|tau
 \upsilon|upsilon
@@ -262,7 +268,8 @@ o|omicron（与拉丁字母 o 同形）
 \varkappa|kappa 的变体；部分渲染器可能不支持
 \varpi|pi 的变体
 \varrho|rho 的变体
-\varphi|phi 的变体`,
+\varphi|phi 的变体
+\varsigma|词尾 sigma`,
   ),
   createSection(
     'accents',
