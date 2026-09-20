@@ -33,12 +33,8 @@ export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
     'expressions',
     '表达式',
     String.raw`
-1\,1|很窄的正间距（约 3/18 em）
-1\:1|中等数学间距（约 4/18 em）
-1\;1|较宽的数学间距（约 5/18 em）
-1\!1|负的窄间距，用于收紧内容
-1\quad 1|约 1 em 的间距
-1\qquad 1|约 2 em 的间距
+a\,b|很窄的正间距（\, 3/18 em；\: 4/18 em，\; 5/18 em；\quad 1 em；\qquad 2 em；）
+a\!b|负的窄间距，用于收紧内容
 \frac{a}{b}|分数
 x^2|上标；多个字符应写成 x^{n+1}
 x_2|下标；多个字符应写成 x_{i+1}
