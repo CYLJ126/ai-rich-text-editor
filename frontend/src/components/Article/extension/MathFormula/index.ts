@@ -88,9 +88,12 @@ const MathFormulaBlock = BlockMath.extend({
 });
 
 // Match the surrounding horizontal whitespace so replacing the delimiters
-// does not leave spaces on either side of the inline formula.
+// does not leave spaces on either side of the inline formula. Tiptap uses
+// U+FFFC as the leaf placeholder for hard breaks while running paste rules,
+// so exclude it along with every Unicode line separator to prevent pairing
+// dollar signs across lines.
 const INLINE_MATH_PASTE_REGEX =
-  /[ \t]*(?<!\\)\$(?!\$)([^$\r\n]*?[^$\s\r\n][^$\r\n]*?)(?<!\\)\$(?!\$)[ \t]*/g;
+  /[ \t]*(?<!\\)\$(?!\$)([^$\r\n\u2028\u2029\uFFFC]*?[^$\s\uFFFC][^$\r\n\u2028\u2029\uFFFC]*?)(?<!\\)\$(?!\$)[ \t]*/g;
 
 const MathFormulaInline = InlineMath.extend({
   markdownTokenizer: {
