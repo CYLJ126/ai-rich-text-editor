@@ -37,7 +37,8 @@ export default function CommentCard({
 
   if (comment.deletedAt) {
     return (
-      <div className="rounded border border-dashed border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs text-[var(--ant-color-text-tertiary)]">
+      <div
+        className="comment-card rounded border border-dashed border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs text-[var(--ant-color-text-tertiary)]">
         {i18nText("app.article.commentspanel.commentcard.68b5a5b1")}
       </div>
     );
@@ -45,7 +46,7 @@ export default function CommentCard({
 
   return (
     <div
-      className="rounded border border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-bg-container)] px-3 py-2"
+      className="comment-card rounded border border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-bg-container)] px-3 py-2"
       onClick={(event) => {
         event.stopPropagation();
         onSelect?.(comment);
