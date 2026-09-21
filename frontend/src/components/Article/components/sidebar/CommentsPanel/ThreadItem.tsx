@@ -181,6 +181,7 @@ export default function ThreadItem({
 
   return (
     <div
+      data-comment-thread-card-id={thread.id}
       onMouseEnter={() => hoverThread(editor, [thread.id])}
       onMouseLeave={() => hoverOffThread(editor)}
     >
@@ -188,7 +189,7 @@ export default function ThreadItem({
         className={[
           'comment-thread-card cursor-pointer rounded-md border bg-[var(--ant-color-bg-container)] p-3',
           active
-            ? 'border-[var(--ant-color-primary)] shadow-sm'
+            ? 'comment-thread-card-active'
             : 'border-[var(--ant-color-border-secondary)] hover:border-[var(--ant-color-primary-border)]',
           thread.resolvedAt ? 'bg-[var(--ant-color-fill-quaternary)]' : '',
         ].join(' ')}

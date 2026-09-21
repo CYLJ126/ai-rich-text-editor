@@ -17,6 +17,7 @@ import {
   COMMENT_THREAD_CLICK_EVENT,
   type CommentThread,
   getCommentThreadOrder,
+  getRelatedCommentThreadIds,
 } from '@/components/Article/extension/comments/commentsExtension';
 import {
   createCommentThread as requestCreateCommentThread,
@@ -56,17 +57,22 @@ export default function CommentsPanel({ active }: { active: boolean }) {
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [showUnresolved, setShowUnresolved] = useState(true);
   const [selectedThread, setSelectedThread] = useState<string>();
+  const [highlightedThreads, setHighlightedThreads] = useState<string[]>([]);
   const [selectionEmpty, setSelectionEmpty] = useState(true);
   const [commentValue, setCommentValue] = useState('');
   const [docVersion, setDocVersion] = useState(0);
+  const [scrollRequestVersion, setScrollRequestVersion] = useState(0);
   const [creatingThread, setCreatingThread] = useState(false);
   const composerRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<TextAreaRef>(null);
+  const commentsListRef = useRef<HTMLDivElement>(null);
+  const pendingScrollThreadsRef = useRef<string[]>([]);
 
   const loadThreads = useCallback(async () => {
     if (!articleId || !canComment) {
       commentsProvider.replaceThreads([]);
       setSelectedThread(undefined);
+      setHighlightedThreads([]);
       return;
     }
 
@@ -89,6 +95,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
     if (!active) {
       commentsProvider.replaceThreads([]);
       setSelectedThread(undefined);
+      setHighlightedThreads([]);
       return;
     }
     loadThreads().then();
@@ -143,20 +150,49 @@ export default function CommentsPanel({ active }: { active: boolean }) {
       !filteredThreads.some((thread) => thread.id === selectedThread)
     ) {
       setSelectedThread(undefined);
+      setHighlightedThreads([]);
     }
   }, [filteredThreads, selectedThread]);
 
   useEffect(() => {
+    const pendingThreadIds = pendingScrollThreadsRef.current;
+    if (pendingThreadIds.length === 0) return;
+    const pendingThreadIdSet = new Set(pendingThreadIds);
+
+    const frame = requestAnimationFrame(() => {
+      const threadCard = Array.from(
+        commentsListRef.current?.querySelectorAll<HTMLElement>(
+          '[data-comment-thread-card-id]',
+        ) ?? [],
+      ).find((element) =>
+        pendingThreadIdSet.has(element.dataset.commentThreadCardId ?? ''),
+      );
+
+      if (threadCard) {
+        threadCard.scrollIntoView({behavior: 'smooth', block: 'start'});
+        pendingScrollThreadsRef.current = [];
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [filteredThreads, scrollRequestVersion]);
+
+  useEffect(() => {
     const handleCommentThreadClick = (event: Event) => {
-      const threadId = (event as CustomEvent<{ threadId?: string }>).detail
-        ?.threadId;
+      const {threadId, threadIds} = (
+        event as CustomEvent<{ threadId?: string; threadIds?: string[] }>
+      ).detail ?? {};
       if (!threadId) return;
+      const currentThreadIds = threadIds?.length ? threadIds : [threadId];
 
       const thread = threads.find((item) => item.id === threadId);
       if (thread) {
         setShowUnresolved(!thread.resolvedAt);
       }
+      pendingScrollThreadsRef.current = currentThreadIds;
+      setScrollRequestVersion((version) => version + 1);
       setSelectedThread(threadId);
+      setHighlightedThreads(currentThreadIds);
     };
 
     window.addEventListener(
@@ -288,6 +324,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
       editor.view.focus();
       setCommentValue('');
       setSelectedThread(threadId);
+      setHighlightedThreads(getRelatedCommentThreadIds(editor, threadId));
       await loadThreads();
     } catch (error) {
       if (createdThreadId) {
@@ -314,6 +351,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
   const handleSelectThread = useCallback(
     (threadId: string) => {
       setSelectedThread(threadId);
+      setHighlightedThreads(getRelatedCommentThreadIds(editor, threadId));
       editor
         ?.chain()
         .focus()
@@ -417,7 +455,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-3">
+        <div ref={commentsListRef} className="flex-1 overflow-auto p-3">
           {filteredThreads.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -431,7 +469,7 @@ export default function CommentsPanel({ active }: { active: boolean }) {
                 <ThreadItem
                   key={thread.id}
                   thread={thread}
-                  active={selectedThread === thread.id}
+                  active={highlightedThreads.includes(thread.id)}
                   open={selectedThread === thread.id}
                   onSelect={handleSelectThread}
                   articleId={articleId}
