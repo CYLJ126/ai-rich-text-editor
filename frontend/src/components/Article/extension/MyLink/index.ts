@@ -24,7 +24,9 @@ export const configureLink = () => {
       openOnClick: true,
       autolink: true,
       defaultProtocol: 'https',
-      protocols: ['http', 'https'],
+      // `protocols` is only for custom schemes. linkifyjs and Tiptap already
+      // support http/https, and registering them again for every editor emits
+      // an initialization warning once the first editor has used linkifyjs.
       shouldAutoLink: (url: string) => {
         // 避免 linkify 将“安装.net”等中文文本误判为裸域名。
         return /^https?:\/\/\S+$/i.test(url);
