@@ -1,15 +1,12 @@
-import { i18nText } from '@/utils/i18n';
-import { NodeViewProps } from '@tiptap/core';
-import { NodeViewWrapper } from '@tiptap/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Flex, Input, message as antdMessage } from 'antd';
-import { TextAreaRef } from 'antd/lib/input/TextArea';
-import {
-  STREAM_COMPLETION_URL,
-  streamChat,
-} from '@/services/ant-design-pro/ai.chat';
-import { extractDocText } from '@/components/Article/extension/ai-completion/context-builder';
-import { buildContinuationContext } from '@/utils/ai';
+import {i18nText} from '@/utils/i18n';
+import type {NodeViewProps} from '@tiptap/core';
+import {NodeViewWrapper} from '@tiptap/react';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {Button, Flex, Input, message as antdMessage} from 'antd';
+import type {TextAreaRef} from 'antd/lib/input/TextArea';
+import {STREAM_COMPLETION_URL, streamChat,} from '@/services/ant-design-pro/ai.chat';
+import {extractDocText} from '@/components/Article/extension/ai-completion/context-builder';
+import {buildContinuationContext} from '@/utils/ai';
 import Markdown from 'react-markdown';
 
 const AiWriterView = ({ editor, node, getPos }: NodeViewProps) => {
@@ -95,7 +92,15 @@ const AiWriterView = ({ editor, node, getPos }: NodeViewProps) => {
         },
       },
     );
-  }, [editor, prompt, setGeneratedContent, setShowOutput, setInsertDisabled, editor.articleInfo?.id, editor.aiModel?.continuationCharacterCountCeil]);
+  }, [
+    editor,
+    prompt,
+    setGeneratedContent,
+    setShowOutput,
+    setInsertDisabled,
+    editor.articleInfo?.id,
+    editor.aiModel?.continuationCharacterCountCeil,
+  ]);
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => {
@@ -109,7 +114,15 @@ const AiWriterView = ({ editor, node, getPos }: NodeViewProps) => {
   return (
     <NodeViewWrapper>
       <div className="flex flex-col gap-2 p-2 border border-[var(--ant-color-border-secondary)] rounded-md shadow-md">
-        {showOutput && <Markdown>{generatedContent}</Markdown>}
+        {showOutput && (
+          <div
+            className="select-text"
+            onMouseDown={(event) => event.stopPropagation()}
+            onCopy={(event) => event.stopPropagation()}
+          >
+            <Markdown>{generatedContent}</Markdown>
+          </div>
+        )}
         <Input.TextArea
           ref={inputRef}
           value={prompt}

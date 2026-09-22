@@ -1,4 +1,4 @@
-import {InputRule} from '@tiptap/core';
+import {InputRule, nodePasteRule} from '@tiptap/core';
 import {BlockMath, InlineMath, Mathematics, type MathematicsOptions,} from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import './MathFormula.less';
@@ -87,6 +87,14 @@ const MathFormulaBlock = BlockMath.extend({
   },
 });
 
+// Match the surrounding horizontal whitespace so replacing the delimiters
+// does not leave spaces on either side of the inline formula. Tiptap uses
+// U+FFFC as the leaf placeholder for hard breaks while running paste rules,
+// so exclude it along with every Unicode line separator to prevent pairing
+// dollar signs across lines.
+const INLINE_MATH_PASTE_REGEX =
+  /[ \t]*(?<!\\)\$(?!\$)([^$\r\n\u2028\u2029\uFFFC]*?[^$\s\uFFFC][^$\r\n\u2028\u2029\uFFFC]*?)(?<!\\)\$(?!\$)[ \t]*/g;
+
 const MathFormulaInline = InlineMath.extend({
   markdownTokenizer: {
     name: 'inlineMath',
@@ -132,6 +140,16 @@ const MathFormulaInline = InlineMath.extend({
     return [
       createRule(/(?<!\$)\$\$([^$\n]+?)\$\$$/),
       createRule(/\\\(([^\r\n]+?)\\\)$/),
+    ];
+  },
+
+  addPasteRules() {
+    return [
+      nodePasteRule({
+        find: INLINE_MATH_PASTE_REGEX,
+        type: this.type,
+        getAttributes: (match) => ({latex: match[1].trim()}),
+      }),
     ];
   },
 });

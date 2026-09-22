@@ -242,6 +242,8 @@ export const CommentsExtension = Mark.create<{
 
   inclusive: false,
 
+  excludes: '',
+
   addOptions() {
     return {
       provider: new CommentsProvider(),
@@ -338,11 +340,11 @@ export const CommentsExtension = Mark.create<{
           this.options.provider.deleteThread(id);
           editor.state.doc.descendants((node, pos) => {
             if (!node.isText) return;
-            const hasThreadMark = node.marks.some(
+            const threadMark = node.marks.find(
               (mark) => mark.type === markType && mark.attrs.threadId === id,
             );
-            if (hasThreadMark) {
-              tr.removeMark(pos, pos + node.nodeSize, markType);
+            if (threadMark) {
+              tr.removeMark(pos, pos + node.nodeSize, threadMark);
             }
           });
 
@@ -380,12 +382,31 @@ export const CommentsExtension = Mark.create<{
         props: {
           handleClick: (view, _pos, event) => {
             const target = event.target as HTMLElement | null;
-            const threadElement = target?.closest?.(
+            let threadElement = target?.closest?.(
               '[data-comment-thread-id]',
             ) as HTMLElement | null;
-            const threadId = threadElement?.dataset.commentThreadId;
+            const threadIds: string[] = [];
+
+            while (threadElement && view.dom.contains(threadElement)) {
+              const currentThreadId = threadElement.dataset.commentThreadId;
+              if (currentThreadId && !threadIds.includes(currentThreadId)) {
+                threadIds.push(currentThreadId);
+              }
+              threadElement = threadElement.parentElement?.closest?.(
+                '[data-comment-thread-id]',
+              ) as HTMLElement | null;
+            }
+
+            const threadId = threadIds[0];
 
             if (!threadId) return false;
+            getRelatedCommentThreadIds(view, threadId).forEach(
+              (relatedThreadId) => {
+                if (!threadIds.includes(relatedThreadId)) {
+                  threadIds.push(relatedThreadId);
+                }
+              },
+            );
 
             const range = findThreadRange(view.state.doc, this.name, threadId);
             const tr = view.state.tr;
@@ -395,11 +416,11 @@ export const CommentsExtension = Mark.create<{
               ).scrollIntoView();
             }
 
-            this.storage.focusedThreads = [threadId];
+            this.storage.focusedThreads = threadIds;
             view.dispatch(tr);
             window.dispatchEvent(
               new CustomEvent(COMMENT_THREAD_CLICK_EVENT, {
-                detail: { threadId },
+                detail: {threadId, threadIds},
               }),
             );
             return true;
@@ -439,6 +460,29 @@ export function getCommentThreadOrder(editor: any) {
   });
 
   return order;
+}
+
+export function getRelatedCommentThreadIds(editor: any, threadId: string) {
+  const relatedThreadIds = new Set([threadId]);
+
+  editor?.state?.doc?.descendants((node: any) => {
+    if (!node.isText) return;
+
+    const containsThread = node.marks.some(
+      (mark: any) =>
+        mark.type.name === 'comments' && mark.attrs?.threadId === threadId,
+    );
+    if (!containsThread) return;
+
+    node.marks.forEach((mark: any) => {
+      const relatedThreadId = mark.attrs?.threadId;
+      if (mark.type.name === 'comments' && relatedThreadId) {
+        relatedThreadIds.add(relatedThreadId);
+      }
+    });
+  });
+
+  return [...relatedThreadIds];
 }
 
 function createCommentThreadId() {

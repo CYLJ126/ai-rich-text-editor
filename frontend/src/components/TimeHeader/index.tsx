@@ -1,16 +1,16 @@
-import { VerticalLeftOutlined, VerticalRightOutlined } from '@ant-design/icons';
-import { DatePicker, Row, Select, Tooltip } from 'antd';
-import { createStyles } from 'antd-style';
-import dayjs, { type Dayjs } from 'dayjs';
+import {VerticalLeftOutlined, VerticalRightOutlined} from '@ant-design/icons';
+import {DatePicker, Row, Select, Tooltip} from 'antd';
+import {createStyles} from 'antd-style';
+import dayjs, {type Dayjs} from 'dayjs';
 import localeData from 'dayjs/plugin/localeData';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
 import weekday from 'dayjs/plugin/weekday';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
-import React, { type ReactNode, useEffect, useState } from 'react';
-import { getI18nLocale, i18nText } from '@/utils/i18n';
+import React, {type ReactNode, useEffect, useState} from 'react';
+import {getI18nLocale, i18nText} from '@/utils/i18n';
+import {formatWeekLabel, getWeekInfoList} from '@/utils/weekUtil';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/zh-tw';
-import { getWeekInfoList } from '@/services/ant-design-pro/dailyWork';
 import styles from './index.less';
 
 dayjs.extend(weekOfYear);
@@ -86,10 +86,16 @@ const buildDayLabel = (date: Dayjs, withWeekday: boolean): string => {
 };
 
 /**
- * 根据周 ID 生成本地化标签，例如：第2631周 / 第2631週 / Week 2631
+ * 根据月内业务周 ID 生成标签，并明确显示实际日期范围。
  */
 const buildWeekLabel = (value: number | string): string =>
-  i18nText('app.common.timeheader.weekLabel', { value });
+  typeof value === 'number'
+    ? formatWeekLabel(value)
+    : i18nText('app.common.timeheader.weekLabel', {value});
+
+/** 构造半年标签。Dayjs 的 format 没有半年占位符，需要单独处理。 */
+const buildHalfYearLabel = (date: Dayjs): string =>
+  `${date.year()}-H${date.month() < 6 ? 1 : 2}`;
 
 // 时间单位配置
 const TIME_UNIT_CONFIG = {
@@ -184,16 +190,16 @@ const useStyles = createStyles(
 );
 
 const TimeHeader: React.FC<HeaderProps> = ({
-  myTime,
-  onTimeChange,
-  children,
-  theme = {},
-  className,
-  style,
-  showWeekdayToggleIcon = true,
-  showWeekdayProp = false,
-  onShowWeekdayChange,
-}) => {
+                                             myTime,
+                                             onTimeChange,
+                                             children,
+                                             theme = {},
+                                             className,
+                                             style,
+                                             showWeekdayToggleIcon = true,
+                                             showWeekdayProp = false,
+                                             onShowWeekdayChange,
+                                           }) => {
   const { styles: colorStyle } = useStyles(theme);
 
   // ── showWeekday 状态（受控/非受控均可）──
@@ -219,7 +225,7 @@ const TimeHeader: React.FC<HeaderProps> = ({
       type: 'day',
       value: now,
       time: now,
-      label: now.format(TIME_UNIT_CONFIG['day']['format']),
+      label: now.format(TIME_UNIT_CONFIG.day.format),
     };
   };
 
@@ -230,6 +236,16 @@ const TimeHeader: React.FC<HeaderProps> = ({
   const format = TIME_UNIT_CONFIG[currentTime.type].format;
 
   const [timeOptions, setTimeOptions] = useState<MyTime[]>([]);
+
+  const buildTime = (type: TimeUnit, time: Dayjs): MyTime => ({
+    type,
+    time,
+    value: time,
+    label:
+      type === 'half-year'
+        ? buildHalfYearLabel(time)
+        : time.format(TIME_UNIT_CONFIG[type].format),
+  });
 
   // ── 切换星期显示 ──
   const handleToggleWeekday = () => {
@@ -279,17 +295,12 @@ const TimeHeader: React.FC<HeaderProps> = ({
         return timeOptions[nextIndex];
       }
       case 'quarter':
-        return { ...current, time: current.time.add(amount * 3, 'month') };
+        return buildTime('quarter', current.time.add(amount * 3, 'month'));
       case 'half-year':
-        return { ...current, time: current.time.add(amount * 6, 'month') };
+        return buildTime('half-year', current.time.add(amount * 6, 'month'));
       default: {
         const tempTime = current.time.add(amount, current.type);
-        return {
-          type: current.type,
-          time: tempTime,
-          value: tempTime,
-          label: tempTime.format(fmt),
-        };
+        return buildTime(current.type, tempTime);
       }
     }
   };
@@ -301,10 +312,12 @@ const TimeHeader: React.FC<HeaderProps> = ({
       case 'week': {
         getWeekInfoList(currentTime.time || dayjs(), 7).then((weekList) => {
           weekList?.forEach((weekInfo: any) => {
+            let startTime = weekInfo?.startTime?.slice(5, 7) + '/' + weekInfo?.startTime?.slice(8, 10);
+            let endTime = weekInfo?.endTime?.slice(5, 7) + '/' + weekInfo?.endTime?.slice(8, 10);
             options.push({
               value: weekInfo.value,
-              label: buildWeekLabel(weekInfo.value),
-              time: weekInfo.time,
+              label: weekInfo.label + ' - ' + startTime + ' ~ ' + endTime,
+              time: dayjs(weekInfo.time),
               type: 'week',
             });
           });
@@ -319,6 +332,24 @@ const TimeHeader: React.FC<HeaderProps> = ({
         break;
       }
       case 'half-year': {
+        const currentYear = currentTime.time.year();
+        for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+          options.push(
+            {
+              value: `${year}-H1`,
+              label: `${year}-H1`,
+              time: dayjs(`${year}-01-01`),
+              type: 'half-year',
+            },
+            {
+              value: `${year}-H2`,
+              label: `${year}-H2`,
+              time: dayjs(`${year}-07-01`),
+              type: 'half-year',
+            },
+          );
+        }
+        setTimeOptions(options);
         break;
       }
       default:
@@ -347,21 +378,20 @@ const TimeHeader: React.FC<HeaderProps> = ({
 
   // ── 渲染时间选择器 ──
   const renderTimeSelector = () => {
-    // 下拉选择（周/月/季/半年）
-    if (
-      ['week', 'month', 'quarter', 'half-year'].includes(
-        currentTime?.type || 'week',
-      )
-    ) {
+    // 周依赖后端周序号，半年没有原生 DatePicker，二者使用下拉选择。
+    if (['week', 'half-year'].includes(currentTime?.type || 'week')) {
       // 当 options 加载完后，确保 currentTime.value 能在其中找到
       const matchedOption = timeOptions.find(
-        (opt) => opt.value === currentTime.value,
+        (opt) =>
+          opt.value === currentTime.value ||
+          (currentTime.type === 'half-year' &&
+            opt.value === buildHalfYearLabel(currentTime.time)),
       );
       return (
         <Select
           className={`${styles.timeSelect} ${colorStyle.timeSelect}`}
           options={timeOptions}
-          value={matchedOption ? currentTime.value : undefined} // ✅ 找不到时显示 placeholder
+          value={matchedOption?.value} // 找不到时显示 placeholder
           placeholder={i18nText('app.common.timeheader.85d18353')}
           loading={timeOptions.length === 0}
           onSelect={(_, option) => handleTimeChange(option as MyTime, 'set')}
@@ -370,25 +400,28 @@ const TimeHeader: React.FC<HeaderProps> = ({
     }
 
     // showTime 配置
-    let showTime: string | boolean = false;
-    switch (currentTime.type) {
-      case 'minute':
-        showTime = 'HH:mm';
-        break;
-      case 'hour':
-        showTime = 'HH';
-        break;
-      default:
-        showTime = false;
-    }
+    const showTime =
+      currentTime.type === 'minute'
+        ? {format: 'HH:mm'}
+        : currentTime.type === 'hour'
+          ? {format: 'HH'}
+          : false;
 
     // day 类型：计算 picker 宽度（显示星期时加宽）
     const isDay = currentTime.type === 'day';
+    const picker =
+      currentTime.type === 'month' ||
+      currentTime.type === 'quarter' ||
+      currentTime.type === 'year'
+        ? currentTime.type
+        : undefined;
     const pickerWidth = isDay
       ? showWeekday
         ? '175px' // "2026-05-22 周五" 需要更宽
         : '142px'
-      : '193px';
+      : currentTime.type === 'year'
+        ? '100px'
+        : '142px';
 
     return (
       <>
@@ -396,19 +429,13 @@ const TimeHeader: React.FC<HeaderProps> = ({
           className={`${styles.timePicker} ${colorStyle.timePicker}`}
           style={{ width: pickerWidth }}
           value={currentTime.time}
+          picker={picker}
+          showTime={showTime}
           // day 类型：format 根据 showWeekday 动态切换
           format={isDay ? (date) => buildDayLabel(date, showWeekday) : format}
           onChange={(value) => {
             if (value) {
-              handleTimeChange(
-                {
-                  value: value,
-                  time: value,
-                  type: currentTime.type,
-                  label: value.format(format),
-                },
-                'set',
-              );
+              handleTimeChange(buildTime(currentTime.type, value), 'set');
             }
           }}
         />
@@ -438,7 +465,10 @@ const TimeHeader: React.FC<HeaderProps> = ({
   };
 
   return (
-    <div className={`${styles.headerContainer} ${className}`} style={style}>
+    <div
+      className={`${styles.headerContainer} ${className ?? ''}`}
+      style={style}
+    >
       <Row align="middle" wrap={false} style={{ width: '100%' }}>
         {/* 向前按钮 */}
         <VerticalRightOutlined

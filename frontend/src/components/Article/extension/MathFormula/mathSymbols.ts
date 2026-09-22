@@ -33,12 +33,8 @@ export const MATH_SYMBOL_SECTIONS: MathSymbolSection[] = [
     'expressions',
     '表达式',
     String.raw`
-1\,1|很窄的正间距（约 3/18 em）
-1\:1|中等数学间距（约 4/18 em）
-1\;1|较宽的数学间距（约 5/18 em）
-1\!1|负的窄间距，用于收紧内容
-1\quad 1|约 1 em 的间距
-1\qquad 1|约 2 em 的间距
+a\,b|很窄的正间距（\, 3/18 em；\: 4/18 em，\; 5/18 em；\quad 1 em；\qquad 2 em；）
+a\!b|负的窄间距，用于收紧内容
 \frac{a}{b}|分数
 x^2|上标；多个字符应写成 x^{n+1}
 x_2|下标；多个字符应写成 x_{i+1}
@@ -74,9 +70,9 @@ f(x)|函数记号
 \ast|星号运算符
 \circ|复合运算或小圆运算符
 \setminus|差集；比 \backslash 更适合作为二元运算符
-\sum|求和符号
-\prod|连乘符号
-\coprod|余积符号
+\sum_{i=1}^{n}|求和符号
+\prod_{i=1}^{n}|连乘符号
+\coprod_{i=1}^{n}|余积符号
 \min S|最小值
 \max S|最大值`,
   ),
@@ -232,6 +228,13 @@ T|Tau（大写，与拉丁字母 T 同形）
 X|Chi（大写，与拉丁字母 X 同形）
 \Psi|Psi（大写）
 \Omega|Omega（大写）
+\mho|Mho，导纳单位，大写 Ω 的倒置形式（大写）
+\digamma|Digamma，双伽玛（大写）
+Ϛ|Stigma，Digamma 的另一种变体（大写）
+Ϙ|Koppa（大写）
+ϟ|Koppa 的另一种变体（大写）
+Ϻ|San（大写）
+Ϡ|Sampi，超 iota（大写）
 \alpha|alpha
 \beta|beta
 \gamma|gamma
@@ -249,7 +252,6 @@ X|Chi（大写，与拉丁字母 X 同形）
 o|omicron（与拉丁字母 o 同形）
 \pi|pi
 \rho|rho
-\varsigma|词尾 sigma
 \sigma|sigma
 \tau|tau
 \upsilon|upsilon
@@ -262,7 +264,8 @@ o|omicron（与拉丁字母 o 同形）
 \varkappa|kappa 的变体；部分渲染器可能不支持
 \varpi|pi 的变体
 \varrho|rho 的变体
-\varphi|phi 的变体`,
+\varphi|phi 的变体
+\varsigma|词尾 sigma`,
   ),
   createSection(
     'accents',
