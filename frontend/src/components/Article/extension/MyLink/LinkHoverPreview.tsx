@@ -115,6 +115,8 @@ class LinkHoverView {
 
   private container: HTMLDivElement;
 
+  private destroyed = false;
+
   private hideTimer?: number;
 
   private root: Root;
@@ -167,6 +169,10 @@ class LinkHoverView {
   }
 
   private render = () => {
+    if (this.destroyed) {
+      return;
+    }
+
     if (!this.anchor?.isConnected) {
       this.hide();
       return;
@@ -194,6 +200,11 @@ class LinkHoverView {
   private hide = () => {
     this.clearHideTimer();
     this.anchor = undefined;
+
+    if (this.destroyed) {
+      return;
+    }
+
     this.root.render(null);
   };
 
@@ -236,13 +247,26 @@ class LinkHoverView {
   };
 
   destroy() {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.destroyed = true;
     this.clearHideTimer();
+    this.anchor = undefined;
     this.view.dom.removeEventListener('mouseover', this.handleMouseOver);
     this.view.dom.removeEventListener('mouseout', this.handleMouseOut);
     window.removeEventListener('resize', this.updatePosition);
     window.removeEventListener('scroll', this.updatePosition, true);
-    this.root.unmount();
-    this.container.remove();
+
+    // ProseMirror may destroy plugin views while a React component (for
+    // example BubbleMenu) is rendering. React 19 warns if another root is
+    // synchronously unmounted during that render, so finish the independent
+    // root's cleanup in the next task instead.
+    window.setTimeout(() => {
+      this.root.unmount();
+      this.container.remove();
+    }, 0);
   }
 }
 
