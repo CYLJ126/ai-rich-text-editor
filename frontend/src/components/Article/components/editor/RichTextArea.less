@@ -21,6 +21,11 @@
         color: inherit;
       }
 
+      // Typography 为列表序号单独指定了颜色；引用内应跟随引用文字颜色。
+      blockquote ol > li::marker {
+        color: currentColor;
+      }
+
       // 标题
       h1, h2, h3, h4, h5, h6 {
         margin-top: 1rem;
@@ -112,18 +117,52 @@
           display: flex;
 
           > label {
+            align-items: center;
+            display: flex;
             flex: 0 0 auto;
+            height: 1.75em;
             margin-right: 0.5rem;
             user-select: none;
           }
 
           > div {
             flex: 1 1 auto;
+            min-width: 0;
           }
         }
 
         input[type='checkbox'] {
+          appearance: none;
+          border: 1px solid currentColor;
+          border-radius: 2px;
+          color: inherit;
           cursor: pointer;
+          display: grid;
+          flex: 0 0 auto;
+          height: 0.875rem;
+          margin: 0;
+          place-content: center;
+          width: 0.875rem;
+
+          &::before {
+            border-color: currentColor;
+            border-style: solid;
+            border-width: 0 1.5px 1.5px 0;
+            content: '';
+            height: 0.5rem;
+            transform: rotate(45deg) scale(0);
+            transform-origin: center;
+            width: 0.25rem;
+          }
+
+          &:checked::before {
+            transform: rotate(45deg) scale(1);
+          }
+
+          &:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: 2px;
+          }
         }
 
         ul[data-type='taskList'] {
@@ -143,6 +182,7 @@
 
         p {
           margin-bottom: 0;
+          margin-top: 0;
         }
       }
 
