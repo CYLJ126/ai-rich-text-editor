@@ -6,6 +6,7 @@ import cn.hutool.core.lang.Assert;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.arte.ai.api.AssistantService;
+import com.arte.ai.api.ModelConfigService;
 import com.arte.ai.pojo.assistant.AssistantDto;
 import com.arte.ai.pojo.assistant.AssistantParam;
 import com.arte.ai.pojo.assistant.AssistantPo;
@@ -13,6 +14,7 @@ import com.arte.core.annotations.AnonymousAccess;
 import com.arte.core.exception.BusinessException;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
+import com.arte.core.pojo.UserContext;
 import jakarta.annotation.Resource;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +35,9 @@ public class AssistantController {
     @Resource
     private AssistantService assistantService;
 
+    @Resource
+    private ModelConfigService modelConfigService;
+
     /**
      * 新增助手
      */
@@ -40,6 +45,7 @@ public class AssistantController {
     @AnonymousAccess
     public ResultContext<Boolean> addAssistant(@RequestBody AssistantDto dto) {
         dto.setId(null);
+        validateAccessibleModel(dto.getModelId());
         boolean save = assistantService.save(dto);
         if (!save) {
             return ResultContext.fail();
@@ -53,6 +59,7 @@ public class AssistantController {
     @PostMapping("/updateAssistant")
     @AnonymousAccess
     public ResultContext<Boolean> updateAssistant(@RequestBody AssistantDto dto) {
+        validateAccessibleModel(dto.getModelId());
         boolean update = assistantService.updateById(dto);
         if (!update) {
             return ResultContext.fail();
@@ -142,6 +149,13 @@ public class AssistantController {
             throw new BusinessException(MessageUtils.get("error.ai.assistantClearDefaultFailed", param.getId()));
         }
         return ResultContext.success();
+    }
+
+    private void validateAccessibleModel(Integer modelId) {
+        Assert.notNull(modelId, MessageUtils.get("error.field.assistantModelRequired"));
+        if (!modelConfigService.isAccessibleModel(modelId, UserContext.getUserName())) {
+            throw new BusinessException("error.ai.modelConfigNotAccessible");
+        }
     }
 
 }

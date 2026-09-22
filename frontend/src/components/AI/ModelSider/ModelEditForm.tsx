@@ -2,7 +2,7 @@ import {i18nText} from '@/utils/i18n';
 import React, {useEffect, useState} from 'react';
 import {Spin} from 'antd';
 import {DynamicForm} from '@/components';
-import {FormFieldConfig} from '@/components/DynamicForm/FormField';
+import type {FormFieldConfig} from '@/components/DynamicForm/FormField';
 import {
   addModelConfig,
   getModelConfig,
@@ -10,6 +10,18 @@ import {
   updateModelConfig,
 } from '@/services/ant-design-pro/ai.rbac';
 import {GMCrypto} from "@/utils/crypto/gmCrypto";
+import {
+  type AvailableModel,
+  listAvailableModels,
+} from '@/components/AI/ModelSider/modelService';
+
+const MASKED_API_KEY = '********';
+
+interface ProviderOption {
+  label: string;
+  value: string;
+  defaultApiBaseUrl?: string;
+}
 
 interface ModelEditFormProps {
   id?: number;
@@ -27,14 +39,15 @@ const ModelEditForm = ({
   const [submitLoading, setSubmitLoading] = useState(false);
   const [initialValues, setInitialValues] = useState<Record<string, any>>({});
 
-  const [providerOptions, setProviderOptions] = useState<{ label: string; value: string }[]>([]);
+  const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
 
   // 加载下拉选项数据
   useEffect(() => {
     const loadOptions = async () => {
       try {
         const providersRes = await listModelProviders();
-        providersRes && setProviderOptions([...providersRes]);
+        providersRes && setProviderOptions([...providersRes] as ProviderOption[]);
       } catch (error) {
         console.error('加载模型提供商选项数据失败：', error);
       }
@@ -71,28 +84,24 @@ const ModelEditForm = ({
       required: true,
       placeholder: i18nText("app.ai.modelsider.modeleditform.0795c3e4"),
       options: providerOptions,
-    },
-    {
-      fieldName: 'modelId',
-      fieldType: 'input',
-      label: i18nText("app.ai.modelsider.modeleditform.b32031aa"),
-      required: true,
-      placeholder: i18nText("app.ai.modelsider.modeleditform.15696882"),
-    },
-    {
-      fieldName: 'modelName',
-      fieldType: 'input',
-      label: i18nText("app.ai.modelsider.modeleditform.743ba271"),
-      required: true,
-      placeholder: i18nText("app.ai.modelsider.modeleditform.345c1867"),
+      onChange: (value: string, _field, formData) => ({
+        apiBaseUrl: providerOptions.find((item) => item.value === value)
+          ?.defaultApiBaseUrl,
+        apiKey:
+          isEdit && initialValues.provider === value
+            ? formData.apiKey
+            : undefined,
+      }),
     },
     {
       fieldName: 'apiKey',
-      fieldType: 'input',
+      fieldType: 'password',
       label: i18nText("app.ai.modelsider.modeleditform.3f2b7a7d"),
       required: true,
       placeholder: i18nText("app.ai.modelsider.modeleditform.b41d4008"),
+      debounce: 600,
       transformFunction: (value: string) => {
+        if (value === MASKED_API_KEY) return value;
         // 已是 SM2 密文则跳过，避免编辑时对后端返回的密文重复加密
         if (GMCrypto.isSM2Encrypted(value)) return value;
         return GMCrypto.sm2Encrypt(value, localStorage.getItem('platform-public-key') || '');
@@ -104,6 +113,61 @@ const ModelEditForm = ({
       label: i18nText("app.ai.modelsider.modeleditform.fb4b43e1"),
       required: true,
       placeholder: i18nText("app.ai.modelsider.modeleditform.b9ed74af"),
+      debounce: 600,
+    },
+    {
+      fieldName: 'modelId',
+      fieldType: 'select',
+      label: i18nText("app.ai.modelsider.modeleditform.743ba271"),
+      required: true,
+      placeholder: i18nText("app.ai.modelsider.modeleditform.345c1867"),
+      dependOn: ['provider', 'apiKey', 'apiBaseUrl'],
+      loadOptionsFunc: async (_, dependentValues) => {
+        const provider = dependentValues?.provider;
+        const apiKey = dependentValues?.apiKey;
+        if (!provider || !apiKey) {
+          setAvailableModels([]);
+          return [];
+        }
+        const encryptedApiKey =
+          apiKey === MASKED_API_KEY || GMCrypto.isSM2Encrypted(apiKey)
+            ? apiKey
+            : GMCrypto.sm2Encrypt(
+                apiKey,
+                localStorage.getItem('platform-public-key') || '',
+              );
+        const models =
+          (await listAvailableModels({
+            provider,
+            modelConfigId: id,
+            apiKey: encryptedApiKey,
+            apiBaseUrl: dependentValues?.apiBaseUrl,
+          })) || [];
+        setAvailableModels(models);
+        return models.map((model) => ({
+          label:
+            model.modelName && model.modelName !== model.modelId
+              ? `${model.modelName} (${model.modelId})`
+              : model.modelId,
+          value: model.modelId,
+        }));
+      },
+      onChange: (value: string) => {
+        const model = availableModels.find((item) => item.modelId === value);
+        if (!model) return;
+        return {
+          supportVision: model.supportVision,
+          supportFunction: model.supportFunction,
+          supportThinking: model.supportThinking,
+          supportSearch: model.supportSearch,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
+        };
+      },
+      extraProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+      },
     },
     {
       fieldName: 'apiVersion',
@@ -315,7 +379,18 @@ const ModelEditForm = ({
   const handleSubmit = async (values: Record<string, any>) => {
     setSubmitLoading(true);
     try {
-      const submitData = {...values};
+      const selectedModel = availableModels.find(
+        (model) => model.modelId === values.modelId,
+      );
+      const submitData = {
+        ...values,
+        modelName:
+          selectedModel?.modelName ||
+          (values.modelId === initialValues.modelId
+            ? initialValues.modelName
+            : undefined) ||
+          values.modelId,
+      };
       if (isEdit) {
         await updateModelConfig({...submitData, id});
       } else {

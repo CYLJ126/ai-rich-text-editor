@@ -53,7 +53,11 @@ export interface FormFieldConfig {
   extraProps?: Record<string, any>;
   extraClassName?: string;
   extraStyle?: React.CSSProperties;
-  onChange?: (value: any, field: string, formData: any) => void;
+  onChange?: (
+    value: any,
+    field: string,
+    formData: any,
+  ) => undefined | Record<string, any>;
   fullWidth?: boolean; // 是否占满一行
   span?: number; // 自定义列宽
 }

@@ -14,6 +14,8 @@ import com.arte.core.pojo.PageView;
  **/
 public interface ModelConfigService extends IService<ModelConfigDto> {
 
+    String MASKED_API_KEY = "********";
+
     /**
      * 新增模型配置
      *
@@ -54,5 +56,15 @@ public interface ModelConfigService extends IService<ModelConfigDto> {
      * @return 是否连通
      */
     Boolean testConnectivity(ModelProviderEnum provider, String modelId);
+
+    /**
+     * 查询当前用户拥有的模型配置。
+     */
+    ModelConfigDto getOwnedModel(Integer id, String userName);
+
+    /**
+     * 判断启用中的模型是否可供当前用户使用。
+     */
+    boolean isAccessibleModel(Integer id, String userName);
 
 }

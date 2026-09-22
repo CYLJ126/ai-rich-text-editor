@@ -58,6 +58,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
         boolean exists = lambdaQuery()
                 .eq(ModelConfigDto::getProvider, dto.getProvider())
                 .eq(ModelConfigDto::getModelId, dto.getModelId())
+                .eq(ModelConfigDto::getCreateBy, UserContext.getUserName())
                 .exists();
         if (exists) {
             throw new BusinessException(MessageUtils.get("error.ai.modelIdDuplicate", dto.getModelId()));
@@ -75,18 +76,30 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean updateModelConfig(ModelConfigDto dto) {
-        ModelConfigDto existing = getAndCheckExists(dto.getProvider(), dto.getModelId());
+        ModelConfigDto existing = getOwnedModel(dto.getId(), UserContext.getUserName());
+        if (existing == null) {
+            throw new BusinessException("error.ai.modelConfigNotAccessible");
+        }
+        ModelProviderEnum provider = dto.getProvider() != null ? dto.getProvider() : existing.getProvider();
+        String modelId = StrUtil.blankToDefault(dto.getModelId(), existing.getModelId());
         // provider + modelId 唯一性校验（排除自身）
-        if (StrUtil.isNotBlank(dto.getModelId()) &&
-                !existing.getModelId().equals(dto.getModelId())) {
+        if (!existing.getProvider().equals(provider) || !existing.getModelId().equals(modelId)) {
             boolean conflicts = lambdaQuery()
-                    .eq(ModelConfigDto::getProvider, dto.getProvider() != null ? dto.getProvider() : existing.getProvider())
-                    .eq(ModelConfigDto::getModelId, dto.getModelId())
+                    .eq(ModelConfigDto::getProvider, provider)
+                    .eq(ModelConfigDto::getModelId, modelId)
+                    .eq(ModelConfigDto::getCreateBy, UserContext.getUserName())
+                    .ne(ModelConfigDto::getId, dto.getId())
                     .exists();
             if (conflicts) {
-                throw new BusinessException(MessageUtils.get("error.ai.modelIdDuplicate", dto.getModelId()));
+                throw new BusinessException(MessageUtils.get("error.ai.modelIdDuplicate", modelId));
             }
         }
+        dto.setProvider(provider);
+        dto.setModelId(modelId);
+        if (MASKED_API_KEY.equals(dto.getApiKey()) || StrUtil.isBlank(dto.getApiKey())) {
+            dto.setApiKey(existing.getApiKey());
+        }
+        dto.setCreateBy(existing.getCreateBy());
         boolean updated = updateById(dto);
         if (updated) {
             evictDefaultModelConfig(resolveUserName(existing.getCreateBy()));
@@ -97,6 +110,26 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
     @Override
     public PageView<ModelConfigDto> listModelConfigs(ModelConfigParam param) {
         return page(param, buildQueryWrapper(param));
+    }
+
+    @Override
+    public ModelConfigDto getOwnedModel(Integer id, String userName) {
+        if (id == null || StrUtil.isBlank(userName)) {
+            return null;
+        }
+        return lambdaQuery()
+                .eq(ModelConfigDto::getId, id)
+                .eq(ModelConfigDto::getCreateBy, userName)
+                .one();
+    }
+
+    @Override
+    public boolean isAccessibleModel(Integer id, String userName) {
+        return id != null && StrUtil.isNotBlank(userName) && lambdaQuery()
+                .eq(ModelConfigDto::getId, id)
+                .eq(ModelConfigDto::getCreateBy, userName)
+                .eq(ModelConfigDto::getStatus, StatusEnum.DOING)
+                .exists();
     }
 
     @Override
@@ -131,6 +164,9 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
     @Override
     public Boolean testConnectivity(ModelProviderEnum provider, String modelId) {
         ModelConfigDto config = getAndCheckExists(provider, modelId);
+        if (config == null) {
+            throw new BusinessException("error.ai.modelConfigNotAccessible");
+        }
         if (!StrUtil.isNotBlank(config.getApiKey())) {
             throw new BusinessException("error.ai.testConnNoApiKey");
         }
@@ -150,6 +186,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
         wrapper.eq(Objects.nonNull(param.getProvider()), ModelConfigPo.COL_PROVIDER, param.getProvider())
                 .eq(StrUtil.isNotBlank(param.getModelId()), ModelConfigPo.COL_MODEL_ID, param.getModelId())
                 .eq(StrUtil.isNotBlank(param.getModelType()), ModelConfigPo.COL_MODEL_TYPE, param.getModelType())
+                .eq(Objects.nonNull(param.getStatus()), ModelConfigPo.COL_STATUS, param.getStatus())
                 .eq(StrUtil.isNotBlank(param.getCreateBy()), ModelConfigPo.COL_CREATE_BY, param.getCreateBy().trim())
                 .like(StrUtil.isNotBlank(param.getModelName()), ModelConfigPo.COL_MODEL_NAME, "%" + param.getModelName() + "%")
                 .between(param.getStartDateTimeFloor() != null, ModelConfigPo.COL_UPDATE_TIME, param.getStartDateTimeFloor(), param.getStartDateTimeCeil())
@@ -167,6 +204,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
         return lambdaQuery()
                 .eq(ModelConfigDto::getProvider, provider)
                 .eq(ModelConfigDto::getModelId, modelId)
+                .eq(ModelConfigDto::getCreateBy, UserContext.getUserName())
                 .one();
     }
 
@@ -219,13 +257,8 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
      * 根据 provider 解析默认 BaseUrl
      */
     private String resolveDefaultBaseUrl(ModelProviderEnum provider) {
-        if (provider == null) return "https://api.openai.com/v1";
-        return switch (provider.getValue().toLowerCase()) {
-            case "openai" -> "https://api.openai.com/v1";
-            case "deepseek" -> "https://api.deepseek.com/v1";
-            case "qwen" -> "https://dashscope.aliyuncs.com/compatible-mode/v1";
-            case "openrouter" -> "https://openrouter.ai/api/v1";
-            default -> "https://api.openai.com/v1";
-        };
+        return provider == null
+                ? ModelProviderEnum.OPENAI.getDefaultApiBaseUrl()
+                : provider.getDefaultApiBaseUrl();
     }
 }
