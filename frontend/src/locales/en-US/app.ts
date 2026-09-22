@@ -552,7 +552,7 @@ export default {
   'app.article.editor.richtextcontext.c9c3dc07': 'Bold [Mod-B]',
   'app.article.editor.richtextcontext.d0891109': 'Align Left [Mod-Shift-L]',
   'app.article.editor.richtextcontext.d70cb7fd': 'Explanation is not implemented yet',
-  'app.article.editor.richtextcontext.d7355ca6': 'Text Color',
+  'app.article.editor.richtextcontext.d7355ca6': 'Text Color [Mod-Shift-X]',
   'app.article.editor.richtextcontext.e2579ac7': 'Task List [Mod-Shift-9]',
   'app.article.editor.richtextcontext.e2f3554d': 'Align Right [Mod-Shift-R]',
   'app.article.editor.richtextcontext.e63a45fc': 'Translate Selected Content',

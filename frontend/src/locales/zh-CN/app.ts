@@ -526,7 +526,7 @@ export default {
   'app.article.editor.richtextcontext.c9c3dc07': '文本加粗【Mod-B】',
   'app.article.editor.richtextcontext.d0891109': '左对齐【Mod-Shift-L】',
   'app.article.editor.richtextcontext.d70cb7fd': '解读功能暂未实现',
-  'app.article.editor.richtextcontext.d7355ca6': '文本颜色',
+  'app.article.editor.richtextcontext.d7355ca6': '文本颜色【Mod-Shift-X】',
   'app.article.editor.richtextcontext.e2579ac7': '任务列表【Mod-Shift-9】',
   'app.article.editor.richtextcontext.e2f3554d': '右对齐【Mod-Shift-R】',
   'app.article.editor.richtextcontext.e63a45fc': '翻译选中内容',

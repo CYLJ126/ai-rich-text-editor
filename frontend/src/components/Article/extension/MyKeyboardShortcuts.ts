@@ -1,6 +1,6 @@
-import { Extension } from '@tiptap/core';
-import { formatSelection } from '@/components/Article/components/editor/formatSelection';
-import { toggleLink } from '@/components/Article/extension/MyLink';
+import {Extension} from '@tiptap/core';
+import {formatSelection} from '@/components/Article/components/editor/formatSelection';
+import {toggleLink} from '@/components/Article/extension/MyLink';
 
 /**
  * 快捷键配置扩展
@@ -42,6 +42,11 @@ export const MyKeyboardShortcuts = Extension.create<KeyboardShortcutsOptions>({
         // 格式化选中文本
         formatSelection(this.editor);
         return true;
+      },
+      'Mod-Shift-x': () => {
+        // 应用或取消上次使用的文本颜色
+        const color = localStorage.getItem('editor-font-color') || '#ce2416';
+        return this.editor.chain().focus().toggleFontColor(color).run();
       },
       'Mod-Alt-Shift-t': () => {
         //插入表格
