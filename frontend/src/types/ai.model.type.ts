@@ -1,4 +1,10 @@
-export type ModelProviderEnum = 'deepseek' | 'qianwen' | 'openai' | 'openrouter';
+export type ModelProviderEnum =
+  | 'deepseek'
+  | 'qianwen'
+  | 'openai'
+  | 'claude'
+  | 'mistral'
+  | 'openrouter';
 export type ModelTypeEnum = 'CHAT' | 'EMBEDDING' | 'IMAGE' | 'AUDIO';
 
 export interface ModelConfig {
