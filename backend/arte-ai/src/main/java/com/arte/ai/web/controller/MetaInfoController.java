@@ -6,11 +6,13 @@ import com.arte.core.enums.MyEnum;
 import com.arte.core.enums.TextTypeEnum;
 import com.arte.core.pojo.DropdownDto;
 import com.arte.core.pojo.ResultContext;
+import com.arte.ai.pojo.model.ModelProviderOptionDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -29,8 +31,14 @@ public class MetaInfoController {
      */
     @GetMapping("/listModelProviders")
     @AnonymousAccess
-    public ResultContext<List<DropdownDto>> listModelProviders() {
-        return ResultContext.success(MyEnum.getDropdownOptions(ModelProviderEnum.class));
+    public ResultContext<List<ModelProviderOptionDto>> listModelProviders() {
+        return ResultContext.success(Arrays.stream(ModelProviderEnum.values())
+                .map(provider -> new ModelProviderOptionDto(
+                        provider.getValue(),
+                        provider.getDescription(),
+                        false,
+                        provider.getDefaultApiBaseUrl()))
+                .toList());
     }
 
     /**

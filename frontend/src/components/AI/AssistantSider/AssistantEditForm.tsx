@@ -2,7 +2,7 @@ import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useEffect, useState} from 'react';
 import {Slider, Spin} from 'antd';
 import DynamicForm from '@/components/DynamicForm';
-import {FormFieldConfig} from '@/components/DynamicForm/FormField';
+import type {FormFieldConfig} from '@/components/DynamicForm/FormField';
 import {
   addAssistant,
   getAssistant,
@@ -14,7 +14,6 @@ import {
   listTextTypes,
   updateAssistant,
 } from '@/services/ant-design-pro/ai.rbac';
-import {useModelsStore} from "@/stores/modelsStore";
 
 const AssistantEditForm = ({
                              id,
@@ -25,14 +24,14 @@ const AssistantEditForm = ({
   onSuccess?: () => void;
   onCancel?: () => void;
 }) => {
-  const getModelById = useModelsStore((state) => state.getModelById);
   const isEdit = !!id;
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [initialValues, setInitialValues] = useState<Record<string, any>>();
 
-  const [providerOptions, setProviderOptions] = useState<{ label: string; value: string }[]>([]);
-  const [modelOptions, setModelOptions] = useState<{ label: string; value: number; provider: string }[]>([]);
+  const [modelOptions, setModelOptions] = useState<
+    {label: string; value: number}[]
+  >([]);
   const [knowledgeOptions, setKnowledgeOptions] = useState<{ label: string; value: string }[]>([]);
   const [contextStrategyOptions, setContextStrategyOptions] = useState<any[]>([]);
   const [textTypeOptions, setTextTypeOptions] = useState<any[]>([]);
@@ -45,24 +44,21 @@ const AssistantEditForm = ({
       try {
         const [providersRes, modelsRes, knowledgeRes, contextStrategyRes, textTypeRes, reasoningEffortRes] = await Promise.all([
           listModelProviders(),
-          listModelConfigs({}),
+          listModelConfigs({status: 1}),
           listKnowledgeBaseTypes(),
           listContextStrategies(),
           listTextTypes(),
           listReasoningEfforts(),
         ]);
 
-        if (providersRes) {
-          setProviderOptions(
-            providersRes.map((item: any) => ({label: item.label, value: item.value})),
-          );
-        }
         if (modelsRes?.records) {
+          const providerLabels = new Map(
+            (providersRes || []).map((item: any) => [item.value, item.label]),
+          );
           setModelOptions(
             modelsRes.records.map((item: any) => ({
-              label: item.modelName || item.modelId,
+              label: `${providerLabels.get(item.provider) || item.provider} / ${item.modelName || item.modelId}`,
               value: item.id,
-              provider: item.provider,
             })),
           );
         }
@@ -104,12 +100,6 @@ const AssistantEditForm = ({
       try {
         const data = await getAssistant(id);
         if (data) {
-          if (data.modelId) {
-            let filter = modelOptions.filter((model => model.value === data.modelId));
-            if (filter) {
-              data.modelProvider = getModelById(data.modelId)?.provider || '';
-            }
-          }
           setInitialValues(data);
           if (data.contextStrategy) {
             handleContextStrategyChange(data.contextStrategy);
@@ -123,7 +113,7 @@ const AssistantEditForm = ({
     };
 
     loadAssistantData().then();
-  }, [id, isEdit, modelOptions]);
+  }, [id, isEdit]);
 
   // 处理上下文策略变化，设置上下文窗口数的滑动条选项
   const handleContextStrategyChange = useCallback((value: string) => {
@@ -144,6 +134,7 @@ const AssistantEditForm = ({
         marks: {1: '1', 5: '5', 10: '10', 15: '15', 20: '20'},
       });
     }
+    return undefined;
   }, [setContextWindowOptions]);
 
   const fields: FormFieldConfig[] = [
@@ -162,25 +153,16 @@ const AssistantEditForm = ({
       placeholder: i18nText("app.ai.assistantsider.assistanteditform.f78d585f"),
     },
     {
-      fieldName: 'modelProvider',
-      fieldType: 'select',
-      label: i18nText("app.ai.assistantsider.assistanteditform.45964902"),
-      placeholder: i18nText("app.ai.assistantsider.assistanteditform.74cb1c86"),
-      options: providerOptions,
-    },
-    {
       fieldName: 'modelId',
       fieldType: 'select',
       label: i18nText("app.ai.assistantsider.assistanteditform.de86d311"),
       placeholder: i18nText("app.ai.assistantsider.assistanteditform.184f3007"),
-      dependOn: ['modelProvider'],
-      loadOptionsFunc: async (field, dependentValues) => {
-        if (dependentValues?.modelProvider) {
-          return Promise.resolve(modelOptions.filter((model: any) => model.provider === dependentValues?.modelProvider));
-        } else {
-          return Promise.resolve(modelOptions);
-        }
-      }
+      required: true,
+      options: modelOptions,
+      extraProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+      },
     },
     {
       fieldName: 'systemPrompt',

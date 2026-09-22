@@ -26,24 +26,41 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ModelAdapterFactory {
     private final List<ModelAdapter> adapters;
     private final Map<String, ModelAdapter> registry = new ConcurrentHashMap<>();
+    private final Map<ModelProviderEnum, ModelAdapter> providerFallbacks = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
         adapters.forEach(adapter -> {
             registry.put(adapter.modelKey(), adapter);
+            providerFallbacks.putIfAbsent(adapter.provider(), adapter);
             log.info("注册模型适配器: {}", adapter.modelKey());
         });
+
+        // 千问、Claude、Mistral 和 OpenRouter 均提供 OpenAI 兼容的对话端点。
+        // 未为单个模型声明专用适配器时，复用通用 OpenAI 适配器。
+        ModelAdapter openAiFallback = providerFallbacks.get(ModelProviderEnum.OPENAI);
+        if (openAiFallback != null) {
+            providerFallbacks.putIfAbsent(ModelProviderEnum.QIAN_WEN, openAiFallback);
+            providerFallbacks.putIfAbsent(ModelProviderEnum.CLAUDE, openAiFallback);
+            providerFallbacks.putIfAbsent(ModelProviderEnum.MISTRAL, openAiFallback);
+            providerFallbacks.putIfAbsent(ModelProviderEnum.OPEN_ROUTER, openAiFallback);
+        }
     }
 
     /**
      * 获取指定 provider 的适配器
      */
     public ModelAdapter getAdapter(ModelProviderEnum provider, String modelId) {
+        if (provider == null) {
+            throw new IllegalArgumentException(MessageUtils.get("error.ai.providerUnsupported", "null:" + modelId));
+        }
         ModelAdapter adapter = registry.get(provider.getValue() + ":" + modelId);
+        if (adapter == null) {
+            adapter = providerFallbacks.get(provider);
+        }
         if (adapter == null) {
             throw new IllegalArgumentException(MessageUtils.get("error.ai.providerUnsupported", provider.getValue() + ":" + modelId));
         }
         return adapter;
     }
 }
-

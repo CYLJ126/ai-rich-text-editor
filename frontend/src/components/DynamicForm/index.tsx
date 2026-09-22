@@ -182,12 +182,20 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
 
       // 执行自定义 onChange
       if (field.onChange) {
-        field.onChange(value, field.fieldName, newFormData);
+        const changedValues = field.onChange(
+          value,
+          field.fieldName,
+          newFormData,
+        );
+        if (changedValues) {
+          Object.assign(newFormData, changedValues);
+          form.setFieldsValue(changedValues);
+        }
       }
 
       // 处理依赖字段
       fields.forEach((f) => {
-        if (f.dependOn && f.dependOn.includes(field.fieldName)) {
+        if (f.dependOn?.includes(field.fieldName)) {
           const dependentValues = f.dependOn.reduce(
             (acc, dep) => {
               acc[dep] = newFormData[dep];
@@ -351,7 +359,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         return (
           <DatePicker
             {...commonProps}
-            onChange={(date, dateString) =>
+            onChange={(_date, dateString) =>
               handleFieldChange(field, dateString)
             }
             format={field.extraProps?.format || 'YYYY-MM-DD'}
@@ -367,7 +375,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
               i18nText('app.common.dynamicform.7a84342d'),
               i18nText('app.common.dynamicform.5074f263'),
             ]}
-            onChange={(dates, dateStrings) =>
+            onChange={(_dates, dateStrings) =>
               handleFieldChange(field, dateStrings)
             }
             format={field.extraProps?.format || 'YYYY-MM-DD'}
