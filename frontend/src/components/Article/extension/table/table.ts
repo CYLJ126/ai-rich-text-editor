@@ -1,6 +1,6 @@
 import {cn} from "@/lib/utils";
-import {createColGroup, Table} from "@tiptap/extension-table";
-import {DOMOutputSpec, DOMSerializer} from "@tiptap/pm/model";
+import {createColGroup, Table, updateColumns} from "@tiptap/extension-table";
+import {type DOMOutputSpec, DOMSerializer} from "@tiptap/pm/model";
 import {mergeAttributes} from "@tiptap/react";
 import "./table-styles.css";
 
@@ -21,9 +21,7 @@ export const CustomTable = Table.extend({
       [
         "table",
         mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-          style: tableWidth
-              ? `width: ${tableWidth}`
-              : `min-width: ${tableMinWidth}`,
+          style: `width: 100%; min-width: ${tableWidth || tableMinWidth}`,
         }),
         colgroup,
         ["tbody", 0],
@@ -67,11 +65,8 @@ export const CustomTable = Table.extend({
         }
       });
 
-      if (tableWidth) {
-        table.style.width = tableWidth;
-      } else {
-        table.style.minWidth = tableMinWidth;
-      }
+      table.style.width = "100%";
+      table.style.minWidth = tableWidth || tableMinWidth;
 
       const colGroupResult = DOMSerializer.renderSpec(document, colgroup);
       const content = document.createElement("tbody");
@@ -91,6 +86,24 @@ export const CustomTable = Table.extend({
       return {
         dom,
         contentDOM: content,
+        update: (updatedNode) => {
+          if (updatedNode.type !== node.type) {
+            return false;
+          }
+
+          updateColumns(
+            updatedNode,
+            colGroupResult.dom as HTMLTableColElement,
+            table,
+            this.options.cellMinWidth
+          );
+
+          const minimumWidth = table.style.width || table.style.minWidth;
+          table.style.width = "100%";
+          table.style.minWidth = minimumWidth;
+
+          return true;
+        },
         ignoreMutation: (_mutation) => true,
       };
     };
