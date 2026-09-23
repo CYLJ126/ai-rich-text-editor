@@ -1198,7 +1198,7 @@ export default {
   'app.article.article.richtexteditor.c03a915d':
     '是否先保存当前文章，再离开编辑页面？',
   'app.article.article.richtexteditor.c201e8db': '不保存，直接打开',
-  'app.article.article.richtexteditor.cf9fa79d': '导出 Markdown',
+  'app.article.article.richtexteditor.cf9fa79d': '导出',
   'app.article.article.richtexteditor.d560e34c':
     '编辑器异常，无法转换，请刷新页面后重试',
   'app.article.article.richtexteditor.dfb05fb1': '包含字号',

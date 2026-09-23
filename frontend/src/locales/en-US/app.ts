@@ -1306,7 +1306,7 @@ export default {
   'app.article.article.richtexteditor.c03a915d':
     'Save the current article before leaving the editor?',
   'app.article.article.richtexteditor.c201e8db': 'Open Without Saving',
-  'app.article.article.richtexteditor.cf9fa79d': 'Export Markdown',
+  'app.article.article.richtexteditor.cf9fa79d': 'Export',
   'app.article.article.richtexteditor.d560e34c':
     'The editor encountered an error. Refresh the page and try again.',
   'app.article.article.richtexteditor.dfb05fb1': 'Include Font Size',

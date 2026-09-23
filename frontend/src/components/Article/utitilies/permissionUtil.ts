@@ -14,7 +14,7 @@ export const readButtons = [
   'switch-area',
   'switch-page-size',
   'bg-color',
-  'markdown-export',
+  'export',
   'operation-mode',
 ];
 

@@ -52,7 +52,7 @@ import type {
   PasteStyleStorage,
   ToolbarButtonItem,
 } from '@/types/rt.type';
-import {exportFile} from '@/utils/fileUtil';
+import {exportFile, exportPdf} from '@/utils/fileUtil';
 import styles from './RichTextEditor.less';
 
 export interface RichTextEditorRef {
@@ -579,12 +579,29 @@ const EditorLayout = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           },
         },
         {
-          key: 'markdown-export',
+          key: 'export',
           label: i18nText("app.article.article.richtexteditor.cf9fa79d"),
           icon: <DownloadOutlined />,
           order: 10,
-          onClick: () =>
-            exportFile(articleInfo?.title || '', editor?.getMarkdown() || ''),
+          renderCustom: () => (
+            <DropdownToolbarButton
+              icon={<DownloadOutlined/>}
+              options={[
+                {label: 'Markdown', value: 'markdown'},
+                {label: 'PDF', value: 'pdf'},
+              ]}
+              onSelect={(value) => {
+                if (!editor) {
+                  message.error(i18nText("app.article.article.richtexteditor.d560e34c")).then();
+                  return;
+                }
+
+                return value === 'pdf'
+                  ? exportPdf(articleInfo?.title || '', editor.view.dom)
+                  : exportFile(articleInfo?.title || '', editor.getMarkdown() || '');
+              }}
+            />
+          ),
         },
         {
           key: 'share-article',
