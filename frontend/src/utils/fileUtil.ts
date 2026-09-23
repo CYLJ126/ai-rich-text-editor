@@ -157,3 +157,124 @@ export const exportFile = async (
   const zipName = `${sanitizedFileName.replace(/\.md$/i, '')}.zip`;
   downloadBlob(zipName, blob);
 };
+
+/**
+ * Export the rendered editor content through the browser's PDF print flow.
+ */
+export const exportPdf = (
+  fileName: string,
+  editorElement: HTMLElement,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const title = document.title;
+    const printStyle = document.createElement('style');
+    const exportElements: HTMLElement[] = [editorElement];
+    let ancestor = editorElement.parentElement;
+
+    while (ancestor) {
+      exportElements.push(ancestor);
+      ancestor = ancestor.parentElement;
+    }
+
+    editorElement.dataset.pdfExportRoot = 'true';
+    exportElements.slice(1).forEach((element) => {
+      element.dataset.pdfExportAncestor = 'true';
+    });
+
+    printStyle.textContent = `
+      @media print {
+        @page {
+          size: A4;
+          margin: 18mm;
+        }
+
+        [data-pdf-export-ancestor='true'] {
+          box-sizing: border-box !important;
+          display: block !important;
+          height: auto !important;
+          max-height: none !important;
+          max-width: none !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          padding: 0 !important;
+          position: static !important;
+          width: 100% !important;
+        }
+
+        [data-pdf-export-ancestor='true'] >
+          :not([data-pdf-export-ancestor='true']):not([data-pdf-export-root='true']) {
+          display: none !important;
+        }
+
+        [data-pdf-export-root='true'] {
+          background: #fff !important;
+          box-sizing: border-box !important;
+          color: #1f2328;
+          height: auto !important;
+          max-width: none !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          padding: 0 !important;
+          width: 100% !important;
+        }
+
+        [data-pdf-export-root='true'] button,
+        [data-pdf-export-root='true'] [data-resize-handle] {
+          display: none !important;
+        }
+
+        [data-pdf-export-root='true'] img,
+        [data-pdf-export-root='true'] svg,
+        [data-pdf-export-root='true'] video {
+          height: auto;
+          max-width: 100%;
+        }
+
+        [data-pdf-export-root='true'] h1,
+        [data-pdf-export-root='true'] h2,
+        [data-pdf-export-root='true'] h3,
+        [data-pdf-export-root='true'] h4,
+        [data-pdf-export-root='true'] h5,
+        [data-pdf-export-root='true'] h6 {
+          break-after: avoid;
+        }
+
+        [data-pdf-export-root='true'] img,
+        [data-pdf-export-root='true'] pre,
+        [data-pdf-export-root='true'] blockquote,
+        [data-pdf-export-root='true'] tr {
+          break-inside: avoid;
+        }
+      }
+    `;
+    document.head.appendChild(printStyle);
+    document.title = sanitizeFileName(fileName).replace(/\.pdf$/i, '');
+
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener('afterprint', handleAfterPrint);
+      printStyle.remove();
+      document.title = title;
+      editorElement.removeAttribute('data-pdf-export-root');
+      exportElements.slice(1).forEach((element) => {
+        element.removeAttribute('data-pdf-export-ancestor');
+      });
+    };
+    const handleAfterPrint = () => {
+      cleanup();
+      resolve();
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint, {once: true});
+    window.requestAnimationFrame(() => {
+      try {
+        window.print();
+        window.setTimeout(handleAfterPrint, 60_000);
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    });
+  });
