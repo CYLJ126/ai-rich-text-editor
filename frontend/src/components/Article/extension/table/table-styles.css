@@ -11,7 +11,7 @@
   overflow: hidden;
   border: 1px solid var(--ant-color-border);
   width: fit-content;
-  max-width: 100%;
+  min-width: 100%;
 }
 
 /* ── 核心表格样式：强制覆盖 Tailwind Preflight ── */
