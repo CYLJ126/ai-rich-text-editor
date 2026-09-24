@@ -64,7 +64,7 @@ function LinkHoverCard({
 
   return (
     <div
-      className="fixed z-1100 flex max-w-96 items-center gap-2 rounded-md border px-2 py-1.5 text-sm shadow-lg"
+      className="fixed z-1100 flex max-w-200 items-center gap-2 rounded-md border px-2 py-1.5 text-sm shadow-lg"
       style={{
         left: position.left,
         top: position.top,
@@ -142,15 +142,24 @@ class LinkHoverView {
     }
   };
 
+  /**
+   * 先计算下方是否有足够空间；空间不足时，将悬浮框翻转到链接上方
+   * @param anchor
+   * @private
+   */
   private getPosition(anchor: HTMLAnchorElement): PreviewPosition {
     const rect = anchor.getBoundingClientRect();
-    const cardWidth = Math.min(384, window.innerWidth - 16);
-    const left = Math.max(
-      8,
-      Math.min(rect.left + 12, window.innerWidth - cardWidth - 8),
-    );
+
+    const viewportPadding = 8;
+    const gap = 8;
     const estimatedHeight = 44;
-    const top = Math.max(8, rect.top - estimatedHeight - 8);
+
+    const cardWidth = Math.min(384, window.innerWidth - viewportPadding * 2);
+    const left = Math.max(viewportPadding, Math.min(rect.left + 12, window.innerWidth - cardWidth - viewportPadding));
+    const belowTop = rect.bottom + gap;
+    const aboveTop = rect.top - estimatedHeight - gap;
+    const hasEnoughSpaceBelow = belowTop + estimatedHeight <= window.innerHeight - viewportPadding;
+    const top = hasEnoughSpaceBelow ? belowTop : Math.max(viewportPadding, aboveTop);
 
     return {left, top};
   }
