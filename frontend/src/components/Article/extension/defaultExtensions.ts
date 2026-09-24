@@ -4,7 +4,7 @@ import FileHandler from '@tiptap/extension-file-handler';
 import Heading from '@tiptap/extension-heading';
 import {Highlight} from '@tiptap/extension-highlight';
 import {TaskItem, TaskList} from '@tiptap/extension-list';
-import {TableCell, TableHeader, TableRow} from '@tiptap/extension-table';
+import {TableRow} from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
 import {CharacterCount} from '@tiptap/extensions';
 import {Markdown} from '@tiptap/markdown';
@@ -26,10 +26,12 @@ import {PasteStyleHandler} from '@/components/Article/extension/PasteStyleHandle
 import {Selection} from '@/components/Article/extension/selection';
 import {TiptapSubscript} from '@/components/Article/extension/subscript';
 import {TiptapSuperscript} from '@/components/Article/extension/superscript';
-import {CustomTable} from '@/components/Article/extension/table';
+import {CustomTable, TiptapTableCell, TiptapTableHeader} from '@/components/Article/extension/table';
 import {cn} from '@/lib/utils';
 import {uploadFile, uploadImage} from '@/services/upload';
 import {SearchHighlight} from "@/components/Article/extension/SearchHighlight";
+
+export {TiptapTableCell, TiptapTableHeader};
 
 export const TiptapStarterKit = StarterKit.configure({
   bulletList: {
@@ -139,35 +141,6 @@ export const TiptapTable = CustomTable.configure({
   lastColumnResizable: false,
   allowTableNodeSelection: true,
   resizable: true,
-});
-
-export const TiptapTableHeader = TableHeader.configure({
-  HTMLAttributes: {
-    class: cn(
-      'bg-muted dark:bg-gray-900 border border-default p-2 text-start min-w-37.5 font-semibold',
-    ),
-  },
-});
-
-export const TiptapTableCell = TableCell.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      verticalAlign: {
-        default: 'top',
-        parseHTML: (element) => {
-          return element.style.verticalAlign || 'top';
-        },
-        renderHTML: (attributes) => {
-          return { style: `vertical-align: ${attributes.verticalAlign}` };
-        },
-      },
-    };
-  },
-}).configure({
-  HTMLAttributes: {
-    class: cn('border border-default p-2 min-w-37.5'),
-  },
 });
 
 export const TipTapMarkdown = Markdown.configure({

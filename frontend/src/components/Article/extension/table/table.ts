@@ -4,9 +4,71 @@ import {type DOMOutputSpec, DOMSerializer} from "@tiptap/pm/model";
 import {mergeAttributes} from "@tiptap/react";
 import "./table-styles.css";
 
-// TODO 当合并表格后，转为 markdown时，位置不对了，可考虑是否优化
+export type TableBorderStyle = "all" | "horizontal" | "vertical" | "none";
+export type TableDensity =
+  | "compact"
+  | "narrow"
+  | "standard"
+  | "wide"
+  | "spacious";
+
+const applyTableStyleAttributes = (
+  root: HTMLElement,
+  table: HTMLTableElement,
+  attributes: Record<string, unknown>,
+) => {
+  const striped = attributes.striped === true;
+  const headerColored = attributes.headerColored !== false;
+  const borderStyle = (attributes.borderStyle || "all") as TableBorderStyle;
+  const density = (attributes.density || "standard") as TableDensity;
+
+  root.dataset.tableStriped = String(striped);
+  root.dataset.tableHeaderColored = String(headerColored);
+  root.dataset.tableBorderStyle = borderStyle;
+  root.dataset.tableDensity = density;
+  table.dataset.striped = String(striped);
+  table.dataset.headerColored = String(headerColored);
+  table.dataset.borderStyle = borderStyle;
+  table.dataset.density = density;
+};
+
+// TODO 当合并表格后，转为 markdown 时，位置不对了，可考虑是否优化
 // ── 自定义表格扩展 ───
 export const CustomTable = Table.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      striped: {
+        default: false,
+        parseHTML: (element) => element.dataset.striped === "true",
+        renderHTML: (attributes) => ({
+          "data-striped": String(attributes.striped === true),
+        }),
+      },
+      headerColored: {
+        default: true,
+        parseHTML: (element) => element.dataset.headerColored !== "false",
+        renderHTML: (attributes) => ({
+          "data-header-colored": String(attributes.headerColored !== false),
+        }),
+      },
+      borderStyle: {
+        default: "all",
+        parseHTML: (element) => element.dataset.borderStyle || "all",
+        renderHTML: (attributes) => ({
+          "data-border-style": attributes.borderStyle || "all",
+        }),
+      },
+      density: {
+        default: "standard",
+        parseHTML: (element) => element.dataset.density || "standard",
+        renderHTML: (attributes) => ({
+          "data-density": attributes.density || "standard",
+        }),
+      },
+    };
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     const { colgroup, tableWidth, tableMinWidth } = createColGroup(
         node,
@@ -67,6 +129,7 @@ export const CustomTable = Table.extend({
 
       table.style.width = "100%";
       table.style.minWidth = tableWidth || tableMinWidth;
+      applyTableStyleAttributes(dom, table, node.attrs);
 
       const colGroupResult = DOMSerializer.renderSpec(document, colgroup);
       const content = document.createElement("tbody");
@@ -97,6 +160,7 @@ export const CustomTable = Table.extend({
             table,
             this.options.cellMinWidth
           );
+          applyTableStyleAttributes(dom, table, updatedNode.attrs);
 
           const minimumWidth = table.style.width || table.style.minWidth;
           table.style.width = "100%";

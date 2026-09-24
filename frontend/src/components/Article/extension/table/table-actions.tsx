@@ -1,13 +1,14 @@
 import {MediumOutlined} from '@ant-design/icons';
 import type {Editor} from '@tiptap/react';
-import {App} from 'antd';
-import {CopyIcon, ScissorsIcon, TrashIcon} from 'lucide-react';
+import {App, Popover} from 'antd';
+import {CopyIcon, PaletteIcon, ScissorsIcon, TrashIcon} from 'lucide-react';
 import React, {useEffect, useMemo, useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {Button} from '@/components/ui/button';
 import {i18nText} from '@/utils/i18n';
 import {TableActionsPlugin, tableActionsPluginKey,} from './table-actions-plugin';
 import {copyTable, copyTableAsMarkdown, cutTable, deleteTableAt,} from './table-clipboard';
+import {TableStylePanel} from './table-style-panel';
 
 export interface TableActionContext {
   editor: Editor;
@@ -18,7 +19,8 @@ export interface TableActionItem {
   key: string;
   label: string;
   icon: React.ReactNode;
-  onClick: (context: TableActionContext) => boolean | Promise<boolean>;
+  onClick?: (context: TableActionContext) => boolean | Promise<boolean>;
+  popoverContent?: React.ReactNode;
   destructive?: boolean;
 }
 
@@ -56,6 +58,10 @@ export const TableActions = ({editor, actions}: TableActionsProps) => {
   }, [editor]);
 
   const runAction = (action: TableActionItem) => {
+    if (!action.onClick) {
+      return;
+    }
+
     const tablePos = tableActionsPluginKey.getState(editor.state)?.tablePos;
     if (tablePos === null || tablePos === undefined) {
       return;
@@ -66,22 +72,44 @@ export const TableActions = ({editor, actions}: TableActionsProps) => {
 
   return createPortal(
     <div className="table-actions__group" role="toolbar">
-      {actions.map((action) => (
-        <Button
-          aria-label={action.label}
-          className="size-7 cursor-pointer opacity-70 hover:opacity-100"
-          data-table-action
-          key={action.key}
-          onClick={() => runAction(action)}
-          onMouseDown={(event) => event.preventDefault()}
-          size="icon"
-          title={action.label}
-          type="button"
-          variant={action.destructive ? 'destructive' : 'secondary'}
-        >
-          {action.icon}
-        </Button>
-      ))}
+      {actions.map((action) => {
+        const trigger = (
+          <Button
+            aria-label={action.label}
+            className="size-7 cursor-pointer opacity-70 hover:opacity-100"
+            data-table-action
+            onClick={() => runAction(action)}
+            onMouseDown={(event) => event.preventDefault()}
+            size="icon"
+            title={action.label}
+            type="button"
+            variant={action.destructive ? 'destructive' : 'secondary'}
+          >
+            {action.icon}
+          </Button>
+        );
+
+        if (!action.popoverContent) {
+          return <React.Fragment key={action.key}>{trigger}</React.Fragment>;
+        }
+
+        return (
+          <Popover
+            arrow={false}
+            content={action.popoverContent}
+            getPopupContainer={(triggerNode) =>
+              triggerNode.closest<HTMLElement>('[data-content-type="table"]') ||
+              document.body
+            }
+            key={action.key}
+            mouseLeaveDelay={0.2}
+            placement="bottomRight"
+            trigger="hover"
+          >
+            {trigger}
+          </Popover>
+        );
+      })}
     </div>,
     rootElementRef.current,
   );
@@ -116,6 +144,12 @@ export const DefaultTableActions = ({editor}: { editor: Editor }) => {
           }
           return succeeded;
         },
+      },
+      {
+        key: 'style',
+        label: i18nText('app.article.table.tableStyle'),
+        icon: <PaletteIcon className={TABLE_ACTION_ICON_CLASS} strokeWidth={3}/>,
+        popoverContent: <TableStylePanel editor={editor}/>,
       },
       {
         key: 'copy-markdown',
