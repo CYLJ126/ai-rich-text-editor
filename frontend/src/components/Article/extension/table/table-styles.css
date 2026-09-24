@@ -81,7 +81,7 @@
 
 /* 操作按钮 */
 [data-content-type="table"] .table-controls {
-  button {
+  button:not([data-table-action]) {
     background-color: var(--ant-color-fill-secondary);
     border-radius: 3px;
     cursor: pointer;
@@ -101,40 +101,11 @@
 [data-content-type="table"] .table-actions__group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   padding: 3px;
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 6px;
-  background: var(--ant-color-bg-elevated);
-  box-shadow: var(--ant-box-shadow-secondary);
-}
-
-[data-content-type="table"] .table-actions__button {
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  color: var(--ant-color-text-secondary);
-}
-
-[data-content-type="table"] .table-actions__button:hover {
-  color: var(--ant-color-primary);
-  background: var(--ant-color-fill-tertiary);
-}
-
-[data-content-type="table"]
-.table-actions__button[data-destructive="true"]:hover {
-  color: var(--ant-color-error);
-  background: var(--ant-color-error-bg);
-}
-
-[data-content-type="table"] .table-actions__button > svg,
-[data-content-type="table"] .table-actions__button > span {
-  width: 15px;
-  height: 15px;
-  font-size: 15px;
+  border: 1px solid var(--ant-color-border);
+  border-radius: 3px;
+  background: var(--ant-color-bg-container);
 }
 
 /* ── 列宽调整手柄 ── */
