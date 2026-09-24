@@ -15,16 +15,17 @@ import {
 import {cn} from '@/lib/utils';
 import {PluginKey, TextSelection} from '@tiptap/pm/state';
 import {CellSelection, deleteCellSelection} from '@tiptap/pm/tables';
-import {Editor, useEditorState} from '@tiptap/react';
+import {type Editor, useEditorState} from '@tiptap/react';
 import {EllipsisIcon, EllipsisVerticalIcon, EqualIcon} from 'lucide-react';
 import {useMemo, useState} from 'react';
 import {
   columnMenuPluginKey,
+  DefaultTableActions,
   rowMenuPluginKey,
   TableMenuHandle,
-  TableMenuHandleProps,
+  type TableMenuHandleProps,
   TableSelectionOverlay,
-  TableSelectionOverlayProps,
+  type TableSelectionOverlayProps,
 } from '@/components/Article/extension';
 
 interface CellMenusState {
@@ -431,6 +432,9 @@ export const TableHandle = ({ editor }: { editor: Editor | null }) => {
 
   return (
     <>
+      {/* hover 或 focus 表格时，显示针对于表格的悬浮操作按钮 */}
+      <DefaultTableActions editor={editor}/>
+
       {columnMenuPluginProps && (
         <TableMenuHandle pluginProps={columnMenuPluginProps}>
           {/* 列操作菜单 */}

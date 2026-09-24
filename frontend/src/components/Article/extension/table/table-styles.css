@@ -88,6 +88,55 @@
   }
 }
 
+/* ── 整表悬浮操作栏 ── */
+[data-content-type="table"] .table-actions {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  z-index: 30;
+  pointer-events: auto;
+  transition: opacity 120ms ease;
+}
+
+[data-content-type="table"] .table-actions__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 6px;
+  background: var(--ant-color-bg-elevated);
+  box-shadow: var(--ant-box-shadow-secondary);
+}
+
+[data-content-type="table"] .table-actions__button {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--ant-color-text-secondary);
+}
+
+[data-content-type="table"] .table-actions__button:hover {
+  color: var(--ant-color-primary);
+  background: var(--ant-color-fill-tertiary);
+}
+
+[data-content-type="table"]
+.table-actions__button[data-destructive="true"]:hover {
+  color: var(--ant-color-error);
+  background: var(--ant-color-error-bg);
+}
+
+[data-content-type="table"] .table-actions__button > svg,
+[data-content-type="table"] .table-actions__button > span {
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+}
+
 /* ── 列宽调整手柄 ── */
 [data-content-type="table"] table .column-resize-handle {
   background-color: var(--ant-color-primary-hover);
