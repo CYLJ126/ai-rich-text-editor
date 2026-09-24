@@ -97,14 +97,19 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
 
         String nextTitle = article.getTitle() == null ? current.getTitle() : article.getTitle();
         String nextContent = article.getContentText() == null ? current.getContentText() : article.getContentText();
-        boolean versionChanged = !Objects.equals(current.getTitle(), nextTitle)
+        String nextContentJson = article.getContentJson() == null
+                ? current.getContentJson()
+                : article.getContentJson();
+        boolean historyChanged = !Objects.equals(current.getTitle(), nextTitle)
                 || !Objects.equals(current.getContentText(), nextContent);
+        boolean versionChanged = historyChanged
+                || !Objects.equals(current.getContentJson(), nextContentJson);
         if (!hasPersistentChanges(current, article)) {
             return ArticleUpdateStatus.UNCHANGED;
         }
 
         int currentVersion = resolveCurrentVersion(current);
-        if (versionChanged) {
+        if (historyChanged) {
             ArticleHistoryPo snapshot = new ArticleHistoryPo()
                     .setArticleId(current.getId())
                     .setVersionNo(currentVersion)
@@ -113,13 +118,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
                     .setModifiedBy(current.getUpdateBy())
                     .setModifiedTime(current.getUpdateTime());
             articleHistoryMapper.insert(snapshot);
-            article.setRowVersion(currentVersion + 1);
-        } else {
-            article.setRowVersion(currentVersion);
         }
+        article.setRowVersion(versionChanged ? currentVersion + 1 : currentVersion);
 
         boolean updated = updateById(article);
-        if (updated && versionChanged) {
+        if (updated && historyChanged) {
             trimHistory(article.getId());
         }
         return updated ? ArticleUpdateStatus.UPDATED : ArticleUpdateStatus.FAILED;
@@ -132,6 +135,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, ArticleDto> i
                 || changed(current.getAccessLevel(), incoming.getAccessLevel())
                 || changed(current.getArticleType(), incoming.getArticleType())
                 || changed(current.getCharacterCount(), incoming.getCharacterCount())
+                || changed(current.getContentJson(), incoming.getContentJson())
                 || changed(current.getContentMd(), incoming.getContentMd())
                 || changed(current.getContentText(), incoming.getContentText());
     }
