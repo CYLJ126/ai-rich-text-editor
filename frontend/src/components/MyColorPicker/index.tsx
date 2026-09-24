@@ -12,6 +12,7 @@ interface InnerPickerProps {
   initColor?: string;
   notify: (color: string) => void;
   initialColorOptions?: string[];
+  getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement;
 }
 
 interface MyColorPickerProps {
@@ -20,12 +21,14 @@ interface MyColorPickerProps {
   notify: (color: string) => void;
   initialStyle?: React.CSSProperties;
   initialColorOptions?: string[];
+  getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement;
 }
 
 const InnerPicker: React.FC<InnerPickerProps> = ({
                                                    initColor,
                                                    notify,
                                                    initialColorOptions = [],
+                                                   getPopupContainer,
                                                  }) => {
   const [themeColor, setThemeColor] = useState<Color>(initColor || '#81d3f8');
 
@@ -40,7 +43,7 @@ const InnerPicker: React.FC<InnerPickerProps> = ({
       debounce((color: string) => {
         try {
           notify(color);
-        } catch (error) {
+        } catch (_error) {
           message.error(i18nText("app.common.mycolorpicker.92bbb81c")).then();
         }
       }, 300),
@@ -75,6 +78,7 @@ const InnerPicker: React.FC<InnerPickerProps> = ({
       >
         <ColorPicker
           className={styles.colorPicker}
+          getPopupContainer={getPopupContainer}
           value={themeColor}
           onChange={(color) => handleColorChange(color.toHexString())}
           showText={false}
@@ -116,6 +120,7 @@ const MyColorPicker: React.FC<MyColorPickerProps> = ({
                                                        notify,
                                                        initialStyle = {},
                                                        initialColorOptions = [],
+                                                       getPopupContainer,
                                                      }) => {
   const [themeColor, setThemeColor] = useState<string>(initialColor);
 
@@ -128,12 +133,14 @@ const MyColorPicker: React.FC<MyColorPickerProps> = ({
   return (
     <Popover
       autoAdjustOverflow
+      getPopupContainer={getPopupContainer}
       placement="bottomRight"
-      // ✅ Popover content 容器层也拦截冒泡
+      // Popover content 容器层也拦截冒泡
       content={
         <div onClick={(e) => e.stopPropagation()}>
           <InnerPicker
             initColor={themeColor}
+            getPopupContainer={getPopupContainer}
             initialColorOptions={initialColorOptions}
             notify={(color) => {
               setThemeColor(color);

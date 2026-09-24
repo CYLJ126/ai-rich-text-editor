@@ -74,6 +74,97 @@
   }
 }
 
+/* ── 可持久化表格样式 ── */
+[data-content-type="table"][data-table-header-colored="false"] table th {
+  background-color: inherit;
+}
+
+[data-content-type="table"][data-table-striped="true"]
+table
+tbody
+tr:nth-child(even)
+td,
+[data-content-type="table"][data-table-striped="true"][data-table-header-colored="false"]
+table
+tbody
+tr:nth-child(even)
+th {
+  background-color: var(--ant-color-fill-quaternary);
+}
+
+[data-content-type="table"][data-table-striped="true"]
+table
+tbody
+tr:hover
+td {
+  background-color: var(--ant-color-fill-tertiary);
+}
+
+[data-content-type="table"][data-table-density="compact"] table td,
+[data-content-type="table"][data-table-density="compact"] table th {
+  padding: 2px 6px;
+}
+
+[data-content-type="table"][data-table-density="narrow"] table td,
+[data-content-type="table"][data-table-density="narrow"] table th {
+  padding: 5px 8px;
+}
+
+[data-content-type="table"][data-table-density="standard"] table td,
+[data-content-type="table"][data-table-density="standard"] table th {
+  padding: 8px 10px;
+}
+
+[data-content-type="table"][data-table-density="wide"] table td,
+[data-content-type="table"][data-table-density="wide"] table th {
+  padding: 12px 14px;
+}
+
+[data-content-type="table"][data-table-density="spacious"] table td,
+[data-content-type="table"][data-table-density="spacious"] table th {
+  padding: 16px 18px;
+}
+
+[data-content-type="table"][data-table-border-style="horizontal"]
+.table-container,
+[data-content-type="table"][data-table-border-style="vertical"]
+.table-container {
+  border-radius: 0;
+}
+
+[data-content-type="table"][data-table-border-style="none"] .table-container {
+  border: none;
+}
+
+[data-content-type="table"][data-table-border-style="none"] table td,
+[data-content-type="table"][data-table-border-style="none"] table th {
+  border: none;
+}
+
+[data-content-type="table"][data-table-border-style="horizontal"]
+.table-container {
+  border-right: none;
+  border-left: none;
+}
+
+[data-content-type="table"][data-table-border-style="horizontal"] table td,
+[data-content-type="table"][data-table-border-style="horizontal"] table th {
+  border-right: none;
+  border-left: none;
+}
+
+[data-content-type="table"][data-table-border-style="vertical"]
+.table-container {
+  border-top: none;
+  border-bottom: none;
+}
+
+[data-content-type="table"][data-table-border-style="vertical"] table td,
+[data-content-type="table"][data-table-border-style="vertical"] table th {
+  border-top: none;
+  border-bottom: none;
+}
+
 /* ── 行悬停效果 ── */
 [data-content-type="table"] table tbody tr:hover td {
   background-color: var(--ant-color-fill-tertiary);
