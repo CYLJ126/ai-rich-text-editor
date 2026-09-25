@@ -1,6 +1,11 @@
-import { i18nText } from '@/utils/i18n';
-import { type Editor, posToDOMRect, ReactRenderer } from '@tiptap/react';
-import type { SuggestionOptions } from '@tiptap/suggestion';
+// Portions adapted from https://github.com/phyohtetarkar/tiptap-block-editor
+// Copyright (c) 2025 Phyo Htet Arkar
+// SPDX-License-Identifier: MIT
+// See LICENSES/tiptap-block-editor-MIT.txt in the repository root.
+
+import {i18nText} from '@/utils/i18n';
+import {type Editor, posToDOMRect, ReactRenderer} from '@tiptap/react';
+import type {SuggestionOptions} from '@tiptap/suggestion';
 import {
   BrainCircuitIcon,
   CodeIcon,
@@ -22,7 +27,7 @@ import {
   TextQuoteIcon,
   VideoIcon,
 } from 'lucide-react';
-import type { SlashCommandNodeAttrs } from './slash-command';
+import type {SlashCommandNodeAttrs} from './slash-command';
 import SuggestionList, {
   type CommandSuggestionItem,
   type SuggestionListHandle,

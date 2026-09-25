@@ -1,3 +1,8 @@
+// Portions adapted from https://github.com/phyohtetarkar/tiptap-block-editor
+// Copyright (c) 2025 Phyo Htet Arkar
+// SPDX-License-Identifier: MIT
+// See LICENSES/tiptap-block-editor-MIT.txt in the repository root.
+
 import {Extension} from "@tiptap/core";
 import {Plugin, PluginKey} from "@tiptap/pm/state";
 import {Decoration, DecorationSet} from "@tiptap/pm/view";

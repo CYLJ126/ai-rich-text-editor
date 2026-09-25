@@ -1,14 +1,32 @@
 # Third-Party Notices
 
 ARTE is distributed under the MIT License only for material that its copyright
-holders are entitled to license. Third-party material remains subject to its own
-terms. This file records the backend and deployment components identified during
-the pre-release source review on 2026-08-30.
+holders are entitled to license. Third-party material remains subject to its own terms. This file records incorporated
+source and major components identified during source reviews through 2026-09-25.
 
 This is a human-maintained summary of known incorporated source and major direct
 runtime dependencies. It is not a complete list of transitive dependencies. Release
 artifacts must retain the license and notice files shipped inside dependency JARs,
 and each release should generate a version-resolved SBOM and license report.
+
+## Incorporated frontend source
+
+### tiptap-block-editor
+
+Portions of the frontend Tiptap editor are derived from or adapted from
+`tiptap-block-editor`.
+
+- Copyright notice: Copyright (c) 2025 Phyo Htet Arkar
+- License: MIT
+- Source: [phyohtetarkar/tiptap-block-editor](https://github.com/phyohtetarkar/tiptap-block-editor)
+- License text: [`LICENSES/tiptap-block-editor-MIT.txt`](LICENSES/tiptap-block-editor-MIT.txt)
+- Usage: Adapted editor functionality including portions of the AI Writer, table, slash-command, Mermaid, selection, and
+  related editor integration code
+- Modifications: Modified by ARTE contributors for application integration, localization, styling, and additional
+  functionality
+
+The upstream copyright and MIT permission notice apply to the incorporated and adapted portions. ARTE's copyright
+applies only to its original contributions and modifications; it does not replace the upstream copyright.
 
 ## Major direct backend dependencies
 

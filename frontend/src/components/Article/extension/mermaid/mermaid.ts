@@ -1,8 +1,13 @@
-import { mergeAttributes, Node } from '@tiptap/core';
-import { NodeSelection } from '@tiptap/pm/state';
-import { ReactNodeViewRenderer } from '@tiptap/react';
-import { cn } from '@/lib/utils';
-import { MermaidView } from './mermaid-view';
+// Portions adapted from https://github.com/phyohtetarkar/tiptap-block-editor
+// Copyright (c) 2025 Phyo Htet Arkar
+// SPDX-License-Identifier: MIT
+// See LICENSES/tiptap-block-editor-MIT.txt in the repository root.
+
+import {mergeAttributes, Node} from '@tiptap/core';
+import {NodeSelection} from '@tiptap/pm/state';
+import {ReactNodeViewRenderer} from '@tiptap/react';
+import {cn} from '@/lib/utils';
+import {MermaidView} from './mermaid-view';
 
 export interface MermaidOptions {
   HTMLAttributes: Record<string, any>;

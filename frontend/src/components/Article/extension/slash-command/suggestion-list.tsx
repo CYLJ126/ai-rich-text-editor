@@ -1,21 +1,17 @@
-import type {
-  SuggestionKeyDownProps,
-  SuggestionProps,
-} from '@tiptap/suggestion';
-import type { LucideIcon } from 'lucide-react';
-import { i18nText } from '@/utils/i18n';
-import React, {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react';
-import { AudioInputDialog } from '../audio';
-import { ImageInputDialog } from '../image';
-import { MermaidInputDialog } from '../mermaid';
-import { VideoInputDialog } from '../video';
-import type { SlashCommandNodeAttrs, SuggestionItem } from './slash-command';
+// Portions adapted from https://github.com/phyohtetarkar/tiptap-block-editor
+// Copyright (c) 2025 Phyo Htet Arkar
+// SPDX-License-Identifier: MIT
+// See LICENSES/tiptap-block-editor-MIT.txt in the repository root.
+
+import type {SuggestionKeyDownProps, SuggestionProps,} from '@tiptap/suggestion';
+import type {LucideIcon} from 'lucide-react';
+import {i18nText} from '@/utils/i18n';
+import React, {forwardRef, useEffect, useImperativeHandle, useRef, useState,} from 'react';
+import {AudioInputDialog} from '../audio';
+import {ImageInputDialog} from '../image';
+import {MermaidInputDialog} from '../mermaid';
+import {VideoInputDialog} from '../video';
+import type {SlashCommandNodeAttrs, SuggestionItem} from './slash-command';
 
 export interface CommandSuggestionItem extends SuggestionItem {
   icon: LucideIcon;
