@@ -130,10 +130,11 @@ cd deploy
 [MIT License](LICENSE) 发布，第三方库、模型、素材和部署组件分别适用其各自许可证。
 
 MIT License **不会**取代或覆盖第三方代码、依赖库、素材、模型或服务的许可证、版权声明及
-署名要求。特别是，部分后端源文件保留了其上游项目的 Apache-2.0 声明，运行时依赖也继续
-适用各自的许可证。详情请参阅 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和
+署名要求。特别是，部分后端源文件保留了其上游项目的 Apache-2.0 声明，运行时依赖也继续 适用各自的许可证。前端 Tiptap
+编辑器的部分实现改编自采用 MIT License 的
+[tiptap-block-editor](https://github.com/phyohtetarkar/tiptap-block-editor)，并保留其原始
+版权与许可声明。详情请参阅 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和
 [LICENSES/](LICENSES/)。
 
 发布构建产物前，应针对实际解析出的精确依赖版本重新生成并审核完整的依赖及许可证清单。
 仓库中的第三方声明是人工维护的摘要，不能替代发布时的正式审查。
-

@@ -136,8 +136,11 @@ and deployment components are applicable to their respective licenses.
 The MIT License does **not** replace or override the licenses, copyright notices,
 or attribution requirements of third-party code, libraries, assets, models, or
 services. In particular, some backend source files retain Apache-2.0 notices from
-their upstream project, and runtime dependencies remain under their respective
-licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [LICENSES/](LICENSES/).
+their upstream project, and runtime dependencies remain under their respective licenses. Portions of the frontend Tiptap
+editor are adapted from the MIT-licensed
+[tiptap-block-editor](https://github.com/phyohtetarkar/tiptap-block-editor), with its original copyright and license
+notice preserved. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [LICENSES/](LICENSES/).
 
 Before publishing a release artifact, regenerate and review a complete dependency
 and license inventory for the exact resolved versions. The checked-in notice is a
