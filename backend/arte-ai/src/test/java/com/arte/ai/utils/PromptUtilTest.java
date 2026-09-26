@@ -1,4 +1,4 @@
-package com.arte.ai.tool;
+package com.arte.ai.utils;
 
 public class PromptUtilTest {
 

@@ -1,6 +1,6 @@
 package com.arte.ai;
 
-import com.arte.ai.tool.LogUtil;
+import com.arte.ai.utils.LogUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;

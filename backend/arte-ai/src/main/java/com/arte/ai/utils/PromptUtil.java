@@ -1,4 +1,4 @@
-package com.arte.ai.tool;
+package com.arte.ai.utils;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
