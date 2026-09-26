@@ -35,6 +35,7 @@ public class CommonException extends RuntimeException {
 
     public CommonException(Throwable ex) {
         super(ex);
+        this.resultCode = ResultCodeEnum.EXCEPTION;
     }
 
     public CommonException(ResultCodeEnum resultCode, String str) {
@@ -50,6 +51,7 @@ public class CommonException extends RuntimeException {
 
     public CommonException(String str, Throwable ex) {
         super(MessageUtils.get(str), ex);
+        this.resultCode = ResultCodeEnum.EXCEPTION;
     }
 
     public CommonException(ResultCodeEnum resultCode, String str, Throwable ex) {
