@@ -2,7 +2,7 @@ package com.arte.ai.strategy.model;
 
 import com.arte.ai.common.enums.ReasoningEffortEnum;
 import com.arte.ai.pojo.chat.ChatRequestDto;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import com.arte.core.exception.ChatException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,7 +36,7 @@ public class OpenAiModelAdapterTest {
                 .setPresencePenalty(0.1)
                 .setFrequencyPenalty(0.2)
                 .setReasoningEffort(ReasoningEffortEnum.MEDIUM)
-                .setTextType(TextTypeEnum.JSON)
+                .setTextType(TextFormatEnum.JSON)
                 .setExtraParam(extraParam);
 
         OpenAiChatOptions options = adapter.buildOptions(request);

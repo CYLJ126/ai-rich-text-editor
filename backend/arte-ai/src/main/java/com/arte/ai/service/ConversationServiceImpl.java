@@ -1,12 +1,7 @@
 package com.arte.ai.service;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.ai.api.ConversationService;
 import com.arte.ai.common.enums.ContextStrategyEnum;
 import com.arte.ai.common.enums.ConversationStatusEnum;
@@ -17,9 +12,13 @@ import com.arte.ai.pojo.conversation.ConversationParam;
 import com.arte.ai.pojo.conversation.ConversationPo;
 import com.arte.ai.pojo.conversation.ConversationUpsertDto;
 import com.arte.core.enums.ResultCodeEnum;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import com.arte.core.exception.ChatException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.PageView;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +66,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         // 默认推理努力程度为高
         conv.setReasoningEffort(ReasoningEffortEnum.HIGH);
         // 默认文本类型为 Markdown
-        conv.setTextType(TextTypeEnum.MARKDOWN);
+        conv.setTextType(TextFormatEnum.MARKDOWN);
         save(conv);
         log.info("创建会话成功, convId={}", conv.getConvId());
         return conv;

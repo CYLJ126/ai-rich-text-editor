@@ -1,13 +1,12 @@
 package com.arte.ai.strategy.model;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.util.StrUtil;
 import com.arte.ai.common.enums.ModelProviderEnum;
 import com.arte.ai.pojo.chat.ChatRequestDto;
 import com.arte.ai.pojo.model.ModelConfigDto;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import com.arte.core.exception.ChatException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.utils.crypto.Sm2UtilForSmCrypto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -133,7 +132,7 @@ public abstract class OpenAiModelAdapter extends AbstractModelAdapter {
     }
 
     protected ResponseFormat getResponseFormat(ChatRequestDto chatRequest) {
-        if (Objects.equals(chatRequest.getTextType(), TextTypeEnum.JSON)) {
+        if (Objects.equals(chatRequest.getTextType(), TextFormatEnum.JSON)) {
             return ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build();
         }
         return ResponseFormat.builder().type(ResponseFormat.Type.TEXT).build();

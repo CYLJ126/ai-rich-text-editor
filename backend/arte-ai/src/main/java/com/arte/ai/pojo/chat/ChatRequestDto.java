@@ -8,7 +8,7 @@ import com.arte.ai.pojo.conversation.ConversationDto;
 import com.arte.ai.pojo.message.MessageDto;
 import com.arte.ai.pojo.model.ModelConfigDto;
 import com.arte.core.enums.CurrencyEnum;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -101,7 +101,7 @@ public class ChatRequestDto implements Serializable {
     /**
      * 文本类型
      */
-    private TextTypeEnum textType;
+    private TextFormatEnum textType;
     /**
      * 温度参数
      */

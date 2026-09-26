@@ -1,16 +1,16 @@
 package com.arte.ai.pojo.assistant;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.arte.ai.common.enums.ContextStrategyEnum;
 import com.arte.ai.common.enums.KnowledgeBaseTypeEnum;
 import com.arte.ai.common.enums.ReasoningEffortEnum;
 import com.arte.ai.pojo.BaseDto;
 import com.arte.core.enums.StatusEnum;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -82,7 +82,7 @@ public class AssistantPo extends BaseDto implements Serializable {
     /**
      * 文本类型
      */
-    private TextTypeEnum textType;
+    private TextFormatEnum textType;
 
     /**
      * 温度参数
