@@ -605,9 +605,9 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
   }
 
   return (
-    <div className="w-full h-full overflow-auto scrollbar-none">
-      {/* 内容容器：正常流式布局 */}
-      <div className="w-full flex flex-col">
+    <div className="w-full h-full min-h-0 flex flex-col">
+      {/* 表单内容单独滚动，操作按钮始终保留在可视区域。 */}
+      <div className="w-full min-h-0 flex-1 overflow-auto scrollbar-none">
         {mode === 'view' ? (
           <Tabs
             activeKey={activeTab}
@@ -624,54 +624,54 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
             <Row gutter={[16, 0]}>{renderFormItems()}</Row>
           </Form>
         )}
-
-        {mode !== 'view' && (
-          <div className="dynamic-form-actions w-full mt-4 pr-4 flex justify-end gap-2 shrink-0">
-            <Button
-              type="primary"
-              onClick={handleSubmit}
-              loading={loading}
-              size={
-                size === 'large'
-                  ? 'large'
-                  : size === 'small'
-                    ? 'small'
-                    : 'middle'
-              }
-            >
-              {submitText} ({submitShortcut})
-            </Button>
-            <Button
-              onClick={handleCancel}
-              size={
-                size === 'large'
-                  ? 'large'
-                  : size === 'small'
-                    ? 'small'
-                    : 'middle'
-              }
-              style={{ marginLeft: 8 }}
-            >
-              {cancelText} ({cancelShortcut})
-            </Button>
-          </div>
-        )}
-
-        <Modal
-          title={i18nText('app.common.dynamicform.5506bfd5')}
-          open={submitConfirmVisible}
-          onOk={handleSubmit}
-          onCancel={() => setSubmitConfirmVisible(false)}
-          okText={i18nText('app.common.dynamicform.5b34d296')}
-          cancelText={i18nText('app.common.dynamicform.665a89dd')}
-        >
-          {i18nText('app.common.dynamicform.06ef01d2')}
-          {mode === 'create'
-            ? i18nText('app.common.dynamicform.3d950905')
-            : i18nText('app.common.dynamicform.881e9e21')}
-          {i18nText('app.common.dynamicform.eb2fd6f5')}
-        </Modal>
       </div>
+
+      {mode !== 'view' && (
+        <div className="dynamic-form-actions w-full pt-3 pr-4 flex justify-end gap-2 shrink-0">
+          <Button
+            type="primary"
+            onClick={handleSubmit}
+            loading={loading}
+            size={
+              size === 'large'
+                ? 'large'
+                : size === 'small'
+                  ? 'small'
+                  : 'middle'
+            }
+          >
+            {submitText} ({submitShortcut})
+          </Button>
+          <Button
+            onClick={handleCancel}
+            size={
+              size === 'large'
+                ? 'large'
+                : size === 'small'
+                  ? 'small'
+                  : 'middle'
+            }
+            style={{ marginLeft: 8 }}
+          >
+            {cancelText} ({cancelShortcut})
+          </Button>
+        </div>
+      )}
+
+      <Modal
+        title={i18nText('app.common.dynamicform.5506bfd5')}
+        open={submitConfirmVisible}
+        onOk={handleSubmit}
+        onCancel={() => setSubmitConfirmVisible(false)}
+        okText={i18nText('app.common.dynamicform.5b34d296')}
+        cancelText={i18nText('app.common.dynamicform.665a89dd')}
+      >
+        {i18nText('app.common.dynamicform.06ef01d2')}
+        {mode === 'create'
+          ? i18nText('app.common.dynamicform.3d950905')
+          : i18nText('app.common.dynamicform.881e9e21')}
+        {i18nText('app.common.dynamicform.eb2fd6f5')}
+      </Modal>
     </div>
   );
 };

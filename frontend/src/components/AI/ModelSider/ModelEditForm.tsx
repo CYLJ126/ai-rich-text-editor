@@ -100,6 +100,10 @@ const ModelEditForm = ({
       required: true,
       placeholder: i18nText("app.ai.modelsider.modeleditform.b41d4008"),
       debounce: 600,
+      extraProps: {
+        // 已保存的密钥只允许替换，不允许在编辑页切换为明文显示。
+        visibilityToggle: !isEdit,
+      },
       transformFunction: (value: string) => {
         if (value === MASKED_API_KEY) return value;
         // 已是 SM2 密文则跳过，避免编辑时对后端返回的密文重复加密

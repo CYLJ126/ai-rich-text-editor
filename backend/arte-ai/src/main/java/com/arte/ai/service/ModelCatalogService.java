@@ -70,9 +70,11 @@ public class ModelCatalogService {
         }
 
         String encryptedApiKey = query.getApiKey();
+        String apiKeySource = "request";
         if (StrUtil.isBlank(encryptedApiKey) || ModelConfigService.MASKED_API_KEY.equals(encryptedApiKey)) {
             if (stored != null && stored.getProvider() == query.getProvider()) {
                 encryptedApiKey = stored.getApiKey();
+                apiKeySource = "stored-model-config";
             }
         }
         if (StrUtil.isBlank(encryptedApiKey)) {
@@ -83,6 +85,9 @@ public class ModelCatalogService {
         try {
             apiKey = Sm2UtilForSmCrypto.decryptForSmCrypto(encryptedApiKey, privateKeyText);
         } catch (RuntimeException e) {
+            log.warn("API Key 解密失败, provider={}, modelConfigId={}, keySource={}, cipherLength={}, cause={}",
+                    query.getProvider(), query.getModelConfigId(), apiKeySource,
+                    encryptedApiKey.length(), e.getMessage(), e);
             throw new BusinessException("error.ai.apiKeyDecryptFailed", e);
         }
 
