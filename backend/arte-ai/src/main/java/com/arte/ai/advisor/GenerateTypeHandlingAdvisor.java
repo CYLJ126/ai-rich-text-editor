@@ -6,7 +6,7 @@ import com.arte.ai.common.enums.MessageStatusEnum;
 import com.arte.ai.mcp.server.McpTranslationPrompt;
 import com.arte.ai.pojo.chat.ChatRequestDto;
 import com.arte.ai.pojo.message.MessageDto;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NullMarked;
@@ -77,7 +77,7 @@ public class GenerateTypeHandlingAdvisor extends PersistentChatMemoryAdvisor {
         messageDto.setMessageId(requireMessageId(chatRequestDto.getUserMessageId(), "用户消息 ID 不能为空"));
         messageDto.setRole(MessageRoleEnum.USER);
         messageDto.setContent(userPrompt);
-        messageDto.setTextType(TextTypeEnum.PLAIN);
+        messageDto.setTextType(TextFormatEnum.PLAIN);
         messageDto.setStatus(MessageStatusEnum.COMPLETED);
         messageDto.setCreateBy(chatRequestDto.getUserName());
         messageDto.setUpdateBy(chatRequestDto.getUserName());
@@ -94,7 +94,7 @@ public class GenerateTypeHandlingAdvisor extends PersistentChatMemoryAdvisor {
     @Override
     protected void customizeResponseMessage(MessageDto message, ChatRequestDto chatRequest) {
         message.setConvId(chatRequest.getScene().getValue());
-        message.setTextType(TextTypeEnum.MARKDOWN);
+        message.setTextType(TextFormatEnum.MARKDOWN);
     }
 
     @Override

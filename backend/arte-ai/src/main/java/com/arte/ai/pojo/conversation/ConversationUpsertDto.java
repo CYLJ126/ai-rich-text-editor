@@ -4,7 +4,7 @@ import com.arte.ai.common.enums.ContextStrategyEnum;
 import com.arte.ai.common.enums.ConversationStatusEnum;
 import com.arte.ai.common.enums.KnowledgeBaseTypeEnum;
 import com.arte.ai.common.enums.ReasoningEffortEnum;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -73,7 +73,7 @@ public class ConversationUpsertDto implements Serializable {
     /**
      * 文本类型
      */
-    private TextTypeEnum textType;
+    private TextFormatEnum textType;
     /**
      * 温度参数
      */

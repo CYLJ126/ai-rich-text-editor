@@ -1,12 +1,12 @@
 package com.arte.ai.web.controller;
 
 import com.arte.ai.common.enums.*;
+import com.arte.ai.pojo.model.ModelProviderOptionDto;
 import com.arte.core.annotations.AnonymousAccess;
 import com.arte.core.enums.MyEnum;
-import com.arte.core.enums.TextTypeEnum;
+import com.arte.core.enums.TextFormatEnum;
 import com.arte.core.pojo.DropdownDto;
 import com.arte.core.pojo.ResultContext;
-import com.arte.ai.pojo.model.ModelProviderOptionDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -74,7 +74,7 @@ public class MetaInfoController {
     @GetMapping("/listTextTypes")
     @AnonymousAccess
     public ResultContext<List<DropdownDto>> listTextTypes() {
-        return ResultContext.success(MyEnum.getDropdownOptions(TextTypeEnum.class));
+        return ResultContext.success(MyEnum.getDropdownOptions(TextFormatEnum.class));
     }
 
     /**
