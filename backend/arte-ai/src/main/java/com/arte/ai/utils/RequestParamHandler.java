@@ -1,6 +1,4 @@
-package com.arte.ai.tool;
-
-import com.arte.core.i18n.MessageUtils;
+package com.arte.ai.utils;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
@@ -18,6 +16,7 @@ import com.arte.ai.pojo.message.MessageDto;
 import com.arte.ai.pojo.model.ModelConfigDto;
 import com.arte.core.constant.CoreConstant;
 import com.arte.core.exception.ChatException;
+import com.arte.core.i18n.MessageUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

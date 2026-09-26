@@ -16,7 +16,7 @@ import com.arte.ai.pojo.chat.ChatRequestParam;
 import com.arte.ai.pojo.model.ModelConfigDto;
 import com.arte.ai.pojo.model.ModelStreamChunk;
 import com.arte.ai.strategy.model.ModelAdapterFactory;
-import com.arte.ai.tool.RequestParamHandler;
+import com.arte.ai.utils.RequestParamHandler;
 import com.arte.core.serialize.SerializerFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
