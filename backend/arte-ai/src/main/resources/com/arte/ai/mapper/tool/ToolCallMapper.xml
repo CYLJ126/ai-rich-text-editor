@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolCallMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolCallPo" autoMapping="true">
+        <result column="arguments_snapshot" property="argumentsSnapshot"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="context_snapshot" property="contextSnapshot"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="policy_snapshot" property="policySnapshot"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="metadata" property="metadata"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByCallId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_call
+        WHERE call_id = #{callId} LIMIT 1
+    </select>
+    <select id="selectByIdempotencyKey" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_call
+        WHERE owner_id = #{ownerId}
+          AND idempotency_key = #{idempotencyKey} LIMIT 1
+    </select>
+    <update id="transitionStatus">
+        UPDATE arte_ai_tool_call
+        SET status       = #{targetStatus},
+            completed_at = #{completedAt},
+            row_version  = row_version + 1,
+            update_time  = CURRENT_TIMESTAMP(3)
+        WHERE call_id = #{callId}
+          AND status = #{expectedStatus}
+          AND row_version = #{expectedVersion}
+    </update>
+</mapper>

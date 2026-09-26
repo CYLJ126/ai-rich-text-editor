@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolExecutionEventMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolExecutionEventPo" autoMapping="true">
+        <result column="attributes" property="attributes"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <insert id="batchInsert">
+        INSERT INTO arte_ai_tool_execution_event
+        (event_id, event_type, occurred_at, trace_id, span_id, call_id, task_id,
+        workflow_run_id, tool_id, tool_version, attributes, create_time, update_time)
+        VALUES
+        <foreach collection="events" item="item" separator=",">
+            (#{item.eventId}, #{item.eventType}, #{item.occurredAt}, #{item.traceId}, #{item.spanId},
+            #{item.callId}, #{item.taskId}, #{item.workflowRunId}, #{item.toolId}, #{item.toolVersion},
+            #{item.attributes,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+        </foreach>
+    </insert>
+    <select id="selectByTraceId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_execution_event
+        WHERE trace_id = #{traceId}
+        ORDER BY occurred_at, id
+    </select>
+    <select id="selectByCallId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_execution_event
+        WHERE call_id = #{callId}
+        ORDER BY occurred_at, id
+    </select>
+</mapper>

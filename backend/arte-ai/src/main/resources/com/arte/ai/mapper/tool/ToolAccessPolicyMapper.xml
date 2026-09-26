@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolAccessPolicyMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolAccessPolicyPo" autoMapping="true">
+        <result column="required_scopes" property="requiredScopes"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="conditions" property="conditions"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectEffective" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_access_policy
+        WHERE owner_id = #{ownerId}
+          AND subject_type = #{subjectType}
+          AND subject_id = #{subjectId}
+          AND resource_type = #{resourceType}
+          AND resource_id = #{resourceId}
+          AND enabled = 1
+        ORDER BY priority DESC, id
+    </select>
+</mapper>

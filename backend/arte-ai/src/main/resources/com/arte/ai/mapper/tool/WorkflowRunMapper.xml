@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.WorkflowRunMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.WorkflowRunPo" autoMapping="true">
+        <result column="inputs" property="inputs"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="variables" property="variables"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="active_node_ids" property="activeNodeIds"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="outputs" property="outputs"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="error_info" property="errorInfo"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByRunId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_run
+        WHERE run_id = #{runId} LIMIT 1
+    </select>
+    <update id="transitionStatus">
+        UPDATE arte_ai_workflow_run
+        SET status       = #{targetStatus},
+            completed_at = #{completedAt},
+            row_version  = row_version + 1,
+            update_time  = CURRENT_TIMESTAMP(3)
+        WHERE run_id = #{runId}
+          AND status = #{expectedStatus}
+          AND row_version = #{expectedVersion}
+    </update>
+</mapper>

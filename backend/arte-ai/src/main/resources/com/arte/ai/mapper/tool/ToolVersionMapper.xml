@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolVersionMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolVersionPo" autoMapping="true">
+        <result column="input_schema" property="inputSchema"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="output_schema" property="outputSchema"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="capabilities" property="capabilities"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="risk_profile" property="riskProfile"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="default_policy" property="defaultPolicy"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="tags" property="tags"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectExact" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_version
+        WHERE tool_id = #{toolId}
+          AND version = #{version} LIMIT 1
+    </select>
+    <select id="selectLatestPublished" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_version
+        WHERE tool_id = #{toolId}
+          AND lifecycle_state = 'published'
+        ORDER BY published_at DESC, id DESC LIMIT 1
+    </select>
+    <select id="selectVersions" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_version
+        WHERE tool_id = #{toolId}
+        ORDER BY create_time DESC
+    </select>
+    <update id="publish">
+        UPDATE arte_ai_tool_version
+        SET lifecycle_state = 'published',
+            published_at    = #{publishedAt},
+            row_version     = row_version + 1,
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id}
+          AND row_version = #{expectedVersion}
+          AND lifecycle_state = 'draft'
+    </update>
+</mapper>

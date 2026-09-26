@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.WorkflowCheckpointMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.WorkflowCheckpointPo" autoMapping="true">
+        <result column="state" property="state"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectLatest" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_checkpoint
+        WHERE run_id = #{runId}
+        ORDER BY sequence DESC LIMIT 1
+    </select>
+    <delete id="deleteBeforeSequence">
+        DELETE
+        FROM arte_ai_workflow_checkpoint
+        WHERE run_id = #{runId}
+          AND sequence &lt; #{sequence}
+    </delete>
+</mapper>

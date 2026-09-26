@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.WorkflowNodeRunMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.WorkflowNodeRunPo" autoMapping="true">
+        <result column="inputs" property="inputs"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="outputs" property="outputs"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="error_info" property="errorInfo"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByRunId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_node_run
+        WHERE run_id = #{runId}
+        ORDER BY create_time, id
+    </select>
+    <select id="selectLatestAttempt" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_node_run
+        WHERE run_id = #{runId}
+          AND node_id = #{nodeId}
+        ORDER BY attempt DESC LIMIT 1
+    </select>
+</mapper>

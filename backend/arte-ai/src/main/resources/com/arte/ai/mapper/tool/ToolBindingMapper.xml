@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolBindingMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolBindingPo" autoMapping="true">
+        <result column="configuration" property="configuration"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="policy_override" property="policyOverride"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectEffective" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_binding
+        WHERE owner_id = #{ownerId}
+          AND binding_id = #{bindingId}
+          AND enabled = 1 LIMIT 1
+    </select>
+    <select id="selectEnabledByOwnerId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_binding
+        WHERE owner_id = #{ownerId}
+          AND enabled = 1
+        ORDER BY id
+    </select>
+    <update id="updateWithVersion">
+        UPDATE arte_ai_tool_binding
+        SET credential_reference = #{binding.credentialReference},
+            configuration        = #{binding.configuration,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            policy_override      = #{binding.policyOverride,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            enabled              = #{binding.enabled},
+            row_version          = row_version + 1,
+            update_by            = #{binding.updateBy},
+            update_time          = CURRENT_TIMESTAMP(3)
+        WHERE binding_id = #{binding.bindingId}
+          AND row_version = #{expectedVersion}
+    </update>
+</mapper>

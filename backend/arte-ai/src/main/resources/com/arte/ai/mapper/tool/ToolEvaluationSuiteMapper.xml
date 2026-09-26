@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolEvaluationSuiteMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolEvaluationSuitePo" autoMapping="true">
+        <result column="evaluators" property="evaluators"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectExact" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_evaluation_suite
+        WHERE suite_id = #{suiteId}
+          AND version = #{version} LIMIT 1
+    </select>
+</mapper>

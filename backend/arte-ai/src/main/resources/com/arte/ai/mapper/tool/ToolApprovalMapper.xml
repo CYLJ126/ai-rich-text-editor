@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolApprovalMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolApprovalPo" autoMapping="true">
+        <result column="display_arguments" property="displayArguments"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByRequestId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_approval
+        WHERE request_id = #{requestId} LIMIT 1
+    </select>
+    <update id="decideIfPending">
+        UPDATE arte_ai_tool_approval
+        SET status          = #{status},
+            approver_id     = #{approverId},
+            decision_reason = #{reason},
+            decided_at      = #{decidedAt},
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE request_id = #{requestId}
+          AND status = 'pending'
+          AND expires_at &gt; #{decidedAt}
+    </update>
+    <update id="expirePending">
+        UPDATE arte_ai_tool_approval
+        SET status      = 'expired',
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE status = 'pending'
+          AND expires_at &lt;= #{now}
+    </update>
+</mapper>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolArtifactMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolArtifactPo" autoMapping="true">
+        <result column="metadata" property="metadata"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByCallId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_artifact
+        WHERE call_id = #{callId}
+        ORDER BY create_time, id
+    </select>
+    <delete id="deleteExpired">
+        DELETE
+        FROM arte_ai_tool_artifact
+        WHERE expires_at IS NOT NULL
+          AND expires_at &lt;= #{now}
+    </delete>
+</mapper>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolEvaluationCaseMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolEvaluationCasePo" autoMapping="true">
+        <result column="tool_call" property="toolCall"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="expected_outcome" property="expectedOutcome"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="criteria" property="criteria"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectBySuiteVersion" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_evaluation_case
+        WHERE suite_id = #{suiteId}
+          AND suite_version = #{suiteVersion}
+          AND enabled = 1
+        ORDER BY sort_order, id
+    </select>
+</mapper>

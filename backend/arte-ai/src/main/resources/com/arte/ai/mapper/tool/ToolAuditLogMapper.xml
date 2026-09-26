@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolAuditLogMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolAuditLogPo" autoMapping="true">
+        <result column="detail" property="detail"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByResource" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_audit_log
+        WHERE owner_id = #{ownerId}
+          AND resource_type = #{resourceType}
+          AND resource_id = #{resourceId}
+        ORDER BY create_time DESC, id DESC LIMIT #{limit}
+    </select>
+</mapper>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.WorkflowMapper">
+    <select id="selectByWorkflowId" resultType="com.arte.ai.pojo.tool.po.WorkflowPo">
+        SELECT *
+        FROM arte_ai_workflow
+        WHERE workflow_id = #{workflowId} LIMIT 1
+    </select>
+    <select id="selectByOwnerId" resultType="com.arte.ai.pojo.tool.po.WorkflowPo">
+        SELECT *
+        FROM arte_ai_workflow
+        WHERE owner_id = #{ownerId}
+        ORDER BY update_time DESC
+    </select>
+</mapper>

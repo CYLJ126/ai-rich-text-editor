@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ai.mapper.tool.ToolTaskMapper">
+    <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.ToolTaskPo" autoMapping="true">
+        <result column="arguments_snapshot" property="argumentsSnapshot"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="execution_policy" property="executionPolicy"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="metadata" property="metadata"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+    <select id="selectByTaskId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_task
+        WHERE task_id = #{taskId} LIMIT 1
+    </select>
+    <update id="tryClaim">
+        UPDATE arte_ai_tool_task
+        SET status          = 'running',
+            worker_id       = #{workerId},
+            lease_until     = #{leaseUntil},
+            next_attempt_at = NULL,
+            attempt         = attempt + 1,
+            row_version     = row_version + 1,
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+          AND (status = 'queued' OR (status = 'running' AND lease_until &lt;= #{now}))
+          AND (next_attempt_at IS NULL OR next_attempt_at &lt;= #{now})
+    </update>
+    <update id="renewLease">
+        UPDATE arte_ai_tool_task
+        SET lease_until = #{leaseUntil},
+            row_version = row_version + 1,
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+          AND status = 'running'
+          AND worker_id = #{workerId}
+    </update>
+    <select id="selectRecoverable" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_task
+        WHERE (status = 'queued' AND (next_attempt_at IS NULL OR next_attempt_at &lt;= #{now}))
+           OR (status = 'running' AND lease_until &lt;= #{now})
+        ORDER BY COALESCE(next_attempt_at, create_time), id LIMIT #{limit}
+    </select>
+    <update id="updateProgress">
+        UPDATE arte_ai_tool_task
+        SET progress         = #{progress},
+            progress_message = #{message},
+            row_version      = row_version + 1,
+            update_time      = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+          AND status = 'running'
+          AND worker_id = #{workerId}
+          AND row_version = #{expectedVersion}
+    </update>
+    <update id="transitionStatus">
+        UPDATE arte_ai_tool_task
+        SET status      = #{targetStatus},
+            row_version = row_version + 1,
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+          AND status = #{expectedStatus}
+          AND row_version = #{expectedVersion}
+    </update>
+</mapper>
