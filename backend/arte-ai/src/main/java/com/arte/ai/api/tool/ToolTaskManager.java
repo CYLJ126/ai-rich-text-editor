@@ -18,10 +18,7 @@ import java.util.concurrent.CompletionStage;
  */
 public interface ToolTaskManager {
 
-    <I extends ToolRequest, O extends ToolResponse> CompletionStage<ToolTaskHandle> submit(
-            Tool<I, O> tool,
-            ToolInvocation<I> invocation
-    );
+    <I extends ToolRequest, O extends ToolResponse> CompletionStage<ToolTaskHandle> submit(Tool<I, O> tool, ToolInvocation<I> invocation);
 
     CompletionStage<Optional<ToolTaskHandle>> findTask(String taskId);
 

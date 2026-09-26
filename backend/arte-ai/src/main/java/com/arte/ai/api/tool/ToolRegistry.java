@@ -17,7 +17,16 @@ public interface ToolRegistry {
 
     void register(Tool<?, ?> tool);
 
+    default void register(String providerId, Tool<?, ?> tool) {
+        register(tool);
+    }
+
     void unregister(ToolReference reference);
+
+    /**
+     * 注销某提供者在当前节点注册的所有运行时工具。
+     */
+    void unregisterProvider(String providerId);
 
     Optional<Tool<?, ?>> resolve(ToolReference reference);
 

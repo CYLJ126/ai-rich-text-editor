@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import com.arte.ai.common.enums.tool.ToolRiskLevelEnum;
+
 import java.util.Set;
 
 /**
@@ -12,7 +14,7 @@ public record ToolQuery(
         String namespace,
         String keyword,
         Set<String> tags,
-        ToolRiskProfile.RiskLevel maximumRiskLevel,
+        ToolRiskLevelEnum maximumRiskLevel,
         boolean includeDeprecated
 ) {
 

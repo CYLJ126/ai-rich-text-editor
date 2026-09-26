@@ -11,4 +11,9 @@
         WHERE status = 'enabled'
         ORDER BY id
     </select>
+    <select id="selectByProviderId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_provider
+        WHERE provider_id = #{providerId} LIMIT 1
+    </select>
 </mapper>

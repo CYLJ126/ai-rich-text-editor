@@ -89,3 +89,26 @@ spring.ai.mcp.server.name=arte-mcp-server
 # 配置路径为 项目根路径加端点路径，如 http://localhost:8000/arte/mcp
 spring.ai.mcp.server.endpoint=/mcp
 spring.ai.mcp.server.disallow-delete=true
+# ======================== AI 工具配置 ========================
+# 应用启动后是否自动发现工具并同步工具目录
+arte.ai.tool.auto-sync-enabled=true
+# 本地 Java/Spring AI 工具的默认命名空间
+arte.ai.tool.local.namespace=local
+# 本地 Spring AI ToolCallback 转换为工具定义时使用的默认版本
+arte.ai.tool.local.version=1.0.0
+# 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
+arte.ai.tool.cluster.enabled=true
+# 当前后端节点唯一标识；留空时在每次启动时自动生成 UUID，不同节点不要配置相同值
+arte.ai.tool.cluster.instance-id=
+# Redis Pub/Sub 工具目录变更广播主题
+arte.ai.tool.cluster.topic=arte:ai:tool:catalog-events
+# Redisson 提供者同步锁的 Redis Key 前缀
+arte.ai.tool.cluster.sync-lock-prefix=arte:ai:tool:provider-sync:
+# 获取提供者同步分布式锁的最长等待时间，单位毫秒
+arte.ai.tool.cluster.sync-lock-wait-millis=10000
+# Redis Topic 首次订阅失败后的重试间隔，单位毫秒
+arte.ai.tool.cluster.subscription-retry-ms=30000
+# 应用启动后首次执行本地工具目录对账的延迟时间，单位毫秒
+arte.ai.tool.cluster.reconcile-initial-delay-ms=60000
+# 本地工具目录周期性对账间隔，单位毫秒
+arte.ai.tool.cluster.reconcile-interval-ms=60000

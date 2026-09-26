@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import com.arte.ai.common.enums.tool.ToolRiskLevelEnum;
+
 import java.util.Set;
 
 /**
@@ -9,7 +11,7 @@ import java.util.Set;
  * @since 2026/9/26 ✾
  */
 public record ToolRiskProfile(
-        RiskLevel level,
+        ToolRiskLevelEnum level,
         boolean readOnly,
         boolean destructive,
         boolean reversible,
@@ -18,14 +20,6 @@ public record ToolRiskProfile(
         Set<String> requiredScopes,
         Set<String> allowedNetworkTargets
 ) {
-
-    enum RiskLevel {
-        LOW,
-        MEDIUM,
-        HIGH,
-        CRITICAL
-    }
-
     public ToolRiskProfile {
         if (level == null) {
             throw new IllegalArgumentException("level must not be null");
