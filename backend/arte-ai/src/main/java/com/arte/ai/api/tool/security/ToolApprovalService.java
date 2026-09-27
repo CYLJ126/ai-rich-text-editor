@@ -21,4 +21,14 @@ public interface ToolApprovalService {
     CompletionStage<Void> decide(ToolApprovalDecision decision);
 
     Optional<ToolApprovalDecision> findDecision(String requestId);
+
+    /**
+     * 审批恢复前核对持久化参数与审批时摘要，防止批准后替换参数。
+     */
+    boolean matchesArguments(String requestId, ToolRequest request);
+
+    /**
+     * 将审批记录与为恢复原调用创建的持久化任务关联。
+     */
+    void attachTask(String requestId, String taskId);
 }

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_workflow_run", queryFields = {})
@@ -16,4 +17,16 @@ public interface WorkflowRunMapper extends BaseMapper<WorkflowRunPo> {
                          @Param("targetStatus") String targetStatus,
                          @Param("expectedVersion") Long expectedVersion,
                          @Param("completedAt") LocalDateTime completedAt);
+
+    Optional<WorkflowRunPo> selectByResumeTokenHash(@Param("resumeTokenHash") String resumeTokenHash);
+
+    List<WorkflowRunPo> selectRecoverable(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
+    int tryClaim(@Param("runId") String runId, @Param("workerId") String workerId,
+                 @Param("leaseUntil") LocalDateTime leaseUntil, @Param("now") LocalDateTime now);
+
+    int renewLease(@Param("runId") String runId, @Param("workerId") String workerId,
+                   @Param("leaseUntil") LocalDateTime leaseUntil);
+
+    int updateState(@Param("run") WorkflowRunPo run, @Param("expectedVersion") Long expectedVersion);
 }

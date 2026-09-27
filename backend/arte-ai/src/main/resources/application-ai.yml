@@ -57,6 +57,16 @@ arte:
         # 未完成任务恢复扫描的启动延迟与周期
         recovery-initial-delay: @arte.ai.tool.execution.recovery-initial-delay@
         recovery-interval: @arte.ai.tool.execution.recovery-interval@
+        # 人工审批有效期及过期审批扫描周期
+        approval-timeout: @arte.ai.tool.execution.approval-timeout@
+        approval-expiry-scan-interval: @arte.ai.tool.execution.approval-expiry-scan-interval@
+        # 工作流运行租约与续租周期；用于保证同一运行实例仅由一个后端节点推进
+        workflow-lease: @arte.ai.tool.execution.workflow-lease@
+        workflow-lease-renew-interval: @arte.ai.tool.execution.workflow-lease-renew-interval@
+        # 工作流重启恢复扫描的启动延迟、周期和单批上限
+        workflow-recovery-initial-delay: @arte.ai.tool.execution.workflow-recovery-initial-delay@
+        workflow-recovery-interval: @arte.ai.tool.execution.workflow-recovery-interval@
+        workflow-recovery-batch-size: @arte.ai.tool.execution.workflow-recovery-batch-size@
       cluster:
         # 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
         enabled: @arte.ai.tool.cluster.enabled@

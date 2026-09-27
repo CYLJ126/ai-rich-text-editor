@@ -14,6 +14,7 @@ import java.io.Serial;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * AI 工作流版本实体
@@ -35,9 +36,13 @@ public class WorkflowVersionPo extends ToolPersistencePo {
     private String name;
     private String description;
     @TableField(typeHandler = JacksonTypeHandler.class)
+    private Set<String> tags;
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> inputSchema;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> outputSchema;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> executionPolicy;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> nodes;
     @TableField(typeHandler = JacksonTypeHandler.class)

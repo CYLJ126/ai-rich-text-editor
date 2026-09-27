@@ -12,4 +12,28 @@
         WHERE owner_id = #{ownerId}
         ORDER BY update_time DESC
     </select>
+    <select id="selectOwned" resultType="com.arte.ai.pojo.tool.po.WorkflowPo">
+        SELECT *
+        FROM arte_ai_workflow
+        WHERE workflow_id = #{workflowId}
+          AND owner_id = #{ownerId} LIMIT 1
+    </select>
+    <update id="updateLatest">
+        UPDATE arte_ai_workflow
+        SET latest_version  = #{latestVersion},
+            lifecycle_state = 'published',
+            update_by       = #{ownerId},
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE workflow_id = #{workflowId}
+          AND owner_id = #{ownerId}
+    </update>
+    <update id="updateMetadata">
+        UPDATE arte_ai_workflow
+        SET name        = #{name},
+            description = #{description},
+            update_by   = #{ownerId},
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE workflow_id = #{workflowId}
+          AND owner_id = #{ownerId}
+    </update>
 </mapper>

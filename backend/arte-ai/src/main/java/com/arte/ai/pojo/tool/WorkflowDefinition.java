@@ -21,8 +21,16 @@ public record WorkflowDefinition(
         ToolSchema outputSchema,
         List<WorkflowNode> nodes,
         List<WorkflowEdge> edges,
-        Set<String> tags
+        Set<String> tags,
+        WorkflowExecutionPolicy executionPolicy
 ) {
+
+    public WorkflowDefinition(String workflowId, String version, String name, String description,
+                              ToolSchema inputSchema, ToolSchema outputSchema,
+                              List<WorkflowNode> nodes, List<WorkflowEdge> edges, Set<String> tags) {
+        this(workflowId, version, name, description, inputSchema, outputSchema, nodes, edges, tags,
+                WorkflowExecutionPolicy.defaults());
+    }
 
     public WorkflowDefinition {
         requireText(workflowId, "workflowId");
@@ -33,6 +41,7 @@ public record WorkflowDefinition(
         nodes = List.copyOf(Objects.requireNonNull(nodes, "nodes must not be null"));
         edges = edges == null ? List.of() : List.copyOf(edges);
         tags = tags == null ? Set.of() : Set.copyOf(tags);
+        executionPolicy = executionPolicy == null ? WorkflowExecutionPolicy.defaults() : executionPolicy;
         if (nodes.isEmpty()) {
             throw new IllegalArgumentException("nodes must not be empty");
         }

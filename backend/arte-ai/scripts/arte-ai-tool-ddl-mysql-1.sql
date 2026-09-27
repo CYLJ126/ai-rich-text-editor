@@ -279,7 +279,9 @@ create table arte_ai_tool_approval
     create_time       datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
     update_time       datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
     constraint uk_tool_approval_request
-        unique (request_id)
+        unique (request_id),
+    constraint uk_tool_approval_task
+        unique (task_id)
 ) comment 'AI 工具人工审批表';
 
 create index idx_tool_approval_pending
@@ -349,8 +351,10 @@ create table arte_ai_workflow_version
     version         varchar(64)                 not null comment '版本',
     name            varchar(200)                not null comment '版本名称',
     description     varchar(1000) null comment '版本描述',
+    tags             json null comment '工作流标签',
     input_schema    json                        not null comment '输入 Schema',
     output_schema   json                        not null comment '输出 Schema',
+    execution_policy json not null comment '执行步数、超时、重试和并行预算',
     nodes           json                        not null comment '节点 DSL',
     edges           json                        not null comment '边 DSL',
     compiled_plan   json null comment '编译后的执行计划',
@@ -365,9 +369,7 @@ create table arte_ai_workflow_version
     create_time     datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
     update_time     datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
     constraint uk_workflow_version
-        unique (workflow_id, version),
-    constraint uk_workflow_checksum
-        unique (workflow_id, checksum)
+        unique (workflow_id, version)
 ) comment 'AI 工作流版本表';
 
 create index idx_workflow_version_state
@@ -394,6 +396,9 @@ create table arte_ai_workflow_run
     current_steps     int         default 0         not null comment '当前步骤数',
     started_at        datetime(3) null comment '开始时间',
     completed_at      datetime(3) null comment '完成时间',
+    deadline_at datetime(3) null comment '执行预算截止时间',
+    worker_id   varchar(64) null comment '持有执行权的节点',
+    lease_until datetime(3) null comment '执行租约截止时间',
     row_version       bigint      default 0         not null comment '乐观锁版本',
     create_by         varchar(64) null comment '创建人',
     update_by         varchar(64) null comment '更新人',
@@ -411,6 +416,12 @@ create index idx_workflow_run_status
 
 create index idx_workflow_run_trace
     on arte_ai_workflow_run (trace_id);
+
+create index idx_workflow_run_recover
+    on arte_ai_workflow_run (status, lease_until, update_time);
+
+create index idx_workflow_run_resume
+    on arte_ai_workflow_run (resume_token_hash);
 
 create table arte_ai_workflow_node_run
 (

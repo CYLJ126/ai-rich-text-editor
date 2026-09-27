@@ -2,9 +2,13 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.arte.ai.mapper.tool.WorkflowVersionMapper">
     <resultMap id="BaseResultMap" type="com.arte.ai.pojo.tool.po.WorkflowVersionPo" autoMapping="true">
+        <result column="tags" property="tags"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="input_schema" property="inputSchema"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="output_schema" property="outputSchema"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="execution_policy" property="executionPolicy"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="nodes" property="nodes"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
@@ -30,6 +34,20 @@
     <update id="publish">
         UPDATE arte_ai_workflow_version
         SET lifecycle_state = 'published',
+            published_at    = #{publishedAt},
+            row_version     = row_version + 1,
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id}
+          AND row_version = #{expectedVersion}
+          AND lifecycle_state = 'draft'
+    </update>
+    <update id="publishCompiled">
+        UPDATE arte_ai_workflow_version
+        SET compiled_plan   = #{compiledPlan,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            pinned_tools    = #{pinnedTools,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            entry_node_id   = #{entryNodeId},
+            checksum        = #{checksum},
+            lifecycle_state = 'published',
             published_at    = #{publishedAt},
             row_version     = row_version + 1,
             update_time     = CURRENT_TIMESTAMP(3)

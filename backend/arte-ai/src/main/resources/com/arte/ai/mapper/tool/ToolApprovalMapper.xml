@@ -19,6 +19,7 @@
             update_time     = CURRENT_TIMESTAMP(3)
         WHERE request_id = #{requestId}
           AND status = 'pending'
+          AND create_by = #{approverId}
           AND expires_at &gt; #{decidedAt}
     </update>
     <update id="expirePending">
@@ -28,4 +29,28 @@
         WHERE status = 'pending'
           AND expires_at &lt;= #{now}
     </update>
+    <update id="attachTask">
+        UPDATE arte_ai_tool_approval
+        SET task_id     = #{taskId},
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE request_id = #{requestId}
+          AND status = 'pending'
+          AND task_id IS NULL
+    </update>
+    <select id="selectPendingByOwner" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_approval
+        WHERE create_by = #{ownerId}
+          AND status = 'pending'
+        ORDER BY create_time DESC
+    </select>
+    <select id="selectActionable" resultMap="BaseResultMap">
+        SELECT a.*
+        FROM arte_ai_tool_approval a
+                 INNER JOIN arte_ai_tool_task t ON t.task_id = a.task_id
+        WHERE a.status IN ('approved', 'rejected', 'expired')
+          AND t.status = 'waiting_approval'
+        ORDER BY a.update_time, a.id
+            LIMIT #{limit}
+    </select>
 </mapper>

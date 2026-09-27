@@ -25,4 +25,11 @@ public class ToolExecutionProperties {
     private Duration leaseRenewInterval = Duration.ofSeconds(20);
     private Duration recoveryInterval = Duration.ofSeconds(10);
     private Duration recoveryInitialDelay = Duration.ofSeconds(5);
+    private Duration approvalTimeout = Duration.ofHours(24);
+    private Duration approvalExpiryScanInterval = Duration.ofSeconds(30);
+    private Duration workflowLease = Duration.ofSeconds(60);
+    private Duration workflowLeaseRenewInterval = Duration.ofSeconds(20);
+    private Duration workflowRecoveryInterval = Duration.ofSeconds(10);
+    private Duration workflowRecoveryInitialDelay = Duration.ofSeconds(10);
+    private int workflowRecoveryBatchSize = 100;
 }

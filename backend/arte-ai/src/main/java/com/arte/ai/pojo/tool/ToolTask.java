@@ -156,6 +156,14 @@ public final class ToolTask {
         suspend(ToolTaskHandle.Status.WAITING_APPROVAL, newResumeToken, now);
     }
 
+    /**
+     * 在真正执行前即需要审批时，将排队任务直接置为等待审批。
+     */
+    public void queueForApproval(String newResumeToken, Instant now) {
+        requireStatus(ToolTaskHandle.Status.QUEUED);
+        suspend(ToolTaskHandle.Status.WAITING_APPROVAL, newResumeToken, now);
+    }
+
     public void pause(String newResumeToken, Instant now) {
         requireNotTerminal();
         suspend(ToolTaskHandle.Status.PAUSED, newResumeToken, now);

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_tool_approval", queryFields = {})
@@ -17,4 +18,13 @@ public interface ToolApprovalMapper extends BaseMapper<ToolApprovalPo> {
                         @Param("decidedAt") LocalDateTime decidedAt);
 
     int expirePending(@Param("now") LocalDateTime now);
+
+    int attachTask(@Param("requestId") String requestId, @Param("taskId") String taskId);
+
+    List<ToolApprovalPo> selectPendingByOwner(@Param("ownerId") String ownerId);
+
+    /**
+     * 查找已决策但任务仍停留在审批等待态的记录，用于节点故障后的分布式对账。
+     */
+    List<ToolApprovalPo> selectActionable(@Param("limit") int limit);
 }

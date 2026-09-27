@@ -13,4 +13,13 @@ public interface WorkflowMapper extends BaseMapper<WorkflowPo> {
     Optional<WorkflowPo> selectByWorkflowId(@Param("workflowId") String workflowId);
 
     List<WorkflowPo> selectByOwnerId(@Param("ownerId") String ownerId);
+
+    Optional<WorkflowPo> selectOwned(@Param("workflowId") String workflowId,
+                                     @Param("ownerId") String ownerId);
+
+    int updateLatest(@Param("workflowId") String workflowId, @Param("ownerId") String ownerId,
+                     @Param("latestVersion") String latestVersion);
+
+    int updateMetadata(@Param("workflowId") String workflowId, @Param("ownerId") String ownerId,
+                       @Param("name") String name, @Param("description") String description);
 }

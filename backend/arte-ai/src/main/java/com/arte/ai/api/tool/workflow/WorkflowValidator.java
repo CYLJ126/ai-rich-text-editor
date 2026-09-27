@@ -1,5 +1,6 @@
 package com.arte.ai.api.tool.workflow;
 
+import com.arte.ai.pojo.tool.ToolPrincipal;
 import com.arte.ai.pojo.tool.WorkflowDefinition;
 import com.arte.ai.pojo.tool.WorkflowValidationResult;
 
@@ -12,4 +13,8 @@ import com.arte.ai.pojo.tool.WorkflowValidationResult;
 public interface WorkflowValidator {
 
     WorkflowValidationResult validate(WorkflowDefinition definition);
+
+    default WorkflowValidationResult validate(WorkflowDefinition definition, ToolPrincipal principal) {
+        return validate(definition);
+    }
 }

@@ -14,4 +14,10 @@ public interface WorkflowNodeRunMapper extends BaseMapper<WorkflowNodeRunPo> {
 
     Optional<WorkflowNodeRunPo> selectLatestAttempt(@Param("runId") String runId,
                                                     @Param("nodeId") String nodeId);
+
+    int complete(@Param("nodeRunId") String nodeRunId, @Param("status") String status,
+                 @Param("outputs") java.util.Map<String, Object> outputs,
+                 @Param("errorInfo") java.util.Map<String, Object> errorInfo,
+                 @Param("callId") String callId, @Param("completedAt") java.time.LocalDateTime completedAt,
+                 @Param("latencyMs") Long latencyMs, @Param("expectedVersion") Long expectedVersion);
 }

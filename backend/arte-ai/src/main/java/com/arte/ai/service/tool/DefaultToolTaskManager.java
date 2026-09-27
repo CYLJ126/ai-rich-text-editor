@@ -13,6 +13,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -49,6 +50,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
     private final ObjectMapper objectMapper;
     private final ObjectProvider<ToolApprovalService> approvalServiceProvider;
     private final ToolEventRecorder events;
+    private final TransactionTemplate transactionTemplate;
     private final Executor executor;
     private final ScheduledExecutorService leaseScheduler = Executors.newSingleThreadScheduledExecutor(
             Thread.ofVirtual().name("tool-task-lease-", 0).factory());
@@ -58,7 +60,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
                                   ToolExecutor toolExecutor, ToolExecutionProperties properties,
                                   ToolClusterIdentity identity, ObjectMapper objectMapper,
                                   ObjectProvider<ToolApprovalService> approvalServiceProvider,
-                                  ToolEventRecorder events,
+                                  ToolEventRecorder events, TransactionTemplate transactionTemplate,
                                   @Qualifier("toolCallbackExecutor") Executor executor) {
         this.repository = repository;
         this.callMapper = callMapper;
@@ -69,6 +71,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
         this.objectMapper = objectMapper;
         this.approvalServiceProvider = approvalServiceProvider;
         this.events = events;
+        this.transactionTemplate = transactionTemplate;
         this.executor = executor;
     }
 
@@ -86,8 +89,15 @@ public class DefaultToolTaskManager implements ToolTaskManager {
             Tool<I, O> tool, ToolInvocation<I> invocation, String approvalRequestId) {
         String rawToken = UUID.randomUUID().toString() + UUID.randomUUID();
         ToolTask task = newTask(tool, invocation, Map.of(META_APPROVAL, approvalRequestId));
-        task.pause(hash(rawToken), Instant.now());
-        repository.saveTask(task);
+        task.queueForApproval(hash(rawToken), Instant.now());
+        ToolApprovalService approvalService = approvalServiceProvider.getIfAvailable();
+        if (approvalService == null) {
+            throw new IllegalStateException("tool approval service is unavailable");
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            repository.saveTask(task);
+            approvalService.attachTask(approvalRequestId, task.taskId());
+        });
         ToolTaskHandle stored = task.snapshot();
         ToolTaskHandle exposed = new ToolTaskHandle(stored.taskId(), stored.callId(), stored.tool(),
                 stored.status(), stored.progress(), stored.progressMessage(), rawToken,
@@ -171,6 +181,34 @@ public class DefaultToolTaskManager implements ToolTaskManager {
         }).orElse(false), executor);
     }
 
+    @Override
+    public CompletionStage<Boolean> resumeApproved(String taskId) {
+        return CompletableFuture.supplyAsync(() -> resumeTask(taskId), executor);
+    }
+
+    @Override
+    public CompletionStage<Boolean> terminateApproval(String taskId, String reason) {
+        return CompletableFuture.supplyAsync(() -> repository.findTask(taskId).map(task -> {
+            if (task.terminal()) {
+                return false;
+            }
+            long expected = task.version();
+            task.fail(reason, Instant.now());
+            ToolResult.Unsuccessful<DynamicToolResponse> result = new ToolResult.Unsuccessful<>(
+                    ToolResultStatusEnum.DENIED,
+                    new ToolError("TOOL_APPROVAL_TERMINATED", CategoryEnum.APPROVAL,
+                            reason, false, Map.of()), null, Map.of("taskId", taskId));
+            saveResultOnce(taskId, result);
+            boolean saved = repository.saveState(task, expected);
+            if (saved) {
+                completeCall(task.callId(), result);
+                events.record(ToolExecutionEvent.Type.DENIED, task.callId(), task.tool(),
+                        context(task, Map.of()), Map.of("taskId", taskId, "reason", reason));
+            }
+            return saved;
+        }).orElse(false), executor);
+    }
+
     @Scheduled(initialDelayString = "${arte.ai.tool.execution.recovery-initial-delay:5s}",
             fixedDelayString = "${arte.ai.tool.execution.recovery-interval:10s}")
     public void recoverTasks() {
@@ -180,6 +218,23 @@ public class DefaultToolTaskManager implements ToolTaskManager {
 
     private void dispatch(String taskId) {
         CompletableFuture.runAsync(() -> executeClaimed(taskId), executor);
+    }
+
+    private boolean resumeTask(String taskId) {
+        ToolTask task = repository.findTask(taskId).orElse(null);
+        if (task == null || (task.status() != ToolTaskHandle.Status.WAITING_APPROVAL
+                && task.status() != ToolTaskHandle.Status.PAUSED)) {
+            return false;
+        }
+        long expected = task.version();
+        task.resume(Instant.now());
+        if (!repository.saveState(task, expected)) {
+            return false;
+        }
+        events.record(ToolExecutionEvent.Type.RESUMED, task.callId(), task.tool(),
+                context(task, Map.of()), Map.of("taskId", task.taskId(), "approved", true));
+        dispatch(task.taskId());
+        return true;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

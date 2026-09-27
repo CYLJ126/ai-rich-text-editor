@@ -51,6 +51,9 @@ public class WorkflowRunPo extends ToolPersistencePo {
     private Integer currentSteps;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
+    private LocalDateTime deadlineAt;
+    private String workerId;
+    private LocalDateTime leaseUntil;
     @Version
     private Long rowVersion;
 }

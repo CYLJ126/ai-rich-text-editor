@@ -116,6 +116,10 @@ public class DefaultToolExecutor implements ToolExecutor {
             Optional<String> existingApproval = Optional.ofNullable((String) effectiveInvocation.context()
                     .attributes().get(APPROVAL_REQUEST_ATTRIBUTE));
             boolean approvalRequired = invocation.effectivePolicy().requiresApproval()
+                    || definition.riskProfile().destructive()
+                    || !definition.riskProfile().readOnly()
+                    || definition.riskProfile().level().ordinal()
+                    >= com.arte.ai.common.enums.tool.ToolRiskLevelEnum.HIGH.ordinal()
                     || inputGuardrail.approvalRequired() || preExecutionGuardrail.approvalRequired();
             if (approvalRequired) {
                 ToolResult<O> approvalResult = handleApproval(tool, effectiveInvocation, existingApproval);
@@ -185,6 +189,11 @@ public class DefaultToolExecutor implements ToolExecutor {
         if (existingRequestId.isPresent()) {
             Optional<ToolApprovalDecision> decision = approvals.findDecision(existingRequestId.get());
             if (decision.isPresent() && decision.get().approved()) {
+                if (!approvals.matchesArguments(existingRequestId.get(), invocation.request())) {
+                    return failure(ToolResultStatusEnum.DENIED, "TOOL_APPROVAL_ARGUMENTS_CHANGED",
+                            CategoryEnum.APPROVAL,
+                            "tool arguments no longer match the approved request", false);
+                }
                 return null;
             }
             if (decision.isPresent()) {

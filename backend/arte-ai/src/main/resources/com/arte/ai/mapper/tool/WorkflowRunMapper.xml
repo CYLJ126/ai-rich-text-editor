@@ -18,6 +18,55 @@
         FROM arte_ai_workflow_run
         WHERE run_id = #{runId} LIMIT 1
     </select>
+    <select id="selectByResumeTokenHash" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_run
+        WHERE resume_token_hash = #{resumeTokenHash} LIMIT 1
+    </select>
+    <select id="selectRecoverable" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_run
+        WHERE status IN ('created', 'running', 'waiting_tool', 'waiting_approval')
+          AND (lease_until IS NULL OR lease_until &lt;= #{now})
+        ORDER BY update_time, id LIMIT #{limit}
+    </select>
+    <update id="tryClaim">
+        UPDATE arte_ai_workflow_run
+        SET worker_id   = #{workerId},
+            lease_until = #{leaseUntil},
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE run_id = #{runId}
+          AND status IN ('created', 'running', 'waiting_tool', 'waiting_approval')
+          AND (lease_until IS NULL OR lease_until &lt;= #{now})
+    </update>
+    <update id="renewLease">
+        UPDATE arte_ai_workflow_run
+        SET lease_until = #{leaseUntil},
+            update_time = CURRENT_TIMESTAMP(3)
+        WHERE run_id = #{runId}
+          AND worker_id = #{workerId}
+          AND status IN ('created', 'running', 'waiting_tool', 'waiting_approval')
+    </update>
+    <update id="updateState">
+        UPDATE arte_ai_workflow_run
+        SET status            = #{run.status},
+            variables         = #{run.variables,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            active_node_ids   = #{run.activeNodeIds,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            outputs           = #{run.outputs,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            error_info        = #{run.errorInfo,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            resume_token_hash = #{run.resumeTokenHash},
+            current_steps     = #{run.currentSteps},
+            started_at        = #{run.startedAt},
+            completed_at      = #{run.completedAt},
+            deadline_at       = #{run.deadlineAt},
+            worker_id         = #{run.workerId},
+            lease_until       = #{run.leaseUntil},
+            row_version       = row_version + 1,
+            update_by         = #{run.updateBy},
+            update_time       = CURRENT_TIMESTAMP(3)
+        WHERE run_id = #{run.runId}
+          AND row_version = #{expectedVersion}
+    </update>
     <update id="transitionStatus">
         UPDATE arte_ai_workflow_run
         SET status       = #{targetStatus},

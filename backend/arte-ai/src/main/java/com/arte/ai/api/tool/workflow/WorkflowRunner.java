@@ -4,6 +4,7 @@ import com.arte.ai.pojo.tool.CompiledWorkflow;
 import com.arte.ai.pojo.tool.WorkflowExecutionContext;
 import com.arte.ai.pojo.tool.WorkflowRun;
 
+import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 /**
@@ -21,4 +22,8 @@ public interface WorkflowRunner {
     CompletionStage<WorkflowRun> resume(String resumeToken);
 
     CompletionStage<WorkflowRun> cancel(String runId);
+
+    CompletionStage<WorkflowRun> cancel(String runId, String ownerId);
+
+    CompletionStage<Optional<WorkflowRun>> findRun(String runId, String ownerId);
 }

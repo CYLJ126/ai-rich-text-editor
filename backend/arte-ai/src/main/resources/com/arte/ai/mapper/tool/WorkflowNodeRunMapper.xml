@@ -22,4 +22,17 @@
           AND node_id = #{nodeId}
         ORDER BY attempt DESC LIMIT 1
     </select>
+    <update id="complete">
+        UPDATE arte_ai_workflow_node_run
+        SET status       = #{status},
+            outputs      = #{outputs,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            error_info   = #{errorInfo,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            call_id      = #{callId},
+            completed_at = #{completedAt},
+            latency_ms   = #{latencyMs},
+            row_version  = row_version + 1,
+            update_time  = CURRENT_TIMESTAMP(3)
+        WHERE node_run_id = #{nodeRunId}
+          AND row_version = #{expectedVersion}
+    </update>
 </mapper>

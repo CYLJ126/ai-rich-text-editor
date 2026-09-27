@@ -110,6 +110,16 @@ arte.ai.tool.execution.lease-renew-interval=20s
 # 服务启动后的首次恢复延迟和后续扫描间隔
 arte.ai.tool.execution.recovery-initial-delay=5s
 arte.ai.tool.execution.recovery-interval=10s
+# 人工审批有效期和过期审批扫描间隔（Spring Duration）
+arte.ai.tool.execution.approval-timeout=24h
+arte.ai.tool.execution.approval-expiry-scan-interval=30s
+# 工作流运行租约和续租间隔（Spring Duration）
+arte.ai.tool.execution.workflow-lease=60s
+arte.ai.tool.execution.workflow-lease-renew-interval=20s
+# 工作流服务重启后的首次恢复延迟、扫描间隔和单批上限
+arte.ai.tool.execution.workflow-recovery-initial-delay=10s
+arte.ai.tool.execution.workflow-recovery-interval=10s
+arte.ai.tool.execution.workflow-recovery-batch-size=100
 # 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
 arte.ai.tool.cluster.enabled=true
 # 当前后端节点唯一标识；留空时在每次启动时自动生成 UUID，不同节点不要配置相同值

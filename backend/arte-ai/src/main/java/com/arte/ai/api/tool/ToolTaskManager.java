@@ -38,4 +38,14 @@ public interface ToolTaskManager {
      * Worker 或工具实现报告持久化任务进度。
      */
     CompletionStage<Boolean> updateProgress(String taskId, double progress, String message);
+
+    /**
+     * 审批服务确认通过后，无需再次暴露恢复令牌即可恢复原调用。
+     */
+    CompletionStage<Boolean> resumeApproved(String taskId);
+
+    /**
+     * 审批拒绝或过期时终止原调用。
+     */
+    CompletionStage<Boolean> terminateApproval(String taskId, String reason);
 }
