@@ -23,6 +23,10 @@ public interface ToolApprovalMapper extends BaseMapper<ToolApprovalPo> {
 
     List<ToolApprovalPo> selectPendingByOwner(@Param("ownerId") String ownerId);
 
+    List<ToolApprovalPo> selectByOwner(@Param("ownerId") String ownerId,
+                                       @Param("status") String status,
+                                       @Param("limit") int limit);
+
     /**
      * 查找已决策但任务仍停留在审批等待态的记录，用于节点故障后的分布式对账。
      */

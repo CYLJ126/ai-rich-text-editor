@@ -15,12 +15,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.HexFormat;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
@@ -34,12 +36,10 @@ import java.util.concurrent.CompletionStage;
 @RequiredArgsConstructor
 public class DatabaseToolApprovalService implements ToolApprovalService {
 
-    private static final java.util.regex.Pattern SENSITIVE_KEY = java.util.regex.Pattern.compile(
-            "(?i).*(password|secret|token|api[-_]?key|private[-_]?key|credential|authorization|cookie).*"
-    );
-
     private final ToolApprovalMapper approvalMapper;
     private final ObjectMapper objectMapper;
+    private final ToolArgumentDigest argumentDigest;
+    private final ToolDataSanitizer sanitizer;
     private final ToolExecutionProperties properties;
     private final ObjectProvider<ToolTaskManager> taskManagerProvider;
 
@@ -47,9 +47,9 @@ public class DatabaseToolApprovalService implements ToolApprovalService {
     public CompletionStage<ToolApprovalRequest> requestApproval(
             ToolInvocation<? extends ToolRequest> invocation) {
         String requestId = UUID.randomUUID().toString();
-        String digest = digest(invocation.request());
+        String digest = argumentDigest.digest(invocation.request());
         Instant expiresAt = Instant.now().plus(properties.getApprovalTimeout());
-        Map<String, Object> displayArguments = redact(
+        Map<String, Object> displayArguments = sanitizer.sanitize(
                 objectMapper.convertValue(invocation.request(), java.util.Map.class));
         ToolApprovalRequest request = new ToolApprovalRequest(requestId, invocation.callId(),
                 invocation.tool(), digest, "Approve tool invocation " + invocation.tool(),
@@ -112,8 +112,8 @@ public class DatabaseToolApprovalService implements ToolApprovalService {
     public boolean matchesArguments(String requestId, ToolRequest request) {
         return approvalMapper.selectByRequestId(requestId)
                 .map(value -> MessageDigest.isEqual(
-                        value.getArgumentsDigest().getBytes(StandardCharsets.US_ASCII),
-                        digest(request).getBytes(StandardCharsets.US_ASCII)))
+                        HexFormat.of().parseHex(value.getArgumentsDigest()),
+                        HexFormat.of().parseHex(argumentDigest.digest(request))))
                 .orElse(false);
     }
 
@@ -144,37 +144,6 @@ public class DatabaseToolApprovalService implements ToolApprovalService {
                         .toCompletableFuture().join();
             }
         }
-    }
-
-    private String digest(Object value) {
-        try {
-            byte[] bytes = objectMapper.writeValueAsString(value).getBytes(StandardCharsets.UTF_8);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (Exception exception) {
-            throw new IllegalStateException("failed to digest approval arguments", exception);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> redact(Map<String, Object> source) {
-        if (source == null || source.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> result = new LinkedHashMap<>();
-        source.forEach((key, value) -> result.put(key,
-                SENSITIVE_KEY.matcher(key).matches() ? "***" : redactValue(value)));
-        return Map.copyOf(result);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Object redactValue(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            return redact((Map<String, Object>) map);
-        }
-        if (value instanceof Collection<?> collection) {
-            return collection.stream().map(this::redactValue).toList();
-        }
-        return value;
     }
 
     private String safeReason(String value) {

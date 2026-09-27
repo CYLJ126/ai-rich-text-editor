@@ -21,6 +21,9 @@ public record ToolApprovalDecision(
         requireText(requestId, "requestId");
         requireText(approverId, "approverId");
         Objects.requireNonNull(decidedAt, "decidedAt must not be null");
+        if (!approved && (reason == null || reason.isBlank())) {
+            throw new IllegalArgumentException("reason must not be blank when approval is rejected");
+        }
     }
 
     private static void requireText(String value, String name) {

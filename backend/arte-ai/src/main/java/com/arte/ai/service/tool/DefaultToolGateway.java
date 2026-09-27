@@ -344,7 +344,17 @@ public class DefaultToolGateway implements ToolGateway {
     }
 
     private void persistResult(ToolCallPo call, ToolResult<? extends ToolResponse> result, Instant started) {
-        if (result instanceof ToolResult.Accepted<?> || result instanceof ToolResult.Suspended<?>) {
+        if (result instanceof ToolResult.Accepted<?>) {
+            return;
+        }
+        if (result instanceof ToolResult.Suspended<?>) {
+            int changed = callMapper.transitionStatus(call.getCallId(),
+                    ToolResultStatusEnum.ACCEPTED.getValue(), result.status().getValue(),
+                    call.getRowVersion(), null);
+            if (changed != 1) {
+                throw new IllegalStateException("tool call changed concurrently while entering "
+                        + result.status().getValue());
+            }
             return;
         }
         ToolCallResultPo po = ResultPersistenceMapper.toPo(result, call.getCallId(), null,

@@ -46,6 +46,20 @@ public class ToolTaskStateTest {
         assertEquals(2, task.attempt());
     }
 
+    @Test
+    public void shouldSuspendForApprovalAndResumeWithoutExposingTokenInState() {
+        Instant now = Instant.parse("2026-09-27T00:00:00Z");
+        ToolTask task = task(now);
+
+        task.queueForApproval("hashed-resume-token", now.plusSeconds(1));
+        assertEquals(ToolTaskHandle.Status.WAITING_APPROVAL, task.status());
+        assertEquals("hashed-resume-token", task.resumeToken());
+
+        task.resume(now.plusSeconds(2));
+        assertEquals(ToolTaskHandle.Status.QUEUED, task.status());
+        assertNull(task.resumeToken());
+    }
+
     private ToolTask task(Instant now) {
         return ToolTask.enqueue("task-1", "call-1",
                 new ToolReference("article", "summary", "1.0.0"), Map.of("text", "hello"),

@@ -206,26 +206,37 @@ public class DefaultToolTaskManager implements ToolTaskManager {
 
     @Override
     public CompletionStage<Boolean> terminateApproval(String taskId, String reason) {
-        return CompletableFuture.supplyAsync(() -> repository.findTask(taskId).map(task -> {
-            if (task.terminal()) {
+        String terminalReason = reason == null || reason.isBlank()
+                ? "approval terminated" : reason;
+        return CompletableFuture.supplyAsync(() -> Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+            ToolTask task = repository.findTask(taskId).orElse(null);
+            if (task == null || task.terminal()
+                    || task.status() != ToolTaskHandle.Status.WAITING_APPROVAL) {
                 return false;
             }
             long expected = task.version();
-            task.fail(reason, Instant.now());
+            task.fail(terminalReason, Instant.now());
+            if (!repository.saveState(task, expected)) {
+                return false;
+            }
+            boolean expired = terminalReason.toLowerCase(Locale.ROOT).contains("expired");
             ToolResult.Unsuccessful<DynamicToolResponse> result = new ToolResult.Unsuccessful<>(
                     ToolResultStatusEnum.DENIED,
-                    new ToolError("TOOL_APPROVAL_TERMINATED", CategoryEnum.APPROVAL,
-                            reason, false, Map.of()), null, Map.of("taskId", taskId));
+                    new ToolError(expired ? "TOOL_APPROVAL_EXPIRED" : "TOOL_APPROVAL_REJECTED",
+                            CategoryEnum.APPROVAL,
+                            terminalReason, false, Map.of()), null, Map.of("taskId", taskId));
             saveResultOnce(taskId, result);
-            boolean saved = repository.saveState(task, expected);
-            if (saved) {
-                completeCall(task.callId(), result);
-                events.record(ToolExecutionEvent.Type.DENIED, task.callId(), task.tool(),
-                        context(task, Map.of()), Map.of("taskId", taskId, "reason", reason));
-                cancellations.clear(task.callId());
-            }
-            return saved;
-        }).orElse(false), executor);
+            completeCall(task.callId(), result);
+            ToolExecutionEvent.Type approvalType = expired
+                    ? ToolExecutionEvent.Type.APPROVAL_EXPIRED
+                    : ToolExecutionEvent.Type.APPROVAL_REJECTED;
+            events.record(approvalType, task.callId(), task.tool(), context(task, Map.of()),
+                    Map.of("taskId", taskId, "reason", terminalReason));
+            events.record(ToolExecutionEvent.Type.DENIED, task.callId(), task.tool(),
+                    context(task, Map.of()), Map.of("taskId", taskId, "reason", terminalReason));
+            cancellations.clear(task.callId());
+            return true;
+        })), executor);
     }
 
     @Scheduled(initialDelayString = "${arte.ai.tool.execution.recovery-initial-delay:5s}",
@@ -241,8 +252,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
 
     private boolean resumeTask(String taskId) {
         ToolTask task = repository.findTask(taskId).orElse(null);
-        if (task == null || (task.status() != ToolTaskHandle.Status.WAITING_APPROVAL
-                && task.status() != ToolTaskHandle.Status.PAUSED)) {
+        if (task == null || task.status() != ToolTaskHandle.Status.WAITING_APPROVAL) {
             return false;
         }
         long expected = task.version();
@@ -250,6 +260,8 @@ public class DefaultToolTaskManager implements ToolTaskManager {
         if (!repository.saveState(task, expected)) {
             return false;
         }
+        events.record(ToolExecutionEvent.Type.APPROVAL_APPROVED, task.callId(), task.tool(),
+                context(task, Map.of()), Map.of("taskId", task.taskId()));
         events.record(ToolExecutionEvent.Type.RESUMED, task.callId(), task.tool(),
                 context(task, Map.of()), Map.of("taskId", task.taskId(), "approved", true));
         dispatch(task.taskId());

@@ -25,6 +25,8 @@
     <update id="expirePending">
         UPDATE arte_ai_tool_approval
         SET status      = 'expired',
+            decision_reason = 'approval expired',
+            decided_at      = #{now},
             update_time = CURRENT_TIMESTAMP(3)
         WHERE status = 'pending'
           AND expires_at &lt;= #{now}
@@ -42,7 +44,19 @@
         FROM arte_ai_tool_approval
         WHERE create_by = #{ownerId}
           AND status = 'pending'
+          AND expires_at &gt; CURRENT_TIMESTAMP(3)
         ORDER BY create_time DESC
+    </select>
+    <select id="selectByOwner" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_approval
+        WHERE create_by = #{ownerId}
+        <if test="status != null and status != '' and status != 'all'">
+            AND status = #{status}
+        </if>
+        <if test="status == 'pending'">
+            AND expires_at &gt; CURRENT_TIMESTAMP(3)
+        </if>
+        ORDER BY create_time DESC, id DESC LIMIT #{limit}
     </select>
     <select id="selectActionable" resultMap="BaseResultMap">
         SELECT a.*

@@ -11,6 +11,7 @@ import com.arte.ai.service.tool.observability.ToolEventRecorder;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -45,6 +46,7 @@ public class DefaultToolExecutor implements ToolExecutor {
     private final ToolSchemaValidator schemaValidator;
     private final ToolEventRecorder events;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
     private final Executor executor;
 
     public DefaultToolExecutor(List<ToolAuthorizer> authorizers,
@@ -56,6 +58,7 @@ public class DefaultToolExecutor implements ToolExecutor {
                                ToolSchemaValidator schemaValidator,
                                ToolEventRecorder events,
                                ObjectMapper objectMapper,
+                               TransactionTemplate transactionTemplate,
                                @Qualifier("toolCallbackExecutor") Executor executor) {
         this.authorizers = List.copyOf(authorizers);
         this.guardrails = List.copyOf(guardrails);
@@ -66,6 +69,7 @@ public class DefaultToolExecutor implements ToolExecutor {
         this.schemaValidator = schemaValidator;
         this.events = events;
         this.objectMapper = objectMapper;
+        this.transactionTemplate = transactionTemplate;
         this.executor = executor;
     }
 
@@ -211,11 +215,21 @@ public class DefaultToolExecutor implements ToolExecutor {
                         CategoryEnum.APPROVAL, safe(decision.get().reason()), false);
             }
         }
-        ToolApprovalRequest request = existingRequestId.isPresent()
-                ? new ToolApprovalRequest(existingRequestId.get(), invocation.callId(), invocation.tool(),
-                "pending", "Waiting for approval", Instant.now().plus(invocation.effectivePolicy().timeout()), Map.of())
-                : await(approvals.requestApproval(invocation));
-        ToolTaskHandle task = await(taskManagerProvider.getObject().suspend(tool, invocation, request.requestId()));
+        ApprovalSuspension suspension = transactionTemplate.execute(status -> {
+            ToolApprovalRequest request = existingRequestId.isPresent()
+                    ? new ToolApprovalRequest(existingRequestId.get(), invocation.callId(), invocation.tool(),
+                    "pending", "Waiting for approval",
+                    Instant.now().plus(invocation.effectivePolicy().timeout()), Map.of())
+                    : await(approvals.requestApproval(invocation));
+            ToolTaskHandle task = await(taskManagerProvider.getObject()
+                    .suspend(tool, invocation, request.requestId()));
+            return new ApprovalSuspension(request, task);
+        });
+        if (suspension == null) {
+            throw new IllegalStateException("approval suspension transaction returned no result");
+        }
+        ToolApprovalRequest request = suspension.request();
+        ToolTaskHandle task = suspension.task();
         events.record(ToolExecutionEvent.Type.APPROVAL_REQUESTED, invocation.callId(), invocation.tool(),
                 invocation.context(), Map.of("requestId", request.requestId(), "taskId", task.taskId()));
         return (ToolResult<O>) new ToolResult.Suspended<>(ToolResultStatusEnum.REQUIRES_APPROVAL,
@@ -372,5 +386,8 @@ public class DefaultToolExecutor implements ToolExecutor {
 
     private record GuardrailOutcome(boolean denied, boolean approvalRequired, String reason,
                                     Map<String, Object> changes) {
+    }
+
+    private record ApprovalSuspension(ToolApprovalRequest request, ToolTaskHandle task) {
     }
 }

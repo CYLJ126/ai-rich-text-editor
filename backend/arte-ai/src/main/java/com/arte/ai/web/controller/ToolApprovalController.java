@@ -27,8 +27,17 @@ public class ToolApprovalController {
     private final ToolApprovalMapper approvalMapper;
 
     @GetMapping
-    public ResultContext<?> pending() {
-        return ResultContext.success(approvalMapper.selectPendingByOwner(UserContext.getUserName()));
+    public ResultContext<?> list(@RequestParam(defaultValue = "pending") String status,
+                                 @RequestParam(defaultValue = "100") int limit) {
+        return ResultContext.success(approvalMapper.selectByOwner(UserContext.getUserName(),
+                status.toLowerCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 200))));
+    }
+
+    @GetMapping("/{requestId}")
+    public ResultContext<?> detail(@PathVariable String requestId) {
+        String owner = UserContext.getUserName();
+        return ResultContext.success(approvalMapper.selectByRequestId(requestId)
+                .filter(value -> owner.equals(value.getCreateBy())));
     }
 
     @PostMapping("/{requestId}/decision")

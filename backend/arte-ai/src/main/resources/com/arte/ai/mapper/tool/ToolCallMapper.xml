@@ -38,7 +38,7 @@
     <update id="transitionStatus">
         UPDATE arte_ai_tool_call
         SET status       = #{targetStatus},
-            completed_at = #{completedAt},
+        <if test="completedAt != null">completed_at = #{completedAt},</if>
             row_version  = row_version + 1,
             update_time  = CURRENT_TIMESTAMP(3)
         WHERE call_id = #{callId}
