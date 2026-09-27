@@ -5,9 +5,12 @@ import com.arte.ai.common.enums.tool.ToolClusterEventTypeEnum;
 import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
 import com.arte.ai.mapper.tool.ToolMapper;
 import com.arte.ai.mapper.tool.ToolVersionMapper;
+import com.arte.ai.pojo.tool.ToolProviderSyncResult;
 import com.arte.ai.pojo.tool.ToolReference;
+import com.arte.ai.pojo.tool.ToolVersionView;
 import com.arte.ai.pojo.tool.po.ToolPo;
 import com.arte.ai.pojo.tool.po.ToolVersionPo;
+import com.arte.ai.service.tool.cluster.ToolDistributedLockExecutor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,6 +39,8 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
     private final ToolRegistry registry;
     private final TransactionTemplate transactionTemplate;
     private final ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider;
+    private final ToolDistributedLockExecutor lockExecutor;
+    private final ToolProviderManager providerManager;
 
     public DefaultToolLifecycleManager(List<ToolProvider> providers,
                                        ToolMapper toolMapper,
@@ -43,7 +48,9 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
                                        ToolDefinitionValidator definitionValidator,
                                        ToolRegistry registry,
                                        TransactionTemplate transactionTemplate,
-                                       ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider) {
+                                       ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider,
+                                       ToolDistributedLockExecutor lockExecutor,
+                                       ToolProviderManager providerManager) {
         this.providers = indexProviders(providers);
         this.toolMapper = toolMapper;
         this.versionMapper = versionMapper;
@@ -51,48 +58,64 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
         this.registry = registry;
         this.transactionTemplate = transactionTemplate;
         this.eventPublisherProvider = eventPublisherProvider;
+        this.lockExecutor = lockExecutor;
+        this.providerManager = providerManager;
     }
 
     @Override
     public void publish(ToolReference reference) {
+        lockExecutor.execute(versionLock(reference), () -> publishLocked(reference));
+    }
+
+    private void publishLocked(ToolReference reference) {
         CatalogEntry entry = requireEntry(reference);
-        ToolProvider provider = requireProvider(entry.tool().getProviderId());
+        ToolProviderSyncResult syncResult = providerManager.synchronize(entry.tool().getProviderId())
+                .toCompletableFuture().join();
+        if (!syncResult.succeeded()) {
+            throw new IllegalStateException("tool provider synchronization failed before publication: "
+                    + syncResult.errorMessage());
+        }
+        // 同步可能更新草稿定义快照和 row_version，因此发布前重新读取。
+        CatalogEntry synchronizedEntry = requireEntry(reference);
+        ToolProvider provider = requireProvider(synchronizedEntry.tool().getProviderId());
         Tool<?, ?> runtimeTool = provider.resolve(reference)
                 .orElseThrow(() -> new IllegalStateException(
                         "tool is not loaded by its provider; synchronize the provider first: " + reference));
         definitionValidator.validate(runtimeTool.getDefinition());
 
         transactionTemplate.executeWithoutResult(status -> {
-            ToolVersionPo current = versionMapper.selectExact(entry.tool().getToolId(), reference.version())
+            ToolVersionPo current = versionMapper.selectExact(synchronizedEntry.tool().getToolId(), reference.version())
                     .orElseThrow(() -> new IllegalArgumentException("unknown tool version: " + reference));
             if (current.getLifecycleState() == ToolLifecycleStateEnum.DRAFT) {
                 int updated = versionMapper.publish(current.getId(), current.getRowVersion(), LocalDateTime.now());
                 if (updated != 1) {
                     throw new IllegalStateException("tool version changed concurrently: " + reference);
                 }
+                ToolPo tool = synchronizedEntry.tool();
+                tool.setLifecycleState(ToolLifecycleStateEnum.PUBLISHED);
+                tool.setLatestVersion(reference.version());
+                toolMapper.updateById(tool);
             } else if (current.getLifecycleState() != ToolLifecycleStateEnum.PUBLISHED) {
                 throw new IllegalStateException("disabled or deprecated tool versions cannot be published: " + reference);
             }
-            ToolPo tool = entry.tool();
-            tool.setLifecycleState(ToolLifecycleStateEnum.PUBLISHED);
-            tool.setLatestVersion(reference.version());
-            toolMapper.updateById(tool);
         });
 
         registry.unregister(reference);
-        registry.register(entry.tool().getProviderId(), runtimeTool);
-        publishToolEvent(entry.tool().getProviderId(), reference, ToolClusterEventTypeEnum.TOOL_PUBLISHED);
+        registry.register(synchronizedEntry.tool().getProviderId(), runtimeTool);
+        publishToolEvent(synchronizedEntry.tool().getProviderId(), reference, ToolClusterEventTypeEnum.TOOL_PUBLISHED);
     }
 
     @Override
     public void deprecate(ToolReference reference, String reason) {
-        String providerId = changeState(reference, ToolLifecycleStateEnum.DEPRECATED);
+        String providerId = lockExecutor.execute(versionLock(reference),
+                () -> changeState(reference, ToolLifecycleStateEnum.DEPRECATED));
         publishToolEvent(providerId, reference, ToolClusterEventTypeEnum.TOOL_DEPRECATED);
     }
 
     @Override
     public void disable(ToolReference reference, String reason) {
-        String providerId = changeState(reference, ToolLifecycleStateEnum.DISABLED);
+        String providerId = lockExecutor.execute(versionLock(reference),
+                () -> changeState(reference, ToolLifecycleStateEnum.DISABLED));
         publishToolEvent(providerId, reference, ToolClusterEventTypeEnum.TOOL_DISABLED);
     }
 
@@ -106,29 +129,56 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
                 .map(ToolVersionPo::getLifecycleState);
     }
 
+    @Override
+    public List<ToolVersionView> listVersions(String namespace, String name) {
+        ToolPo tool = toolMapper.selectByIdentity(namespace, name)
+                .orElseThrow(() -> new IllegalArgumentException("unknown tool: " + namespace + ":" + name));
+        return versionMapper.selectVersions(tool.getToolId()).stream()
+                .map(version -> new ToolVersionView(
+                        new ToolReference(tool.getNamespace(), tool.getName(), version.getVersion()),
+                        tool.getToolId(), version.getTitle(), version.getDescription(),
+                        version.getLifecycleState(), version.getChecksum(), version.getRowVersion(),
+                        version.getPublishedAt()))
+                .toList();
+    }
+
     private String changeState(ToolReference reference, ToolLifecycleStateEnum targetState) {
         CatalogEntry entry = requireEntry(reference);
         transactionTemplate.executeWithoutResult(status -> {
             ToolVersionPo version = versionMapper.selectExact(entry.tool().getToolId(), reference.version())
                     .orElseThrow(() -> new IllegalArgumentException("unknown tool version: " + reference));
-            version.setLifecycleState(targetState);
-            versionMapper.updateById(version);
-
-            ToolPo tool = entry.tool();
-            if (reference.version().equals(tool.getLatestVersion())) {
-                ToolVersionPo latestPublished = versionMapper.selectLatestPublished(tool.getToolId()).orElse(null);
-                if (latestPublished == null || latestPublished.getVersion().equals(reference.version())) {
-                    tool.setLatestVersion(null);
-                    tool.setLifecycleState(targetState);
-                } else {
-                    tool.setLatestVersion(latestPublished.getVersion());
-                    tool.setLifecycleState(ToolLifecycleStateEnum.PUBLISHED);
-                }
-                toolMapper.updateById(tool);
+            ToolLifecycleStateEnum currentState = version.getLifecycleState();
+            if (currentState == targetState) {
+                return;
             }
+            if (targetState == ToolLifecycleStateEnum.DEPRECATED
+                    && currentState != ToolLifecycleStateEnum.PUBLISHED) {
+                throw new IllegalStateException("only a published tool version can be deprecated: " + reference);
+            }
+            int updated = versionMapper.transition(version.getId(), version.getRowVersion(),
+                    currentState, targetState);
+            if (updated != 1) {
+                throw new IllegalStateException("tool version changed concurrently: " + reference);
+            }
+
+            refreshCatalogState(entry.tool(), targetState);
         });
         registry.unregister(reference);
         return entry.tool().getProviderId();
+    }
+
+    private void refreshCatalogState(ToolPo tool, ToolLifecycleStateEnum fallbackState) {
+        ToolVersionPo latestPublished = versionMapper.selectLatestPublished(tool.getToolId()).orElse(null);
+        if (latestPublished != null) {
+            tool.setLatestVersion(latestPublished.getVersion());
+            tool.setLifecycleState(ToolLifecycleStateEnum.PUBLISHED);
+        } else {
+            boolean hasDraft = versionMapper.selectVersions(tool.getToolId()).stream()
+                    .anyMatch(version -> version.getLifecycleState() == ToolLifecycleStateEnum.DRAFT);
+            tool.setLatestVersion(null);
+            tool.setLifecycleState(hasDraft ? ToolLifecycleStateEnum.DRAFT : fallbackState);
+        }
+        toolMapper.updateById(tool);
     }
 
     private CatalogEntry requireEntry(ToolReference reference) {
@@ -166,6 +216,13 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
         if (publisher != null) {
             publisher.publishToolChanged(providerId, reference, eventType);
         }
+    }
+
+    private String versionLock(ToolReference reference) {
+        if (reference == null) {
+            throw new IllegalArgumentException("reference must not be null");
+        }
+        return "version:" + reference.namespace() + ":" + reference.name() + ":" + reference.version();
     }
 
     private record CatalogEntry(ToolPo tool, ToolVersionPo version) {

@@ -10,6 +10,8 @@
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="risk_profile" property="riskProfile"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="default_configuration" property="defaultConfiguration"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="default_policy" property="defaultPolicy"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
         <result column="tags" property="tags"
@@ -43,5 +45,14 @@
         WHERE id = #{id}
           AND row_version = #{expectedVersion}
           AND lifecycle_state = 'draft'
+    </update>
+    <update id="transition">
+        UPDATE arte_ai_tool_version
+        SET lifecycle_state = #{targetState},
+            row_version     = row_version + 1,
+            update_time     = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id}
+          AND row_version = #{expectedVersion}
+          AND lifecycle_state = #{expectedState}
     </update>
 </mapper>

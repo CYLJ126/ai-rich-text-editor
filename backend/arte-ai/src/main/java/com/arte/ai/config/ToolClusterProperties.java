@@ -20,4 +20,6 @@ public class ToolClusterProperties {
     private String topic = "arte:ai:tool:catalog-events";
     private String syncLockPrefix = "arte:ai:tool:provider-sync:";
     private long syncLockWaitMillis = 10000L;
+    private String managementLockPrefix = "arte:ai:tool:management:";
+    private long managementLockWaitMillis = 10000L;
 }

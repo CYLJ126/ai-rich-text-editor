@@ -19,4 +19,9 @@ public interface ToolVersionMapper extends BaseMapper<ToolVersionPo> {
 
     int publish(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
                 @Param("publishedAt") LocalDateTime publishedAt);
+
+    int transition(@Param("id") Long id,
+                   @Param("expectedVersion") Long expectedVersion,
+                   @Param("expectedState") com.arte.ai.common.enums.tool.ToolLifecycleStateEnum expectedState,
+                   @Param("targetState") com.arte.ai.common.enums.tool.ToolLifecycleStateEnum targetState);
 }

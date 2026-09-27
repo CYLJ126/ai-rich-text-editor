@@ -1,5 +1,6 @@
 package com.arte.ai.pojo.tool.po;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
@@ -30,6 +31,8 @@ public class ToolBindingPo extends ToolPersistencePo {
     private String bindingId;
     private String ownerId;
     private String workspaceId;
+    @TableField(insertStrategy = FieldStrategy.NEVER, updateStrategy = FieldStrategy.NEVER)
+    private String workspaceScope;
     private String toolId;
     private String toolVersion;
     private String credentialReference;

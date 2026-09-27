@@ -1,5 +1,6 @@
 package com.arte.ai.pojo.tool;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -20,6 +21,7 @@ public record ToolDefinition(
         ToolSchema outputSchema,
         ToolCapabilities capabilities,
         ToolRiskProfile riskProfile,
+        Map<String, Object> defaultConfiguration,
         ToolExecutionPolicy defaultPolicy,
         Set<String> tags,
         boolean deprecated
@@ -32,6 +34,7 @@ public record ToolDefinition(
         Objects.requireNonNull(capabilities, "capabilities");
         Objects.requireNonNull(riskProfile, "riskProfile");
         Objects.requireNonNull(defaultPolicy, "defaultPolicy");
+        defaultConfiguration = defaultConfiguration == null ? Map.of() : Map.copyOf(defaultConfiguration);
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("title must not be blank");
         }

@@ -43,6 +43,8 @@ public class ToolVersionPo extends ToolPersistencePo {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> riskProfile;
     @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> defaultConfiguration;
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> defaultPolicy;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Set<String> tags;

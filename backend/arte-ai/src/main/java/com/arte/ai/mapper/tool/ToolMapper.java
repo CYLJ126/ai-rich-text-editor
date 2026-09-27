@@ -12,5 +12,7 @@ import java.util.Optional;
 public interface ToolMapper extends BaseMapper<ToolPo> {
     Optional<ToolPo> selectByIdentity(@Param("namespace") String namespace, @Param("name") String name);
 
+    Optional<ToolPo> selectByToolId(@Param("toolId") String toolId);
+
     List<ToolPo> selectByProviderId(@Param("providerId") String providerId);
 }

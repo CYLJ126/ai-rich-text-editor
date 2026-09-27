@@ -10,10 +10,19 @@ import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_tool_binding", queryFields = {})
 public interface ToolBindingMapper extends BaseMapper<ToolBindingPo> {
-    Optional<ToolBindingPo> selectEffective(@Param("ownerId") String ownerId,
-                                            @Param("bindingId") String bindingId);
+    Optional<ToolBindingPo> selectOwned(@Param("ownerId") String ownerId,
+                                        @Param("bindingId") String bindingId);
 
-    List<ToolBindingPo> selectEnabledByOwnerId(@Param("ownerId") String ownerId);
+    Optional<ToolBindingPo> selectByScope(@Param("ownerId") String ownerId,
+                                          @Param("workspaceId") String workspaceId,
+                                          @Param("toolId") String toolId,
+                                          @Param("toolVersion") String toolVersion);
+
+    List<ToolBindingPo> selectEnabledByScope(@Param("ownerId") String ownerId,
+                                             @Param("workspaceId") String workspaceId);
+
+    List<ToolBindingPo> selectByOwnerScope(@Param("ownerId") String ownerId,
+                                           @Param("workspaceId") String workspaceId);
 
     int updateWithVersion(@Param("binding") ToolBindingPo binding,
                           @Param("expectedVersion") Long expectedVersion);

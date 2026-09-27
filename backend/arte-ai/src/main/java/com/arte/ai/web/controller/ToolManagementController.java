@@ -3,10 +3,7 @@ package com.arte.ai.web.controller;
 import com.arte.ai.api.tool.ToolLifecycleManager;
 import com.arte.ai.api.tool.ToolProviderManager;
 import com.arte.ai.api.tool.ToolRegistry;
-import com.arte.ai.pojo.tool.ToolDefinition;
-import com.arte.ai.pojo.tool.ToolProviderSyncResult;
-import com.arte.ai.pojo.tool.ToolQuery;
-import com.arte.ai.pojo.tool.ToolReference;
+import com.arte.ai.pojo.tool.*;
 import com.arte.core.pojo.ResultContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -93,5 +90,11 @@ public class ToolManagementController {
                 .map(tool -> tool.getDefinition())
                 .orElse(null);
         return ResultContext.success(definition);
+    }
+
+    @GetMapping("/{namespace}/{name}/versions")
+    public ResultContext<List<ToolVersionView>> listVersions(@PathVariable String namespace,
+                                                             @PathVariable String name) {
+        return ResultContext.success(lifecycleManager.listVersions(namespace, name));
     }
 }

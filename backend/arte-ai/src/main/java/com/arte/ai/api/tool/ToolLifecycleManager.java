@@ -2,7 +2,9 @@ package com.arte.ai.api.tool;
 
 import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
 import com.arte.ai.pojo.tool.ToolReference;
+import com.arte.ai.pojo.tool.ToolVersionView;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,4 +22,6 @@ public interface ToolLifecycleManager {
     void disable(ToolReference reference, String reason);
 
     Optional<ToolLifecycleStateEnum> getState(ToolReference reference);
+
+    List<ToolVersionView> listVersions(String namespace, String name);
 }

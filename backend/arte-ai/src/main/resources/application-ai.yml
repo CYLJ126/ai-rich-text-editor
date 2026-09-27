@@ -53,6 +53,10 @@ arte:
         sync-lock-prefix: "@arte.ai.tool.cluster.sync-lock-prefix@"
         # 获取提供者同步分布式锁的最长等待时间，单位毫秒
         sync-lock-wait-millis: @arte.ai.tool.cluster.sync-lock-wait-millis@
+        # 工具版本、用户绑定和助手配置写操作的 Redisson 锁 Key 前缀
+        management-lock-prefix: "@arte.ai.tool.cluster.management-lock-prefix@"
+        # 获取工具管理分布式锁的最长等待时间，单位毫秒
+        management-lock-wait-millis: @arte.ai.tool.cluster.management-lock-wait-millis@
         # Redis Topic 首次订阅失败后的重试间隔，单位毫秒
         subscription-retry-ms: @arte.ai.tool.cluster.subscription-retry-ms@
         # 应用启动后首次执行本地工具目录对账的延迟时间，单位毫秒

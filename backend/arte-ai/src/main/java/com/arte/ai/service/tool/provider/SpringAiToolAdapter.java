@@ -63,6 +63,7 @@ public class SpringAiToolAdapter implements Tool<DynamicToolRequest, DynamicTool
                         Set.of(ToolExecutionModeEnum.BLOCKING, ToolExecutionModeEnum.NON_BLOCKING),
                         false, false, Set.of("structured"), Set.of("structured", "text")),
                 riskProfile,
+                Map.of(),
                 executionPolicy,
                 Set.of("spring-ai"),
                 false

@@ -60,6 +60,7 @@ create table arte_ai_tool_version
     output_schema   json                        not null comment '输出 JSON Schema',
     capabilities    json                        not null comment '工具能力快照',
     risk_profile    json                        not null comment '风险画像快照',
+    default_configuration json null comment '工具默认运行配置',
     default_policy  json                        not null comment '默认执行策略',
     tags            json null comment '标签',
     checksum        varchar(128)                not null comment '定义校验和',
@@ -86,6 +87,7 @@ create table arte_ai_tool_binding
     binding_id           varchar(64)      not null comment '绑定业务 ID',
     owner_id             varchar(64)      not null comment '所有者用户 ID',
     workspace_id         varchar(64) null comment '工作空间 ID',
+    workspace_scope varchar(64) generated always as (coalesce(workspace_id, '')) stored comment '工作空间唯一键辅助列',
     tool_id              varchar(64)      not null comment '工具业务 ID',
     tool_version         varchar(64)      not null comment '固定工具版本',
     credential_reference varchar(128) null comment '凭据引用，不保存明文',
@@ -98,7 +100,9 @@ create table arte_ai_tool_binding
     create_time          datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
     update_time          datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
     constraint uk_tool_binding_id
-        unique (binding_id)
+        unique (binding_id),
+    constraint uk_tool_binding_scope
+        unique (owner_id, workspace_scope, tool_id, tool_version)
 ) comment 'AI 工具用户绑定表';
 
 create index idx_tool_binding_owner

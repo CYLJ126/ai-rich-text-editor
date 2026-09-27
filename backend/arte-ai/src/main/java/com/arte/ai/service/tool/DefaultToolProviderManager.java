@@ -490,6 +490,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                 .setOutputSchema(schemaMap(definition.outputSchema()))
                 .setCapabilities(toMap(definition.capabilities()))
                 .setRiskProfile(toMap(definition.riskProfile()))
+                .setDefaultConfiguration(definition.defaultConfiguration())
                 .setDefaultPolicy(toMap(definition.defaultPolicy()))
                 .setTags(definition.tags())
                 .setChecksum(checksum)
@@ -504,6 +505,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         versionPo.setOutputSchema(schemaMap(definition.outputSchema()));
         versionPo.setCapabilities(toMap(definition.capabilities()));
         versionPo.setRiskProfile(toMap(definition.riskProfile()));
+        versionPo.setDefaultConfiguration(definition.defaultConfiguration());
         versionPo.setDefaultPolicy(toMap(definition.defaultPolicy()));
         versionPo.setTags(definition.tags());
         versionPo.setChecksum(checksum);
@@ -546,6 +548,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                 "openWorld", definition.riskProfile().openWorld(),
                 "requiredScopes", definition.riskProfile().requiredScopes().stream().sorted().toList(),
                 "allowedNetworkTargets", definition.riskProfile().allowedNetworkTargets().stream().sorted().toList()));
+        canonical.put("defaultConfiguration", canonicalValue(definition.defaultConfiguration()));
         canonical.put("defaultPolicy", Map.of(
                 "executionMode", definition.defaultPolicy().executionMode().name(),
                 "timeoutMillis", definition.defaultPolicy().timeout().toMillis(),
@@ -564,6 +567,18 @@ public class DefaultToolProviderManager implements ToolProviderManager {
 
     private List<String> sortedNames(Set<? extends Enum<?>> values) {
         return values.stream().map(Enum::name).sorted().toList();
+    }
+
+    private Object canonicalValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> sorted = new TreeMap<>();
+            map.forEach((key, nested) -> sorted.put(String.valueOf(key), canonicalValue(nested)));
+            return sorted;
+        }
+        if (value instanceof Collection<?> collection) {
+            return collection.stream().map(this::canonicalValue).toList();
+        }
+        return value;
     }
 
     private String stableToolId(String namespace, String name) {

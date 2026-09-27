@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -91,6 +92,7 @@ public class DefaultToolRegistryTest {
                         false, false, Set.of("text"), Set.of("structured")),
                 new ToolRiskProfile(ToolRiskLevelEnum.LOW,
                         true, false, true, true, false, Set.of(), Set.of()),
+                Map.of(),
                 new ToolExecutionPolicy(ToolExecutionModeEnum.BLOCKING, Duration.ofSeconds(30),
                         0, Duration.ZERO, 2048, false, true),
                 Set.of("article"),

@@ -7,18 +7,35 @@
         <result column="policy_override" property="policyOverride"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
-    <select id="selectEffective" resultMap="BaseResultMap">
+    <select id="selectOwned" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_tool_binding
         WHERE owner_id = #{ownerId}
-          AND binding_id = #{bindingId}
-          AND enabled = 1 LIMIT 1
+          AND binding_id = #{bindingId} LIMIT 1
     </select>
-    <select id="selectEnabledByOwnerId" resultMap="BaseResultMap">
+    <select id="selectByScope" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_binding
+        WHERE owner_id = #{ownerId}
+          AND tool_id = #{toolId}
+          AND tool_version = #{toolVersion}
+          AND ((#{workspaceId} IS NULL AND workspace_id IS NULL)
+            OR workspace_id = #{workspaceId})
+            LIMIT 1
+    </select>
+    <select id="selectEnabledByScope" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_tool_binding
         WHERE owner_id = #{ownerId}
           AND enabled = 1
+          AND (workspace_id IS NULL OR workspace_id = #{workspaceId})
+        ORDER BY id
+    </select>
+    <select id="selectByOwnerScope" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_binding
+        WHERE owner_id = #{ownerId}
+          AND (workspace_id IS NULL OR workspace_id = #{workspaceId})
         ORDER BY id
     </select>
     <update id="updateWithVersion">

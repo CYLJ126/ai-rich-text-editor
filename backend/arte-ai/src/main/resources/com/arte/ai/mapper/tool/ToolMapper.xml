@@ -13,4 +13,9 @@
         WHERE provider_id = #{providerId}
         ORDER BY namespace, name
     </select>
+    <select id="selectByToolId" resultType="com.arte.ai.pojo.tool.po.ToolPo">
+        SELECT *
+        FROM arte_ai_tool
+        WHERE tool_id = #{toolId} LIMIT 1
+    </select>
 </mapper>

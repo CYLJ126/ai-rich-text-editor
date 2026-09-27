@@ -8,6 +8,7 @@ import org.junit.Test;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
@@ -58,6 +59,7 @@ public class DefaultToolDefinitionValidatorTest {
                 new ToolRiskProfile(destructive ? ToolRiskLevelEnum.HIGH
                         : ToolRiskLevelEnum.LOW,
                         !destructive, destructive, !destructive, true, false, Set.of(), Set.of()),
+                Map.of(),
                 new ToolExecutionPolicy(ToolExecutionModeEnum.BLOCKING, Duration.ofSeconds(30),
                         0, Duration.ZERO, 2048, requiresApproval, true),
                 Set.of("article"),

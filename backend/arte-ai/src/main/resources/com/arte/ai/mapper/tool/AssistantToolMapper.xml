@@ -5,11 +5,71 @@
         <result column="policy_override" property="policyOverride"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
+    <resultMap id="ResolutionResultMap"
+               type="com.arte.ai.pojo.tool.po.AssistantToolResolutionPo" autoMapping="true">
+        <result column="assistant_policy_override" property="assistantPolicyOverride"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="binding_configuration" property="bindingConfiguration"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="binding_policy_override" property="bindingPolicyOverride"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="default_configuration" property="defaultConfiguration"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="default_policy" property="defaultPolicy"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
     <select id="selectEnabledByAssistantId" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_assistant_tool
         WHERE assistant_id = #{assistantId}
           AND enabled = 1
         ORDER BY sort_order, id
+    </select>
+    <select id="selectByAssistantId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_assistant_tool
+        WHERE assistant_id = #{assistantId}
+        ORDER BY sort_order, id
+    </select>
+    <delete id="deleteByAssistantId">
+        DELETE
+        FROM arte_ai_assistant_tool
+        WHERE assistant_id = #{assistantId}
+    </delete>
+    <select id="selectResolved" resultMap="ResolutionResultMap">
+        SELECT association.binding_id,
+               association.sort_order,
+               association.policy_override   AS assistant_policy_override,
+               binding.workspace_id,
+               binding.tool_id,
+               binding.tool_version,
+               binding.credential_reference  AS binding_credential_reference,
+               binding.configuration         AS binding_configuration,
+               binding.policy_override       AS binding_policy_override,
+               tool.provider_id,
+               tool.namespace,
+               tool.name,
+               version.default_configuration,
+               version.default_policy,
+               provider.credential_reference AS provider_credential_reference
+        FROM arte_ai_assistant_tool association
+                 INNER JOIN arte_ai_tool_binding binding
+                            ON binding.binding_id = association.binding_id
+                                AND binding.owner_id = #{ownerId}
+                                AND binding.enabled = 1
+                 INNER JOIN arte_ai_tool tool
+                            ON tool.tool_id = binding.tool_id
+                                AND tool.lifecycle_state = 'published'
+                 INNER JOIN arte_ai_tool_version version
+                            ON version.tool_id = binding.tool_id
+                                AND version.version = binding.tool_version
+                                AND version.lifecycle_state = 'published'
+                 INNER JOIN arte_ai_tool_provider provider
+                            ON provider.provider_id = tool.provider_id
+                                AND provider.status = 'enabled'
+        WHERE association.assistant_id = #{assistantId}
+          AND association.enabled = 1
+          AND (binding.workspace_id IS NULL OR binding.workspace_id = #{workspaceId})
+        ORDER BY association.sort_order, association.id
     </select>
 </mapper>
