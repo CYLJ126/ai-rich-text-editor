@@ -1,5 +1,7 @@
 export default {
   'menu.AITool': 'Ferramentas de IA',
+  'menu.AITool.AIToolProviders': 'Provedores de ferramentas',
+  'menu.AITool.AIToolCatalog': 'Catálogo de ferramentas',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',
   'menu.home': 'Início',

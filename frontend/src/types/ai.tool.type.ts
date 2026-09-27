@@ -198,6 +198,72 @@ export interface ToolProviderSyncResult {
   errorMessage?: string;
 }
 
+export interface ToolProviderView {
+  providerId: string;
+  name: string;
+  providerType: ToolProviderType;
+  endpoint?: string;
+  configuration: JsonObject;
+  status: 'enabled' | 'disabled' | 'not-synchronized' | string;
+  loaded: boolean;
+  supportsStartupRefresh: boolean;
+  toolCount: number;
+  lastSyncTime?: string;
+  lastError?: string;
+}
+
+export interface ToolProviderQuery {
+  status?: 'enabled' | 'disabled' | 'not-synchronized' | string;
+  providerType?: ToolProviderType;
+}
+
+export interface ToolCatalogItem {
+  toolId: string;
+  namespace: string;
+  name: string;
+  providerId: string;
+  title: string;
+  description: string;
+  latestVersion?: string;
+  lifecycleState: ToolLifecycleState;
+  versionCount: number;
+  updateTime: string;
+}
+
+export interface ToolCatalogQuery extends PageQuery {
+  keyword?: string;
+  providerId?: string;
+  lifecycleState?: ToolLifecycleState;
+}
+
+export interface ToolCatalogPage {
+  records: ToolCatalogItem[];
+  total: number;
+  current: number;
+  size: number;
+}
+
+export interface ToolVersionDetailView {
+  reference: ToolReference;
+  toolId: string;
+  providerId: string;
+  title: string;
+  description: string;
+  inputSchema: JsonObject;
+  outputSchema: JsonObject;
+  capabilities: JsonObject;
+  riskProfile: JsonObject;
+  defaultConfiguration: JsonObject;
+  defaultPolicy: JsonObject;
+  tags: string[];
+  checksum: string;
+  lifecycleState: ToolLifecycleState;
+  rowVersion: number;
+  publishedAt?: string;
+  createTime: string;
+  updateTime: string;
+}
+
 export interface ToolBindingCommand {
   bindingId?: string;
   workspaceId?: string;

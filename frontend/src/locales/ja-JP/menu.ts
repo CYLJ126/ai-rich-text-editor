@@ -1,5 +1,7 @@
 export default {
   'menu.AITool': 'AI ツール',
+  'menu.AITool.AIToolProviders': 'ツールプロバイダー',
+  'menu.AITool.AIToolCatalog': 'ツールカタログ',
   'menu.welcome': 'ようこそ',
   'menu.more-blocks': 'その他のブロック',
   'menu.home': 'ホーム',

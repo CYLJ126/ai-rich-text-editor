@@ -5,10 +5,10 @@ import {
   SafetyCertificateOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
-import {PageContainer} from '@ant-design/pro-components';
-import {useAccess} from '@umijs/max';
-import {Alert, Card, Col, Result, Row, Space, Tag, Typography} from 'antd';
+import {useNavigate} from '@umijs/max';
+import {Alert, Card, Col, Row, Space, Tag, Typography} from 'antd';
 import React from 'react';
+import {ToolManagementPage} from './components';
 
 const foundations = [
   {
@@ -16,6 +16,7 @@ const foundations = [
     description: '提供者、工具定义与不可变版本的统一管理入口。',
     icon: <ToolOutlined/>,
     status: '基础能力已就绪',
+    path: '/AI/ToolManagement/Tools',
   },
   {
     title: '统一调用',
@@ -44,19 +45,11 @@ const foundations = [
 ];
 
 export default function ToolManagement() {
-  const access = useAccess();
-  if (!access.canViewAiTools) {
-    return (
-      <Result
-        status="403"
-        title="403"
-        subTitle="你没有访问 AI 工具中心的权限"
-      />
-    );
-  }
+  const navigate = useNavigate();
 
   return (
-    <PageContainer
+    <ToolManagementPage
+      activeKey="overview"
       title="AI 工具中心"
       subTitle="创建、配置、调用和编排可审计的 AI 工具"
     >
@@ -70,7 +63,11 @@ export default function ToolManagement() {
       <Row gutter={[16, 16]}>
         {foundations.map((item) => (
           <Col key={item.title} xs={24} md={12} xl={8}>
-            <Card style={{height: '100%'}}>
+            <Card
+              hoverable={Boolean(item.path)}
+              style={{height: '100%'}}
+              onClick={() => item.path && navigate(item.path)}
+            >
               <Space align="start" size={12}>
                 <Typography.Title level={3} style={{margin: 0}}>
                   {item.icon}
@@ -89,6 +86,6 @@ export default function ToolManagement() {
           </Col>
         ))}
       </Row>
-    </PageContainer>
+    </ToolManagementPage>
   );
 }

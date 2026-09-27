@@ -1,5 +1,7 @@
 package com.arte.ai.mapper.tool;
 
+import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
+import com.arte.ai.pojo.tool.ToolCatalogItem;
 import com.arte.ai.pojo.tool.po.ToolPo;
 import com.arte.core.annotations.MybatisParams;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -15,4 +17,16 @@ public interface ToolMapper extends BaseMapper<ToolPo> {
     Optional<ToolPo> selectByToolId(@Param("toolId") String toolId);
 
     List<ToolPo> selectByProviderId(@Param("providerId") String providerId);
+
+    long countByProviderId(@Param("providerId") String providerId);
+
+    List<ToolCatalogItem> selectCatalog(@Param("keyword") String keyword,
+                                        @Param("providerId") String providerId,
+                                        @Param("lifecycleState") ToolLifecycleStateEnum lifecycleState,
+                                        @Param("offset") long offset,
+                                        @Param("size") int size);
+
+    long countCatalog(@Param("keyword") String keyword,
+                      @Param("providerId") String providerId,
+                      @Param("lifecycleState") ToolLifecycleStateEnum lifecycleState);
 }

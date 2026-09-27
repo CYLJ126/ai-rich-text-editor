@@ -1,5 +1,7 @@
 export default {
   'menu.AITool': 'AI Tools',
+  'menu.AITool.AIToolProviders': 'Tool Providers',
+  'menu.AITool.AIToolCatalog': 'Tool Catalog',
   'menu.welcome': 'Selamat Datang',
   'menu.more-blocks': 'Blocks Lainnya',
   'menu.home': 'Halaman Awal',

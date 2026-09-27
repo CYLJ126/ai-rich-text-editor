@@ -8,12 +8,17 @@ import type {
   RestToolInvokeRequest,
   ToolBindingCommand,
   ToolBindingView,
+  ToolCatalogPage,
+  ToolCatalogQuery,
   ToolDefinition,
+  ToolProviderQuery,
   ToolProviderSyncResult,
+  ToolProviderView,
   ToolQuery,
   ToolReference,
   ToolResult,
   ToolTaskHandle,
+  ToolVersionDetailView,
   ToolVersionView,
 } from '@/types/ai.tool.type';
 
@@ -24,6 +29,42 @@ function toolIdentityPath(reference: ToolReference): string {
 }
 
 /** ----------------- ToolManagementController start ----------------- */
+
+/** 查询工具提供者列表 GET /arte/ai/tools/providers */
+export function listToolProviders(
+  query: ToolProviderQuery = {},
+  options?: ToolRequestOptions,
+) {
+  return requestToolApi<ToolProviderView[]>('/ai/tools/providers', {
+    method: 'GET',
+    params: {...query},
+    ...options,
+  });
+}
+
+/** 查询工具提供者详情 GET /arte/ai/tools/providers/{providerId} */
+export function getToolProvider(
+  providerId: string,
+  options?: ToolRequestOptions,
+) {
+  return requestToolApi<ToolProviderView | null>(
+    `/ai/tools/providers/${encodeToolPathPart(providerId)}`,
+    {method: 'GET', ...options},
+  );
+}
+
+/** 查询管理态工具目录 GET /arte/ai/tools/catalog */
+export function listToolCatalog(
+  query: ToolCatalogQuery = {},
+  options?: ToolRequestOptions,
+) {
+  const {pageSize, ...params} = query;
+  return requestToolApi<ToolCatalogPage>('/ai/tools/catalog', {
+    method: 'GET',
+    params: {...params, size: pageSize},
+    ...options,
+  });
+}
 
 /** 同步单个工具提供者 POST /arte/ai/tools/providers/{providerId}/synchronize */
 export function synchronizeToolProvider(
@@ -121,6 +162,17 @@ export function getToolDefinition(
 ) {
   return requestToolApi<ToolDefinition | null>(
     `/ai/tools/${toolIdentityPath(reference)}`,
+    {method: 'GET', ...options},
+  );
+}
+
+/** 查询管理态工具版本详情 GET /arte/ai/tools/{namespace}/{name}/{version}/management */
+export function getToolVersionDetail(
+  reference: ToolReference,
+  options?: ToolRequestOptions,
+) {
+  return requestToolApi<ToolVersionDetailView | null>(
+    `/ai/tools/${toolIdentityPath(reference)}/management`,
     {method: 'GET', ...options},
   );
 }

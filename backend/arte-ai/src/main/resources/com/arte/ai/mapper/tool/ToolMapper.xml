@@ -18,4 +18,48 @@
         FROM arte_ai_tool
         WHERE tool_id = #{toolId} LIMIT 1
     </select>
+    <select id="countByProviderId" resultType="long">
+        SELECT COUNT(*)
+        FROM arte_ai_tool
+        WHERE provider_id = #{providerId}
+    </select>
+    <sql id="CatalogConditions">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (namespace LIKE CONCAT('%', #{keyword}, '%')
+                OR name LIKE CONCAT('%', #{keyword}, '%')
+                OR title LIKE CONCAT('%', #{keyword}, '%')
+                OR description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="providerId != null and providerId != ''">
+                AND provider_id = #{providerId}
+            </if>
+            <if test="lifecycleState != null">
+                AND lifecycle_state = #{lifecycleState}
+            </if>
+        </where>
+    </sql>
+    <select id="selectCatalog" resultType="com.arte.ai.pojo.tool.ToolCatalogItem">
+        SELECT t.tool_id,
+        t.namespace,
+        t.name,
+        t.provider_id,
+        t.title,
+        t.description,
+        COALESCE(t.latest_version,
+        (SELECT v.version FROM arte_ai_tool_version v
+        WHERE v.tool_id = t.tool_id ORDER BY v.create_time DESC, v.id DESC LIMIT 1)) AS latest_version,
+        t.lifecycle_state,
+        (SELECT COUNT(*) FROM arte_ai_tool_version v WHERE v.tool_id = t.tool_id) AS version_count,
+        t.update_time
+        FROM arte_ai_tool t
+        <include refid="CatalogConditions"/>
+        ORDER BY t.update_time DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countCatalog" resultType="long">
+        SELECT COUNT(*)
+        FROM arte_ai_tool
+        <include refid="CatalogConditions"/>
+    </select>
 </mapper>

@@ -70,4 +70,6 @@ export default {
   'menu.Writing.BasicWriting': 'Basic Writing',
   'menu.AI.ChatManagement': 'AI Chat',
   'menu.AITool': 'AI Tools',
+  'menu.AITool.AIToolProviders': 'Tool Providers',
+  'menu.AITool.AIToolCatalog': 'Tool Catalog',
 };

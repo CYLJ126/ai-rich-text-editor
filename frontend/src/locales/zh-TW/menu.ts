@@ -70,4 +70,6 @@ export default {
   'menu.Writing.BasicWriting': '基礎寫作',
   'menu.AI.ChatManagement': 'AI 助手',
   'menu.AITool': 'AI 工具中心',
+  'menu.AITool.AIToolProviders': '工具提供者',
+  'menu.AITool.AIToolCatalog': '工具目錄',
 };

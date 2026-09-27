@@ -3,7 +3,9 @@ package com.arte.ai.web.controller;
 import com.arte.ai.api.tool.ToolLifecycleManager;
 import com.arte.ai.api.tool.ToolProviderManager;
 import com.arte.ai.api.tool.ToolRegistry;
+import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
 import com.arte.ai.pojo.tool.*;
+import com.arte.ai.service.tool.ToolManagementQueryService;
 import com.arte.core.pojo.ResultContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,29 @@ public class ToolManagementController {
     private final ToolProviderManager providerManager;
     private final ToolLifecycleManager lifecycleManager;
     private final ToolRegistry registry;
+    private final ToolManagementQueryService queryService;
+
+    @GetMapping("/providers")
+    public ResultContext<List<ToolProviderView>> providers(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String providerType) {
+        return ResultContext.success(queryService.listProviders(status, providerType));
+    }
+
+    @GetMapping("/providers/{providerId}")
+    public ResultContext<ToolProviderView> provider(@PathVariable String providerId) {
+        return ResultContext.success(queryService.findProvider(providerId).orElse(null));
+    }
+
+    @GetMapping("/catalog")
+    public ResultContext<ToolCatalogPage> catalog(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String providerId,
+            @RequestParam(required = false) ToolLifecycleStateEnum lifecycleState,
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(queryService.catalog(keyword, providerId, lifecycleState, current, size));
+    }
 
     @PostMapping("/providers/{providerId}/synchronize")
     public CompletionStage<ResultContext<ToolProviderSyncResult>> synchronize(
@@ -90,6 +115,15 @@ public class ToolManagementController {
                 .map(tool -> tool.getDefinition())
                 .orElse(null);
         return ResultContext.success(definition);
+    }
+
+    @GetMapping("/{namespace}/{name}/{version}/management")
+    public ResultContext<ToolVersionDetailView> versionDetail(
+            @PathVariable String namespace,
+            @PathVariable String name,
+            @PathVariable String version) {
+        return ResultContext.success(queryService.findVersion(
+                new ToolReference(namespace, name, version)).orElse(null));
     }
 
     @GetMapping("/{namespace}/{name}/versions")
