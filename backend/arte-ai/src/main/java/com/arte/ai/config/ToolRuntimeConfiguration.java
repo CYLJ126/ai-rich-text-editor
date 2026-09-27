@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
  * @since 2026/9/26 ✾
  **/
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(ToolClusterProperties.class)
+@EnableConfigurationProperties({ToolClusterProperties.class, ToolExecutionProperties.class})
 public class ToolRuntimeConfiguration {
 
     @Bean(name = "toolCallbackExecutor", destroyMethod = "close")

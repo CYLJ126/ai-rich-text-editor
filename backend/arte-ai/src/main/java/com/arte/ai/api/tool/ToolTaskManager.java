@@ -20,6 +20,12 @@ public interface ToolTaskManager {
 
     <I extends ToolRequest, O extends ToolResponse> CompletionStage<ToolTaskHandle> submit(Tool<I, O> tool, ToolInvocation<I> invocation);
 
+    /**
+     * 持久化因审批或外部信号而暂停的调用，并返回携带明文恢复令牌的句柄。
+     */
+    <I extends ToolRequest, O extends ToolResponse> CompletionStage<ToolTaskHandle> suspend(
+            Tool<I, O> tool, ToolInvocation<I> invocation, String approvalRequestId);
+
     CompletionStage<Optional<ToolTaskHandle>> findTask(String taskId);
 
     CompletionStage<Optional<ToolResult<? extends ToolResponse>>> findResult(String taskId);
@@ -27,4 +33,9 @@ public interface ToolTaskManager {
     CompletionStage<Boolean> cancel(String taskId);
 
     CompletionStage<Boolean> resume(String resumeToken);
+
+    /**
+     * Worker 或工具实现报告持久化任务进度。
+     */
+    CompletionStage<Boolean> updateProgress(String taskId, double progress, String message);
 }

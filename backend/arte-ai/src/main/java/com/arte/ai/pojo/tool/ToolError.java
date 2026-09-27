@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import com.arte.ai.common.enums.tool.CategoryEnum;
+
 import java.util.Map;
 
 /**
@@ -10,26 +12,11 @@ import java.util.Map;
  */
 public record ToolError(
         String code,
-        Category category,
+        CategoryEnum category,
         String message,
         boolean retryable,
         Map<String, Object> details
 ) {
-
-    enum Category {
-        VALIDATION,
-        AUTHENTICATION,
-        AUTHORIZATION,
-        POLICY,
-        APPROVAL,
-        RATE_LIMIT,
-        TIMEOUT,
-        CANCELLED,
-        CONFLICT,
-        DEPENDENCY,
-        BUSINESS,
-        INTERNAL
-    }
 
     public ToolError {
         if (code == null || code.isBlank()) {

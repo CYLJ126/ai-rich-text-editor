@@ -20,6 +20,10 @@ public interface ToolTaskRepository {
 
     Optional<ToolTask> findTask(String taskId);
 
+    Optional<ToolTask> findByCallId(String callId);
+
+    Optional<ToolTask> findByResumeTokenHash(String resumeTokenHash);
+
     /**
      * 使用有租约的原子领取避免正常情况下的多 Worker 重复执行。
      * 工具仍需依靠幂等键应对租约过期、网络分区等导致的至少一次执行。
@@ -27,6 +31,11 @@ public interface ToolTaskRepository {
     boolean tryClaim(String taskId, String workerId, Instant leaseUntil);
 
     boolean renewClaim(String taskId, String workerId, Instant leaseUntil);
+
+    /**
+     * 使用领域对象中的 row version 保存状态迁移。
+     */
+    boolean saveState(ToolTask task, long expectedVersion);
 
     void saveResult(String taskId, ToolResult<? extends ToolResponse> result);
 

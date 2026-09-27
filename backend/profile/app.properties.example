@@ -96,6 +96,20 @@ arte.ai.tool.auto-sync-enabled=true
 arte.ai.tool.local.namespace=local
 # 本地 Spring AI ToolCallback 转换为工具定义时使用的默认版本
 arte.ai.tool.local.version=1.0.0
+# 是否要求调用前绑定当前用户/工作空间的已发布工具版本
+arte.ai.tool.execution.binding-required=true
+# 每个用户、每个工具版本的集群级每分钟调用上限；0 表示关闭限流
+arte.ai.tool.execution.rate-limit-per-minute=60
+# Redisson 限流 Key 前缀
+arte.ai.tool.execution.rate-limit-key-prefix=arte:ai:tool:rate:
+# 单次恢复扫描的任务上限
+arte.ai.tool.execution.recovery-batch-size=100
+# Worker 租约与续租间隔（Spring Duration）
+arte.ai.tool.execution.worker-lease=60s
+arte.ai.tool.execution.lease-renew-interval=20s
+# 服务启动后的首次恢复延迟和后续扫描间隔
+arte.ai.tool.execution.recovery-initial-delay=5s
+arte.ai.tool.execution.recovery-interval=10s
 # 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
 arte.ai.tool.cluster.enabled=true
 # 当前后端节点唯一标识；留空时在每次启动时自动生成 UUID，不同节点不要配置相同值

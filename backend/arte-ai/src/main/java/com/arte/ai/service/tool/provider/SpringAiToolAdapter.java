@@ -86,8 +86,7 @@ public class SpringAiToolAdapter implements Tool<DynamicToolRequest, DynamicTool
     }
 
     @Override
-    public CompletionStage<ToolResult<DynamicToolResponse>> execute(
-            ToolInvocation<DynamicToolRequest> invocation) {
+    public CompletionStage<ToolResult<DynamicToolResponse>> execute(ToolInvocation<DynamicToolRequest> invocation) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String input = objectMapper.writeValueAsString(invocation.request().arguments());

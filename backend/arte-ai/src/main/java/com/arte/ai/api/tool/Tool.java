@@ -1,6 +1,7 @@
 package com.arte.ai.api.tool;
 
 import com.arte.ai.common.enums.tool.ToolExecutionModeEnum;
+import com.arte.ai.pojo.tool.DynamicToolRequest;
 import com.arte.ai.pojo.tool.ToolDefinition;
 import com.arte.ai.pojo.tool.ToolInvocation;
 
@@ -24,6 +25,17 @@ public interface Tool<I extends ToolRequest, O extends ToolResponse> {
      * 返回不可变、可版本化的工具定义。
      */
     ToolDefinition getDefinition();
+
+    /**
+     * 动态入口把 JSON 参数转换为强类型请求时使用的类型。
+     *
+     * <p>动态 Spring AI/MCP 工具默认使用 {@link DynamicToolRequest}；声明强类型请求的
+     * Java 工具应覆盖该方法。保留默认实现可以兼容已有工具实现。</p>
+     */
+    @SuppressWarnings("unchecked")
+    default Class<I> getRequestType() {
+        return (Class<I>) DynamicToolRequest.class;
+    }
 
     /**
      * 执行一次工具调用。

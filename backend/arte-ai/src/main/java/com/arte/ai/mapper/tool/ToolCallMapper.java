@@ -20,4 +20,13 @@ public interface ToolCallMapper extends BaseMapper<ToolCallPo> {
                          @Param("targetStatus") String targetStatus,
                          @Param("expectedVersion") Long expectedVersion,
                          @Param("completedAt") LocalDateTime completedAt);
+
+    int complete(@Param("callId") String callId,
+                 @Param("status") String status,
+                 @Param("completedAt") LocalDateTime completedAt,
+                 @Param("latencyMs") Long latencyMs,
+                 @Param("errorCode") String errorCode,
+                 @Param("errorCategory") String errorCategory,
+                 @Param("errorMessage") String errorMessage,
+                 @Param("expectedVersion") Long expectedVersion);
 }

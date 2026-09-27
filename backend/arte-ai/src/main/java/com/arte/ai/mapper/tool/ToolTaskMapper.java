@@ -14,6 +14,10 @@ import java.util.Optional;
 public interface ToolTaskMapper extends BaseMapper<ToolTaskPo> {
     Optional<ToolTaskPo> selectByTaskId(@Param("taskId") String taskId);
 
+    Optional<ToolTaskPo> selectByCallId(@Param("callId") String callId);
+
+    Optional<ToolTaskPo> selectByResumeTokenHash(@Param("resumeTokenHash") String resumeTokenHash);
+
     int tryClaim(@Param("taskId") String taskId, @Param("workerId") String workerId,
                  @Param("leaseUntil") LocalDateTime leaseUntil, @Param("now") LocalDateTime now);
 
@@ -29,4 +33,6 @@ public interface ToolTaskMapper extends BaseMapper<ToolTaskPo> {
     int transitionStatus(@Param("taskId") String taskId, @Param("expectedStatus") String expectedStatus,
                          @Param("targetStatus") String targetStatus,
                          @Param("expectedVersion") Long expectedVersion);
+
+    int updateState(@Param("task") ToolTaskPo task, @Param("expectedVersion") Long expectedVersion);
 }

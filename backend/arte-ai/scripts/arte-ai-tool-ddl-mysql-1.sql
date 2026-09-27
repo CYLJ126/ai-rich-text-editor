@@ -226,6 +226,9 @@ create index idx_tool_task_recover
 create index idx_tool_task_worker
     on arte_ai_tool_task (worker_id, lease_until);
 
+create index idx_tool_task_resume
+    on arte_ai_tool_task (resume_token_hash);
+
 create table arte_ai_tool_call_result
 (
     id           bigint auto_increment comment '主键'

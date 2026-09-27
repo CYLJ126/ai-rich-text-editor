@@ -19,7 +19,7 @@ public record ToolCallRequest(
         ToolReference tool,
         Map<String, Object> arguments,
         ToolExecutionContext context,
-        ToolExecutionPolicy policyOverride
+        ToolPolicyOverride policyOverride
 ) {
 
     public ToolCallRequest {

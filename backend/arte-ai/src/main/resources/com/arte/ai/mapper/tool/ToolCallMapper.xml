@@ -32,4 +32,17 @@
           AND status = #{expectedStatus}
           AND row_version = #{expectedVersion}
     </update>
+    <update id="complete">
+        UPDATE arte_ai_tool_call
+        SET status         = #{status},
+            completed_at   = #{completedAt},
+            latency_ms     = #{latencyMs},
+            error_code     = #{errorCode},
+            error_category = #{errorCategory},
+            error_message  = #{errorMessage},
+            row_version    = row_version + 1,
+            update_time    = CURRENT_TIMESTAMP(3)
+        WHERE call_id = #{callId}
+          AND row_version = #{expectedVersion}
+    </update>
 </mapper>

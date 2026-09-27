@@ -42,6 +42,21 @@ arte:
         namespace: "@arte.ai.tool.local.namespace@"
         # 本地 Spring AI ToolCallback 转换为工具定义时使用的默认版本
         version: "@arte.ai.tool.local.version@"
+      execution:
+        # 是否要求调用前必须存在当前用户/工作空间的已启用工具绑定
+        binding-required: @arte.ai.tool.execution.binding-required@
+        # 单个用户调用单个工具版本的每分钟集群限额；小于等于 0 表示不限流
+        rate-limit-per-minute: @arte.ai.tool.execution.rate-limit-per-minute@
+        # Redisson 限流 Key 前缀
+        rate-limit-key-prefix: "@arte.ai.tool.execution.rate-limit-key-prefix@"
+        # 每次重启恢复扫描最多领取的任务数
+        recovery-batch-size: @arte.ai.tool.execution.recovery-batch-size@
+        # Worker 租约时长及续租间隔
+        worker-lease: @arte.ai.tool.execution.worker-lease@
+        lease-renew-interval: @arte.ai.tool.execution.lease-renew-interval@
+        # 未完成任务恢复扫描的启动延迟与周期
+        recovery-initial-delay: @arte.ai.tool.execution.recovery-initial-delay@
+        recovery-interval: @arte.ai.tool.execution.recovery-interval@
       cluster:
         # 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
         enabled: @arte.ai.tool.cluster.enabled@

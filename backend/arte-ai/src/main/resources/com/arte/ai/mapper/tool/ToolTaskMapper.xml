@@ -14,6 +14,16 @@
         FROM arte_ai_tool_task
         WHERE task_id = #{taskId} LIMIT 1
     </select>
+    <select id="selectByCallId" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_task
+        WHERE call_id = #{callId} LIMIT 1
+    </select>
+    <select id="selectByResumeTokenHash" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_task
+        WHERE resume_token_hash = #{resumeTokenHash} LIMIT 1
+    </select>
     <update id="tryClaim">
         UPDATE arte_ai_tool_task
         SET status          = 'running',
@@ -30,7 +40,6 @@
     <update id="renewLease">
         UPDATE arte_ai_tool_task
         SET lease_until = #{leaseUntil},
-            row_version = row_version + 1,
             update_time = CURRENT_TIMESTAMP(3)
         WHERE task_id = #{taskId}
           AND status = 'running'
@@ -61,6 +70,23 @@
             update_time = CURRENT_TIMESTAMP(3)
         WHERE task_id = #{taskId}
           AND status = #{expectedStatus}
+          AND row_version = #{expectedVersion}
+    </update>
+    <update id="updateState">
+        UPDATE arte_ai_tool_task
+        SET status            = #{task.status},
+            progress          = #{task.progress},
+            progress_message  = #{task.progressMessage},
+            resume_token_hash = #{task.resumeTokenHash},
+            attempt           = #{task.attempt},
+            next_attempt_at   = #{task.nextAttemptAt},
+            worker_id         = #{task.workerId},
+            lease_until       = #{task.leaseUntil},
+            metadata          = #{task.metadata,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            row_version       = #{task.rowVersion},
+            update_by         = #{task.updateBy},
+            update_time       = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{task.taskId}
           AND row_version = #{expectedVersion}
     </update>
 </mapper>

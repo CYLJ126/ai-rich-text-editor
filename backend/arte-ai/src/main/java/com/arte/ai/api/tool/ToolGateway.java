@@ -24,12 +24,21 @@ public interface ToolGateway {
     CompletionStage<Boolean> cancel(String callId);
 
     /**
+     * 面向不受信入口的所有者作用域取消。
+     */
+    CompletionStage<Boolean> cancel(String callId, String ownerId);
+
+    /**
      * 查询持久化异步任务的当前状态。
      */
     CompletionStage<Optional<ToolTaskHandle>> findTask(String taskId);
+
+    CompletionStage<Optional<ToolTaskHandle>> findTask(String taskId, String ownerId);
 
     /**
      * 查询持久化异步任务的最终结果。任务未进入终态时返回空。
      */
     CompletionStage<Optional<ToolResult<? extends ToolResponse>>> findTaskResult(String taskId);
+
+    CompletionStage<Optional<ToolResult<? extends ToolResponse>>> findTaskResult(String taskId, String ownerId);
 }
