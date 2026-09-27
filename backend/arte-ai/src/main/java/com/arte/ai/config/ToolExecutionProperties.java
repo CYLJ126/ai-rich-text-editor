@@ -19,6 +19,7 @@ public class ToolExecutionProperties {
 
     private boolean bindingRequired = true;
     private int rateLimitPerMinute = 60;
+    private int maximumInputBytes = 262144;
     private String rateLimitKeyPrefix = "arte:ai:tool:rate:";
     private int recoveryBatchSize = 100;
     private Duration workerLease = Duration.ofSeconds(60);

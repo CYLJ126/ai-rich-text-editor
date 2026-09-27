@@ -47,6 +47,8 @@ arte:
         binding-required: @arte.ai.tool.execution.binding-required@
         # 单个用户调用单个工具版本的每分钟集群限额；小于等于 0 表示不限流
         rate-limit-per-minute: @arte.ai.tool.execution.rate-limit-per-minute@
+        # 单次工具输入参数序列化后的最大字节数
+        maximum-input-bytes: @arte.ai.tool.execution.maximum-input-bytes@
         # Redisson 限流 Key 前缀
         rate-limit-key-prefix: "@arte.ai.tool.execution.rate-limit-key-prefix@"
         # 每次重启恢复扫描最多领取的任务数

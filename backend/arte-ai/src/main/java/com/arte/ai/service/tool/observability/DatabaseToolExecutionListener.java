@@ -32,6 +32,7 @@ public class DatabaseToolExecutionListener implements ToolExecutionListener {
                 .setSpanId(event.spanId())
                 .setCallId(event.callId())
                 .setTaskId(string(event.attributes().get("taskId")))
+                .setWorkflowRunId(string(event.attributes().get("workflowRunId")))
                 .setToolId(event.tool().namespace() + ":" + event.tool().name())
                 .setToolVersion(event.tool().version())
                 .setAttributes(event.attributes());

@@ -167,14 +167,24 @@ public class DefaultToolExecutor implements ToolExecutor {
             return result;
         } catch (TimeoutException exception) {
             return failure(ToolResultStatusEnum.TIMED_OUT, "TOOL_TIMEOUT", CategoryEnum.TIMEOUT,
-                    "tool invocation timed out", true);
+                    "tool invocation timed out", definition.riskProfile().idempotent());
         } catch (CancellationException exception) {
             return failure(ToolResultStatusEnum.CANCELLED, "TOOL_CANCELLED", CategoryEnum.CANCELLED,
                     "tool invocation was cancelled", false);
+        } catch (IllegalArgumentException exception) {
+            boolean output = exception.getMessage() != null
+                    && exception.getMessage().startsWith("tool output");
+            return failure(ToolResultStatusEnum.FAILED,
+                    output ? "TOOL_OUTPUT_INVALID" : "TOOL_ARGUMENT_INVALID",
+                    CategoryEnum.VALIDATION, safe(exception.getMessage()), false);
         } catch (Exception exception) {
             Throwable cause = unwrap(exception);
-            return failure(ToolResultStatusEnum.FAILED, "TOOL_EXECUTION_FAILED",
-                    CategoryEnum.INTERNAL, safe(cause.getMessage()), true);
+            boolean remote = cause.getMessage() != null && (cause.getMessage().contains("Spring AI")
+                    || cause.getMessage().contains("HTTP") || cause.getMessage().contains("MCP"));
+            return failure(ToolResultStatusEnum.FAILED,
+                    remote ? "TOOL_REMOTE_ERROR" : "TOOL_SYSTEM_ERROR",
+                    remote ? CategoryEnum.DEPENDENCY : CategoryEnum.INTERNAL,
+                    safe(cause.getMessage()), remote && definition.riskProfile().idempotent());
         }
     }
 
@@ -214,20 +224,37 @@ public class DefaultToolExecutor implements ToolExecutor {
 
     private <I extends ToolRequest, O extends ToolResponse> ToolResult<O> invokeWithRetry(
             Tool<I, O> tool, ToolInvocation<I> invocation) throws Exception {
-        int retries = tool.getDefinition().riskProfile().idempotent()
+        boolean persistentWorker = Boolean.TRUE.equals(invocation.context().attributes()
+                .get(DEFERRED_WORKER_ATTRIBUTE));
+        int retries = tool.getDefinition().riskProfile().idempotent() && !persistentWorker
                 ? invocation.effectivePolicy().maxRetries() : 0;
         for (int attempt = 0; ; attempt++) {
             try {
                 Duration timeout = effectiveTimeout(invocation);
-                return invokeInterceptors(tool, invocation, 0).toCompletableFuture()
-                        .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            } catch (ExecutionException exception) {
+                CompletableFuture<ToolResult<O>> future = invokeInterceptors(tool, invocation, 0)
+                        .toCompletableFuture();
+                invocation.context().cancellation().onCancellation(() -> future.cancel(true));
+                try {
+                    return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException timeoutException) {
+                    future.cancel(true);
+                    throw timeoutException;
+                }
+            } catch (TimeoutException | ExecutionException exception) {
                 if (attempt >= retries) {
                     throw exception;
                 }
                 events.record(ToolExecutionEvent.Type.RETRIED, invocation.callId(), invocation.tool(),
                         invocation.context(), Map.of("attempt", attempt + 1));
-                Thread.sleep(invocation.effectivePolicy().retryBackoff().toMillis());
+                try {
+                    Thread.sleep(invocation.effectivePolicy().retryBackoff().toMillis());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new CancellationException("tool retry interrupted");
+                }
+                if (invocation.context().cancellation().isCancellationRequested()) {
+                    throw new CancellationException("tool invocation was cancelled during retry backoff");
+                }
             }
         }
     }

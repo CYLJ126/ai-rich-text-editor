@@ -22,6 +22,19 @@
         WHERE owner_id = #{ownerId}
           AND idempotency_key = #{idempotencyKey} LIMIT 1
     </select>
+    <select id="selectOwned" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_call
+        WHERE call_id = #{callId}
+          AND owner_id = #{ownerId} LIMIT 1
+    </select>
+    <select id="selectDetails" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_call
+        WHERE owner_id = #{ownerId}
+        <if test="toolId != null and toolId != ''">AND tool_id = #{toolId}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+        ORDER BY create_time DESC, id DESC LIMIT #{limit}
+    </select>
     <update id="transitionStatus">
         UPDATE arte_ai_tool_call
         SET status       = #{targetStatus},
@@ -40,6 +53,9 @@
             error_code     = #{errorCode},
             error_category = #{errorCategory},
             error_message  = #{errorMessage},
+            input_tokens  = #{inputTokens},
+            output_tokens = #{outputTokens},
+            total_tokens  = #{totalTokens},
             row_version    = row_version + 1,
             update_time    = CURRENT_TIMESTAMP(3)
         WHERE call_id = #{callId}

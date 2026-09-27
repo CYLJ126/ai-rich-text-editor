@@ -7,7 +7,9 @@ import com.arte.ai.common.enums.tool.CategoryEnum;
 import com.arte.ai.common.enums.tool.ToolResultStatusEnum;
 import com.arte.ai.pojo.tool.DynamicToolResponse;
 import com.arte.ai.pojo.tool.ToolError;
+import com.arte.ai.pojo.tool.ToolUsage;
 import com.arte.ai.pojo.tool.po.ToolCallResultPo;
+import com.arte.ai.service.tool.security.ToolDataSanitizer;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
@@ -28,18 +30,20 @@ final class ResultPersistenceMapper {
     }
 
     static ToolCallResultPo toPo(ToolResult<? extends ToolResponse> result, String callId,
-                                 String taskId, ObjectMapper objectMapper) {
+                                 String taskId, ObjectMapper objectMapper,
+                                 ToolDataSanitizer sanitizer) {
         ToolCallResultPo po = new ToolCallResultPo()
                 .setResultId(UUID.randomUUID().toString()).setCallId(callId).setTaskId(taskId)
-                .setStatus(result.status()).setMetadata(result.metadata()).setCompletedAt(LocalDateTime.now());
+                .setStatus(result.status()).setMetadata(sanitizer.sanitize(result.metadata()))
+                .setCompletedAt(LocalDateTime.now());
         if (result instanceof ToolResult.Succeeded<?> succeeded) {
-            po.setOutput(asMap(succeeded.output(), objectMapper));
-            po.setContent(asMapList(succeeded.content(), objectMapper));
-            po.setArtifacts(asMapList(succeeded.artifacts(), objectMapper));
-            po.setUsageInfo(asMap(succeeded.usage(), objectMapper));
+            po.setOutput(sanitizeMap(asMap(succeeded.output(), objectMapper), sanitizer));
+            po.setContent(sanitizeList(asMapList(succeeded.content(), objectMapper), sanitizer));
+            po.setArtifacts(sanitizeList(asMapList(succeeded.artifacts(), objectMapper), sanitizer));
+            po.setUsageInfo(sanitizeMap(asMap(succeeded.usage(), objectMapper), sanitizer));
         } else if (result instanceof ToolResult.Unsuccessful<?> unsuccessful) {
-            po.setErrorInfo(asMap(unsuccessful.error(), objectMapper));
-            po.setUsageInfo(asMap(unsuccessful.usage(), objectMapper));
+            po.setErrorInfo(sanitizeMap(asMap(unsuccessful.error(), objectMapper), sanitizer));
+            po.setUsageInfo(sanitizeMap(asMap(unsuccessful.usage(), objectMapper), sanitizer));
         } else if (result instanceof ToolResult.Accepted<?> accepted) {
             po.setOutput(Map.of("taskId", accepted.taskHandle().taskId()));
         } else if (result instanceof ToolResult.Suspended<?> suspended) {
@@ -53,7 +57,8 @@ final class ResultPersistenceMapper {
             Map<String, Object> output = po.getOutput() == null ? Map.of() : po.getOutput();
             DynamicToolResponse response = new DynamicToolResponse(output.getOrDefault("value", output),
                     output.get("rawContent") == null ? null : String.valueOf(output.get("rawContent")));
-            return new ToolResult.Succeeded<>(response, content(po.getContent()), List.of(), null,
+            return new ToolResult.Succeeded<>(response, content(po.getContent()), List.of(),
+                    usage(po, objectMapper),
                     safeMap(po.getMetadata()));
         }
         Map<String, Object> error = safeMap(po.getErrorInfo());
@@ -65,7 +70,8 @@ final class ResultPersistenceMapper {
             case DENIED, CANCELLED, TIMED_OUT, FAILED -> po.getStatus();
             default -> ToolResultStatusEnum.FAILED;
         };
-        return new ToolResult.Unsuccessful<>(status, toolError, null, safeMap(po.getMetadata()));
+        return new ToolResult.Unsuccessful<>(status, toolError, usage(po, objectMapper),
+                safeMap(po.getMetadata()));
     }
 
     private static List<ToolContent> content(List<Map<String, Object>> values) {
@@ -73,6 +79,11 @@ final class ResultPersistenceMapper {
             return List.of();
         }
         return values.stream().map(value -> (ToolContent) new ToolContent.Structured(value, Map.of())).toList();
+    }
+
+    private static ToolUsage usage(ToolCallResultPo po, ObjectMapper objectMapper) {
+        return po.getUsageInfo() == null || po.getUsageInfo().isEmpty()
+                ? null : objectMapper.convertValue(po.getUsageInfo(), ToolUsage.class);
     }
 
     private static CategoryEnum parseCategory(Object value) {
@@ -98,6 +109,16 @@ final class ResultPersistenceMapper {
             return List.of();
         }
         return values.stream().map(value -> asMap(value, objectMapper)).toList();
+    }
+
+    private static Map<String, Object> sanitizeMap(Map<String, Object> value,
+                                                   ToolDataSanitizer sanitizer) {
+        return value == null ? null : sanitizer.sanitize(value);
+    }
+
+    private static List<Map<String, Object>> sanitizeList(List<Map<String, Object>> values,
+                                                          ToolDataSanitizer sanitizer) {
+        return values.stream().map(sanitizer::sanitize).toList();
     }
 
     @SuppressWarnings("unchecked")

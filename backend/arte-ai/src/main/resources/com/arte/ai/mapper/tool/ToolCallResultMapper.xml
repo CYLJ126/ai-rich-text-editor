@@ -25,4 +25,11 @@
         FROM arte_ai_tool_call_result
         WHERE task_id = #{taskId} LIMIT 1
     </select>
+    <select id="selectByCallIds" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_call_result
+        WHERE call_id IN
+        <foreach collection="callIds" item="callId" open="(" separator="," close=")">
+            #{callId}
+        </foreach>
+    </select>
 </mapper>

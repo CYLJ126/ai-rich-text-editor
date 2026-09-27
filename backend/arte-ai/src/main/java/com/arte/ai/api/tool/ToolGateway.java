@@ -21,6 +21,11 @@ public interface ToolGateway {
 
     CompletionStage<ToolResult<? extends ToolResponse>> resume(String resumeToken);
 
+    /**
+     * 面向不受信入口的所有者作用域恢复。
+     */
+    CompletionStage<ToolResult<? extends ToolResponse>> resume(String resumeToken, String ownerId);
+
     CompletionStage<Boolean> cancel(String callId);
 
     /**

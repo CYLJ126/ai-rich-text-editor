@@ -28,5 +28,16 @@ public interface ToolCallMapper extends BaseMapper<ToolCallPo> {
                  @Param("errorCode") String errorCode,
                  @Param("errorCategory") String errorCategory,
                  @Param("errorMessage") String errorMessage,
+                 @Param("inputTokens") Integer inputTokens,
+                 @Param("outputTokens") Integer outputTokens,
+                 @Param("totalTokens") Integer totalTokens,
                  @Param("expectedVersion") Long expectedVersion);
+
+    Optional<ToolCallPo> selectOwned(@Param("callId") String callId,
+                                     @Param("ownerId") String ownerId);
+
+    java.util.List<ToolCallPo> selectDetails(@Param("ownerId") String ownerId,
+                                             @Param("toolId") String toolId,
+                                             @Param("status") String status,
+                                             @Param("limit") int limit);
 }

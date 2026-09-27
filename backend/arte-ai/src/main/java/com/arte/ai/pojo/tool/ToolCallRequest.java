@@ -3,6 +3,7 @@ package com.arte.ai.pojo.tool;
 import com.arte.ai.api.tool.ToolGateway;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 来自 LLM、REST、MCP 或工作流程的动态工具调用请求。
@@ -24,7 +25,7 @@ public record ToolCallRequest(
 
     public ToolCallRequest {
         if (callId == null || callId.isBlank()) {
-            throw new IllegalArgumentException("callId must not be blank");
+            callId = UUID.randomUUID().toString();
         }
         if (tool == null) {
             throw new IllegalArgumentException("tool must not be null");

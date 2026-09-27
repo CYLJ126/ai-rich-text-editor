@@ -35,6 +35,11 @@ public interface ToolTaskManager {
     CompletionStage<Boolean> resume(String resumeToken);
 
     /**
+     * 面向 REST 等不受信入口的所有者作用域恢复。
+     */
+    CompletionStage<Boolean> resume(String resumeToken, String ownerId);
+
+    /**
      * Worker 或工具实现报告持久化任务进度。
      */
     CompletionStage<Boolean> updateProgress(String taskId, double progress, String message);

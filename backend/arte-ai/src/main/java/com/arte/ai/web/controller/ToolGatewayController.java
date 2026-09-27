@@ -67,7 +67,8 @@ public class ToolGatewayController {
     @PostMapping("/resume")
     public CompletionStage<ResultContext<ToolResult<? extends ToolResponse>>> resume(
             @RequestBody ToolResumeRequest request) {
-        return gateway.resume(request.resumeToken()).thenApply(ResultContext::success);
+        return gateway.resume(request.resumeToken(), UserContext.getUserName())
+                .thenApply(ResultContext::success);
     }
 
     private ToolPolicyOverride policy(RestToolInvokeRequest request) {

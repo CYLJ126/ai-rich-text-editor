@@ -4,6 +4,7 @@ import com.arte.ai.api.tool.ToolCancellation;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 只传递给工具执行端、不暴露给模型的受信运行上下文。
@@ -32,7 +33,7 @@ public record ToolExecutionContext(
             throw new IllegalArgumentException("runId must not be blank");
         }
         if (traceId == null || traceId.isBlank()) {
-            throw new IllegalArgumentException("traceId must not be blank");
+            traceId = UUID.randomUUID().toString();
         }
         if (principal == null) {
             throw new IllegalArgumentException("principal must not be null");

@@ -14,4 +14,9 @@ public interface ToolExecutionEventMapper extends BaseMapper<ToolExecutionEventP
     List<ToolExecutionEventPo> selectByTraceId(@Param("traceId") String traceId);
 
     List<ToolExecutionEventPo> selectByCallId(@Param("callId") String callId);
+
+    List<ToolExecutionEventPo> selectByTraceIdAndOwner(@Param("traceId") String traceId,
+                                                       @Param("ownerId") String ownerId);
+
+    List<ToolExecutionEventPo> selectRetriesByCallIds(@Param("callIds") List<String> callIds);
 }

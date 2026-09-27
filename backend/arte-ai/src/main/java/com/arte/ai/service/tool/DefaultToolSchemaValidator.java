@@ -63,11 +63,24 @@ public class DefaultToolSchemaValidator implements ToolSchemaValidator {
         if (value != null && value.isObject()) {
             validateObject(schema, value, path, violations);
         } else if (value != null && value.isArray()) {
+            if (schema.path("maxItems").canConvertToInt() && value.size() > schema.path("maxItems").asInt()) {
+                violations.add(path + " contains too many items");
+            }
             JsonNode items = schema.path("items");
             if (items.isObject()) {
                 for (int index = 0; index < value.size(); index++) {
                     validateNode(items, value.get(index), path + "[" + index + "]", violations);
                 }
+            }
+        } else if (value != null && value.isTextual()) {
+            int length = value.asText().length();
+            if (schema.path("maxLength").canConvertToInt()
+                    && length > schema.path("maxLength").asInt()) {
+                violations.add(path + " exceeds maxLength");
+            }
+            if (schema.path("minLength").canConvertToInt()
+                    && length < schema.path("minLength").asInt()) {
+                violations.add(path + " is shorter than minLength");
             }
         }
     }
@@ -89,8 +102,12 @@ public class DefaultToolSchemaValidator implements ToolSchemaValidator {
                             path + "." + entry.getKey(), violations);
                 }
             });
-            if (schema.path("additionalProperties").isBoolean()
-                    && !schema.path("additionalProperties").asBoolean()) {
+            boolean rejectUnknown = "$".equals(path)
+                    ? !schema.path("additionalProperties").isBoolean()
+                    || !schema.path("additionalProperties").asBoolean()
+                    : schema.path("additionalProperties").isBoolean()
+                    && !schema.path("additionalProperties").asBoolean();
+            if (rejectUnknown) {
                 Map<String, JsonNode> declared = new java.util.HashMap<>();
                 properties.properties().forEach(entry -> declared.put(entry.getKey(), entry.getValue()));
                 value.properties().forEach(entry -> {

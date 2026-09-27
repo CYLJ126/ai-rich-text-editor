@@ -29,4 +29,19 @@
         WHERE call_id = #{callId}
         ORDER BY occurred_at, id
     </select>
+    <select id="selectByTraceIdAndOwner" resultMap="BaseResultMap">
+        SELECT e.*
+        FROM arte_ai_tool_execution_event e
+                 INNER JOIN arte_ai_tool_call c ON c.call_id = e.call_id
+        WHERE e.trace_id = #{traceId}
+          AND c.owner_id = #{ownerId}
+        ORDER BY e.occurred_at, e.id
+    </select>
+    <select id="selectRetriesByCallIds" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_execution_event
+        WHERE event_type = 'retried' AND call_id IN
+        <foreach collection="callIds" item="callId" open="(" separator="," close=")">
+            #{callId}
+        </foreach>
+    </select>
 </mapper>

@@ -11,6 +11,7 @@ import com.arte.ai.pojo.tool.ToolTask;
 import com.arte.ai.pojo.tool.ToolTaskHandle;
 import com.arte.ai.pojo.tool.po.ToolCallResultPo;
 import com.arte.ai.pojo.tool.po.ToolTaskPo;
+import com.arte.ai.service.tool.security.ToolDataSanitizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.ObjectMapper;
@@ -41,6 +42,7 @@ public class DatabaseToolTaskRepository implements ToolTaskRepository {
     private final ToolTaskMapper taskMapper;
     private final ToolCallResultMapper resultMapper;
     private final ObjectMapper objectMapper;
+    private final ToolDataSanitizer sanitizer;
 
     @Override
     public void saveTask(ToolTask task) {
@@ -80,7 +82,8 @@ public class DatabaseToolTaskRepository implements ToolTaskRepository {
     @Override
     public void saveResult(String taskId, ToolResult<? extends ToolResponse> result) {
         ToolTask task = findTask(taskId).orElseThrow(() -> new IllegalArgumentException("unknown task: " + taskId));
-        ToolCallResultPo po = ResultPersistenceMapper.toPo(result, task.callId(), taskId, objectMapper);
+        ToolCallResultPo po = ResultPersistenceMapper.toPo(result, task.callId(), taskId,
+                objectMapper, sanitizer);
         resultMapper.insert(po);
     }
 

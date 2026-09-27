@@ -4,6 +4,7 @@ import com.arte.ai.api.tool.observability.ToolExecutionListener;
 import com.arte.ai.pojo.tool.ToolExecutionContext;
 import com.arte.ai.pojo.tool.ToolExecutionEvent;
 import com.arte.ai.pojo.tool.ToolReference;
+import com.arte.ai.service.tool.security.ToolDataSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,11 +23,15 @@ import java.util.UUID;
 public class ToolEventRecorder {
 
     private final List<ToolExecutionListener> listeners;
+    private final ToolDataSanitizer sanitizer;
 
     public void record(ToolExecutionEvent.Type type, String callId, ToolReference tool,
                        ToolExecutionContext context, Map<String, Object> attributes) {
+        Map<String, Object> enriched = new java.util.LinkedHashMap<>(attributes == null ? Map.of() : attributes);
+        if (context.workflowRunId() != null) enriched.put("workflowRunId", context.workflowRunId());
         ToolExecutionEvent event = new ToolExecutionEvent(UUID.randomUUID().toString(), type,
-                Instant.now(), context.traceId(), context.parentSpanId(), callId, tool, attributes);
+                Instant.now(), context.traceId(), context.parentSpanId(), callId, tool,
+                sanitizer.sanitize(enriched));
         for (ToolExecutionListener listener : listeners) {
             try {
                 listener.onEvent(event);

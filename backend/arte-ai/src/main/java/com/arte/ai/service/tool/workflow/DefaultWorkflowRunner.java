@@ -145,15 +145,23 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
 
     @Override
     public CompletionStage<WorkflowRun> resume(String resumeToken) {
+        return resume(resumeToken, null);
+    }
+
+    @Override
+    public CompletionStage<WorkflowRun> resume(String resumeToken, String ownerId) {
         String hash = hash(requireText(resumeToken, "resumeToken"));
         WorkflowRunPo run = runMapper.selectByResumeTokenHash(hash)
                 .orElseThrow(() -> new IllegalArgumentException("invalid workflow resume token"));
+        if (ownerId != null && !ownerId.equals(run.getOwnerId())) {
+            throw new SecurityException("workflow run is unavailable");
+        }
         if (!Set.of("waiting_tool", "waiting_approval", "paused").contains(run.getStatus())) {
             throw new IllegalStateException("workflow is not suspended");
         }
         Map<String, String> pending = pending(latestState(run.getRunId()));
         if ("waiting_approval".equals(run.getStatus())) {
-            toolGateway.resume(resumeToken).toCompletableFuture().join();
+            toolGateway.resume(resumeToken, run.getOwnerId()).toCompletableFuture().join();
         }
         release(run, "running", null);
         return CompletableFuture.supplyAsync(() -> executeRun(run.getRunId()), executor);

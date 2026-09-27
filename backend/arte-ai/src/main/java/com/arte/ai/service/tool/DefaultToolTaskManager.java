@@ -7,7 +7,9 @@ import com.arte.ai.common.enums.tool.ToolResultStatusEnum;
 import com.arte.ai.config.ToolExecutionProperties;
 import com.arte.ai.mapper.tool.ToolCallMapper;
 import com.arte.ai.pojo.tool.*;
+import com.arte.ai.service.tool.cluster.DistributedToolCancellationCoordinator;
 import com.arte.ai.service.tool.observability.ToolEventRecorder;
+import com.arte.ai.service.tool.security.ToolDataSanitizer;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,6 +39,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
     private static final String META_ATTRIBUTES = "contextAttributes";
     private static final String META_WORKFLOW_RUN = "workflowRunId";
     private static final String META_AGENT_RUN = "agentRunId";
+    private static final String META_SPAN_ID = "spanId";
     private static final String META_APPROVAL = "approvalRequestId";
     private static final String META_ROLES = "principalRoles";
     private static final String META_SCOPES = "principalScopes";
@@ -44,33 +47,41 @@ public class DefaultToolTaskManager implements ToolTaskManager {
     private final ToolTaskRepository repository;
     private final ToolCallMapper callMapper;
     private final ToolRegistry registry;
+    private final ToolBindingManager bindingManager;
     private final ToolExecutor toolExecutor;
     private final ToolExecutionProperties properties;
     private final ToolClusterIdentity identity;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<ToolApprovalService> approvalServiceProvider;
     private final ToolEventRecorder events;
+    private final ToolDataSanitizer sanitizer;
+    private final DistributedToolCancellationCoordinator cancellations;
     private final TransactionTemplate transactionTemplate;
     private final Executor executor;
     private final ScheduledExecutorService leaseScheduler = Executors.newSingleThreadScheduledExecutor(
             Thread.ofVirtual().name("tool-task-lease-", 0).factory());
 
     public DefaultToolTaskManager(ToolTaskRepository repository, ToolCallMapper callMapper,
-                                  ToolRegistry registry,
+                                  ToolRegistry registry, ToolBindingManager bindingManager,
                                   ToolExecutor toolExecutor, ToolExecutionProperties properties,
                                   ToolClusterIdentity identity, ObjectMapper objectMapper,
                                   ObjectProvider<ToolApprovalService> approvalServiceProvider,
-                                  ToolEventRecorder events, TransactionTemplate transactionTemplate,
+                                  ToolEventRecorder events, ToolDataSanitizer sanitizer,
+                                  DistributedToolCancellationCoordinator cancellations,
+                                  TransactionTemplate transactionTemplate,
                                   @Qualifier("toolCallbackExecutor") Executor executor) {
         this.repository = repository;
         this.callMapper = callMapper;
         this.registry = registry;
+        this.bindingManager = bindingManager;
         this.toolExecutor = toolExecutor;
         this.properties = properties;
         this.identity = identity;
         this.objectMapper = objectMapper;
         this.approvalServiceProvider = approvalServiceProvider;
         this.events = events;
+        this.sanitizer = sanitizer;
+        this.cancellations = cancellations;
         this.transactionTemplate = transactionTemplate;
         this.executor = executor;
     }
@@ -125,6 +136,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
             task.cancel("cancelled by caller", Instant.now());
             boolean saved = repository.saveState(task, expected);
             if (saved) {
+                cancellations.cancel(task.callId());
                 ToolResult.Unsuccessful<DynamicToolResponse> result = new ToolResult.Unsuccessful<>(
                         ToolResultStatusEnum.CANCELLED,
                         new ToolError("TOOL_TASK_CANCELLED", CategoryEnum.CANCELLED,
@@ -134,6 +146,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
                 completeCall(task.callId(), result);
                 events.record(ToolExecutionEvent.Type.CANCELLED, task.callId(), task.tool(),
                         context(task, Map.of()), Map.of("taskId", task.taskId()));
+                cancellations.clear(task.callId());
             }
             return saved;
         }).orElse(false), executor);
@@ -141,10 +154,15 @@ public class DefaultToolTaskManager implements ToolTaskManager {
 
     @Override
     public CompletionStage<Boolean> resume(String resumeToken) {
+        return resume(resumeToken, null);
+    }
+
+    @Override
+    public CompletionStage<Boolean> resume(String resumeToken, String ownerId) {
         return CompletableFuture.supplyAsync(() -> {
             ToolTask task = repository.findByResumeTokenHash(hash(requireText(resumeToken, "resumeToken")))
                     .orElse(null);
-            if (task == null) {
+            if (task == null || (ownerId != null && !ownerId.equals(task.ownerId()))) {
                 return false;
             }
             Object approvalId = task.metadata().get(META_APPROVAL);
@@ -204,6 +222,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
                 completeCall(task.callId(), result);
                 events.record(ToolExecutionEvent.Type.DENIED, task.callId(), task.tool(),
                         context(task, Map.of()), Map.of("taskId", taskId, "reason", reason));
+                cancellations.clear(task.callId());
             }
             return saved;
         }).orElse(false), executor);
@@ -271,10 +290,15 @@ public class DefaultToolTaskManager implements ToolTaskManager {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             failOrRetry(taskId, "worker interrupted", true);
+        } catch (SecurityException exception) {
+            finish(taskId, new ToolResult.Unsuccessful<>(ToolResultStatusEnum.DENIED,
+                    new ToolError("TOOL_UNAUTHORIZED", CategoryEnum.AUTHORIZATION,
+                            rootMessage(exception), false, Map.of()), null, Map.of()));
         } catch (Exception exception) {
             failOrRetry(taskId, rootMessage(exception), true);
         } finally {
             renewal.cancel(false);
+            cancellations.clear(task.callId());
         }
     }
 
@@ -359,19 +383,33 @@ public class DefaultToolTaskManager implements ToolTaskManager {
             }
             long latency = call.getStartedAt() == null ? 0L
                     : java.time.Duration.between(call.getStartedAt(), java.time.LocalDateTime.now()).toMillis();
+            ToolUsage usage = usage(result);
+            int inputTokens = usage == null || usage.inputTokens() == null ? 0
+                    : Math.toIntExact(usage.inputTokens());
+            int outputTokens = usage == null || usage.outputTokens() == null ? 0
+                    : Math.toIntExact(usage.outputTokens());
             callMapper.complete(callId, result.status().getValue(), java.time.LocalDateTime.now(),
-                    latency, code, category, message, call.getRowVersion());
+                    latency, code, category, message,
+                    inputTokens, outputTokens, inputTokens + outputTokens,
+                    call.getRowVersion());
         });
+    }
+
+    private ToolUsage usage(ToolResult<?> result) {
+        if (result instanceof ToolResult.Succeeded<?> succeeded) return succeeded.usage();
+        if (result instanceof ToolResult.Unsuccessful<?> unsuccessful) return unsuccessful.usage();
+        return null;
     }
 
     private <I extends ToolRequest, O extends ToolResponse> ToolTask newTask(
             Tool<I, O> tool, ToolInvocation<I> invocation, Map<String, Object> extraMetadata) {
         Map<String, Object> metadata = new LinkedHashMap<>(extraMetadata);
-        metadata.put(META_ATTRIBUTES, invocation.context().attributes());
+        metadata.put(META_ATTRIBUTES, sanitizer.sanitize(invocation.context().attributes()));
         metadata.put(META_ROLES, invocation.context().principal().roles());
         metadata.put(META_SCOPES, invocation.context().principal().scopes());
         put(metadata, META_WORKFLOW_RUN, invocation.context().workflowRunId());
         put(metadata, META_AGENT_RUN, invocation.context().agentRunId());
+        put(metadata, META_SPAN_ID, invocation.context().parentSpanId());
         Map<String, Object> arguments = invocation.request() instanceof DynamicToolRequest dynamic
                 ? dynamic.arguments() : objectMapper.convertValue(invocation.request(), Map.class);
         return ToolTask.enqueue(UUID.randomUUID().toString(), invocation.callId(), invocation.tool(),
@@ -389,12 +427,29 @@ public class DefaultToolTaskManager implements ToolTaskManager {
             attributes.putAll((Map<String, Object>) map);
         }
         attributes.putAll(extra);
+        if (task.credentialBindingId() != null) {
+            String workspaceId = string(attributes.get(DefaultToolGateway.ATTR_WORKSPACE_ID));
+            bindingManager.resolve(task.ownerId(), workspaceId, task.credentialBindingId())
+                    .ifPresentOrElse(binding -> {
+                        attributes.put(DefaultToolGateway.ATTR_EFFECTIVE_CONFIGURATION,
+                                binding.effectiveConfiguration());
+                        if (binding.credentialReference() != null
+                                && !binding.credentialReference().isBlank()) {
+                            attributes.put(DefaultToolGateway.ATTR_CREDENTIAL_REFERENCE,
+                                    binding.credentialReference());
+                        }
+                    }, () -> {
+                        throw new SecurityException("tool binding is unavailable or has been revoked");
+                    });
+        }
         return new ToolExecutionContext(task.callId(), string(task.metadata().get(META_WORKFLOW_RUN)),
-                string(task.metadata().get(META_AGENT_RUN)), task.traceId(), null,
+                string(task.metadata().get(META_AGENT_RUN)), task.traceId(),
+                string(task.metadata().get(META_SPAN_ID)),
                 new ToolPrincipal(task.ownerId(), task.subjectId(),
                         stringSet(task.metadata().get(META_ROLES)),
                         stringSet(task.metadata().get(META_SCOPES))),
-                Instant.now().plus(task.executionPolicy().timeout()), new RepositoryCancellation(task.taskId()),
+                Instant.now().plus(task.executionPolicy().timeout()),
+                cancellations.token(task.callId(), new RepositoryCancellation(task.taskId())),
                 task.idempotencyKey(), task.credentialBindingId(), attributes);
     }
 

@@ -9,8 +9,11 @@ import com.arte.ai.mapper.tool.ToolCallResultMapper;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.pojo.tool.po.ToolCallPo;
 import com.arte.ai.pojo.tool.po.ToolCallResultPo;
+import com.arte.ai.service.tool.cluster.DistributedToolCancellationCoordinator;
 import com.arte.ai.service.tool.cluster.ToolDistributedLockExecutor;
 import com.arte.ai.service.tool.observability.ToolEventRecorder;
+import com.arte.ai.service.tool.security.ToolDataSanitizer;
+import com.arte.ai.service.tool.security.ToolInputLimitValidator;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -46,6 +49,7 @@ public class DefaultToolGateway implements ToolGateway {
     public static final String ATTR_CREDENTIAL_REFERENCE = "tool.credential-reference";
 
     private final ToolRegistry registry;
+    private final ToolLifecycleManager lifecycleManager;
     private final ToolBindingManager bindingManager;
     private final ToolPolicyMerger policyMerger;
     private final ToolSchemaValidator schemaValidator;
@@ -58,18 +62,25 @@ public class DefaultToolGateway implements ToolGateway {
     private final ToolExecutionProperties properties;
     private final ToolEventRecorder events;
     private final ObjectMapper objectMapper;
+    private final ToolDataSanitizer sanitizer;
+    private final ToolInputLimitValidator inputLimitValidator;
+    private final DistributedToolCancellationCoordinator cancellations;
     private final Executor executor;
 
-    public DefaultToolGateway(ToolRegistry registry, ToolBindingManager bindingManager,
+    public DefaultToolGateway(ToolRegistry registry, ToolLifecycleManager lifecycleManager,
+                              ToolBindingManager bindingManager,
                               ToolPolicyMerger policyMerger, ToolSchemaValidator schemaValidator,
                               ToolExecutor toolExecutor, ToolTaskManager taskManager,
                               ToolTaskRepository taskRepository, ToolCallMapper callMapper,
                               ToolCallResultMapper resultMapper,
                               ToolDistributedLockExecutor lockExecutor,
                               ToolExecutionProperties properties, ToolEventRecorder events,
-                              ObjectMapper objectMapper,
+                              ObjectMapper objectMapper, ToolDataSanitizer sanitizer,
+                              ToolInputLimitValidator inputLimitValidator,
+                              DistributedToolCancellationCoordinator cancellations,
                               @Qualifier("toolCallbackExecutor") Executor executor) {
         this.registry = registry;
+        this.lifecycleManager = lifecycleManager;
         this.bindingManager = bindingManager;
         this.policyMerger = policyMerger;
         this.schemaValidator = schemaValidator;
@@ -82,27 +93,49 @@ public class DefaultToolGateway implements ToolGateway {
         this.properties = properties;
         this.events = events;
         this.objectMapper = objectMapper;
+        this.sanitizer = sanitizer;
+        this.inputLimitValidator = inputLimitValidator;
+        this.cancellations = cancellations;
         this.executor = executor;
     }
 
     @Override
     public CompletionStage<ToolResult<? extends ToolResponse>> invoke(ToolCallRequest request) {
         Objects.requireNonNull(request, "request");
-        String ownerId = request.context().principal().ownerId().trim();
-        String idempotencyKey = normalize(request.context().idempotencyKey());
-        PreparedCall prepared = idempotencyKey == null
-                ? prepare(request)
-                : lockExecutor.execute("invoke:" + ownerId + ":" + idempotencyKey,
-                () -> existing(ownerId, idempotencyKey).orElseGet(() -> prepare(request)));
-        if (prepared.existingResult() != null) {
-            return CompletableFuture.completedFuture(prepared.existingResult());
+        ToolCallRequest normalized = withSpan(request);
+        try {
+            String ownerId = normalized.context().principal().ownerId().trim();
+            String idempotencyKey = normalize(normalized.context().idempotencyKey());
+            PreparedCall prepared = idempotencyKey == null
+                    ? prepare(normalized)
+                    : lockExecutor.execute("invoke:" + ownerId + ":" + idempotencyKey,
+                    () -> existing(ownerId, idempotencyKey).orElseGet(() -> prepare(normalized)));
+            if (prepared.existingResult() != null) {
+                return CompletableFuture.completedFuture(prepared.existingResult());
+            }
+            return execute(prepared);
+        } catch (RuntimeException exception) {
+            ToolResult.Unsuccessful<DynamicToolResponse> failure = gatewayFailure(exception,
+                    normalized.tool());
+            events.record(ToolExecutionEvent.Type.FAILED, normalized.callId(), normalized.tool(),
+                    normalized.context(), Map.of("code", failure.error().code()));
+            return CompletableFuture.completedFuture(failure);
         }
-        return execute(prepared);
     }
 
     @Override
     public CompletionStage<ToolResult<? extends ToolResponse>> resume(String resumeToken) {
-        return taskManager.resume(resumeToken).thenApply(resumed -> {
+        return resumeResult(taskManager.resume(resumeToken));
+    }
+
+    @Override
+    public CompletionStage<ToolResult<? extends ToolResponse>> resume(String resumeToken, String ownerId) {
+        return resumeResult(taskManager.resume(resumeToken, ownerId));
+    }
+
+    private CompletionStage<ToolResult<? extends ToolResponse>> resumeResult(
+            CompletionStage<Boolean> resumeStage) {
+        return resumeStage.thenApply(resumed -> {
             if (!resumed) {
                 return failure("TOOL_RESUME_REJECTED", CategoryEnum.CONFLICT,
                         "resume token is invalid, undecided or already used");
@@ -116,7 +149,8 @@ public class DefaultToolGateway implements ToolGateway {
     public CompletionStage<Boolean> cancel(String callId) {
         return taskRepository.findByCallId(callId)
                 .map(task -> taskManager.cancel(task.taskId()))
-                .orElseGet(() -> CompletableFuture.completedFuture(false));
+                .orElseGet(() -> CompletableFuture.completedFuture(callMapper.selectByCallId(callId)
+                        .map(call -> cancellations.cancel(callId)).orElse(false)));
     }
 
     @Override
@@ -124,7 +158,8 @@ public class DefaultToolGateway implements ToolGateway {
         return taskRepository.findByCallId(callId)
                 .filter(task -> task.ownerId().equals(ownerId))
                 .map(task -> taskManager.cancel(task.taskId()))
-                .orElseGet(() -> CompletableFuture.completedFuture(false));
+                .orElseGet(() -> CompletableFuture.completedFuture(callMapper.selectOwned(callId, ownerId)
+                        .map(call -> cancellations.cancel(callId)).orElse(false)));
     }
 
     @Override
@@ -166,6 +201,10 @@ public class DefaultToolGateway implements ToolGateway {
                             rootMessage(throwable));
                     persistResult(prepared.call(), finalResult, started);
                     recordTerminal(prepared.invocation(), finalResult);
+                    if (!(finalResult instanceof ToolResult.Accepted<?> || finalResult
+                            instanceof ToolResult.Suspended<?>)) {
+                        cancellations.clear(prepared.call().getCallId());
+                    }
                     return finalResult;
                 }, executor);
     }
@@ -173,8 +212,9 @@ public class DefaultToolGateway implements ToolGateway {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private PreparedCall prepare(ToolCallRequest source) {
         ToolCallRequest request = normalize(source);
+        inputLimitValidator.validate(request.arguments());
         Tool tool = registry.resolve(request.tool())
-                .orElseThrow(() -> new IllegalArgumentException("unknown or unavailable tool: " + request.tool()));
+                .orElseThrow(() -> new ToolResolutionException(request.tool()));
         events.record(ToolExecutionEvent.Type.RESOLVED, request.callId(), request.tool(),
                 request.context(), Map.of());
 
@@ -206,6 +246,7 @@ public class DefaultToolGateway implements ToolGateway {
                 ? new DynamicToolRequest(request.arguments())
                 : (ToolRequest) objectMapper.convertValue(request.arguments(), tool.getRequestType());
         ToolExecutionContext executionContext = enrichContext(request.context(), binding);
+        executionContext = withCancellation(executionContext, request.callId());
         ToolInvocation invocation = new ToolInvocation(request.callId(), request.tool(), typedRequest,
                 executionContext, effectivePolicy);
         events.record(ToolExecutionEvent.Type.VALIDATED, request.callId(), request.tool(),
@@ -266,13 +307,20 @@ public class DefaultToolGateway implements ToolGateway {
                 context.cancellation(), context.idempotencyKey(), binding.bindingId(), attributes);
     }
 
+    private ToolExecutionContext withCancellation(ToolExecutionContext context, String callId) {
+        return new ToolExecutionContext(context.runId(), context.workflowRunId(), context.agentRunId(),
+                context.traceId(), context.parentSpanId(), context.principal(), context.deadline(),
+                cancellations.token(callId, context.cancellation()), context.idempotencyKey(),
+                context.credentialBindingId(), context.attributes());
+    }
+
     private ToolCallPo newCall(ToolCallRequest request, ResolvedToolBinding binding,
                                ToolExecutionPolicy policy) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("runId", request.context().runId());
         context.put("workflowRunId", request.context().workflowRunId());
         context.put("agentRunId", request.context().agentRunId());
-        context.put("attributes", request.context().attributes());
+        context.put("attributes", sanitizer.sanitize(request.context().attributes()));
         ToolCallPo po = new ToolCallPo().setCallId(request.callId())
                 .setTraceId(request.context().traceId()).setSpanId(request.context().parentSpanId())
                 .setOwnerId(request.context().principal().ownerId())
@@ -285,7 +333,7 @@ public class DefaultToolGateway implements ToolGateway {
                 .setBindingId(binding == null ? null : binding.bindingId())
                 .setExecutionMode(policy.executionMode())
                 .setArgumentsDigest(digest(request.arguments()))
-                .setArgumentsSnapshot(request.arguments()).setContextSnapshot(context)
+                .setArgumentsSnapshot(sanitizer.sanitize(request.arguments())).setContextSnapshot(context)
                 .setPolicySnapshot(objectMapper.convertValue(policy, Map.class))
                 .setStatus(ToolResultStatusEnum.ACCEPTED)
                 .setIdempotencyKey(normalize(request.context().idempotencyKey()))
@@ -299,7 +347,8 @@ public class DefaultToolGateway implements ToolGateway {
         if (result instanceof ToolResult.Accepted<?> || result instanceof ToolResult.Suspended<?>) {
             return;
         }
-        ToolCallResultPo po = ResultPersistenceMapper.toPo(result, call.getCallId(), null, objectMapper);
+        ToolCallResultPo po = ResultPersistenceMapper.toPo(result, call.getCallId(), null,
+                objectMapper, sanitizer);
         resultMapper.insert(po);
         String code = null, category = null, message = null;
         if (result instanceof ToolResult.Unsuccessful<?> failed) {
@@ -307,8 +356,14 @@ public class DefaultToolGateway implements ToolGateway {
             category = failed.error().category().name().toLowerCase();
             message = failed.error().message();
         }
+        ToolUsage usage = usage(result);
+        int inputTokens = usage == null || usage.inputTokens() == null
+                ? 0 : Math.toIntExact(usage.inputTokens());
+        int outputTokens = usage == null || usage.outputTokens() == null
+                ? 0 : Math.toIntExact(usage.outputTokens());
         callMapper.complete(call.getCallId(), result.status().getValue(), LocalDateTime.now(),
                 java.time.Duration.between(started, Instant.now()).toMillis(), code, category, message,
+                inputTokens, outputTokens, inputTokens + outputTokens,
                 call.getRowVersion());
     }
 
@@ -371,7 +426,62 @@ public class DefaultToolGateway implements ToolGateway {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private ToolUsage usage(ToolResult<?> result) {
+        if (result instanceof ToolResult.Succeeded<?> succeeded) return succeeded.usage();
+        if (result instanceof ToolResult.Unsuccessful<?> unsuccessful) return unsuccessful.usage();
+        return null;
+    }
+
+    private ToolCallRequest withSpan(ToolCallRequest request) {
+        ToolExecutionContext context = request.context();
+        if (context.parentSpanId() != null && !context.parentSpanId().isBlank()) return request;
+        ToolExecutionContext traced = new ToolExecutionContext(context.runId(), context.workflowRunId(),
+                context.agentRunId(), context.traceId(), UUID.randomUUID().toString(), context.principal(),
+                context.deadline(), context.cancellation(), context.idempotencyKey(),
+                context.credentialBindingId(), context.attributes());
+        return new ToolCallRequest(request.callId(), request.tool(), request.arguments(), traced,
+                request.policyOverride());
+    }
+
+    private ToolResult.Unsuccessful<DynamicToolResponse> gatewayFailure(
+            RuntimeException exception, ToolReference reference) {
+        Throwable cause = root(exception);
+        if (cause instanceof ToolResolutionException) {
+            boolean toolExists = hasKnownTool(reference);
+            return failure(toolExists ? "TOOL_VERSION_UNAVAILABLE" : "TOOL_NOT_FOUND",
+                    CategoryEnum.DEPENDENCY, toolExists
+                            ? "requested tool version is unavailable" : "tool does not exist");
+        }
+        if (cause instanceof SecurityException) {
+            return failure("TOOL_UNAUTHORIZED", CategoryEnum.AUTHORIZATION, cause.getMessage());
+        }
+        if (cause instanceof IllegalArgumentException) {
+            return failure("TOOL_ARGUMENT_INVALID", CategoryEnum.VALIDATION, cause.getMessage());
+        }
+        return failure("TOOL_SYSTEM_ERROR", CategoryEnum.INTERNAL, rootMessage(cause));
+    }
+
+    private boolean hasKnownTool(ToolReference reference) {
+        try {
+            return !lifecycleManager.listVersions(reference.namespace(), reference.name()).isEmpty();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private Throwable root(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) current = current.getCause();
+        return current;
+    }
+
     private record PreparedCall(Tool<?, ?> tool, ToolInvocation<?> invocation, ToolCallPo call,
                                 ToolResult<? extends ToolResponse> existingResult) {
+    }
+
+    private static final class ToolResolutionException extends RuntimeException {
+        private ToolResolutionException(ToolReference reference) {
+            super("unknown or unavailable tool: " + reference);
+        }
     }
 }

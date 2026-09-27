@@ -86,7 +86,8 @@ public class WorkflowController {
 
     @PostMapping("/runs/resume")
     public CompletionStage<ResultContext<WorkflowRun>> resume(@RequestBody ToolResumeRequest request) {
-        return runner.resume(request.resumeToken()).thenApply(ResultContext::success);
+        return runner.resume(request.resumeToken(), UserContext.getUserName())
+                .thenApply(ResultContext::success);
     }
 
     private WorkflowDefinition definition(WorkflowDraftRequest request) {

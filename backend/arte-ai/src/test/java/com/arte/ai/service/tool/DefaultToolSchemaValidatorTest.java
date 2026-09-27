@@ -18,9 +18,9 @@ public class DefaultToolSchemaValidatorTest {
               "type":"object",
               "additionalProperties":false,
               "properties":{
-                "text":{"type":"string"},
+                "text":{"type":"string","minLength":2,"maxLength":10},
                 "count":{"type":"integer"},
-                "tags":{"type":"array","items":{"type":"string"}}
+                "tags":{"type":"array","maxItems":2,"items":{"type":"string"}}
               },
               "required":["text"]
             }
@@ -37,5 +37,10 @@ public class DefaultToolSchemaValidatorTest {
                 () -> validator.validate(schema, Map.of("text", "hello", "count", "two"), "arguments"));
         assertThrows(IllegalArgumentException.class,
                 () -> validator.validate(schema, Map.of("text", "hello", "unknown", true), "arguments"));
+        assertThrows(IllegalArgumentException.class,
+                () -> validator.validate(schema, Map.of("text", "x"), "arguments"));
+        assertThrows(IllegalArgumentException.class,
+                () -> validator.validate(schema, Map.of("text", "hello", "tags", List.of("a", "b", "c")),
+                        "arguments"));
     }
 }

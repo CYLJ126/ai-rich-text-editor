@@ -21,6 +21,8 @@ public interface WorkflowRunner {
 
     CompletionStage<WorkflowRun> resume(String resumeToken);
 
+    CompletionStage<WorkflowRun> resume(String resumeToken, String ownerId);
+
     CompletionStage<WorkflowRun> cancel(String runId);
 
     CompletionStage<WorkflowRun> cancel(String runId, String ownerId);
