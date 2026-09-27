@@ -1,4 +1,5 @@
 export default {
+  'menu.AITool': 'Ferramentas de IA',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',
   'menu.home': 'Início',

@@ -69,4 +69,5 @@ export default {
   'menu.Writing': '写作管理',
   'menu.Writing.BasicWriting': '基础写作',
   'menu.AI.ChatManagement': 'AI 助手',
+  'menu.AITool': 'AI 工具中心',
 };

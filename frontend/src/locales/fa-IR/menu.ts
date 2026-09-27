@@ -1,4 +1,5 @@
 export default {
+  'menu.AITool': 'AI Tools',
   'menu.welcome': 'خوش آمدید',
   'menu.more-blocks': 'بلوک های بیشتر',
   'menu.home': 'خانه',

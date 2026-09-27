@@ -1,4 +1,5 @@
 export default {
+  'menu.AITool': 'AI ツール',
   'menu.welcome': 'ようこそ',
   'menu.more-blocks': 'その他のブロック',
   'menu.home': 'ホーム',
