@@ -14,6 +14,16 @@ public interface WorkflowMapper extends BaseMapper<WorkflowPo> {
 
     List<WorkflowPo> selectByOwnerId(@Param("ownerId") String ownerId);
 
+    List<WorkflowPo> selectOwnedPage(@Param("ownerId") String ownerId,
+                                     @Param("keyword") String keyword,
+                                     @Param("status") String status,
+                                     @Param("offset") long offset,
+                                     @Param("size") int size);
+
+    long countOwned(@Param("ownerId") String ownerId,
+                    @Param("keyword") String keyword,
+                    @Param("status") String status);
+
     Optional<WorkflowPo> selectOwned(@Param("workflowId") String workflowId,
                                      @Param("ownerId") String ownerId);
 

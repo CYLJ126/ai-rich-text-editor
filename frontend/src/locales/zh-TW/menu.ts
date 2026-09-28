@@ -77,5 +77,6 @@ export default {
   'menu.AITool.AIToolCalls': '呼叫控制台',
   'menu.AITool.AIToolTasks': '非同步任務',
   'menu.AITool.AIToolApprovals': '審批安全',
+  'menu.AITool.AIToolWorkflows': '工作流編排',
   'menu.AITool.AIToolObservability': '軌跡統計',
 };

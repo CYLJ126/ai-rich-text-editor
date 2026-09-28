@@ -7,6 +7,7 @@ export default {
   'menu.AITool.AIToolCalls': 'ツール呼び出し',
   'menu.AITool.AIToolTasks': '非同期タスク',
   'menu.AITool.AIToolApprovals': '承認とセキュリティ',
+  'menu.AITool.AIToolWorkflows': 'ワークフロー',
   'menu.AITool.AIToolObservability': 'トレースと統計',
   'menu.welcome': 'ようこそ',
   'menu.more-blocks': 'その他のブロック',

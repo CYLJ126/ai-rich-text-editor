@@ -22,6 +22,11 @@ public interface WorkflowManager {
 
     WorkflowDefinition saveDraft(ToolPrincipal principal, WorkflowDefinition definition);
 
+    default WorkflowDefinition saveDraft(ToolPrincipal principal, WorkflowDefinition definition,
+                                         Long expectedRowVersion) {
+        return saveDraft(principal, definition);
+    }
+
     WorkflowValidationResult validate(ToolPrincipal principal, WorkflowDefinition definition);
 
     default CompiledWorkflow publish(String ownerId, String workflowId, String version,

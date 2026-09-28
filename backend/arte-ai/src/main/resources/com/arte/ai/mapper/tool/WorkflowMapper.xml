@@ -12,6 +12,25 @@
         WHERE owner_id = #{ownerId}
         ORDER BY update_time DESC
     </select>
+    <sql id="OwnedWorkflowWhere">
+        owner_id = #{ownerId}
+        <if test="keyword != null and keyword != ''">
+            AND (workflow_id LIKE CONCAT('%', #{keyword}, '%')
+            OR name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null and status != ''">AND lifecycle_state = #{status}</if>
+    </sql>
+    <select id="selectOwnedPage" resultType="com.arte.ai.pojo.tool.po.WorkflowPo">
+        SELECT * FROM arte_ai_workflow
+        WHERE
+        <include refid="OwnedWorkflowWhere"/>
+        ORDER BY update_time DESC, id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countOwned" resultType="long">
+        SELECT COUNT(1) FROM arte_ai_workflow
+        WHERE
+        <include refid="OwnedWorkflowWhere"/>
+    </select>
     <select id="selectOwned" resultType="com.arte.ai.pojo.tool.po.WorkflowPo">
         SELECT *
         FROM arte_ai_workflow

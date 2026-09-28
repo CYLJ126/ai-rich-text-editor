@@ -13,6 +13,19 @@ import java.util.Optional;
 public interface WorkflowRunMapper extends BaseMapper<WorkflowRunPo> {
     Optional<WorkflowRunPo> selectByRunId(@Param("runId") String runId);
 
+    Optional<WorkflowRunPo> selectOwned(@Param("runId") String runId,
+                                        @Param("ownerId") String ownerId);
+
+    List<WorkflowRunPo> selectOwnedPage(@Param("ownerId") String ownerId,
+                                        @Param("workflowId") String workflowId,
+                                        @Param("status") String status,
+                                        @Param("offset") long offset,
+                                        @Param("size") int size);
+
+    long countOwned(@Param("ownerId") String ownerId,
+                    @Param("workflowId") String workflowId,
+                    @Param("status") String status);
+
     int transitionStatus(@Param("runId") String runId, @Param("expectedStatus") String expectedStatus,
                          @Param("targetStatus") String targetStatus,
                          @Param("expectedVersion") Long expectedVersion,

@@ -7,6 +7,7 @@ export default {
   'menu.AITool.AIToolCalls': 'Chamadas de ferramentas',
   'menu.AITool.AIToolTasks': 'Tarefas assíncronas',
   'menu.AITool.AIToolApprovals': 'Aprovações e segurança',
+  'menu.AITool.AIToolWorkflows': 'Fluxos de trabalho',
   'menu.AITool.AIToolObservability': 'Rastreamentos e métricas',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',

@@ -20,7 +20,8 @@ public record WorkflowDraftRequest(
         List<Map<String, Object>> nodes,
         List<Map<String, Object>> edges,
         Set<String> tags,
-        Map<String, Object> executionPolicy
+        Map<String, Object> executionPolicy,
+        Long expectedRowVersion
 ) {
     public WorkflowDraftRequest {
         nodes = nodes == null ? List.of() : List.copyOf(nodes);

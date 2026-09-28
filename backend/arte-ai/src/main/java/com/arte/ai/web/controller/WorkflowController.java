@@ -6,6 +6,7 @@ import com.arte.ai.api.tool.workflow.WorkflowRunner;
 import com.arte.ai.common.enums.tool.NeverToolCancellation;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.service.tool.workflow.WorkflowPersistenceCodec;
+import com.arte.ai.service.tool.workflow.WorkflowQueryService;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
@@ -34,11 +35,26 @@ public class WorkflowController {
     private final WorkflowCompiler compiler;
     private final WorkflowRunner runner;
     private final WorkflowPersistenceCodec codec;
+    private final WorkflowQueryService queryService;
+
+    @GetMapping
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
+    public ResultContext<WorkflowSummaryPage> workflows(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(queryService.workflows(
+                UserContext.getUserName(), keyword, status, current, size));
+    }
 
     @PostMapping("/drafts")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public ResultContext<WorkflowDefinition> saveDraft(@RequestBody WorkflowDraftRequest request) {
-        return ResultContext.success(manager.saveDraft(principal(), definition(request)));
+    public ResultContext<WorkflowVersionView> saveDraft(@RequestBody WorkflowDraftRequest request) {
+        String owner = UserContext.getUserName();
+        manager.saveDraft(principal(), definition(request), request.expectedRowVersion());
+        return ResultContext.success(queryService.version(owner, request.workflowId(), request.version())
+                .orElseThrow(() -> new IllegalStateException("saved workflow version is unavailable")));
     }
 
     @PostMapping("/validate")
@@ -58,45 +74,75 @@ public class WorkflowController {
 
     @GetMapping("/{workflowId}/versions")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public ResultContext<?> versions(@PathVariable String workflowId) {
-        return ResultContext.success(manager.listVersions(UserContext.getUserName(), workflowId));
+    public ResultContext<java.util.List<WorkflowVersionView>> versions(@PathVariable String workflowId) {
+        return ResultContext.success(queryService.versions(UserContext.getUserName(), workflowId));
+    }
+
+    @GetMapping("/{workflowId}/versions/{version}")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
+    public ResultContext<WorkflowVersionView> version(@PathVariable String workflowId,
+                                                      @PathVariable String version) {
+        return ResultContext.success(queryService.version(UserContext.getUserName(), workflowId, version)
+                .orElse(null));
     }
 
     @PostMapping("/runs")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public CompletionStage<ResultContext<WorkflowRun>> start(@RequestBody WorkflowStartRequest request) {
+    public CompletionStage<ResultContext<WorkflowRunActionResult>> start(@RequestBody WorkflowStartRequest request) {
         ToolPrincipal principal = principal();
         String owner = principal.ownerId();
+        queryService.version(owner, request.workflowId(), request.version())
+                .filter(value -> "published".equals(value.lifecycleState()))
+                .orElseThrow(() -> new IllegalArgumentException("only published workflow versions can run"));
         WorkflowDefinition definition = manager.find(owner, request.workflowId(), request.version())
                 .orElseThrow(() -> new IllegalArgumentException("workflow version is unavailable"));
+        int maximumSteps = request.maximumSteps() == null
+                ? definition.executionPolicy().maximumSteps() : request.maximumSteps();
+        if (maximumSteps > definition.executionPolicy().maximumSteps()) {
+            throw new IllegalArgumentException("maximumSteps cannot exceed the published workflow budget");
+        }
         ToolExecutionContext toolContext = new ToolExecutionContext(UUID.randomUUID().toString(),
                 null, null, UUID.randomUUID().toString(), null,
                 principal,
                 Instant.now().plus(definition.executionPolicy().timeout()),
                 NeverToolCancellation.INSTANCE, null, null, Map.of());
         WorkflowExecutionContext context = new WorkflowExecutionContext(toolContext, request.inputs(),
-                request.variables(), request.maximumSteps() == null
-                ? definition.executionPolicy().maximumSteps() : request.maximumSteps());
-        return runner.start(compiler.compile(definition), context).thenApply(ResultContext::success);
+                request.variables(), maximumSteps);
+        return runner.start(compiler.compile(definition), context).thenApply(run ->
+                ResultContext.success(actionResult(owner, run)));
+    }
+
+    @GetMapping("/runs")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
+    public ResultContext<WorkflowRunPage> runs(
+            @RequestParam(required = false) String workflowId,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(queryService.runs(UserContext.getUserName(), workflowId,
+                status, current, size));
     }
 
     @GetMapping("/runs/{runId}")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public CompletionStage<ResultContext<?>> run(@PathVariable String runId) {
-        return runner.findRun(runId, UserContext.getUserName()).thenApply(ResultContext::success);
+    public ResultContext<WorkflowRunDetailView> run(@PathVariable String runId) {
+        return ResultContext.success(queryService.runDetail(UserContext.getUserName(), runId).orElse(null));
     }
 
     @PostMapping("/runs/{runId}/cancel")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public CompletionStage<ResultContext<WorkflowRun>> cancel(@PathVariable String runId) {
-        return runner.cancel(runId, UserContext.getUserName()).thenApply(ResultContext::success);
+    public CompletionStage<ResultContext<WorkflowRunActionResult>> cancel(@PathVariable String runId) {
+        String owner = UserContext.getUserName();
+        return runner.cancel(runId, owner).thenApply(run ->
+                ResultContext.success(actionResult(owner, run)));
     }
 
     @PostMapping("/runs/resume")
     @PreAuthorize("@pcs.check('aiTool:workflow')")
-    public CompletionStage<ResultContext<WorkflowRun>> resume(@RequestBody ToolResumeRequest request) {
-        return runner.resume(request.resumeToken(), UserContext.getUserName())
-                .thenApply(ResultContext::success);
+    public CompletionStage<ResultContext<WorkflowRunActionResult>> resume(@RequestBody ToolResumeRequest request) {
+        String owner = UserContext.getUserName();
+        return runner.resume(request.resumeToken(), owner)
+                .thenApply(run -> ResultContext.success(actionResult(owner, run)));
     }
 
     private WorkflowDefinition definition(WorkflowDraftRequest request) {
@@ -110,6 +156,12 @@ public class WorkflowController {
         var user = UserContext.getUserOnlineInfo();
         return new ToolPrincipal(user.getUserName(), user.getUserName(),
                 copy(user.getRoles()), copy(user.getMenuOperations()));
+    }
+
+    private WorkflowRunActionResult actionResult(String owner, WorkflowRun run) {
+        WorkflowRunView view = queryService.run(owner, run.runId())
+                .orElseThrow(() -> new IllegalStateException("workflow run is unavailable"));
+        return new WorkflowRunActionResult(view, run.resumeToken());
     }
 
     private Set<String> copy(Collection<String> values) {

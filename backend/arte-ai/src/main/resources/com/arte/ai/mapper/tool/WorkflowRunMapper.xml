@@ -18,6 +18,28 @@
         FROM arte_ai_workflow_run
         WHERE run_id = #{runId} LIMIT 1
     </select>
+    <select id="selectOwned" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_workflow_run
+        WHERE run_id = #{runId}
+          AND owner_id = #{ownerId} LIMIT 1
+    </select>
+    <sql id="OwnedRunWhere">
+        owner_id = #{ownerId}
+        <if test="workflowId != null and workflowId != ''">AND workflow_id = #{workflowId}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+    </sql>
+    <select id="selectOwnedPage" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_workflow_run
+        WHERE
+        <include refid="OwnedRunWhere"/>
+        ORDER BY create_time DESC, id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countOwned" resultType="long">
+        SELECT COUNT(1) FROM arte_ai_workflow_run
+        WHERE
+        <include refid="OwnedRunWhere"/>
+    </select>
     <select id="selectByResumeTokenHash" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_workflow_run

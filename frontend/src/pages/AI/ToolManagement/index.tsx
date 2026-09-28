@@ -57,9 +57,10 @@ const foundations = [
   },
   {
     title: '工作流',
-    description: '为后续可视化编排复用 Schema 表单与工具版本引用。',
+    description: '可视化编排、校验并发布不可变版本，运行支持检查点恢复。',
     icon: <BranchesOutlined/>,
-    status: '公共组件已就绪',
+    status: '编排运行闭环已就绪',
+    path: '/AI/ToolManagement/Workflows',
   },
   {
     title: '可观测性',
@@ -83,7 +84,7 @@ export default function ToolManagement() {
         showIcon
         type="info"
         message="一期前端公共基础已启用"
-        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用、异步任务、审批安全和轨迹统计已接入；工作流将在后续功能闭环中接入。"
+        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用、异步任务、审批安全、工作流编排与轨迹统计均已接入。"
         style={{marginBottom: 16}}
       />
       <Row gutter={[16, 16]}>

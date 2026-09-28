@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ToolStatusTag} from '@/components/AITool';
 import {formatDuration, isTerminalToolStatus, normalizeToolError, TOOL_RESULT_PRESENTATION,} from '@/features/ai-tool';
-import {getToolCallStatistics, listToolCalls,} from '@/services/ant-design-pro/ai.tool.observability';
+import {getToolCallStatistics, getToolTrace, listToolCalls,} from '@/services/ant-design-pro/ai.tool.observability';
 import type {ToolCallDetail, ToolCallStatistics, ToolResultStatus,} from '@/types/ai.tool.type';
 import {ToolManagementPage} from '../components';
 import CallDetailDrawer from './CallDetailDrawer';
@@ -25,7 +25,16 @@ export default function ToolObservabilityPage() {
 
   useEffect(() => {
     const callId = searchParams.get('callId');
-    if (callId) setSelectedCallId(callId);
+    if (callId) {
+      setSelectedCallId(callId);
+      return;
+    }
+    const traceId = searchParams.get('traceId');
+    if (traceId) {
+      getToolTrace(traceId)
+        .then((trace) => trace && setSelectedCallId(trace.callId))
+        .catch((error) => message.error(normalizeToolError(error).message).then());
+    }
   }, [searchParams]);
 
   const loadStatistics = useCallback(async (toolId?: string) => {

@@ -42,11 +42,17 @@ public class DefaultWorkflowManager implements WorkflowManager {
 
     @Override
     public WorkflowDefinition saveDraft(ToolPrincipal principal, WorkflowDefinition definition) {
+        return saveDraft(principal, definition, null);
+    }
+
+    @Override
+    public WorkflowDefinition saveDraft(ToolPrincipal principal, WorkflowDefinition definition,
+                                        Long expectedRowVersion) {
         Objects.requireNonNull(principal, "principal");
         String ownerId = principal.ownerId();
         requireOwner(ownerId);
         return lockExecutor.execute(lockKey(ownerId, definition.workflowId()), () ->
-                transactionTemplate.execute(status -> saveLocked(ownerId, definition)));
+                transactionTemplate.execute(status -> saveLocked(ownerId, definition, expectedRowVersion)));
     }
 
     @Override
@@ -84,7 +90,8 @@ public class DefaultWorkflowManager implements WorkflowManager {
         return versionMapper.selectVersions(workflowId).stream().map(this::toDefinition).toList();
     }
 
-    private WorkflowDefinition saveLocked(String ownerId, WorkflowDefinition definition) {
+    private WorkflowDefinition saveLocked(String ownerId, WorkflowDefinition definition,
+                                          Long expectedRowVersion) {
         WorkflowPo workflow = workflowMapper.selectByWorkflowId(definition.workflowId()).orElse(null);
         if (workflow != null && !ownerId.equals(workflow.getOwnerId())) {
             throw new SecurityException("workflow belongs to another owner");
@@ -100,8 +107,21 @@ public class DefaultWorkflowManager implements WorkflowManager {
                 definition.name(), definition.description()) != 1) {
             throw new IllegalStateException("failed to update workflow metadata");
         }
-        if (versionMapper.selectExact(definition.workflowId(), definition.version()).isPresent()) {
-            throw new IllegalStateException("workflow versions are immutable; create a new version");
+        WorkflowVersionPo existingVersion = versionMapper.selectExact(
+                definition.workflowId(), definition.version()).orElse(null);
+        if (existingVersion != null) {
+            if (existingVersion.getLifecycleState() != ToolLifecycleStateEnum.DRAFT) {
+                throw new IllegalStateException("published workflow versions are immutable; create a new version");
+            }
+            if (expectedRowVersion == null) {
+                throw new IllegalArgumentException("expectedRowVersion is required when updating a draft");
+            }
+            WorkflowVersionPo update = toPo(definition, null, ToolLifecycleStateEnum.DRAFT);
+            update.setUpdateBy(ownerId);
+            if (versionMapper.updateDraft(update, expectedRowVersion) != 1) {
+                throw new IllegalStateException("workflow draft changed concurrently");
+            }
+            return definition;
         }
         WorkflowVersionPo po = toPo(definition, null, ToolLifecycleStateEnum.DRAFT);
         po.setCreateBy(ownerId);

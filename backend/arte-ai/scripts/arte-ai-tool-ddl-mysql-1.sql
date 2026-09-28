@@ -426,6 +426,9 @@ create table arte_ai_workflow_run
 create index idx_workflow_run_workflow
     on arte_ai_workflow_run (workflow_id, workflow_version, create_time);
 
+create index idx_workflow_run_owner_workflow_create
+    on arte_ai_workflow_run (owner_id, workflow_id, create_time, id);
+
 create index idx_workflow_run_status
     on arte_ai_workflow_run (owner_id, status, update_time);
 

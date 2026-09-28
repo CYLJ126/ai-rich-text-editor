@@ -608,3 +608,184 @@ export interface ToolExecutionTrace {
   callId: string;
   events: ToolExecutionEvent[];
 }
+
+export const WORKFLOW_NODE_TYPES = [
+  'start',
+  'end',
+  'tool',
+  'router',
+  'parallel',
+  'join',
+] as const;
+export type WorkflowNodeType = (typeof WORKFLOW_NODE_TYPES)[number];
+
+export interface WorkflowNode {
+  nodeId: string;
+  name: string;
+  type: WorkflowNodeType;
+  inputBindings: Record<string, string>;
+  outputNames: string[];
+  configuration: JsonObject;
+  tool?: ToolReference;
+  executionPolicy?: ToolExecutionPolicy;
+}
+
+export interface WorkflowEdge {
+  edgeId: string;
+  sourceNodeId: string;
+  sourceOutput?: string;
+  targetNodeId: string;
+  targetInput?: string;
+  conditionExpression?: string;
+}
+
+export interface WorkflowExecutionPolicy {
+  maximumSteps: number;
+  timeout: IsoDuration;
+  maximumNodeRetries: number;
+  maximumParallelism: number;
+  checkpointAfterEachNode: boolean;
+}
+
+export interface WorkflowDraftRequest {
+  workflowId: string;
+  version: string;
+  name: string;
+  description?: string;
+  inputSchema: ToolSchema;
+  outputSchema: ToolSchema;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  tags: string[];
+  executionPolicy: WorkflowExecutionPolicy;
+  expectedRowVersion?: number;
+}
+
+export interface WorkflowValidationIssue {
+  code: string;
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  nodeId?: string;
+  message: string;
+}
+
+export interface WorkflowValidationResult {
+  issues: WorkflowValidationIssue[];
+  valid: boolean;
+}
+
+export interface CompiledWorkflow {
+  entryNodeId: string;
+  pinnedTools: Record<string, ToolReference>;
+  dependencies: Record<string, string[]>;
+  executionOrder: string[];
+  parallelGroups: string[][];
+  variableMappings: Record<string, Record<string, string>>;
+  checksum: string;
+}
+
+export interface WorkflowSummaryView {
+  workflowId: string;
+  name: string;
+  description?: string;
+  /** 最新发布版本；仅有草稿时为空。 */
+  latestVersion?: string;
+  lifecycleState: ToolLifecycleState;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface WorkflowSummaryPage {
+  records: WorkflowSummaryView[];
+  total: number;
+  current: number;
+  size: number;
+}
+
+export interface WorkflowVersionView extends WorkflowDraftRequest {
+  compiledPlan: JsonObject;
+  pinnedTools: Record<string, ToolReference>;
+  entryNodeId?: string;
+  checksum?: string;
+  lifecycleState: ToolLifecycleState;
+  publishedAt?: string;
+  rowVersion: number;
+  createTime: string;
+  updateTime: string;
+}
+
+export const WORKFLOW_RUN_STATUSES = [
+  'CREATED',
+  'RUNNING',
+  'WAITING_TOOL',
+  'WAITING_APPROVAL',
+  'PAUSED',
+  'SUCCEEDED',
+  'FAILED',
+  'CANCELLED',
+  'TIMED_OUT',
+] as const;
+export type WorkflowRunStatus = (typeof WORKFLOW_RUN_STATUSES)[number];
+
+export interface WorkflowStartRequest {
+  workflowId: string;
+  version: string;
+  inputs?: JsonObject;
+  variables?: JsonObject;
+  maximumSteps?: number;
+}
+
+export interface WorkflowRunView {
+  runId: string;
+  workflowId: string;
+  workflowVersion: string;
+  traceId: string;
+  status: WorkflowRunStatus;
+  inputs: JsonObject;
+  variables: JsonObject;
+  activeNodeIds: string[];
+  outputs: JsonObject;
+  errorInfo: JsonObject;
+  maximumSteps: number;
+  currentSteps: number;
+  startedAt?: string;
+  completedAt?: string;
+  deadlineAt?: string;
+  rowVersion: number;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface WorkflowRunPage {
+  records: WorkflowRunView[];
+  total: number;
+  current: number;
+  size: number;
+}
+
+export interface WorkflowNodeRunView {
+  nodeRunId: string;
+  nodeId: string;
+  nodeType: WorkflowNodeType;
+  attempt: number;
+  status: string;
+  callId?: string;
+  inputs: JsonObject;
+  outputs: JsonObject;
+  errorInfo: JsonObject;
+  startedAt?: string;
+  completedAt?: string;
+  latencyMs?: number;
+}
+
+export interface WorkflowRunDetailView {
+  run: WorkflowRunView;
+  nodes: WorkflowNodeRunView[];
+  checkpointSequence: number;
+  checkpointState: JsonObject;
+}
+
+export interface WorkflowRunActionResult {
+  run: WorkflowRunView;
+  /** 暂停时仅返回一次，应由操作者安全保存。 */
+  resumeToken?: string;
+}

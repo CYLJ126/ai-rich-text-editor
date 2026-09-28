@@ -77,5 +77,6 @@ export default {
   'menu.AITool.AIToolCalls': '调用控制台',
   'menu.AITool.AIToolTasks': '异步任务',
   'menu.AITool.AIToolApprovals': '审批安全',
+  'menu.AITool.AIToolWorkflows': '工作流编排',
   'menu.AITool.AIToolObservability': '轨迹统计',
 };

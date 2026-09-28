@@ -31,6 +31,25 @@
         WHERE workflow_id = #{workflowId}
         ORDER BY create_time DESC
     </select>
+    <update id="updateDraft">
+        UPDATE arte_ai_workflow_version
+        SET name             = #{version.name},
+            description      = #{version.description},
+            tags             = #{version.tags,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            input_schema     = #{version.inputSchema,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            output_schema    = #{version.outputSchema,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            execution_policy = #{version.executionPolicy,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            nodes            = #{version.nodes,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            edges            = #{version.edges,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            checksum         = #{version.checksum},
+            row_version      = row_version + 1,
+            update_by        = #{version.updateBy},
+            update_time      = CURRENT_TIMESTAMP(3)
+        WHERE workflow_id = #{version.workflowId}
+          AND version = #{version.version}
+          AND lifecycle_state = 'draft'
+          AND row_version = #{expectedRowVersion}
+    </update>
     <update id="publish">
         UPDATE arte_ai_workflow_version
         SET lifecycle_state = 'published',

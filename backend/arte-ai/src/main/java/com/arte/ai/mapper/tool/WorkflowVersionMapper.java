@@ -17,6 +17,9 @@ public interface WorkflowVersionMapper extends BaseMapper<WorkflowVersionPo> {
 
     List<WorkflowVersionPo> selectVersions(@Param("workflowId") String workflowId);
 
+    int updateDraft(@Param("version") WorkflowVersionPo version,
+                    @Param("expectedRowVersion") Long expectedRowVersion);
+
     int publish(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
                 @Param("publishedAt") LocalDateTime publishedAt);
 

@@ -12,11 +12,12 @@ const tabs = [
   {key: 'calls', tab: '调用控制台', path: '/AI/ToolManagement/Calls'},
   {key: 'tasks', tab: '异步任务', path: '/AI/ToolManagement/Tasks'},
   {key: 'approvals', tab: '审批安全', path: '/AI/ToolManagement/Approvals'},
+  {key: 'workflows', tab: '工作流', path: '/AI/ToolManagement/Workflows'},
   {key: 'observability', tab: '轨迹统计', path: '/AI/ToolManagement/Observability'},
 ];
 
 export interface ToolManagementPageProps {
-  activeKey: 'overview' | 'providers' | 'catalog' | 'bindings' | 'assistants' | 'calls' | 'tasks' | 'approvals' | 'observability';
+  activeKey: 'overview' | 'providers' | 'catalog' | 'bindings' | 'assistants' | 'calls' | 'tasks' | 'approvals' | 'workflows' | 'observability';
   title: string;
   subTitle?: string;
   extra?: React.ReactNode;

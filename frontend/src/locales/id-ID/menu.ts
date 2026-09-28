@@ -7,6 +7,7 @@ export default {
   'menu.AITool.AIToolCalls': 'Tool Calls',
   'menu.AITool.AIToolTasks': 'Async Tasks',
   'menu.AITool.AIToolApprovals': 'Approvals & Security',
+  'menu.AITool.AIToolWorkflows': 'Workflows',
   'menu.AITool.AIToolObservability': 'Traces & Metrics',
   'menu.welcome': 'Selamat Datang',
   'menu.more-blocks': 'Blocks Lainnya',
