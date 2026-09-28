@@ -3,11 +3,15 @@ package com.arte.ai.service.tool;
 import com.arte.ai.api.tool.*;
 import com.arte.ai.mapper.AssistantMapper;
 import com.arte.ai.mapper.tool.AssistantToolMapper;
+import com.arte.ai.pojo.BaseDto;
 import com.arte.ai.pojo.assistant.AssistantDto;
+import com.arte.ai.pojo.assistant.AssistantPo;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.pojo.tool.po.AssistantToolPo;
 import com.arte.ai.pojo.tool.po.AssistantToolResolutionPo;
 import com.arte.ai.service.tool.cluster.ToolDistributedLockExecutor;
+import com.arte.core.enums.StatusEnum;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.stereotype.Service;
@@ -110,6 +114,22 @@ public class DefaultAssistantToolManager implements AssistantToolManager {
                 .map(association -> new AssistantToolCommand(association.getBindingId(),
                         Boolean.TRUE.equals(association.getEnabled()), association.getSortOrder(),
                         policyMerger.decodeOverride(association.getPolicyOverride())))
+                .toList();
+    }
+
+    @Override
+    public List<AssistantToolOptionView> listAssistants(String ownerId) {
+        String normalizedOwner = requireText(ownerId, "ownerId");
+        QueryWrapper<AssistantDto> query = new QueryWrapper<>();
+        query.and(scope -> scope.eq(BaseDto.COL_CREATE_BY, normalizedOwner)
+                        .or().isNull(BaseDto.COL_CREATE_BY)
+                        .or().eq(BaseDto.COL_CREATE_BY, ""))
+                .orderByAsc(AssistantPo.COL_SORT_ORDER)
+                .orderByDesc(BaseDto.COL_UPDATE_TIME);
+        return assistantMapper.selectList(query).stream()
+                .map(assistant -> new AssistantToolOptionView(assistant.getId(), assistant.getName(),
+                        assistant.getDescription(), assistant.getAvatar(),
+                        StatusEnum.isNormal(assistant.getStatus())))
                 .toList();
     }
 

@@ -2,6 +2,7 @@ import {encodeToolPathPart, requestToolApi, type ToolRequestOptions,} from './ai
 import type {
   AssistantToolCommand,
   AssistantToolConfigurationCommand,
+  AssistantToolOptionView,
   JsonValue,
   ModelToolDefinition,
   ResolvedToolBinding,
@@ -220,6 +221,14 @@ export function listToolBindings(
 /** ----------------- ToolBindingController end ----------------- */
 
 /** ----------------- AssistantToolController start ----------------- */
+
+/** 查询当前用户可配置工具的助手 GET /arte/ai/assistants/tool-options */
+export function listAssistantToolOptions(options?: ToolRequestOptions) {
+  return requestToolApi<AssistantToolOptionView[]>(
+    '/ai/assistants/tool-options',
+    {method: 'GET', ...options},
+  );
+}
 
 /** 替换助手的工具配置 POST /arte/ai/assistants/{assistantId}/tools */
 export function replaceAssistantTools(

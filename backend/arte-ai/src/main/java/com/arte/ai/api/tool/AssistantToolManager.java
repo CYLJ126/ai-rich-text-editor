@@ -1,6 +1,7 @@
 package com.arte.ai.api.tool;
 
 import com.arte.ai.pojo.tool.AssistantToolCommand;
+import com.arte.ai.pojo.tool.AssistantToolOptionView;
 import com.arte.ai.pojo.tool.ResolvedAssistantTool;
 
 import java.util.List;
@@ -20,6 +21,8 @@ public interface AssistantToolManager {
                                                 Integer assistantId);
 
     List<AssistantToolCommand> listConfiguration(String ownerId, Integer assistantId);
+
+    List<AssistantToolOptionView> listAssistants(String ownerId);
 
     /**
      * 生成只暴露给模型的 Spring AI 工具定义。实际分派时必须使用

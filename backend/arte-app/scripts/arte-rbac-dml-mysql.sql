@@ -32,6 +32,26 @@ INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (34, 'StickyNote', 'Sticky Note', null, '/Personal/StickyNote', 5, 5, 1, '便笺管理', '1', 1, 'system', sysdate(),
         'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (36, 'AITool', 'AI Tool', 'tool', '/AI/ToolManagement', null, 9, 1, 'AI 工具中心', '1', 0, 'system',
+        sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (37, 'AIToolProviders', 'AI Tool Providers', null, '/AI/ToolManagement/Providers', 36, 1, 1, 'AI 工具提供者',
+        '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (38, 'AIToolCatalog', 'AI Tool Catalog', null, '/AI/ToolManagement/Tools', 36, 2, 1, 'AI 工具目录',
+        '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (39, 'AIToolBindings', 'AI Tool Bindings', null, '/AI/ToolManagement/Bindings', 36, 3, 1, '用户工具绑定',
+        '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (40, 'AIAssistantTools', 'AI Assistant Tools', null, '/AI/ToolManagement/Assistants', 36, 4, 1,
+        '助手工具配置', '1', 0, 'system', sysdate(), 'system', sysdate());
 
 
 -- arte_rbac_menu_operation
@@ -203,6 +223,26 @@ INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, cre
 VALUES (48, 'admin', 'PdfHandler', 'user_to_menu', 'system', sysdate());
 INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
 VALUES (49, 'admin', 'pdf:handle', 'user_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (50, 'admin', 'AITool', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (51, 'admin', 'aiTool:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (52, 'admin', 'aiTool:manage', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (53, 'admin', 'aiTool:invoke', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (54, 'admin', 'aiTool:approve', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (55, 'admin', 'aiTool:workflow', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (56, 'admin', 'AIToolProviders', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (57, 'admin', 'AIToolCatalog', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (58, 'admin', 'AIToolBindings', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (59, 'admin', 'AIAssistantTools', 'role_to_menu', 'system', sysdate());
 
 
 -- arte_rbac_role

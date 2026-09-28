@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -21,6 +23,7 @@ public record ToolBindingView(
 ) {
 
     public ToolBindingView {
-        configuration = configuration == null ? Map.of() : Map.copyOf(configuration);
+        configuration = configuration == null ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(configuration));
     }
 }

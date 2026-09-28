@@ -313,6 +313,14 @@ export interface AssistantToolConfigurationCommand {
   tools: AssistantToolCommand[];
 }
 
+export interface AssistantToolOptionView {
+  assistantId: number;
+  name: string;
+  description?: string;
+  avatar?: string;
+  enabled: boolean;
+}
+
 /** Spring AI 暴露给模型的精简工具定义。 */
 export interface ModelToolDefinition {
   name: string;

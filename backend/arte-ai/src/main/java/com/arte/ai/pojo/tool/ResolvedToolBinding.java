@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -24,6 +26,6 @@ public record ResolvedToolBinding(
 
     public ResolvedToolBinding {
         effectiveConfiguration = effectiveConfiguration == null
-                ? Map.of() : Map.copyOf(effectiveConfiguration);
+                ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(effectiveConfiguration));
     }
 }

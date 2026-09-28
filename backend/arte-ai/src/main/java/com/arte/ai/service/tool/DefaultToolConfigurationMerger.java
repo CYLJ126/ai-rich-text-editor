@@ -3,6 +3,7 @@ package com.arte.ai.service.tool;
 import com.arte.ai.api.tool.ToolConfigurationMerger;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -19,7 +20,7 @@ public class DefaultToolConfigurationMerger implements ToolConfigurationMerger {
     public Map<String, Object> merge(Map<String, Object> defaults, Map<String, Object> overrides) {
         Map<String, Object> result = deepCopy(defaults);
         mergeInto(result, overrides);
-        return Map.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 
     @SuppressWarnings("unchecked")
@@ -32,7 +33,7 @@ public class DefaultToolConfigurationMerger implements ToolConfigurationMerger {
             if (current instanceof Map<?, ?> currentMap && value instanceof Map<?, ?> overrideMap) {
                 Map<String, Object> nested = deepCopy((Map<String, Object>) currentMap);
                 mergeInto(nested, (Map<String, Object>) overrideMap);
-                target.put(key, Map.copyOf(nested));
+                target.put(key, Collections.unmodifiableMap(nested));
             } else {
                 target.put(key, deepCopyValue(value));
             }
@@ -50,7 +51,7 @@ public class DefaultToolConfigurationMerger implements ToolConfigurationMerger {
     @SuppressWarnings("unchecked")
     private Object deepCopyValue(Object value) {
         if (value instanceof Map<?, ?> map) {
-            return Map.copyOf(deepCopy((Map<String, Object>) map));
+            return Collections.unmodifiableMap(deepCopy((Map<String, Object>) map));
         }
         if (value instanceof java.util.List<?> list) {
             return list.stream().map(this::deepCopyValue).toList();

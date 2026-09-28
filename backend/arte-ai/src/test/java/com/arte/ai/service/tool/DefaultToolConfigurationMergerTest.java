@@ -2,9 +2,11 @@ package com.arte.ai.service.tool;
 
 import org.junit.Test;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class DefaultToolConfigurationMergerTest {
 
@@ -28,5 +30,15 @@ public class DefaultToolConfigurationMergerTest {
         assertEquals(500, limits.get("maxChars"));
         assertEquals(10, limits.get("maxSections"));
         assertEquals(1000, ((Map<?, ?>) defaults.get("limits")).get("maxChars"));
+    }
+
+    @Test
+    public void shouldPreserveJsonNullValues() {
+        Map<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("nullableDefault", null);
+
+        Map<String, Object> result = merger.merge(Map.of(), overrides);
+
+        assertNull(result.get("nullableDefault"));
     }
 }

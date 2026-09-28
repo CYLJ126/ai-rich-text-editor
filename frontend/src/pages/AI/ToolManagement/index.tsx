@@ -2,6 +2,8 @@ import {
   ApiOutlined,
   AuditOutlined,
   BranchesOutlined,
+  LinkOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
@@ -17,6 +19,20 @@ const foundations = [
     icon: <ToolOutlined/>,
     status: '基础能力已就绪',
     path: '/AI/ToolManagement/Tools',
+  },
+  {
+    title: '用户工具绑定',
+    description: '固定工具版本、配置、凭据引用与收紧策略。',
+    icon: <LinkOutlined/>,
+    status: '管理能力已就绪',
+    path: '/AI/ToolManagement/Bindings',
+  },
+  {
+    title: '助手工具配置',
+    description: '管理每个助手可见的工具集合、顺序和助手级策略。',
+    icon: <RobotOutlined/>,
+    status: '管理能力已就绪',
+    path: '/AI/ToolManagement/Assistants',
   },
   {
     title: '统一调用',

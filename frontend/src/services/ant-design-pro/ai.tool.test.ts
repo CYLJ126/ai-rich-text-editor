@@ -1,6 +1,6 @@
 import {request} from '@umijs/max';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {getToolVersionDetail, listToolCatalog, listToolProviders,} from './ai.tool';
+import {getToolVersionDetail, listAssistantToolOptions, listToolCatalog, listToolProviders,} from './ai.tool';
 
 vi.mock('@umijs/max', () => ({
   request: vi.fn(),
@@ -51,6 +51,15 @@ describe('AI tool management service', () => {
     expect(request).toHaveBeenCalledWith('/arte/ai/tools/providers', {
       method: 'GET',
       params: {status: 'enabled', providerType: 'mcp'},
+      headers: {},
+    });
+  });
+
+  it('loads assistant options from the current-user scoped endpoint', async () => {
+    await listAssistantToolOptions();
+
+    expect(request).toHaveBeenCalledWith('/arte/ai/assistants/tool-options', {
+      method: 'GET',
       headers: {},
     });
   });

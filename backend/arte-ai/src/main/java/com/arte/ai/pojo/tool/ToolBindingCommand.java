@@ -1,5 +1,7 @@
 package com.arte.ai.pojo.tool;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -23,7 +25,8 @@ public record ToolBindingCommand(
         if (tool == null) {
             throw new IllegalArgumentException("tool must not be null");
         }
-        configuration = configuration == null ? Map.of() : Map.copyOf(configuration);
+        configuration = configuration == null ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(configuration));
         if (expectedRowVersion != null && expectedRowVersion < 0) {
             throw new IllegalArgumentException("expectedRowVersion must not be negative");
         }

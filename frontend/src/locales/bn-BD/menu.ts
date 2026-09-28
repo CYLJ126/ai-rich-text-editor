@@ -2,6 +2,8 @@ export default {
   'menu.AITool': 'AI Tools',
   'menu.AITool.AIToolProviders': 'Tool Providers',
   'menu.AITool.AIToolCatalog': 'Tool Catalog',
+  'menu.AITool.AIToolBindings': 'Tool Bindings',
+  'menu.AITool.AIAssistantTools': 'Assistant Tools',
   'menu.welcome': 'স্বাগতম',
   'menu.more-blocks': 'আরও ব্লক',
   'menu.home': 'নীড়',

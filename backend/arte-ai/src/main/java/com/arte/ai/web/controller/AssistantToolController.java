@@ -3,6 +3,7 @@ package com.arte.ai.web.controller;
 import com.arte.ai.api.tool.AssistantToolManager;
 import com.arte.ai.pojo.tool.AssistantToolCommand;
 import com.arte.ai.pojo.tool.AssistantToolConfigurationCommand;
+import com.arte.ai.pojo.tool.AssistantToolOptionView;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
@@ -18,13 +19,13 @@ import java.util.List;
  * @since 2026/9/27 ✾
  */
 @RestController
-@RequestMapping("/ai/assistants/{assistantId}/tools")
+@RequestMapping("/ai/assistants")
 @RequiredArgsConstructor
 public class AssistantToolController {
 
     private final AssistantToolManager assistantToolManager;
 
-    @PostMapping
+    @PostMapping("/{assistantId}/tools")
     public ResultContext<Boolean> replace(@PathVariable Integer assistantId,
                                           @RequestBody AssistantToolConfigurationCommand command) {
         assistantToolManager.replace(UserContext.getUserName(), command.workspaceId(),
@@ -32,7 +33,7 @@ public class AssistantToolController {
         return ResultContext.success(Boolean.TRUE);
     }
 
-    @GetMapping("/definitions")
+    @GetMapping("/{assistantId}/tools/definitions")
     public ResultContext<List<ToolDefinition>> definitions(
             @PathVariable Integer assistantId,
             @RequestParam(required = false) String workspaceId) {
@@ -40,10 +41,15 @@ public class AssistantToolController {
                 UserContext.getUserName(), workspaceId, assistantId));
     }
 
-    @GetMapping
+    @GetMapping("/{assistantId}/tools")
     public ResultContext<List<AssistantToolCommand>> configuration(
             @PathVariable Integer assistantId) {
         return ResultContext.success(assistantToolManager.listConfiguration(
                 UserContext.getUserName(), assistantId));
+    }
+
+    @GetMapping("/tool-options")
+    public ResultContext<List<AssistantToolOptionView>> options() {
+        return ResultContext.success(assistantToolManager.listAssistants(UserContext.getUserName()));
     }
 }

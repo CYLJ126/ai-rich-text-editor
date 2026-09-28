@@ -72,4 +72,6 @@ export default {
   'menu.AITool': 'AI 工具中心',
   'menu.AITool.AIToolProviders': '工具提供者',
   'menu.AITool.AIToolCatalog': '工具目录',
+  'menu.AITool.AIToolBindings': '用户工具绑定',
+  'menu.AITool.AIAssistantTools': '助手工具配置',
 };
