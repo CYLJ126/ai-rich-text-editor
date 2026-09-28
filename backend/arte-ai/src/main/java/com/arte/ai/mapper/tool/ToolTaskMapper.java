@@ -12,6 +12,13 @@ import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_tool_task", queryFields = {})
 public interface ToolTaskMapper extends BaseMapper<ToolTaskPo> {
+    List<ToolTaskPo> selectOwned(@Param("ownerId") String ownerId,
+                                 @Param("status") String status,
+                                 @Param("offset") long offset,
+                                 @Param("size") int size);
+
+    long countOwned(@Param("ownerId") String ownerId, @Param("status") String status);
+
     Optional<ToolTaskPo> selectByTaskId(@Param("taskId") String taskId);
 
     Optional<ToolTaskPo> selectByCallId(@Param("callId") String callId);

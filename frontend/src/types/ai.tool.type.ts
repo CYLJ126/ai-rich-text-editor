@@ -353,6 +353,17 @@ export interface ToolTaskHandle {
   metadata: JsonObject;
 }
 
+export interface ToolTaskQuery extends PageQuery {
+  status?: ToolTaskStatus;
+}
+
+export interface ToolTaskPage {
+  records: ToolTaskHandle[];
+  total: number;
+  current: number;
+  size: number;
+}
+
 export interface ToolUsage {
   startedAt: string;
   completedAt: string;
@@ -394,7 +405,7 @@ export type ToolResult<TOutput = JsonValue> =
   output: TOutput;
   content: ToolContent[];
   artifacts: ToolArtifact[];
-  usage: ToolUsage;
+  usage?: ToolUsage;
   metadata: JsonObject;
 }
   | {

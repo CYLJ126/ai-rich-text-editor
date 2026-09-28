@@ -9,6 +9,26 @@
         <result column="metadata" property="metadata"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
+    <sql id="OwnedTaskWhere">
+        owner_id = #{ownerId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+    </sql>
+    <select id="selectOwned" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_task
+        WHERE
+        <include refid="OwnedTaskWhere"/>
+        ORDER BY update_time DESC, id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+    <select id="countOwned" resultType="long">
+        SELECT COUNT(1)
+        FROM arte_ai_tool_task
+        WHERE
+        <include refid="OwnedTaskWhere"/>
+    </select>
     <select id="selectByTaskId" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_tool_task

@@ -19,6 +19,8 @@ import type {
   ToolReference,
   ToolResult,
   ToolTaskHandle,
+  ToolTaskPage,
+  ToolTaskQuery,
   ToolVersionDetailView,
   ToolVersionView,
 } from '@/types/ai.tool.type';
@@ -288,6 +290,19 @@ export function getToolTask(taskId: string, options?: ToolRequestOptions) {
     `/ai/tools/tasks/${encodeToolPathPart(taskId)}`,
     {method: 'GET', ...options},
   );
+}
+
+/** 分页查询当前用户异步任务 GET /arte/ai/tools/tasks */
+export function listToolTasks(
+  query: ToolTaskQuery = {},
+  options?: ToolRequestOptions,
+) {
+  const {pageSize, ...params} = query;
+  return requestToolApi<ToolTaskPage>('/ai/tools/tasks', {
+    method: 'GET',
+    params: {...params, size: pageSize},
+    ...options,
+  });
 }
 
 /** 查询异步任务结果 GET /arte/ai/tools/tasks/{taskId}/result */

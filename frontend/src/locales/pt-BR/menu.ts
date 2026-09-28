@@ -4,6 +4,8 @@ export default {
   'menu.AITool.AIToolCatalog': 'Catálogo de ferramentas',
   'menu.AITool.AIToolBindings': 'Vínculos de ferramentas',
   'menu.AITool.AIAssistantTools': 'Ferramentas do assistente',
+  'menu.AITool.AIToolCalls': 'Chamadas de ferramentas',
+  'menu.AITool.AIToolTasks': 'Tarefas assíncronas',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',
   'menu.home': 'Início',

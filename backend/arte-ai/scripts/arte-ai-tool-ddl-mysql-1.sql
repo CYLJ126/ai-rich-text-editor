@@ -229,6 +229,12 @@ create index idx_tool_task_worker
 create index idx_tool_task_resume
     on arte_ai_tool_task (resume_token_hash);
 
+create index idx_tool_task_owner_update
+    on arte_ai_tool_task (owner_id, update_time, id);
+
+create index idx_tool_task_owner_status_update
+    on arte_ai_tool_task (owner_id, status, update_time, id);
+
 create table arte_ai_tool_call_result
 (
     id           bigint auto_increment comment '主键'

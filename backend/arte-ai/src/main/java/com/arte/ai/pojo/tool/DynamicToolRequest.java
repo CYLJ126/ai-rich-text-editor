@@ -2,6 +2,8 @@ package com.arte.ai.pojo.tool;
 
 import com.arte.ai.api.tool.ToolRequest;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -13,6 +15,7 @@ import java.util.Map;
 public record DynamicToolRequest(Map<String, Object> arguments) implements ToolRequest {
 
     public DynamicToolRequest {
-        arguments = arguments == null ? Map.of() : Map.copyOf(arguments);
+        arguments = arguments == null ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
     }
 }

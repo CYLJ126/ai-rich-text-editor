@@ -2,6 +2,8 @@ package com.arte.ai.pojo.tool;
 
 import com.arte.ai.api.tool.ToolGateway;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,6 +35,7 @@ public record ToolCallRequest(
         if (context == null) {
             throw new IllegalArgumentException("context must not be null");
         }
-        arguments = arguments == null ? Map.of() : Map.copyOf(arguments);
+        arguments = arguments == null ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
     }
 }

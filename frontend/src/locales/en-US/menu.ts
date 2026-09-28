@@ -74,4 +74,6 @@ export default {
   'menu.AITool.AIToolCatalog': 'Tool Catalog',
   'menu.AITool.AIToolBindings': 'Tool Bindings',
   'menu.AITool.AIAssistantTools': 'Assistant Tools',
+  'menu.AITool.AIToolCalls': 'Tool Calls',
+  'menu.AITool.AIToolTasks': 'Async Tasks',
 };

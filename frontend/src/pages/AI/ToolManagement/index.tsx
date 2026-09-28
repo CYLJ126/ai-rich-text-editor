@@ -38,7 +38,15 @@ const foundations = [
     title: '统一调用',
     description: '同步、非阻塞和后台任务共享同一套调用契约。',
     icon: <ApiOutlined/>,
-    status: '接口契约已就绪',
+    status: '调用闭环已就绪',
+    path: '/AI/ToolManagement/Calls',
+  },
+  {
+    title: '异步任务',
+    description: '查询持久化任务、执行结果，并支持取消和安全恢复。',
+    icon: <AuditOutlined/>,
+    status: '任务闭环已就绪',
+    path: '/AI/ToolManagement/Tasks',
   },
   {
     title: '安全审批',
@@ -73,7 +81,7 @@ export default function ToolManagement() {
         showIcon
         type="info"
         message="一期前端公共基础已启用"
-        description="当前页面作为工具模块入口。工具目录、调用、审批、工作流和轨迹页面将在后续功能闭环中接入。"
+        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用与异步任务已接入；审批、工作流和轨迹将在后续功能闭环中接入。"
         style={{marginBottom: 16}}
       />
       <Row gutter={[16, 16]}>

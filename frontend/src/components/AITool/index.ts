@@ -11,3 +11,5 @@ export type {ToolErrorAlertProps} from './ToolErrorAlert';
 export {default as ToolErrorAlert} from './ToolErrorAlert';
 export type {ToolStatusTagProps} from './ToolStatusTag';
 export {default as ToolStatusTag} from './ToolStatusTag';
+export type {ToolResultViewProps} from './ToolResultView';
+export {default as ToolResultView} from './ToolResultView';

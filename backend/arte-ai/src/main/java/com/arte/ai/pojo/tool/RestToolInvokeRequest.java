@@ -3,6 +3,8 @@ package com.arte.ai.pojo.tool;
 import com.arte.ai.common.enums.tool.ToolExecutionModeEnum;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -23,6 +25,7 @@ public record RestToolInvokeRequest(
 ) {
     public RestToolInvokeRequest {
         if (tool == null) throw new IllegalArgumentException("tool must not be null");
-        arguments = arguments == null ? Map.of() : Map.copyOf(arguments);
+        arguments = arguments == null ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
     }
 }

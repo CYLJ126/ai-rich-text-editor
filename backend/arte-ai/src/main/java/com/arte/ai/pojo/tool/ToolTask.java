@@ -1,6 +1,8 @@
 package com.arte.ai.pojo.tool;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,7 +66,8 @@ public final class ToolTask {
         this.taskId = requireText(taskId, "taskId");
         this.callId = requireText(callId, "callId");
         this.tool = Objects.requireNonNull(tool, "tool must not be null");
-        this.arguments = Map.copyOf(Objects.requireNonNull(arguments, "arguments must not be null"));
+        this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(
+                Objects.requireNonNull(arguments, "arguments must not be null")));
         this.executionPolicy = Objects.requireNonNull(executionPolicy, "executionPolicy must not be null");
         this.ownerId = requireText(ownerId, "ownerId");
         this.subjectId = requireText(subjectId, "subjectId");

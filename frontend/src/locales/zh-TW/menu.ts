@@ -74,4 +74,6 @@ export default {
   'menu.AITool.AIToolCatalog': '工具目錄',
   'menu.AITool.AIToolBindings': '使用者工具繫結',
   'menu.AITool.AIAssistantTools': '助理工具設定',
+  'menu.AITool.AIToolCalls': '呼叫控制台',
+  'menu.AITool.AIToolTasks': '非同步任務',
 };

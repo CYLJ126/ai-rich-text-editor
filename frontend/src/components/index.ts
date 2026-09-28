@@ -29,6 +29,8 @@ export {
   type JsonSchemaFormRef,
   ToolErrorAlert,
   type ToolErrorAlertProps,
+  ToolResultView,
+  type ToolResultViewProps,
   ToolStatusTag,
   type ToolStatusTagProps,
 } from './AITool';

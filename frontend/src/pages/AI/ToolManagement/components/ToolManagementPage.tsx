@@ -9,10 +9,12 @@ const tabs = [
   {key: 'catalog', tab: '工具目录', path: '/AI/ToolManagement/Tools'},
   {key: 'bindings', tab: '用户绑定', path: '/AI/ToolManagement/Bindings'},
   {key: 'assistants', tab: '助手工具', path: '/AI/ToolManagement/Assistants'},
+  {key: 'calls', tab: '调用控制台', path: '/AI/ToolManagement/Calls'},
+  {key: 'tasks', tab: '异步任务', path: '/AI/ToolManagement/Tasks'},
 ];
 
 export interface ToolManagementPageProps {
-  activeKey: 'overview' | 'providers' | 'catalog' | 'bindings' | 'assistants';
+  activeKey: 'overview' | 'providers' | 'catalog' | 'bindings' | 'assistants' | 'calls' | 'tasks';
   title: string;
   subTitle?: string;
   extra?: React.ReactNode;

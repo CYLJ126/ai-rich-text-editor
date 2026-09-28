@@ -74,4 +74,6 @@ export default {
   'menu.AITool.AIToolCatalog': '工具目录',
   'menu.AITool.AIToolBindings': '用户工具绑定',
   'menu.AITool.AIAssistantTools': '助手工具配置',
+  'menu.AITool.AIToolCalls': '调用控制台',
+  'menu.AITool.AIToolTasks': '异步任务',
 };

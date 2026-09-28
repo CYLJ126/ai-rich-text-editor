@@ -4,6 +4,8 @@ export default {
   'menu.AITool.AIToolCatalog': 'ツールカタログ',
   'menu.AITool.AIToolBindings': 'ツールバインド',
   'menu.AITool.AIAssistantTools': 'アシスタントツール',
+  'menu.AITool.AIToolCalls': 'ツール呼び出し',
+  'menu.AITool.AIToolTasks': '非同期タスク',
   'menu.welcome': 'ようこそ',
   'menu.more-blocks': 'その他のブロック',
   'menu.home': 'ホーム',

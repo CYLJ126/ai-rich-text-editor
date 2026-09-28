@@ -6,6 +6,7 @@ import com.arte.ai.api.tool.ToolResult;
 import com.arte.ai.common.enums.tool.NeverToolCancellation;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.service.tool.DefaultToolGateway;
+import com.arte.ai.service.tool.ToolTaskQueryService;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import java.util.concurrent.CompletionStage;
 public class ToolGatewayController {
 
     private final ToolGateway gateway;
+    private final ToolTaskQueryService taskQueryService;
 
     @PostMapping("/invoke")
     public CompletionStage<ResultContext<ToolResult<? extends ToolResponse>>> invoke(
@@ -52,6 +54,14 @@ public class ToolGatewayController {
     @GetMapping("/tasks/{taskId}")
     public CompletionStage<ResultContext<?>> task(@PathVariable String taskId) {
         return gateway.findTask(taskId, UserContext.getUserName()).thenApply(ResultContext::success);
+    }
+
+    @GetMapping("/tasks")
+    public ResultContext<ToolTaskPage> tasks(
+            @RequestParam(required = false) ToolTaskHandle.Status status,
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(taskQueryService.listOwned(UserContext.getUserName(), status, current, size));
     }
 
     @GetMapping("/tasks/{taskId}/result")
