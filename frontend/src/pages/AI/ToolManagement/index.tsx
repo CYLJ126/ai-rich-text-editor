@@ -52,7 +52,8 @@ const foundations = [
     title: '安全审批',
     description: '权限、Guardrail 与高风险人工审批统一呈现。',
     icon: <SafetyCertificateOutlined/>,
-    status: '状态模型已就绪',
+    status: '审批安全闭环已就绪',
+    path: '/AI/ToolManagement/Approvals',
   },
   {
     title: '工作流',
@@ -81,7 +82,7 @@ export default function ToolManagement() {
         showIcon
         type="info"
         message="一期前端公共基础已启用"
-        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用与异步任务已接入；审批、工作流和轨迹将在后续功能闭环中接入。"
+        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用、异步任务和审批安全已接入；工作流和轨迹将在后续功能闭环中接入。"
         style={{marginBottom: 16}}
       />
       <Row gutter={[16, 16]}>

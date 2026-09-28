@@ -7,6 +7,7 @@ import com.arte.ai.pojo.tool.ToolBindingView;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,11 +26,13 @@ public class ToolBindingController {
     private final ToolBindingManager bindingManager;
 
     @PostMapping
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<ResolvedToolBinding> save(@RequestBody ToolBindingCommand command) {
         return ResultContext.success(bindingManager.save(UserContext.getUserName(), command));
     }
 
     @GetMapping
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<ToolBindingView>> list(
             @RequestParam(required = false) String workspaceId) {
         return ResultContext.success(bindingManager.list(UserContext.getUserName(), workspaceId));

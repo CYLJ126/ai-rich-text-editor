@@ -20,6 +20,11 @@
     </properties>
 
     <dependencies>
+        <!-- 工具域控制器的方法级权限注解；认证与过滤器仍由 arte-app 配置。 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.arte</groupId>
             <artifactId>arte-core</artifactId>

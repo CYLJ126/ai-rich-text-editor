@@ -76,4 +76,5 @@ export default {
   'menu.AITool.AIAssistantTools': '助手工具配置',
   'menu.AITool.AIToolCalls': '调用控制台',
   'menu.AITool.AIToolTasks': '异步任务',
+  'menu.AITool.AIToolApprovals': '审批安全',
 };

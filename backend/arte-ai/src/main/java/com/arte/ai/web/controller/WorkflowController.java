@@ -9,6 +9,7 @@ import com.arte.ai.service.tool.workflow.WorkflowPersistenceCodec;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -35,16 +36,19 @@ public class WorkflowController {
     private final WorkflowPersistenceCodec codec;
 
     @PostMapping("/drafts")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public ResultContext<WorkflowDefinition> saveDraft(@RequestBody WorkflowDraftRequest request) {
         return ResultContext.success(manager.saveDraft(principal(), definition(request)));
     }
 
     @PostMapping("/validate")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public ResultContext<WorkflowValidationResult> validate(@RequestBody WorkflowDraftRequest request) {
         return ResultContext.success(manager.validate(principal(), definition(request)));
     }
 
     @PostMapping("/{workflowId}/versions/{version}/publish")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public ResultContext<CompiledWorkflow> publish(@PathVariable String workflowId,
                                                    @PathVariable String version,
                                                    @RequestParam long expectedRowVersion) {
@@ -53,11 +57,13 @@ public class WorkflowController {
     }
 
     @GetMapping("/{workflowId}/versions")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public ResultContext<?> versions(@PathVariable String workflowId) {
         return ResultContext.success(manager.listVersions(UserContext.getUserName(), workflowId));
     }
 
     @PostMapping("/runs")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public CompletionStage<ResultContext<WorkflowRun>> start(@RequestBody WorkflowStartRequest request) {
         ToolPrincipal principal = principal();
         String owner = principal.ownerId();
@@ -75,16 +81,19 @@ public class WorkflowController {
     }
 
     @GetMapping("/runs/{runId}")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public CompletionStage<ResultContext<?>> run(@PathVariable String runId) {
         return runner.findRun(runId, UserContext.getUserName()).thenApply(ResultContext::success);
     }
 
     @PostMapping("/runs/{runId}/cancel")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public CompletionStage<ResultContext<WorkflowRun>> cancel(@PathVariable String runId) {
         return runner.cancel(runId, UserContext.getUserName()).thenApply(ResultContext::success);
     }
 
     @PostMapping("/runs/resume")
+    @PreAuthorize("@pcs.check('aiTool:workflow')")
     public CompletionStage<ResultContext<WorkflowRun>> resume(@RequestBody ToolResumeRequest request) {
         return runner.resume(request.resumeToken(), UserContext.getUserName())
                 .thenApply(ResultContext::success);

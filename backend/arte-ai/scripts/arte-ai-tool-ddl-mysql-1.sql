@@ -296,6 +296,9 @@ create index idx_tool_approval_pending
 create index idx_tool_approval_call
     on arte_ai_tool_approval (call_id, create_time);
 
+create index idx_tool_approval_owner_status_create
+    on arte_ai_tool_approval (create_by, status, create_time, id);
+
 create table arte_ai_tool_execution_event
 (
     id              bigint auto_increment comment '主键'

@@ -8,6 +8,7 @@ import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class AssistantToolController {
     private final AssistantToolManager assistantToolManager;
 
     @PostMapping("/{assistantId}/tools")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> replace(@PathVariable Integer assistantId,
                                           @RequestBody AssistantToolConfigurationCommand command) {
         assistantToolManager.replace(UserContext.getUserName(), command.workspaceId(),
@@ -34,6 +36,7 @@ public class AssistantToolController {
     }
 
     @GetMapping("/{assistantId}/tools/definitions")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<ToolDefinition>> definitions(
             @PathVariable Integer assistantId,
             @RequestParam(required = false) String workspaceId) {
@@ -42,6 +45,7 @@ public class AssistantToolController {
     }
 
     @GetMapping("/{assistantId}/tools")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<AssistantToolCommand>> configuration(
             @PathVariable Integer assistantId) {
         return ResultContext.success(assistantToolManager.listConfiguration(
@@ -49,6 +53,7 @@ public class AssistantToolController {
     }
 
     @GetMapping("/tool-options")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<AssistantToolOptionView>> options() {
         return ResultContext.success(assistantToolManager.listAssistants(UserContext.getUserName()));
     }

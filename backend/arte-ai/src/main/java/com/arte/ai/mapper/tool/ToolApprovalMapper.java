@@ -11,6 +11,13 @@ import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_tool_approval", queryFields = {})
 public interface ToolApprovalMapper extends BaseMapper<ToolApprovalPo> {
+    List<ToolApprovalPo> selectOwned(@Param("ownerId") String ownerId,
+                                     @Param("status") String status,
+                                     @Param("offset") long offset,
+                                     @Param("size") int size);
+
+    long countOwned(@Param("ownerId") String ownerId, @Param("status") String status);
+
     Optional<ToolApprovalPo> selectByRequestId(@Param("requestId") String requestId);
 
     int decideIfPending(@Param("requestId") String requestId, @Param("status") String status,

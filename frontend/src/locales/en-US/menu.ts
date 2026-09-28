@@ -76,4 +76,5 @@ export default {
   'menu.AITool.AIAssistantTools': 'Assistant Tools',
   'menu.AITool.AIToolCalls': 'Tool Calls',
   'menu.AITool.AIToolTasks': 'Async Tasks',
+  'menu.AITool.AIToolApprovals': 'Approvals & Security',
 };

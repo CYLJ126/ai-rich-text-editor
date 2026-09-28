@@ -5,6 +5,34 @@
         <result column="display_arguments" property="displayArguments"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
+    <sql id="OwnedApprovalWhere">
+        create_by = #{ownerId}
+        <choose>
+            <when test="status == 'pending'">
+                AND status = 'pending' AND expires_at &gt; CURRENT_TIMESTAMP(3)
+            </when>
+            <when test="status == 'expired'">
+                AND (status = 'expired' OR (status = 'pending' AND expires_at &lt;= CURRENT_TIMESTAMP(3)))
+            </when>
+            <when test="status != null and status != '' and status != 'all'">
+                AND status = #{status}
+            </when>
+        </choose>
+    </sql>
+    <select id="selectOwned" resultMap="BaseResultMap">
+        SELECT *
+        FROM arte_ai_tool_approval
+        WHERE
+        <include refid="OwnedApprovalWhere"/>
+        ORDER BY create_time DESC, id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+    <select id="countOwned" resultType="long">
+        SELECT COUNT(1)
+        FROM arte_ai_tool_approval
+        WHERE
+        <include refid="OwnedApprovalWhere"/>
+    </select>
     <select id="selectByRequestId" resultMap="BaseResultMap">
         SELECT *
         FROM arte_ai_tool_approval

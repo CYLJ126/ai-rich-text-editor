@@ -1,22 +1,29 @@
 import {encodeToolPathPart, requestToolApi, type ToolRequestOptions,} from './ai.tool.request';
-import type {ApprovalDecisionRequest, ToolApprovalRecord,} from '@/types/ai.tool.type';
-
-export type ToolApprovalStatus =
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'expired'
-  | 'all';
+import type {
+  ApprovalDecisionRequest,
+  ToolApprovalPage,
+  ToolApprovalQuery,
+  ToolApprovalRecord,
+  ToolGuardrailView,
+} from '@/types/ai.tool.type';
 
 /** 查询当前用户审批记录 GET /arte/ai/tool-approvals */
 export function listToolApprovals(
-  status: ToolApprovalStatus = 'pending',
-  limit = 100,
+  query: ToolApprovalQuery = {},
   options?: ToolRequestOptions,
 ) {
-  return requestToolApi<ToolApprovalRecord[]>('/ai/tool-approvals', {
+  const {pageSize, ...params} = query;
+  return requestToolApi<ToolApprovalPage>('/ai/tool-approvals', {
     method: 'GET',
-    params: {status, limit},
+    params: {...params, size: pageSize},
+    ...options,
+  });
+}
+
+/** 查询服务端固定 Guardrail 执行链 GET /arte/ai/tool-security/guardrails */
+export function listToolGuardrails(options?: ToolRequestOptions) {
+  return requestToolApi<ToolGuardrailView[]>('/ai/tool-security/guardrails', {
+    method: 'GET',
     ...options,
   });
 }
@@ -43,4 +50,3 @@ export function decideToolApproval(
     {method: 'POST', data: decision, ...options},
   );
 }
-

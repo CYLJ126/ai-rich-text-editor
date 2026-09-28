@@ -1,3 +1,4 @@
+export * from './approval';
 export * from './binding';
 export * from './constants';
 export * from './errors';

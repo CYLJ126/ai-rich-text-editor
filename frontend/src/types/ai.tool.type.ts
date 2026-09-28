@@ -430,31 +430,63 @@ export interface ToolResumeRequest {
   resumeToken: string;
 }
 
+export const TOOL_APPROVAL_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+  'expired',
+] as const;
+export type ToolApprovalStatus = (typeof TOOL_APPROVAL_STATUSES)[number];
+
 export interface ToolApprovalRecord {
   id: number;
   requestId: string;
   callId: string;
-  taskId: string;
+  taskId?: string;
   workflowRunId?: string;
   toolId: string;
   toolVersion: string;
   argumentsDigest: string;
   displayArguments: JsonObject;
   summary?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  status: ToolApprovalStatus;
   approverId?: string;
   decisionReason?: string;
   expiresAt: string;
   decidedAt?: string;
-  createBy: string;
   createTime: string;
-  updateBy: string;
   updateTime: string;
+}
+
+export interface ToolApprovalQuery extends PageQuery {
+  status?: ToolApprovalStatus | 'all';
+}
+
+export interface ToolApprovalPage {
+  records: ToolApprovalRecord[];
+  total: number;
+  current: number;
+  size: number;
 }
 
 export interface ApprovalDecisionRequest {
   approved: boolean;
   reason?: string;
+}
+
+export type GuardrailPhase =
+  | 'discovery'
+  | 'input'
+  | 'pre-execution'
+  | 'post-execution'
+  | 'output';
+
+export interface ToolGuardrailView {
+  name: string;
+  order: number;
+  phases: GuardrailPhase[];
+  implementation: string;
+  serverEnforced: boolean;
 }
 
 export interface ToolCallStatistics {

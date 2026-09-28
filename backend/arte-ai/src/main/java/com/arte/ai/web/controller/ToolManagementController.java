@@ -8,6 +8,7 @@ import com.arte.ai.pojo.tool.*;
 import com.arte.ai.service.tool.ToolManagementQueryService;
 import com.arte.core.pojo.ResultContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ public class ToolManagementController {
     private final ToolManagementQueryService queryService;
 
     @GetMapping("/providers")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<ToolProviderView>> providers(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String providerType) {
@@ -37,11 +39,13 @@ public class ToolManagementController {
     }
 
     @GetMapping("/providers/{providerId}")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<ToolProviderView> provider(@PathVariable String providerId) {
         return ResultContext.success(queryService.findProvider(providerId).orElse(null));
     }
 
     @GetMapping("/catalog")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<ToolCatalogPage> catalog(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String providerId,
@@ -52,23 +56,27 @@ public class ToolManagementController {
     }
 
     @PostMapping("/providers/{providerId}/synchronize")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public CompletionStage<ResultContext<ToolProviderSyncResult>> synchronize(
             @PathVariable String providerId) {
         return providerManager.synchronize(providerId).thenApply(ResultContext::success);
     }
 
     @PostMapping("/providers/synchronize")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public CompletionStage<ResultContext<List<ToolProviderSyncResult>>> synchronizeAll() {
         return providerManager.synchronizeAll().thenApply(ResultContext::success);
     }
 
     @PostMapping("/providers/{providerId}/enable")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> enableProvider(@PathVariable String providerId) {
         providerManager.enable(providerId);
         return ResultContext.success(Boolean.TRUE);
     }
 
     @PostMapping("/providers/{providerId}/disable")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> disableProvider(
             @PathVariable String providerId,
             @RequestParam(required = false) String reason) {
@@ -77,6 +85,7 @@ public class ToolManagementController {
     }
 
     @PostMapping("/{namespace}/{name}/{version}/publish")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> publish(@PathVariable String namespace,
                                           @PathVariable String name,
                                           @PathVariable String version) {
@@ -85,6 +94,7 @@ public class ToolManagementController {
     }
 
     @PostMapping("/{namespace}/{name}/{version}/deprecate")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> deprecate(@PathVariable String namespace,
                                             @PathVariable String name,
                                             @PathVariable String version,
@@ -94,6 +104,7 @@ public class ToolManagementController {
     }
 
     @PostMapping("/{namespace}/{name}/{version}/disable")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> disable(@PathVariable String namespace,
                                           @PathVariable String name,
                                           @PathVariable String version,
@@ -103,11 +114,13 @@ public class ToolManagementController {
     }
 
     @PostMapping("/search")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<ToolDefinition>> search(@RequestBody(required = false) ToolQuery query) {
         return ResultContext.success(registry.search(query));
     }
 
     @GetMapping("/{namespace}/{name}/{version}")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<ToolDefinition> resolve(@PathVariable String namespace,
                                                  @PathVariable String name,
                                                  @PathVariable String version) {
@@ -118,6 +131,7 @@ public class ToolManagementController {
     }
 
     @GetMapping("/{namespace}/{name}/{version}/management")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<ToolVersionDetailView> versionDetail(
             @PathVariable String namespace,
             @PathVariable String name,
@@ -127,6 +141,7 @@ public class ToolManagementController {
     }
 
     @GetMapping("/{namespace}/{name}/versions")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<List<ToolVersionView>> listVersions(@PathVariable String namespace,
                                                              @PathVariable String name) {
         return ResultContext.success(lifecycleManager.listVersions(namespace, name));

@@ -6,6 +6,7 @@ export default {
   'menu.AITool.AIAssistantTools': 'Assistant Tools',
   'menu.AITool.AIToolCalls': 'Tool Calls',
   'menu.AITool.AIToolTasks': 'Async Tasks',
+  'menu.AITool.AIToolApprovals': 'Approvals & Security',
   'menu.welcome': 'خوش آمدید',
   'menu.more-blocks': 'بلوک های بیشتر',
   'menu.home': 'خانه',

@@ -4,9 +4,13 @@ import com.arte.ai.api.tool.security.ToolApprovalService;
 import com.arte.ai.mapper.tool.ToolApprovalMapper;
 import com.arte.ai.pojo.tool.ApprovalDecisionRequest;
 import com.arte.ai.pojo.tool.ToolApprovalDecision;
+import com.arte.ai.pojo.tool.ToolApprovalPage;
+import com.arte.ai.pojo.tool.ToolApprovalView;
+import com.arte.ai.service.tool.security.ToolApprovalQueryService;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -25,22 +29,26 @@ public class ToolApprovalController {
 
     private final ToolApprovalService approvalService;
     private final ToolApprovalMapper approvalMapper;
+    private final ToolApprovalQueryService queryService;
 
     @GetMapping
-    public ResultContext<?> list(@RequestParam(defaultValue = "pending") String status,
-                                 @RequestParam(defaultValue = "100") int limit) {
-        return ResultContext.success(approvalMapper.selectByOwner(UserContext.getUserName(),
-                status.toLowerCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 200))));
+    @PreAuthorize("@pcs.check('aiTool:approve')")
+    public ResultContext<ToolApprovalPage> list(@RequestParam(defaultValue = "pending") String status,
+                                                @RequestParam(defaultValue = "1") int current,
+                                                @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(queryService.listOwned(
+                UserContext.getUserName(), status, current, size));
     }
 
     @GetMapping("/{requestId}")
-    public ResultContext<?> detail(@PathVariable String requestId) {
-        String owner = UserContext.getUserName();
-        return ResultContext.success(approvalMapper.selectByRequestId(requestId)
-                .filter(value -> owner.equals(value.getCreateBy())));
+    @PreAuthorize("@pcs.check('aiTool:approve')")
+    public ResultContext<ToolApprovalView> detail(@PathVariable String requestId) {
+        return ResultContext.success(queryService.findOwned(
+                UserContext.getUserName(), requestId).orElse(null));
     }
 
     @PostMapping("/{requestId}/decision")
+    @PreAuthorize("@pcs.check('aiTool:approve')")
     public CompletionStage<ResultContext<Void>> decide(@PathVariable String requestId,
                                                        @RequestBody ApprovalDecisionRequest request) {
         String owner = UserContext.getUserName();

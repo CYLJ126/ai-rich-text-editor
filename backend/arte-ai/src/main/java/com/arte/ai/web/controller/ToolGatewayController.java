@@ -10,6 +10,7 @@ import com.arte.ai.service.tool.ToolTaskQueryService;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -32,6 +33,7 @@ public class ToolGatewayController {
     private final ToolTaskQueryService taskQueryService;
 
     @PostMapping("/invoke")
+    @PreAuthorize("@pcs.check('aiTool:invoke')")
     public CompletionStage<ResultContext<ToolResult<? extends ToolResponse>>> invoke(
             @RequestBody RestToolInvokeRequest request) {
         String ownerId = UserContext.getUserName();
@@ -52,11 +54,13 @@ public class ToolGatewayController {
     }
 
     @GetMapping("/tasks/{taskId}")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public CompletionStage<ResultContext<?>> task(@PathVariable String taskId) {
         return gateway.findTask(taskId, UserContext.getUserName()).thenApply(ResultContext::success);
     }
 
     @GetMapping("/tasks")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public ResultContext<ToolTaskPage> tasks(
             @RequestParam(required = false) ToolTaskHandle.Status status,
             @RequestParam(defaultValue = "1") int current,
@@ -65,16 +69,19 @@ public class ToolGatewayController {
     }
 
     @GetMapping("/tasks/{taskId}/result")
+    @PreAuthorize("@pcs.check('aiTool:list')")
     public CompletionStage<ResultContext<?>> result(@PathVariable String taskId) {
         return gateway.findTaskResult(taskId, UserContext.getUserName()).thenApply(ResultContext::success);
     }
 
     @PostMapping("/calls/{callId}/cancel")
+    @PreAuthorize("@pcs.check('aiTool:invoke')")
     public CompletionStage<ResultContext<Boolean>> cancel(@PathVariable String callId) {
         return gateway.cancel(callId, UserContext.getUserName()).thenApply(ResultContext::success);
     }
 
     @PostMapping("/resume")
+    @PreAuthorize("@pcs.check('aiTool:invoke')")
     public CompletionStage<ResultContext<ToolResult<? extends ToolResponse>>> resume(
             @RequestBody ToolResumeRequest request) {
         return gateway.resume(request.resumeToken(), UserContext.getUserName())

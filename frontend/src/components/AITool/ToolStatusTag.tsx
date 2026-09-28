@@ -2,6 +2,7 @@ import {Tag} from 'antd';
 import React from 'react';
 import {
   type StatusPresentation,
+  TOOL_APPROVAL_PRESENTATION,
   TOOL_EXECUTION_MODE_PRESENTATION,
   TOOL_LIFECYCLE_PRESENTATION,
   TOOL_RESULT_PRESENTATION,
@@ -9,6 +10,7 @@ import {
   TOOL_TASK_PRESENTATION,
 } from '@/features/ai-tool';
 import type {
+  ToolApprovalStatus,
   ToolExecutionMode,
   ToolLifecycleState,
   ToolResultStatus,
@@ -21,7 +23,8 @@ type ToolStatus =
   | ToolResultStatus
   | ToolTaskStatus
   | ToolRiskLevel
-  | ToolExecutionMode;
+  | ToolExecutionMode
+  | ToolApprovalStatus;
 
 export interface ToolStatusTagProps {
   status?: ToolStatus | null;
@@ -29,6 +32,7 @@ export interface ToolStatusTagProps {
 }
 
 const PRESENTATIONS: Partial<Record<ToolStatus, StatusPresentation>> = {
+  ...TOOL_APPROVAL_PRESENTATION,
   ...TOOL_LIFECYCLE_PRESENTATION,
   ...TOOL_RESULT_PRESENTATION,
   ...TOOL_TASK_PRESENTATION,

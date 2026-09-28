@@ -1,5 +1,6 @@
 import {AI_TOOL_MENU_CODE, AI_TOOL_OPERATION_CODES} from '@/access';
 import type {
+  ToolApprovalStatus,
   ToolExecutionMode,
   ToolLifecycleState,
   ToolResultStatus,
@@ -68,6 +69,16 @@ export const TOOL_EXECUTION_MODE_PRESENTATION: Record<
   blocking: {label: '同步执行', color: 'blue'},
   'non-blocking': {label: '非阻塞执行', color: 'cyan'},
   deferred: {label: '后台任务', color: 'purple'},
+};
+
+export const TOOL_APPROVAL_PRESENTATION: Record<
+  ToolApprovalStatus,
+  StatusPresentation
+> = {
+  pending: {label: '等待审批', color: 'warning'},
+  approved: {label: '已批准', color: 'success'},
+  rejected: {label: '已拒绝', color: 'error'},
+  expired: {label: '已过期', color: 'default'},
 };
 
 export function isTerminalToolStatus(
