@@ -28,12 +28,27 @@
         WHERE call_id = #{callId}
           AND owner_id = #{ownerId} LIMIT 1
     </select>
-    <select id="selectDetails" resultMap="BaseResultMap">
-        SELECT * FROM arte_ai_tool_call
-        WHERE owner_id = #{ownerId}
+    <sql id="OwnedDetailsWhere">
+        owner_id = #{ownerId}
         <if test="toolId != null and toolId != ''">AND tool_id = #{toolId}</if>
         <if test="status != null and status != ''">AND status = #{status}</if>
+    </sql>
+    <select id="selectDetails" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_call
+        WHERE
+        <include refid="OwnedDetailsWhere"/>
         ORDER BY create_time DESC, id DESC LIMIT #{limit}
+    </select>
+    <select id="selectDetailsPage" resultMap="BaseResultMap">
+        SELECT * FROM arte_ai_tool_call
+        WHERE
+        <include refid="OwnedDetailsWhere"/>
+        ORDER BY create_time DESC, id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countDetails" resultType="long">
+        SELECT COUNT(1) FROM arte_ai_tool_call
+        WHERE
+        <include refid="OwnedDetailsWhere"/>
     </select>
     <update id="transitionStatus">
         UPDATE arte_ai_tool_call

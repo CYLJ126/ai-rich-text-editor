@@ -563,6 +563,13 @@ export interface ToolCallDetail {
   retryCount: number;
 }
 
+export interface ToolCallPage {
+  records: ToolCallDetail[];
+  total: number;
+  current: number;
+  size: number;
+}
+
 export type ToolExecutionEventType =
   | 'REQUESTED'
   | 'RESOLVED'

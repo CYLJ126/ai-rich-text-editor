@@ -184,6 +184,12 @@ create index idx_tool_call_tool
 create index idx_tool_call_status
     on arte_ai_tool_call (status, update_time);
 
+create index idx_tool_call_owner_status_create
+    on arte_ai_tool_call (owner_id, status, create_time, id);
+
+create index idx_tool_call_owner_tool_create
+    on arte_ai_tool_call (owner_id, tool_id, create_time, id);
+
 create index idx_tool_call_message
     on arte_ai_tool_call (conv_id, message_id);
 

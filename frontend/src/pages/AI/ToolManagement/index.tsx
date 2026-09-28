@@ -63,9 +63,10 @@ const foundations = [
   },
   {
     title: '可观测性',
-    description: '调用、任务、审批和轨迹使用统一错误及状态语义。',
+    description: '查询调用明细、基础统计和完整执行事件轨迹。',
     icon: <AuditOutlined/>,
-    status: '查询接口已就绪',
+    status: '轨迹统计闭环已就绪',
+    path: '/AI/ToolManagement/Observability',
   },
 ];
 
@@ -82,7 +83,7 @@ export default function ToolManagement() {
         showIcon
         type="info"
         message="一期前端公共基础已启用"
-        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用、异步任务和审批安全已接入；工作流和轨迹将在后续功能闭环中接入。"
+        description="当前页面作为工具模块入口。工具目录、绑定、助手配置、调用、异步任务、审批安全和轨迹统计已接入；工作流将在后续功能闭环中接入。"
         style={{marginBottom: 16}}
       />
       <Row gutter={[16, 16]}>

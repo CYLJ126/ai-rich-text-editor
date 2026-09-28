@@ -1,6 +1,9 @@
 package com.arte.ai.web.controller;
 
+import com.arte.ai.pojo.tool.ToolCallDetail;
+import com.arte.ai.pojo.tool.ToolCallPage;
 import com.arte.ai.pojo.tool.ToolCallStatistics;
+import com.arte.ai.pojo.tool.ToolExecutionTrace;
 import com.arte.ai.service.tool.observability.ToolCallQueryService;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserContext;
@@ -22,16 +25,19 @@ public class ToolObservabilityController {
 
     @GetMapping("/calls")
     @PreAuthorize("@pcs.check('aiTool:list')")
-    public ResultContext<?> calls(@RequestParam(required = false) String toolId,
-                                  @RequestParam(required = false) String status,
-                                  @RequestParam(defaultValue = "100") int limit) {
-        return ResultContext.success(service.details(UserContext.getUserName(), toolId, status, limit));
+    public ResultContext<ToolCallPage> calls(@RequestParam(required = false) String toolId,
+                                             @RequestParam(required = false) String status,
+                                             @RequestParam(defaultValue = "1") int current,
+                                             @RequestParam(defaultValue = "20") int size) {
+        return ResultContext.success(service.page(UserContext.getUserName(), toolId, status,
+                current, size));
     }
 
     @GetMapping("/calls/{callId}")
     @PreAuthorize("@pcs.check('aiTool:list')")
-    public ResultContext<?> call(@PathVariable String callId) {
-        return ResultContext.success(service.detail(UserContext.getUserName(), callId));
+    public ResultContext<ToolCallDetail> call(@PathVariable String callId) {
+        return ResultContext.success(service.detail(
+                UserContext.getUserName(), callId).orElse(null));
     }
 
     @GetMapping("/statistics")
@@ -43,7 +49,8 @@ public class ToolObservabilityController {
 
     @GetMapping("/traces/{traceId}")
     @PreAuthorize("@pcs.check('aiTool:list')")
-    public ResultContext<?> trace(@PathVariable String traceId) {
-        return ResultContext.success(service.trace(UserContext.getUserName(), traceId));
+    public ResultContext<ToolExecutionTrace> trace(@PathVariable String traceId) {
+        return ResultContext.success(service.trace(
+                UserContext.getUserName(), traceId).orElse(null));
     }
 }

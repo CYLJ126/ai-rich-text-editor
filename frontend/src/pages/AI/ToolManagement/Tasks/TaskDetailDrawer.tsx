@@ -1,4 +1,5 @@
 import {CloseCircleOutlined, PlayCircleOutlined, ReloadOutlined,} from '@ant-design/icons';
+import {useNavigate} from '@umijs/max';
 import {
   Alert,
   Button,
@@ -41,6 +42,7 @@ export default function TaskDetailDrawer({
                                            onClose,
                                            onChanged,
                                          }: TaskDetailDrawerProps) {
+  const navigate = useNavigate();
   const [task, setTask] = useState<ToolTaskHandle>();
   const [result, setResult] = useState<ToolResult>();
   const [loading, setLoading] = useState(false);
@@ -201,7 +203,18 @@ export default function TaskDetailDrawer({
                 <Typography.Text copyable>{task.taskId}</Typography.Text>
               </Descriptions.Item>
               <Descriptions.Item label="调用 ID">
-                <Typography.Text copyable>{task.callId}</Typography.Text>
+                <Space>
+                  <Typography.Text copyable>{task.callId}</Typography.Text>
+                  <Typography.Link
+                    onClick={() =>
+                      navigate(
+                        `/AI/ToolManagement/Observability?callId=${encodeURIComponent(task.callId)}`,
+                      )
+                    }
+                  >
+                    查看轨迹
+                  </Typography.Link>
+                </Space>
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">
                 {formatTime(task.createdAt)}

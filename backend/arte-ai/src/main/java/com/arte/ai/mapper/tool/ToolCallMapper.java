@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @MybatisParams(value = "arte_ai_tool_call", queryFields = {})
@@ -36,8 +37,18 @@ public interface ToolCallMapper extends BaseMapper<ToolCallPo> {
     Optional<ToolCallPo> selectOwned(@Param("callId") String callId,
                                      @Param("ownerId") String ownerId);
 
-    java.util.List<ToolCallPo> selectDetails(@Param("ownerId") String ownerId,
-                                             @Param("toolId") String toolId,
-                                             @Param("status") String status,
-                                             @Param("limit") int limit);
+    List<ToolCallPo> selectDetails(@Param("ownerId") String ownerId,
+                                   @Param("toolId") String toolId,
+                                   @Param("status") String status,
+                                   @Param("limit") int limit);
+
+    List<ToolCallPo> selectDetailsPage(@Param("ownerId") String ownerId,
+                                       @Param("toolId") String toolId,
+                                       @Param("status") String status,
+                                       @Param("offset") long offset,
+                                       @Param("size") int size);
+
+    long countDetails(@Param("ownerId") String ownerId,
+                      @Param("toolId") String toolId,
+                      @Param("status") String status);
 }

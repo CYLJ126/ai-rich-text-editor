@@ -1,10 +1,17 @@
 import {encodeToolPathPart, requestToolApi, type ToolRequestOptions,} from './ai.tool.request';
-import type {ToolCallDetail, ToolCallStatistics, ToolExecutionTrace,} from '@/types/ai.tool.type';
+import type {
+  ToolCallDetail,
+  ToolCallPage,
+  ToolCallStatistics,
+  ToolExecutionTrace,
+  ToolResultStatus,
+} from '@/types/ai.tool.type';
 
 export interface ToolCallQuery {
   toolId?: string;
-  status?: string;
-  limit?: number;
+  status?: ToolResultStatus;
+  current?: number;
+  pageSize?: number;
 }
 
 /** 查询工具调用明细 GET /arte/ai/tool-observability/calls */
@@ -12,9 +19,10 @@ export function listToolCalls(
   query: ToolCallQuery = {},
   options?: ToolRequestOptions,
 ) {
-  return requestToolApi<ToolCallDetail[]>('/ai/tool-observability/calls', {
+  const {pageSize, ...params} = query;
+  return requestToolApi<ToolCallPage>('/ai/tool-observability/calls', {
     method: 'GET',
-    params: {...query},
+    params: {...params, size: pageSize},
     ...options,
   });
 }
