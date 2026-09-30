@@ -60,6 +60,11 @@ public class LocalRichTextFileStorageProvider implements RichTextFileStorageProv
     }
 
     @Override
+    public byte[] readBytesByUrl(String url) throws IOException {
+        return Files.readAllBytes(resolveStoredFile(url));
+    }
+
+    @Override
     public void deleteByUrl(String url) throws IOException {
         Files.deleteIfExists(resolveStoredFile(url));
     }

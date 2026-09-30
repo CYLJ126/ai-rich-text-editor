@@ -24,6 +24,7 @@ export interface MindMapEditorHandle {
 interface MindMapEditorProps {
   data: MindElixirData;
   isDark: boolean;
+  editable?: boolean;
 }
 
 function getLocale() {
@@ -34,7 +35,7 @@ function getLocale() {
 export const MindMapEditor = forwardRef<
   MindMapEditorHandle,
   MindMapEditorProps
->(({ data, isDark }, ref) => {
+>(({ data, isDark, editable = true }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<MindElixirInstance | undefined>(undefined);
 
@@ -97,10 +98,10 @@ export const MindMapEditor = forwardRef<
     const mind = new MindElixir({
       el: containerRef.current,
       direction: SIDE,
-      editable: true,
-      keypress: true,
-      toolBar: true,
-      contextMenu: { locale: getLocale() },
+      editable,
+      keypress: editable,
+      toolBar: editable,
+      contextMenu: editable ? { locale: getLocale() } : false,
       overflowHidden: false,
       theme: isDark ? DARK_THEME : THEME,
     });
@@ -114,7 +115,7 @@ export const MindMapEditor = forwardRef<
       mind.destroy();
       instanceRef.current = undefined;
     };
-  }, [data, isDark]);
+  }, [data, isDark, editable]);
 
   return <div ref={containerRef} className="size-full overflow-hidden" />;
 });

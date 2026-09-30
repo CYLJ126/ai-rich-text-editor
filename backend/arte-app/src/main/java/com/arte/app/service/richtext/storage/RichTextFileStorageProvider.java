@@ -18,6 +18,8 @@ public interface RichTextFileStorageProvider {
 
     String readTextByUrl(String url) throws IOException;
 
+    byte[] readBytesByUrl(String url) throws IOException;
+
     void deleteByUrl(String url) throws IOException;
 
     void makeArticleImagesPermanent(String contentJson, String contentMd);

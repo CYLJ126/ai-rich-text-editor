@@ -15,6 +15,8 @@ import lombok.Getter;
 public enum SceneTypeEnum implements IEnum<String>, MyEnum<String> {
     CHAT_PAGE("chat_management", "聊天页面"),
     BASIC_WRITING_CHAT("basic_writing_chat", "基础写作侧边栏问答"),
+    ARTICLE_DRAWIO("article_drawio", "文章 Draw.io 图表生成"),
+    ARTICLE_MINDMAP("article_mindmap", "文章思维导图生成"),
     WRITING_SUMMARY("writing_summary", "文章总结或总结润色"),
     WRITING_PROMPT("writing_prompt", "文章补全或续写");
 

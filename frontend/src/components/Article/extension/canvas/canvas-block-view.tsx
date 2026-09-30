@@ -24,7 +24,6 @@ import MindElixir, {type MindElixirData} from 'mind-elixir';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useArticleInfoStore} from '@/components/Article/stores/articleInfoStore';
 import {useEditorStore} from '@/components/Article/stores/editorStore';
-import {simpleRequest} from '@/components/Article/utitilies/ai-adapter';
 import {Button} from '@/components/ui/button';
 import {Dialog, DialogContent, DialogHeader, DialogTitle,} from '@/components/ui/dialog';
 import {useThemeContext} from '@/contexts/ThemeContext';
@@ -32,6 +31,8 @@ import {cn} from '@/lib/utils';
 import {deleteUploadedFile, readUploadedText, uploadFile, uploadImage,} from '@/services/upload';
 import type {CanvasBlockAttrs, CanvasType} from './canvas';
 import {MindMapEditor, type MindMapEditorHandle} from './mindmap-editor';
+import {CanvasAiDialog} from './canvas-ai-dialog';
+import type {ModelConfig} from '@/types/ai.type';
 
 const DRAWIO_BASE_URL =
   '/drawio/?embed=1&ui=atlas&spin=1&proto=json&saveAndExit=1&noExitBtn=1';
@@ -178,7 +179,7 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
   const saveArticle = useArticleInfoStore((state) => state.saveArticle);
   const { isDark } = useThemeContext();
   const [open, setOpen] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [uploadingPreview, setUploadingPreview] = useState(false);
   const [uploadingSource, setUploadingSource] = useState(false);
   const [loadingSource, setLoadingSource] = useState(false);
@@ -603,57 +604,47 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
     }
   };
 
-  const generateWithAi = async () => {
-    const prompt = window.prompt(
-      canvasType === 'mindmap'
-        ? i18nText("app.article.canvas.canvasblockview.4b2c9a18")
-        : i18nText("app.article.canvas.canvasblockview.0eac6b9a"),
-    );
-    if (!prompt?.trim()) return;
+  const getAiSource = async () => {
+    if (attrs.sourceUrl) return readUploadedText(attrs.sourceUrl as string);
+    return attrs.data ? decodeCanvasData(attrs.data as string) : '';
+  };
 
-    setGenerating(true);
+  const saveAiConversation = async (aiConversationId: string, model: ModelConfig) => {
+    updateAttrs({aiConversationId, aiModelId: Number(attrs.aiModelId) || model.id,
+      aiModelName: attrs.aiModelName || model.modelName || model.modelId});
+    if (!await saveArticle(editor, 'manual')) {
+      throw new Error(i18nText('app.article.canvas.ai.articleSaveFailed'));
+    }
+  };
+
+  const applyAiCanvas = async (source: string, svg: Blob) => {
+    const sourceFile = canvasType === 'mindmap'
+      ? mindMapToFile(JSON.parse(source) as MindElixirData)
+      : xmlToFile(source);
+    const previewFile = await normalizeSvgFile(svg, `${canvasType}-${crypto.randomUUID()}.svg`);
+    let sourceUrl = '';
+    let previewUrl = '';
+    let updated = false;
     try {
-      const response = await simpleRequest(
-        canvasType === 'mindmap'
-          ? {
-              text: prompt,
-              action:
-                'Create a clear hierarchical mind map. Return only valid JSON compatible with Mind Elixir. The root object must contain nodeData; every node must contain a unique id and a topic, and may contain children. Use Chinese labels when appropriate. Do not use markdown fences or explanations.',
-              responseFormat: 'Mind Elixir JSON',
-            }
-          : {
-              text: prompt,
-              action:
-                'Create a clear Draw.io flowchart. Return only valid, uncompressed mxGraphModel XML. Include cells 0 and 1, use unique ids, and use Chinese labels when appropriate. Do not use markdown code fences or explanatory text.',
-              responseFormat: 'Draw.io mxGraphModel XML',
-            },
-      );
-
-      if (canvasType === 'mindmap') {
-        const json = response
-          .replace(/^```json\s*|^```\s*|\s*```$/g, '')
-          .trim();
-        const data = JSON.parse(json) as MindElixirData;
-        if (!data?.nodeData?.id || !data.nodeData.topic) {
-          throw new Error(i18nText("app.article.canvas.canvasblockview.70533b71"));
-        }
-        pendingMindMapRef.current = data;
-        handleOpenChange(true);
-        return;
+      sourceUrl = await uploadFile(sourceFile, `files/article/${canvasType}`);
+      previewUrl = await uploadImage(previewFile, `images/article/${canvasType}`);
+      updateAttrs({sourceUrl, data: '', preview: previewUrl, schemaVersion: 4});
+      updated = true;
+      if (!await saveArticle(editor, 'manual')) {
+        throw new Error(i18nText('app.article.canvas.ai.articleSaveFailed'));
       }
-
-      const xml = response.replace(/^```xml\s*|^```\s*|\s*```$/g, '').trim();
-
-      if (!xml.startsWith('<mxGraphModel') || !xml.includes('<root>')) {
-        throw new Error(i18nText("app.article.canvas.canvasblockview.8795d6bf"));
+    } catch (error) {
+      if (updated) updateAttrs({sourceUrl: attrs.sourceUrl, data: attrs.data, preview: attrs.preview, schemaVersion: attrs.schemaVersion});
+      for (const url of [sourceUrl, previewUrl].filter(Boolean)) {
+        deleteUploadedFile(url).catch(cleanupError => console.warn('New canvas file cleanup failed:', cleanupError));
       }
-
-      pendingXmlRef.current = xml;
-      handleOpenChange(true);
-    } catch (error: any) {
-      window.alert(error?.message ?? i18nText("app.article.canvas.canvasblockview.c170ad88"));
-    } finally {
-      setGenerating(false);
+      throw error;
+    }
+    if (attrs.sourceUrl && attrs.sourceUrl !== sourceUrl) {
+      deleteUploadedFile(attrs.sourceUrl as string).catch(error => console.warn('Old canvas source deletion failed:', error));
+    }
+    if (preview && preview !== previewUrl) {
+      deleteUploadedFile(preview).catch(error => console.warn('Old canvas preview deletion failed:', error));
     }
   };
 
@@ -747,19 +738,20 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 dark:border-slate-800">
-          <span className="text-xs text-slate-500">{meta.label}</span>
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+          <span className="min-w-0 truncate text-xs text-slate-500" title={attrs.aiModelName || undefined}>
+            {meta.label}{attrs.aiModelName && ` · ${attrs.aiModelName}`}
+          </span>
           {editable && (
-            <div className="flex gap-1">
+            <div className="flex shrink-0 gap-1">
               {canEdit && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={generating}
-                  onClick={generateWithAi}
+                  onClick={() => setAiOpen(true)}
                 >
                   <SparklesIcon className="size-4" />
-                  {generating ? i18nText("app.article.canvas.canvasblockview.32a54de6") : i18nText("app.article.canvas.canvasblockview.4df4d9e1")}
+                  {i18nText("app.article.canvas.canvasblockview.4df4d9e1")}
                 </Button>
               )}
               <Button
@@ -784,6 +776,21 @@ export function CanvasBlockView({ editor, getPos, node }: ReactNodeViewProps) {
           )}
         </div>
       </div>
+
+      {aiOpen && editable && canEdit && <CanvasAiDialog
+        type={canvasType}
+        title={attrs.title || meta.label}
+        conversationId={attrs.aiConversationId as string}
+        initialModelId={editor.aiModel?.id}
+        savedModelId={Number(attrs.aiModelId) || undefined}
+        savedModelName={attrs.aiModelName as string}
+        preview={preview}
+        getSource={getAiSource}
+        onConversationCreated={saveAiConversation}
+        onApply={applyAiCanvas}
+        onEdit={() => { setAiOpen(false); editExistingCanvas(); }}
+        onClose={() => setAiOpen(false)}
+      />}
 
       <Dialog
         open={open}

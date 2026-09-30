@@ -25,7 +25,7 @@ export default {
       },
     },
     '/drawio/': {
-      target: 'http://nas.haiqingd.top:8080',
+      target: 'https://app.diagrams.net/',
       changeOrigin: true,
       pathRewrite: { '^/drawio': '' },
     },

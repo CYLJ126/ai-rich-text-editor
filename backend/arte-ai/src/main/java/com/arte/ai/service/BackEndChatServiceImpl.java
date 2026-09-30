@@ -4,9 +4,12 @@ import cn.hutool.core.util.IdUtil;
 import com.arte.ai.advisor.*;
 import com.arte.ai.api.BackEndChatService;
 import com.arte.ai.api.MessageService;
+import com.arte.ai.api.MessageAttachmentService;
+import com.arte.ai.pojo.message.MessageAttachmentDto;
 import com.arte.ai.api.ModelAdapter;
 import com.arte.ai.common.enums.KnowledgeBaseTypeEnum;
 import com.arte.ai.common.enums.ReasoningEffortEnum;
+import com.arte.ai.common.enums.SceneTypeEnum;
 import com.arte.ai.mcp.server.ArteMcpTools;
 import com.arte.ai.pojo.EditMessageRequestDto;
 import com.arte.ai.pojo.RegenerateRequestDto;
@@ -25,6 +28,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -60,6 +64,9 @@ public class BackEndChatServiceImpl implements BackEndChatService {
 
     @Resource
     protected MessageService messageService;
+
+    @Resource
+    private MessageAttachmentService messageAttachmentService;
 
     @Resource
     private ArteMcpTools arteMcpTools;
@@ -145,17 +152,29 @@ public class BackEndChatServiceImpl implements BackEndChatService {
         // 构建 ChatClient 并发起请求
         ModelAdapter modelAdapter = modelAdapterFactory.getAdapter(chatRequestDto.getProvider(), chatRequestDto.getModelId());
         ChatClient chatClient = modelAdapter.buildChatClient(chatRequestDto);
-        ChatClient.StreamResponseSpec streamResponseSpec = chatClient.prompt()
-                .user(content)
+        List<MessageAttachmentDto> images = List.of();
+        if (Boolean.TRUE.equals(chatRequestDto.getEnableVision())
+                && chatRequestDto.getAttachmentIds() != null && !chatRequestDto.getAttachmentIds().isEmpty()) {
+            images = messageAttachmentService.listImages(chatRequestDto.getConvId(),
+                            List.of(chatRequestDto.getUserMessageId()), chatRequestDto.getUserName()).stream()
+                    .filter(image -> chatRequestDto.getAttachmentIds().contains(String.valueOf(image.getId())))
+                    .toList();
+        }
+        var media = messageAttachmentService.readImages(images);
+        ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt()
+                .user(user -> user.text(content).media(media.toArray(Media[]::new)))
                 .advisors(aSpec -> {
                     // 1. 给 MemoryAdvisor（它认 ChatMemory.CONVERSATION_ID）
                     aSpec.param(AbstractAdvisor.CONVERSATION_ID, chatRequestDto.getConvId());
                     // 2. 自定义业务对象
                     aSpec.param(AbstractAdvisor.REQUEST_DTO, chatRequestDto);
                 })
-                .advisors(advisors)
-                .tools(arteMcpTools)
-                .stream();
+                .advisors(advisors);
+        if (chatRequestDto.getScene() != SceneTypeEnum.ARTICLE_DRAWIO
+                && chatRequestDto.getScene() != SceneTypeEnum.ARTICLE_MINDMAP) {
+            requestSpec.tools(arteMcpTools);
+        }
+        ChatClient.StreamResponseSpec streamResponseSpec = requestSpec.stream();
         return fluxReturn(streamResponseSpec, chatRequestDto.getAssistantMessageId());
     }
 
