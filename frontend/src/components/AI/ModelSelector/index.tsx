@@ -97,11 +97,14 @@ ModelCapability.displayName = 'ModelCapability';
 interface ModelSelectorProps {
   width?: string | number;
   onSelect?: (value: ModelConfig) => void;
+  defaultModelId?: number;
+  disabled?: boolean;
+  getPopupContainer?: (trigger: HTMLElement) => HTMLElement;
 }
 
 // ─── 模型选择器组件：下拉选择模型，下拉列表是全局的，在初始或编辑模型时更新 ───
 const ModelSelector: React.FC<ModelSelectorProps> = memo(
-  ({ width = 330, onSelect }) => {
+  ({ width = 330, onSelect, defaultModelId, disabled, getPopupContainer }) => {
     const { styles } = useStyles();
 
     const loading = useModelsStore((state) => state.loading);
@@ -166,8 +169,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
       }
 
       const defaultModel = models.find(
-        (model) => model.status !== 3,
-      );
+        (model) => model.id === defaultModelId && model.status !== 3,
+      ) ?? models.find((model) => model.status !== 3);
 
       if (!defaultModel) {
         setActiveModelId(undefined);
@@ -182,7 +185,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
         lastAutoSelectedModelIdRef.current = defaultModel.modelId;
         onSelectRef.current?.(defaultModel);
       }
-    }, [activeModelId, models]);
+    }, [activeModelId, defaultModelId, models]);
 
     const handleSelect = useCallback(
       (modelId: string) => {
@@ -263,6 +266,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
           className={styles.selector}
           style={{ width }}
           loading={loading}
+          disabled={disabled}
+          getPopupContainer={getPopupContainer}
           value={activeModelId}
           onChange={handleSelect}
           options={options}

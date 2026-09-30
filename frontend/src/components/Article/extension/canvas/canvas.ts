@@ -17,6 +17,9 @@ export interface CanvasBlockAttrs {
   data: string;
   preview: string;
   schemaVersion: number;
+  aiConversationId: string;
+  aiModelId: number;
+  aiModelName: string;
 }
 
 declare module '@tiptap/core' {
@@ -45,6 +48,9 @@ export const CanvasBlock = Node.create({
       data: { default: '' },
       preview: { default: '' },
       schemaVersion: { default: 4 },
+      aiConversationId: { default: '' },
+      aiModelId: { default: 0 },
+      aiModelName: { default: '' },
     };
   },
 
@@ -93,6 +99,9 @@ export const CanvasBlock = Node.create({
       'data',
       'preview',
       'schemaVersion',
+      'aiConversationId',
+      'aiModelId',
+      'aiModelName',
     ],
   }),
 });

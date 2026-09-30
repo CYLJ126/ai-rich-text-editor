@@ -20,12 +20,16 @@ import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
 import org.springframework.ai.deepseek.api.ResponseFormat;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -76,9 +80,49 @@ public abstract class DeepSeekModelAdapter extends AbstractModelAdapter {
     public ChatClient buildChatClient(ChatRequestDto chatRequest) {
         // 获取用户模型配置
         ModelConfigDto config = modelConfigService.getById(chatRequest.getModelAutoId());
+        // Spring AI 的 DeepSeekChatModel 只序列化文字，视觉请求使用支持 Media 的兼容客户端。
+        if (Boolean.TRUE.equals(chatRequest.getEnableVision())) {
+            if (StrUtil.hasBlank(config.getApiKey(), config.getApiBaseUrl())) {
+                throw new ChatException("error.ai.apiKeyOrBaseUrlRequired");
+            }
+            OpenAiChatOptions.Builder options = buildVisionOptions(chatRequest).mutate()
+                    .apiKey(Sm2UtilForSmCrypto.decryptForSmCrypto(config.getApiKey(), privateKey))
+                    .baseUrl(config.getApiBaseUrl().trim());
+            if (config.getTimeoutSeconds() != null) {
+                options.timeout(Duration.ofSeconds(config.getTimeoutSeconds()));
+            }
+            if (config.getMaxRetries() != null) {
+                options.maxRetries(config.getMaxRetries());
+            }
+            if (StrUtil.isNotBlank(config.getProxy())) {
+                options.proxy(OpenAiModelAdapter.parseProxy(config.getProxy()));
+            }
+            return ChatClient.builder(OpenAiChatModel.builder().options(options.build()).build()).build();
+        }
         boolean disableThinking = Objects.equals(chatRequest.getReasoningEffort(), ReasoningEffortEnum.NONE);
         ChatModel deepSeekChatModel = getChatModel(config, buildOptions(chatRequest), disableThinking);
         return ChatClient.builder(deepSeekChatModel).build();
+    }
+
+    OpenAiChatOptions buildVisionOptions(ChatRequestDto chatRequest) {
+        Map<String, Object> extraBody = chatRequest.getReasoningEffort() == ReasoningEffortEnum.NONE
+                ? Map.of("thinking", Map.of("type", "disabled")) : Map.of();
+        OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
+                .model(chatRequest.getModelId())
+                .temperature(chatRequest.getTemperature())
+                .topP(chatRequest.getTopP())
+                .maxTokens(chatRequest.getMaxTokens())
+                .streamUsage(true)
+                .extraBody(extraBody)
+                .responseFormat(OpenAiChatModel.ResponseFormat.builder()
+                        .type(chatRequest.getTextType() == TextFormatEnum.JSON
+                                ? OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT
+                                : OpenAiChatModel.ResponseFormat.Type.TEXT)
+                        .build());
+        if (chatRequest.getReasoningEffort() != null) {
+            builder.reasoningEffort(chatRequest.getReasoningEffort().getValue());
+        }
+        return builder.build();
     }
 
     /**

@@ -5,6 +5,8 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.ai.api.MessageService;
+import com.arte.ai.api.MessageAttachmentService;
+import com.arte.ai.pojo.message.MessageAttachmentDto;
 import com.arte.ai.common.enums.MessageRoleEnum;
 import com.arte.ai.mapper.MessageMapper;
 import com.arte.ai.pojo.message.MessageDto;
@@ -12,6 +14,7 @@ import com.arte.ai.pojo.message.MessageParam;
 import com.arte.ai.pojo.message.MessagePo;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.UserContext;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 消息服务实现类
@@ -31,6 +35,8 @@ import java.util.Objects;
 @Slf4j
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, MessageDto> implements MessageService {
+    @Resource
+    private MessageAttachmentService messageAttachmentService;
 
     @Override
     public PageView<MessageDto> listMessages(MessageParam param) {
@@ -41,7 +47,15 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, MessageDto> i
                 .or(assistant -> assistant
                         .eq(MessagePo.COL_ROLE, MessageRoleEnum.ASSISTANT)
                         .apply("COALESCE(JSON_LENGTH(" + MessagePo.COL_TOOL_CALLS + "), 0) = 0")));
-        return this.page(param, queryWrapper);
+        PageView<MessageDto> page = this.page(param, queryWrapper);
+        List<MessageDto> records = page.getRecords();
+        if (records != null && !records.isEmpty()) {
+            var attachments = messageAttachmentService.lambdaQuery()
+                    .in(MessageAttachmentDto::getMessageId, records.stream().map(MessageDto::getMessageId).toList())
+                    .list().stream().collect(Collectors.groupingBy(MessageAttachmentDto::getMessageId));
+            records.forEach(item -> item.setAttachments(attachments.getOrDefault(item.getMessageId(), List.of())));
+        }
+        return page;
     }
 
     @Override

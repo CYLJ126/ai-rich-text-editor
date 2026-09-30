@@ -6,6 +6,10 @@ import com.arte.app.service.richtext.RichTextFileStorageService;
 import com.arte.app.service.richtext.RemoteImageDownloadService;
 import com.arte.core.annotations.AnonymousAccess;
 import com.arte.core.pojo.ResultContext;
+import com.arte.core.pojo.UserContext;
+import com.arte.ai.api.ConversationService;
+import com.arte.ai.api.MessageAttachmentService;
+import com.arte.ai.pojo.message.MessageAttachmentDto;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +36,47 @@ public class FileController {
 
     @Resource
     private RemoteImageDownloadService remoteImageDownloadService;
+
+    @Resource
+    private MessageAttachmentService messageAttachmentService;
+
+    @Resource
+    private ConversationService conversationService;
+
+    @PostMapping("/uploadChatImage")
+    @PreAuthorize("isAuthenticated()")
+    public ResultContext<MessageAttachmentDto> uploadChatImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("convId") String convId,
+            @RequestParam("messageId") String messageId) {
+        var conversation = conversationService.getAndValidate(convId);
+        if (!java.util.Objects.equals(conversation.getCreateBy(), UserContext.getUserName())) {
+            return ResultContext.fail(MessageUtils.get("error.ai.conversationNotFound", convId));
+        }
+        if (file.isEmpty()) return ResultContext.fail("error.file.uploadEmpty");
+        if (file.getContentType() == null || !java.util.Set.of("image/png", "image/jpeg", "image/webp", "image/gif").contains(file.getContentType())) {
+            return ResultContext.fail("error.file.onlyImage");
+        }
+        try {
+            String url = richTextFileStorageService.uploadImage(file, "images/article/canvas-ai");
+            richTextFileStorageService.makePermanentByUrl(url);
+            MessageAttachmentDto attachment = new MessageAttachmentDto();
+            attachment.setMessageId(messageId);
+            attachment.setConvId(convId);
+            attachment.setFileName(file.getOriginalFilename());
+            attachment.setFileSize(file.getSize());
+            attachment.setFileType(file.getContentType());
+            attachment.setAttachType("IMAGE");
+            attachment.setAccessUrl(url);
+            attachment.setStatus("UPLOADED");
+            attachment.setCreateBy(UserContext.getUserName());
+            messageAttachmentService.save(attachment);
+            return ResultContext.success(attachment);
+        } catch (Exception e) {
+            log.error("Chat image upload failed", e);
+            return ResultContext.fail(MessageUtils.get("error.file.imageUploadFailed", e.getMessage()));
+        }
+    }
 
     /**
      * Upload an image and return a browser-accessible URL.

@@ -4,6 +4,8 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.arte.ai.api.ConversationService;
 import com.arte.ai.api.MessageService;
+import com.arte.ai.api.MessageAttachmentService;
+import com.arte.ai.pojo.message.MessageAttachmentDto;
 import com.arte.ai.api.ModelAdapter;
 import com.arte.ai.common.enums.ContextStrategyEnum;
 import com.arte.ai.common.enums.MessageRoleEnum;
@@ -36,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * 消息持久化 Advisor
@@ -50,6 +53,9 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
 
     @Resource
     protected MessageService messageService;
+
+    @Resource
+    private MessageAttachmentService messageAttachmentService;
 
     @Resource
     protected ConversationService conversationService;
@@ -324,11 +330,17 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
         }
         // 按 ID 从小到大排序
         dbMessages.sort(Comparator.comparing(MessageDto::getId));
+        Map<String, List<MessageAttachmentDto>> images = Boolean.TRUE.equals(chatRequest.getEnableVision())
+                ? messageAttachmentService.listImages(chatRequest.getConvId(), dbMessages.stream()
+                        .filter(message -> message.getRole() == MessageRoleEnum.USER)
+                        .map(MessageDto::getMessageId).toList(), chatRequest.getUserName()).stream()
+                        .collect(Collectors.groupingBy(MessageAttachmentDto::getMessageId))
+                : Map.of();
         for (MessageDto dbMessage : dbMessages) {
             switch (dbMessage.getRole()) {
                 case USER:
                     UserMessage userMessage = UserMessage.builder().text(dbMessage.getContent())
-                            .media(dbMessage.getAttachments())
+                            .media(messageAttachmentService.readImages(images.getOrDefault(dbMessage.getMessageId(), List.of())))
                             .metadata(dbMessage.toMap())
                             .build();
                     aiMessagesList.add(userMessage);
@@ -337,7 +349,6 @@ public class PersistentChatMemoryAdvisor extends AbstractAdvisor {
                     AssistantMessage assistantMessage = AssistantMessage.builder()
                             .content(dbMessage.getContent())
                             .toolCalls(toAssistantToolCalls(dbMessage.getToolCalls()))
-                            .media(dbMessage.getAttachments())
                             .build();
                     aiMessagesList.add(assistantMessage);
                     break;

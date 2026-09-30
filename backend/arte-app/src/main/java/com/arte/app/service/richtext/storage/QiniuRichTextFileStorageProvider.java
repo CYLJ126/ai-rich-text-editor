@@ -42,6 +42,11 @@ public class QiniuRichTextFileStorageProvider implements RichTextFileStorageProv
     }
 
     @Override
+    public byte[] readBytesByUrl(String url) throws IOException {
+        return qiniuUploadService.readBytesByUrl(url);
+    }
+
+    @Override
     public void deleteByUrl(String url) throws IOException {
         qiniuUploadService.deleteByUrl(url);
     }

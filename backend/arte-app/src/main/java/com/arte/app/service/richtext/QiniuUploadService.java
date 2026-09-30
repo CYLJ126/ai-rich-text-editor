@@ -238,12 +238,16 @@ public class QiniuUploadService {
     }
 
     public String readTextByUrl(String url) throws IOException {
+        return new String(readBytesByUrl(url), StandardCharsets.UTF_8);
+    }
+
+    public byte[] readBytesByUrl(String url) throws IOException {
         requireStoredKey(url);
         URLConnection connection = URI.create(url).toURL().openConnection();
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(10000);
         try (InputStream inputStream = connection.getInputStream()) {
-            return new String(IoUtil.readBytes(inputStream), StandardCharsets.UTF_8);
+            return IoUtil.readBytes(inputStream);
         }
     }
 

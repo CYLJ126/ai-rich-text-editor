@@ -3,6 +3,7 @@ package com.arte.app.service.richtext;
 import com.arte.app.common.enums.richtext.FileStorageTypeEnum;
 import com.arte.app.config.bean.RichTextStorageProperties;
 import com.arte.app.service.richtext.storage.RichTextFileStorageProvider;
+import com.arte.ai.api.ChatImageReader;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -17,7 +18,7 @@ import java.util.Map;
  * Facade that routes rich text file operations to the configured storage backend.
  */
 @Service
-public class RichTextFileStorageService {
+public class RichTextFileStorageService implements ChatImageReader {
 
     @Resource
     private RichTextStorageProperties richTextStorageProperties;
@@ -43,6 +44,11 @@ public class RichTextFileStorageService {
 
     public String readTextByUrl(String url) throws IOException {
         return currentProvider().readTextByUrl(url);
+    }
+
+    @Override
+    public byte[] readImage(String url) throws IOException {
+        return currentProvider().readBytesByUrl(url);
     }
 
     public void deleteByUrl(String url) throws IOException {

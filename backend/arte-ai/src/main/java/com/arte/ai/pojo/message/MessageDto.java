@@ -7,7 +7,6 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.content.Media;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -96,11 +95,6 @@ public class MessageDto extends MessagePo implements Serializable {
         map.put("text_type", getTextType());
         map.put("status", getStatus());
         return map;
-    }
-
-    public List<Media> getAttachments() {
-        // TODO
-        return List.of();
     }
 
 }
