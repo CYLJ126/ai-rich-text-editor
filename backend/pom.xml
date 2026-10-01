@@ -47,11 +47,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
-        <java.source.version>21</java.source.version>
-        <java.target.version>21</java.target.version>
         <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <maven.surefire.version>3.5.4</maven.surefire.version>
         <spring-boot.version>4.1.1</spring-boot.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
     </properties>
@@ -215,10 +213,20 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <release>${maven.compiler.release}</release>
                     <encoding>utf-8</encoding>
-                    <compilerArgument>-parameters</compilerArgument>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.version}</version>
+                <configuration>
+                    <!-- PDFBox/AWT tests must not initialize the macOS desktop graphics stack. -->
+                    <systemPropertyVariables>
+                        <java.awt.headless>true</java.awt.headless>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>
@@ -232,6 +240,7 @@
                 <version>3.4.0</version>
                 <configuration>
                     <encoding>UTF-8</encoding>
+                    <propertiesEncoding>UTF-8</propertiesEncoding>
                     <!-- 以下列的文件类型，在编译时不会对内容进行处理，如 pem、pfx 的证书文件等，maven 打包后，原样打包，确保内容正确，
                         而 *.properties 文件，会用实际配置替换内容中的占位符 -->
                     <nonFilteredFileExtensions>

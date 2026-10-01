@@ -4,6 +4,7 @@ import com.arte.ai.utils.LogUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.ai.chat.client.ChatClient;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * @since 2025/5/29 21:00
  */
 @Slf4j
+@Ignore("Manual integration test: requires DeepSeek credentials and the complete application infrastructure")
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = AiApplication.class)
 public class DeepSeekTest {
