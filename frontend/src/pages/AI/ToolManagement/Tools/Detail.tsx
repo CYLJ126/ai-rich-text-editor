@@ -5,10 +5,12 @@ import {
   Button,
   Card,
   Descriptions,
+  Form,
   Input,
   message,
   Modal,
   Result,
+  Select,
   Skeleton,
   Space,
   Table,
@@ -25,11 +27,19 @@ import {normalizeToolError} from '@/features/ai-tool';
 import {
   deprecateToolVersion,
   disableToolVersion,
+  getToolUpgradePreview,
   getToolVersionDetail,
   listToolVersions,
   publishToolVersion,
 } from '@/services/ant-design-pro/ai.tool';
-import type {JsonObject, ToolReference, ToolVersionDetailView, ToolVersionView,} from '@/types/ai.tool.type';
+import type {
+  JsonObject,
+  ToolPublishCommand,
+  ToolReference,
+  ToolUpgradePreview,
+  ToolVersionDetailView,
+  ToolVersionView,
+} from '@/types/ai.tool.type';
 import {ToolManagementPage} from '../components';
 
 type TransitionAction = 'deprecate' | 'disable';
@@ -49,6 +59,11 @@ export default function ToolVersionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [publishing, setPublishing] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishForm] = Form.useForm<ToolPublishCommand>();
+  const [preview, setPreview] = useState<ToolUpgradePreview>();
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const baseVersion = Form.useWatch('compatibilityBaseVersion', publishForm);
   const [transitionAction, setTransitionAction] = useState<TransitionAction>();
   const [reason, setReason] = useState('');
   const [transitioning, setTransitioning] = useState(false);
@@ -76,33 +91,50 @@ export default function ToolVersionDetailPage() {
     load().then();
   }, [load]);
 
+  useEffect(() => {
+    setPreview(undefined);
+    if (!publishOpen || !reference || !baseVersion) {
+      setPreviewLoading(false);
+      return;
+    }
+    let active = true;
+    setPreviewLoading(true);
+    getToolUpgradePreview(reference, baseVersion)
+      .then(result => {
+        if (active) setPreview(result);
+      })
+      .catch(error => {
+        if (active) message.error(normalizeToolError(error).message);
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [publishOpen, reference, baseVersion]);
+
   const changeVersion = (version: string) => {
     if (!reference) return;
     const params = new URLSearchParams({...reference, version});
     navigate(`/AI/ToolManagement/Tools/Detail?${params.toString()}`);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!reference) return;
-    Modal.confirm({
-      title: `发布版本 ${reference.version}？`,
-      content:
-        '发布后版本定义不可直接修改。如需调整，请修改提供者源定义并使用新的版本号。',
-      okText: '确认发布',
-      onOk: async () => {
-        setPublishing(true);
-        try {
-          await publishToolVersion(reference);
-          message.success('工具版本已发布').then();
-          await load();
-        } catch (nextError) {
-          message.error(normalizeToolError(nextError).message).then();
-          throw nextError;
-        } finally {
-          setPublishing(false);
-        }
-      },
-    });
+    const command = await publishForm.validateFields();
+    if (command.compatibilityBaseVersion && !preview?.compatible) return;
+    setPublishing(true);
+    try {
+      await publishToolVersion(reference, command);
+      message.success(detail?.lifecycleState === 'published' ? '兼容升级关系已确认' : '工具版本已发布').then();
+      setPublishOpen(false);
+      await load();
+    } catch (nextError) {
+      message.error(normalizeToolError(nextError).message).then();
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const handleTransition = async () => {
@@ -148,6 +180,8 @@ export default function ToolVersionDetailPage() {
       dataIndex: 'lifecycleState',
       render: (value) => <ToolStatusTag status={value}/>,
     },
+    {title: '兼容基准', dataIndex: 'compatibilityBaseVersion', render: value => value || '独立发布'},
+    {title: '升级说明', dataIndex: 'releaseNotes', ellipsis: true},
     {title: '校验和', dataIndex: 'checksum', ellipsis: true},
     {
       title: '发布时间',
@@ -157,17 +191,26 @@ export default function ToolVersionDetailPage() {
     },
   ];
 
+  const compatibilityCandidates = versions.filter(item => item.lifecycleState === 'published'
+    && item.reference.version !== reference.version
+    && (detail?.lifecycleState === 'draft' || Boolean(item.publishedAt && detail?.publishedAt
+      && dayjs(item.publishedAt).isBefore(dayjs(detail.publishedAt)))));
+
   const actionButtons =
     detail && access.canManageAiTools ? (
       <Space>
-        {detail.lifecycleState === 'draft' && (
+        {(detail.lifecycleState === 'draft' || (detail.lifecycleState === 'published'
+          && !detail.compatibilityBaseVersion && compatibilityCandidates.length > 0)) && (
           <Button
             type="primary"
             icon={<UploadOutlined/>}
             loading={publishing}
-            onClick={handlePublish}
+            onClick={() => {
+              publishForm.resetFields();
+              setPublishOpen(true);
+            }}
           >
-            发布
+            {detail.lifecycleState === 'draft' ? '发布' : '设置兼容升级'}
           </Button>
         )}
         {detail.lifecycleState === 'published' && (
@@ -247,9 +290,8 @@ export default function ToolVersionDetailPage() {
                   }
                 />
               </Descriptions.Item>
-              <Descriptions.Item label="行版本">
-                {detail.rowVersion}
-              </Descriptions.Item>
+              <Descriptions.Item label="兼容基准">{detail.compatibilityBaseVersion || '独立发布'}</Descriptions.Item>
+              <Descriptions.Item label="升级说明" span={3}>{detail.releaseNotes || '-'}</Descriptions.Item>
               <Descriptions.Item label="标签" span={3}>
                 {detail.tags.length
                   ? detail.tags.map((tag) => <Tag key={tag}>{tag}</Tag>)
@@ -365,6 +407,33 @@ export default function ToolVersionDetailPage() {
         </Space>
       ) : null}
 
+      <Modal title={`${detail?.lifecycleState === 'published' ? '设置兼容升级' : '发布版本'} ${reference.version}`}
+             open={publishOpen} confirmLoading={publishing}
+             okText={detail?.lifecycleState === 'published' ? '确认兼容升级' : '确认发布'} onOk={handlePublish}
+             onCancel={() => setPublishOpen(false)}
+             okButtonProps={{disabled: previewLoading || Boolean(baseVersion && !preview?.compatible)}}>
+        <Alert type="info" showIcon message="发布后版本定义不可修改" style={{marginBottom: 16}}
+               description="兼容发布会自动更新跟随兼容升级的绑定，保留用户配置和助手关联。独立发布由用户主动选择。"/>
+        <Form form={publishForm} layout="vertical">
+          <Form.Item name="compatibilityBaseVersion" label="兼容基准"
+                     rules={[{required: detail?.lifecycleState === 'published', message: '请选择兼容基准'}]}
+                     extra={detail?.lifecycleState === 'published' ? '仅补充一次兼容升级关系，保留发布定义与原发布时间。' : '留空为独立发布，不自动更新旧绑定。'}>
+            <Select allowClear placeholder={detail?.lifecycleState === 'published' ? '选择更早发布的版本' : '独立发布'}
+                    options={compatibilityCandidates
+                      .map(item => ({value: item.reference.version, label: item.reference.version}))}/>
+          </Form.Item>
+          <Form.Item name="releaseNotes" label="升级说明"
+                     rules={[{required: true, whitespace: true, message: '请填写面向用户的升级说明'}]}>
+            <Input.TextArea rows={4} maxLength={2000} showCount placeholder="说明变化，以及用户是否需要调整配置"/>
+          </Form.Item>
+        </Form>
+        {previewLoading && <Skeleton active paragraph={{rows: 1}}/>}
+        {preview && <Alert showIcon type={preview.compatible ? 'success' : 'error'}
+                           message={preview.compatible ? '兼容检查通过' : '不能作为兼容升级发布'}
+                           description={preview.compatible ? `${preview.followingBindings} 个绑定会自动更新；${preview.pinnedBindings} 个锁定绑定保持版本。`
+                             : preview.problems.join('；')}/>}
+      </Modal>
+
       <Modal
         title={
           transitionAction === 'deprecate' ? '废弃工具版本' : '禁用工具版本'
@@ -381,7 +450,7 @@ export default function ToolVersionDetailPage() {
       >
         <Typography.Paragraph type="secondary">
           {transitionAction === 'deprecate'
-            ? '废弃后不再建议新调用使用该版本，已有记录仍保留固定版本。'
+            ? '废弃后该版本不可调用；兼容跟随绑定会选择其他可用的兼容版本，锁定此版本的绑定将不可用。'
             : '禁用后该版本将立即从可调用注册表移除。'}
         </Typography.Paragraph>
         <Input.TextArea

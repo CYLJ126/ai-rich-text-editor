@@ -29,7 +29,8 @@ export default function ToolBindingsPage() {
       await saveToolBinding({
         bindingId: binding.bindingId,
         workspaceId: binding.workspaceId,
-        tool: binding.tool,
+        tool: binding.baselineTool || binding.tool,
+        versionPolicy: binding.versionPolicy,
         credentialReference: binding.credentialReference,
         configuration: binding.configuration,
         policyOverride: binding.policyOverride,
@@ -53,7 +54,7 @@ export default function ToolBindingsPage() {
       fieldProps: {allowClear: true, placeholder: '留空查询个人作用域'},
     },
     {
-      title: '固定工具版本',
+      title: '工具 / 当前版本',
       key: 'tool',
       search: false,
       render: (_, record) => (
@@ -62,10 +63,30 @@ export default function ToolBindingsPage() {
             {record.tool.namespace}.{record.tool.name}
           </Typography.Text>
           <Typography.Text type="secondary">
-            版本 {record.tool.version}
+            当前 {record.tool.version} · 基准 {record.baselineTool?.version || record.tool.version}
           </Typography.Text>
         </Space>
       ),
+    },
+    {
+      title: '升级方式',
+      key: 'versionPolicy',
+      search: false,
+      render: (_, record) => <Tag>{record.versionPolicy === 'pinned' ? '锁定版本' : '跟随兼容升级'}</Tag>,
+    },
+    {
+      title: '更新状态',
+      key: 'updateStatus',
+      search: false,
+      render: (_, record) => <Space direction="vertical" size={0}>
+        <Tag color={record.updateStatus === 'requires-review' ? 'warning' : 'default'}>
+          {record.updateStatus === 'requires-review' ? `有新版本 ${record.latestVersion}`
+            : record.updateStatus === 'auto-upgraded' ? '已兼容升级'
+              : record.updateStatus === 'unavailable' ? '暂不可用' : '已是最新'}
+        </Tag>
+        {record.releaseNotes && <Typography.Text type="secondary" ellipsis={{tooltip: record.releaseNotes}}
+                                                 style={{maxWidth: 220}}>{record.releaseNotes}</Typography.Text>}
+      </Space>,
     },
     {
       title: '作用域',
@@ -126,12 +147,12 @@ export default function ToolBindingsPage() {
       render: (_, record) => [
         <Typography.Link
           key="edit"
-          disabled={!access.canManageAiTools}
+          disabled={!access.canConfigureAiTools}
           onClick={() => openEditor(record)}
         >
-          编辑
+          {record.updateStatus === 'requires-review' ? '配置 / 查看更新' : '配置'}
         </Typography.Link>,
-        access.canManageAiTools ? (
+        access.canConfigureAiTools ? (
           <Popconfirm
             key="toggle"
             title={`确认${record.enabled ? '禁用' : '启用'} ${toolReferenceLabel(record.tool)}？`}
@@ -153,9 +174,9 @@ export default function ToolBindingsPage() {
     <ToolManagementPage
       activeKey="bindings"
       title="用户工具绑定"
-      subTitle="将已发布的固定工具版本绑定到当前用户或工作空间"
+      subTitle="兼容升级保留配置和助手关联，也可选择锁定版本"
       extra={
-        access.canManageAiTools ? (
+        access.canConfigureAiTools ? (
           <Button
             type="primary"
             icon={<PlusOutlined/>}

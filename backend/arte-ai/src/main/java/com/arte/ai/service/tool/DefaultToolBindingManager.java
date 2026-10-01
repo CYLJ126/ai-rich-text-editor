@@ -48,6 +48,7 @@ public class DefaultToolBindingManager implements ToolBindingManager {
     private final ToolAvailabilityService availabilityService;
     private final ToolDistributedLockExecutor lockExecutor;
     private final TransactionTemplate transactionTemplate;
+    private final ToolBindingVersionSelector versionSelector;
 
     @Override
     public ResolvedToolBinding save(String ownerId, ToolBindingCommand command) {
@@ -71,7 +72,29 @@ public class DefaultToolBindingManager implements ToolBindingManager {
         return bindingMapper.selectOwned(normalizedOwner, requireText(bindingId, "bindingId"))
                 .filter(ToolBindingPo::getEnabled)
                 .filter(binding -> workspaceMatches(normalizedWorkspace, binding.getWorkspaceId()))
-                .map(this::resolveBinding);
+                .flatMap(this::resolveAvailable);
+    }
+
+    @Override
+    public Optional<ResolvedToolBinding> resolveRequested(String ownerId, String workspaceId,
+                                                          String bindingId, ToolReference requested) {
+        return bindingMapper.selectOwned(requireText(ownerId, "ownerId"), requireText(bindingId, "bindingId"))
+                .filter(binding -> Boolean.TRUE.equals(binding.getEnabled()))
+                .filter(binding -> workspaceMatches(normalize(workspaceId), binding.getWorkspaceId()))
+                .flatMap(binding -> toolMapper.selectByToolId(binding.getToolId())
+                        .flatMap(tool -> versionSelector.selectRequested(binding, tool, requested)
+                                .map(version -> resolveBinding(binding, version))));
+    }
+
+    @Override
+    public Optional<ResolvedToolBinding> resolveCompatible(String ownerId, String workspaceId,
+                                                           String bindingId, ToolReference baseline) {
+        return bindingMapper.selectOwned(requireText(ownerId, "ownerId"), requireText(bindingId, "bindingId"))
+                .filter(binding -> Boolean.TRUE.equals(binding.getEnabled()))
+                .filter(binding -> workspaceMatches(normalize(workspaceId), binding.getWorkspaceId()))
+                .flatMap(binding -> toolMapper.selectByToolId(binding.getToolId())
+                        .flatMap(tool -> versionSelector.selectCompatible(binding, tool, baseline)
+                                .map(version -> resolveBinding(binding, version))));
     }
 
     @Override
@@ -79,7 +102,7 @@ public class DefaultToolBindingManager implements ToolBindingManager {
         String normalizedOwner = requireText(ownerId, "ownerId");
         String normalizedWorkspace = normalize(workspaceId);
         return bindingMapper.selectEnabledByScope(normalizedOwner, normalizedWorkspace).stream()
-                .map(this::resolveBinding)
+                .flatMap(binding -> resolveAvailable(binding).stream())
                 .toList();
     }
 
@@ -111,6 +134,7 @@ public class DefaultToolBindingManager implements ToolBindingManager {
                     .setWorkspaceId(workspaceId)
                     .setToolId(catalog.tool().getToolId())
                     .setToolVersion(command.tool().version())
+                    .setVersionPolicy(command.versionPolicy() == null ? "follow-compatible" : command.versionPolicy())
                     .setCredentialReference(normalize(command.credentialReference()))
                     .setConfiguration(command.configuration())
                     .setPolicyOverride(policyMerger.encodeOverride(command.policyOverride()))
@@ -120,14 +144,19 @@ public class DefaultToolBindingManager implements ToolBindingManager {
             binding.setUpdateBy(ownerId);
             validatePolicy(catalog.version(), binding.getPolicyOverride());
             bindingMapper.insert(binding);
-            return resolveBinding(binding);
+            return resolveBinding(binding, versionSelector.select(binding, catalog.tool()).orElse(catalog.version()));
         }
 
-        requireSameTarget(binding, workspaceId, catalog.tool().getToolId(), command.tool().version());
+        requireSameTarget(binding, workspaceId, catalog.tool().getToolId());
+        if (scoped != null && !scoped.getBindingId().equals(binding.getBindingId())) {
+            throw new IllegalStateException("该版本已有另一个绑定，请使用已有绑定或选择其他版本");
+        }
         if (command.expectedRowVersion() == null) {
             throw new IllegalArgumentException("expectedRowVersion is required when updating a binding");
         }
         binding.setCredentialReference(normalize(command.credentialReference()));
+        binding.setToolVersion(command.tool().version());
+        binding.setVersionPolicy(command.versionPolicy() == null ? versionSelector.policy(binding) : command.versionPolicy());
         binding.setConfiguration(command.configuration());
         binding.setPolicyOverride(policyMerger.encodeOverride(command.policyOverride()));
         binding.setEnabled(command.enabled() == null ? binding.getEnabled() : command.enabled());
@@ -138,14 +167,19 @@ public class DefaultToolBindingManager implements ToolBindingManager {
             throw new IllegalStateException("tool binding changed concurrently: " + binding.getBindingId());
         }
         binding.setRowVersion(command.expectedRowVersion() + 1);
-        return resolveBinding(binding);
+        return resolveBinding(binding, versionSelector.select(binding, catalog.tool()).orElse(catalog.version()));
     }
 
-    private ResolvedToolBinding resolveBinding(ToolBindingPo binding) {
+    private Optional<ResolvedToolBinding> resolveAvailable(ToolBindingPo binding) {
+        return toolMapper.selectByToolId(binding.getToolId())
+                .flatMap(tool -> versionSelector.select(binding, tool).map(version -> resolveBinding(binding, version)));
+    }
+
+    private ResolvedToolBinding resolveBinding(ToolBindingPo binding, ToolVersionPo selected) {
         ToolPo tool = toolMapper.selectByToolId(binding.getToolId())
                 .orElseThrow(() -> new IllegalStateException(
                         "bound tool no longer exists: " + binding.getToolId()));
-        ToolReference reference = new ToolReference(tool.getNamespace(), tool.getName(), binding.getToolVersion());
+        ToolReference reference = new ToolReference(tool.getNamespace(), tool.getName(), selected.getVersion());
         CatalogVersion catalog = requirePublished(reference);
         ToolProviderPo provider = requireEnabledProvider(tool.getProviderId());
         ToolExecutionPolicy effectivePolicy = policyMerger.tighten(
@@ -165,13 +199,21 @@ public class DefaultToolBindingManager implements ToolBindingManager {
         ToolPo tool = toolMapper.selectByToolId(binding.getToolId())
                 .orElseThrow(() -> new IllegalStateException(
                         "bound tool no longer exists: " + binding.getToolId()));
-        ToolReference reference = new ToolReference(tool.getNamespace(), tool.getName(),
+        ToolReference baseline = new ToolReference(tool.getNamespace(), tool.getName(),
                 binding.getToolVersion());
+        Optional<ToolVersionPo> selected = versionSelector.select(binding, tool);
+        ToolReference reference = selected.map(version -> new ToolReference(tool.getNamespace(), tool.getName(), version.getVersion())).orElse(baseline);
+        String latest = tool.getLatestVersion();
+        String updateStatus = selected.isEmpty() ? "unavailable"
+                : latest != null && !latest.equals(reference.version()) ? "requires-review"
+                : !reference.version().equals(baseline.version()) ? "auto-upgraded" : "up-to-date";
+        String notes = latest == null ? null : versionMapper.selectExact(tool.getToolId(), latest)
+                .map(ToolVersionPo::getReleaseNotes).orElse(null);
         return new ToolBindingView(binding.getBindingId(), normalize(binding.getWorkspaceId()),
                 reference, binding.getCredentialReference(), binding.getConfiguration(),
                 policyMerger.decodeOverride(binding.getPolicyOverride()),
-                Boolean.TRUE.equals(binding.getEnabled()), availabilityService.isAvailable(reference),
-                binding.getRowVersion());
+                Boolean.TRUE.equals(binding.getEnabled()), selected.isPresent(),
+                binding.getRowVersion(), baseline, versionSelector.policy(binding), latest, updateStatus, notes);
     }
 
     private CatalogVersion requirePublished(ToolReference reference) {
@@ -202,11 +244,10 @@ public class DefaultToolBindingManager implements ToolBindingManager {
     }
 
     private void requireSameTarget(ToolBindingPo binding, String workspaceId,
-                                   String toolId, String toolVersion) {
+                                   String toolId) {
         if (!workspaceEquals(workspaceId, binding.getWorkspaceId())
-                || !toolId.equals(binding.getToolId())
-                || !toolVersion.equals(binding.getToolVersion())) {
-            throw new IllegalArgumentException("an existing binding cannot change workspace or tool version");
+                || !toolId.equals(binding.getToolId())) {
+            throw new IllegalArgumentException("an existing binding cannot change workspace or tool identity");
         }
     }
 
@@ -221,7 +262,7 @@ public class DefaultToolBindingManager implements ToolBindingManager {
 
     private String bindingLock(String ownerId, String workspaceId, ToolPo tool, ToolReference reference) {
         return "binding:" + ownerId + ":" + (workspaceId == null ? "personal" : workspaceId)
-                + ":" + tool.getToolId() + ":" + reference.version();
+                + ":" + tool.getToolId();
     }
 
     private String firstNonBlank(String first, String second) {

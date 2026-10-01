@@ -39,12 +39,26 @@
     <update id="publish">
         UPDATE arte_ai_tool_version
         SET lifecycle_state = 'published',
+            compatibility_base_version = #{compatibilityBaseVersion},
+            release_notes              = #{releaseNotes},
             published_at    = #{publishedAt},
             row_version     = row_version + 1,
             update_time     = CURRENT_TIMESTAMP(3)
         WHERE id = #{id}
           AND row_version = #{expectedVersion}
           AND lifecycle_state = 'draft'
+    </update>
+    <!-- 只补充一次发布计划，不修改定义、校验和或原发布时间。 -->
+    <update id="declareCompatibility">
+        UPDATE arte_ai_tool_version
+        SET compatibility_base_version = #{compatibilityBaseVersion},
+            release_notes              = #{releaseNotes},
+            row_version                = row_version + 1,
+            update_time                = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id}
+          AND row_version = #{expectedVersion}
+          AND lifecycle_state = 'published'
+          AND compatibility_base_version IS NULL
     </update>
     <update id="transition">
         UPDATE arte_ai_tool_version

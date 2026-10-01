@@ -18,6 +18,10 @@ export default function access(
         currentUser?.menuOperations,
         AI_TOOL_OPERATION_CODES.manage,
       ),
+    canConfigureAiTools:
+      isAdmin ||
+      includesValue(currentUser?.menuOperations, AI_TOOL_OPERATION_CODES.invoke) ||
+      includesValue(currentUser?.menuOperations, AI_TOOL_OPERATION_CODES.manage),
     canInvokeAiTools:
       isAdmin ||
       includesValue(

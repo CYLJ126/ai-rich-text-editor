@@ -5,7 +5,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {JsonEditor} from '@/components';
 import {formatDuration, isActiveWorkflowRun, normalizeToolError, WORKFLOW_RUN_PRESENTATION,} from '@/features/ai-tool';
 import {cancelWorkflowRun, getWorkflowRun, resumeWorkflowRun,} from '@/services/ant-design-pro/ai.tool.workflow';
-import type {WorkflowRunDetailView} from '@/types/ai.tool.type';
+import type {JsonObject, WorkflowRunDetailView} from '@/types/ai.tool.type';
 
 interface WorkflowRunDrawerProps {
   runId?: string;
@@ -200,6 +200,10 @@ export default function WorkflowRunDrawer({
                         width: 100,
                         render: formatDuration,
                       },
+                      {
+                        title: '实际工具版本', key: 'toolVersion', width: 170,
+                        render: (_, node) => runtimeToolLabel(detail.checkpointState, node.nodeId)
+                      },
                       {title: '调用 ID', dataIndex: 'callId', ellipsis: true},
                     ]}
                   />
@@ -240,4 +244,13 @@ export default function WorkflowRunDrawer({
       )}
     </Drawer>
   );
+}
+
+function runtimeToolLabel(state: JsonObject, nodeId: string): string {
+  const versions = state.resolvedTools;
+  if (!versions || typeof versions !== 'object' || Array.isArray(versions)) return '-';
+  const reference = versions[nodeId];
+  if (!reference || typeof reference !== 'object' || Array.isArray(reference)) return '-';
+  if (typeof reference.namespace !== 'string' || typeof reference.name !== 'string' || typeof reference.version !== 'string') return '-';
+  return `${reference.namespace}.${reference.name}@${reference.version}`;
 }

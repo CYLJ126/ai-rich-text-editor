@@ -108,6 +108,6 @@ public class ToolManagementQueryService {
                 version.getRiskProfile(), version.getDefaultConfiguration(), version.getDefaultPolicy(),
                 version.getTags(), version.getChecksum(), version.getLifecycleState(),
                 version.getRowVersion(), version.getPublishedAt(), version.getCreateTime(),
-                version.getUpdateTime());
+                version.getUpdateTime(), version.getCompatibilityBaseVersion(), version.getReleaseNotes());
     }
 }

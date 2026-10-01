@@ -6,6 +6,7 @@ import com.arte.ai.api.tool.ToolRegistry;
 import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.service.tool.ToolManagementQueryService;
+import com.arte.ai.service.tool.ToolUpgradePreviewService;
 import com.arte.core.pojo.ResultContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,6 +30,7 @@ public class ToolManagementController {
     private final ToolLifecycleManager lifecycleManager;
     private final ToolRegistry registry;
     private final ToolManagementQueryService queryService;
+    private final ToolUpgradePreviewService upgradePreviewService;
 
     @GetMapping("/providers")
     @PreAuthorize("@pcs.check('aiTool:list')")
@@ -84,12 +86,20 @@ public class ToolManagementController {
         return ResultContext.success(Boolean.TRUE);
     }
 
+    @GetMapping("/{namespace}/{name}/{version}/upgrade-preview")
+    @PreAuthorize("@pcs.check('aiTool:manage')")
+    public ResultContext<ToolUpgradePreview> upgradePreview(@PathVariable String namespace,
+                                                            @PathVariable String name, @PathVariable String version, @RequestParam String baseVersion) {
+        return ResultContext.success(upgradePreviewService.preview(new ToolReference(namespace, name, version), baseVersion));
+    }
+
     @PostMapping("/{namespace}/{name}/{version}/publish")
     @PreAuthorize("@pcs.check('aiTool:manage')")
     public ResultContext<Boolean> publish(@PathVariable String namespace,
                                           @PathVariable String name,
-                                          @PathVariable String version) {
-        lifecycleManager.publish(new ToolReference(namespace, name, version));
+                                          @PathVariable String version,
+                                          @RequestBody(required = false) ToolPublishCommand command) {
+        lifecycleManager.publish(new ToolReference(namespace, name, version), command);
         return ResultContext.success(Boolean.TRUE);
     }
 

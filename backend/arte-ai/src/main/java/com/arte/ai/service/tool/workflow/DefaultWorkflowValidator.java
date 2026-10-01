@@ -139,14 +139,14 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
                                List<WorkflowValidationResult.Issue> issues) {
         for (WorkflowNode node : definition.nodes()) {
             if (!(node instanceof WorkflowNode.ToolNode toolNode)) continue;
-            var resolved = toolRegistry.resolve(toolNode.tool());
+            Optional<ResolvedToolBinding> binding = validateToolBinding(toolNode, principal, issues);
+            var resolved = toolRegistry.resolve(binding.map(ResolvedToolBinding::tool).orElse(toolNode.tool()));
             if (resolved.isEmpty()) {
                 error(issues, "TOOL_VERSION_UNAVAILABLE", node.nodeId(),
                         "published tool version is unavailable: " + toolNode.tool());
                 continue;
             }
             ToolDefinition tool = resolved.get().getDefinition();
-            validateToolBinding(toolNode, principal, issues);
             Set<String> declaredInputs = schemaProperties(tool.inputSchema());
             Set<String> requiredInputs = schemaRequired(tool.inputSchema());
             Set<String> effectiveInputs = effectiveBindings(toolNode, definition.edges(), definition.nodes())
@@ -181,31 +181,40 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
         }
     }
 
-    private void validateToolBinding(WorkflowNode.ToolNode toolNode, ToolPrincipal principal,
+    private Optional<ResolvedToolBinding> validateToolBinding(WorkflowNode.ToolNode toolNode, ToolPrincipal principal,
                                      List<WorkflowValidationResult.Issue> issues) {
-        if (principal == null) return;
+        if (principal == null) return Optional.empty();
         String bindingId = configurationText(toolNode.configuration().get("bindingId"));
         if (bindingId == null) {
             if (executionProperties.isBindingRequired()) {
                 error(issues, "TOOL_BINDING_REQUIRED", toolNode.nodeId(),
                         "a user/workspace tool binding is required");
             }
-            return;
+            return Optional.empty();
         }
         String workspaceId = configurationText(toolNode.configuration().get("workspaceId"));
         Optional<ResolvedToolBinding> binding;
         try {
-            binding = bindingManager.resolve(principal.ownerId(), workspaceId, bindingId);
+            binding = bindingManager.resolveCompatible(principal.ownerId(), workspaceId, bindingId, toolNode.tool());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             binding = Optional.empty();
         }
         if (binding.isEmpty()) {
-            error(issues, "TOOL_BINDING_UNAVAILABLE", toolNode.nodeId(),
-                    "tool binding is unavailable for the workflow owner and workspace");
-        } else if (!binding.get().tool().equals(toolNode.tool())) {
-            error(issues, "TOOL_BINDING_TOOL_MISMATCH", toolNode.nodeId(),
-                    "tool binding does not grant the configured tool version");
+            Optional<ResolvedToolBinding> available;
+            try {
+                available = bindingManager.resolve(principal.ownerId(), workspaceId, bindingId);
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                available = Optional.empty();
+            }
+            if (available.isPresent() && !available.get().tool().equals(toolNode.tool())) {
+                error(issues, "TOOL_BINDING_TOOL_MISMATCH", toolNode.nodeId(),
+                        "tool binding does not grant the configured tool version");
+            } else {
+                error(issues, "TOOL_BINDING_UNAVAILABLE", toolNode.nodeId(),
+                        "tool binding is unavailable for the workflow owner and workspace");
+            }
         }
+        return binding;
     }
 
     private void validateBindings(WorkflowDefinition definition, Map<String, WorkflowNode> nodes,

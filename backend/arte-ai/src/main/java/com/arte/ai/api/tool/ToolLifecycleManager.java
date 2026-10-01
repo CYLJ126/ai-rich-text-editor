@@ -17,6 +17,10 @@ public interface ToolLifecycleManager {
 
     void publish(ToolReference reference);
 
+    default void publish(ToolReference reference, com.arte.ai.pojo.tool.ToolPublishCommand command) {
+        publish(reference);
+    }
+
     void deprecate(ToolReference reference, String reason);
 
     void disable(ToolReference reference, String reason);

@@ -1,5 +1,6 @@
 package com.arte.ai.pojo.tool.po;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -36,5 +37,7 @@ public class ToolProviderPo extends ToolPersistencePo {
     private String credentialReference;
     private String status;
     private LocalDateTime lastSyncTime;
+    // 同步恢复成功时必须将旧错误写为 SQL NULL，不能跳过空值更新。
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String lastError;
 }

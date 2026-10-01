@@ -6,6 +6,7 @@ import com.arte.ai.common.enums.tool.ToolLifecycleStateEnum;
 import com.arte.ai.mapper.tool.ToolMapper;
 import com.arte.ai.mapper.tool.ToolVersionMapper;
 import com.arte.ai.pojo.tool.ToolProviderSyncResult;
+import com.arte.ai.pojo.tool.ToolPublishCommand;
 import com.arte.ai.pojo.tool.ToolReference;
 import com.arte.ai.pojo.tool.ToolVersionView;
 import com.arte.ai.pojo.tool.po.ToolPo;
@@ -41,6 +42,7 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
     private final ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider;
     private final ToolDistributedLockExecutor lockExecutor;
     private final ToolProviderManager providerManager;
+    private final ToolVersionCompatibilityService compatibility;
 
     public DefaultToolLifecycleManager(List<ToolProvider> providers,
                                        ToolMapper toolMapper,
@@ -50,7 +52,8 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
                                        TransactionTemplate transactionTemplate,
                                        ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider,
                                        ToolDistributedLockExecutor lockExecutor,
-                                       ToolProviderManager providerManager) {
+                                       ToolProviderManager providerManager,
+                                       ToolVersionCompatibilityService compatibility) {
         this.providers = indexProviders(providers);
         this.toolMapper = toolMapper;
         this.versionMapper = versionMapper;
@@ -60,14 +63,21 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
         this.eventPublisherProvider = eventPublisherProvider;
         this.lockExecutor = lockExecutor;
         this.providerManager = providerManager;
+        this.compatibility = compatibility;
     }
 
     @Override
     public void publish(ToolReference reference) {
-        lockExecutor.execute(versionLock(reference), () -> publishLocked(reference));
+        publish(reference, null);
     }
 
-    private void publishLocked(ToolReference reference) {
+    @Override
+    public void publish(ToolReference reference, ToolPublishCommand command) {
+        ToolPublishCommand release = command == null ? new ToolPublishCommand(null, null) : command;
+        lockExecutor.execute(versionLock(reference), () -> publishLocked(reference, release));
+    }
+
+    private void publishLocked(ToolReference reference, ToolPublishCommand release) {
         CatalogEntry entry = requireEntry(reference);
         ToolProviderSyncResult syncResult = providerManager.synchronize(entry.tool().getProviderId())
                 .toCompletableFuture().join();
@@ -86,8 +96,16 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
         transactionTemplate.executeWithoutResult(status -> {
             ToolVersionPo current = versionMapper.selectExact(synchronizedEntry.tool().getToolId(), reference.version())
                     .orElseThrow(() -> new IllegalArgumentException("unknown tool version: " + reference));
+            if (release.compatibilityBaseVersion() != null) {
+                ToolVersionPo base = versionMapper.selectExact(current.getToolId(), release.compatibilityBaseVersion())
+                        .orElseThrow(() -> new IllegalArgumentException("兼容基准版本不存在"));
+                compatibility.requireReleaseBaseline(base, current);
+                if (release.releaseNotes() == null) throw new IllegalArgumentException("兼容升级必须填写发布说明");
+                compatibility.requireCompatible(base, current);
+            }
             if (current.getLifecycleState() == ToolLifecycleStateEnum.DRAFT) {
-                int updated = versionMapper.publish(current.getId(), current.getRowVersion(), LocalDateTime.now());
+                int updated = versionMapper.publish(current.getId(), current.getRowVersion(), LocalDateTime.now(),
+                        release.compatibilityBaseVersion(), release.releaseNotes());
                 if (updated != 1) {
                     throw new IllegalStateException("tool version changed concurrently: " + reference);
                 }
@@ -95,13 +113,21 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
                 tool.setLifecycleState(ToolLifecycleStateEnum.PUBLISHED);
                 tool.setLatestVersion(reference.version());
                 toolMapper.updateById(tool);
+            } else if (current.getLifecycleState() == ToolLifecycleStateEnum.PUBLISHED && release.compatibilityBaseVersion() != null) {
+                if (current.getCompatibilityBaseVersion() == null) {
+                    int updated = versionMapper.declareCompatibility(current.getId(), current.getRowVersion(),
+                            release.compatibilityBaseVersion(), release.releaseNotes());
+                    if (updated != 1) throw new IllegalStateException("兼容升级关系已被其他操作修改，请刷新页面");
+                } else if (!current.getCompatibilityBaseVersion().equals(release.compatibilityBaseVersion())
+                        || !java.util.Objects.equals(current.getReleaseNotes(), release.releaseNotes())) {
+                    throw new IllegalStateException("已确认的兼容升级关系不可改写，请使用新版本");
+                }
             } else if (current.getLifecycleState() != ToolLifecycleStateEnum.PUBLISHED) {
                 throw new IllegalStateException("disabled or deprecated tool versions cannot be published: " + reference);
             }
         });
 
-        registry.unregister(reference);
-        registry.register(synchronizedEntry.tool().getProviderId(), runtimeTool);
+        providerManager.reconcileLocal(synchronizedEntry.tool().getProviderId()).toCompletableFuture().join();
         publishToolEvent(synchronizedEntry.tool().getProviderId(), reference, ToolClusterEventTypeEnum.TOOL_PUBLISHED);
     }
 
@@ -138,7 +164,7 @@ public class DefaultToolLifecycleManager implements ToolLifecycleManager {
                         new ToolReference(tool.getNamespace(), tool.getName(), version.getVersion()),
                         tool.getToolId(), version.getTitle(), version.getDescription(),
                         version.getLifecycleState(), version.getChecksum(), version.getRowVersion(),
-                        version.getPublishedAt()))
+                        version.getPublishedAt(), version.getCompatibilityBaseVersion(), version.getReleaseNotes()))
                 .toList();
     }
 

@@ -51,6 +51,8 @@ public class ToolVersionPo extends ToolPersistencePo {
     private String checksum;
     private ToolLifecycleStateEnum lifecycleState;
     private LocalDateTime publishedAt;
+    private String compatibilityBaseVersion;
+    private String releaseNotes;
     @Version
     private Long rowVersion;
 }

@@ -8,7 +8,6 @@ import com.arte.ai.pojo.assistant.AssistantDto;
 import com.arte.ai.pojo.assistant.AssistantPo;
 import com.arte.ai.pojo.tool.*;
 import com.arte.ai.pojo.tool.po.AssistantToolPo;
-import com.arte.ai.pojo.tool.po.AssistantToolResolutionPo;
 import com.arte.ai.service.tool.cluster.ToolDistributedLockExecutor;
 import com.arte.core.enums.StatusEnum;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -36,7 +35,6 @@ public class DefaultAssistantToolManager implements AssistantToolManager {
     private final AssistantToolMapper assistantToolMapper;
     private final ToolBindingManager bindingManager;
     private final ToolPolicyMerger policyMerger;
-    private final ToolConfigurationMerger configurationMerger;
     private final ToolRegistry registry;
     private final ToolDistributedLockExecutor lockExecutor;
     private final TransactionTemplate transactionTemplate;
@@ -75,34 +73,23 @@ public class DefaultAssistantToolManager implements AssistantToolManager {
         List<ResolvedAssistantTool> result = new ArrayList<>();
         Set<String> modelNames = new HashSet<>();
 
-        for (AssistantToolResolutionPo resolution : assistantToolMapper.selectResolved(
-                assistantId, normalizedOwner, normalize(workspaceId))) {
-            com.arte.ai.pojo.tool.ToolReference reference = new com.arte.ai.pojo.tool.ToolReference(
-                    resolution.getNamespace(), resolution.getName(), resolution.getToolVersion());
-            ToolDefinition definition = registry.resolve(reference)
-                    .map(Tool::getDefinition)
-                    .orElse(null);
-            if (definition == null) {
-                continue;
-            }
+        for (AssistantToolPo association : assistantToolMapper.selectEnabledByAssistantId(assistantId)) {
+            ResolvedToolBinding binding = bindingManager.resolve(normalizedOwner, workspaceId,
+                    association.getBindingId()).orElse(null);
+            if (binding == null) continue;
+            ToolDefinition definition = registry.resolve(binding.tool()).map(Tool::getDefinition).orElse(null);
+            if (definition == null) continue;
             String modelName = modelToolName(definition);
             if (!modelNames.add(modelName)) {
                 throw new IllegalStateException("assistant exposes duplicate model tool name: " + modelName);
             }
-            ToolExecutionPolicy effectivePolicy = policyMerger.decodePolicy(resolution.getDefaultPolicy());
-            effectivePolicy = policyMerger.tighten(effectivePolicy,
-                    policyMerger.decodeOverride(resolution.getBindingPolicyOverride()));
-            effectivePolicy = policyMerger.tighten(effectivePolicy,
-                    policyMerger.decodeOverride(resolution.getAssistantPolicyOverride()));
+            ToolExecutionPolicy effectivePolicy = policyMerger.tighten(binding.effectivePolicy(),
+                    policyMerger.decodeOverride(association.getPolicyOverride()));
             org.springframework.ai.tool.definition.ToolDefinition modelDefinition =
-                    new DefaultToolDefinition(modelName, definition.description(),
-                            definition.inputSchema().schema());
-            result.add(new ResolvedAssistantTool(modelName, reference, resolution.getBindingId(),
-                    resolution.getSortOrder(), modelDefinition,
-                    configurationMerger.merge(resolution.getDefaultConfiguration(),
-                            resolution.getBindingConfiguration()),
-                    firstNonBlank(resolution.getBindingCredentialReference(),
-                            resolution.getProviderCredentialReference()), effectivePolicy));
+                    new DefaultToolDefinition(modelName, definition.description(), definition.inputSchema().schema());
+            result.add(new ResolvedAssistantTool(modelName, binding.tool(), binding.bindingId(),
+                    association.getSortOrder(), modelDefinition, binding.effectiveConfiguration(),
+                    binding.credentialReference(), effectivePolicy));
         }
         return List.copyOf(result);
     }
@@ -184,12 +171,4 @@ public class DefaultAssistantToolManager implements AssistantToolManager {
         return value.trim();
     }
 
-    private String firstNonBlank(String first, String second) {
-        String normalized = normalize(first);
-        return normalized == null ? normalize(second) : normalized;
-    }
-
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

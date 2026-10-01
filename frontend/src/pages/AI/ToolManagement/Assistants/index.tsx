@@ -232,20 +232,20 @@ export default function AssistantToolsPage() {
           <Button
             size="small"
             icon={<ArrowUpOutlined/>}
-            disabled={index === 0 || !access.canManageAiTools}
+            disabled={index === 0 || !access.canConfigureAiTools}
             onClick={() => move(index, -1)}
           />
           <Button
             size="small"
             icon={<ArrowDownOutlined/>}
-            disabled={index === commands.length - 1 || !access.canManageAiTools}
+            disabled={index === commands.length - 1 || !access.canConfigureAiTools}
             onClick={() => move(index, 1)}
           />
         </Space>
       ),
     },
     {
-      title: '绑定的固定工具版本',
+      title: '绑定的当前执行版本',
       render: (_, command) => {
         const binding = bindingById.get(command.bindingId);
         return binding ? (
@@ -282,7 +282,7 @@ export default function AssistantToolsPage() {
       render: (_, command, index) => (
         <Switch
           checked={command.enabled}
-          disabled={!access.canManageAiTools}
+          disabled={!access.canConfigureAiTools}
           onChange={(enabled) => updateCommand(index, {enabled})}
         />
       ),
@@ -294,7 +294,7 @@ export default function AssistantToolsPage() {
         <Button
           type="link"
           icon={<SettingOutlined/>}
-          disabled={!access.canManageAiTools}
+          disabled={!access.canConfigureAiTools}
           onClick={() => {
             setPolicyIndex(index);
             policyForm.setFieldsValue(command.policyOverride || {});
@@ -310,7 +310,7 @@ export default function AssistantToolsPage() {
       render: (_, command) => (
         <Typography.Link
           type="danger"
-          disabled={!access.canManageAiTools}
+          disabled={!access.canConfigureAiTools}
           onClick={() =>
             selectBindings(
               selectedIds.filter(
@@ -341,7 +341,7 @@ export default function AssistantToolsPage() {
           >
             预览模型定义
           </Button>
-          {access.canManageAiTools && (
+          {access.canConfigureAiTools && (
             <Button
               type="primary"
               icon={<SaveOutlined/>}
@@ -404,7 +404,7 @@ export default function AssistantToolsPage() {
           <Select
             mode="multiple"
             value={selectedIds}
-            disabled={!access.canManageAiTools}
+            disabled={!access.canConfigureAiTools}
             onChange={selectBindings}
             optionFilterProp="label"
             placeholder="添加工具绑定"

@@ -29,6 +29,7 @@ import type {
   ToolCatalogItem,
   ToolPolicyOverride,
   ToolReference,
+  ToolVersionPolicy,
   ToolVersionView,
 } from '@/types/ai.tool.type';
 import {PolicyOverrideFields} from '../components';
@@ -37,6 +38,7 @@ interface BindingFormValues {
   workspaceId?: string;
   toolId?: string;
   version?: string;
+  versionPolicy: ToolVersionPolicy;
   credentialReference?: string;
   enabled: boolean;
   policyOverride?: ToolPolicyOverride;
@@ -70,7 +72,7 @@ export default function BindingEditor({
   const catalogSearchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const fixedReference = binding?.tool || resolved?.tool;
+  const fixedReference = binding?.baselineTool || binding?.tool || resolved?.tool;
   const fixedBindingId = binding?.bindingId || resolved?.bindingId;
   const expectedRowVersion = resolved?.rowVersion ?? binding?.rowVersion;
 
@@ -101,6 +103,8 @@ export default function BindingEditor({
     form.resetFields();
     form.setFieldsValue({
       workspaceId: binding?.workspaceId || defaultWorkspaceId,
+      version: binding?.baselineTool?.version || binding?.tool.version,
+      versionPolicy: binding?.versionPolicy || 'follow-compatible',
       credentialReference: binding?.credentialReference,
       enabled: binding?.enabled ?? true,
       policyOverride: binding?.policyOverride,
@@ -108,7 +112,15 @@ export default function BindingEditor({
     setConfiguration(binding?.configuration || {});
     setConfigurationValid(true);
     setResolved(undefined);
-    if (binding) return;
+    setVersions([]);
+    if (binding) {
+      setLoadingVersions(true);
+      listToolVersions(binding.tool.namespace, binding.tool.name)
+        .then(records => setVersions(records.filter(item => item.lifecycleState === 'published')))
+        .catch(error => message.error(normalizeToolError(error).message))
+        .finally(() => setLoadingVersions(false));
+      return;
+    }
     loadCatalog().then();
   }, [binding, defaultWorkspaceId, form, loadCatalog, open]);
 
@@ -120,6 +132,7 @@ export default function BindingEditor({
   );
 
   const selectedToolId = Form.useWatch('toolId', form);
+  const selectedVersion = Form.useWatch('version', form);
   const selectedTool = useMemo(
     () => catalog.find((item) => item.toolId === selectedToolId),
     [catalog, selectedToolId],
@@ -133,9 +146,8 @@ export default function BindingEditor({
     setLoadingVersions(true);
     try {
       const records = await listToolVersions(tool.namespace, tool.name);
-      setVersions(
-        records.filter((item) => item.lifecycleState === 'published'),
-      );
+      setVersions(records.filter((item) => item.lifecycleState === 'published'));
+      form.setFieldValue('version', tool.latestVersion);
     } catch (error) {
       message.error(normalizeToolError(error).message).then();
     } finally {
@@ -153,7 +165,7 @@ export default function BindingEditor({
       return;
     }
     const tool: ToolReference | undefined =
-      fixedReference ||
+      (fixedReference && values.version ? {...fixedReference, version: values.version} : undefined) ||
       (selectedTool && values.version
         ? {
           namespace: selectedTool.namespace,
@@ -173,6 +185,7 @@ export default function BindingEditor({
         policyOverride: compactPolicyOverride(values.policyOverride),
         enabled: values.enabled,
         expectedRowVersion,
+        versionPolicy: values.versionPolicy,
       });
       setResolved(result);
       message.success('工具绑定已保存').then();
@@ -188,7 +201,7 @@ export default function BindingEditor({
     <Drawer
       title={
         fixedReference
-          ? `编辑绑定：${toolReferenceLabel(fixedReference)}`
+          ? `编辑配置：${fixedReference.namespace}.${fixedReference.name}`
           : '新建工具绑定'
       }
       width={760}
@@ -197,7 +210,7 @@ export default function BindingEditor({
       onClose={onClose}
       extra={
         <Button onClick={() => form.submit()} type="primary" loading={saving}>
-          保存并解析
+          保存配置
         </Button>
       }
     >
@@ -205,14 +218,14 @@ export default function BindingEditor({
         type="info"
         showIcon
         message="只保存凭据引用，不保存敏感凭据"
-        description="策略覆盖只能收紧服务端策略。已保存绑定的作用域和固定工具版本不可修改，如需切换版本请新建绑定。"
+        description="兼容升级保留你的配置、凭据和助手关联。选择新版本可在原绑定内升级；策略覆盖只能收紧服务端策略。"
         style={{marginBottom: 16}}
       />
       <Form
         form={form}
         layout="vertical"
         onFinish={save}
-        initialValues={{enabled: true}}
+        initialValues={{enabled: true, versionPolicy: 'follow-compatible'}}
       >
         <Form.Item
           name="workspaceId"
@@ -236,11 +249,8 @@ export default function BindingEditor({
             <Descriptions.Item label="绑定 ID">
               <Typography.Text copyable>{fixedBindingId}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="固定工具版本">
-              {toolReferenceLabel(fixedReference)}
-            </Descriptions.Item>
-            <Descriptions.Item label="乐观锁版本">
-              {expectedRowVersion}
+            <Descriptions.Item label="当前执行版本">
+              {toolReferenceLabel(resolved?.tool || binding?.tool || fixedReference)}
             </Descriptions.Item>
           </Descriptions>
         ) : (
@@ -272,23 +282,25 @@ export default function BindingEditor({
                 }))}
               />
             </Form.Item>
-            <Form.Item
-              name="version"
-              label="固定版本"
-              rules={[{required: true, message: '请选择版本'}]}
-              style={{width: 220}}
-            >
-              <Select
-                loading={loadingVersions}
-                disabled={!selectedTool}
-                placeholder="选择已发布版本"
-                options={versions.map((item) => ({
-                  value: item.reference.version,
-                  label: item.reference.version,
-                }))}
-              />
-            </Form.Item>
           </Space>
+        )}
+        <Form.Item name="versionPolicy" label="升级方式" rules={[{required: true}]}>
+          <Select options={[
+            {value: 'follow-compatible', label: '自动跟随兼容升级（推荐）'},
+            {value: 'pinned', label: '锁定所选版本'},
+          ]}/>
+        </Form.Item>
+        <Form.Item name="version" label="基准版本" rules={[{required: true, message: '请选择版本'}]}
+                   extra="自动升级以此版本为兼容基准。变更基准版本后仍保留当前配置，请查看升级说明。">
+          <Select loading={loadingVersions} disabled={!fixedReference && !selectedTool}
+                  options={versions.map(item => ({
+                    value: item.reference.version,
+                    label: `${item.reference.version}${item.compatibilityBaseVersion ? `（兼容 ${item.compatibilityBaseVersion}）` : ''}`
+                  }))}/>
+        </Form.Item>
+        {versions.find(item => item.reference.version === selectedVersion)?.releaseNotes && (
+          <Alert type="info" showIcon message="升级说明" style={{marginBottom: 16}}
+                 description={versions.find(item => item.reference.version === selectedVersion)?.releaseNotes}/>
         )}
         <Form.Item
           name="credentialReference"

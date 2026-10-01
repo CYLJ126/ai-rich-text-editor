@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -32,7 +31,7 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     private final ToolDefinitionValidator definitionValidator;
     private final ToolAvailabilityService availabilityService;
-    private final Map<ToolReference, RegistryEntry> tools = new ConcurrentHashMap<>();
+    private volatile Map<ToolReference, RegistryEntry> tools = Map.of();
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Override
@@ -41,7 +40,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     @Override
-    public void register(String providerId, Tool<?, ?> tool) {
+    public synchronized void register(String providerId, Tool<?, ?> tool) {
         if (tool == null) {
             throw new IllegalArgumentException("tool must not be null");
         }
@@ -53,35 +52,61 @@ public class DefaultToolRegistry implements ToolRegistry {
         }
 
         RegistryEntry entry = new RegistryEntry(providerId, tool);
-        RegistryEntry existing = tools.putIfAbsent(reference, entry);
+        RegistryEntry existing = tools.get(reference);
         if (existing != null && existing.tool() != tool) {
             throw new DuplicateToolException(reference);
         }
         if (existing == null) {
+            Map<ToolReference, RegistryEntry> next = new HashMap<>(tools);
+            next.put(reference, entry);
+            tools = Map.copyOf(next);
             notifyChanged(providerId);
         }
     }
 
     @Override
-    public void unregister(ToolReference reference) {
+    public synchronized void unregister(ToolReference reference) {
         if (reference == null) {
             return;
         }
-        RegistryEntry removed = tools.remove(reference);
+        Map<ToolReference, RegistryEntry> next = new HashMap<>(tools);
+        RegistryEntry removed = next.remove(reference);
         if (removed != null) {
+            tools = Map.copyOf(next);
             notifyChanged(removed.providerId());
         }
     }
 
     @Override
-    public void unregisterProvider(String providerId) {
+    public synchronized void unregisterProvider(String providerId) {
         if (providerId == null || providerId.isBlank()) {
             return;
         }
-        boolean changed = tools.entrySet().removeIf(entry -> providerId.equals(entry.getValue().providerId()));
+        Map<ToolReference, RegistryEntry> next = new HashMap<>(tools);
+        boolean changed = next.entrySet().removeIf(entry -> providerId.equals(entry.getValue().providerId()));
         if (changed) {
+            tools = Map.copyOf(next);
             notifyChanged(providerId);
         }
+    }
+
+    @Override
+    public synchronized void replaceProvider(String providerId, List<Tool<?, ?>> replacements) {
+        if (providerId == null || providerId.isBlank()) throw new IllegalArgumentException("providerId is required");
+        Map<ToolReference, RegistryEntry> next = new HashMap<>(tools);
+        next.entrySet().removeIf(entry -> providerId.equals(entry.getValue().providerId()));
+        for (Tool<?, ?> tool : replacements) {
+            definitionValidator.validate(tool.getDefinition());
+            ToolReference reference = tool.getDefinition().reference();
+            if (!availabilityService.isAvailable(reference)) {
+                throw new IllegalStateException("tool is not published or its provider is disabled: " + reference);
+            }
+            if (next.putIfAbsent(reference, new RegistryEntry(providerId, tool)) != null) {
+                throw new DuplicateToolException(reference);
+            }
+        }
+        tools = Map.copyOf(next);
+        notifyChanged(providerId);
     }
 
     @Override

@@ -144,7 +144,7 @@ public class DefaultWorkflowManager implements WorkflowManager {
         if (!validation.valid()) {
             throw new IllegalArgumentException("invalid workflow: " + validation.issues());
         }
-        CompiledWorkflow compiled = compiler.compile(definition);
+        CompiledWorkflow compiled = compiler.compile(definition, principal);
         int changed = versionMapper.publishCompiled(stored.getId(), expectedRowVersion,
                 codec.encodePlan(compiled), codec.encodePinnedTools(compiled.pinnedTools()),
                 compiled.entryNodeId(), compiled.checksum(), LocalDateTime.now());

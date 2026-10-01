@@ -18,7 +18,13 @@ public interface ToolVersionMapper extends BaseMapper<ToolVersionPo> {
     List<ToolVersionPo> selectVersions(@Param("toolId") String toolId);
 
     int publish(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
-                @Param("publishedAt") LocalDateTime publishedAt);
+                @Param("publishedAt") LocalDateTime publishedAt,
+                @Param("compatibilityBaseVersion") String compatibilityBaseVersion,
+                @Param("releaseNotes") String releaseNotes);
+
+    int declareCompatibility(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
+                             @Param("compatibilityBaseVersion") String compatibilityBaseVersion,
+                             @Param("releaseNotes") String releaseNotes);
 
     int transition(@Param("id") Long id,
                    @Param("expectedVersion") Long expectedVersion,

@@ -35,6 +35,7 @@ public class ToolBindingPo extends ToolPersistencePo {
     private String workspaceScope;
     private String toolId;
     private String toolVersion;
+    private String versionPolicy;
     private String credentialReference;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> configuration;

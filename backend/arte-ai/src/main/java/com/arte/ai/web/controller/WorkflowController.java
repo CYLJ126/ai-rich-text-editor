@@ -1,6 +1,5 @@
 package com.arte.ai.web.controller;
 
-import com.arte.ai.api.tool.workflow.WorkflowCompiler;
 import com.arte.ai.api.tool.workflow.WorkflowManager;
 import com.arte.ai.api.tool.workflow.WorkflowRunner;
 import com.arte.ai.common.enums.tool.NeverToolCancellation;
@@ -32,7 +31,6 @@ import java.util.concurrent.CompletionStage;
 public class WorkflowController {
 
     private final WorkflowManager manager;
-    private final WorkflowCompiler compiler;
     private final WorkflowRunner runner;
     private final WorkflowPersistenceCodec codec;
     private final WorkflowQueryService queryService;
@@ -108,7 +106,7 @@ public class WorkflowController {
                 NeverToolCancellation.INSTANCE, null, null, Map.of());
         WorkflowExecutionContext context = new WorkflowExecutionContext(toolContext, request.inputs(),
                 request.variables(), maximumSteps);
-        return runner.start(compiler.compile(definition), context).thenApply(run ->
+        return runner.start(request.workflowId(), request.version(), context).thenApply(run ->
                 ResultContext.success(actionResult(owner, run)));
     }
 

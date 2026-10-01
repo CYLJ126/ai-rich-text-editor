@@ -48,29 +48,32 @@ create table arte_ai_tool
 create index idx_tool_provider_state
     on arte_ai_tool (provider_id, lifecycle_state);
 
+
 create table arte_ai_tool_version
 (
-    id              bigint auto_increment comment '主键'
+    id                         bigint auto_increment comment '主键'
         primary key,
-    tool_id         varchar(64)                 not null comment '工具业务 ID',
-    version         varchar(64)                 not null comment '工具版本',
-    title           varchar(200)                not null comment '展示名称',
-    description     varchar(1000) null comment '工具描述',
-    input_schema    json                        not null comment '输入 JSON Schema',
-    output_schema   json                        not null comment '输出 JSON Schema',
-    capabilities    json                        not null comment '工具能力快照',
-    risk_profile    json                        not null comment '风险画像快照',
-    default_configuration json null comment '工具默认运行配置',
-    default_policy  json                        not null comment '默认执行策略',
-    tags            json null comment '标签',
-    checksum        varchar(128)                not null comment '定义校验和',
-    lifecycle_state varchar(32) default 'draft' not null comment '生命周期状态',
-    published_at    datetime(3) null comment '发布时间',
-    row_version     bigint      default 0       not null comment '乐观锁版本',
-    create_by       varchar(64) null comment '创建人',
-    update_by       varchar(64) null comment '更新人',
-    create_time     datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
-    update_time     datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
+    tool_id                    varchar(64)                 not null comment '工具业务 ID',
+    version                    varchar(64)                 not null comment '工具版本',
+    title                      varchar(200)                not null comment '展示名称',
+    description                varchar(1000) null comment '工具描述',
+    input_schema               json                        not null comment '输入 JSON Schema',
+    output_schema              json                        not null comment '输出 JSON Schema',
+    capabilities               json                        not null comment '工具能力快照',
+    risk_profile               json                        not null comment '风险画像快照',
+    default_configuration      json null comment '工具默认运行配置',
+    default_policy             json                        not null comment '默认执行策略',
+    tags                       json null comment '标签',
+    checksum                   varchar(128)                not null comment '定义校验和',
+    lifecycle_state            varchar(32) default 'draft' not null comment '生命周期状态',
+    published_at               datetime(3)                              null comment '发布时间',
+    row_version                bigint      default 0       not null comment '乐观锁版本',
+    create_by                  varchar(64) null comment '创建人',
+    update_by                  varchar(64) null comment '更新人',
+    create_time                datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
+    update_time                datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
+    compatibility_base_version varchar(64) null comment '经发布检查的兼容基准版本',
+    release_notes              varchar(2000) null comment '发布与升级说明',
     constraint uk_tool_version
         unique (tool_id, version),
     constraint uk_tool_version_checksum
@@ -80,25 +83,27 @@ create table arte_ai_tool_version
 create index idx_tool_version_state
     on arte_ai_tool_version (tool_id, lifecycle_state, published_at);
 
+
 create table arte_ai_tool_binding
 (
     id                   bigint auto_increment comment '主键'
         primary key,
-    binding_id           varchar(64)      not null comment '绑定业务 ID',
-    owner_id             varchar(64)      not null comment '所有者用户 ID',
+    binding_id           varchar(64)                             not null comment '绑定业务 ID',
+    owner_id             varchar(64)                             not null comment '所有者用户 ID',
     workspace_id         varchar(64) null comment '工作空间 ID',
-    workspace_scope varchar(64) generated always as (coalesce(workspace_id, '')) stored comment '工作空间唯一键辅助列',
-    tool_id              varchar(64)      not null comment '工具业务 ID',
-    tool_version         varchar(64)      not null comment '固定工具版本',
+    workspace_scope      varchar(64) as (coalesce(`workspace_id`, _utf8mb4'')) stored comment '工作空间唯一键辅助列',
+    tool_id              varchar(64)                             not null comment '工具业务 ID',
+    tool_version         varchar(64)                             not null comment '固定工具版本',
     credential_reference varchar(128) null comment '凭据引用，不保存明文',
     configuration        json null comment '运行配置',
     policy_override      json null comment '执行策略覆盖',
-    enabled              tinyint(1) default 1                 not null comment '是否启用',
-    row_version          bigint default 0 not null comment '乐观锁版本',
+    enabled              tinyint(1)  default 1                    not null comment '是否启用',
+    row_version          bigint      default 0                   not null comment '乐观锁版本',
     create_by            varchar(64) null comment '创建人',
     update_by            varchar(64) null comment '更新人',
     create_time          datetime(3) default CURRENT_TIMESTAMP(3) not null comment '创建时间',
     update_time          datetime(3) default CURRENT_TIMESTAMP(3) not null on update CURRENT_TIMESTAMP(3) comment '更新时间',
+    version_policy       varchar(32) default 'follow-compatible' not null comment 'follow-compatible: 跟随经过发布检查的兼容版本；pinned: 固定基准版本',
     constraint uk_tool_binding_id
         unique (binding_id),
     constraint uk_tool_binding_scope
@@ -110,6 +115,8 @@ create index idx_tool_binding_owner
 
 create index idx_tool_binding_tool
     on arte_ai_tool_binding (tool_id, tool_version, enabled);
+
+
 
 create table arte_ai_assistant_tool
 (

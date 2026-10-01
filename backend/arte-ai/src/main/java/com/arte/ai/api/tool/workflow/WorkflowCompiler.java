@@ -12,4 +12,8 @@ import com.arte.ai.pojo.tool.WorkflowDefinition;
 public interface WorkflowCompiler {
 
     CompiledWorkflow compile(WorkflowDefinition definition);
+
+    default CompiledWorkflow compile(WorkflowDefinition definition, com.arte.ai.pojo.tool.ToolPrincipal principal) {
+        return compile(definition);
+    }
 }

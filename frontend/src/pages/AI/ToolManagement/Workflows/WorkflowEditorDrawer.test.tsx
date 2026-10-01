@@ -183,7 +183,7 @@ describe('WorkflowEditorDrawer validation navigation', () => {
 
     const bindingSelect = await screen.findByRole('combobox', {name: '工具绑定'});
     fireEvent.mouseDown(bindingSelect);
-    fireEvent.click(await screen.findByText('binding-1 · 个人'));
+    fireEvent.click(await screen.findByText('binding-1 · 个人 · 当前 1.0.0 · 跟随兼容升级'));
     fireEvent.click(screen.getByRole('button', {name: /校验$/}));
 
     await waitFor(() => {
@@ -197,4 +197,25 @@ describe('WorkflowEditorDrawer validation navigation', () => {
       }));
     });
   });
+  it('retains an upgraded binding without rewriting the workflow contract baseline', async () => {
+    vi.mocked(listToolBindings).mockResolvedValueOnce([{
+      bindingId: 'upgraded-binding',
+      tool: {namespace: 'test', name: 'lookup', version: '1.0.1'},
+      baselineTool: {namespace: 'test', name: 'lookup', version: '1.0.0'},
+      versionPolicy: 'follow-compatible', configuration: {}, enabled: true, available: true, rowVersion: 3,
+    }]);
+    render(<WorkflowEditorDrawer open initial={{...initial, nodes: [initial.nodes[1], initial.nodes[0]]}}
+                                 onClose={vi.fn()} onSaved={vi.fn()}/>);
+    fireEvent.mouseDown(await screen.findByRole('combobox', {name: '工具绑定'}));
+    fireEvent.click(await screen.findByText('upgraded-binding · 个人 · 当前 1.0.1 · 跟随兼容升级'));
+    fireEvent.click(screen.getByRole('button', {name: /校验$/}));
+    await waitFor(() => expect(validateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      nodes: expect.arrayContaining([expect.objectContaining({
+        nodeId: 'tool-node',
+        tool: {namespace: 'test', name: 'lookup', version: '1.0.0'},
+        configuration: {bindingId: 'upgraded-binding'},
+      })]),
+    })));
+  });
+
 });

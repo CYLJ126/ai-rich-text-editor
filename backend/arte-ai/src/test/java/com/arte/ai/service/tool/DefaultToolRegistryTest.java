@@ -75,6 +75,30 @@ public class DefaultToolRegistryTest {
         assertTrue(registry.resolve(translate.reference()).isPresent());
     }
 
+    @Test
+    public void shouldReplaceProviderOnceWithoutExposingPartialSnapshot() {
+        ToolDefinition original = definition("old");
+        ToolDefinition first = definition("new-a");
+        ToolDefinition second = definition("new-b");
+        available.addAll(Set.of(original.reference(), first.reference(), second.reference()));
+        registry.register("local", new TestTool(original));
+        java.util.List<Integer> sizes = new java.util.ArrayList<>();
+        registry.addListener(provider -> sizes.add(registry.search(null).size()));
+        registry.replaceProvider("local", java.util.List.of(new TestTool(first), new TestTool(second)));
+        assertEquals(java.util.List.of(2), sizes);
+        assertFalse(registry.resolve(original.reference()).isPresent());
+    }
+
+    @Test
+    public void shouldKeepOriginalSnapshotWhenReplacementIsInvalid() {
+        ToolDefinition original = definition("old");
+        available.add(original.reference());
+        registry.register("local", new TestTool(original));
+        assertThrows(IllegalStateException.class, () -> registry.replaceProvider("local",
+                java.util.List.of(new TestTool(definition("unpublished")))));
+        assertTrue(registry.resolve(original.reference()).isPresent());
+    }
+
     private ToolDefinition definition() {
         return definition("summarize");
     }

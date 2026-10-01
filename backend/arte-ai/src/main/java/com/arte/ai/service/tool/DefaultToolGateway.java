@@ -222,7 +222,7 @@ public class DefaultToolGateway implements ToolGateway {
         String workspaceId = string(request.context().attributes().get(ATTR_WORKSPACE_ID));
         ResolvedToolBinding binding = null;
         if (bindingId != null) {
-            binding = bindingManager.resolve(request.context().principal().ownerId(), workspaceId, bindingId)
+            binding = bindingManager.resolveRequested(request.context().principal().ownerId(), workspaceId, bindingId, request.tool())
                     .orElseThrow(() -> new SecurityException("tool binding is unavailable"));
             if (!binding.tool().equals(request.tool())) {
                 throw new SecurityException("binding does not grant the requested tool version");

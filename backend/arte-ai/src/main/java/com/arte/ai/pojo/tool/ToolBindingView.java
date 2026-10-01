@@ -19,7 +19,12 @@ public record ToolBindingView(
         ToolPolicyOverride policyOverride,
         boolean enabled,
         boolean available,
-        long rowVersion
+        long rowVersion,
+        ToolReference baselineTool,
+        String versionPolicy,
+        String latestVersion,
+        String updateStatus,
+        String releaseNotes
 ) {
 
     public ToolBindingView {

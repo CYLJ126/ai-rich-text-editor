@@ -470,12 +470,12 @@ function NodeInspector({
         ...(node.tool || {namespace: '', name: '', version: ''}),
         ...part,
       },
-      configuration: withoutBinding(node.configuration),
+      configuration: part.version !== undefined ? node.configuration : withoutBinding(node.configuration),
     });
   const bindingId = configurationText(node.configuration.bindingId);
   const selectedTool = node.tool;
   const matchingBindings = selectedTool
-    ? bindings.filter((binding) => sameTool(binding.tool, selectedTool))
+    ? bindings.filter((binding) => sameToolIdentity(binding.tool, selectedTool))
     : [];
   return (
     <Card title={`${nodeTypeLabel(node.type)}节点配置`} size="small">
@@ -508,7 +508,7 @@ function NodeInspector({
                 }
               />
             </Form.Item>
-            <Form.Item label="固定版本" required>
+            <Form.Item label="工具契约基准版本" required extra="新运行按绑定选择兼容版本；兼容升级无需修改这里。">
               <Select
                 value={node.tool?.version}
                 options={(toolKey ? toolVersions[toolKey] ?? [] : []).map(
@@ -535,7 +535,7 @@ function NodeInspector({
             <Form.Item
               label="工具绑定"
               required
-              extra={`当前作用域：${configurationText(node.configuration.workspaceId) || '个人'}。请先在“用户绑定”中创建与上方工具及版本一致的绑定。`}
+              extra={`当前作用域：${configurationText(node.configuration.workspaceId) || '个人'}。选择该工具的用户绑定；运行时按升级方式选择兼容版本。`}
             >
               <Select
                 aria-label="工具绑定"
@@ -547,11 +547,11 @@ function NodeInspector({
                 notFoundContent={
                   bindingsLoading
                     ? '正在加载工具绑定'
-                    : '当前作用域没有此工具版本的绑定'
+                    : '当前作用域没有此工具的绑定'
                 }
                 options={matchingBindings.map((binding) => ({
                   value: binding.bindingId,
-                  label: `${binding.bindingId}${binding.workspaceId ? ` · ${binding.workspaceId}` : ' · 个人'}`,
+                  label: `${binding.bindingId}${binding.workspaceId ? ` · ${binding.workspaceId}` : ' · 个人'} · 当前 ${binding.tool.version} · ${binding.versionPolicy === 'pinned' ? '锁定版本' : '跟随兼容升级'}`,
                   disabled: !binding.enabled || !binding.available,
                 }))}
                 onChange={(nextBindingId?: string) => {
@@ -983,10 +983,9 @@ function withoutBinding(configuration: JsonObject): JsonObject {
   return next;
 }
 
-function sameTool(left: ToolReference, right: ToolReference): boolean {
+function sameToolIdentity(left: ToolReference, right: ToolReference): boolean {
   return left.namespace === right.namespace
-    && left.name === right.name
-    && left.version === right.version;
+    && left.name === right.name;
 }
 
 function nextVersion(version: string): string {

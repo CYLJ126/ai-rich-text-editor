@@ -52,6 +52,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
     private static final String STATE_ROLES = "principalRoles";
     private static final String STATE_SCOPES = "principalScopes";
     private static final String STATE_ATTRIBUTES = "toolAttributes";
+    private static final String STATE_RESOLVED_TOOLS = "resolvedTools";
 
     private final WorkflowRunMapper runMapper;
     private final WorkflowVersionMapper versionMapper;
@@ -61,6 +62,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
     private final WorkflowCheckpointRepository checkpoints;
     private final ToolGateway toolGateway;
     private final ToolRegistry toolRegistry;
+    private final ToolBindingManager bindingManager;
     private final ToolSchemaValidator schemaValidator;
     private final ToolDistributedLockExecutor lockExecutor;
     private final ToolExecutionProperties properties;
@@ -73,7 +75,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
     public DefaultWorkflowRunner(WorkflowRunMapper runMapper, WorkflowVersionMapper versionMapper,
                                  WorkflowNodeRunMapper nodeRunMapper, WorkflowManager workflowManager,
                                  WorkflowPersistenceCodec codec, WorkflowCheckpointRepository checkpoints,
-                                 ToolGateway toolGateway, ToolRegistry toolRegistry,
+                                 ToolGateway toolGateway, ToolRegistry toolRegistry, ToolBindingManager bindingManager,
                                  ToolSchemaValidator schemaValidator,
                                  ToolDistributedLockExecutor lockExecutor, ToolExecutionProperties properties,
                                  ToolClusterIdentity clusterIdentity, ObjectMapper objectMapper,
@@ -86,6 +88,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
         this.checkpoints = checkpoints;
         this.toolGateway = toolGateway;
         this.toolRegistry = toolRegistry;
+        this.bindingManager = bindingManager;
         this.schemaValidator = schemaValidator;
         this.lockExecutor = lockExecutor;
         this.properties = properties;
@@ -104,21 +107,41 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
         if (version.getLifecycleState() != ToolLifecycleStateEnum.PUBLISHED) {
             throw new IllegalStateException("only published workflow versions can run");
         }
-        if (!Objects.equals(version.getChecksum(), workflow.checksum())) {
+        CompiledWorkflow executionPlan = publishedPlan(version, context);
+        // 旧校验和受 Map/Set 的 JVM 随机迭代顺序影响。比较规范化定义，执行仍只读取已发布快照。
+        if (!codec.checksum(executionPlan.source()).equals(codec.checksum(workflow.source()))) {
             throw new SecurityException("workflow plan does not match the published version");
         }
+        return startPublished(executionPlan, context);
+    }
+
+    @Override
+    public CompletionStage<WorkflowRun> start(String workflowId, String version, WorkflowExecutionContext context) {
+        Objects.requireNonNull(context, "context");
+        WorkflowVersionPo stored = versionMapper.selectExact(workflowId, version)
+                .orElseThrow(() -> new IllegalArgumentException("workflow version is not persisted"));
+        return startPublished(publishedPlan(stored, context), context);
+    }
+
+    private CompiledWorkflow publishedPlan(WorkflowVersionPo version, WorkflowExecutionContext context) {
+        if (version.getLifecycleState() != ToolLifecycleStateEnum.PUBLISHED) {
+            throw new IllegalStateException("only published workflow versions can run");
+        }
         WorkflowDefinition persisted = workflowManager.find(context.toolContext().principal().ownerId(),
-                        workflow.source().workflowId(), workflow.source().version())
+                        version.getWorkflowId(), version.getVersion())
                 .orElseThrow(() -> new SecurityException("workflow version is unavailable"));
-        CompiledWorkflow executionPlan = codec.decodeCompiled(persisted, version);
+        return codec.decodeCompiled(persisted, version);
+    }
+
+    private CompletionStage<WorkflowRun> startPublished(CompiledWorkflow executionPlan, WorkflowExecutionContext context) {
         schemaValidator.validate(executionPlan.source().inputSchema(), context.inputs(), "workflow inputs");
         String runId = UUID.randomUUID().toString();
         Instant now = Instant.now();
         int maximumSteps = Math.min(context.maximumSteps(),
                 executionPlan.source().executionPolicy().maximumSteps());
         WorkflowRunPo run = new WorkflowRunPo().setRunId(runId)
-                .setWorkflowId(workflow.source().workflowId())
-                .setWorkflowVersion(workflow.source().version())
+                .setWorkflowId(executionPlan.source().workflowId())
+                .setWorkflowVersion(executionPlan.source().version())
                 .setOwnerId(context.toolContext().principal().ownerId())
                 .setSubjectId(context.toolContext().principal().subjectId())
                 .setTraceId(context.toolContext().traceId()).setStatus("running")
@@ -130,6 +153,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
                 .setRowVersion(0L);
         run.setCreateBy(run.getOwnerId());
         run.setUpdateBy(run.getOwnerId());
+        Map<String, ToolReference> resolvedTools = resolveTools(executionPlan, context);
         runMapper.insert(run);
         Map<String, Object> state = new LinkedHashMap<>();
         state.put(STATE_COMPLETED, List.of());
@@ -139,8 +163,39 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
         state.put(STATE_ROLES, context.toolContext().principal().roles());
         state.put(STATE_SCOPES, context.toolContext().principal().scopes());
         state.put(STATE_ATTRIBUTES, context.toolContext().attributes());
+        state.put(STATE_RESOLVED_TOOLS, codec.encodePinnedTools(resolvedTools));
         saveCheckpoint(runId, 0, state);
         return CompletableFuture.supplyAsync(() -> executeRun(runId), executor);
+    }
+
+    private Map<String, ToolReference> resolveTools(CompiledWorkflow plan, WorkflowExecutionContext context) {
+        Map<String, ToolReference> result = new LinkedHashMap<>(plan.pinnedTools());
+        for (WorkflowNode node : plan.nodes().values()) {
+            if (!(node instanceof WorkflowNode.ToolNode toolNode)) continue;
+            String bindingId = configurationText(node.configuration().get("bindingId"));
+            if (bindingId == null) {
+                if (properties.isBindingRequired())
+                    throw new SecurityException("workflow tool binding is required: " + node.nodeId());
+                continue;
+            }
+            ResolvedToolBinding binding = bindingManager.resolveCompatible(context.toolContext().principal().ownerId(),
+                            configurationText(node.configuration().get("workspaceId")), bindingId, toolNode.tool())
+                    .orElseThrow(() -> new SecurityException("workflow binding has no available compatible tool version: " + node.nodeId()));
+            result.put(node.nodeId(), binding.tool());
+        }
+        return Map.copyOf(result);
+    }
+
+    private CompiledWorkflow withTools(CompiledWorkflow plan, Map<String, ToolReference> tools) {
+        if (!tools.keySet().equals(plan.pinnedTools().keySet())) {
+            throw new IllegalStateException("workflow checkpoint tool versions are incomplete");
+        }
+        return new CompiledWorkflow(plan.source(), plan.entryNodeId(), plan.nodes(), plan.edges(), tools,
+                plan.dependencies(), plan.executionOrder(), plan.parallelGroups(), plan.variableMappings(), plan.checksum());
+    }
+
+    private String configurationText(Object value) {
+        return value instanceof String text && !text.isBlank() ? text.trim() : null;
     }
 
     @Override
@@ -229,6 +284,10 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
                     .orElseThrow(() -> new IllegalStateException("workflow version is missing"));
             CompiledWorkflow plan = codec.decodeCompiled(definition, version);
             Map<String, Object> state = new LinkedHashMap<>(latestState(runId));
+            // 老运行没有此字段时继续使用原发布版本，不在恢复时重新解析绑定。
+            if (state.containsKey(STATE_RESOLVED_TOOLS)) {
+                plan = withTools(plan, codec.decodePinnedTools(objectMap(state.get(STATE_RESOLVED_TOOLS))));
+            }
             return drive(run, plan, state);
         } catch (Exception exception) {
             failRun(run, "WORKFLOW_EXECUTION_FAILED", null, rootMessage(exception));
@@ -365,7 +424,7 @@ public class DefaultWorkflowRunner implements WorkflowRunner {
                                              WorkflowNode node, Map<String, Object> variables) {
         int maximumRetries = plan.source().executionPolicy().maximumNodeRetries();
         boolean retryAllowed = !(node instanceof WorkflowNode.ToolNode toolNode)
-                || toolRegistry.resolve(toolNode.tool())
+                || toolRegistry.resolve(plan.pinnedTools().get(toolNode.nodeId()))
                 .map(tool -> tool.getDefinition().riskProfile().idempotent()).orElse(false);
         NodeOutcome outcome = executeNode(run, plan, node, variables);
         for (int retry = 0; outcome.error() != null && retryAllowed && retry < maximumRetries; retry++) {

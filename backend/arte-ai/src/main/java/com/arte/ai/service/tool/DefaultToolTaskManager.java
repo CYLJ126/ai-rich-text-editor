@@ -441,7 +441,7 @@ public class DefaultToolTaskManager implements ToolTaskManager {
         attributes.putAll(extra);
         if (task.credentialBindingId() != null) {
             String workspaceId = string(attributes.get(DefaultToolGateway.ATTR_WORKSPACE_ID));
-            bindingManager.resolve(task.ownerId(), workspaceId, task.credentialBindingId())
+            bindingManager.resolveRequested(task.ownerId(), workspaceId, task.credentialBindingId(), task.tool())
                     .ifPresentOrElse(binding -> {
                         attributes.put(DefaultToolGateway.ATTR_EFFECTIVE_CONFIGURATION,
                                 binding.effectiveConfiguration());

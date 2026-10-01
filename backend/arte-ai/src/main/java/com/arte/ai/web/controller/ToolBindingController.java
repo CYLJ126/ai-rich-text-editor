@@ -26,7 +26,7 @@ public class ToolBindingController {
     private final ToolBindingManager bindingManager;
 
     @PostMapping
-    @PreAuthorize("@pcs.check('aiTool:manage')")
+    @PreAuthorize("@pcs.check('aiTool:manage') or @pcs.check('aiTool:invoke')")
     public ResultContext<ResolvedToolBinding> save(@RequestBody ToolBindingCommand command) {
         return ResultContext.success(bindingManager.save(UserContext.getUserName(), command));
     }

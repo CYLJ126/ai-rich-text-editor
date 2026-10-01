@@ -27,7 +27,7 @@ public class AssistantToolController {
     private final AssistantToolManager assistantToolManager;
 
     @PostMapping("/{assistantId}/tools")
-    @PreAuthorize("@pcs.check('aiTool:manage')")
+    @PreAuthorize("@pcs.check('aiTool:manage') or @pcs.check('aiTool:invoke')")
     public ResultContext<Boolean> replace(@PathVariable Integer assistantId,
                                           @RequestBody AssistantToolConfigurationCommand command) {
         assistantToolManager.replace(UserContext.getUserName(), command.workspaceId(),

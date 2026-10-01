@@ -72,6 +72,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
     private final ToolClusterProperties clusterProperties;
     private final Executor executor;
     private final boolean autoSyncEnabled;
+    private final ToolRuntimeVersionLoader runtimeVersionLoader;
 
     public DefaultToolProviderManager(List<ToolProvider> providers,
                                       ToolProviderMapper providerMapper,
@@ -86,7 +87,8 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                                       ObjectProvider<ToolClusterEventPublisher> eventPublisherProvider,
                                       ToolClusterProperties clusterProperties,
                                       @Qualifier("toolCallbackExecutor") Executor executor,
-                                      @Value("${arte.ai.tool.auto-sync-enabled:true}") boolean autoSyncEnabled) {
+                                      @Value("${arte.ai.tool.auto-sync-enabled:true}") boolean autoSyncEnabled,
+                                      ToolRuntimeVersionLoader runtimeVersionLoader) {
         this.providers = indexProviders(providers);
         this.providerMapper = providerMapper;
         this.toolMapper = toolMapper;
@@ -101,6 +103,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         this.clusterProperties = clusterProperties;
         this.executor = executor;
         this.autoSyncEnabled = autoSyncEnabled;
+        this.runtimeVersionLoader = runtimeVersionLoader;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -290,19 +293,9 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         validateUniqueDefinitions(definitions);
         definitions.forEach(definitionValidator::validate);
 
-        List<Tool<?, ?>> availableTools = new ArrayList<>();
-        for (ToolDefinition definition : definitions) {
-            ToolReference reference = definition.reference();
-            if (!availabilityService.isAvailable(reference)) {
-                continue;
-            }
-            availableTools.add(provider.resolve(reference)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "provider cannot resolve discovered tool: " + reference)));
-        }
+        List<Tool<?, ?>> availableTools = runtimeVersionLoader.load(provider);
 
-        registry.unregisterProvider(provider.getProviderId());
-        availableTools.forEach(tool -> registry.register(provider.getProviderId(), tool));
+        registry.replaceProvider(provider.getProviderId(), availableTools);
         return new ToolProviderSyncResult(provider.getProviderId(), true, definitions.size(),
                 0, 0, availableTools.size(), 0, Instant.now(), null);
     }
@@ -327,14 +320,10 @@ public class DefaultToolProviderManager implements ToolProviderManager {
             throw new IllegalStateException("tool provider synchronization transaction returned no result");
         }
 
-        persisted.unregistered().forEach(registry::unregister);
-        for (Tool<?, ?> tool : persisted.activated()) {
-            ToolReference reference = tool.getDefinition().reference();
-            registry.unregister(reference);
-            registry.register(provider.getProviderId(), tool);
-        }
+        List<Tool<?, ?>> activated = runtimeVersionLoader.load(provider);
+        registry.replaceProvider(provider.getProviderId(), activated);
         return new ToolProviderSyncResult(provider.getProviderId(), true, definitions.size(),
-                persisted.createdCount(), persisted.updatedCount(), persisted.activated().size(),
+                persisted.createdCount(), persisted.updatedCount(), activated.size(),
                 persisted.disabledCount(), Instant.now(), null);
     }
 
@@ -348,9 +337,6 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         Map<String, ToolPo> existingTools = toolMapper.selectByProviderId(provider.getProviderId()).stream()
                 .collect(Collectors.toMap(this::identityKey, Function.identity()));
         Set<String> refreshedIdentities = new HashSet<>();
-        Set<ToolReference> refreshedReferences = new HashSet<>();
-        List<Tool<?, ?>> activated = new ArrayList<>();
-        List<ToolReference> unregistered = new ArrayList<>();
         int created = 0;
         int updated = 0;
 
@@ -358,7 +344,6 @@ public class DefaultToolProviderManager implements ToolProviderManager {
             ToolReference reference = definition.reference();
             String identity = identityKey(reference.namespace(), reference.name());
             refreshedIdentities.add(identity);
-            refreshedReferences.add(reference);
             ToolPo toolPo = toolMapper.selectByIdentity(reference.namespace(), reference.name()).orElse(null);
             if (toolPo == null) {
                 toolPo = createTool(provider.getProviderId(), definition);
@@ -398,47 +383,23 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                 updated++;
                 log.info("Migrated legacy checksum for unchanged published tool version {}", reference);
             }
-
-            if (toolPo.getLifecycleState() == ToolLifecycleStateEnum.PUBLISHED
-                    && versionPo.getLifecycleState() == ToolLifecycleStateEnum.PUBLISHED) {
-                Tool<?, ?> runtimeTool = provider.resolve(reference)
-                        .orElseThrow(() -> new IllegalStateException("provider cannot resolve discovered tool: " + reference));
-                activated.add(runtimeTool);
-            }
         }
 
         int disabled = 0;
         for (ToolPo staleTool : existingTools.values()) {
-            List<ToolVersionPo> persistedVersions = versionMapper.selectVersions(staleTool.getToolId());
             if (!refreshedIdentities.contains(identityKey(staleTool))) {
                 if (staleTool.getLifecycleState() != ToolLifecycleStateEnum.DISABLED) {
                     staleTool.setLifecycleState(ToolLifecycleStateEnum.DISABLED);
                     toolMapper.updateById(staleTool);
                     disabled++;
                 }
-                for (ToolVersionPo version : persistedVersions) {
-                    ToolReference reference = new ToolReference(
-                            staleTool.getNamespace(), staleTool.getName(), version.getVersion());
-                    unregistered.add(reference);
-                }
-                continue;
-            }
-
-            for (ToolVersionPo version : persistedVersions) {
-                ToolReference reference = new ToolReference(
-                        staleTool.getNamespace(), staleTool.getName(), version.getVersion());
-                if (refreshedReferences.contains(reference)) {
-                    continue;
-                }
-                unregistered.add(reference);
             }
         }
 
         providerPo.setLastSyncTime(LocalDateTime.now());
         providerPo.setLastError(null);
         providerMapper.updateById(providerPo);
-        return new PersistedRefresh(created, updated, disabled,
-                List.copyOf(activated), List.copyOf(unregistered));
+        return new PersistedRefresh(created, updated, disabled);
     }
 
     private ToolProviderSyncResult recordFailure(ToolProvider provider, Throwable failure) {
@@ -737,12 +698,6 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         return current;
     }
 
-    private record PersistedRefresh(
-            int createdCount,
-            int updatedCount,
-            int disabledCount,
-            List<Tool<?, ?>> activated,
-            List<ToolReference> unregistered
-    ) {
+    private record PersistedRefresh(int createdCount, int updatedCount, int disabledCount) {
     }
 }

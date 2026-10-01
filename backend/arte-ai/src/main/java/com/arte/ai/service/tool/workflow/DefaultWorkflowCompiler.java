@@ -8,8 +8,6 @@ import com.arte.ai.pojo.tool.*;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 
 /**
@@ -22,16 +20,21 @@ import java.util.*;
 public class DefaultWorkflowCompiler implements WorkflowCompiler {
 
     private final WorkflowValidator validator;
-    private final ObjectMapper objectMapper;
+    private final WorkflowPersistenceCodec codec;
 
     public DefaultWorkflowCompiler(WorkflowValidator validator, ObjectMapper objectMapper) {
         this.validator = validator;
-        this.objectMapper = objectMapper;
+        this.codec = new WorkflowPersistenceCodec(objectMapper);
     }
 
     @Override
     public CompiledWorkflow compile(WorkflowDefinition definition) {
-        WorkflowValidationResult validation = validator.validate(definition);
+        return compile(definition, null);
+    }
+
+    @Override
+    public CompiledWorkflow compile(WorkflowDefinition definition, ToolPrincipal principal) {
+        WorkflowValidationResult validation = validator.validate(definition, principal);
         if (!validation.valid()) {
             throw new IllegalArgumentException("workflow validation failed: " + validation.issues());
         }
@@ -66,7 +69,7 @@ public class DefaultWorkflowCompiler implements WorkflowCompiler {
         Map<String, Map<String, String>> immutableMappings = new LinkedHashMap<>();
         mappings.forEach((nodeId, value) -> immutableMappings.put(nodeId, Map.copyOf(value)));
         return new CompiledWorkflow(definition, entry, nodes, definition.edges(), pinned,
-                dependencies, order, groups, immutableMappings, checksum(definition));
+                dependencies, order, groups, immutableMappings, codec.checksum(definition));
     }
 
     private String edgeExpression(WorkflowEdge edge, WorkflowNode source) {
@@ -106,13 +109,4 @@ public class DefaultWorkflowCompiler implements WorkflowCompiler {
         return List.copyOf(groups);
     }
 
-    private String checksum(WorkflowDefinition definition) {
-        try {
-            String json = objectMapper.writeValueAsString(definition);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(json.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception exception) {
-            throw new IllegalStateException("failed to calculate workflow checksum", exception);
-        }
-    }
 }

@@ -26,7 +26,7 @@ public class DefaultToolProviderManagerTest {
     public void setUp() {
         objectMapper = new ObjectMapper();
         manager = new DefaultToolProviderManager(List.of(), null, null, null,
-                null, null, null, null, objectMapper, null, null, null, Runnable::run, false);
+                null, null, null, null, objectMapper, null, null, null, Runnable::run, false, null);
     }
 
     @Test

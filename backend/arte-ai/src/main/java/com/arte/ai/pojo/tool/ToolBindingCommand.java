@@ -18,7 +18,8 @@ public record ToolBindingCommand(
         Map<String, Object> configuration,
         ToolPolicyOverride policyOverride,
         Boolean enabled,
-        Long expectedRowVersion
+        Long expectedRowVersion,
+        String versionPolicy
 ) {
 
     public ToolBindingCommand {
@@ -29,6 +30,9 @@ public record ToolBindingCommand(
                 : Collections.unmodifiableMap(new LinkedHashMap<>(configuration));
         if (expectedRowVersion != null && expectedRowVersion < 0) {
             throw new IllegalArgumentException("expectedRowVersion must not be negative");
+        }
+        if (versionPolicy != null && !java.util.Set.of("follow-compatible", "pinned").contains(versionPolicy)) {
+            throw new IllegalArgumentException("versionPolicy must be follow-compatible or pinned");
         }
     }
 }

@@ -18,6 +18,8 @@ public record ToolVersionView(
         ToolLifecycleStateEnum lifecycleState,
         String checksum,
         long rowVersion,
-        LocalDateTime publishedAt
+        LocalDateTime publishedAt,
+        String compatibilityBaseVersion,
+        String releaseNotes
 ) {
 }

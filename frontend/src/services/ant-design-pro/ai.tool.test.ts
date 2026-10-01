@@ -1,6 +1,14 @@
 import {request} from '@umijs/max';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {getToolVersionDetail, listAssistantToolOptions, listToolCatalog, listToolProviders,} from './ai.tool';
+import {
+  getToolUpgradePreview,
+  getToolVersionDetail,
+  listAssistantToolOptions,
+  listToolCatalog,
+  listToolProviders,
+  publishToolVersion,
+  saveToolBinding,
+} from './ai.tool';
 
 vi.mock('@umijs/max', () => ({
   request: vi.fn(),
@@ -52,6 +60,31 @@ describe('AI tool management service', () => {
       method: 'GET',
       params: {status: 'enabled', providerType: 'mcp'},
       headers: {},
+    });
+  });
+
+  it('publishes an explicit compatibility baseline and user-facing notes', async () => {
+    const reference = {namespace: 'local', name: 'query', version: '1.0.1'};
+    const command = {compatibilityBaseVersion: '1.0.0', releaseNotes: '修复名称处理'};
+    await publishToolVersion(reference, command);
+    expect(request).toHaveBeenCalledWith('/arte/ai/tools/local/query/1.0.1/publish', {
+      method: 'POST', data: command, headers: {'Content-Type': 'application/json'},
+    });
+    await getToolUpgradePreview(reference, '1.0.0');
+    expect(request).toHaveBeenLastCalledWith('/arte/ai/tools/local/query/1.0.1/upgrade-preview', {
+      method: 'GET', params: {baseVersion: '1.0.0'}, headers: {},
+    });
+  });
+
+  it('updates version choice on the same binding while retaining configuration', async () => {
+    const command = {
+      bindingId: 'stable-id', expectedRowVersion: 3,
+      tool: {namespace: 'local', name: 'query', version: '2.0.0'},
+      versionPolicy: 'pinned' as const, configuration: {locale: 'zh'}, credentialReference: 'cred-ref'
+    };
+    await saveToolBinding(command);
+    expect(request).toHaveBeenCalledWith('/arte/ai/tool-bindings', {
+      method: 'POST', data: command, headers: {'Content-Type': 'application/json'},
     });
   });
 

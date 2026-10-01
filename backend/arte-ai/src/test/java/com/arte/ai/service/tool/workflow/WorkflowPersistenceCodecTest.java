@@ -12,8 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class WorkflowPersistenceCodecTest {
 
@@ -64,4 +63,54 @@ public class WorkflowPersistenceCodecTest {
         assertEquals(source.parallelGroups(), restored.parallelGroups());
         assertEquals(checksum, restored.checksum());
     }
+
+    @Test
+    public void checksumIsStableAcrossJvmProcesses() throws Exception {
+        String expected = new WorkflowPersistenceCodec(new ObjectMapper()).checksum(sampleDefinition(false));
+        for (int attempt = 0; attempt < 2; attempt++) {
+            Process process = new ProcessBuilder(System.getProperty("java.home") + "/bin/java", "-cp",
+                    System.getProperty("java.class.path"), ChecksumProbe.class.getName()).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(output, 0, process.waitFor());
+            assertEquals(expected, output);
+        }
+    }
+
+    @Test
+    public void checksumSurvivesJsonPersistenceAndSchemaKeyOrdering() {
+        var codec = new WorkflowPersistenceCodec(new ObjectMapper());
+        WorkflowDefinition original = sampleDefinition(false);
+        WorkflowDefinition restored = new WorkflowDefinition(original.workflowId(), original.version(), original.name(), original.description(),
+                original.inputSchema(), original.outputSchema(), codec.decodeNodes(codec.encodeNodes(original.nodes())),
+                codec.decodeEdges(codec.encodeEdges(original.edges())), original.tags(), original.executionPolicy());
+        assertEquals(codec.checksum(original), codec.checksum(restored));
+        assertEquals(codec.checksum(original), codec.checksum(sampleDefinition(true)));
+        var changed = new WorkflowDefinition(original.workflowId(), original.version(), "Changed", original.description(),
+                original.inputSchema(), original.outputSchema(), original.nodes(), original.edges(), original.tags(), original.executionPolicy());
+        assertNotEquals(codec.checksum(original), codec.checksum(changed));
+    }
+
+    private static WorkflowDefinition sampleDefinition(boolean reverse) {
+        var schema = new ToolSchema("https://json-schema.org/draft/2020-12/schema", reverse
+                ? "{ \"properties\": {}, \"type\": \"object\" }" : "{\"type\":\"object\",\"properties\":{}}");
+        Map<String, Object> nested = new java.util.LinkedHashMap<>();
+        if (reverse) {
+            nested.put("beta", 2);
+            nested.put("alpha", 1);
+        } else {
+            nested.put("alpha", 1);
+            nested.put("beta", 2);
+        }
+        var start = new WorkflowNode.StartNode("start", "Start", Set.of("a", "b", "c", "d"), Map.of("nested", nested));
+        var end = new WorkflowNode.EndNode("end", "End", Map.of(), Map.of());
+        return new WorkflowDefinition("wf", "1", "Workflow", null, schema, schema, List.of(start, end),
+                List.of(new WorkflowEdge("edge", "start", null, "end", null, null)), Set.of("a", "b", "c", "d", "e", "f"));
+    }
+
+    public static class ChecksumProbe {
+        public static void main(String[] args) {
+            System.out.print(new WorkflowPersistenceCodec(new ObjectMapper()).checksum(sampleDefinition(false)));
+        }
+    }
+
 }

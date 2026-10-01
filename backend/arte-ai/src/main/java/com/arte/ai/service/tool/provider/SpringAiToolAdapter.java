@@ -41,10 +41,18 @@ public class SpringAiToolAdapter implements Tool<DynamicToolRequest, DynamicTool
     private final ToolDefinition definition;
     private final ObjectMapper objectMapper;
     private final Executor executor;
+    private final Set<String> compatibleVersions;
 
     public SpringAiToolAdapter(String namespace, String version, ToolCallback callback,
                                ToolRiskProfile riskProfile, ToolExecutionPolicy executionPolicy,
                                ObjectMapper objectMapper, Executor executor) {
+        this(namespace, version, callback, riskProfile, executionPolicy, objectMapper, executor, Set.of());
+    }
+
+    public SpringAiToolAdapter(String namespace, String version, ToolCallback callback,
+                               ToolRiskProfile riskProfile, ToolExecutionPolicy executionPolicy,
+                               ObjectMapper objectMapper, Executor executor, Set<String> compatibleVersions) {
+        this.compatibleVersions = Set.copyOf(compatibleVersions);
         this.callback = callback;
         this.objectMapper = objectMapper;
         this.executor = executor;
@@ -83,6 +91,10 @@ public class SpringAiToolAdapter implements Tool<DynamicToolRequest, DynamicTool
     @Override
     public ToolDefinition getDefinition() {
         return definition;
+    }
+
+    public Set<String> getCompatibleVersions() {
+        return compatibleVersions;
     }
 
     @Override

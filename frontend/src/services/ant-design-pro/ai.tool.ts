@@ -15,12 +15,14 @@ import type {
   ToolProviderQuery,
   ToolProviderSyncResult,
   ToolProviderView,
+  ToolPublishCommand,
   ToolQuery,
   ToolReference,
   ToolResult,
   ToolTaskHandle,
   ToolTaskPage,
   ToolTaskQuery,
+  ToolUpgradePreview,
   ToolVersionDetailView,
   ToolVersionView,
 } from '@/types/ai.tool.type';
@@ -111,14 +113,21 @@ export function disableToolProvider(
   );
 }
 
+export function getToolUpgradePreview(reference: ToolReference, baseVersion: string) {
+  return requestToolApi<ToolUpgradePreview>(`/ai/tools/${toolIdentityPath(reference)}/upgrade-preview`, {
+    method: 'GET', params: {baseVersion},
+  });
+}
+
 /** 发布工具版本 POST /arte/ai/tools/{namespace}/{name}/{version}/publish */
 export function publishToolVersion(
   reference: ToolReference,
+  command?: ToolPublishCommand,
   options?: ToolRequestOptions,
 ) {
   return requestToolApi<boolean>(
     `/ai/tools/${toolIdentityPath(reference)}/publish`,
-    {method: 'POST', ...options},
+    {method: 'POST', data: command, ...options},
   );
 }
 

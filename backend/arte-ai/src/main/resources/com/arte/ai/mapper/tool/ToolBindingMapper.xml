@@ -41,6 +41,8 @@
     <update id="updateWithVersion">
         UPDATE arte_ai_tool_binding
         SET credential_reference = #{binding.credentialReference},
+            tool_version   = #{binding.toolVersion},
+            version_policy = #{binding.versionPolicy},
             configuration        = #{binding.configuration,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
             policy_override      = #{binding.policyOverride,typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
             enabled              = #{binding.enabled},

@@ -28,6 +28,11 @@ public interface ToolRegistry {
      */
     void unregisterProvider(String providerId);
 
+    default void replaceProvider(String providerId, List<Tool<?, ?>> tools) {
+        unregisterProvider(providerId);
+        tools.forEach(tool -> register(providerId, tool));
+    }
+
     Optional<Tool<?, ?>> resolve(ToolReference reference);
 
     List<ToolDefinition> search(ToolQuery query);

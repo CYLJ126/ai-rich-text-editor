@@ -184,6 +184,8 @@ export interface ToolVersionView {
   checksum: string;
   rowVersion: number;
   publishedAt?: string;
+  compatibilityBaseVersion?: string;
+  releaseNotes?: string;
 }
 
 export interface ToolProviderSyncResult {
@@ -260,8 +262,24 @@ export interface ToolVersionDetailView {
   lifecycleState: ToolLifecycleState;
   rowVersion: number;
   publishedAt?: string;
+  compatibilityBaseVersion?: string;
+  releaseNotes?: string;
   createTime: string;
   updateTime: string;
+}
+
+export type ToolVersionPolicy = 'follow-compatible' | 'pinned';
+
+export interface ToolUpgradePreview {
+  compatible: boolean;
+  problems: string[];
+  followingBindings: number;
+  pinnedBindings: number;
+}
+
+export interface ToolPublishCommand {
+  compatibilityBaseVersion?: string;
+  releaseNotes?: string;
 }
 
 export interface ToolBindingCommand {
@@ -273,9 +291,15 @@ export interface ToolBindingCommand {
   policyOverride?: ToolPolicyOverride;
   enabled?: boolean;
   expectedRowVersion?: number;
+  versionPolicy?: ToolVersionPolicy;
 }
 
 export interface ToolBindingView {
+  baselineTool?: ToolReference;
+  versionPolicy?: ToolVersionPolicy;
+  latestVersion?: string;
+  updateStatus?: 'unavailable' | 'requires-review' | 'auto-upgraded' | 'up-to-date';
+  releaseNotes?: string;
   bindingId: string;
   workspaceId?: string;
   tool: ToolReference;
@@ -659,6 +683,7 @@ export interface WorkflowDraftRequest {
   tags: string[];
   executionPolicy: WorkflowExecutionPolicy;
   expectedRowVersion?: number;
+  versionPolicy?: ToolVersionPolicy;
 }
 
 export interface WorkflowValidationIssue {
@@ -708,6 +733,8 @@ export interface WorkflowVersionView extends WorkflowDraftRequest {
   checksum?: string;
   lifecycleState: ToolLifecycleState;
   publishedAt?: string;
+  compatibilityBaseVersion?: string;
+  releaseNotes?: string;
   rowVersion: number;
   createTime: string;
   updateTime: string;

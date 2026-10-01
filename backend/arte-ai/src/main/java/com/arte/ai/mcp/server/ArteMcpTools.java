@@ -2,6 +2,9 @@ package com.arte.ai.mcp.server;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.RandomUtil;
+import com.arte.ai.common.annotation.ToolRelease;
+import com.arte.ai.common.annotation.ToolRisk;
+import com.arte.ai.common.enums.tool.ToolRiskLevelEnum;
 import com.arte.ai.config.McpConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -73,6 +76,8 @@ public class ArteMcpTools {
      * @return 姓氏和名的组合
      */
     @Tool(name = "random-name", description = "Generate a random name")
+    @ToolRelease(version = "1.0.1", compatibleWith = {"1.0.0"})
+    @ToolRisk(readOnly = true, level = ToolRiskLevelEnum.LOW)
     public String randomNameForTool(@McpToolParam(description = "First name") String firstName) {
         String lastName = lastNameList.get(ThreadLocalRandom.current().nextInt(lastNameList.size()));
         log.info("Tool-随机返回一个姓氏和给定的名组合，姓氏【{}】，名字【{}】", lastName, firstName);
@@ -86,6 +91,8 @@ public class ArteMcpTools {
      * @return 姓氏和名的组合
      */
     @Tool(name = "name-assessment", description = "Assess level for a given name")
+    @ToolRelease(version = "1.0.1", compatibleWith = {"1.0.0"})
+    @ToolRisk(readOnly = true, level = ToolRiskLevelEnum.LOW)
     public Integer nameAssessment(@McpToolParam(description = "name") String name) {
         int level = RandomUtil.randomInt(1, 11);
         log.info("Tool-评估给定名称的等级，名称【{}】，等级【{}】", name, level);

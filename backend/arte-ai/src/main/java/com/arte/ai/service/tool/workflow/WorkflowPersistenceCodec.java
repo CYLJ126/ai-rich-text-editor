@@ -111,7 +111,7 @@ public class WorkflowPersistenceCodec {
                 parallelGroups, variableMappings, version.getChecksum());
     }
 
-    private Map<String, ToolReference> decodePinnedTools(Map<String, Object> value) {
+    public Map<String, ToolReference> decodePinnedTools(Map<String, Object> value) {
         Map<String, ToolReference> result = new LinkedHashMap<>();
         objectMap(value).forEach((nodeId, item) -> {
             Map<String, Object> reference = objectMap(item);
@@ -122,12 +122,41 @@ public class WorkflowPersistenceCodec {
     }
 
     public String checksum(WorkflowDefinition definition) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("workflowId", definition.workflowId());
+        value.put("version", definition.version());
+        value.put("name", definition.name());
+        value.put("description", definition.description());
+        value.put("inputSchema", canonicalSchema(definition.inputSchema()));
+        value.put("outputSchema", canonicalSchema(definition.outputSchema()));
+        value.put("nodes", encodeNodes(definition.nodes()));
+        value.put("edges", encodeEdges(definition.edges()));
+        value.put("tags", definition.tags());
+        value.put("executionPolicy", encodePolicy(definition.executionPolicy()));
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(objectMapper.writeValueAsString(definition).getBytes(StandardCharsets.UTF_8)));
+                    .digest(objectMapper.writeValueAsString(canonicalValue(value)).getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
             throw new IllegalStateException("failed to calculate workflow checksum", exception);
         }
+    }
+
+    private Map<String, Object> canonicalSchema(ToolSchema schema) {
+        return Map.of("dialect", schema.dialect(), "schema", objectMapper.readValue(schema.schema(), Object.class));
+    }
+
+    private Object canonicalValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> sorted = new TreeMap<>();
+            map.forEach((key, item) -> sorted.put(String.valueOf(key), canonicalValue(item)));
+            return sorted;
+        }
+        if (value instanceof Set<?> set) {
+            return set.stream().map(this::canonicalValue)
+                    .sorted(Comparator.comparing(objectMapper::writeValueAsString)).toList();
+        }
+        if (value instanceof Collection<?> list) return list.stream().map(this::canonicalValue).toList();
+        return value;
     }
 
     private Map<String, Object> encodeNode(WorkflowNode node) {

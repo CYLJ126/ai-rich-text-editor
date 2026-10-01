@@ -19,6 +19,13 @@ public interface WorkflowRunner {
 
     CompletionStage<WorkflowRun> start(CompiledWorkflow workflow, WorkflowExecutionContext context);
 
+    /**
+     * 直接读取授权的已发布计划，避免随代码升级重新编译发布快照。
+     */
+    default CompletionStage<WorkflowRun> start(String workflowId, String version, WorkflowExecutionContext context) {
+        throw new UnsupportedOperationException("starting a persisted workflow is not supported");
+    }
+
     CompletionStage<WorkflowRun> resume(String resumeToken);
 
     CompletionStage<WorkflowRun> resume(String resumeToken, String ownerId);

@@ -32,7 +32,9 @@ public record ToolVersionDetailView(
         long rowVersion,
         LocalDateTime publishedAt,
         LocalDateTime createTime,
-        LocalDateTime updateTime
+        LocalDateTime updateTime,
+        String compatibilityBaseVersion,
+        String releaseNotes
 ) {
     public ToolVersionDetailView {
         inputSchema = immutable(inputSchema);
