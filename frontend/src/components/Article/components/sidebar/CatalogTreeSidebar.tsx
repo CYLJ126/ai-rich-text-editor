@@ -1,4 +1,3 @@
-import {i18nText} from '@/utils/i18n';
 import {
   CheckSquareOutlined,
   CloseOutlined,
@@ -66,6 +65,7 @@ import type {
   CatalogType,
 } from '@/types/rt.type';
 import { exportFile } from '@/utils/fileUtil';
+import {i18nText} from '@/utils/i18n';
 import PublishToPublicModal from './PublishToPublicModal';
 import SelectTargetCatalogModal from './SelectTargetCatalogModal';
 import SpaceTree from './SpaceTree';
@@ -337,7 +337,9 @@ export default function CatalogTreeSidebar({
       setSharedCatalogs(data?.sharedWithMe ?? []);
       setPublicCatalogs(data?.publicSpace ?? []);
     } catch {
-      message.error(i18nText("app.article.sidebar.catalogtreesidebar.4e2e8c7a")).then();
+      message
+        .error(i18nText('app.article.sidebar.catalogtreesidebar.4e2e8c7a'))
+        .then();
     } finally {
       setLoading(false);
     }
@@ -496,24 +498,40 @@ export default function CatalogTreeSidebar({
   const handleAddRootCatalog = useCallback(
     (isPublic = false) => {
       if (isPublic && !canCreatePublicRootCatalog) {
-        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.01fb9674")).then();
+        message
+          .warning(i18nText('app.article.sidebar.catalogtreesidebar.01fb9674'))
+          .then();
         return;
       }
       openTextConfirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.820a16e1"),
-        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.89801373"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.820a16e1'),
+        placeholder: i18nText(
+          'app.article.sidebar.catalogtreesidebar.89801373',
+        ),
         onSubmit: async (name) => {
           if (!name) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
+            message
+              .warning(
+                i18nText('app.article.sidebar.catalogtreesidebar.0211f860'),
+              )
+              .then();
             return false;
           }
           try {
             await addCatalog({ name, isPublic });
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.c0034784")).then();
+            message
+              .success(
+                i18nText('app.article.sidebar.catalogtreesidebar.c0034784'),
+              )
+              .then();
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.a03ad4ba")).then();
+            message
+              .error(
+                i18nText('app.article.sidebar.catalogtreesidebar.a03ad4ba'),
+              )
+              .then();
             return false;
           }
         },
@@ -525,11 +543,17 @@ export default function CatalogTreeSidebar({
   useCallback(
     (isPublic = false) => {
       openTextConfirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.eb13ae75"),
-        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.2f5c8c67"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.eb13ae75'),
+        placeholder: i18nText(
+          'app.article.sidebar.catalogtreesidebar.2f5c8c67',
+        ),
         onSubmit: async (title) => {
           if (!title) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b")).then();
+            message
+              .warning(
+                i18nText('app.article.sidebar.catalogtreesidebar.db2ac64b'),
+              )
+              .then();
             return false;
           }
           try {
@@ -537,14 +561,24 @@ export default function CatalogTreeSidebar({
               title,
               isPublic,
             });
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.6b1d69c4", {value0: newArticle.title})).then();
+            message
+              .success(
+                i18nText('app.article.sidebar.catalogtreesidebar.6b1d69c4', {
+                  value0: newArticle.title,
+                }),
+              )
+              .then();
             onArticleSelect({
               articleId: newArticle.id,
             });
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.d4fac406")).then();
+            message
+              .error(
+                i18nText('app.article.sidebar.catalogtreesidebar.d4fac406'),
+              )
+              .then();
             return false;
           }
         },
@@ -556,20 +590,34 @@ export default function CatalogTreeSidebar({
   const handleAddSubCatalog = useCallback(
     (fatherId: number) => {
       openTextConfirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.4da89de3"),
-        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.7021bd0c"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.4da89de3'),
+        placeholder: i18nText(
+          'app.article.sidebar.catalogtreesidebar.7021bd0c',
+        ),
         onSubmit: async (name) => {
           if (!name) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
+            message
+              .warning(
+                i18nText('app.article.sidebar.catalogtreesidebar.0211f860'),
+              )
+              .then();
             return false;
           }
           try {
             await addCatalog({ name, fatherId });
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.5ae3afc5")).then();
+            message
+              .success(
+                i18nText('app.article.sidebar.catalogtreesidebar.5ae3afc5'),
+              )
+              .then();
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.85eef335")).then();
+            message
+              .error(
+                i18nText('app.article.sidebar.catalogtreesidebar.85eef335'),
+              )
+              .then();
             return false;
           }
         },
@@ -584,20 +632,30 @@ export default function CatalogTreeSidebar({
 
       async function rename() {
         if (!name.trim()) {
-          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.0211f860")).then();
+          message
+            .warning(
+              i18nText('app.article.sidebar.catalogtreesidebar.0211f860'),
+            )
+            .then();
           return;
         }
         try {
           await updateCatalog({ id: catalogId, name: name.trim() });
-          message.success(i18nText("app.article.sidebar.catalogtreesidebar.d3e3a6f3")).then();
+          message
+            .success(
+              i18nText('app.article.sidebar.catalogtreesidebar.d3e3a6f3'),
+            )
+            .then();
           await fetchAllSpaces();
         } catch {
-          message.error(i18nText("app.article.sidebar.catalogtreesidebar.98a6be5b")).then();
+          message
+            .error(i18nText('app.article.sidebar.catalogtreesidebar.98a6be5b'))
+            .then();
         }
       }
 
       Modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.325c7985"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.325c7985'),
         content: (
           <AutoFocusInput
             defaultValue={currentName}
@@ -620,19 +678,29 @@ export default function CatalogTreeSidebar({
   const handleDeleteCatalog = useCallback(
     (catalogId: number, catalogName: string) => {
       modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.645da5fa"),
-        content: i18nText("app.article.sidebar.catalogtreesidebar.544545a8", {value0: catalogName}),
-        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.645da5fa'),
+        content: i18nText('app.article.sidebar.catalogtreesidebar.544545a8', {
+          value0: catalogName,
+        }),
+        okText: i18nText('app.article.sidebar.catalogtreesidebar.a424aa2f'),
         okType: 'danger',
-        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
+        cancelText: i18nText('app.article.sidebar.catalogtreesidebar.70367c34'),
         onOk: async () => {
           try {
             await deleteCatalog(catalogId);
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.06b6ac39")).then();
+            message
+              .success(
+                i18nText('app.article.sidebar.catalogtreesidebar.06b6ac39'),
+              )
+              .then();
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.ac8cee4e")).then();
+            message
+              .error(
+                i18nText('app.article.sidebar.catalogtreesidebar.ac8cee4e'),
+              )
+              .then();
           }
         },
       });
@@ -645,11 +713,17 @@ export default function CatalogTreeSidebar({
   const handleCreateArticle = useCallback(
     async (catalogId: number) => {
       openTextConfirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.eb13ae75"),
-        placeholder: i18nText("app.article.sidebar.catalogtreesidebar.2f5c8c67"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.eb13ae75'),
+        placeholder: i18nText(
+          'app.article.sidebar.catalogtreesidebar.2f5c8c67',
+        ),
         onSubmit: async (title) => {
           if (!title) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b")).then();
+            message
+              .warning(
+                i18nText('app.article.sidebar.catalogtreesidebar.db2ac64b'),
+              )
+              .then();
             return false;
           }
           try {
@@ -657,12 +731,22 @@ export default function CatalogTreeSidebar({
               title,
               catalogId,
             });
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.6b1d69c4", {value0: newArticle.title})).then();
+            message
+              .success(
+                i18nText('app.article.sidebar.catalogtreesidebar.6b1d69c4', {
+                  value0: newArticle.title,
+                }),
+              )
+              .then();
             onArticleSelect({ articleId: newArticle.id });
             await fetchAllSpaces();
             return true;
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.d4fac406")).then();
+            message
+              .error(
+                i18nText('app.article.sidebar.catalogtreesidebar.d4fac406'),
+              )
+              .then();
             return false;
           }
         },
@@ -717,17 +801,24 @@ export default function CatalogTreeSidebar({
         try {
           const markdown = await file.text();
           const title =
-            file.name.replace(MARKDOWN_FILE_PATTERN, '') || i18nText("app.article.sidebar.catalogtreesidebar.f8e63045");
+            file.name.replace(MARKDOWN_FILE_PATTERN, '') ||
+            i18nText('app.article.sidebar.catalogtreesidebar.f8e63045');
           const newArticle = await saveImportedMarkdown(
             catalogId,
             title,
             markdown,
           );
-          message.success(i18nText("app.article.sidebar.catalogtreesidebar.792ec85d", {value0: title}));
+          message.success(
+            i18nText('app.article.sidebar.catalogtreesidebar.792ec85d', {
+              value0: title,
+            }),
+          ).then();
           await fetchAllSpaces();
           onArticleSelect({ articleId: newArticle.id });
         } catch {
-          message.error(i18nText("app.article.sidebar.catalogtreesidebar.b08df0b3"));
+          message.error(
+            i18nText('app.article.sidebar.catalogtreesidebar.b08df0b3'),
+          ).then();
         }
       };
       input.click();
@@ -748,9 +839,9 @@ export default function CatalogTreeSidebar({
         let importedCount = 0;
         message.loading({
           key: messageKey,
-          content: i18nText("app.article.sidebar.catalogtreesidebar.3a8a9393"),
+          content: i18nText('app.article.sidebar.catalogtreesidebar.3a8a9393'),
           duration: 0,
-        });
+        }).then();
         try {
           const zip = await JSZip.loadAsync(file);
           const markdownEntries = Object.values(zip.files)
@@ -764,8 +855,10 @@ export default function CatalogTreeSidebar({
           if (markdownEntries.length === 0) {
             message.warning({
               key: messageKey,
-              content: i18nText("app.article.sidebar.catalogtreesidebar.3ad589f1"),
-            });
+              content: i18nText(
+                'app.article.sidebar.catalogtreesidebar.3ad589f1',
+              ),
+            }).then();
             return;
           }
 
@@ -786,7 +879,11 @@ export default function CatalogTreeSidebar({
                   name: folderName,
                   fatherId: parentId,
                 });
-                nextCatalogId = catalog.id;
+                const createdCatalogId = catalog?.id;
+                if (typeof createdCatalogId !== 'number') {
+                  throw new Error(`创建目录失败：${folderName}`);
+                }
+                nextCatalogId = createdCatalogId;
                 catalogIds.set(catalogPath, nextCatalogId);
               }
               parentId = nextCatalogId;
@@ -800,7 +897,8 @@ export default function CatalogTreeSidebar({
               uploadedUrls,
             );
             const title =
-              fileName.replace(MARKDOWN_FILE_PATTERN, '') || i18nText("app.article.sidebar.catalogtreesidebar.f8e63045");
+              fileName.replace(MARKDOWN_FILE_PATTERN, '') ||
+              i18nText('app.article.sidebar.catalogtreesidebar.f8e63045');
             await saveImportedMarkdown(parentId, title, markdown);
             importedCount += 1;
           }
@@ -808,17 +906,22 @@ export default function CatalogTreeSidebar({
           await fetchAllSpaces();
           message.success({
             key: messageKey,
-            content: i18nText("app.article.sidebar.catalogtreesidebar.18c9d0ce", {value0: importedCount}),
-          });
+            content: i18nText(
+              'app.article.sidebar.catalogtreesidebar.18c9d0ce',
+              {value0: importedCount},
+            ),
+          }).then();
         } catch {
           await fetchAllSpaces();
           message.error({
             key: messageKey,
             content:
               importedCount > 0
-                ? i18nText("app.article.sidebar.catalogtreesidebar.c9315cff", {value0: importedCount})
-                : i18nText("app.article.sidebar.catalogtreesidebar.4b407ec6"),
-          });
+                ? i18nText('app.article.sidebar.catalogtreesidebar.c9315cff', {
+                  value0: importedCount,
+                })
+                : i18nText('app.article.sidebar.catalogtreesidebar.4b407ec6'),
+          }).then();
         }
       };
       input.click();
@@ -829,19 +932,25 @@ export default function CatalogTreeSidebar({
   const handleDeleteArticle = useCallback(
     (articleId: number, articleTitle: string) => {
       modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.1ee37afb"),
-        content: i18nText("app.article.sidebar.catalogtreesidebar.6d740c66", {value0: articleTitle}),
-        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.1ee37afb'),
+        content: i18nText('app.article.sidebar.catalogtreesidebar.6d740c66', {
+          value0: articleTitle,
+        }),
+        okText: i18nText('app.article.sidebar.catalogtreesidebar.a424aa2f'),
         okType: 'danger',
-        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
+        cancelText: i18nText('app.article.sidebar.catalogtreesidebar.70367c34'),
         onOk: async () => {
           try {
             await deleteArticle(articleId);
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.9a21ac76"));
+            message.success(
+              i18nText('app.article.sidebar.catalogtreesidebar.9a21ac76'),
+            );
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.ebc0b300"));
+            message.error(
+              i18nText('app.article.sidebar.catalogtreesidebar.ebc0b300'),
+            );
           }
         },
       });
@@ -869,11 +978,13 @@ export default function CatalogTreeSidebar({
       let targetCatalogId: number | null = null;
 
       Modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.2b756ee2"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.2b756ee2'),
         content: (
           <Select
             className="w-full"
-            placeholder={i18nText("app.article.sidebar.catalogtreesidebar.f978a3e4")}
+            placeholder={i18nText(
+              'app.article.sidebar.catalogtreesidebar.f978a3e4',
+            )}
             options={catalogOptions}
             onChange={(val) => {
               targetCatalogId = val;
@@ -882,15 +993,21 @@ export default function CatalogTreeSidebar({
         ),
         onOk: async () => {
           if (targetCatalogId === null) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.240fb806"));
+            message.warning(
+              i18nText('app.article.sidebar.catalogtreesidebar.240fb806'),
+            ).then();
             return;
           }
           try {
             await moveToCatalog(articleId, targetCatalogId);
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.419b3908"));
+            message.success(
+              i18nText('app.article.sidebar.catalogtreesidebar.419b3908'),
+            ).then();
             await fetchAllSpaces();
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.f731ddbc"));
+            message.error(
+              i18nText('app.article.sidebar.catalogtreesidebar.f731ddbc'),
+            ).then();
           }
         },
       });
@@ -912,16 +1029,24 @@ export default function CatalogTreeSidebar({
   const handleBatchMoveSubmit = useCallback(
     async (targetCatalogId: number | null) => {
       if (targetCatalogId === null) {
-        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.240fb806"));
+        message.warning(
+          i18nText('app.article.sidebar.catalogtreesidebar.240fb806'),
+        ).then();
         return;
       }
       try {
         await batchMoveToCatalogByIds(batchMove.articleIds, targetCatalogId);
-        message.success(i18nText("app.article.sidebar.catalogtreesidebar.afb24336", {value0: batchMove.articleIds.length}));
+        message.success(
+          i18nText('app.article.sidebar.catalogtreesidebar.afb24336', {
+            value0: batchMove.articleIds.length,
+          }),
+        ).then();
         clearBatchMove();
         await fetchAllSpaces();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.3828305e"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.3828305e'),
+        ).then();
       }
     },
     [batchMove.articleIds, clearBatchMove, fetchAllSpaces, message],
@@ -930,19 +1055,27 @@ export default function CatalogTreeSidebar({
   const handleBatchDeleteArticles = useCallback(
     (articleIds: number[]) => {
       modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.1b387b9e"),
-        content: i18nText("app.article.sidebar.catalogtreesidebar.a57d8df5", {value0: articleIds.length}),
-        okText: i18nText("app.article.sidebar.catalogtreesidebar.a424aa2f"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.1b387b9e'),
+        content: i18nText('app.article.sidebar.catalogtreesidebar.a57d8df5', {
+          value0: articleIds.length,
+        }),
+        okText: i18nText('app.article.sidebar.catalogtreesidebar.a424aa2f'),
         okType: 'danger',
-        cancelText: i18nText("app.article.sidebar.catalogtreesidebar.70367c34"),
+        cancelText: i18nText('app.article.sidebar.catalogtreesidebar.70367c34'),
         onOk: async () => {
           try {
             await batchDeleteArticles(articleIds);
-            message.success(i18nText("app.article.sidebar.catalogtreesidebar.7f6d4b42", {value0: articleIds.length}));
+            message.success(
+              i18nText('app.article.sidebar.catalogtreesidebar.7f6d4b42', {
+                value0: articleIds.length,
+              }),
+            ).then();
             onArticleDeselect();
             await fetchAllSpaces();
           } catch {
-            message.error(i18nText("app.article.sidebar.catalogtreesidebar.7ab460dd"));
+            message.error(
+              i18nText('app.article.sidebar.catalogtreesidebar.7ab460dd'),
+            ).then();
           }
         },
       });
@@ -960,13 +1093,19 @@ export default function CatalogTreeSidebar({
           .filter(Boolean)
           .map((article: any) => {
             const body = article.contentMd || article.contentText || '';
-            return `# ${article.title || i18nText("app.article.sidebar.catalogtreesidebar.27ff4125", {value0: article.id})}\n\n${body}`;
+            return `# ${article.title || i18nText('app.article.sidebar.catalogtreesidebar.27ff4125', {value0: article.id})}\n\n${body}`;
           })
           .join('\n\n---\n\n');
-        exportFile(`articles-${Date.now()}.md`, markdown);
-        message.success(i18nText("app.article.sidebar.catalogtreesidebar.be63f4fa", {value0: articleIds.length}));
+        exportFile(`articles-${Date.now()}.md`, markdown).then();
+        message.success(
+          i18nText('app.article.sidebar.catalogtreesidebar.be63f4fa', {
+            value0: articleIds.length,
+          }),
+        ).then();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.fb9c9ede"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.fb9c9ede'),
+        ).then();
       }
     },
     [message],
@@ -979,7 +1118,9 @@ export default function CatalogTreeSidebar({
       async function rename() {
         const nextTitle = title.trim();
         if (!nextTitle) {
-          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.db2ac64b"));
+          message.warning(
+            i18nText('app.article.sidebar.catalogtreesidebar.db2ac64b'),
+          ).then();
           return;
         }
         try {
@@ -988,15 +1129,19 @@ export default function CatalogTreeSidebar({
           if (currentArticleInfo?.id === articleId) {
             setArticleInfo({ ...currentArticleInfo, title: nextTitle });
           }
-          message.success(i18nText("app.article.sidebar.catalogtreesidebar.5ca16f2e"));
+          message.success(
+            i18nText('app.article.sidebar.catalogtreesidebar.5ca16f2e'),
+          ).then();
           await fetchAllSpaces();
         } catch {
-          message.error(i18nText("app.article.sidebar.catalogtreesidebar.bb1317b8"));
+          message.error(
+            i18nText('app.article.sidebar.catalogtreesidebar.bb1317b8'),
+          ).then();
         }
       }
 
       Modal.confirm({
-        title: i18nText("app.article.sidebar.catalogtreesidebar.0827a64a"),
+        title: i18nText('app.article.sidebar.catalogtreesidebar.0827a64a'),
         content: (
           <AutoFocusInput
             defaultValue={currentTitle}
@@ -1090,10 +1235,14 @@ export default function CatalogTreeSidebar({
               orderId: index + 1,
             })),
           );
-          message.success(i18nText("app.article.sidebar.catalogtreesidebar.c7b1216b"));
+          message.success(
+            i18nText('app.article.sidebar.catalogtreesidebar.c7b1216b'),
+          ).then();
           await fetchAllSpaces();
         } catch {
-          message.error(i18nText("app.article.sidebar.catalogtreesidebar.d413cdcc"));
+          message.error(
+            i18nText('app.article.sidebar.catalogtreesidebar.d413cdcc'),
+          ).then();
         }
         return;
       }
@@ -1106,15 +1255,21 @@ export default function CatalogTreeSidebar({
         const article = dragNode.data as any;
         const catalog = dropNode.data as CatalogType;
         if (sourceSpace === 'public' && !catalog.canDelete) {
-          message.warning(i18nText("app.article.sidebar.catalogtreesidebar.98bcffda"));
+          message.warning(
+            i18nText('app.article.sidebar.catalogtreesidebar.98bcffda'),
+          ).then();
           return;
         }
         try {
           await moveToCatalog(article.id, catalog.id);
-          message.success(i18nText("app.article.sidebar.catalogtreesidebar.419b3908"));
+          message.success(
+            i18nText('app.article.sidebar.catalogtreesidebar.419b3908'),
+          ).then();
           await fetchAllSpaces();
         } catch {
-          message.error(i18nText("app.article.sidebar.catalogtreesidebar.f731ddbc"));
+          message.error(
+            i18nText('app.article.sidebar.catalogtreesidebar.f731ddbc'),
+          ).then();
         }
         return;
       }
@@ -1124,7 +1279,9 @@ export default function CatalogTreeSidebar({
       const target = dropNode.data as CatalogType;
       if (source.id === target.id) return;
       if (sourceSpace === 'public' && !target.canDelete) {
-        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.98bcffda"));
+        message.warning(
+          i18nText('app.article.sidebar.catalogtreesidebar.98bcffda'),
+        ).then();
         return;
       }
       const isDescendant = (node: CatalogType, id: number): boolean =>
@@ -1132,7 +1289,9 @@ export default function CatalogTreeSidebar({
           (child) => child.id === id || isDescendant(child, id),
         );
       if (isDescendant(source, target.id)) {
-        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.dac7b73b"));
+        message.warning(
+          i18nText('app.article.sidebar.catalogtreesidebar.dac7b73b'),
+        ).then();
         return;
       }
 
@@ -1217,10 +1376,14 @@ export default function CatalogTreeSidebar({
       }
       try {
         await reorderCatalogs(flattenUpdates(nextTree, null));
-        message.success(i18nText("app.article.sidebar.catalogtreesidebar.29f43e74"));
+        message.success(
+          i18nText('app.article.sidebar.catalogtreesidebar.29f43e74'),
+        ).then();
         await fetchAllSpaces();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.11b4a1d0"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.11b4a1d0'),
+        ).then();
       }
     },
     [fetchAllSpaces, message, myCatalogs, publicCatalogs],
@@ -1242,8 +1405,12 @@ export default function CatalogTreeSidebar({
     (resourceType: string, resourceId: number) => {
       const name =
         resourceType === 'CATALOG'
-          ? i18nText("app.article.sidebar.catalogtreesidebar.edc62e31", {value0: resourceId})
-          : i18nText("app.article.sidebar.catalogtreesidebar.23142b3c", {value0: resourceId});
+          ? i18nText('app.article.sidebar.catalogtreesidebar.edc62e31', {
+            value0: resourceId,
+          })
+          : i18nText('app.article.sidebar.catalogtreesidebar.23142b3c', {
+            value0: resourceId,
+          });
       setCopyModal({
         open: true,
         resourceType: resourceType as 'CATALOG' | 'ARTICLE',
@@ -1258,7 +1425,9 @@ export default function CatalogTreeSidebar({
     async (targetCatalogId: number | null) => {
       const { resourceType, resourceId } = copyModal;
       if (targetCatalogId === null) {
-        message.warning(i18nText("app.article.sidebar.catalogtreesidebar.ab9f1b64"));
+        message.warning(
+          i18nText('app.article.sidebar.catalogtreesidebar.ab9f1b64'),
+        ).then();
         return;
       }
       try {
@@ -1267,10 +1436,14 @@ export default function CatalogTreeSidebar({
         } else {
           await copyArticleToMySpace(resourceId, targetCatalogId);
         }
-        message.success(i18nText("app.article.sidebar.catalogtreesidebar.5febc6e1"));
+        message.success(
+          i18nText('app.article.sidebar.catalogtreesidebar.5febc6e1'),
+        ).then();
         await fetchAllSpaces();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.7c224c9b"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.7c224c9b'),
+        ).then();
       }
     },
     [copyModal, fetchAllSpaces, message],
@@ -1281,8 +1454,12 @@ export default function CatalogTreeSidebar({
     (resourceType: string, resourceId: number) => {
       const name =
         resourceType === 'CATALOG'
-          ? i18nText("app.article.sidebar.catalogtreesidebar.edc62e31", {value0: resourceId})
-          : i18nText("app.article.sidebar.catalogtreesidebar.23142b3c", {value0: resourceId});
+          ? i18nText('app.article.sidebar.catalogtreesidebar.edc62e31', {
+            value0: resourceId,
+          })
+          : i18nText('app.article.sidebar.catalogtreesidebar.23142b3c', {
+            value0: resourceId,
+          });
       setRevokeModal({
         open: true,
         resourceType: resourceType as 'CATALOG' | 'ARTICLE',
@@ -1305,15 +1482,21 @@ export default function CatalogTreeSidebar({
           );
         } else {
           if (targetCatalogId === null) {
-            message.warning(i18nText("app.article.sidebar.catalogtreesidebar.f2eb2c96"));
+            message.warning(
+              i18nText('app.article.sidebar.catalogtreesidebar.f2eb2c96'),
+            ).then();
             return;
           }
           await toggleArticlePublic(resourceId, false, targetCatalogId);
         }
-        message.success(i18nText("app.article.sidebar.catalogtreesidebar.80381937"));
+        message.success(
+          i18nText('app.article.sidebar.catalogtreesidebar.80381937'),
+        ).then();
         await fetchAllSpaces();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.a8739d38"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.a8739d38'),
+        ).then();
       }
     },
     [revokeModal, fetchAllSpaces, message],
@@ -1327,10 +1510,16 @@ export default function CatalogTreeSidebar({
         } else {
           await toggleArticlePublic(resourceId, isPublic);
         }
-        message.success(isPublic ? i18nText("app.article.sidebar.catalogtreesidebar.e288954c") : i18nText("app.article.sidebar.catalogtreesidebar.80381937"));
+        message.success(
+          isPublic
+            ? i18nText('app.article.sidebar.catalogtreesidebar.e288954c')
+            : i18nText('app.article.sidebar.catalogtreesidebar.80381937'),
+        ).then();
         await fetchAllSpaces();
       } catch {
-        message.error(i18nText("app.article.sidebar.catalogtreesidebar.2c103490"));
+        message.error(
+          i18nText('app.article.sidebar.catalogtreesidebar.2c103490'),
+        ).then();
       }
     },
     [fetchAllSpaces, message],
@@ -1359,7 +1548,13 @@ export default function CatalogTreeSidebar({
                   ) : (
                     <CheckSquareOutlined />
                   ),
-                  label: isBatchMode ? i18nText("app.article.sidebar.catalogtreesidebar.347cd9d3") : i18nText("app.article.sidebar.catalogtreesidebar.fbb37314"),
+                  label: isBatchMode
+                    ? i18nText(
+                      'app.article.sidebar.catalogtreesidebar.347cd9d3',
+                    )
+                    : i18nText(
+                      'app.article.sidebar.catalogtreesidebar.fbb37314',
+                    ),
                   onClick: () => {
                     setBatchModeSpace(isBatchMode ? null : space);
                   },
@@ -1393,7 +1588,7 @@ export default function CatalogTreeSidebar({
           className="block w-full"
         >
           <LockOutlined className="mr-1.5" />
-          {i18nText("app.article.sidebar.catalogtreesidebar.eccd2f1e")}
+          {i18nText('app.article.sidebar.catalogtreesidebar.eccd2f1e')}
         </span>
       ),
       extra: renderBatchMenu('my'),
@@ -1433,7 +1628,7 @@ export default function CatalogTreeSidebar({
       label: (
         <span>
           <TeamOutlined className="mr-1.5" />
-          {i18nText("app.article.sidebar.catalogtreesidebar.1250a36b")}
+          {i18nText('app.article.sidebar.catalogtreesidebar.1250a36b')}
         </span>
       ),
       children: (
@@ -1462,7 +1657,7 @@ export default function CatalogTreeSidebar({
           className="block w-full"
         >
           <GlobalOutlined className="mr-1.5" />
-          {i18nText("app.article.sidebar.catalogtreesidebar.17318c0b")}
+          {i18nText('app.article.sidebar.catalogtreesidebar.17318c0b')}
         </span>
       ),
       extra: renderBatchMenu('public'),
@@ -1506,7 +1701,9 @@ export default function CatalogTreeSidebar({
           <Input
             allowClear
             prefix={<SearchOutlined className="text-[#8c8c8c]" />}
-            placeholder={i18nText("app.article.sidebar.catalogtreesidebar.65fe10a7")}
+            placeholder={i18nText(
+              'app.article.sidebar.catalogtreesidebar.65fe10a7',
+            )}
             value={treeSearchKeyword}
             onChange={(event) => setTreeSearchKeyword(event.target.value)}
             className="flex-1 rounded-md"
@@ -1514,8 +1711,9 @@ export default function CatalogTreeSidebar({
         </div>
         {normalizedTreeSearchKeyword && (
           <Typography.Text type="secondary" className="mt-1.5 block text-xs">
-            {i18nText("app.article.sidebar.catalogtreesidebar.183b962e")} {treeSearchResultCount}{' '}
-            {i18nText("app.article.sidebar.catalogtreesidebar.55e850ef")}
+            {i18nText('app.article.sidebar.catalogtreesidebar.183b962e')}{' '}
+            {treeSearchResultCount}{' '}
+            {i18nText('app.article.sidebar.catalogtreesidebar.55e850ef')}
           </Typography.Text>
         )}
       </div>
@@ -1538,40 +1736,40 @@ export default function CatalogTreeSidebar({
       {/* 空间面板右键菜单 */}
       {spaceMenu &&
         (spaceMenu.space === 'my' || spaceMenu.space === 'public') && (
-          <>
-            <div
-              ref={spaceMenuRef}
-              className="fixed z-[1000]"
-              style={
-                spaceMenuPosition
-                  ? spaceMenuPosition
-                  : {
-                      left: spaceMenu.x,
-                      top: spaceMenu.y,
-                      visibility: 'hidden',
-                    }
-              }
-              onContextMenu={(event) => event.preventDefault()}
-            >
-              <Menu
-                className="rounded-lg border border-[#e5e7eb] shadow-lg"
-                items={[
-                  {
-                    key: 'add-root-catalog',
-                    label: i18nText("app.article.sidebar.catalogtreesidebar.820a16e1"),
-                    icon: <FolderAddOutlined />,
-                    disabled:
-                      spaceMenu.space === 'public' &&
-                      !canCreatePublicRootCatalog,
-                    onClick: () => {
-                      setSpaceMenu(null);
-                      handleAddRootCatalog(spaceMenu.space === 'public');
-                    },
+          <div
+            ref={spaceMenuRef}
+            className="fixed z-[1000]"
+            style={
+              spaceMenuPosition
+                ? spaceMenuPosition
+                : {
+                  left: spaceMenu.x,
+                  top: spaceMenu.y,
+                  visibility: 'hidden',
+                }
+            }
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            <Menu
+              className="rounded-lg border border-[#e5e7eb] shadow-lg"
+              items={[
+                {
+                  key: 'add-root-catalog',
+                  label: i18nText(
+                    'app.article.sidebar.catalogtreesidebar.820a16e1',
+                  ),
+                  icon: <FolderAddOutlined/>,
+                  disabled:
+                    spaceMenu.space === 'public' &&
+                    !canCreatePublicRootCatalog,
+                  onClick: () => {
+                    setSpaceMenu(null);
+                    handleAddRootCatalog(spaceMenu.space === 'public');
                   },
-                ]}
-              />
-            </div>
-          </>
+                },
+              ]}
+            />
+          </div>
         )}
 
       {/* 发布至公共空间弹窗 */}
@@ -1592,8 +1790,10 @@ export default function CatalogTreeSidebar({
       {/* 复制到我的空间弹窗 */}
       <SelectTargetCatalogModal
         open={copyModal.open}
-        title={i18nText("app.article.sidebar.catalogtreesidebar.ed355c6e")}
-        instruction={i18nText("app.article.sidebar.catalogtreesidebar.9c31861b")}
+        title={i18nText('app.article.sidebar.catalogtreesidebar.ed355c6e')}
+        instruction={i18nText(
+          'app.article.sidebar.catalogtreesidebar.9c31861b',
+        )}
         resourceName={copyModal.resourceName}
         onClose={() => setCopyModal((prev) => ({ ...prev, open: false }))}
         onSubmit={handleCopyToPrivateSubmit}
@@ -1602,9 +1802,14 @@ export default function CatalogTreeSidebar({
       {/* 撤回公共状态弹窗 */}
       <SelectTargetCatalogModal
         open={batchMove.articleIds.length > 0}
-        title={i18nText("app.article.sidebar.catalogtreesidebar.c896d7d9")}
-        instruction={i18nText("app.article.sidebar.catalogtreesidebar.180cab67")}
-        resourceName={i18nText("app.article.sidebar.catalogtreesidebar.33a7e8cc", {value0: batchMove.articleIds.length})}
+        title={i18nText('app.article.sidebar.catalogtreesidebar.c896d7d9')}
+        instruction={i18nText(
+          'app.article.sidebar.catalogtreesidebar.180cab67',
+        )}
+        resourceName={i18nText(
+          'app.article.sidebar.catalogtreesidebar.33a7e8cc',
+          {value0: batchMove.articleIds.length},
+        )}
         targetSpace={batchMove.sourceSpace}
         onClose={clearBatchMove}
         onSubmit={handleBatchMoveSubmit}
@@ -1612,8 +1817,10 @@ export default function CatalogTreeSidebar({
 
       <SelectTargetCatalogModal
         open={revokeModal.open}
-        title={i18nText("app.article.sidebar.catalogtreesidebar.b93805da")}
-        instruction={i18nText("app.article.sidebar.catalogtreesidebar.f424c6c4")}
+        title={i18nText('app.article.sidebar.catalogtreesidebar.b93805da')}
+        instruction={i18nText(
+          'app.article.sidebar.catalogtreesidebar.f424c6c4',
+        )}
         resourceName={revokeModal.resourceName}
         onClose={() => setRevokeModal((prev) => ({ ...prev, open: false }))}
         onSubmit={handleRevokeSubmit}

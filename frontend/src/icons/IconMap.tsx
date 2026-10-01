@@ -4,7 +4,7 @@
 import {
   AlertOutlined,
   AppstoreOutlined,
-  CrownOutlined,
+  CrownOutlined, FunctionOutlined,
   HomeOutlined,
   LoadingOutlined,
   ReadOutlined,
@@ -31,6 +31,7 @@ const IconMap = {
   homePage: <HomeOutlined />,
   robot: <RobotOutlined />,
   write: <SignatureOutlined/>,
+  function: <FunctionOutlined/>,
 };
 
 export default IconMap;

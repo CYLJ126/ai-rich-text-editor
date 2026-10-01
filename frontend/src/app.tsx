@@ -1,4 +1,3 @@
-import {i18nText} from '@/utils/i18n';
 import {LinkOutlined} from '@ant-design/icons';
 import type {Settings as LayoutSettings} from '@ant-design/pro-components';
 import type {RequestConfig, RunTimeLayoutConfig} from '@umijs/max';
@@ -8,14 +7,26 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import React from 'react';
 import {AliveScope} from 'react-activation';
-import {AvatarDropdown, ErrorBoundary, LangDropdown, OfflineBanner, ThemeSwitch,} from '@/components';
+import {
+  AvatarDropdown,
+  ErrorBoundary,
+  LangDropdown,
+  OfflineBanner,
+  ThemeSwitch,
+} from '@/components';
 import TabsLayout from '@/components/TabsLayout';
 import {Toaster} from '@/components/ui/sonner';
-import {getStoredLayoutMenuState, LayoutMenuContextProvider, saveLayoutMenuState,} from '@/contexts/LayoutMenuContext';
+import {
+  getStoredLayoutMenuState,
+  LayoutMenuContextProvider,
+  saveLayoutMenuState,
+} from '@/contexts/LayoutMenuContext';
 import {ThemeContextProvider, useThemeContext} from '@/contexts/ThemeContext';
 import IconMap from '@/icons/IconMap';
 import {queryCurrentUser} from '@/services/ant-design-pro/base';
 import {listRecursiveMenus} from '@/services/ant-design-pro/rbac';
+import type {AppCurrentUser} from '@/types/base.type';
+import {i18nText} from '@/utils/i18n';
 import defaultSettings from '../config/defaultSettings';
 import {errorConfig} from './requestErrorConfig';
 
@@ -53,11 +64,15 @@ function transfer(rawMenu: any, userMenuCodes: string[]) {
   if (!userMenuCodes.includes(rawMenu.menuCode)) {
     return null;
   }
+  const iconKey =
+    typeof rawMenu.icon === 'string'
+      ? (rawMenu.icon as keyof typeof IconMap)
+      : undefined;
   const one: any = {
     id: rawMenu.id,
     name: rawMenu.menuCode,
     path: rawMenu.menuUrl,
-    icon: IconMap[rawMenu.icon] || '',
+    icon: iconKey ? IconMap[iconKey] : '',
   };
   if (rawMenu.children && rawMenu.children.length > 0) {
     one.routes = rawMenu.children
@@ -73,7 +88,7 @@ function transfer(rawMenu: any, userMenuCodes: string[]) {
 export async function getInitialState(): Promise<{
   settings?: Partial<LayoutSettings>;
   menuVisible?: boolean;
-  currentUser?: API.CurrentUser;
+  currentUser?: AppCurrentUser;
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
   settingDrawerOpen?: boolean;
@@ -85,9 +100,9 @@ export async function getInitialState(): Promise<{
         // 还未登录时，刷新页面，此时，不去获取用户信息
         return undefined;
       }
-      const msg = await queryCurrentUser({
+      const msg = (await queryCurrentUser({
         skipErrorHandler: true,
-      });
+      })) as unknown as { data: AppCurrentUser };
       const user = msg.data;
       // 权限，前后端字段兼容
       user.access = user.authorities;
@@ -182,11 +197,8 @@ export const layout: RunTimeLayoutConfig = ({
     // 登录页不渲染右上角操作按钮
     actionsRender: isUserPage
       ? () => []
-      : () => [
-        <LangDropdown key="lang"/>,
-          <ThemeSwitch key="theme-switch" />,
-        ],
-    // ✅ 登录页不渲染头像区域
+      : () => [<LangDropdown key="lang"/>, <ThemeSwitch key="theme-switch"/>],
+    // 登录页不渲染头像区域
     avatarProps: isUserPage
       ? undefined
       : {
@@ -261,7 +273,7 @@ export const layout: RunTimeLayoutConfig = ({
       ? [
           <Link key="openapi" to="/umi/plugin/openapi" target="_blank">
             <LinkOutlined />
-            <span>{i18nText("app.common.app.223c3ddf")}</span>
+            <span>{i18nText('app.common.app.223c3ddf')}</span>
           </Link>,
         ]
       : [],

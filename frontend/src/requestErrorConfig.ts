@@ -1,8 +1,8 @@
-import {i18nText} from '@/utils/i18n';
-﻿import type {RequestOptions} from '@@/plugin-request/request';
+import type {RequestOptions} from '@@/plugin-request/request';
 import type {RequestConfig} from '@umijs/max';
 import {getIntl, getLocale} from '@umijs/max';
 import {message, notification} from 'antd';
+import {i18nText} from '@/utils/i18n';
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -16,6 +16,8 @@ enum ErrorShowType {
 interface ResponseStructure {
   success: boolean;
   data: unknown;
+  code?: string;
+  desc?: string;
   errorCode?: number;
   errorMessage?: string;
   showType?: ErrorShowType;
@@ -98,7 +100,7 @@ export const errorConfig: RequestConfig = {
         'Accept-Language': getLocale(),
       };
       if (token) {
-        headers.Authorization = 'Bearer ' + token;
+        headers.Authorization = `Bearer ${token}`;
       }
       return {...config, headers};
     },
@@ -108,12 +110,17 @@ export const errorConfig: RequestConfig = {
   responseInterceptors: [
     (response) => {
       // 拦截响应数据，进行个性化处理
-      const { data } = response as unknown as ResponseStructure;
+      const {data} = response as unknown as { data?: ResponseStructure };
 
       if (data?.success === false) {
         const errMsg = data.desc?.substring(0, 256);
         message
-          .error(i18nText("app.common.requesterrorconfig.52de81bc", {value0: data.code, value1: errMsg}))
+          .error(
+            i18nText('app.common.requesterrorconfig.52de81bc', {
+              value0: data.code,
+              value1: errMsg,
+            }),
+          )
           .then();
       }
       return response;

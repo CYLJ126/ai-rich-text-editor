@@ -18,6 +18,12 @@ declare module '@tiptap/core' {
     readonly articleInfo: ArticleInfoType | null;
     readonly articleInfoRef: RefObject<ArticleInfoType | null | undefined>;
   }
+
+  interface Storage {
+    myArticleInfoRef: {
+      _ref: RefObject<ArticleInfoType | null | undefined> | null;
+    };
+  }
 }
 
 /**
@@ -50,7 +56,9 @@ export const MyArticleInfoRef = Extension.create<MyArticleInfoRefOptions>({
     editor.storage.myArticleInfoRef._ref = options.articleInfoRef;
 
     const getRef = () =>
-      editor.storage.myArticleInfoRef._ref as RefObject<ArticleInfoType | null | undefined>;
+      editor.storage.myArticleInfoRef._ref as RefObject<
+        ArticleInfoType | null | undefined
+      >;
 
     Object.defineProperty(editor, 'articleInfo', {
       get(): ArticleInfoType | null {
@@ -74,37 +82,43 @@ export const MyArticleInfoRef = Extension.create<MyArticleInfoRefOptions>({
     const {editor} = this;
     editor.storage.myArticleInfoRef._ref = null;
     try {
-      Object.defineProperty(editor, 'articleInfo', {value: null, configurable: true});
-      Object.defineProperty(editor, 'articleInfoRef', {value: null, configurable: true});
-    } catch { /* ignore */
+      Object.defineProperty(editor, 'articleInfo', {
+        value: null,
+        configurable: true,
+      });
+      Object.defineProperty(editor, 'articleInfoRef', {
+        value: null,
+        configurable: true,
+      });
+    } catch {
+      /* ignore */
     }
   },
 
   addCommands() {
     // 从 storage 取 ref，保证和 getter 读的是同一个对象
     const getRef = () =>
-      this.editor.storage.myArticleInfoRef._ref as RefObject<ArticleInfoType | null | undefined>;
+      this.editor.storage.myArticleInfoRef._ref as RefObject<
+        ArticleInfoType | null | undefined
+      >;
 
     return {
-      updateArticleInfo:
-        (patch: Partial<ArticleInfoType>) =>
-          () => {
-            const ref = getRef();
-            if (!ref) return false;
-            ref.current = ref.current == null
-              ? (patch as ArticleInfoType)
-              : {...ref.current, ...patch};
-            return true;
-          },
+      updateArticleInfo: (patch: Partial<ArticleInfoType>) => () => {
+        const ref = getRef();
+        if (!ref) return false;
+        ref.current =
+          ref.current == null
+            ? (patch as ArticleInfoType)
+            : {...ref.current, ...patch};
+        return true;
+      },
 
-      setArticleInfo:
-        (info: ArticleInfoType) =>
-          () => {
-            const ref = getRef();
-            if (!ref) return false;
-            ref.current = info;
-            return true;
-          },
+      setArticleInfo: (info: ArticleInfoType) => () => {
+        const ref = getRef();
+        if (!ref) return false;
+        ref.current = info;
+        return true;
+      },
     };
   },
 });

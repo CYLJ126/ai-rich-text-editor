@@ -4,9 +4,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': join(__dirname, 'src'),
-      '@root': join(__dirname),
-      '@@': join(__dirname, 'src', '.umi'),
+      '@': join(import.meta.dirname, 'src'),
+      '@root': import.meta.dirname,
+      '@@': join(import.meta.dirname, 'src', '.umi'),
     },
   },
   test: {
@@ -14,8 +14,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setupTests.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    // Exclude Umi integration tests that depend on @umijs/max test infrastructure
-    // These require Umi's Jest runner and cannot be used with Vitest directly
+    // Exclude Umi integration tests that depend on @umijs/max test infrastructure.
     exclude: [
       'src/pages/user/login/login.test.tsx',
       'node_modules',

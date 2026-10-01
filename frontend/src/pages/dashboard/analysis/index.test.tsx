@@ -21,6 +21,10 @@ vi.mock('@umijs/max', () => ({
   ),
 }));
 
+vi.mock('@/components/PageWrapper', () => ({
+  default: ({children}: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock('./service', () => ({
   fakeChartData: vi.fn(),
 }));
@@ -81,6 +85,7 @@ vi.mock('./components/PageLoading', () => ({
 }));
 
 import Analysis from './index';
+import React from "react";
 
 const mockAnalysisData: AnalysisData = {
   visitData: [

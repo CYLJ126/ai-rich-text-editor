@@ -1,7 +1,18 @@
 import { createStyles } from 'antd-style';
 import { ReactComponent as AddSvg } from '@/assets/icon/add-square.svg';
 
-const useStyle = function tagStyle(width, height, color) {
+interface AddIconProps {
+  width?: number;
+  height?: number;
+  color?: string;
+  onClick?: () => void;
+}
+
+const useStyle = function tagStyle(
+  width?: number,
+  height?: number,
+  color?: string,
+) {
   return createStyles(({ css }) => ({
     add: css`
       width: ${width}px;
@@ -15,7 +26,12 @@ const useStyle = function tagStyle(width, height, color) {
   }))();
 };
 
-export default function AddIcon({ width, height, color, onClick }) {
+export default function AddIcon({
+                                  width,
+                                  height,
+                                  color,
+                                  onClick,
+                                }: AddIconProps) {
   const { styles } = useStyle(width, height, color);
   return <AddSvg onClick={onClick} className={styles.add} />;
 }

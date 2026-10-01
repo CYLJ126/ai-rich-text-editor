@@ -1,4 +1,3 @@
-import {i18nText} from '@/utils/i18n';
 import {
   ClusterOutlined,
   ContactsOutlined,
@@ -19,6 +18,7 @@ import {
   Tag,
 } from 'antd';
 import React, { useRef, useState } from 'react';
+import {i18nText} from '@/utils/i18n';
 import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
@@ -31,7 +31,7 @@ const operationTabList = [
     key: 'articles',
     tab: (
       <span>
-        {i18nText("app.account.center.f78d731f")}{' '}
+        {i18nText('app.account.center.f78d731f')}{' '}
         <span
           style={{
             fontSize: 14,
@@ -46,7 +46,7 @@ const operationTabList = [
     key: 'applications',
     tab: (
       <span>
-        {i18nText("app.account.center.a01c617f")}{' '}
+        {i18nText('app.account.center.a01c617f')}{' '}
         <span
           style={{
             fontSize: 14,
@@ -61,7 +61,7 @@ const operationTabList = [
     key: 'projects',
     tab: (
       <span>
-        {i18nText("app.account.center.2423a1be")}{' '}
+        {i18nText('app.account.center.2423a1be')}{' '}
         <span
           style={{
             fontSize: 14,
@@ -110,7 +110,9 @@ const TagList: React.FC<{
   };
   return (
     <div className={styles.tags}>
-      <div className={styles.tagsTitle}>{i18nText("app.account.center.c8c439e1")}</div>
+      <div className={styles.tagsTitle}>
+        {i18nText('app.account.center.c8c439e1')}
+      </div>
       <Flex wrap gap="small">
         {(tags || []).concat(newTags).map((item) => (
           <Tag key={item.key}>{item.label}</Tag>
@@ -229,7 +231,9 @@ const Center: React.FC = () => {
               <>
                 <div className={styles.avatarHolder}>
                   <img alt="" src={currentUser.avatar} />
-                  <div className={styles.name}>{currentUser.userName}</div>
+                  <div className={styles.name}>
+                    {currentUser.userName ?? currentUser.name}
+                  </div>
                   <div>{currentUser?.signature}</div>
                 </div>
                 <UserInfo user={currentUser} />
@@ -242,7 +246,9 @@ const Center: React.FC = () => {
                   dashed
                 />
                 <div className={styles.team}>
-                  <div className={styles.teamTitle}>{i18nText("app.account.center.0fd2a016")}</div>
+                  <div className={styles.teamTitle}>
+                    {i18nText('app.account.center.0fd2a016')}
+                  </div>
                   <Row gutter={36}>
                     {currentUser.notice?.map((item) => (
                       <Col key={item.id} lg={24} xl={12}>

@@ -1,5 +1,5 @@
-import Mention from '@tiptap/extension-mention'
-import suggestion from './suggestion.ts'
+import Mention from '@tiptap/extension-mention';
+import suggestion from './suggestion';
 
 export const MyMention = Mention.configure({
   name: 'mention',

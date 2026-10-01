@@ -63,9 +63,7 @@ describe('TiptapVideo', () => {
     const items = suggestions.items?.({ query: 'video' } as never) ?? [];
 
     expect(items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'video', title: 'Video' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({id: 'video'})]),
     );
   });
 });

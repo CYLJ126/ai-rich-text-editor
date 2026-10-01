@@ -1,4 +1,3 @@
-import {i18nText} from '@/utils/i18n';
 import {Radar} from '@ant-design/plots';
 import {PageContainer} from '@ant-design/pro-components';
 import {useQuery} from '@tanstack/react-query';
@@ -6,6 +5,7 @@ import {Link} from '@umijs/max';
 import {Avatar, Card, Col, List, Row, Skeleton, Statistic} from 'antd';
 import dayjs from 'dayjs';
 import type {FC} from 'react';
+import {i18nText} from '@/utils/i18n';
 import EditableLinkGroup from './components/EditableLinkGroup';
 import type {ActivitiesType, CurrentUser} from './data.d';
 import {fakeChartData, queryActivities, queryProjectNotice} from './service';
@@ -13,27 +13,27 @@ import useStyles from './style.style';
 
 const links = [
   {
-    title: i18nText("app.dashboard.workplace.496745c4"),
+    title: i18nText('app.dashboard.workplace.496745c4'),
     href: '',
   },
   {
-    title: i18nText("app.dashboard.workplace.c21a0f88"),
+    title: i18nText('app.dashboard.workplace.c21a0f88'),
     href: '',
   },
   {
-    title: i18nText("app.dashboard.workplace.bacd55b3"),
+    title: i18nText('app.dashboard.workplace.bacd55b3'),
     href: '',
   },
   {
-    title: i18nText("app.dashboard.workplace.38018fec"),
+    title: i18nText('app.dashboard.workplace.38018fec'),
     href: '',
   },
   {
-    title: i18nText("app.dashboard.workplace.695c582f"),
+    title: i18nText('app.dashboard.workplace.695c582f'),
     href: '',
   },
   {
-    title: i18nText("app.dashboard.workplace.36735aec"),
+    title: i18nText('app.dashboard.workplace.36735aec'),
     href: '',
   },
 ];
@@ -60,9 +60,9 @@ const PageHeaderContent: FC<{
       </div>
       <div className={styles.content}>
         <div className={styles.contentTitle}>
-          {i18nText("app.dashboard.workplace.9239f213")}
+          {i18nText('app.dashboard.workplace.9239f213')}
           {currentUser.name}
-          {i18nText("app.dashboard.workplace.c9cb7439")}
+          {i18nText('app.dashboard.workplace.c9cb7439')}
         </div>
         <div>
           {currentUser.title} | {currentUser.group}
@@ -76,13 +76,23 @@ const ExtraContent: FC<Record<string, any>> = () => {
   return (
     <div className={styles.extraContent}>
       <div className={styles.statItem}>
-        <Statistic title={i18nText("app.dashboard.workplace.ecc1a898")} value={56} />
+        <Statistic
+          title={i18nText('app.dashboard.workplace.ecc1a898')}
+          value={56}
+        />
       </div>
       <div className={styles.statItem}>
-        <Statistic title={i18nText("app.dashboard.workplace.fe00260d")} value={8} suffix="/ 24" />
+        <Statistic
+          title={i18nText('app.dashboard.workplace.fe00260d')}
+          value={8}
+          suffix="/ 24"
+        />
       </div>
       <div className={styles.statItem}>
-        <Statistic title={i18nText("app.dashboard.workplace.d99f9413")} value={2223} />
+        <Statistic
+          title={i18nText('app.dashboard.workplace.d99f9413')}
+          value={2223}
+        />
       </div>
     </div>
   );
@@ -120,7 +130,7 @@ const Workplace: FC = () => {
           title={
             <span>
               <a className={styles.username} href={item.user.link || '/'}>
-                {item.user.userName}
+                {item.user.userName ?? item.user.name}
               </a>
               &nbsp;
               <span className={styles.event}>{events}</span>
@@ -143,12 +153,12 @@ const Workplace: FC = () => {
           currentUser={{
             avatar:
               'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png',
-            name: i18nText("app.dashboard.workplace.208da994"),
+            name: i18nText('app.dashboard.workplace.208da994'),
             userid: '00000001',
             email: 'antdesign@alipay.com',
-            signature: i18nText("app.dashboard.workplace.382fab58"),
-            title: i18nText("app.dashboard.workplace.f56fa4a3"),
-            group: i18nText("app.dashboard.workplace.d6af3066"),
+            signature: i18nText('app.dashboard.workplace.382fab58'),
+            title: i18nText('app.dashboard.workplace.f56fa4a3'),
+            group: i18nText('app.dashboard.workplace.d6af3066'),
           }}
         />
       }
@@ -161,11 +171,11 @@ const Workplace: FC = () => {
             style={{
               marginBottom: 24,
             }}
-            title={i18nText("app.dashboard.workplace.d120e1fd")}
+            title={i18nText('app.dashboard.workplace.d120e1fd')}
             variant="borderless"
             extra={
               <Link to="/" prefetch>
-                {i18nText("app.dashboard.workplace.8a8ad9ce")}
+                {i18nText('app.dashboard.workplace.8a8ad9ce')}
               </Link>
             }
             loading={projectLoading}
@@ -207,7 +217,7 @@ const Workplace: FC = () => {
             }}
             variant="borderless"
             className={styles.activeCard}
-            title={i18nText("app.dashboard.workplace.ce65c7e0")}
+            title={i18nText('app.dashboard.workplace.ce65c7e0')}
             loading={activitiesLoading}
           >
             <List<ActivitiesType>
@@ -224,7 +234,7 @@ const Workplace: FC = () => {
             style={{
               marginBottom: 24,
             }}
-            title={i18nText("app.dashboard.workplace.ba570e06")}
+            title={i18nText('app.dashboard.workplace.ba570e06')}
             variant="borderless"
           >
             <EditableLinkGroup
@@ -238,7 +248,7 @@ const Workplace: FC = () => {
               marginBottom: 24,
             }}
             variant="borderless"
-            title={i18nText("app.dashboard.workplace.f4b66736")}
+            title={i18nText('app.dashboard.workplace.f4b66736')}
             loading={data?.radarData?.length === 0}
           >
             <Radar
@@ -274,7 +284,7 @@ const Workplace: FC = () => {
               },
             }}
             variant="borderless"
-            title={i18nText("app.dashboard.workplace.41e8fecf")}
+            title={i18nText('app.dashboard.workplace.41e8fecf')}
             loading={projectLoading}
           >
             <div className={styles.members}>

@@ -1,11 +1,18 @@
-import {i18nText} from '@/utils/i18n';
 import type {Editor} from '@tiptap/core';
-import {Plugin, PluginKey} from '@tiptap/pm/state';
+import {Plugin, PluginKey, Selection} from '@tiptap/pm/state';
 import type {DecorationSet, EditorView} from '@tiptap/pm/view';
-import {STREAM_COMPLETION_URL, streamChat} from '@/services/ant-design-pro/ai.chat';
+import {
+  STREAM_COMPLETION_URL,
+  streamChat,
+} from '@/services/ant-design-pro/ai.chat';
 import {buildContinuationContext} from '@/utils/ai';
+import {i18nText} from '@/utils/i18n';
 import {extractDocText} from './context-builder';
-import {createLiveGhostTextDecoration, createLoadingDecoration, EMPTY_DECORATIONS,} from './decoration';
+import {
+  createLiveGhostTextDecoration,
+  createLoadingDecoration,
+  EMPTY_DECORATIONS,
+} from './decoration';
 import {detectTrigger} from './trigger';
 import type {AiCompletionOptions, CompletionState} from './types';
 
@@ -118,7 +125,10 @@ export function createAiCompletionPlugin(
 
     try {
       // ── 取光标前后文本，用占位符标出光标位置，提示词由后端组装 ───
-      const { fullText, cursorOffset } = extractDocText(view.state.doc, triggerTo);
+      const {fullText, cursorOffset} = extractDocText(
+        view.state.doc,
+        triggerTo,
+      );
       const rawBefore = fullText.slice(0, cursorOffset);
       // 去掉触发符 "//"
       const cleanBefore = rawBefore.endsWith('//')
@@ -152,7 +162,8 @@ export function createAiCompletionPlugin(
         if (runtime.pendingAccept) {
           runtime.pendingAccept = false;
           requestAnimationFrame(() => {
-            if (runtime.currentView) acceptCompletion(runtime.currentView, true);
+            if (runtime.currentView)
+              acceptCompletion(runtime.currentView, true);
           });
         }
       };
@@ -186,7 +197,12 @@ export function createAiCompletionPlugin(
             const view_ = runtime.currentView;
             if (!view_) return;
             runtime.pendingAccept = false;
-            const error = new Error(err?.message ?? i18nText("app.article.aicompletion.aicompletionplugin.6d39fe2a"));
+            const error = new Error(
+              err?.message ??
+              i18nText(
+                'app.article.aicompletion.aicompletionplugin.6d39fe2a',
+              ),
+            );
             dispatchAction(view_, { type: 'error', message: error.message });
             options.onError?.(error);
           },
@@ -231,10 +247,7 @@ export function createAiCompletionPlugin(
       view.state.schema.text(textToInsert),
     );
     const newCursorPos = triggerPos + textToInsert.length;
-    tr.setSelection(
-      // @ts-expect-error - constructor.near 是 ProseMirror 内部 API
-      view.state.selection.constructor.near(tr.doc.resolve(newCursorPos)),
-    );
+    tr.setSelection(Selection.near(tr.doc.resolve(newCursorPos)));
     tr.setMeta(META_KEY, { type: 'accept' } as AiCompletionAction);
     view.dispatch(tr);
     options.onCompletionAccept?.(textToInsert);
@@ -271,13 +284,7 @@ export function createAiCompletionPlugin(
       view.state.schema.text(wordToInsert),
     );
     const newCursorPos = triggerPos + wordToInsert.length;
-    console.log(
-      'view.state.selection.constructor: ',
-      view.state.selection.constructor,
-    );
-    tr.setSelection(
-      view.state.selection.constructor.near(tr.doc.resolve(newCursorPos)),
-    );
+    tr.setSelection(Selection.near(tr.doc.resolve(newCursorPos)));
     tr.setMeta(META_KEY, { type: 'accept' } as AiCompletionAction);
     view.dispatch(tr);
     options.onCompletionAccept?.(wordToInsert);

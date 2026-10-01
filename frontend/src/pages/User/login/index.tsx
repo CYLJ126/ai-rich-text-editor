@@ -1,19 +1,24 @@
+import {LockOutlined, MobileOutlined, UserOutlined} from '@ant-design/icons';
 import {
-  AlipayCircleOutlined,
-  LockOutlined,
-  MobileOutlined,
-  TaobaoCircleOutlined,
-  UserOutlined,
-  WeiboCircleOutlined,
-} from '@ant-design/icons';
-import {LoginForm, ProFormCaptcha, ProFormCheckbox, ProFormText,} from '@ant-design/pro-components';
-import {FormattedMessage, Helmet, SelectLang, useIntl, useModel,} from '@umijs/max';
+  LoginForm,
+  ProFormCaptcha,
+  ProFormCheckbox,
+  ProFormText,
+} from '@ant-design/pro-components';
+import {
+  FormattedMessage,
+  Helmet,
+  SelectLang,
+  useIntl,
+  useModel,
+} from '@umijs/max';
 import {Alert, App, Button, Tabs} from 'antd';
 import {createStyles} from 'antd-style';
 import React, {startTransition, useState} from 'react';
 import {Footer} from '@/components';
 import {getPubKey, login} from '@/services/ant-design-pro/base';
 import {getFakeCaptcha} from '@/services/ant-design-pro/login';
+import type {LoginResponse} from '@/types/base.type';
 import {GMCrypto} from '@/utils/crypto/gmCrypto';
 import {i18nText} from '@/utils/i18n';
 import Settings from '../../../../config/defaultSettings';
@@ -39,17 +44,6 @@ const getSafeRedirectUrl = (redirect: string | null): string => {
 
 const useStyles = createStyles(({ token }) => {
   return {
-    action: {
-      marginLeft: '8px',
-      color: 'rgba(0, 0, 0, 0.2)',
-      fontSize: '24px',
-      verticalAlign: 'middle',
-      cursor: 'pointer',
-      transition: 'color 0.3s',
-      '&:hover': {
-        color: token.colorPrimaryActive,
-      },
-    },
     lang: {
       width: 42,
       height: 42,
@@ -80,27 +74,6 @@ const useStyles = createStyles(({ token }) => {
   };
 });
 
-const ActionIcons = () => {
-  const { styles } = useStyles();
-
-  return (
-    <>
-      <AlipayCircleOutlined
-        key="AlipayCircleOutlined"
-        className={styles.action}
-      />
-      <TaobaoCircleOutlined
-        key="TaobaoCircleOutlined"
-        className={styles.action}
-      />
-      <WeiboCircleOutlined
-        key="WeiboCircleOutlined"
-        className={styles.action}
-      />
-    </>
-  );
-};
-
 const Lang = () => {
   const { styles } = useStyles();
 
@@ -127,7 +100,7 @@ const LoginMessage: React.FC<{
 };
 
 const Login: React.FC = () => {
-  const [userLoginState, setUserLoginState] = useState<API.LoginResult>({});
+  const [userLoginState, setUserLoginState] = useState<LoginResponse>({});
   const [type, setType] = useState<string>('account');
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
@@ -165,11 +138,11 @@ const Login: React.FC = () => {
       // 密码加密
       const encryptPassword = GMCrypto.sm2Encrypt(values.password, pubkey);
       // 登录
-      const msg = await login({
+      const msg = (await login({
         userName: values.username,
         password: encryptPassword,
         autoLogin: values.autoLogin,
-      });
+      })) as unknown as LoginResponse;
       if (msg.success) {
         const defaultLoginSuccessMessage = intl.formatMessage({
           id: 'pages.login.success',

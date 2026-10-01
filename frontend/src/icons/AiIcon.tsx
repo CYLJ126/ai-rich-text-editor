@@ -1,7 +1,20 @@
 import { createStyles } from 'antd-style';
 import { ReactComponent as AiSvg } from '@/assets/icon/ai.svg';
 
-const useStyle = function tagStyle(width, height, color, margin) {
+interface AiIconProps {
+  width?: number;
+  height?: number;
+  color?: string;
+  margin?: number | string;
+  onClick?: () => void;
+}
+
+const useStyle = function tagStyle(
+  width?: number,
+  height?: number,
+  color?: string,
+  margin?: number | string,
+) {
   return createStyles(({ css }) => ({
     ai: css`
       width: ${width}px;
@@ -16,7 +29,13 @@ const useStyle = function tagStyle(width, height, color, margin) {
   }))();
 };
 
-export default function AiIcon({ width, height, color, margin, onClick }) {
+export default function AiIcon({
+                                 width,
+                                 height,
+                                 color,
+                                 margin,
+                                 onClick,
+                               }: AiIconProps) {
   const { styles } = useStyle(width, height, color, margin);
   return <AiSvg onClick={onClick} className={styles.ai} />;
 }

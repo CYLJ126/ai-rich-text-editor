@@ -83,3 +83,14 @@ export interface OrderItem {
   /** 是否升序 */
   asc?: boolean;
 }
+
+/** 当前后端登录用户在 Ant Design Pro 基础类型上的扩展字段。 */
+export type AppCurrentUser = API.CurrentUser & {
+  id?: string;
+  userName?: string;
+  mobile?: string;
+  authorities?: string[];
+};
+
+/** 当前登录接口使用的统一响应结构。 */
+export type LoginResponse = API.LoginResult & API.ResultContext;

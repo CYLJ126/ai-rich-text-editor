@@ -90,6 +90,7 @@ export type ActivitiesType = {
   user: {
     link?: string;
     name: string;
+    userName?: string;
     avatar: string;
   };
   group: {

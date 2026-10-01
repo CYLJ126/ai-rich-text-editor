@@ -6,6 +6,7 @@ import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 
 const { UMI_ENV = 'dev' } = process.env;
+const USE_UTOOPACK = process.env.USE_UTOOPACK === 'true';
 
 // Compute commit hash: env vars take precedence, fall back to git at build time
 const commitHash =
@@ -40,27 +41,29 @@ const getPackageVersion = (packageName: string): string => {
  * @doc https://umijs.org/docs/api/config#publicpath
  */
 const PUBLIC_PATH: string = '/';
-const prosemirrorCjs = (packageName: string) =>
-  join(__dirname, `../node_modules/prosemirror-${packageName}/dist/index.cjs`);
+const prosemirrorEsm = (packageName: string) =>
+  join(__dirname, `../node_modules/prosemirror-${packageName}/dist/index.js`);
 
 export default defineConfig({
   alias: {
     '@root': join(__dirname, '..'),
     // Utoopack may otherwise instantiate Tiptap's wrapper and direct
     // ProseMirror/Yjs imports separately in production async chunks.
-    '@tiptap/pm/gapcursor': prosemirrorCjs('gapcursor'),
-    '@tiptap/pm/model': prosemirrorCjs('model'),
-    '@tiptap/pm/state': prosemirrorCjs('state'),
-    '@tiptap/pm/tables': prosemirrorCjs('tables'),
-    '@tiptap/pm/transform': prosemirrorCjs('transform'),
-    '@tiptap/pm/view': prosemirrorCjs('view'),
-    'prosemirror-gapcursor': prosemirrorCjs('gapcursor'),
-    'prosemirror-model': prosemirrorCjs('model'),
-    'prosemirror-state': prosemirrorCjs('state'),
-    'prosemirror-tables': prosemirrorCjs('tables'),
-    'prosemirror-transform': prosemirrorCjs('transform'),
-    'prosemirror-view': prosemirrorCjs('view'),
-    yjs: join(__dirname, '../node_modules/yjs/dist/yjs.cjs'),
+    // MFSU 4.x does not recognize .cjs as a JavaScript dependency entry, so
+    // keep these aliases on the packages' equivalent ESM builds.
+    '@tiptap/pm/gapcursor': prosemirrorEsm('gapcursor'),
+    '@tiptap/pm/model': prosemirrorEsm('model'),
+    '@tiptap/pm/state': prosemirrorEsm('state'),
+    '@tiptap/pm/tables': prosemirrorEsm('tables'),
+    '@tiptap/pm/transform': prosemirrorEsm('transform'),
+    '@tiptap/pm/view': prosemirrorEsm('view'),
+    'prosemirror-gapcursor': prosemirrorEsm('gapcursor'),
+    'prosemirror-model': prosemirrorEsm('model'),
+    'prosemirror-state': prosemirrorEsm('state'),
+    'prosemirror-tables': prosemirrorEsm('tables'),
+    'prosemirror-transform': prosemirrorEsm('transform'),
+    'prosemirror-view': prosemirrorEsm('view'),
+    yjs: join(__dirname, '../node_modules/yjs/dist/yjs.mjs'),
     /**
      * 兼容性 alias
      * @description 将 child_process 指向空模块，防止浏览器端构建时因
@@ -75,6 +78,9 @@ export default defineConfig({
    * @doc https://umijs.org/docs/api/config#hash
    */
   hash: true,
+
+  // 避免不同异步 chunk 中的 esbuild 辅助函数名称冲突。
+  esbuildMinifyIIFE: true,
 
   publicPath: PUBLIC_PATH,
 
@@ -97,6 +103,15 @@ export default defineConfig({
   // umi routes: https://umijs.org/docs/routing
   // 注释，从后端获取菜单和路由
   // routes,
+  conventionRoutes: {
+    exclude: [
+      /(?:^|\/)__tests__(?:\/|$)/,
+      /\.(?:test|spec)\.(?:js|jsx|ts|tsx)$/,
+      /\/components\//,
+      // 嵌套目录只将 index 文件作为页面；抽屉、service、types 等不能进入生产路由。
+      /\/(?!index\.(?:js|jsx|ts|tsx)$)[^/]+\.(?:js|jsx|ts|tsx)$/,
+    ],
+  },
   /**
    * @name theme 主题的配置
    * @description 虽然叫主题，但是其实只是 less 的变量设置
@@ -258,26 +273,29 @@ export default defineConfig({
    *   新增：将 @ant-design/x-markdown 的 CSS 文件作为空 JS 模块处理，
    *   避免 Turbopack CSS 管道因不支持现代 CSS 语法（嵌套/@layer）而崩溃
    */
-  utoopack: {
-    module: {
-      rules: {
-        '*.md': {
-          loaders: [{ loader: join(__dirname, 'md-raw-loader.cjs') }],
-          as: '*.js',
-        },
-        // 将 x-markdown 的 CSS 文件当作空 JS 处理，彻底跳过 Turbopack CSS 管道
-        './node_modules/@ant-design/x-markdown/**/*.css': {
-          loaders: [{ loader: join(__dirname, 'empty-loader.cjs') }],
-          as: '*.js',
-        },
-        // 新增：将 swagger-ui-dist 的 CSS 文件当作空 JS 处理
-        './node_modules/swagger-ui-dist/**/*.css': {
-          loaders: [{ loader: join(__dirname, 'empty-loader.cjs') }],
-          as: '*.js',
+  // 生产基线默认使用 Umi 稳定的 Webpack 构建器；需要评估 Utoopack 时显式设置 USE_UTOOPACK=true。
+  utoopack: USE_UTOOPACK
+    ? {
+      module: {
+        rules: {
+          '*.md': {
+            loaders: [{loader: join(__dirname, 'md-raw-loader.cjs')}],
+            as: '*.js',
+          },
+          // 将 x-markdown 的 CSS 文件当作空 JS 处理，彻底跳过 Turbopack CSS 管道
+          './node_modules/@ant-design/x-markdown/**/*.css': {
+            loaders: [{loader: join(__dirname, 'empty-loader.cjs')}],
+            as: '*.js',
+          },
+          // 将 swagger-ui-dist 的 CSS 文件当作空 JS 处理
+          './node_modules/swagger-ui-dist/**/*.css': {
+            loaders: [{loader: join(__dirname, 'empty-loader.cjs')}],
+            as: '*.js',
+          },
         },
       },
-    },
-  },
+    }
+    : false,
   /**
    * requestRecord 插件配置
    * @description 已禁用：该插件会生成依赖 child_process 的临时文件，与 mock: false 冲突
@@ -299,6 +317,8 @@ export default defineConfig({
     // 读取 @umijs/max 版本
     __UMI_VERSION__: getPackageVersion('@umijs/max'),
     // 读取 @utoo/pack 版本（内部包，不一定存在，降级返回 unknown）
-    __UTOO_VERSION__: getPackageVersion('@utoo/pack'),
+    __UTOO_VERSION__: USE_UTOOPACK
+      ? getPackageVersion('@utoo/pack')
+      : 'disabled',
   },
 } as any);

@@ -1,8 +1,12 @@
 import {request} from '@umijs/max';
-import type {ShareRecord, ShareRequest, SpaceCatalogsDto} from '@/types/RichTextType';
-import {
+import type {
   ArticlePermission,
   CatalogPermission,
+  ShareRecord,
+  ShareRequest,
+  SpaceCatalogsDto,
+} from '@/types/rt.type';
+import {
   withArticlePermissionFlags,
   withCatalogPermissionFlags,
   withSpaceCatalogPermissionFlags,

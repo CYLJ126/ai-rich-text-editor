@@ -1,14 +1,42 @@
 import {Card, Carousel, Col, Image, Popover, Row, Space, Tabs} from 'antd';
 import React, {useEffect, useRef, useState} from 'react';
+import {
+  getWebsiteLogo,
+  listWebsiteNews,
+} from '@/services/ant-design-pro/homePage';
 import styles from './WebsiteInfos.less';
-import {getWebsiteLogo, listWebsiteNews} from '@/services/ant-design-pro/homePage';
+
+interface WebsiteNews {
+  title: string;
+  summary?: string;
+  url: string;
+}
+
+interface WebsiteInfoRecord {
+  id: number;
+  module: string;
+  newsList: WebsiteNews[];
+  logoUrl: string;
+  moduleUrl: string;
+}
+
+interface WebsiteTag {
+  id: string;
+  name: string;
+}
 
 const openWebsite = (url: string) => {
   // 打开新标签页
   window.open(url, '_blank', 'noopener, noreferrer');
 };
 
-function NewsCard({ news, width }: { news: any; width: any }) {
+function NewsCard({
+                    news,
+                    width,
+                  }: {
+  news: WebsiteNews;
+  width: React.CSSProperties['width'];
+}) {
   return (
     <Card
       title={news.title}
@@ -29,13 +57,13 @@ function NewsCard({ news, width }: { news: any; width: any }) {
  * @param newsList
  * @constructor
  */
-function PopoverList({ newsList }: { newsList: any }) {
-  const time = new Date().getTime();
+function PopoverList({newsList}: { newsList: WebsiteNews[] }) {
+  const time = Date.now();
   return (
     <div className={styles.popoverContentWrapper}>
       <Space orientation="vertical" size="small">
-        {newsList.map((news: any) => (
-          <NewsCard key={news.title + '_' + time} news={news} width="100%" />
+        {newsList.map((news) => (
+          <NewsCard key={`${news.title}_${time}`} news={news} width="100%"/>
         ))}
       </Space>
     </div>
@@ -49,15 +77,20 @@ function PopoverList({ newsList }: { newsList: any }) {
  * @param cardWidth 样式宽度
  * @constructor
  */
-function WebsiteInfo({ websiteParam, cardWidth }: { websiteParam: any; cardWidth: any }) {
+function WebsiteInfo({
+                       websiteParam,
+                       cardWidth,
+                     }: {
+  websiteParam: WebsiteInfoRecord;
+  cardWidth: React.CSSProperties['width'];
+}) {
   const { id, module, newsList, logoUrl, moduleUrl } = websiteParam;
-  const [imageUrl, setImageUrl] = useState();
+  const [imageUrl, setImageUrl] = useState<string>();
 
   useEffect(() => {
     const fetchImage = async () => {
       try {
         const response = await getWebsiteLogo(id, logoUrl);
-        // @ts-ignore
         const url = URL.createObjectURL(response);
         setImageUrl(url);
       } catch (error) {
@@ -71,14 +104,16 @@ function WebsiteInfo({ websiteParam, cardWidth }: { websiteParam: any; cardWidth
     };
   }, []);
 
-  const time = new Date().getTime();
+  const time = Date.now();
   return (
     <Popover
       autoAdjustOverflow
       placement="topLeft"
       content={<PopoverList newsList={newsList} />}
       classNames={{ root: styles.newsPopover }}
-      getPopupContainer={(triggerNode) => triggerNode.parentElement!}
+      getPopupContainer={(triggerNode) =>
+        triggerNode.parentElement ?? triggerNode
+      }
       onPopupAlign={(domNode) => {
         const popover = domNode as HTMLElement;
         const rect = popover.getBoundingClientRect();
@@ -99,7 +134,7 @@ function WebsiteInfo({ websiteParam, cardWidth }: { websiteParam: any; cardWidth
           popover.style.top = `${20 - rect.top}px`;
         } else if (rect.bottom > viewportHeight - 20) {
           // 底部溢出
-          let delta;
+          let delta = 0;
           if (popover.style.top === 'auto') {
             delta = viewportHeight - 600;
           } else {
@@ -109,24 +144,39 @@ function WebsiteInfo({ websiteParam, cardWidth }: { websiteParam: any; cardWidth
           if (delta < 20) {
             delta = 20 - delta;
           }
-          popover.style.top = delta + 'px';
+          popover.style.top = `${delta}px`;
         }
       }}
     >
       <a href={moduleUrl} target="_blank" rel="noreferrer">
         <Row align="middle" style={{ width: cardWidth }}>
           <Col span={12} style={{ height: '40px' }}>
-            <Image width={100} preview={false} src={imageUrl} className={styles.logoImg} />
+            <Image
+              width={100}
+              preview={false}
+              src={imageUrl}
+              className={styles.logoImg}
+            />
           </Col>
-          <Col span={12} align={'end'}>
+          <Col span={12} style={{textAlign: 'end'}}>
             <span className={styles.websiteModule}>{module}</span>
           </Col>
         </Row>
       </a>
       {/* 走马灯 */}
-      <Carousel arrows autoplay dotPlacement={'top'} dots={false} className={styles.carousel}>
-        {newsList.map((news: any) => (
-          <NewsCard news={news} width={cardWidth} key={news.title + '_' + time} />
+      <Carousel
+        arrows
+        autoplay
+        dotPlacement={'top'}
+        dots={false}
+        className={styles.carousel}
+      >
+        {newsList.map((news) => (
+          <NewsCard
+            news={news}
+            width={cardWidth}
+            key={`${news.title}_${time}`}
+          />
         ))}
       </Carousel>
     </Popover>
@@ -139,8 +189,8 @@ function WebsiteInfo({ websiteParam, cardWidth }: { websiteParam: any; cardWidth
  * @param id 标签，即 Tab 类型
  * @constructor
  */
-function NewsTabContent({tagName}) {
-  const [websiteList, setWebsiteList] = useState([]);
+function NewsTabContent({tagName}: { tagName: string }) {
+  const [websiteList, setWebsiteList] = useState<WebsiteInfoRecord[]>([]);
   const [cardWidth, setCardWidth] = useState('42vh');
   const gridRef = useRef<HTMLDivElement>(null); // 步骤1：创建ref引用
   useEffect(() => {
@@ -163,12 +213,13 @@ function NewsTabContent({tagName}) {
         // 激活ResizeObserver
         for (const entry of entries) {
           // 步骤3：计算有效宽度（包含padding和border）
-          const totalWidth = entry.target.clientWidth;
+          const target = entry.target as HTMLElement;
+          const totalWidth = target.clientWidth;
 
           // 步骤4：计算目标宽度并设置CSS变量
           const tabWidth = (totalWidth - 40) / 4;
-          entry.target.style.setProperty('--news-tab-width', `${tabWidth}px`);
-          setCardWidth(tabWidth + 'px');
+          target.style.setProperty('--news-tab-width', `${tabWidth}px`);
+          setCardWidth(`${tabWidth}px`);
         }
       }, 1000); // 150ms延迟可自行调整
     });
@@ -180,7 +231,7 @@ function NewsTabContent({tagName}) {
     };
   }, []);
 
-  const time = new Date().getTime();
+  const time = Date.now();
   return (
     <div
       id="website-content-grid"
@@ -192,23 +243,32 @@ function NewsTabContent({tagName}) {
         alignItems: 'stretch', // 元素高度对齐方式
       }}
     >
-      {websiteList &&
-        websiteList.map((item) => (
-          <WebsiteInfo key={item.id + '_' + time} websiteParam={item} cardWidth={cardWidth} />
-        ))}
+      {websiteList?.map((item) => (
+        <WebsiteInfo
+          key={`${item.id}_${time}`}
+          websiteParam={item}
+          cardWidth={cardWidth}
+        />
+      ))}
     </div>
   );
 }
 
 export default function WebsiteInfos() {
-  const [newsTab, setNewsTab] = useState([]);
+  const [newsTab, setNewsTab] = useState<
+    NonNullable<React.ComponentProps<typeof Tabs>['items']>
+  >([]);
 
   useEffect(() => {
     const websiteTags = JSON.parse(localStorage.getItem('websiteTags') || '[]');
     if (websiteTags && websiteTags.length > 0) {
       setNewsTab(
-        websiteTags.map((tag: any) => {
-          return {label: tag.name, key: tag.id, children: <NewsTabContent tagName={tag.name}/>};
+        websiteTags.map((tag: WebsiteTag) => {
+          return {
+            label: tag.name,
+            key: tag.id,
+            children: <NewsTabContent tagName={tag.name}/>,
+          };
         }),
       );
     }
@@ -221,8 +281,10 @@ export default function WebsiteInfos() {
     if (newsTab.length === 0) return;
     // 使用setTimeout确保DOM已经更新
     const timer = setTimeout(() => {
-      const navWrap = document.querySelector('.ant-tabs-nav-wrap');
-      const tabs = document.querySelectorAll('#website-news-tabs .ant-tabs-tab');
+      const navWrap = document.querySelector<HTMLElement>('.ant-tabs-nav-wrap');
+      const tabs = document.querySelectorAll<HTMLElement>(
+        '#website-news-tabs .ant-tabs-tab',
+      );
 
       if (navWrap && tabs.length > 0) {
         let navWrapWidth = navWrap.offsetWidth;
@@ -241,5 +303,12 @@ export default function WebsiteInfos() {
     return () => clearTimeout(timer);
   }, [newsTab]);
 
-  return <Tabs id={'website-news-tabs'} animated items={newsTab} className={styles.newsTabs} />;
+  return (
+    <Tabs
+      id={'website-news-tabs'}
+      animated
+      items={newsTab}
+      className={styles.newsTabs}
+    />
+  );
 }

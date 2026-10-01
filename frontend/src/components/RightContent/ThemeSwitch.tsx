@@ -1,22 +1,25 @@
-import {i18nText} from '@/utils/i18n';
-import React from 'react';
-import {Button, Flex, Popover, Switch} from 'antd';
 import {BgColorsOutlined, MoonOutlined, SunOutlined} from '@ant-design/icons';
+import {Button, Flex, Popover, Switch} from 'antd';
+import React from 'react';
+import {MyColorPicker} from '@/components';
 import {useThemeContext} from '@/contexts/ThemeContext';
+import {colorfulColors} from '@/utils/colorUtil';
+import {i18nText} from '@/utils/i18n';
 import {useRightContentStyles} from './RightContent';
-import {MyColorPicker} from "@/components";
-import {colorfulColors} from "@/utils/colorUtil";
 
 export const ThemeSwitch: React.FC = () => {
   const {styles} = useRightContentStyles();
-  const {isDark, toggleAppearance, themeToken, updateThemeToken} = useThemeContext();
+  const {isDark, toggleAppearance, themeToken, updateThemeToken} =
+    useThemeContext();
 
   const popoverContent = (
     <div className={styles.popoverContent}>
       {/* 明暗切换区域 */}
       <div className={styles.switchRow}>
         <span className={styles.switchLabel}>
-          {isDark ? i18nText("app.common.rightcontent.themeswitch.f4b2ea8a") : i18nText("app.common.rightcontent.themeswitch.f3d8be4b")}
+          {isDark
+            ? i18nText('app.common.rightcontent.themeswitch.f4b2ea8a')
+            : i18nText('app.common.rightcontent.themeswitch.f3d8be4b')}
         </span>
         <Switch
           checked={isDark}
@@ -30,9 +33,10 @@ export const ThemeSwitch: React.FC = () => {
 
       <Flex gap="small" justify="space-between" align="center">
         {/* 自定义颜色区域 */}
-        <span className='font-bold'>{i18nText("app.common.rightcontent.themeswitch.506a0a1f")}</span>
+        <span className="font-bold">
+          {i18nText('app.common.rightcontent.themeswitch.506a0a1f')}
+        </span>
         <MyColorPicker
-          className=''
           initialColorOptions={colorfulColors}
           value={themeToken.colorPrimary}
           notify={(color) => updateThemeToken({colorPrimary: color})}
@@ -44,7 +48,7 @@ export const ThemeSwitch: React.FC = () => {
   return (
     <Popover
       content={popoverContent}
-      title={i18nText("app.common.rightcontent.themeswitch.1a807ba5")}
+      title={i18nText('app.common.rightcontent.themeswitch.1a807ba5')}
       trigger="hover"
       placement="bottomRight"
       arrow
@@ -52,7 +56,7 @@ export const ThemeSwitch: React.FC = () => {
       <Button
         type="text"
         className={styles.action}
-        aria-label={i18nText("app.common.rightcontent.themeswitch.1a807ba5")}
+        aria-label={i18nText('app.common.rightcontent.themeswitch.1a807ba5')}
         icon={<BgColorsOutlined/>}
       />
     </Popover>

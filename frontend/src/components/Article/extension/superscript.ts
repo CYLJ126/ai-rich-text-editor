@@ -4,8 +4,8 @@ import Superscript from '@tiptap/extension-superscript';
 export const TiptapSuperscript = Superscript.extend({
   name: 'superscript',
   renderMarkdown: (node: any, helpers: any) => {
-    if (node.type !== 'superscript') return;
+    if (node.type !== 'superscript') return '';
     const content = helpers.renderChildren(node);
     return `<sup>${content}</sup>`;
-  }
+  },
 });

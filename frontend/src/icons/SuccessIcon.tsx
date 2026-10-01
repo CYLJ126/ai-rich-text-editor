@@ -1,7 +1,12 @@
 import { createStyles } from 'antd-style';
 import { ReactComponent as CheckedSuccessSvg } from '@/assets/icon/checked-success.svg';
 
-const useStyle = function tagStyle(width, height, color, margin) {
+const useStyle = function tagStyle(
+  width?: number,
+  height?: number,
+  color?: string,
+  margin?: number | string,
+) {
   return createStyles(({ css }) => ({
     success: css`
       width: ${width}px;

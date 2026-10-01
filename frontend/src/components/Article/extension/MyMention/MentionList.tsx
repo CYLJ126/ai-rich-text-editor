@@ -1,107 +1,96 @@
-import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Button } from 'antd';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { i18nText } from '@/utils/i18n';
 
-export default (props) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  // 存储每个按钮的 ref
-  const itemRefs = useRef<(HTMLElement | null)[]>([]);
+export interface MentionListHandle {
+  onKeyDown: (props: { event: KeyboardEvent }) => boolean;
+}
 
-  const selectItem = (index: number) => {
-    const item = props.items[index];
-    if (item) {
-      props.command({ id: item });
-    }
-  };
+export interface MentionListProps {
+  items: string[];
+  command: (item: { id: string }) => void;
+}
 
-  const upHandler = () => {
-    setSelectedIndex(
-      (selectedIndex + props.items.length - 1) % props.items.length,
+const MentionList = forwardRef<MentionListHandle, MentionListProps>(
+  ({items, command}, ref) => {
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+    const selectItem = (index: number) => {
+      const item = items[index];
+      if (item) command({id: item});
+    };
+
+    useEffect(() => setSelectedIndex(0), [items]);
+
+    useEffect(() => {
+      itemRefs.current[selectedIndex]?.scrollIntoView({block: 'nearest'});
+    }, [selectedIndex]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        onKeyDown: ({event}) => {
+          if (items.length === 0) return false;
+          if (event.key === 'ArrowUp') {
+            setSelectedIndex(
+              (current) => (current + items.length - 1) % items.length,
+            );
+            return true;
+          }
+          if (event.key === 'ArrowDown') {
+            setSelectedIndex((current) => (current + 1) % items.length);
+            return true;
+          }
+          if (event.key === 'Enter') {
+            selectItem(selectedIndex);
+            return true;
+          }
+          return false;
+        },
+      }),
+      [items, selectedIndex],
     );
-  };
 
-  const downHandler = () => {
-    setSelectedIndex((selectedIndex + 1) % props.items.length);
-  };
+    return (
+      <div
+        className="bg-white p-[2px] border-solid border-2 border-purple-400 rounded-[5px] flex flex-col gap-[2px] max-h-52 overflow-y-auto"
+        style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}
+      >
+        {items.length ? (
+          items.map((item, index) => (
+            <div
+              key={item}
+              ref={(element) => {
+                itemRefs.current[index] = element;
+              }}
+            >
+              <Button
+                onClick={() => selectItem(index)}
+                className={`!px-[2px] !py-[2px] !text-purple-600 !border-none !shadow-none !rounded-[3px] ${
+                  index === selectedIndex ? '!bg-purple-200' : '!bg-purple-100'
+                } hover:!bg-purple-200`}
+              >
+                {item}
+              </Button>
+            </div>
+          ))
+        ) : (
+          <div className="px-[2px] py-[2px] text-slate-400 text-sm">
+            {i18nText('app.common.noResults')}
+          </div>
+        )}
+      </div>
+    );
+  },
+);
 
-  const enterHandler = () => {
-    selectItem(selectedIndex);
-  };
+MentionList.displayName = 'MentionList';
 
-  useEffect(() => setSelectedIndex(0), [props.items]);
-
-  // selectedIndex 变化时，自动滚动到对应项
-  useEffect(() => {
-    const el = itemRefs.current[selectedIndex];
-    if (el) {
-      el.scrollIntoView({
-        block: 'nearest', // 仅在必要时滚动，不强制居中
-      });
-    }
-  }, [selectedIndex]);
-
-  useImperativeHandle(props.ref, () => ({
-    onKeyDown: ({ event }) => {
-      if (event.key === 'ArrowUp') {
-        upHandler();
-        return true;
-      }
-      if (event.key === 'ArrowDown') {
-        downHandler();
-        return true;
-      }
-      if (event.key === 'Enter') {
-        enterHandler();
-        return true;
-      }
-      return false;
-    },
-  }));
-
-  return (
-    <div
-      className="
-        bg-white
-        p-[2px]
-        border-solid border-2 border-purple-400
-        rounded-[5px]
-        flex flex-col
-        gap-[2px]
-        max-h-52
-        overflow-y-auto
-      "
-      style={{
-        scrollbarWidth: 'none', // Firefox
-        msOverflowStyle: 'none', // IE / Edge
-      }}
-    >
-      {props.items.length ? (
-        props.items.map((item, index) => (
-          <Button
-            key={index}
-            // 将每个按钮的 DOM 元素存入 itemRefs
-            ref={(el) => {
-              itemRefs.current[index] = el;
-            }}
-            onClick={() => selectItem(index)}
-            className={`
-              !px-[2px] !py-[2px]
-              !text-purple-600
-              !border-none
-              !shadow-none
-              !rounded-[3px]
-              ${index === selectedIndex ? '!bg-purple-200' : '!bg-purple-100'}
-              hover:!bg-purple-200
-            `}
-          >
-            {item}
-          </Button>
-        ))
-      ) : (
-        <div className="px-[2px] py-[2px] text-slate-400 text-sm">
-          {i18nText('app.common.noResults')}
-        </div>
-      )}
-    </div>
-  );
-};
+export default MentionList;
