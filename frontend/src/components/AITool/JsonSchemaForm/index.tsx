@@ -1,6 +1,6 @@
 import {Col, DatePicker, Form, Input, InputNumber, Row, Select, Switch, Typography,} from 'antd';
 import type {Rule} from 'antd/es/form';
-import dayjs from 'dayjs';
+import dayjs, {type Dayjs} from 'dayjs';
 import React, {forwardRef, useEffect, useImperativeHandle, useMemo,} from 'react';
 import {JsonEditor} from '@/components/JsonEditor';
 import type {JsonObject, JsonValue} from '@/types/ai.tool.type';
@@ -207,11 +207,19 @@ function SchemaInput({
                        rootSchema,
                        disabled,
                        locale,
+                       value,
+                       checked,
+                       onChange,
+                       id,
                      }: {
   schema: JsonSchemaDefinition;
   rootSchema: JsonSchemaDefinition;
   disabled: boolean;
   locale: JsonSchemaFormLocale;
+  value?: unknown;
+  checked?: boolean;
+  onChange?: (value: unknown, option?: unknown) => void;
+  id?: string;
 }) {
   const type = schemaType(schema);
   const options = optionSchemas(schema);
@@ -220,17 +228,23 @@ function SchemaInput({
       <Select
         allowClear
         disabled={disabled}
+        id={id}
         options={options}
         placeholder={locale.selectPlaceholder}
+        value={value as string | number | undefined}
+        onChange={onChange}
       />
     );
   }
   if (type === 'boolean') {
     return (
       <Switch
+        checked={checked}
         disabled={disabled}
+        id={id}
         checkedChildren={locale.trueLabel}
         unCheckedChildren={locale.falseLabel}
+        onChange={onChange}
       />
     );
   }
@@ -238,21 +252,39 @@ function SchemaInput({
     return (
       <InputNumber
         disabled={disabled}
+        id={id}
         min={schema.minimum}
         max={schema.maximum}
+        value={value as number | null | undefined}
         step={schema.multipleOf || (type === 'integer' ? 1 : undefined)}
         precision={type === 'integer' ? 0 : undefined}
         placeholder={locale.inputPlaceholder}
         style={{width: '100%'}}
+        onChange={onChange}
       />
     );
   }
   if (schema.format === 'date') {
-    return <DatePicker disabled={disabled} style={{width: '100%'}}/>;
+    return (
+      <DatePicker
+        disabled={disabled}
+        id={id}
+        value={value as Dayjs | null | undefined}
+        style={{width: '100%'}}
+        onChange={onChange}
+      />
+    );
   }
   if (schema.format === 'date-time') {
     return (
-      <DatePicker showTime disabled={disabled} style={{width: '100%'}}/>
+      <DatePicker
+        showTime
+        disabled={disabled}
+        id={id}
+        value={value as Dayjs | null | undefined}
+        style={{width: '100%'}}
+        onChange={onChange}
+      />
     );
   }
   if (type === 'array' || type === 'object' || schema.oneOf || schema.anyOf) {
@@ -261,6 +293,8 @@ function SchemaInput({
         readOnly={disabled}
         height={180}
         placeholder={schemaDefaultValue(schema, rootSchema) || {}}
+        value={value}
+        onChange={onChange}
       />
     );
   }
@@ -268,8 +302,11 @@ function SchemaInput({
     return (
       <Input.Password
         disabled={disabled}
+        id={id}
         maxLength={schema.maxLength}
         placeholder={locale.inputPlaceholder}
+        value={value as string | undefined}
+        onChange={onChange}
       />
     );
   }
@@ -277,20 +314,26 @@ function SchemaInput({
     return (
       <Input.TextArea
         disabled={disabled}
+        id={id}
         minLength={schema.minLength}
         maxLength={schema.maxLength}
         placeholder={locale.inputPlaceholder}
+        value={value as string | undefined}
         autoSize={{minRows: 3, maxRows: 8}}
         showCount={Boolean(schema.maxLength)}
+        onChange={onChange}
       />
     );
   }
   return (
     <Input
       disabled={disabled}
+      id={id}
       minLength={schema.minLength}
       maxLength={schema.maxLength}
       placeholder={locale.inputPlaceholder}
+      value={value as string | undefined}
+      onChange={onChange}
     />
   );
 }

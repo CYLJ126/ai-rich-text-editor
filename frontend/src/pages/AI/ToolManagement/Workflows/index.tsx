@@ -587,6 +587,7 @@ function RunModal({
       </Form>
       <Typography.Title level={5}>运行输入</Typography.Title>
       <JsonSchemaForm
+        key={version?.version}
         ref={inputFormRef}
         schema={schema}
         value={inputs}

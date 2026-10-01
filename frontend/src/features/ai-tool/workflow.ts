@@ -1,6 +1,7 @@
 import type {
   JsonObject,
   WorkflowDraftRequest,
+  WorkflowEdge,
   WorkflowNode,
   WorkflowNodeType,
   WorkflowRunStatus,
@@ -45,6 +46,25 @@ export function createWorkflowNode(
   };
 }
 
+export function createWorkflowEdge(
+  sourceNodeId: string,
+  targetNodeId: string,
+): WorkflowEdge {
+  return {
+    edgeId: createWorkflowId('edge'),
+    sourceNodeId,
+    targetNodeId,
+  };
+}
+
+export function asControlFlowEdge(edge: WorkflowEdge): WorkflowEdge {
+  return {
+    ...edge,
+    sourceOutput: undefined,
+    targetInput: undefined,
+  };
+}
+
 export function createWorkflowDraft(): WorkflowDraftRequest {
   const start = createWorkflowNode('start', 1);
   const end = createWorkflowNode('end', 2);
@@ -57,15 +77,7 @@ export function createWorkflowDraft(): WorkflowDraftRequest {
     inputSchema: schemaEnvelope('工作流输入'),
     outputSchema: schemaEnvelope('工作流输出'),
     nodes: [start, end],
-    edges: [
-      {
-        edgeId: createWorkflowId('edge'),
-        sourceNodeId: start.nodeId,
-        sourceOutput: 'result',
-        targetNodeId: end.nodeId,
-        targetInput: 'result',
-      },
-    ],
+    edges: [createWorkflowEdge(start.nodeId, end.nodeId)],
     tags: [],
     executionPolicy: {
       maximumSteps: 100,

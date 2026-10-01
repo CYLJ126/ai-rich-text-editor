@@ -9,14 +9,20 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/9/26 ✾
  */
-public record WorkflowValidationResult(List<Issue> issues) {
+public record WorkflowValidationResult(List<Issue> issues, boolean valid) {
+
+    public WorkflowValidationResult(List<Issue> issues) {
+        this(issues, derivedValid(issues));
+    }
 
     public WorkflowValidationResult {
         issues = issues == null ? List.of() : List.copyOf(issues);
+        valid = derivedValid(issues);
     }
 
-    public boolean valid() {
-        return issues.stream().noneMatch(issue -> issue.severity() == Issue.Severity.ERROR);
+    private static boolean derivedValid(List<Issue> issues) {
+        return issues == null || issues.stream()
+                .noneMatch(issue -> issue.severity() == Issue.Severity.ERROR);
     }
 
     public record Issue(String code, Severity severity, String nodeId, String message) {

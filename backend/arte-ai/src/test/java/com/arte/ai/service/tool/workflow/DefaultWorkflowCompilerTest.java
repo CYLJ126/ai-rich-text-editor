@@ -1,12 +1,14 @@
 package com.arte.ai.service.tool.workflow;
 
 import com.arte.ai.api.tool.Tool;
+import com.arte.ai.api.tool.ToolBindingManager;
 import com.arte.ai.api.tool.ToolRegistry;
 import com.arte.ai.api.tool.ToolResult;
 import com.arte.ai.api.tool.workflow.WorkflowNode;
 import com.arte.ai.common.enums.tool.ToolExecutionModeEnum;
 import com.arte.ai.common.enums.tool.ToolRiskLevelEnum;
 import com.arte.ai.common.enums.tool.WorkflowNodeTypeEnum;
+import com.arte.ai.config.ToolExecutionProperties;
 import com.arte.ai.pojo.tool.*;
 import org.junit.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -29,7 +31,7 @@ public class DefaultWorkflowCompilerTest {
     @Test
     public void shouldCompilePinnedParallelDag() {
         ObjectMapper objectMapper = new ObjectMapper();
-        DefaultWorkflowValidator validator = new DefaultWorkflowValidator(registry(), objectMapper);
+        DefaultWorkflowValidator validator = validator(objectMapper);
         DefaultWorkflowCompiler compiler = new DefaultWorkflowCompiler(validator, objectMapper);
 
         CompiledWorkflow compiled = compiler.compile(validWorkflow());
@@ -46,9 +48,24 @@ public class DefaultWorkflowCompilerTest {
     }
 
     @Test
+    public void shouldSerializeDerivedValidationState() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        WorkflowValidationResult valid = new WorkflowValidationResult(List.of());
+        WorkflowValidationResult invalid = new WorkflowValidationResult(List.of(
+                new WorkflowValidationResult.Issue("TEST_ERROR",
+                        WorkflowValidationResult.Issue.Severity.ERROR, null, "invalid")));
+
+        assertTrue(valid.valid());
+        assertFalse(invalid.valid());
+        assertTrue(objectMapper.readTree(objectMapper.writeValueAsString(valid)).path("valid").asBoolean());
+        assertFalse(objectMapper.readTree(objectMapper.writeValueAsString(invalid)).path("valid").asBoolean());
+    }
+
+    @Test
     public void shouldReportCyclesAndUnreachableNodes() {
         ObjectMapper objectMapper = new ObjectMapper();
-        DefaultWorkflowValidator validator = new DefaultWorkflowValidator(registry(), objectMapper);
+        DefaultWorkflowValidator validator = validator(objectMapper);
         List<WorkflowNode> nodes = List.of(
                 new WorkflowNode.StartNode("start", "Start", Set.of(), Map.of()),
                 configured("a"), configured("b"),
@@ -65,6 +82,72 @@ public class DefaultWorkflowCompilerTest {
         assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("WORKFLOW_CYCLE")));
         assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNREACHABLE_NODE")
                 && "orphan".equals(issue.nodeId())));
+    }
+
+    @Test
+    public void shouldReportUnclosedVariableExpression() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        DefaultWorkflowValidator validator = validator(objectMapper);
+        List<WorkflowNode> nodes = List.of(
+                new WorkflowNode.StartNode("start", "Start", Set.of("text"), Map.of()),
+                new WorkflowNode.ToolNode("a", "A", TOOL_REFERENCE,
+                        Map.of("text", "${inputs.text"), Set.of("result"), Map.of(), null),
+                new WorkflowNode.EndNode("end", "End", Map.of("result", "${a.result}"), Map.of()));
+
+        WorkflowValidationResult result = validator.validate(definition(nodes, List.of(
+                edge("e1", "start", "a"), edge("e2", "a", "end"))));
+
+        assertFalse(result.valid());
+        assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_INPUT_BINDING")
+                && "a".equals(issue.nodeId())));
+        assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_NODE_OUTPUT")
+                && "a".equals(issue.nodeId())));
+    }
+
+    @Test
+    public void shouldRequireToolBindingForWorkflowOwner() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        WorkflowNode tool = new WorkflowNode.ToolNode("a", "A", TOOL_REFERENCE,
+                Map.of("text", "${inputs.text}"), Set.of("result"), Map.of(), null);
+        WorkflowDefinition definition = definition(List.of(
+                        new WorkflowNode.StartNode("start", "Start", Set.of("text"), Map.of()),
+                        tool,
+                        new WorkflowNode.EndNode("end", "End",
+                                Map.of("result", "${a.result}"), Map.of())),
+                List.of(edge("e1", "start", "a"), edge("e2", "a", "end")));
+
+        WorkflowValidationResult result = validator(objectMapper).validate(definition,
+                new ToolPrincipal("owner", "owner", Set.of(), Set.of()));
+
+        assertFalse(result.valid());
+        assertTrue(result.issues().stream().anyMatch(issue ->
+                issue.code().equals("TOOL_BINDING_REQUIRED") && "a".equals(issue.nodeId())));
+    }
+
+    @Test
+    public void shouldValidateBindingAvailabilityAndExactToolVersion() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolPrincipal principal = new ToolPrincipal("owner", "owner", Set.of(), Set.of());
+        ToolExecutionPolicy policy = registry().resolve(TOOL_REFERENCE).orElseThrow()
+                .getDefinition().defaultPolicy();
+        ResolvedToolBinding mismatched = new ResolvedToolBinding("binding-1", "owner", null,
+                "provider", "tool", new ToolReference("article", "summarize", "2.0.0"),
+                Map.of(), null, policy, true, 0);
+        ResolvedToolBinding matching = new ResolvedToolBinding("binding-1", "owner", null,
+                "provider", "tool", TOOL_REFERENCE, Map.of(), null, policy, true, 0);
+
+        WorkflowValidationResult unavailable = validator(objectMapper, Optional.empty())
+                .validate(validWorkflow(), principal);
+        WorkflowValidationResult wrongVersion = validator(objectMapper, Optional.of(mismatched))
+                .validate(validWorkflow(), principal);
+        WorkflowValidationResult valid = validator(objectMapper, Optional.of(matching))
+                .validate(validWorkflow(), principal);
+
+        assertTrue(unavailable.issues().stream().anyMatch(issue ->
+                issue.code().equals("TOOL_BINDING_UNAVAILABLE")));
+        assertTrue(wrongVersion.issues().stream().anyMatch(issue ->
+                issue.code().equals("TOOL_BINDING_TOOL_MISMATCH")));
+        assertTrue(valid.valid());
     }
 
     private WorkflowDefinition validWorkflow() {
@@ -158,6 +241,41 @@ public class DefaultWorkflowCompilerTest {
 
             @Override
             public void removeListener(Listener listener) {
+            }
+        };
+    }
+
+    private DefaultWorkflowValidator validator(ObjectMapper objectMapper) {
+        return validator(objectMapper, Optional.empty());
+    }
+
+    private DefaultWorkflowValidator validator(ObjectMapper objectMapper,
+                                               Optional<ResolvedToolBinding> binding) {
+        return new DefaultWorkflowValidator(registry(), bindingManager(binding),
+                new ToolExecutionProperties(), objectMapper);
+    }
+
+    private ToolBindingManager bindingManager(Optional<ResolvedToolBinding> binding) {
+        return new ToolBindingManager() {
+            @Override
+            public ResolvedToolBinding save(String ownerId, ToolBindingCommand command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Optional<ResolvedToolBinding> resolve(String ownerId, String workspaceId,
+                                                         String bindingId) {
+                return binding;
+            }
+
+            @Override
+            public List<ResolvedToolBinding> listEnabled(String ownerId, String workspaceId) {
+                return List.of();
+            }
+
+            @Override
+            public List<ToolBindingView> list(String ownerId, String workspaceId) {
+                return List.of();
             }
         };
     }

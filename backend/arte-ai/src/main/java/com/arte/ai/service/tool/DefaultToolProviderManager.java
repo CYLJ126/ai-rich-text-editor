@@ -387,7 +387,16 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                 versionMapper.updateById(versionPo);
                 updated++;
             } else if (!Objects.equals(versionPo.getChecksum(), checksum)) {
-                throw new IllegalStateException("a tool version is immutable after publication: " + reference);
+                if (!matchesPersistedDefinition(versionPo, definition)) {
+                    throw new IllegalStateException("a tool version is immutable after publication: " + reference);
+                }
+                // Older checksums were serialized from Map.of values whose iteration order can change
+                // between JVM processes. The persisted definition is unchanged, so only migrate the
+                // checksum metadata to the canonical representation.
+                versionPo.setChecksum(checksum);
+                versionMapper.updateById(versionPo);
+                updated++;
+                log.info("Migrated legacy checksum for unchanged published tool version {}", reference);
             }
 
             if (toolPo.getLifecycleState() == ToolLifecycleStateEnum.PUBLISHED
@@ -523,7 +532,7 @@ public class DefaultToolProviderManager implements ToolProviderManager {
         return objectMapper.convertValue(value, MAP_TYPE);
     }
 
-    private String checksum(ToolDefinition definition) {
+    String checksum(ToolDefinition definition) {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("reference", definition.reference());
         canonical.put("title", definition.title());
@@ -559,10 +568,61 @@ public class DefaultToolProviderManager implements ToolProviderManager {
                 "allowsResultCache", definition.defaultPolicy().allowsResultCache()));
         canonical.put("tags", definition.tags().stream().sorted().toList());
         try {
-            return sha256(objectMapper.writeValueAsBytes(canonical));
+            return sha256(objectMapper.writeValueAsBytes(canonicalValue(canonical)));
         } catch (Exception exception) {
             throw new IllegalStateException("cannot calculate tool definition checksum", exception);
         }
+    }
+
+    boolean matchesPersistedDefinition(ToolVersionPo persisted, ToolDefinition definition) {
+        return Objects.equals(persisted.getTitle(), definition.title())
+                && Objects.equals(persisted.getDescription(), definition.description())
+                && Objects.equals(persisted.getInputSchema(), schemaMap(definition.inputSchema()))
+                && Objects.equals(persisted.getOutputSchema(), schemaMap(definition.outputSchema()))
+                && matchesCapabilities(persisted.getCapabilities(), definition)
+                && matchesRiskProfile(persisted.getRiskProfile(), definition)
+                && Objects.equals(persisted.getDefaultConfiguration(), definition.defaultConfiguration())
+                && Objects.equals(persisted.getDefaultPolicy(), toMap(definition.defaultPolicy()))
+                && Objects.equals(persisted.getTags(), definition.tags());
+    }
+
+    private boolean matchesCapabilities(Map<String, Object> persisted, ToolDefinition definition) {
+        if (persisted == null) {
+            return false;
+        }
+        return Objects.equals(persisted.get("supportsStreaming"),
+                definition.capabilities().supportsStreaming())
+                && matchesStringSet(persisted, "executionModes",
+                definition.capabilities().executionModes().stream()
+                        .map(value -> value.getValue()).collect(Collectors.toSet()))
+                && Objects.equals(persisted.get("supportsCancellation"),
+                definition.capabilities().supportsCancellation())
+                && Objects.equals(persisted.get("supportsDryRun"), definition.capabilities().supportsDryRun())
+                && matchesStringSet(persisted, "inputModes", definition.capabilities().inputModes())
+                && matchesStringSet(persisted, "outputModes", definition.capabilities().outputModes());
+    }
+
+    private boolean matchesRiskProfile(Map<String, Object> persisted, ToolDefinition definition) {
+        if (persisted == null) {
+            return false;
+        }
+        return Objects.equals(persisted.get("level"), definition.riskProfile().level().getValue())
+                && Objects.equals(persisted.get("readOnly"), definition.riskProfile().readOnly())
+                && Objects.equals(persisted.get("destructive"), definition.riskProfile().destructive())
+                && Objects.equals(persisted.get("reversible"), definition.riskProfile().reversible())
+                && Objects.equals(persisted.get("idempotent"), definition.riskProfile().idempotent())
+                && Objects.equals(persisted.get("openWorld"), definition.riskProfile().openWorld())
+                && matchesStringSet(persisted, "requiredScopes", definition.riskProfile().requiredScopes())
+                && matchesStringSet(persisted, "allowedNetworkTargets",
+                definition.riskProfile().allowedNetworkTargets());
+    }
+
+    private boolean matchesStringSet(Map<String, Object> persisted, String key, Set<String> expected) {
+        Object value = persisted.get(key);
+        if (!(value instanceof Collection<?> collection)) {
+            return false;
+        }
+        return collection.stream().map(String::valueOf).collect(Collectors.toSet()).equals(expected);
     }
 
     private List<String> sortedNames(Set<? extends Enum<?>> values) {
@@ -575,10 +635,24 @@ public class DefaultToolProviderManager implements ToolProviderManager {
             map.forEach((key, nested) -> sorted.put(String.valueOf(key), canonicalValue(nested)));
             return sorted;
         }
+        if (value instanceof Set<?> set) {
+            return set.stream()
+                    .map(this::canonicalValue)
+                    .sorted(Comparator.comparing(this::canonicalSortKey))
+                    .toList();
+        }
         if (value instanceof Collection<?> collection) {
             return collection.stream().map(this::canonicalValue).toList();
         }
         return value;
+    }
+
+    private String canonicalSortKey(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new IllegalStateException("cannot serialize canonical tool definition value", exception);
+        }
     }
 
     private String stableToolId(String namespace, String name) {

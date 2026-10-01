@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'vitest';
-import {createWorkflowDraft, isActiveWorkflowRun, moveWorkflowNode, workflowNodePosition,} from './workflow';
+import {
+  asControlFlowEdge,
+  createWorkflowDraft,
+  isActiveWorkflowRun,
+  moveWorkflowNode,
+  workflowNodePosition,
+} from './workflow';
 
 describe('workflow helpers', () => {
   it('creates a connected start/end draft', () => {
@@ -8,6 +14,28 @@ describe('workflow helpers', () => {
     expect(draft.edges[0]).toMatchObject({
       sourceNodeId: draft.nodes[0].nodeId,
       targetNodeId: draft.nodes[1].nodeId,
+    });
+    expect(draft.edges[0].sourceOutput).toBeUndefined();
+    expect(draft.edges[0].targetInput).toBeUndefined();
+  });
+
+  it('converts a data edge to a control-only edge', () => {
+    const edge = asControlFlowEdge({
+      edgeId: 'edge-1',
+      sourceNodeId: 'source',
+      sourceOutput: 'result',
+      targetNodeId: 'target',
+      targetInput: 'input',
+      conditionExpression: `\${source.enabled}`,
+    });
+
+    expect(edge).toEqual({
+      edgeId: 'edge-1',
+      sourceNodeId: 'source',
+      sourceOutput: undefined,
+      targetNodeId: 'target',
+      targetInput: undefined,
+      conditionExpression: `\${source.enabled}`,
     });
   });
 

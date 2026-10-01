@@ -93,7 +93,8 @@ public class WebSecurityConfig {
                 .sessionManagement(sessionManagementConfigurer -> sessionManagementConfigurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorizationRegistry -> authorizationRegistry
                         // 容器会将 4xx/5xx 请求内部分发到 /error，错误分发不应再触发鉴权
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR,
+                                DispatcherType.ASYNC).permitAll()
                         //允许对于网站静态资源的无授权访问
                         .requestMatchers(HttpMethod.GET, "/", "/*.html").permitAll()
                         // 本地开放的文件访问接口

@@ -23,16 +23,18 @@ import {
 import React, {useEffect, useMemo, useState} from 'react';
 import {JsonEditor} from '@/components';
 import {
+  asControlFlowEdge,
   createWorkflowDraft,
-  createWorkflowId,
+  createWorkflowEdge,
   createWorkflowNode,
   nodeTypeLabel,
   normalizeToolError,
 } from '@/features/ai-tool';
-import {listToolCatalog, listToolVersions,} from '@/services/ant-design-pro/ai.tool';
+import {listToolBindings, listToolCatalog, listToolVersions,} from '@/services/ant-design-pro/ai.tool';
 import {publishWorkflowVersion, saveWorkflowDraft, validateWorkflow,} from '@/services/ant-design-pro/ai.tool.workflow';
 import type {
   JsonObject,
+  ToolBindingView,
   ToolCatalogItem,
   ToolReference,
   WorkflowDraftRequest,
@@ -63,10 +65,13 @@ export default function WorkflowEditorDrawer({
   const [selectedNodeId, setSelectedNodeId] = useState<string>();
   const [activeTab, setActiveTab] = useState('designer');
   const [issues, setIssues] = useState<WorkflowValidationIssue[]>([]);
+  const [hasValidated, setHasValidated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [catalog, setCatalog] = useState<ToolCatalogItem[]>([]);
+  const [bindings, setBindings] = useState<ToolBindingView[]>([]);
+  const [bindingsLoading, setBindingsLoading] = useState(false);
   const [toolVersions, setToolVersions] = useState<Record<string, string[]>>(
     {},
   );
@@ -102,6 +107,7 @@ export default function WorkflowEditorDrawer({
       setSelectedNodeId(value.nodes[0]?.nodeId);
     }
     setIssues([]);
+    setHasValidated(false);
     listToolCatalog({lifecycleState: 'published', current: 1, pageSize: 200})
       .then((page) => setCatalog(page.records))
       .catch(() => setCatalog([]));
@@ -111,6 +117,31 @@ export default function WorkflowEditorDrawer({
     () => draft.nodes.find((node) => node.nodeId === selectedNodeId),
     [draft.nodes, selectedNodeId],
   );
+  const bindingWorkspaceId = configurationText(
+    selectedNode?.configuration.workspaceId,
+  );
+
+  useEffect(() => {
+    if (!open || selectedNode?.type !== 'tool') {
+      setBindings([]);
+      return;
+    }
+    let active = true;
+    setBindingsLoading(true);
+    listToolBindings(bindingWorkspaceId)
+      .then((items) => {
+        if (active) setBindings(items);
+      })
+      .catch(() => {
+        if (active) setBindings([]);
+      })
+      .finally(() => {
+        if (active) setBindingsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [bindingWorkspaceId, open, selectedNode?.nodeId, selectedNode?.type]);
 
   useEffect(() => {
     const reference = selectedNode?.tool;
@@ -132,7 +163,11 @@ export default function WorkflowEditorDrawer({
   const updateDraft = <K extends keyof WorkflowDraftRequest>(
     key: K,
     value: WorkflowDraftRequest[K],
-  ) => setDraft((current) => ({...current, [key]: value}));
+  ) => {
+    setDraft((current) => ({...current, [key]: value}));
+    setIssues([]);
+    setHasValidated(false);
+  };
 
   const updateNode = (next: WorkflowNode) =>
     updateDraft(
@@ -152,6 +187,7 @@ export default function WorkflowEditorDrawer({
     updateNode({
       ...selectedNode,
       tool: {namespace, name, version: versions[0] || ''},
+      configuration: withoutBinding(selectedNode.configuration),
     });
   };
 
@@ -175,15 +211,21 @@ export default function WorkflowEditorDrawer({
 
   const validate = async () => {
     setValidating(true);
+    setIssues([]);
+    setHasValidated(false);
     try {
       const result = await validateWorkflow({
         ...draft,
         expectedRowVersion: rowVersion,
       });
-      setIssues(result.issues);
-      if (result.valid) message.success('工作流校验通过').then();
+      const resultIssues = result.issues ?? [];
+      const valid = result.valid
+        ?? resultIssues.every((issue) => issue.severity !== 'ERROR');
+      setIssues(resultIssues);
+      setHasValidated(true);
+      if (valid) message.success('工作流校验通过').then();
       else message.warning('校验发现阻断问题，请按提示修正').then();
-      return result.valid;
+      return valid;
     } catch (error) {
       message.error(normalizeToolError(error).message).then();
       return false;
@@ -335,6 +377,8 @@ export default function WorkflowEditorDrawer({
                     nodes={draft.nodes}
                     edges={draft.edges}
                     catalog={catalog}
+                    bindings={bindings}
+                    bindingsLoading={bindingsLoading}
                     toolVersions={toolVersions}
                     readOnly={readOnly}
                     onChange={updateNode}
@@ -370,6 +414,7 @@ export default function WorkflowEditorDrawer({
               <div style={{height: '100%', overflowY: 'auto'}}>
                 <ValidationIssues
                   issues={issues}
+                  validated={hasValidated}
                   onSelect={(nodeId) => {
                     setSelectedNodeId(nodeId);
                     setActiveTab('designer');
@@ -389,6 +434,8 @@ function NodeInspector({
                          nodes,
                          edges,
                          catalog,
+                         bindings,
+                         bindingsLoading,
                          toolVersions,
                          readOnly,
                          onChange,
@@ -399,6 +446,8 @@ function NodeInspector({
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   catalog: ToolCatalogItem[];
+  bindings: ToolBindingView[];
+  bindingsLoading: boolean;
   toolVersions: Record<string, string[]>;
   readOnly: boolean;
   onChange: (node: WorkflowNode) => void;
@@ -421,7 +470,13 @@ function NodeInspector({
         ...(node.tool || {namespace: '', name: '', version: ''}),
         ...part,
       },
+      configuration: withoutBinding(node.configuration),
     });
+  const bindingId = configurationText(node.configuration.bindingId);
+  const selectedTool = node.tool;
+  const matchingBindings = selectedTool
+    ? bindings.filter((binding) => sameTool(binding.tool, selectedTool))
+    : [];
   return (
     <Card title={`${nodeTypeLabel(node.type)}节点配置`} size="small">
       <Form layout="vertical" disabled={readOnly}>
@@ -462,11 +517,56 @@ function NodeInspector({
                 onChange={(version) => updateReference({version})}
               />
             </Form.Item>
+            <Form.Item
+              label="工作空间 ID（可选）"
+              extra="留空使用个人绑定；填写后可选择该工作空间或个人绑定"
+            >
+              <Input
+                value={configurationText(node.configuration.workspaceId) || ''}
+                onChange={(event) => {
+                  const configuration = withoutBinding(node.configuration);
+                  const workspaceId = event.target.value.trim();
+                  if (workspaceId) configuration.workspaceId = workspaceId;
+                  else delete configuration.workspaceId;
+                  onChange({...node, configuration});
+                }}
+              />
+            </Form.Item>
+            <Form.Item
+              label="工具绑定"
+              required
+              extra={`当前作用域：${configurationText(node.configuration.workspaceId) || '个人'}。请先在“用户绑定”中创建与上方工具及版本一致的绑定。`}
+            >
+              <Select
+                aria-label="工具绑定"
+                allowClear
+                showSearch
+                loading={bindingsLoading}
+                value={bindingId}
+                placeholder="请选择当前用户可用的工具绑定"
+                notFoundContent={
+                  bindingsLoading
+                    ? '正在加载工具绑定'
+                    : '当前作用域没有此工具版本的绑定'
+                }
+                options={matchingBindings.map((binding) => ({
+                  value: binding.bindingId,
+                  label: `${binding.bindingId}${binding.workspaceId ? ` · ${binding.workspaceId}` : ' · 个人'}`,
+                  disabled: !binding.enabled || !binding.available,
+                }))}
+                onChange={(nextBindingId?: string) => {
+                  const configuration = {...node.configuration};
+                  if (nextBindingId) configuration.bindingId = nextBindingId;
+                  else delete configuration.bindingId;
+                  onChange({...node, configuration});
+                }}
+              />
+            </Form.Item>
           </>
         )}
         <Form.Item
           label="输入变量映射"
-          extra="键为节点输入名，值为变量表达式，例如 input.articleId"
+          extra="键为节点输入名，值为变量表达式，例如 ${inputs.articleId} 或 ${toolNodeId.result}"
         >
           <JsonEditor
             value={node.inputBindings}
@@ -492,7 +592,10 @@ function NodeInspector({
             }
           />
         </Form.Item>
-        <Form.Item label="节点配置">
+        <Form.Item
+          label="节点配置"
+          extra="用于节点元数据（如 bindingId、workspaceId 和 _ui），工具参数请配置在输入变量映射中"
+        >
           <JsonEditor
             value={node.configuration}
             readOnly={readOnly}
@@ -509,65 +612,105 @@ function NodeInspector({
         size="small"
         dataSource={edges.filter((edge) => edge.sourceNodeId === node.nodeId)}
         locale={{emptyText: '暂无出站连线'}}
-        renderItem={(edge) => (
-          <List.Item
-            actions={
-              readOnly
-                ? []
-                : [
-                  <Button
-                    key="delete"
-                    danger
-                    type="link"
-                    onClick={() =>
-                      onEdgesChange(
-                        edges.filter((item) => item.edgeId !== edge.edgeId),
-                      )
-                    }
-                  >
-                    删除
-                  </Button>,
-                ]
-            }
-          >
-            <Space direction="vertical" size={2} style={{width: '100%'}}>
-              <Select
-                disabled={readOnly}
-                value={edge.targetNodeId}
-                options={nodes
-                  .filter((item) => item.nodeId !== node.nodeId)
-                  .map((item) => ({value: item.nodeId, label: item.name}))}
-                onChange={(targetNodeId) =>
-                  onEdgesChange(
-                    edges.map((item) =>
-                      item.edgeId === edge.edgeId
-                        ? {...item, targetNodeId}
-                        : item,
-                    ),
-                  )
-                }
-              />
-              <Input
-                disabled={readOnly}
-                placeholder="条件表达式（可选）"
-                value={edge.conditionExpression}
-                onChange={(event) =>
-                  onEdgesChange(
-                    edges.map((item) =>
-                      item.edgeId === edge.edgeId
-                        ? {
-                          ...item,
-                          conditionExpression:
-                            event.target.value || undefined,
-                        }
-                        : item,
-                    ),
-                  )
-                }
-              />
-            </Space>
-          </List.Item>
-        )}
+        renderItem={(edge) => {
+          const updateEdge = (changes: Partial<WorkflowEdge>) =>
+            onEdgesChange(
+              edges.map((item) =>
+                item.edgeId === edge.edgeId ? {...item, ...changes} : item,
+              ),
+            );
+          return (
+            <List.Item
+              actions={
+                readOnly
+                  ? []
+                  : [
+                    <Button
+                      key="control-only"
+                      type="link"
+                      disabled={!edge.sourceOutput && !edge.targetInput}
+                      onClick={() =>
+                        onEdgesChange(
+                          edges.map((item) =>
+                            item.edgeId === edge.edgeId
+                              ? asControlFlowEdge(item)
+                              : item,
+                          ),
+                        )
+                      }
+                    >
+                      仅控制顺序
+                    </Button>,
+                    <Button
+                      key="delete"
+                      danger
+                      type="link"
+                      onClick={() =>
+                        onEdgesChange(
+                          edges.filter((item) => item.edgeId !== edge.edgeId),
+                        )
+                      }
+                    >
+                      删除
+                    </Button>,
+                  ]
+              }
+            >
+              <Space direction="vertical" size={6} style={{width: '100%'}}>
+                <Select
+                  aria-label={`${node.name} 连线目标节点`}
+                  disabled={readOnly}
+                  value={edge.targetNodeId}
+                  options={nodes
+                    .filter((item) => item.nodeId !== node.nodeId)
+                    .map((item) => ({value: item.nodeId, label: item.name}))}
+                  onChange={(targetNodeId) =>
+                    updateEdge({targetNodeId, targetInput: undefined})
+                  }
+                />
+                <Typography.Text type="secondary">
+                  数据映射（可选，两项均留空时仅控制执行顺序）
+                </Typography.Text>
+                <Select
+                  allowClear
+                  aria-label={`${node.name} 连线源输出`}
+                  disabled={readOnly}
+                  placeholder="源输出"
+                  value={edge.sourceOutput || undefined}
+                  options={node.outputNames.map((output) => ({
+                    value: output,
+                    label: output,
+                  }))}
+                  onChange={(sourceOutput) =>
+                    updateEdge({sourceOutput: sourceOutput || undefined})
+                  }
+                />
+                <Input
+                  allowClear
+                  aria-label={`${node.name} 连线目标输入`}
+                  disabled={readOnly}
+                  placeholder="目标输入"
+                  value={edge.targetInput || ''}
+                  onChange={(event) =>
+                    updateEdge({targetInput: event.target.value || undefined})
+                  }
+                />
+                <Input
+                  allowClear
+                  aria-label={`${node.name} 连线条件`}
+                  disabled={readOnly}
+                  placeholder="条件表达式（可选）"
+                  value={edge.conditionExpression || ''}
+                  onChange={(event) =>
+                    updateEdge({
+                      conditionExpression: event.target.value || undefined,
+                    })
+                  }
+                />
+              </Space>
+            </List.Item>
+          );
+        }}
       />
       {!readOnly && node.type !== 'end' && (
         <Button
@@ -579,13 +722,7 @@ function NodeInspector({
             if (!target) return;
             onEdgesChange([
               ...edges,
-              {
-                edgeId: createWorkflowId('edge'),
-                sourceNodeId: node.nodeId,
-                sourceOutput: node.outputNames[0],
-                targetNodeId: target.nodeId,
-                targetInput: 'input',
-              },
+              createWorkflowEdge(node.nodeId, target.nodeId),
             ]);
           }}
         >
@@ -748,18 +885,29 @@ function DefinitionEditor({
 
 function ValidationIssues({
                             issues,
+                            validated,
                             onSelect,
                           }: {
   issues: WorkflowValidationIssue[];
+  validated: boolean;
   onSelect: (nodeId: string) => void;
 }) {
-  if (issues.length === 0)
+  if (!validated)
     return (
       <Alert
         type="info"
         showIcon
-        message="尚未校验"
+        title="尚未校验"
         description="保存或发布前请运行服务端完整校验。"
+      />
+    );
+  if (issues.length === 0)
+    return (
+      <Alert
+        type="success"
+        showIcon
+        title="校验通过"
+        description="未发现阻断问题，可以保存或发布当前工作流。"
       />
     );
   return (
@@ -823,6 +971,22 @@ function stringRecord(value: Record<string, unknown>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [key, String(item)]),
   );
+}
+
+function configurationText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function withoutBinding(configuration: JsonObject): JsonObject {
+  const next = {...configuration};
+  delete next.bindingId;
+  return next;
+}
+
+function sameTool(left: ToolReference, right: ToolReference): boolean {
+  return left.namespace === right.namespace
+    && left.name === right.name
+    && left.version === right.version;
 }
 
 function nextVersion(version: string): string {

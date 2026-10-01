@@ -1,9 +1,11 @@
 package com.arte.ai.service.tool.workflow;
 
+import com.arte.ai.api.tool.ToolBindingManager;
 import com.arte.ai.api.tool.ToolRegistry;
 import com.arte.ai.api.tool.workflow.WorkflowNode;
 import com.arte.ai.api.tool.workflow.WorkflowValidator;
 import com.arte.ai.common.enums.tool.WorkflowNodeTypeEnum;
+import com.arte.ai.config.ToolExecutionProperties;
 import com.arte.ai.pojo.tool.*;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -29,10 +31,16 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
     private static final Duration SERVER_MAX_TIMEOUT = Duration.ofHours(24);
 
     private final ToolRegistry toolRegistry;
+    private final ToolBindingManager bindingManager;
+    private final ToolExecutionProperties executionProperties;
     private final ObjectMapper objectMapper;
 
-    public DefaultWorkflowValidator(ToolRegistry toolRegistry, ObjectMapper objectMapper) {
+    public DefaultWorkflowValidator(ToolRegistry toolRegistry, ToolBindingManager bindingManager,
+                                    ToolExecutionProperties executionProperties,
+                                    ObjectMapper objectMapper) {
         this.toolRegistry = toolRegistry;
+        this.bindingManager = bindingManager;
+        this.executionProperties = executionProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -138,6 +146,7 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
                 continue;
             }
             ToolDefinition tool = resolved.get().getDefinition();
+            validateToolBinding(toolNode, principal, issues);
             Set<String> declaredInputs = schemaProperties(tool.inputSchema());
             Set<String> requiredInputs = schemaRequired(tool.inputSchema());
             Set<String> effectiveInputs = effectiveBindings(toolNode, definition.edges(), definition.nodes())
@@ -172,6 +181,33 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
         }
     }
 
+    private void validateToolBinding(WorkflowNode.ToolNode toolNode, ToolPrincipal principal,
+                                     List<WorkflowValidationResult.Issue> issues) {
+        if (principal == null) return;
+        String bindingId = configurationText(toolNode.configuration().get("bindingId"));
+        if (bindingId == null) {
+            if (executionProperties.isBindingRequired()) {
+                error(issues, "TOOL_BINDING_REQUIRED", toolNode.nodeId(),
+                        "a user/workspace tool binding is required");
+            }
+            return;
+        }
+        String workspaceId = configurationText(toolNode.configuration().get("workspaceId"));
+        Optional<ResolvedToolBinding> binding;
+        try {
+            binding = bindingManager.resolve(principal.ownerId(), workspaceId, bindingId);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            binding = Optional.empty();
+        }
+        if (binding.isEmpty()) {
+            error(issues, "TOOL_BINDING_UNAVAILABLE", toolNode.nodeId(),
+                    "tool binding is unavailable for the workflow owner and workspace");
+        } else if (!binding.get().tool().equals(toolNode.tool())) {
+            error(issues, "TOOL_BINDING_TOOL_MISMATCH", toolNode.nodeId(),
+                    "tool binding does not grant the configured tool version");
+        }
+    }
+
     private void validateBindings(WorkflowDefinition definition, Map<String, WorkflowNode> nodes,
                                   Map<String, List<WorkflowEdge>> incoming,
                                   List<WorkflowValidationResult.Issue> issues) {
@@ -179,6 +215,11 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
         for (WorkflowNode node : definition.nodes()) {
             Set<String> ancestors = ancestors(node.nodeId(), incoming);
             effectiveBindings(node, definition.edges(), definition.nodes()).forEach((input, expression) -> {
+                if (!validExpressionSyntax(expression)) {
+                    error(issues, "INVALID_INPUT_BINDING", node.nodeId(),
+                            "binding has a malformed variable expression: " + expression);
+                    return;
+                }
                 String normalized = normalizeExpression(expression);
                 if (normalized.startsWith("inputs.")) {
                     String name = normalized.substring("inputs.".length()).split("\\.")[0];
@@ -342,6 +383,17 @@ public class DefaultWorkflowValidator implements WorkflowValidator {
             result = result.substring(2, result.length() - 1);
         }
         return result.startsWith("$") ? result.substring(1) : result;
+    }
+
+    private boolean validExpressionSyntax(String value) {
+        if (value == null) return true;
+        String expression = value.trim();
+        return expression.startsWith("${") == expression.endsWith("}");
+    }
+
+    private String configurationText(Object value) {
+        if (!(value instanceof String text) || text.isBlank()) return null;
+        return text.trim();
     }
 
     private void error(List<WorkflowValidationResult.Issue> issues, String code,
