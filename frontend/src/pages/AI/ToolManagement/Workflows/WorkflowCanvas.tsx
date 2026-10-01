@@ -47,7 +47,15 @@ export default function WorkflowCanvas({
   };
 
   return (
-    <div>
+    <div
+      style={{
+        display: 'flex',
+        flex: 1,
+        flexDirection: 'column',
+        minHeight: 0,
+        minWidth: 0,
+      }}
+    >
       <Space wrap style={{marginBottom: 12}}>
         {(['tool', 'router', 'parallel', 'join'] as WorkflowNodeType[]).map(
           (type) => (
@@ -65,7 +73,8 @@ export default function WorkflowCanvas({
       <div
         ref={canvasRef}
         style={{
-          height: 500,
+          flex: 1,
+          minHeight: 0,
           minWidth: 760,
           position: 'relative',
           overflow: 'auto',

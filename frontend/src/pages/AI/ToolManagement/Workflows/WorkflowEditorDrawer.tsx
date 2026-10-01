@@ -61,6 +61,7 @@ export default function WorkflowEditorDrawer({
   const [draft, setDraft] = useState<WorkflowDraftRequest>(createWorkflowDraft);
   const [rowVersion, setRowVersion] = useState<number>();
   const [selectedNodeId, setSelectedNodeId] = useState<string>();
+  const [activeTab, setActiveTab] = useState('designer');
   const [issues, setIssues] = useState<WorkflowValidationIssue[]>([]);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -75,6 +76,7 @@ export default function WorkflowEditorDrawer({
 
   useEffect(() => {
     if (!open) return;
+    setActiveTab('designer');
     if (initial) {
       setDraft({
         workflowId: initial.workflowId,
@@ -218,10 +220,18 @@ export default function WorkflowEditorDrawer({
             ? '编辑工作流版本'
             : '新建工作流'
       }
-      width="min(1500px, 96vw)"
+      size="min(1500px, 96vw)"
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
+      styles={{
+        body: {
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+        },
+      }}
       extra={
         <Space>
           <Button
@@ -257,19 +267,33 @@ export default function WorkflowEditorDrawer({
         <Alert
           type="info"
           showIcon
-          message="已发布版本不可修改"
+          title="已发布版本不可修改"
           description="如需调整，请从列表使用“创建新版本”，系统会复制当前 DSL 并要求使用新的版本号。"
           style={{marginBottom: 16}}
         />
       )}
       <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        style={{flex: 1, minHeight: 0}}
+        styles={{
+          body: {height: '100%', minHeight: 0},
+          content: {height: '100%', minHeight: 0},
+        }}
         items={[
           {
             key: 'designer',
             label: '可视化编排',
             children: (
-              <Row gutter={16} wrap={false}>
-                <Col flex="auto" style={{overflow: 'auto'}}>
+              <Row
+                gutter={16}
+                wrap={false}
+                style={{height: '100%', minHeight: 0}}
+              >
+                <Col
+                  flex="auto"
+                  style={{display: 'flex', minWidth: 0, overflow: 'hidden'}}
+                >
                   <WorkflowCanvas
                     nodes={draft.nodes}
                     edges={draft.edges}
@@ -302,7 +326,10 @@ export default function WorkflowEditorDrawer({
                     }}
                   />
                 </Col>
-                <Col flex="390px">
+                <Col
+                  flex="390px"
+                  style={{height: '100%', minHeight: 0, overflowY: 'auto'}}
+                >
                   <NodeInspector
                     node={selectedNode}
                     nodes={draft.nodes}
@@ -322,11 +349,13 @@ export default function WorkflowEditorDrawer({
             key: 'definition',
             label: '基本定义与 Schema',
             children: (
-              <DefinitionEditor
-                draft={draft}
-                readOnly={readOnly}
-                onChange={updateDraft}
-              />
+              <div style={{height: '100%', overflowY: 'auto'}}>
+                <DefinitionEditor
+                  draft={draft}
+                  readOnly={readOnly}
+                  onChange={updateDraft}
+                />
+              </div>
             ),
           },
           {
@@ -338,7 +367,15 @@ export default function WorkflowEditorDrawer({
               </span>
             ),
             children: (
-              <ValidationIssues issues={issues} onSelect={setSelectedNodeId}/>
+              <div style={{height: '100%', overflowY: 'auto'}}>
+                <ValidationIssues
+                  issues={issues}
+                  onSelect={(nodeId) => {
+                    setSelectedNodeId(nodeId);
+                    setActiveTab('designer');
+                  }}
+                />
+              </div>
             ),
           },
         ]}
@@ -419,7 +456,7 @@ function NodeInspector({
             <Form.Item label="固定版本" required>
               <Select
                 value={node.tool?.version}
-                options={(toolKey ? toolVersions[toolKey] : []).map(
+                options={(toolKey ? toolVersions[toolKey] ?? [] : []).map(
                   (version) => ({value: version, label: version}),
                 )}
                 onChange={(version) => updateReference({version})}

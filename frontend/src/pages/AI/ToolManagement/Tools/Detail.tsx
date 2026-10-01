@@ -209,12 +209,12 @@ export default function ToolVersionDetailPage() {
       ) : error ? (
         <ToolErrorAlert error={error} onRetry={load}/>
       ) : detail ? (
-        <Space direction="vertical" size={16} style={{width: '100%'}}>
+        <Space orientation="vertical" size={16} style={{width: '100%'}}>
           {detail.lifecycleState === 'draft' && (
             <Alert
               type="info"
               showIcon
-              message="草稿由工具提供者维护"
+              title="草稿由工具提供者维护"
               description="修改本地 Java、HTTP、OpenAPI 或 MCP 提供者中的源定义并刷新，即可更新草稿或生成新版本。发布后当前版本将保持不可变。"
             />
           )}
@@ -333,7 +333,7 @@ export default function ToolVersionDetailPage() {
                   key: 'policy',
                   label: '默认配置与策略',
                   children: (
-                    <Space direction="vertical" style={{width: '100%'}}>
+                    <Space orientation="vertical" style={{width: '100%'}}>
                       <Typography.Title level={5}>默认配置</Typography.Title>
                       <JsonEditor
                         value={detail.defaultConfiguration}
