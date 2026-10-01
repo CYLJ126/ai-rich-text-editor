@@ -5,6 +5,7 @@ import com.arte.app.config.bean.QiniuProperties;
 import com.arte.app.config.bean.RichTextStorageProperties;
 import com.arte.app.config.bean.WebSecurityProperties;
 import com.arte.app.web.interceptor.ValidateInterceptor;
+import com.arte.core.enums.MyEnumConverter;
 import com.arte.core.serialize.SerializerFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.format.FormatterRegistry;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -90,6 +92,13 @@ public class WebConfig implements WebMvcConfigurer {
         // 权限校验 目前只为adminController服务
         registry.addInterceptor(validateInterceptor)
                 .addPathPatterns("/**");
+    }
+
+    @Override
+    public void addFormatters(FormatterRegistry registry) {
+        // 按 MyEnum#getValue() 统一转换 String 和 Integer 类型的输入；
+        // 既支持 Web 参数 published、"1"，也支持代码中直接传入整数 1。
+        registry.addConverter(new MyEnumConverter());
     }
 
     @Override
