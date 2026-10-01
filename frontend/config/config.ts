@@ -1,7 +1,7 @@
 // https://umijs.org/config/
 
-import { join } from 'node:path';
-import { defineConfig } from '@umijs/max';
+import {join} from 'node:path';
+import {defineConfig} from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 
@@ -108,8 +108,8 @@ export default defineConfig({
       /(?:^|\/)__tests__(?:\/|$)/,
       /\.(?:test|spec)\.(?:js|jsx|ts|tsx)$/,
       /\/components\//,
-      // 嵌套目录只将 index 文件作为页面；抽屉、service、types 等不能进入生产路由。
-      /\/(?!index\.(?:js|jsx|ts|tsx)$)[^/]+\.(?:js|jsx|ts|tsx)$/,
+      // 约定式页面除 index 外还包括 *Form 和 Detail；其余抽屉、service、types 等不生成路由。
+      /\/(?!(?:index|Detail|[A-Z][A-Za-z0-9]*Form)\.(?:js|jsx|ts|tsx)$)[^/]+\.(?:js|jsx|ts|tsx)$/,
     ],
   },
   /**
