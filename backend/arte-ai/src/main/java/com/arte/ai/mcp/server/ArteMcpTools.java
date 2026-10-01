@@ -1,6 +1,7 @@
 package com.arte.ai.mcp.server;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.RandomUtil;
 import com.arte.ai.config.McpConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -76,6 +77,19 @@ public class ArteMcpTools {
         String lastName = lastNameList.get(ThreadLocalRandom.current().nextInt(lastNameList.size()));
         log.info("Tool-随机返回一个姓氏和给定的名组合，姓氏【{}】，名字【{}】", lastName, firstName);
         return lastName + firstName;
+    }
+
+    /**
+     * 随机返回一个姓氏和给定的名组合
+     *
+     * @param name 名
+     * @return 姓氏和名的组合
+     */
+    @Tool(name = "name-assessment", description = "Assess level for a given name")
+    public Integer nameAssessment(@McpToolParam(description = "name") String name) {
+        int level = RandomUtil.randomInt(1, 11);
+        log.info("Tool-评估给定名称的等级，名称【{}】，等级【{}】", name, level);
+        return level;
     }
 
     /**
