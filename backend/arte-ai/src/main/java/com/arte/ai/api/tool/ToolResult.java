@@ -5,6 +5,7 @@ import com.arte.ai.pojo.tool.ToolArtifact;
 import com.arte.ai.pojo.tool.ToolError;
 import com.arte.ai.pojo.tool.ToolTaskHandle;
 import com.arte.ai.pojo.tool.ToolUsage;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import java.util.Set;
 public sealed interface ToolResult<O extends ToolResponse> permits ToolResult.Succeeded,
         ToolResult.Accepted, ToolResult.Suspended, ToolResult.Unsuccessful {
 
+    @JsonProperty("status")
     ToolResultStatusEnum status();
 
     Map<String, Object> metadata();
