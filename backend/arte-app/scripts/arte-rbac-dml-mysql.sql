@@ -52,6 +52,26 @@ INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (40, 'AIAssistantTools', 'AI Assistant Tools', null, '/AI/ToolManagement/Assistants', 36, 4, 1,
         '助手工具配置', '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (41, 'AIToolCalls', 'AI Tool Calls', null, '/AI/ToolManagement/Calls', 36, 5, 1, 'AI 工具调用控制台',
+        '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (42, 'AIToolTasks', 'AI Tool Tasks', null, '/AI/ToolManagement/Tasks', 36, 6, 1, 'AI 工具异步任务',
+        '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (43, 'AIToolApprovals', 'AI Tool Approvals', null, '/AI/ToolManagement/Approvals', 36, 7, 1,
+        'AI 工具审批与安全', '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (44, 'AIToolObservability', 'AI Tool Observability', null, '/AI/ToolManagement/Observability', 36, 9, 1,
+        'AI 工具轨迹与统计', '1', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (45, 'AIToolWorkflows', 'AI Tool Workflows', null, '/AI/ToolManagement/Workflows', 36, 8, 1,
+        'AI 工作流编排与运行', '1', 0, 'system', sysdate(), 'system', sysdate());
 
 
 -- arte_rbac_menu_operation
@@ -170,6 +190,25 @@ VALUES (75, 'menu', 'export', '导出菜单列表', 1, '导出菜单列表', 0, 
 INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
                                       create_by, create_time, update_by, update_time)
 VALUES (76, 'pdf', 'handle', 'PDF处理', 1, 'PDF处理', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
+                                      create_by, create_time, update_by, update_time)
+VALUES (77, 'aiTool', 'list', '查看 AI 工具', 1, '查看工具目录、任务和轨迹', 0, 'system', sysdate(), 'system',
+        sysdate());
+INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
+                                      create_by, create_time, update_by, update_time)
+VALUES (78, 'aiTool', 'manage', '管理 AI 工具', 1, '管理工具提供者、版本和绑定', 0, 'system', sysdate(), 'system',
+        sysdate());
+INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
+                                      create_by, create_time, update_by, update_time)
+VALUES (79, 'aiTool', 'invoke', '调用 AI 工具', 1, '调用、取消和恢复工具任务', 0, 'system', sysdate(), 'system',
+        sysdate());
+INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
+                                      create_by, create_time, update_by, update_time)
+VALUES (80, 'aiTool', 'approve', '审批 AI 工具', 1, '审批高风险工具调用', 0, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu_operation (id, menu_code, operation_code, operation_name, status, description, row_version,
+                                      create_by, create_time, update_by, update_time)
+VALUES (81, 'aiTool', 'workflow', '管理工具工作流', 1, '保存、发布和运行工具工作流', 0, 'system', sysdate(), 'system',
+        sysdate());
 
 
 -- arte_rbac_relation
@@ -243,6 +282,16 @@ INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, cre
 VALUES (58, 'admin', 'AIToolBindings', 'role_to_menu', 'system', sysdate());
 INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
 VALUES (59, 'admin', 'AIAssistantTools', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (60, 'admin', 'AIToolCalls', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (61, 'admin', 'AIToolTasks', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (62, 'admin', 'AIToolApprovals', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (63, 'admin', 'AIToolObservability', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (64, 'admin', 'AIToolWorkflows', 'role_to_menu', 'system', sysdate());
 
 
 -- arte_rbac_role
