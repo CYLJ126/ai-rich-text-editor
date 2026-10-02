@@ -1,0 +1,23 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.arte</groupId>
+        <artifactId>arte</artifactId>
+        <version>1.0-SNAPSHOT</version><!-- RELEASE：发布版本时修改为版本名称  -->
+    </parent>
+
+    <artifactId>arte-base</artifactId>
+    <packaging>jar</packaging>
+    <name>arte-base</name>
+    <description>公共契约与轻量基础能力</description>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

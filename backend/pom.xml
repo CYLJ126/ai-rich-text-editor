@@ -10,9 +10,11 @@
     <version>1.0-SNAPSHOT</version><!-- RELEASE：发布版本时修改为版本名称  -->
     <packaging>pom</packaging>
     <modules>
+        <module>arte-base</module>
         <module>arte-core</module>
         <module>arte-app</module>
         <module>arte-ai</module>
+        <module>arte-ai-new</module>
     </modules>
     <licenses>
         <license>

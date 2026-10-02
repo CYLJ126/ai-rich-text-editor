@@ -1,0 +1,92 @@
+spring:
+  autoconfigure:
+    exclude:
+      - @spring.ai.embedding.exclude@
+  ai:
+    embedding:
+      provider: @spring.ai.embedding.provider@   # bge-large（1024 维度）或 bge-small（Bge 512 维度）
+      transformer:
+        onnx:
+          model-uri: @spring.ai.embedding.transformer.onnx.model-uri@
+          gpu-device-id: @spring.ai.embedding.transformer.onnx.gpu-device-id@   # -1 表示使用 CPU，Mac 上可尝试 0 调用 GPU（需配合 CoreML）
+        tokenizer:
+          uri: @spring.ai.embedding.transformer.tokenizer.uri@
+          options:
+            padding: @spring.ai.embedding.transformer.tokenizer.options.padding@   # 重要，防止输入长度不一致报错
+    mcp:
+      client: # 客户端配置
+        name: @spring.ai.mcp.client.name@
+      server: # 服务端配置
+        name: @spring.ai.mcp.server.name@
+        protocol: streamable   # 使用 streamable HTTP 传输协议
+        streamable-http:
+          mcp-endpoint: @spring.ai.mcp.server.endpoint@   # 自定义 MCP 端点路径
+          disallow-delete: @spring.ai.mcp.server.disallow-delete@   # 是否禁止删除操作
+    deepseek:
+      api-key: @spring.ai.deepseek.api-key@
+      chat:
+        base-url: https://api.deepseek.com
+logging:
+  level:
+    org.springframework.ai: @logging.level.org.springframework.ai@   # spring ai 包日志级别
+    org.springframework.ai.chat.client.advisor: @logging.level.org.springframework.ai.chat.client.advisor@   # 可单独配置 advisor 包的日志级别
+
+# AI 工具管理与集群同步配置
+arte:
+  ai:
+    tool:
+      # 应用启动后是否自动发现工具并同步工具目录
+      auto-sync-enabled: @arte.ai.tool.auto-sync-enabled@
+      local:
+        # 本地 Java/Spring AI 工具未显式声明命名空间时使用的默认命名空间
+        namespace: "@arte.ai.tool.local.namespace@"
+        # 本地 Spring AI ToolCallback 转换为工具定义时使用的默认版本
+        version: "@arte.ai.tool.local.version@"
+      execution:
+        # 是否要求调用前必须存在当前用户/工作空间的已启用工具绑定
+        binding-required: @arte.ai.tool.execution.binding-required@
+        # 单个用户调用单个工具版本的每分钟集群限额；小于等于 0 表示不限流
+        rate-limit-per-minute: @arte.ai.tool.execution.rate-limit-per-minute@
+        # 单次工具输入参数序列化后的最大字节数
+        maximum-input-bytes: @arte.ai.tool.execution.maximum-input-bytes@
+        # Redisson 限流 Key 前缀
+        rate-limit-key-prefix: "@arte.ai.tool.execution.rate-limit-key-prefix@"
+        # 每次重启恢复扫描最多领取的任务数
+        recovery-batch-size: @arte.ai.tool.execution.recovery-batch-size@
+        # Worker 租约时长及续租间隔
+        worker-lease: @arte.ai.tool.execution.worker-lease@
+        lease-renew-interval: @arte.ai.tool.execution.lease-renew-interval@
+        # 未完成任务恢复扫描的启动延迟与周期
+        recovery-initial-delay: @arte.ai.tool.execution.recovery-initial-delay@
+        recovery-interval: @arte.ai.tool.execution.recovery-interval@
+        # 人工审批有效期及过期审批扫描周期
+        approval-timeout: @arte.ai.tool.execution.approval-timeout@
+        approval-expiry-scan-interval: @arte.ai.tool.execution.approval-expiry-scan-interval@
+        # 工作流运行租约与续租周期；用于保证同一运行实例仅由一个后端节点推进
+        workflow-lease: @arte.ai.tool.execution.workflow-lease@
+        workflow-lease-renew-interval: @arte.ai.tool.execution.workflow-lease-renew-interval@
+        # 工作流重启恢复扫描的启动延迟、周期和单批上限
+        workflow-recovery-initial-delay: @arte.ai.tool.execution.workflow-recovery-initial-delay@
+        workflow-recovery-interval: @arte.ai.tool.execution.workflow-recovery-interval@
+        workflow-recovery-batch-size: @arte.ai.tool.execution.workflow-recovery-batch-size@
+      cluster:
+        # 是否启用 Redis 工具目录广播、分布式同步锁和定时对账
+        enabled: @arte.ai.tool.cluster.enabled@
+        # 当前后端节点唯一标识；留空时在每次启动时自动生成 UUID
+        instance-id: "@arte.ai.tool.cluster.instance-id@"
+        # Redis Pub/Sub 工具目录变更广播主题
+        topic: "@arte.ai.tool.cluster.topic@"
+        # Redisson 提供者同步锁的 Redis Key 前缀
+        sync-lock-prefix: "@arte.ai.tool.cluster.sync-lock-prefix@"
+        # 获取提供者同步分布式锁的最长等待时间，单位毫秒
+        sync-lock-wait-millis: @arte.ai.tool.cluster.sync-lock-wait-millis@
+        # 工具版本、用户绑定和助手配置写操作的 Redisson 锁 Key 前缀
+        management-lock-prefix: "@arte.ai.tool.cluster.management-lock-prefix@"
+        # 获取工具管理分布式锁的最长等待时间，单位毫秒
+        management-lock-wait-millis: @arte.ai.tool.cluster.management-lock-wait-millis@
+        # Redis Topic 首次订阅失败后的重试间隔，单位毫秒
+        subscription-retry-ms: @arte.ai.tool.cluster.subscription-retry-ms@
+        # 应用启动后首次执行本地工具目录对账的延迟时间，单位毫秒
+        reconcile-initial-delay-ms: @arte.ai.tool.cluster.reconcile-initial-delay-ms@
+        # 本地工具目录周期性对账间隔，单位毫秒
+        reconcile-interval-ms: @arte.ai.tool.cluster.reconcile-interval-ms@
