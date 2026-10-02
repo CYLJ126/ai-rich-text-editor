@@ -5,7 +5,7 @@
 
 [最小模型调用](MINIMUM_MODEL_CALL.md) 已实现固定能力／连接／绑定解析、类型化模型网关和单次执行协调。 app
 提供兼容聊天协议、受控连接、现有身份与外发同意、原子预算预留、执行与可重放事件存储，并提供独立新 HTTP 路径。 新 AI 生产代码仍只依赖
-base；会话、上下文资料、其他网关及编排保持后续阶段声明。
+base。[最小聊天数据模型](MINIMUM_CHAT_MODEL.md) 已补齐会话、提交及上下文快照的值契约和独立表；聊天服务、其他网关及编排尚未实现。
 
 依据 [ARTE 顶层需求及设计](../../ARTE顶层需求及设计.md) 的「顶层接口 §2」及「设计 §7」声明新 AI 平台契约。
 
@@ -23,8 +23,8 @@ base；会话、上下文资料、其他网关及编排保持后续阶段声明�
 `api` 放调用入口，`spi` 放提供者端口，`model` 放数据与状态。服务类及行为端口的操作签名留待下一步设计；不添加无行为的 Impl 或
 Abstract 占位类。
 
-record 的组件仅表达顶层关系。可空性、集合防御性复制、字段校验、序列化及 Schema 细节尚未实现；record
-自带的浅不可变性不代表集合及泛型负载已经深度不可变。涉及生命周期的 record 是某时点的快照，后续持久化实体与事务处理由实现层单独设计。
+已实现的模型调用和最小聊天 record 包含字段校验及集合防御性复制；其他顶层声明仍需细化。序列化由 app 适配层负责。涉及生命周期的
+record 是某时点的快照，不充当可变 ORM 实体；聊天的状态推进、持久化适配和事务流程留待下一阶段。
 
 Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或文章模块。源码使用标准 `src/main/java` 目录。保持
 `com.arte.ai` 根包，新契约归入 `api`／`spi`／`model`；未来替换旧模块时再迁移应用接线。
@@ -75,7 +75,7 @@ Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或�
 的领域变更处理端口。未注册提供者的能力不暴露为可用；AI 核心以用户消息与历史即可独立运行。
 
 类型声明不表示已实现全部阶段能力。按设计 §2.8
-的顺序，最小非流式模型链已打通；后续先补流式输出与恢复／对账，再组合会话、聊天和上下文；助手、动作、记忆及其他网关逐步补充，Workflow／Agent
+的职责划分，最小非流式模型链已打通；当前已补齐聊天数据模型，下一阶段组合会话、聊天和上下文。流式输出与恢复／对账、助手、动作、记忆及其他网关逐步补充，Workflow／Agent
 按需实现。产品 P0／P1／P2 分期仍以需求文档为准。
 
 app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI 依赖和调用保留。原有 `main/resources/application-ai.yml`
@@ -121,7 +121,7 @@ app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI �
 | [Run](src/main/java/com/arte/ai/model/execution/Run.java)                                        | `record`           | `model.execution`    | 多步任务的查询快照；引擎历史存在时不以此快照另行推进状态。                 |
 | [ControlAction](src/main/java/com/arte/ai/model/execution/ControlAction.java)                    | `enum`             | `model.execution`    | 声明支持的任务控制动作；支持取消不意味着支持暂停或继续。                   |
 | [Conversation](src/main/java/com/arte/ai/model/conversation/Conversation.java)                   | `record`           | `model.conversation` | 会话的只读值快照；资料关联与资料权限分开。                                 |
-| [Turn](src/main/java/com/arte/ai/model/conversation/Turn.java)                                   | `record`           | `model.conversation` | 轮次输入及执行关联的记录快照，不自动收录为知识资产。                       |
+| [Turn](src/main/java/com/arte/ai/model/conversation/Turn.java)                                   | `record`           | `model.conversation` | 一次提交的用户输入、上下文及执行关联；重新生成保留独立记录。               |
 | [AiActionExecution](src/main/java/com/arte/ai/model/action/AiActionExecution.java)               | `record`           | `model.action`       | 独立动作的执行记录快照；可关联追问，业务采纳状态由应用记录引用。           |
 | [ModelOptions](src/main/java/com/arte/ai/model/generation/ModelOptions.java)                     | `record`           | `model.generation`   | 模型生成的基础选项；供应商扩展及边界值后续按能力 Schema 细化。             |
 | [GenerationRequest](src/main/java/com/arte/ai/model/generation/GenerationRequest.java)           | `record`           | `model.generation`   | 文本或多模态生成请求；工具描述仅限本次允许范围。                           |
@@ -147,4 +147,7 @@ app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI �
 
 `InvocationRequest<I>` 保留五类能力的不同输入类型。`ContentPart` 明确文本／产物内容变体；`MediaSubmission`
 明确已完成结果／远端异步任务变体。结构化工具及应用输入使用带 Schema 的 `StructuredValue`，不采用 `Object` 或任意参数 Map。
-`Conversation`、`Invocation`、`Attempt`、`Run` 等 record 表示记录快照；状态推进、条件更新和账本事务尚未实现。
+`Conversation`、`Invocation`、`Attempt`、`Run` 等 record 表示记录快照。最小模型执行的状态推进及预算账本事务已实现；聊天条件更新和事务流程尚未实现。
+
+最小聊天新增 `ConversationStatus`、`TurnKind`、`TurnStatus` 枚举，以及 `ContextHistoryRef`、`ContextBudget`
+record；字段语义、表映射、幂等与并发约束见 [最小聊天数据模型](MINIMUM_CHAT_MODEL.md)。
