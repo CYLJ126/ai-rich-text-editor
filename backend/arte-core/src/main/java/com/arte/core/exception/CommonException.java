@@ -11,11 +11,16 @@ import java.io.Serial;
 /**
  * 基础（通用）异常
  *
+ * @deprecated 新代码使用 com.arte.base.exception.BaseException 和
+ * com.arte.base.model.execution.ExecutionError 表达稳定错误码、失败阶段及结果确定性。
+ * 本类保留旧构造方法、结果码和国际化行为；新旧错误不自动映射，既有子类与调用方暂不迁移。
+ *
  * @author zhangsc
  * @since 2024/7/11 11:24
  */
 @Getter
 @NoArgsConstructor
+@Deprecated
 public class CommonException extends RuntimeException {
 
     @Serial

@@ -12,6 +12,14 @@
     <name>arte-base</name>
     <description>公共契约与轻量基础能力</description>
 
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

@@ -1,12 +1,15 @@
 package com.arte.base.model.security;
 
+import com.arte.base.validation.ContractChecks;
+
 /**
- * 加密凭据的引用；不携带明文凭据，实际解析归连接及基础设施实现。
- *
- * <p>顶层契约声明；字段约束、校验、持久化映射及行为在详细设计阶段补充。
+ * 凭据引用，不携带明文。secretId 必填，version 可为空表示由凭据提供者解析当前版本。
+ * 凭据访问授权、轮换、解析与加密存储归基础设施和连接运行时。
  */
-public record SecretRef(
-        String secretId,
-        String version
-) {
+public record SecretRef(String secretId, String version) {
+
+    public SecretRef {
+        secretId = ContractChecks.identifier(secretId, "secretId");
+        version = ContractChecks.optionalIdentifier(version, "version");
+    }
 }
