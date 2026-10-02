@@ -60,7 +60,7 @@ export function CanvasAiPreview({type, source, onReady, onError}: {
   return data ? <MindMapEditor ref={mindRef} data={data} isDark={isDark} editable={false} />
     : <div className="relative size-full">
       <iframe ref={iframeRef} src={drawioUrl} tabIndex={-1} aria-hidden title={i18nText('app.article.canvas.ai.preview')} className="pointer-events-none absolute inset-0 size-full border-0 opacity-0" />
-      {previewUrl ? <img src={previewUrl} alt={i18nText('app.article.canvas.ai.preview')} className="relative size-full object-contain p-4" style={{colorScheme: isDark ? 'dark' : 'light'}} />
+      {previewUrl ? <img src={previewUrl} alt={i18nText('app.article.canvas.ai.preview')} className="relative size-full object-contain p-2" style={{colorScheme: isDark ? 'dark' : 'light'}} />
         : <div className="flex size-full items-center justify-center"><Loader2Icon className="size-6 animate-spin text-primary" /></div>}
     </div>;
 }
