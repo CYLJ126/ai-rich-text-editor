@@ -5,7 +5,7 @@
 
 [最小模型调用](MINIMUM_MODEL_CALL.md) 已实现固定能力／连接／绑定解析、类型化模型网关和单次执行协调。 app
 提供兼容聊天协议、受控连接、现有身份与外发同意、原子预算预留、执行与可重放事件存储，并提供独立新 HTTP 路径。 新 AI 生产代码仍只依赖
-base。[最小聊天数据模型](MINIMUM_CHAT_MODEL.md) 已补齐会话、提交及上下文快照的值契约和独立表；聊天服务、其他网关及编排尚未实现。
+base。[最小聊天服务](MINIMUM_CHAT_SERVICE.md) 已基于独立数据模型实现会话管理、文本与历史上下文、提交、重新生成、取消及受理关联恢复；其他网关及编排尚未实现。
 
 依据 [ARTE 顶层需求及设计](../../ARTE顶层需求及设计.md) 的「顶层接口 §2」及「设计 §7」声明新 AI 平台契约。
 
@@ -20,11 +20,12 @@ base。[最小聊天数据模型](MINIMUM_CHAT_MODEL.md) 已补齐会话、提�
 | `sealed interface` | 已知且互斥的数据变体，不作为所有能力的执行父接口                             |
 | `abstract class`   | 仅在明确存在共享状态、模板流程或公共行为时引入；当前阶段没有该依据，暂不声明 |
 
-`api` 放调用入口，`spi` 放提供者端口，`model` 放数据与状态。服务类及行为端口的操作签名留待下一步设计；不添加无行为的 Impl 或
+`api` 放调用入口，`spi` 放提供者端口，`model` 放数据与状态。模型调用与聊天服务已具备操作签名和最小实现，其他顶层声明逐步细化；不添加无行为的
+Impl 或
 Abstract 占位类。
 
 已实现的模型调用和最小聊天 record 包含字段校验及集合防御性复制；其他顶层声明仍需细化。序列化由 app 适配层负责。涉及生命周期的
-record 是某时点的快照，不充当可变 ORM 实体；聊天的状态推进、持久化适配和事务流程留待下一阶段。
+record 是某时点的快照，不充当可变 ORM 实体；聊天的条件更新、JDBC 适配和事务流程已实现，详见最小聊天服务说明。
 
 Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或文章模块。源码使用标准 `src/main/java` 目录。保持
 `com.arte.ai` 根包，新契约归入 `api`／`spi`／`model`；未来替换旧模块时再迁移应用接线。
@@ -75,7 +76,7 @@ Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或�
 的领域变更处理端口。未注册提供者的能力不暴露为可用；AI 核心以用户消息与历史即可独立运行。
 
 类型声明不表示已实现全部阶段能力。按设计 §2.8
-的职责划分，最小非流式模型链已打通；当前已补齐聊天数据模型，下一阶段组合会话、聊天和上下文。流式输出与恢复／对账、助手、动作、记忆及其他网关逐步补充，Workflow／Agent
+的职责划分，最小非流式模型链已打通；会话、聊天和纯文本历史上下文已组合完成。流式输出与恢复／对账、助手、动作、记忆及其他网关逐步补充，Workflow／Agent
 按需实现。产品 P0／P1／P2 分期仍以需求文档为准。
 
 app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI 依赖和调用保留。原有 `main/resources/application-ai.yml`
@@ -147,7 +148,7 @@ app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI �
 
 `InvocationRequest<I>` 保留五类能力的不同输入类型。`ContentPart` 明确文本／产物内容变体；`MediaSubmission`
 明确已完成结果／远端异步任务变体。结构化工具及应用输入使用带 Schema 的 `StructuredValue`，不采用 `Object` 或任意参数 Map。
-`Conversation`、`Invocation`、`Attempt`、`Run` 等 record 表示记录快照。最小模型执行的状态推进及预算账本事务已实现；聊天条件更新和事务流程尚未实现。
+`Conversation`、`Invocation`、`Attempt`、`Run` 等 record 表示记录快照。最小模型执行的状态推进及预算账本事务已实现；最小聊天的条件更新、持久化及受理关联事务也已实现。
 
 最小聊天新增 `ConversationStatus`、`TurnKind`、`TurnStatus` 枚举，以及 `ContextHistoryRef`、`ContextBudget`
 record；字段语义、表映射、幂等与并发约束见 [最小聊天数据模型](MINIMUM_CHAT_MODEL.md)。

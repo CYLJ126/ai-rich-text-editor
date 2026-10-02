@@ -218,6 +218,14 @@ public class InvocationCoordinator {
         return execution;
     }
 
+    /**
+     * 按服务端派生键恢复可靠受理关联，使用当前权限查询已有执行，不重放模型请求。
+     */
+    public java.util.Optional<ModelExecution> findIdempotent(ExecutionContext viewer, String key) {
+        ContractChecks.identifier(key, "idempotencyKey");
+        return store.findIdempotent(viewer.scope(), key).map(execution -> find(viewer, execution.executionId()));
+    }
+
     public List<ExecutionEvent<ModelEvent>> events(ExecutionContext viewer, String executionId, long after, int limit) {
         find(viewer, executionId);
         var batch = events.read(viewer.scope(), executionId, after, limit);

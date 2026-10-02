@@ -105,6 +105,13 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     }
 
     @Override
+    public Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key) {
+        String scopeKey = ModelKeys.scope(scope);
+        return jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND identity_key = ?",
+                (rs, row) -> map(rs, scope), scopeKey, ModelKeys.hash(scopeKey, "model.generate", key)).stream().findFirst();
+    }
+
+    @Override
     public Optional<ModelExecution> find(ExecutionScope scope, String id) {
         var rows = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND execution_id = ?", (rs, row) -> map(rs, scope), ModelKeys.scope(scope), id);
         return rows.stream().findFirst();

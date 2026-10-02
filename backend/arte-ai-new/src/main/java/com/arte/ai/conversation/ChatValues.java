@@ -1,0 +1,140 @@
+package com.arte.ai.conversation;
+
+import com.arte.ai.model.context.ContextHistoryRef;
+import com.arte.ai.model.context.ContextSnapshot;
+import com.arte.ai.model.conversation.Turn;
+import com.arte.ai.model.definition.DefinitionRef;
+import com.arte.ai.model.generation.ModelOptions;
+import com.arte.ai.model.message.Message;
+import com.arte.ai.model.message.TextPart;
+import com.arte.base.exception.BaseException;
+import com.arte.base.model.error.CommonErrorCode;
+import com.arte.base.model.execution.ExecutionError;
+import com.arte.base.model.execution.ResultCertainty;
+import com.arte.base.model.execution.SideEffectStatus;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
+import java.util.List;
+
+/**
+ * 规范摘要使用长度编码；不依赖 JSON 字段顺序或供应商协议格式。
+ */
+public final class ChatValues {
+    private ChatValues() {
+    }
+
+    public static Instant now(Clock clock) {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public static BaseException failure(CommonErrorCode code, String stage) {
+        return new BaseException(ExecutionError.of(code, stage, false, SideEffectStatus.NONE, ResultCertainty.CONFIRMED, null));
+    }
+
+    public static String modelKey(Turn turn) {
+        return "chat:" + turn.turnId();
+    }
+
+    public static String submission(String conversation, long version, String original, List<Message> input, ModelOptions options) {
+        return hash(out -> {
+            field(out, "arte.chat.submission.v1");
+            field(out, conversation);
+            out.writeLong(version);
+            field(out, original);
+            messages(out, input);
+            out.writeBoolean(options.temperature() != null);
+            if (options.temperature() != null) out.writeDouble(options.temperature());
+            out.writeBoolean(options.maxOutputTokens() != null);
+            if (options.maxOutputTokens() != null) out.writeInt(options.maxOutputTokens());
+        });
+    }
+
+    public static String context(String conversation, long version, DefinitionRef binding, List<Message> messages,
+                                 List<ContextHistoryRef> history, int byteLimit, int usedBytes, int outputTokens) {
+        return hash(out -> {
+            field(out, "arte.chat.context.v1");
+            field(out, conversation);
+            out.writeLong(version);
+            field(out, binding.definitionType());
+            field(out, binding.definitionId());
+            field(out, binding.version());
+            messages(out, messages);
+            out.writeInt(history.size());
+            for (var ref : history) {
+                field(out, ref.turnId());
+                out.writeLong(ref.turnVersion());
+                field(out, ref.executionId());
+            }
+            out.writeInt(byteLimit);
+            out.writeInt(usedBytes);
+            out.writeInt(outputTokens);
+        });
+    }
+
+    public static void verify(ContextSnapshot snapshot) {
+        if (!snapshot.fragments().isEmpty() || !snapshot.contentDigest().equals(context(snapshot.conversationId(), snapshot.conversationVersion(),
+                snapshot.modelBindingRef(), snapshot.messages(), snapshot.history(), snapshot.budget().inputByteLimit(),
+                snapshot.budget().usedInputBytes(), snapshot.budget().outputTokenReserve())))
+            throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");
+        if (bytes(snapshot.messages()) != snapshot.budget().usedInputBytes())
+            throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");
+    }
+
+    public static int bytes(List<Message> messages) {
+        long size = 0;
+        for (var message : messages)
+            for (var part : message.parts()) {
+                if (!(part instanceof TextPart text)) throw failure(CommonErrorCode.UNSUPPORTED, "chat-content");
+                size += text.text().getBytes(StandardCharsets.UTF_8).length;
+            }
+        if (size > Integer.MAX_VALUE) throw failure(CommonErrorCode.INVALID_ARGUMENT, "chat-capacity");
+        return (int) size;
+    }
+
+    private static void messages(DataOutputStream out, List<Message> messages) throws IOException {
+        out.writeInt(messages.size());
+        for (var message : messages) {
+            field(out, message.role().name());
+            out.writeInt(message.parts().size());
+            for (var part : message.parts()) {
+                if (!(part instanceof TextPart text)) throw failure(CommonErrorCode.UNSUPPORTED, "chat-content");
+                field(out, text.text());
+            }
+        }
+    }
+
+    private static void field(DataOutputStream out, String value) throws IOException {
+        if (value == null) {
+            out.writeInt(-1);
+            return;
+        }
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        out.writeInt(bytes.length);
+        out.write(bytes);
+    }
+
+    private static String hash(Encoder encoder) {
+        try {
+            var bytes = new ByteArrayOutputStream();
+            try (var out = new DataOutputStream(bytes)) {
+                encoder.write(out);
+            }
+            return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
+        } catch (IOException | java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    @FunctionalInterface
+    private interface Encoder {
+        void write(DataOutputStream out) throws IOException;
+    }
+}

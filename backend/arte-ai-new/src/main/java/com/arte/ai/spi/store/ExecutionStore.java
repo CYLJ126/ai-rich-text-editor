@@ -1,7 +1,9 @@
 package com.arte.ai.spi.store;
 
-import com.arte.ai.model.execution.*;
 import com.arte.ai.model.budget.BudgetQuote;
+import com.arte.ai.model.execution.ExecutionStatus;
+import com.arte.ai.model.execution.ModelExecution;
+import com.arte.ai.model.execution.ModelSubmission;
 import com.arte.ai.model.generation.ModelResult;
 import com.arte.base.model.execution.ExecutionError;
 import com.arte.base.model.identity.ExecutionScope;
@@ -18,6 +20,11 @@ public interface ExecutionStore {
     Acceptance accept(ModelSubmission submission, BudgetQuote quote);
 
     Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key, String digest);
+
+    /**
+     * 服务端稳定键的受理核对；调用方必须重新授权并验证所属业务关联，不能据此重新派发。
+     */
+    Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key);
 
     Optional<ModelExecution> find(ExecutionScope scope, String executionId);
 
