@@ -14,6 +14,7 @@ import type {Conversation, Message, ModelConfig} from '@/types/ai.type';
 import {getI18nLocale, i18nText} from '@/utils/i18n';
 import {generateRandomUUID} from '@/utils/RandomUtil';
 import {cn} from '@/lib/utils';
+import {useThemeContext} from '@/contexts/ThemeContext';
 import type {CanvasType} from './canvas';
 import {buildCanvasPrompt, CANVAS_CONTEXT_MARKER, type CanvasAiMode, hasCanvasSource, parseCanvasResponse} from './canvas-ai';
 import {CanvasAiPreview} from './canvas-ai-preview';
@@ -54,6 +55,7 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
   onClose: () => void;
 }) {
   const {styles} = useStyles();
+  const {isDark} = useThemeContext();
   const {initialState} = useModel('@@initialState');
   const models = useModelsStore(state => state.models);
   const loadModels = useModelsStore(state => state.loadModels);
@@ -341,7 +343,7 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3"><span className="font-medium">{i18nText('app.article.canvas.ai.preview')}</span><span className="text-xs text-text-secondary">{i18nText(draft ? draft.source === appliedSource ? 'app.article.canvas.ai.applied' : 'app.article.canvas.ai.draft' : 'app.article.canvas.ai.current')}</span></div>
           <div className="relative min-h-0 flex-1 bg-bg-layout">
             {draft ? <CanvasAiPreview key={draft.messageId} type={type} source={draft.source} onReady={previewReady} onError={previewError} />
-              : preview ? <img src={preview} alt={title} className="size-full object-contain p-4" />
+              : preview ? <img src={preview} alt={title} className="size-full object-contain p-4" style={{colorScheme: isDark ? 'dark' : 'light'}} />
               : <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-text-secondary"><SparklesIcon className="size-10 text-primary/60" /><p>{i18nText('app.article.canvas.ai.previewHint')}</p></div>}
             {busy && <div role="status" className="absolute right-3 bottom-3 flex items-center gap-2 rounded-lg border border-border bg-bg-container px-3 py-2 shadow-sm"><Loader2Icon className="size-4 animate-spin text-primary" />{i18nText('app.article.canvas.ai.generating')}</div>}
           </div>
