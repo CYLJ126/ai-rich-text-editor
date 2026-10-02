@@ -23,10 +23,15 @@ import java.util.concurrent.*;
  * 1. businessThreadPool：业务线程池，建议使用形如{@link CompletableFuture#runAsync(Runnable, Executor)}的方式调用；
  * 2. fixedThreadPool：固定线程池，用在长时间任务处理的地方，如异步下载等，一般不需要返回 Future；注意，每次增加调用时，需要重新衡量线程池大小；
  *
+ * @deprecated 新代码通过 com.arte.base.spi.execution.TaskExecutor 显式传递 ExecutionContext，
+ * 使用 BoundedTaskExecutor 的有界调度、期限及合作式停止。此类保留旧全局线程池、MDC 和 UserContext 行为；
+ * 原有引用不自动迁移，新旧执行语义不能直接互换。
+ *
  * @author zhangsc
  * @since 2025/1/2 17:06
  */
 @Service
+@Deprecated
 public class ThreadPoolUtil implements EnvironmentAware, InitializingBean {
 
     private static final ThreadFactory BUSINESS_TREAD_FACTORY = new ThreadFactoryBuilder().setNamePrefix("business-pool-").build();
