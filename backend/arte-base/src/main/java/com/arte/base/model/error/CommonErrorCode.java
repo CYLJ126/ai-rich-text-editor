@@ -6,6 +6,7 @@ package com.arte.base.model.error;
 public enum CommonErrorCode implements ErrorCode {
     INVALID_ARGUMENT("arte.common.invalid_argument"),
     UNAUTHORIZED("arte.common.unauthorized"),
+    POLICY_UNAVAILABLE("arte.common.policy_unavailable"),
     NOT_FOUND("arte.common.not_found"),
     UNSUPPORTED("arte.common.unsupported"),
     RANGE_INVALID("arte.common.range_invalid"),
