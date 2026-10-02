@@ -1,673 +1,730 @@
 -- 最小聊天：先部署 arte-ai-new-model-ddl-mysql.sql，再执行本脚本。
 -- 不修改旧 AI 表、不迁移历史、不创建账号、权限或默认会话。
--- 此幂等前置块只为新 execution 表添加作用域复合候选键，供聊天关联的外键使用。
-SET
-@arte_chat_scope_index_sql = IF(
-    EXISTS (
-        SELECT 1 FROM information_schema.statistics
-        WHERE table_schema = DATABASE()
-          AND table_name = 'arte_ai_new_execution'
-          AND index_name = 'uq_ai_new_execution_scope'
+-- 新建执行表的复合唯一键已在模型 DDL 中声明；以下仅兼容此前已建、尚缺该键的执行表。
+-- create table if not exists 不会修改现存表，因此升级兼容仍需条件 alter table。
+set
+@arte_chat_scope_index_sql = if(
+    exists (
+        select 1
+        from information_schema.statistics
+        where table_schema = database()
+          and table_name = 'arte_ai_new_execution'
+          and index_name = 'uq_ai_new_execution_scope'
     ),
-    'SELECT 1',
-    'ALTER TABLE arte_ai_new_execution ADD UNIQUE KEY uq_ai_new_execution_scope (execution_id, scope_key)'
+    'select 1',
+    'alter table arte_ai_new_execution add constraint uq_ai_new_execution_scope unique (execution_id, scope_key)'
 );
-PREPARE arte_chat_scope_index_statement FROM @arte_chat_scope_index_sql;
-EXECUTE arte_chat_scope_index_statement;
-DEALLOCATE PREPARE arte_chat_scope_index_statement;
+prepare arte_chat_scope_index_statement from @arte_chat_scope_index_sql;
+execute arte_chat_scope_index_statement;
+deallocate prepare arte_chat_scope_index_statement;
 
 -- CHAT_TABLES_BEGIN：以下表结构也是 H2 约束测试读取的生产定义。
-CREATE TABLE IF NOT EXISTS arte_ai_new_conversation
+create table if not exists arte_ai_new_conversation
 (
     conversation_id
-    VARCHAR
+    varchar
 (
     64
-) NOT NULL PRIMARY KEY,
-    scope_key CHAR
+) not null comment '会话业务 ID',
+    scope_key char
 (
     64
-) NOT NULL,
-    tenant_id VARCHAR
+) not null comment '租户、工作空间及主体的作用域规范摘要',
+    tenant_id varchar
 (
     128
-) NOT NULL,
-    workspace_id VARCHAR
+) not null comment '租户 ID',
+    workspace_id varchar
 (
     128
-) NOT NULL,
-    principal_type VARCHAR
+) not null comment '工作空间 ID',
+    principal_type varchar
 (
     16
-) NOT NULL,
-    principal_id VARCHAR
+) not null comment '归属主体类型：USER 或 SERVICE',
+    principal_id varchar
 (
     128
-) NOT NULL,
-    title VARCHAR
+) not null comment '归属主体 ID',
+    title varchar
 (
     256
-) NOT NULL,
-    model_binding_type VARCHAR
+) not null comment '会话标题',
+    model_binding_type varchar
 (
     32
-) NOT NULL,
-    model_binding_id VARCHAR
+) not null comment '模型绑定引用类型，固定为 ai-binding',
+    model_binding_id varchar
 (
     128
-) NOT NULL,
-    model_binding_version VARCHAR
+) not null comment '模型绑定业务 ID',
+    model_binding_version varchar
 (
     64
-) NOT NULL,
-    status VARCHAR
+) not null comment '固定模型绑定版本，不使用 latest',
+    status varchar
 (
     16
-) NOT NULL,
-    row_version BIGINT NOT NULL,
-    resource_refs_json JSON NOT NULL,
-    created_at TIMESTAMP
+) not null comment '会话状态：ACTIVE 或 DELETED',
+    row_version bigint not null comment '乐观锁版本，从 1 开始',
+    resource_refs_json json not null comment '关联资源引用列表 JSON，关联不授予访问权限',
+    created_at timestamp
 (
     6
-) NOT NULL,
-    updated_at TIMESTAMP
+) not null comment '创建时间',
+    updated_at timestamp
 (
     6
-) NOT NULL,
-    deleted_at TIMESTAMP
+) not null comment '更新时间，由应用显式更新',
+    deleted_at timestamp
 (
     6
+) null comment '软删除时间，活跃会话为空',
+    primary key
+(
+    conversation_id
 ),
-    CONSTRAINT uq_ai_new_conversation_scope UNIQUE
+    constraint uq_ai_new_conversation_scope
+    unique
 (
     conversation_id,
     scope_key
 ),
-    CONSTRAINT ck_ai_new_conversation_owner CHECK
+    constraint ck_ai_new_conversation_owner
+    check
 (
     principal_type
-    IN
+    in
 (
     'USER',
     'SERVICE'
 )),
-    CONSTRAINT ck_ai_new_conversation_title CHECK
+    constraint ck_ai_new_conversation_title
+    check
 (
-    CHAR_LENGTH (
-    TRIM
+    char_length (
+    trim
 (
     title
 )) > 0),
-    CONSTRAINT ck_ai_new_conversation_binding CHECK
+    constraint ck_ai_new_conversation_binding
+    check
 (
     model_binding_type =
     'ai-binding'
-    AND
+    and
     model_binding_version
     <>
     'latest'
 ),
-    CONSTRAINT ck_ai_new_conversation_version CHECK
+    constraint ck_ai_new_conversation_version
+    check
 (
     row_version >
     0
 ),
-    CONSTRAINT ck_ai_new_conversation_times CHECK
+    constraint ck_ai_new_conversation_times
+    check
 (
     updated_at
     >=
     created_at
 ),
-    CONSTRAINT ck_ai_new_conversation_status CHECK
+    constraint ck_ai_new_conversation_status
+    check
 (
 (
     status =
     'ACTIVE'
-    AND
+    and
     deleted_at
-    IS
-    NULL
+    is
+    null
 )
-    OR
+    or
 (
     status =
     'DELETED'
-    AND
+    and
     deleted_at
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     deleted_at
     >=
     created_at
-    AND
+    and
     deleted_at
     <=
     updated_at
 )
     ),
-    INDEX ix_ai_new_conversation_list
+    index ix_ai_new_conversation_list
 (
     scope_key,
     status,
     updated_at,
     conversation_id
 )
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE =utf8mb4_bin COMMENT='新 AI 聊天会话：记录归属作用域、标题、固定模型绑定、会话版本和软删除状态';
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate =utf8mb4_bin
+    comment '新 AI 聊天会话表：归属、模型绑定、会话版本及软删除';
 
-CREATE TABLE IF NOT EXISTS arte_ai_new_context_snapshot
+create table if not exists arte_ai_new_context_snapshot
 (
     snapshot_id
-    VARCHAR
+    varchar
 (
     64
-) NOT NULL PRIMARY KEY,
-    conversation_id VARCHAR
+) not null comment '上下文快照业务 ID',
+    conversation_id varchar
 (
     64
-) NOT NULL,
-    scope_key CHAR
+) not null comment '会话业务 ID',
+    scope_key char
 (
     64
-) NOT NULL,
-    conversation_version BIGINT NOT NULL,
-    model_binding_type VARCHAR
+) not null comment '租户、工作空间及主体的作用域规范摘要',
+    conversation_version bigint not null comment '准备上下文所依据的会话版本',
+    model_binding_type varchar
 (
     32
-) NOT NULL,
-    model_binding_id VARCHAR
+) not null comment '模型绑定引用类型，固定为 ai-binding',
+    model_binding_id varchar
 (
     128
-) NOT NULL,
-    model_binding_version VARCHAR
+) not null comment '模型绑定业务 ID',
+    model_binding_version varchar
 (
     64
-) NOT NULL,
-    payload_format VARCHAR
+) not null comment '固定模型绑定版本，不使用 latest',
+    payload_format varchar
 (
     32
-) NOT NULL,
-    messages_json JSON NOT NULL,
-    fragments_json JSON NOT NULL,
-    history_refs_json JSON NOT NULL,
-    input_byte_limit INT NOT NULL,
-    used_input_bytes INT NOT NULL,
-    output_token_reserve INT NOT NULL,
-    content_digest CHAR
+) not null comment '持久化格式版本，固定为 arte.chat.context.v1',
+    messages_json json not null comment '实际组装的模型输入消息列表 JSON',
+    fragments_json json not null comment '实际来源片段、引用标识及裁剪说明 JSON',
+    history_refs_json json not null comment '选入的历史提交版本及执行引用列表 JSON',
+    input_byte_limit int not null comment '消息文本 UTF-8 字节上限',
+    used_input_bytes int not null comment '实际使用的消息文本 UTF-8 字节数',
+    output_token_reserve int not null comment '为模型输出预留的 token 数',
+    content_digest char
 (
     71
-) NOT NULL,
-    created_at TIMESTAMP
+) not null comment '规范上下文 SHA-256 摘要，含 sha256: 前缀',
+    created_at timestamp
 (
     6
-) NOT NULL,
-    expires_at TIMESTAMP
+) not null comment '创建时间',
+    expires_at timestamp
 (
     6
-) NOT NULL,
-    CONSTRAINT uq_ai_new_snapshot_placement UNIQUE
+) not null comment '逻辑过期时间，不自动删除数据',
+    primary key
+(
+    snapshot_id
+),
+    constraint uq_ai_new_snapshot_placement
+    unique
 (
     snapshot_id,
     conversation_id,
     scope_key,
     conversation_version
 ),
-    CONSTRAINT fk_ai_new_snapshot_conversation FOREIGN KEY
+    constraint fk_ai_new_snapshot_conversation
+    foreign key
 (
     conversation_id,
     scope_key
 )
-    REFERENCES arte_ai_new_conversation
+    references arte_ai_new_conversation
 (
     conversation_id,
     scope_key
 ),
-    CONSTRAINT ck_ai_new_snapshot_version CHECK
+    constraint ck_ai_new_snapshot_version
+    check
 (
     conversation_version >
     0
 ),
-    CONSTRAINT ck_ai_new_snapshot_binding CHECK
+    constraint ck_ai_new_snapshot_binding
+    check
 (
     model_binding_type =
     'ai-binding'
-    AND
+    and
     model_binding_version
     <>
     'latest'
 ),
-    CONSTRAINT ck_ai_new_snapshot_format CHECK
+    constraint ck_ai_new_snapshot_format
+    check
 (
     payload_format =
     'arte.chat.context.v1'
 ),
-    CONSTRAINT ck_ai_new_snapshot_budget CHECK
+    constraint ck_ai_new_snapshot_budget
+    check
 (
     input_byte_limit >
     0
-    AND
+    and
     used_input_bytes
     >=
     0
-    AND
+    and
     used_input_bytes
     <=
     input_byte_limit
-    AND
+    and
     output_token_reserve >
     0
 ),
-    CONSTRAINT ck_ai_new_snapshot_expiry CHECK
+    constraint ck_ai_new_snapshot_expiry
+    check
 (
     expires_at >
     created_at
 ),
-    CONSTRAINT ck_ai_new_snapshot_digest CHECK
+    constraint ck_ai_new_snapshot_digest
+    check
 (
-    CHAR_LENGTH
+    char_length
 (
     content_digest
-) = 71 AND SUBSTRING
+) = 71 and substring
 (
     content_digest,
     1,
     7
 ) = 'sha256:'),
-    INDEX ix_ai_new_snapshot_expiry
+    index ix_ai_new_snapshot_expiry
 (
     expires_at,
     snapshot_id
 )
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE =utf8mb4_bin COMMENT='新 AI 聊天上下文快照：固定实际消息、来源片段、历史引用、容量预算、内容摘要和有效期';
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate =utf8mb4_bin
+    comment '新 AI 聊天上下文快照表：实际输入、来源、历史选择及容量事实';
 
-CREATE TABLE IF NOT EXISTS arte_ai_new_turn
+create table if not exists arte_ai_new_turn
 (
     turn_id
-    VARCHAR
+    varchar
 (
     64
-) NOT NULL PRIMARY KEY,
-    conversation_id VARCHAR
+) not null comment '聊天提交业务 ID',
+    conversation_id varchar
 (
     64
-) NOT NULL,
-    scope_key CHAR
+) not null comment '会话业务 ID',
+    scope_key char
 (
     64
-) NOT NULL,
-    sequence_no BIGINT NOT NULL,
-    conversation_version BIGINT NOT NULL,
-    row_version BIGINT NOT NULL,
-    kind VARCHAR
+) not null comment '租户、工作空间及主体的作用域规范摘要',
+    sequence_no bigint not null comment '会话内提交顺序，从 1 开始，重新生成也独立计序',
+    conversation_version bigint not null comment '准备上下文所依据的会话版本',
+    row_version bigint not null comment '乐观锁版本，从 1 开始',
+    kind varchar
 (
     16
-) NOT NULL,
-    status VARCHAR
+) not null comment '提交种类：MESSAGE 或 REGENERATION',
+    status varchar
 (
     16
-) NOT NULL,
-    payload_format VARCHAR
+) not null comment '提交状态：PREPARING、READY、ACCEPTED 或 REJECTED',
+    payload_format varchar
 (
     32
-) NOT NULL,
-    input_json JSON NOT NULL,
-    model_options_json JSON NOT NULL,
-    regenerates_turn_id VARCHAR
+) not null comment '持久化格式版本，固定为 arte.chat.turn.v1',
+    input_json json not null comment '本次用户文本消息列表 JSON，不包含服务端历史',
+    model_options_json json not null comment '类型化模型生成参数 JSON',
+    regenerates_turn_id varchar
 (
     64
-),
-    context_snapshot_id VARCHAR
+) null comment '重新生成所关联的原提交 ID，普通提交为空',
+    context_snapshot_id varchar
 (
     64
-),
-    execution_id CHAR
+) null comment '已准备的上下文快照 ID',
+    execution_id char
 (
     36
-),
-    idempotency_operation VARCHAR
+) null comment '已可靠关联的模型执行 UUID，受理前为空',
+    idempotency_operation varchar
 (
     64
-) NOT NULL,
-    idempotency_key VARCHAR
+) not null comment '幂等操作：chat.turn.submit 或 chat.turn.regenerate',
+    idempotency_key varchar
 (
     128
-) NOT NULL,
-    request_digest CHAR
+) not null comment '调用方幂等键，与作用域及操作共同去重',
+    request_digest char
 (
     71
-) NOT NULL,
-    rejection_code VARCHAR
+) not null comment '规范请求 SHA-256 摘要，含 sha256: 前缀',
+    rejection_code varchar
 (
     128
-),
-    rejection_stage VARCHAR
+) null comment '已确认未受理的稳定错误代码',
+    rejection_stage varchar
 (
     64
-),
-    rejection_retryable BOOLEAN,
-    rejection_side_effect_status VARCHAR
+) null comment '受理前失败阶段',
+    rejection_retryable boolean null comment '受理前失败是否可能允许重试',
+    rejection_side_effect_status varchar
 (
     16
-),
-    rejection_result_certainty VARCHAR
+) null comment '拒绝提交的副作用状态，必须为 NONE',
+    rejection_result_certainty varchar
 (
     16
-),
-    rejection_correlation_id VARCHAR
+) null comment '拒绝提交的结果确定性，必须为 CONFIRMED',
+    rejection_correlation_id varchar
 (
     128
-),
-    created_at TIMESTAMP
+) null comment '受理前错误关联 ID',
+    created_at timestamp
 (
     6
-) NOT NULL,
-    updated_at TIMESTAMP
+) not null comment '创建时间',
+    updated_at timestamp
 (
     6
-) NOT NULL,
-    slot_released_at TIMESTAMP
+) not null comment '更新时间，由应用显式更新',
+    slot_released_at timestamp
 (
     6
-),
-    -- NULL 不参与唯一冲突；已释放的历史记录不阻塞后续提交。
-    active_conversation_id VARCHAR
+) null comment '会话串行提交占位的释放时间，未释放时为空',
+    active_conversation_id varchar
 (
     64
-) GENERATED ALWAYS AS
+) generated always as
 (
-    CASE
-    WHEN
+    case
+    when
     slot_released_at
-    IS
-    NULL
-    THEN
+    is
+    null
+    then
     conversation_id
-    ELSE
-    NULL
-    END
-) STORED,
-    CONSTRAINT uq_ai_new_turn_scope UNIQUE
+    else
+    null
+    end
+) stored comment '未释放时为会话 ID，释放后为空，用于约束单个活跃提交',
+    primary key
+(
+    turn_id
+),
+    constraint uq_ai_new_turn_scope
+    unique
 (
     turn_id,
     conversation_id,
     scope_key
 ),
-    CONSTRAINT uq_ai_new_turn_sequence UNIQUE
+    constraint uq_ai_new_turn_sequence
+    unique
 (
     conversation_id,
     sequence_no
 ),
-    CONSTRAINT uq_ai_new_turn_idempotency UNIQUE
+    constraint uq_ai_new_turn_idempotency
+    unique
 (
     scope_key,
     idempotency_operation,
     idempotency_key
 ),
-    CONSTRAINT uq_ai_new_turn_execution UNIQUE
+    constraint uq_ai_new_turn_execution
+    unique
 (
     execution_id
 ),
-    CONSTRAINT uq_ai_new_turn_active UNIQUE
+    constraint uq_ai_new_turn_active
+    unique
 (
     scope_key,
     active_conversation_id
 ),
-    CONSTRAINT fk_ai_new_turn_conversation FOREIGN KEY
+    constraint fk_ai_new_turn_conversation
+    foreign key
 (
     conversation_id,
     scope_key
 )
-    REFERENCES arte_ai_new_conversation
+    references arte_ai_new_conversation
 (
     conversation_id,
     scope_key
 ),
-    CONSTRAINT fk_ai_new_turn_snapshot FOREIGN KEY
+    constraint fk_ai_new_turn_snapshot
+    foreign key
 (
     context_snapshot_id,
     conversation_id,
     scope_key,
     conversation_version
 )
-    REFERENCES arte_ai_new_context_snapshot
+    references arte_ai_new_context_snapshot
 (
     snapshot_id,
     conversation_id,
     scope_key,
     conversation_version
 ),
-    CONSTRAINT fk_ai_new_turn_execution FOREIGN KEY
+    constraint fk_ai_new_turn_execution
+    foreign key
 (
     execution_id,
     scope_key
 )
-    REFERENCES arte_ai_new_execution
+    references arte_ai_new_execution
 (
     execution_id,
     scope_key
 ),
-    CONSTRAINT fk_ai_new_turn_regeneration FOREIGN KEY
+    constraint fk_ai_new_turn_regeneration
+    foreign key
 (
     regenerates_turn_id,
     conversation_id,
     scope_key
 )
-    REFERENCES arte_ai_new_turn
+    references arte_ai_new_turn
 (
     turn_id,
     conversation_id,
     scope_key
 ),
-    CONSTRAINT ck_ai_new_turn_versions CHECK
+    constraint ck_ai_new_turn_versions
+    check
 (
     sequence_no >
     0
-    AND
+    and
     conversation_version >
     0
-    AND
+    and
     row_version >
     0
 ),
-    CONSTRAINT ck_ai_new_turn_format CHECK
+    constraint ck_ai_new_turn_format
+    check
 (
     payload_format =
     'arte.chat.turn.v1'
 ),
-    CONSTRAINT ck_ai_new_turn_kind CHECK
+    constraint ck_ai_new_turn_kind
+    check
 (
 (
     kind =
     'MESSAGE'
-    AND
+    and
     regenerates_turn_id
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     idempotency_operation =
     'chat.turn.submit'
 )
-    OR
+    or
 (
     kind =
     'REGENERATION'
-    AND
+    and
     regenerates_turn_id
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     regenerates_turn_id
     <>
     turn_id
-    AND
+    and
     idempotency_operation =
     'chat.turn.regenerate'
 )
     ),
-    CONSTRAINT ck_ai_new_turn_digest CHECK
+    constraint ck_ai_new_turn_digest
+    check
 (
-    CHAR_LENGTH
+    char_length
 (
     request_digest
-) = 71 AND SUBSTRING
+) = 71 and substring
 (
     request_digest,
     1,
     7
 ) = 'sha256:'),
-    CONSTRAINT ck_ai_new_turn_times CHECK
+    constraint ck_ai_new_turn_times
+    check
 (
     updated_at
     >=
     created_at
-    AND (
+    and (
     slot_released_at
-    IS
-    NULL
-    OR
+    is
+    null
+    or
 (
     slot_released_at
     >=
     created_at
-    AND
+    and
     slot_released_at
     <=
     updated_at
-))),
-    CONSTRAINT ck_ai_new_turn_status CHECK
+))
+    ),
+    constraint ck_ai_new_turn_status
+    check
 (
 (
     status =
     'PREPARING'
-    AND
+    and
     context_snapshot_id
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     execution_id
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     slot_released_at
-    IS
-    NULL
+    is
+    null
 )
-    OR
+    or
 (
     status =
     'READY'
-    AND
+    and
     context_snapshot_id
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     execution_id
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     slot_released_at
-    IS
-    NULL
+    is
+    null
 )
-    OR
+    or
 (
     status =
     'ACCEPTED'
-    AND
+    and
     context_snapshot_id
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     execution_id
-    IS
-    NOT
-    NULL
+    is
+    not
+    null
 )
-    OR
+    or
 (
     status =
     'REJECTED'
-    AND
+    and
     execution_id
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     slot_released_at
-    IS
-    NOT
-    NULL
+    is
+    not
+    null
 )
     ),
-    CONSTRAINT ck_ai_new_turn_rejection CHECK
+    constraint ck_ai_new_turn_rejection
+    check
 (
 (
     status =
     'REJECTED'
-    AND
+    and
     rejection_code
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     rejection_stage
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     rejection_retryable
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     rejection_side_effect_status
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     rejection_side_effect_status =
     'NONE'
-    AND
+    and
     rejection_result_certainty
-    IS
-    NOT
-    NULL
-    AND
+    is
+    not
+    null
+    and
     rejection_result_certainty =
     'CONFIRMED'
 )
-    OR
+    or
 (
     status
     <>
     'REJECTED'
-    AND
+    and
     rejection_code
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     rejection_stage
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     rejection_retryable
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     rejection_side_effect_status
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     rejection_result_certainty
-    IS
-    NULL
-    AND
+    is
+    null
+    and
     rejection_correlation_id
-    IS
-    NULL
+    is
+    null
 )
     )
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE =utf8mb4_bin COMMENT='新 AI 聊天轮次提交：记录用户输入、幂等身份、重新生成关联、上下文与执行关联及串行占位';
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate =utf8mb4_bin
+    comment '新 AI 聊天轮次提交表：输入、幂等、重新生成、执行关联及串行占位';

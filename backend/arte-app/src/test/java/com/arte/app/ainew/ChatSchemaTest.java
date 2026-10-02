@@ -1,5 +1,6 @@
 package com.arte.app.ainew;
 
+import com.arte.app.testsupport.MySqlTestScripts;
 import com.arte.base.model.identity.ExecutionScope;
 import com.arte.base.model.identity.PrincipalRef;
 import com.arte.base.model.identity.PrincipalType;
@@ -7,12 +8,10 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -38,16 +37,14 @@ class ChatSchemaTest {
         jdbc = new JdbcTemplate(datasource);
         String modelSql = Files.readString(Path.of("scripts", "arte-ai-new-model-ddl-mysql.sql"));
         String chatSql = Files.readString(Path.of("scripts", "arte-ai-new-chat-ddl-mysql.sql"));
-        // Replace only the MySQL-specific index migration and storage declarations.
-        // The generated expression, keys, CHECK constraints and FKs are read from the actual script.
-        chatSql = chatSql.substring(chatSql.indexOf("-- CHAT_TABLES_BEGIN"))
-                .replace(") STORED,", "),");
+        // Skip the MySQL upgrade block; new tables already declare the execution scope key.
+        // The generated expression, keys, CHECK constraints and FKs are read from the actual scripts.
+        chatSql = chatSql.substring(chatSql.indexOf("-- CHAT_TABLES_BEGIN"));
         // H2 2.4 caches the defining session in constant IN expressions in CHECKs.
         // Keep that session open while exercising constraints through independent JDBC connections.
         schemaConnection = datasource.getConnection();
-        ScriptUtils.executeSqlScript(schemaConnection, resource(modelSql));
-        jdbc.execute("ALTER TABLE arte_ai_new_execution ADD CONSTRAINT uq_ai_new_execution_scope UNIQUE(execution_id, scope_key)");
-        ScriptUtils.executeSqlScript(schemaConnection, resource(chatSql));
+        ScriptUtils.executeSqlScript(schemaConnection, MySqlTestScripts.h2Resource(modelSql));
+        ScriptUtils.executeSqlScript(schemaConnection, MySqlTestScripts.h2Resource(chatSql));
         conversation("conversation", SCOPE, "user");
         conversation("second", SCOPE, "user");
         conversation("other", OTHER_SCOPE, "other");
@@ -148,11 +145,6 @@ class ChatSchemaTest {
         denied(() -> jdbc.update("UPDATE arte_ai_new_conversation SET status='DELETED' WHERE conversation_id='conversation'"));
         jdbc.update("UPDATE arte_ai_new_conversation SET status='DELETED',deleted_at=updated_at,row_version=row_version+1 WHERE conversation_id='conversation'");
         assertEquals(0, jdbc.update("UPDATE arte_ai_new_conversation SET title='late' WHERE conversation_id='conversation' AND status='ACTIVE'"));
-    }
-
-    private static ByteArrayResource resource(String sql) {
-        String h2 = sql.replaceAll("(?i)\\s+ENGINE\\s*=\\s*InnoDB\\s+DEFAULT\\s+CHARSET\\s*=\\s*utf8mb4\\s+COLLATE\\s*=\\s*utf8mb4_bin", "");
-        return new ByteArrayResource(h2.getBytes(StandardCharsets.UTF_8));
     }
 
     private void conversation(String id, String scope, String principal) {

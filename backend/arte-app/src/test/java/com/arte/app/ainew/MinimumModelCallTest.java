@@ -1,43 +1,71 @@
 package com.arte.app.ainew;
 
-import com.arte.ai.api.control.*;
-import com.arte.ai.api.execution.*;
+import com.arte.ai.api.control.BindingManager;
+import com.arte.ai.api.control.CapabilityCatalog;
+import com.arte.ai.api.control.ConnectionManager;
+import com.arte.ai.api.execution.BudgetService;
+import com.arte.ai.api.execution.InvocationCoordinator;
 import com.arte.ai.execution.ModelBindingResolver;
 import com.arte.ai.gateway.DefaultModelGateway;
-import com.arte.ai.model.budget.*;
-import com.arte.ai.model.capability.*;
-import com.arte.ai.model.definition.*;
+import com.arte.ai.model.budget.BudgetQuote;
+import com.arte.ai.model.budget.BudgetStatus;
+import com.arte.ai.model.budget.Usage;
+import com.arte.ai.model.capability.CapabilityDescriptor;
+import com.arte.ai.model.capability.CapabilityKind;
+import com.arte.ai.model.capability.SideEffectKind;
+import com.arte.ai.model.definition.CapabilityDefinition;
+import com.arte.ai.model.definition.ConnectionDefinition;
+import com.arte.ai.model.definition.DefinitionRef;
+import com.arte.ai.model.definition.DefinitionStatus;
 import com.arte.ai.model.execution.*;
-import com.arte.ai.model.generation.*;
-import com.arte.ai.model.message.*;
+import com.arte.ai.model.generation.GenerationRequest;
+import com.arte.ai.model.generation.ModelOptions;
+import com.arte.ai.model.generation.ModelResult;
+import com.arte.ai.model.message.Message;
+import com.arte.ai.model.message.MessageRole;
+import com.arte.ai.model.message.TextPart;
 import com.arte.ai.spi.adapter.ConnectionRuntime;
+import com.arte.app.execution.support.JdbcAuditSink;
+import com.arte.app.testsupport.MySqlTestScripts;
 import com.arte.base.admission.LocalAdmissionController;
 import com.arte.base.api.security.EgressPolicy;
 import com.arte.base.exception.BaseException;
 import com.arte.base.execution.BoundedTaskExecutor;
-import com.arte.base.model.admission.*;
+import com.arte.base.model.admission.AdmissionKey;
+import com.arte.base.model.admission.AdmissionLimits;
 import com.arte.base.model.execution.*;
-import com.arte.base.model.identity.*;
-import com.arte.base.model.security.*;
+import com.arte.base.model.identity.ExecutionScope;
+import com.arte.base.model.identity.PrincipalRef;
+import com.arte.base.model.identity.PrincipalType;
+import com.arte.base.model.security.EgressDecision;
+import com.arte.base.model.security.PolicyDecision;
+import com.arte.base.model.security.SecretRef;
 import com.arte.base.spi.observability.AuditSink;
-import com.arte.app.execution.support.JdbcAuditSink;
 import com.sun.net.httpserver.HttpServer;
 import org.h2.jdbcx.JdbcDataSource;
-import org.junit.jupiter.api.*;
-import org.springframework.core.io.ByteArrayResource;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.net.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.math.BigDecimal;
-import java.time.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,9 +92,9 @@ class MinimumModelCallTest {
         jdbc = new JdbcTemplate(datasource);
         manager = new DataSourceTransactionManager(datasource);
         for (String file : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-execution-support-ddl-mysql.sql")) {
-            String sql = Files.readString(Path.of("scripts", file)).replace(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin", "");
+            String sql = Files.readString(Path.of("scripts", file));
             try (var connection = datasource.getConnection()) {
-                ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
+                ScriptUtils.executeSqlScript(connection, MySqlTestScripts.h2Resource(sql));
             }
         }
         jdbc.update("INSERT INTO arte_ai_new_budget(scope_key,amount_limit,currency,enabled) VALUES (?,10,'USD',TRUE)", ModelKeys.scope(scope));

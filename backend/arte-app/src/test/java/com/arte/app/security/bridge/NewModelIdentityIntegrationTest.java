@@ -23,6 +23,7 @@ import com.arte.ai.model.message.MessageRole;
 import com.arte.ai.model.message.TextPart;
 import com.arte.app.ainew.*;
 import com.arte.app.execution.support.JdbcAuditSink;
+import com.arte.app.testsupport.MySqlTestScripts;
 import com.arte.base.admission.LocalAdmissionController;
 import com.arte.base.exception.BaseException;
 import com.arte.base.execution.BoundedTaskExecutor;
@@ -32,7 +33,6 @@ import com.arte.base.model.identity.ExecutionScope;
 import com.arte.base.model.security.CommonResourceAction;
 import com.arte.base.model.security.SecretRef;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.security.access.AccessDeniedException;
@@ -56,9 +56,9 @@ class NewModelIdentityIntegrationTest extends SecurityBridgeFixture {
     @Test
     void modelEntryUsesRealAccountTaskApplicationAndExactConsentThenRevocationBlocksQueries() throws Exception {
         for (String file : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-execution-support-ddl-mysql.sql")) {
-            String sql = Files.readString(Path.of("scripts", file)).replace(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin", "");
+            String sql = Files.readString(Path.of("scripts", file));
             try (var connection = datasource.getConnection()) {
-                ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
+                ScriptUtils.executeSqlScript(connection, MySqlTestScripts.h2Resource(sql));
             }
         }
         policy(CommonResourceAction.AI_PROCESS.code());

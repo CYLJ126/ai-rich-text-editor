@@ -76,8 +76,9 @@ ContextService 只选取经过授权的用户消息和历史，检查历史执�
 ## 建表与验证
 
 SQL 位于 [arte-ai-new-chat-ddl-mysql.sql](../arte-app/scripts/arte-ai-new-chat-ddl-mysql.sql)。先部署已有新模型表，再执行聊天脚本。
-脚本仅创建上述三张新表，并为 `arte_ai_new_execution` 补充 `(execution_id, scope_key)` 复合唯一键以建立外键；不改旧 AI
-表，不自动建会话或填入历史数据。 要求支持 CHECK 约束的 MySQL 8.0.16 或更高版本。软删除保留引用链，不配置级联删除。
+新建 `arte_ai_new_execution` 时，`(execution_id, scope_key)` 复合唯一键在模型 DDL 的表声明内创建；聊天脚本的条件升级块仅为此前已建且缺少该键的执行表补键。
+聊天脚本创建上述三张新表，不改旧 AI 表，不自动建会话或填入历史数据。要求支持 CHECK 约束的 MySQL 8.0.16
+或更高版本。软删除保留引用链，不配置级联删除。
 
 `ChatContractsTest` 验证不可变性、提交状态、重新生成、受理不确定性和上下文边界。
 `ChatSchemaTest` 读取实际脚本，在 H2 MySQL 模式下验证唯一键、复合外键、状态约束、占位释放及会话条件更新。 H2 测试替换 MySQL

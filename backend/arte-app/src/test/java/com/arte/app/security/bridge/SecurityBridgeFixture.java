@@ -2,6 +2,7 @@ package com.arte.app.security.bridge;
 
 import com.arte.app.api.rbac.TokenService;
 import com.arte.app.pojo.rbac.JwtUserDto;
+import com.arte.app.testsupport.MySqlTestScripts;
 import com.arte.base.model.execution.ExecutionContext;
 import com.arte.base.model.identity.PrincipalRef;
 import com.arte.base.model.identity.PrincipalType;
@@ -19,7 +20,6 @@ import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -62,10 +62,9 @@ abstract class SecurityBridgeFixture {
         datasource = new JdbcDataSource();
         datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
         jdbc = new JdbcTemplate(datasource);
-        String schema = Files.readString(Path.of("scripts/arte-security-bridge-ddl-mysql.sql"))
-                .replace(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin", "");
+        String schema = Files.readString(Path.of("scripts/arte-security-bridge-ddl-mysql.sql"));
         try (var connection = datasource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new ByteArrayResource(schema.getBytes(StandardCharsets.UTF_8)));
+            ScriptUtils.executeSqlScript(connection, MySqlTestScripts.h2Resource(schema));
         }
         jdbc.execute("CREATE TABLE arte_rbac_user(id INT PRIMARY KEY, user_name VARCHAR(64) UNIQUE, status CHAR, row_version INT)");
         jdbc.execute("CREATE TABLE arte_rbac_role(id INT PRIMARY KEY, role_code VARCHAR(64), status CHAR)");

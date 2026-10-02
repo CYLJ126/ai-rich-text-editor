@@ -32,8 +32,8 @@ class PersonalScopeBackfillIntegrationTest extends SecurityBridgeFixture {
     private void backfill() throws Exception {
         // H2 的无长度 CHAR 默认只有一位；测试中用 VARCHAR 对应 MySQL CAST(... AS CHAR) 的字符串语义。
         String sql = Files.readString(Path.of("scripts/arte-security-bridge-personal-backfill-mysql.sql"))
-                .replace("CAST(a.id AS CHAR)", "CAST(a.id AS VARCHAR)")
-                .replace("CAST(c.id AS CHAR)", "CAST(c.id AS VARCHAR)");
+                .replace("cast(a.id as char)", "cast(a.id as varchar)")
+                .replace("cast(c.id as char)", "cast(c.id as varchar)");
         try (var connection = datasource.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
         }

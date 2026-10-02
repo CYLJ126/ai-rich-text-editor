@@ -1,5 +1,6 @@
 package com.arte.app.execution.support;
 
+import com.arte.app.testsupport.MySqlTestScripts;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.artifact.Artifact;
 import com.arte.base.model.artifact.ArtifactStatus;
@@ -14,7 +15,6 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -47,10 +47,9 @@ class ExecutionSupportStorageTest {
         datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
         jdbc = new JdbcTemplate(datasource);
         manager = new DataSourceTransactionManager(datasource);
-        String sql = Files.readString(Path.of("scripts/arte-execution-support-ddl-mysql.sql"))
-                .replace(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin", "");
+        String sql = Files.readString(Path.of("scripts/arte-execution-support-ddl-mysql.sql"));
         try (var connection = datasource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
+            ScriptUtils.executeSqlScript(connection, MySqlTestScripts.h2Resource(sql));
         }
         directory = Files.createTempDirectory("arte-artifacts-");
         audit = new JdbcAuditSink(jdbc, manager, Clock.fixed(now.plusNanos(12345), ZoneOffset.UTC));
