@@ -116,6 +116,13 @@ public class JdbcSecurityRepository {
                 tenantId, workspaceId, applicationId, bindingId, action);
     }
 
+    /**
+     * 受控配置部署时生成与运行检查一致的连接键；引用本身不授予许可。
+     */
+    public static String connectionKey(ResourceRef connection) {
+        return SecurityFingerprints.resource(connection);
+    }
+
     public Optional<Connection> connection(ExecutionContext context, ResourceRef connection) {
         return one("SELECT origin, enabled, revision FROM arte_security_connection WHERE tenant_id = ? AND workspace_id = ? AND connection_key = ?",
                 (rs, row) -> new Connection(rs.getString("origin"), rs.getBoolean("enabled"), rs.getString("revision")),

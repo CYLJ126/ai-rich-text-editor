@@ -1,14 +1,15 @@
 package com.arte.ai.model.message;
 
+import com.arte.base.validation.ContractChecks;
 import java.util.List;
 
 /**
- * 类型化消息快照，不依赖供应商 SDK。
- *
- * <p>顶层契约声明；字段约束、校验、持久化映射及行为在详细设计阶段补充。
+ * 不依赖供应商 SDK 的不可变消息快照。
  */
-public record Message(
-        MessageRole role,
-        List<ContentPart> parts
-) {
+public record Message(MessageRole role, List<ContentPart> parts) {
+    public Message {
+        role = ContractChecks.required(role, "role");
+        parts = List.copyOf(ContractChecks.required(parts, "parts"));
+        if (parts.isEmpty()) throw new IllegalArgumentException("parts must not be empty");
+    }
 }

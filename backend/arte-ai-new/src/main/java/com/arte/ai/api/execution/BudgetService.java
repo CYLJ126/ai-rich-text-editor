@@ -1,13 +1,27 @@
 package com.arte.ai.api.execution;
 
+import com.arte.ai.model.budget.BudgetQuote;
+import com.arte.ai.model.budget.BudgetReservation;
+import com.arte.ai.spi.store.BudgetLedger;
+import com.arte.base.model.identity.ExecutionScope;
+import com.arte.base.validation.ContractChecks;
+
 /**
- * AI 预算与费用账本。
- *
- * <p>管理预算预留、结算、限额、用量和费用对账；原子账本与快速准入分开，未知费用保持待对账状态。
- *
- * <p>设计依据：ARTE 顶层需求及设计，顶层接口 §2.6。
- * 平台服务采用组合与委托，暂不引入实现继承。
- * 本轮声明职责与 Java 类型；操作签名及运行行为在后续详细设计中补充。
+ * 最小预算入口：固定单次上限预留，结算由存储与终态提交原子组合。未知用量保持待对账。
  */
 public class BudgetService {
+    private final BudgetQuote quote;
+    private final BudgetLedger ledger;
+
+    public BudgetService(BudgetQuote quote, BudgetLedger ledger) {
+        this.quote = ContractChecks.required(quote, "quote");
+        this.ledger = ContractChecks.required(ledger, "ledger");
+    }
+
+    public BudgetQuote quote() {
+        return quote;
+    }
+
+    public BudgetReservation find(ExecutionScope scope, String executionId) {
+        return ledger.reservation(scope, executionId); }
 }

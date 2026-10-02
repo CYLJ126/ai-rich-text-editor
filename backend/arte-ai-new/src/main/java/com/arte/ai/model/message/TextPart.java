@@ -1,11 +1,12 @@
 package com.arte.ai.model.message;
 
+import com.arte.base.validation.ContractChecks;
+
 /**
- * 文本内容部件；来源由上下文片段关联。
- *
- * <p>顶层契约声明；字段约束、校验、持久化映射及行为在详细设计阶段补充。
+ * 文本快照；允许空文本片段，整体请求由网关校验。
  */
-public record TextPart(
-        String text
-) implements ContentPart {
+public record TextPart(String text) implements ContentPart {
+    public TextPart {
+        text = ContractChecks.required(text, "text");
+    }
 }

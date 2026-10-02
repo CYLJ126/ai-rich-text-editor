@@ -15,6 +15,11 @@
         <!-- 新接入层依赖公共契约；旧 core／AI 引用保留。 -->
         <dependency>
             <groupId>com.arte</groupId>
+            <artifactId>arte-ai-new</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.arte</groupId>
             <artifactId>arte-base</artifactId>
             <version>${project.parent.version}</version>
         </dependency>

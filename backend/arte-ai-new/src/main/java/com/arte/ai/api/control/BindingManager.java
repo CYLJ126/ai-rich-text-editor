@@ -1,13 +1,23 @@
 package com.arte.ai.api.control;
 
+import com.arte.ai.model.definition.BindingDefinition;
+import com.arte.ai.model.definition.DefinitionRef;
+import com.arte.ai.spi.store.ModelDefinitionStore;
+import com.arte.base.model.identity.ExecutionScope;
+import com.arte.base.validation.ContractChecks;
+
+import java.util.Optional;
+
 /**
- * 能力使用绑定。
- *
- * <p>绑定、解绑、配置使用范围并解析可用操作；表示主体的使用配置，不替代资源授权。
- *
- * <p>设计依据：ARTE 顶层需求及设计，顶层接口 §2.4。
- * 平台服务采用组合与委托，暂不引入实现继承。
- * 本轮声明职责与 Java 类型；操作签名及运行行为在后续详细设计中补充。
+ * 发布配置查询入口；管理／发布命令后续按场景补充。
  */
 public class BindingManager {
+    private final ModelDefinitionStore store;
+
+    public BindingManager(ModelDefinitionStore store) {
+        this.store = ContractChecks.required(store, "store");
+    }
+
+    public Optional<BindingDefinition> find(ExecutionScope scope, DefinitionRef ref) {
+        return store.binding(scope, ref); }
 }

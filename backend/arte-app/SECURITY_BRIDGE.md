@@ -4,6 +4,8 @@
 `com.arte.app.security.bridge`，作为 app 组合层使用；base 和 ai-new 没有新增 Spring、core、文章或数据库依赖。
 旧认证过滤器、UserContext、PermissionValidator、控制器和旧 AI 的调用及引用不变。
 
+后续 [最小模型调用](../arte-ai-new/MINIMUM_MODEL_CALL.md) 已通过新入口组合账号、任务、应用策略、受控连接和明确外发同意；本说明中“本批”指身份接入阶段。
+
 ## 职责与操作
 
 | 类型                         | 职责                                                                                             |

@@ -1,13 +1,22 @@
 package com.arte.ai.api.control;
 
+import com.arte.ai.model.definition.CapabilityDefinition;
+import com.arte.ai.model.definition.DefinitionRef;
+import com.arte.ai.spi.store.ModelDefinitionStore;
+import com.arte.base.validation.ContractChecks;
+
+import java.util.Optional;
+
 /**
- * 能力契约目录。
- *
- * <p>声明、发现、校验和查询可版本化的能力及操作契约；能力发现与使用授权分离，未接入能力不得伪装为可用。
- *
- * <p>设计依据：ARTE 顶层需求及设计，顶层接口 §2.4。
- * 平台服务采用组合与委托，暂不引入实现继承。
- * 本轮声明职责与 Java 类型；操作签名及运行行为在后续详细设计中补充。
+ * 发布配置查询入口；管理／发布命令后续按场景补充。
  */
 public class CapabilityCatalog {
+    private final ModelDefinitionStore store;
+
+    public CapabilityCatalog(ModelDefinitionStore store) {
+        this.store = ContractChecks.required(store, "store");
+    }
+
+    public Optional<CapabilityDefinition> find(DefinitionRef ref) {
+        return store.capability(ref); }
 }

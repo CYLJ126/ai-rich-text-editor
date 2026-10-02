@@ -1,12 +1,29 @@
 package com.arte.ai.spi.store;
 
+import com.arte.ai.model.execution.*;
+import com.arte.ai.model.budget.BudgetQuote;
+import com.arte.ai.model.generation.ModelResult;
+import com.arte.base.model.execution.ExecutionError;
+import com.arte.base.model.identity.ExecutionScope;
+
+import java.util.Optional;
+
 /**
- * AI 调用与尝试存储。
- *
- * <p>保存 Invocation、Attempt，支持条件更新、关联工作项及结果查询；不接管公共 Job 调度状态或编排引擎的 Run 历史。
- *
- * <p>设计依据：ARTE 顶层需求及设计，顶层接口 §2.6。
- * 本轮声明职责与 Java 类型；操作签名及运行行为在后续详细设计中补充。
+ * 模型受理／尝试权威存储。受理与预算预留、终态与最终结果／事件／结算各须同事务提交。
  */
 public interface ExecutionStore {
+    record Acceptance(ModelExecution execution, boolean created) {
+    }
+
+    Acceptance accept(ModelSubmission submission, BudgetQuote quote);
+
+    Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key, String digest);
+
+    Optional<ModelExecution> find(ExecutionScope scope, String executionId);
+
+    boolean start(ExecutionScope scope, String executionId);
+
+    void markDispatched(ExecutionScope scope, String executionId);
+
+    void finish(ExecutionScope scope, String executionId, ExecutionStatus status, ModelResult result, ExecutionError error);
 }

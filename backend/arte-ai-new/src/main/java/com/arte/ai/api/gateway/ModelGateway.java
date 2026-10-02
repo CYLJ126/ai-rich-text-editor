@@ -1,12 +1,17 @@
 package com.arte.ai.api.gateway;
 
+import com.arte.ai.model.generation.GenerationRequest;
+import com.arte.ai.model.generation.ModelPlan;
+import com.arte.ai.model.generation.ModelResult;
+import com.arte.ai.model.generation.PreparedModelCall;
+
 /**
- * 文本与多模态模型生成。
- *
- * <p>处理类型化生成请求、生成事件和最终模型结果；保留工具请求及用量，工具请求由运行时经统一协调入口执行。
- *
- * <p>设计依据：ARTE 顶层需求及设计，顶层接口 §2.5。
- * 本轮声明职责与 Java 类型；操作签名及运行行为在后续详细设计中补充。
+ * 类型化生成网关；prepare 不发送网络请求，不执行模型提出的业务工具。
  */
 public interface ModelGateway {
+    PreparedModelCall prepare(ModelPlan plan, GenerationRequest request);
+
+    default ModelResult generate(PreparedModelCall prepared, com.arte.base.execution.ExecutionCheckpoint checkpoint) throws Exception {
+        return prepared.operation().invoke(checkpoint);
+    }
 }

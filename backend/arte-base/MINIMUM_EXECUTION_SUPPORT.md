@@ -14,9 +14,8 @@ base。数据库和文件适配位于 app 的新组合包，旧入口及引用�
 | 文件产物 | ArtifactStore、ArtifactUpload／Content、Artifact／Ref／Status                | app JdbcFileArtifactStore：数据库元数据、私有字节、大小／SHA-256 校验、隔离生命周期、条件更新和作用域隔离 |
 | 采样观测 | Telemetry、Span、有限标签键                                                  | 定义指标／追踪操作，提供显式 disabled 实现；本批未接入 Micrometer／OpenTelemetry                          |
 
-AI 的 Invocation／Attempt、BudgetService、ExecutionStore、ExecutionEventStore 和耐久受理尚未实现。 本批没有伪造
-AcceptedExecution，不声明 202、任务恢复、收费预算、可靠消息、Job 调度或事件重放已经完成。 这些权威记录属于后续最小 AI
-闭环；本地工作／事件工具不能充当权威业务状态库。
+本说明只描述公共支撑，不将本地工作／事件工具作为权威业务状态库。 后续 [最小模型调用](../arte-ai-new/MINIMUM_MODEL_CALL.md)
+已组合可靠受理、单次尝试、原子预算及终态／结果／耐久事件。 多实例执行归属、可靠消息、Job 调度与流式恢复仍需后续实现。
 
 ## 准入与异步执行
 
