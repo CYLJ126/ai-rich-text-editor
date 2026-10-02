@@ -14,6 +14,7 @@ import type {Conversation, Message, ModelConfig} from '@/types/ai.type';
 import {getI18nLocale, i18nText} from '@/utils/i18n';
 import {generateRandomUUID} from '@/utils/RandomUtil';
 import {cn} from '@/lib/utils';
+import {useThemeContext} from '@/contexts/ThemeContext';
 import type {CanvasType} from './canvas';
 import {buildCanvasPrompt, CANVAS_CONTEXT_MARKER, type CanvasAiMode, hasCanvasSource, parseCanvasResponse} from './canvas-ai';
 import {CanvasAiPreview} from './canvas-ai-preview';
@@ -54,6 +55,7 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
   onClose: () => void;
 }) {
   const {styles} = useStyles();
+  const {isDark} = useThemeContext();
   const {initialState} = useModel('@@initialState');
   const models = useModelsStore(state => state.models);
   const loadModels = useModelsStore(state => state.loadModels);
@@ -269,17 +271,17 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
   };
 
   return <Dialog open onOpenChange={value => { if (!value && !saving) onClose(); }} disablePointerDismissal>
-    <DialogContent className={cn(styles.workspace, '!z-[1100] !flex h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(72rem,calc(100vw-2rem))]')} overlayClassName="!z-[1099]" showCloseButton={!saving}>
-      <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12">
+    <DialogContent className={cn(styles.workspace, '!z-[1100] !flex h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100vw-1rem)] [&>[data-slot=dialog-close]]:top-2 [&>[data-slot=dialog-close]]:right-2')} overlayClassName="!z-[1099]" showCloseButton={!saving}>
+      <DialogHeader className="shrink-0 gap-1 border-b border-border px-3 py-2 pr-12">
         <DialogTitle className="flex items-center gap-2"><SparklesIcon className="size-5 text-primary" />{title} · {i18nText('app.article.canvas.ai.title')}</DialogTitle>
         <DialogDescription className="text-text-secondary">{i18nText('app.article.canvas.ai.description')}</DialogDescription>
       </DialogHeader>
-      <div className="flex gap-2 border-b border-border p-2 md:hidden">
+      <div className="flex gap-2 border-b border-border px-3 py-1 md:hidden">
         {(['chat', 'preview'] as const).map(tab => <Button key={tab} variant={mobileTab === tab ? 'default' : 'ghost'} size="sm" onClick={() => setMobileTab(tab)}>{i18nText(`app.article.canvas.ai.${tab}`)}</Button>)}
       </div>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <section className={cn('min-h-0 w-full flex-col border-border md:flex md:w-[390px] md:shrink-0 md:border-r lg:w-[430px]', mobileTab === 'chat' ? 'flex' : 'hidden')}>
-          <div ref={scrollRef} onScroll={() => { const element = scrollRef.current; if (element) followScrollRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }} className="min-h-0 flex-1 space-y-4 overflow-auto p-4" aria-live="polite" aria-busy={busy || loading}>
+        <section className={cn('min-h-0 w-full flex-col border-border md:flex md:w-[36%] md:min-w-[340px] md:max-w-[520px] md:shrink-0 md:border-r', mobileTab === 'chat' ? 'flex' : 'hidden')}>
+          <div ref={scrollRef} onScroll={() => { const element = scrollRef.current; if (element) followScrollRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }} className="min-h-0 flex-1 space-y-3 overflow-auto p-3" aria-live="polite" aria-busy={busy || loading}>
             {hasOlder && <Button variant="ghost" size="sm" disabled={loadingOlder || busy} onClick={loadOlder}>{i18nText('app.article.canvas.ai.older')}</Button>}
             {loading ? <div className="flex items-center gap-2 text-text-secondary"><Loader2Icon className="size-4 animate-spin" />{i18nText('app.article.canvas.ai.loading')}</div> : messages.length === 0 && <div className="py-8 text-center">
               <SparklesIcon className="mx-auto mb-3 size-8 text-primary" />
@@ -315,7 +317,7 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
               </div>;
             })}
           </div>
-          <div className="shrink-0 space-y-3 border-t border-border bg-bg-container p-4">
+          <div className="shrink-0 space-y-2 border-t border-border bg-bg-container px-3 py-2">
             <div className="flex flex-wrap gap-1" role="group" aria-label={i18nText('app.article.canvas.ai.mode')}>
               {(['modify', 'create'] as const).map(value => <Button key={value} size="sm" disabled={busy || saving || loading || (value === 'modify' && !workingSource)} variant={mode === value ? 'default' : 'ghost'} aria-pressed={mode === value} onClick={() => { setMode(value); setResetHistory(value === 'create'); }}>{i18nText(`app.article.canvas.ai.${value}`)}</Button>)}
             </div>
@@ -338,21 +340,21 @@ export function CanvasAiDialog({type, title, conversationId, initialModelId, sav
           </div>
         </section>
         <section className={cn('min-h-0 min-w-0 flex-1 flex-col md:flex', mobileTab === 'preview' ? 'flex' : 'hidden')}>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3"><span className="font-medium">{i18nText('app.article.canvas.ai.preview')}</span><span className="text-xs text-text-secondary">{i18nText(draft ? draft.source === appliedSource ? 'app.article.canvas.ai.applied' : 'app.article.canvas.ai.draft' : 'app.article.canvas.ai.current')}</span></div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2"><span className="font-medium">{i18nText('app.article.canvas.ai.preview')}</span><span className="text-xs text-text-secondary">{i18nText(draft ? draft.source === appliedSource ? 'app.article.canvas.ai.applied' : 'app.article.canvas.ai.draft' : 'app.article.canvas.ai.current')}</span></div>
           <div className="relative min-h-0 flex-1 bg-bg-layout">
             {draft ? <CanvasAiPreview key={draft.messageId} type={type} source={draft.source} onReady={previewReady} onError={previewError} />
-              : preview ? <img src={preview} alt={title} className="size-full object-contain p-4" />
+              : preview ? <img src={preview} alt={title} className="size-full object-contain p-2" style={{colorScheme: isDark ? 'dark' : 'light'}} />
               : <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-text-secondary"><SparklesIcon className="size-10 text-primary/60" /><p>{i18nText('app.article.canvas.ai.previewHint')}</p></div>}
             {busy && <div role="status" className="absolute right-3 bottom-3 flex items-center gap-2 rounded-lg border border-border bg-bg-container px-3 py-2 shadow-sm"><Loader2Icon className="size-4 animate-spin text-primary" />{i18nText('app.article.canvas.ai.generating')}</div>}
           </div>
-          {selectedCandidate?.summary && <p className="m-0 max-h-24 shrink-0 overflow-auto border-t border-border px-4 py-3 text-sm text-text-secondary">{selectedCandidate.summary}</p>}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border p-4">
+          {selectedCandidate?.summary && <p className="m-0 max-h-24 shrink-0 overflow-auto border-t border-border px-3 py-2 text-sm text-text-secondary">{selectedCandidate.summary}</p>}
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2">
             <Button variant="outline" size="sm" disabled={busy || saving || (!!draft && draft.source !== appliedSource)} onClick={onEdit}>{i18nText('app.article.canvas.ai.edit')}</Button>
             <Button size="sm" disabled={busy || saving || !draft || !svg || draft.source === appliedSource} onClick={apply}>{saving && <Loader2Icon className="size-4 animate-spin" />}{i18nText(saving ? 'app.article.canvas.ai.saving' : 'app.article.canvas.ai.apply')}</Button>
           </div>
         </section>
       </div>
-      {error && <div role="alert" className="max-h-24 shrink-0 overflow-auto break-words border-t border-border bg-error/5 px-4 py-3 text-sm text-error">{error}</div>}
+      {error && <div role="alert" className="max-h-24 shrink-0 overflow-auto break-words border-t border-border bg-error/5 px-3 py-2 text-sm text-error">{error}</div>}
     </DialogContent>
   </Dialog>;
 }
