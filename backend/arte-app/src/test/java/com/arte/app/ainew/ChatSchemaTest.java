@@ -62,6 +62,16 @@ class ChatSchemaTest {
     }
 
     @Test
+    void timeDefaultsAreValidAndUpdatesRemainApplicationControlled() {
+        jdbc.update("INSERT INTO arte_ai_new_conversation(conversation_id,scope_key,tenant_id,workspace_id,principal_type,principal_id,title,model_binding_type,model_binding_id,model_binding_version,status,row_version,resource_refs_json) VALUES ('default-times',?,'tenant','workspace','USER','user','chat','ai-binding','chat','1','ACTIVE',1,'[]')", SCOPE);
+        var created = jdbc.queryForObject("SELECT created_at FROM arte_ai_new_conversation WHERE conversation_id='default-times'", java.sql.Timestamp.class);
+        var updated = jdbc.queryForObject("SELECT updated_at FROM arte_ai_new_conversation WHERE conversation_id='default-times'", java.sql.Timestamp.class);
+        jdbc.update("UPDATE arte_ai_new_conversation SET title='renamed' WHERE conversation_id='default-times'");
+        assertEquals(created, jdbc.queryForObject("SELECT created_at FROM arte_ai_new_conversation WHERE conversation_id='default-times'", java.sql.Timestamp.class));
+        assertEquals(updated, jdbc.queryForObject("SELECT updated_at FROM arte_ai_new_conversation WHERE conversation_id='default-times'", java.sql.Timestamp.class));
+    }
+
+    @Test
     void oneActiveSubmissionPerConversationSurvivesBeyondAcceptance() {
         preparing("first", "conversation", SCOPE, 1, "key-1");
         denied(() -> preparing("blocked", "conversation", SCOPE, 2, "key-2"));

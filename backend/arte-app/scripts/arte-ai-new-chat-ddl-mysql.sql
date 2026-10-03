@@ -1,5 +1,7 @@
 -- 最小聊天：先部署 arte-ai-new-model-ddl-mysql.sql，再执行本脚本。
 -- 不修改旧 AI 表、不迁移历史、不创建账号、权限或默认会话。
+-- 显式声明时间默认值，兼容 explicit_defaults_for_timestamp=OFF 且禁止零日期的 MySQL。
+-- 不声明 on update；业务代码显式写入时间，创建时间不随其他字段更新而变化。
 -- 新建执行表的复合唯一键已在模型 DDL 中声明；以下仅兼容此前已建、尚缺该键的执行表。
 -- create table if not exists 不会修改现存表，因此升级兼容仍需条件 alter table。
 set @arte_chat_scope_index_sql = if(
@@ -33,9 +35,24 @@ create table if not exists arte_ai_new_conversation
     status                varchar(16)  not null comment '会话状态：ACTIVE 或 DELETED',
     row_version           bigint       not null comment '乐观锁版本，从 1 开始',
     resource_refs_json    json         not null comment '关联资源引用列表 JSON，关联不授予访问权限',
-    created_at            timestamp(6) not null comment '创建时间',
-    updated_at            timestamp(6) not null comment '更新时间，由应用显式更新',
-    deleted_at            timestamp(6) null     comment '软删除时间，活跃会话为空',
+    created_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '创建时间',
+    updated_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '更新时间，由应用显式更新',
+    deleted_at timestamp
+(
+    6
+) null default null comment '软删除时间，活跃会话为空',
     primary key (conversation_id),
     constraint uq_ai_new_conversation_scope
     unique (conversation_id, scope_key),
@@ -79,8 +96,20 @@ create table if not exists arte_ai_new_context_snapshot
     used_input_bytes      int          not null comment '实际使用的消息文本 UTF-8 字节数',
     output_token_reserve  int          not null comment '为模型输出预留的 token 数',
     content_digest        char(71)     not null comment '规范上下文 SHA-256 摘要，含 sha256: 前缀',
-    created_at            timestamp(6) not null comment '创建时间',
-    expires_at            timestamp(6) not null comment '逻辑过期时间，不自动删除数据',
+    created_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '创建时间',
+    expires_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '逻辑过期时间，由应用显式写入，不自动删除数据',
     primary key (snapshot_id),
     constraint uq_ai_new_snapshot_placement
     unique (snapshot_id, conversation_id, scope_key, conversation_version),
@@ -134,9 +163,24 @@ create table if not exists arte_ai_new_turn
     rejection_side_effect_status varchar(16)  null     comment '拒绝提交的副作用状态，必须为 NONE',
     rejection_result_certainty   varchar(16)  null     comment '拒绝提交的结果确定性，必须为 CONFIRMED',
     rejection_correlation_id     varchar(128) null     comment '受理前错误关联 ID',
-    created_at                   timestamp(6) not null comment '创建时间',
-    updated_at                   timestamp(6) not null comment '更新时间，由应用显式更新',
-    slot_released_at             timestamp(6) null     comment '会话串行提交占位的释放时间，未释放时为空',
+    created_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '创建时间',
+    updated_at timestamp
+(
+    6
+) default current_timestamp
+(
+    6
+) not null comment '更新时间，由应用显式更新',
+    slot_released_at timestamp
+(
+    6
+) null default null comment '会话串行提交占位的释放时间，未释放时为空',
     active_conversation_id       varchar(64)  generated always as (
                                                                       case when slot_released_at is null then conversation_id else null end
                                                                   ) stored comment '未释放时为会话 ID，释放后为空，用于约束单个活跃提交',
