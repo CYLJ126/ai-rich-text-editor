@@ -32,6 +32,8 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * 独立事务的单次模型账本：受理+预算及终态+结果+事件+结算各自原子提交。
@@ -58,11 +60,20 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
 
     @Override
     public Acceptance accept(ModelSubmission submission, BudgetQuote quote) {
+        return acceptAtomic(submission, quote, () -> {
+        }, () -> {
+        }, execution -> {
+        });
+    }
+
+    Acceptance acceptAtomic(ModelSubmission submission, BudgetQuote quote, Runnable lockPartition,
+                            Runnable checkCapacity, Consumer<ModelExecution> enqueue) {
         if (submission.idempotencyKey().length() > 128)
             throw new IllegalArgumentException("idempotencyKey is too long");
         var scope = submission.context().scope();
         String scopeKey = ModelKeys.scope(scope);
         return writes.execute(tx -> {
+            lockPartition.run();
             // 固定主体预算行作为受理互斥边界；缺少预算不自动生成默认额度。
             var accounts = jdbc.query("SELECT amount_limit, reserved_amount, spent_amount, currency, enabled FROM arte_ai_new_budget WHERE scope_key = ? FOR UPDATE",
                     (rs, row) -> new BudgetAccount(rs.getBigDecimal("amount_limit"), rs.getBigDecimal("reserved_amount"), rs.getBigDecimal("spent_amount"), rs.getString("currency"), rs.getBoolean("enabled")), scopeKey);
@@ -75,6 +86,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
                 return map(rs, scope);
             }, identity, scopeKey);
             if (!old.isEmpty()) return new Acceptance(old.getFirst(), false);
+            checkCapacity.run();
             if (!account.enabled() || !quote.currency().equals(account.currency()))
                 throw error(CommonErrorCode.POLICY_UNAVAILABLE, "budget");
             BigDecimal limit = account.limit(), reserved = account.reserved(), spent = account.spent();
@@ -87,7 +99,9 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
                     submission.executionId(), submission.attemptId(), scopeKey, identity, submission.requestDigest(), plan.capability().descriptor().ref().definitionId(), plan.capability().descriptor().ref().version(),
                     plan.binding().ref().definitionId(), plan.binding().ref().version(), plan.connection().ref().definitionId(), plan.connection().ref().version(), now, quote.maximumAmount(), quote.currency());
             event(submission.executionId(), submission.attemptId(), 0, ExecutionStatus.ACCEPTED, null, null);
-            return new Acceptance(find(scope, submission.executionId()).orElseThrow(), true);
+            var execution = find(scope, submission.executionId()).orElseThrow();
+            enqueue.accept(execution);
+            return new Acceptance(execution, true);
         });
     }
 
@@ -130,18 +144,30 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
 
     @Override
     public boolean start(ExecutionScope scope, String id) {
+        return startGuarded(scope, id, () -> true);
+    }
+
+    boolean startGuarded(ExecutionScope scope, String id, BooleanSupplier guard) {
         return Boolean.TRUE.equals(writes.execute(tx -> {
+            jdbc.queryForList("SELECT execution_id FROM arte_ai_new_execution WHERE scope_key=? AND execution_id=? FOR UPDATE", ModelKeys.scope(scope), id);
+            if (!guard.getAsBoolean()) return false;
             int updated = jdbc.update("UPDATE arte_ai_new_execution SET status = 'RUNNING', revision = revision + 1 WHERE scope_key = ? AND execution_id = ? AND status = 'ACCEPTED'", ModelKeys.scope(scope), id);
             if (updated != 1) return false;
             var execution = find(scope, id).orElseThrow();
-            event(id, execution.attemptId(), 1, ExecutionStatus.RUNNING, null, null);
+            event(id, execution.attemptId(), nextSequence(id), ExecutionStatus.RUNNING, null, null);
             return true;
         }));
     }
 
     @Override
     public void markDispatched(ExecutionScope scope, String id) {
+        dispatchGuarded(scope, id, () -> true);
+    }
+
+    void dispatchGuarded(ExecutionScope scope, String id, BooleanSupplier guard) {
         writes.executeWithoutResult(tx -> {
+            jdbc.queryForList("SELECT execution_id FROM arte_ai_new_execution WHERE scope_key=? AND execution_id=? FOR UPDATE", ModelKeys.scope(scope), id);
+            if (!guard.getAsBoolean()) throw error(CommonErrorCode.INTERRUPTED, "work-fence");
             if (jdbc.update("UPDATE arte_ai_new_execution SET dispatched = TRUE, revision = revision + 1 WHERE scope_key = ? AND execution_id = ? AND status = 'RUNNING' AND dispatched = FALSE", ModelKeys.scope(scope), id) != 1)
                 throw error(CommonErrorCode.VERSION_CONFLICT, "dispatch");
         });
@@ -149,22 +175,27 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
 
     @Override
     public void finish(ExecutionScope scope, String id, ExecutionStatus status, ModelResult result, ExecutionError error) {
+        finishKey(ModelKeys.scope(scope), id, status, result, error, () -> true);
+    }
+
+    void finishKey(String key, String id, ExecutionStatus status, ModelResult result, ExecutionError error, BooleanSupplier guard) {
         if (status == ExecutionStatus.ACCEPTED || status == ExecutionStatus.RUNNING)
             throw new IllegalArgumentException("terminal status is required");
         String encodedResult = ModelJson.result(result), encodedError = ModelJson.error(error);
         if (encodedResult != null && encodedResult.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1048576)
             throw new IllegalArgumentException("result is too large");
         writes.executeWithoutResult(tx -> {
-            String key = ModelKeys.scope(scope);
             // 所有涉及两个表的操作按预算→执行顺序加锁，避免同主体结算／受理死锁。
             jdbc.queryForList("SELECT scope_key FROM arte_ai_new_budget WHERE scope_key = ? FOR UPDATE", key);
             var rows = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND execution_id = ? FOR UPDATE",
-                    (rs, row) -> new Stored(map(rs, scope), rs.getBigDecimal("reserved_amount"), rs.getString("currency")), key, id);
+                    (rs, row) -> new Settlement(rs.getString("attempt_id"), ExecutionStatus.valueOf(rs.getString("status")),
+                            rs.getBoolean("dispatched"), rs.getBigDecimal("reserved_amount"), rs.getString("currency")), key, id);
             if (rows.isEmpty()) throw error(CommonErrorCode.NOT_FOUND, "finish");
             var row = rows.getFirst();
-            String previous = row.execution().status().name();
+            if (!guard.getAsBoolean()) return;
+            String previous = row.status().name();
             if (!previous.equals("ACCEPTED") && !previous.equals("RUNNING")) return;
-            boolean dispatched = row.execution().dispatched();
+            boolean dispatched = row.dispatched();
             if (status == ExecutionStatus.SUCCEEDED && (!dispatched || result == null || error != null)
                     || status != ExecutionStatus.SUCCEEDED && (result != null || error == null))
                 throw new IllegalArgumentException("terminal result is inconsistent");
@@ -183,7 +214,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
             } else budgetStatus = BudgetStatus.PENDING_RECONCILIATION;
             jdbc.update("UPDATE arte_ai_new_execution SET status = ?, revision = revision + 1, result_json = ?, error_json = ?, budget_status = ? WHERE scope_key = ? AND execution_id = ?",
                     status.name(), encodedResult, encodedError, budgetStatus.name(), key, id);
-            event(id, row.execution().attemptId(), 2, status, encodedResult, encodedError);
+            event(id, row.attemptId(), nextSequence(id), status, encodedResult, encodedError);
         });
     }
 
@@ -215,6 +246,18 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
                         sent ? SideEffectStatus.UNKNOWN : SideEffectStatus.NONE, sent ? ResultCertainty.UNKNOWN : ResultCertainty.CONFIRMED, null));
     }
 
+    long nextSequence(String id) {
+        return jdbc.queryForObject("SELECT COALESCE(MAX(sequence_no),-1)+1 FROM arte_ai_new_event WHERE execution_id=?", Long.class, id);
+    }
+
+    void recoveredBeforeDispatch(String key, String id) {
+        // Caller locks the execution row and verifies the expired work lease first.
+        if (jdbc.update("UPDATE arte_ai_new_execution SET status='ACCEPTED',revision=revision+1 WHERE scope_key=? AND execution_id=? AND status='RUNNING' AND dispatched=FALSE", key, id) == 0)
+            return;
+        String attempt = jdbc.queryForObject("SELECT attempt_id FROM arte_ai_new_execution WHERE execution_id=?", String.class, id);
+        event(id, attempt, nextSequence(id), ExecutionStatus.ACCEPTED, null, null);
+    }
+
     private void event(String id, String attempt, long sequence, ExecutionStatus status, String result, String error) {
         jdbc.update("INSERT INTO arte_ai_new_event (execution_id, attempt_id, sequence_no, status, occurred_at, result_json, error_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 id, attempt, sequence, status.name(), Timestamp.from(clock.instant()), result, error);
@@ -230,7 +273,8 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
                                  boolean enabled) {
     }
 
-    private record Stored(ModelExecution execution, BigDecimal reserved, String currency) {
+    private record Settlement(String attemptId, ExecutionStatus status, boolean dispatched, BigDecimal reserved,
+                              String currency) {
     }
 
     private static BaseException error(CommonErrorCode code, String stage) {

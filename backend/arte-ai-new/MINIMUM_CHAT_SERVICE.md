@@ -131,25 +131,46 @@ SUPPORTS，加入聊天存储的 READ_COMMITTED 事务；异步外发前仍重�
 本次没有新增 Actuator、Prometheus 依赖或开放指标网络接口；要长期保存、查看时间序列及 P95/P99，需要接入指标导出后端。
 默认日志记录失败阶段及超过一秒的阶段耗时，正常短阶段使用 DEBUG，包含 operation、outcome、elapsedMs、traceId，不记录消息、凭据和请求正文。
 
-| 指标 | 含义 |
-| --- | --- |
-| `arte.execution.duration` / `arte.execution.operations` | 按阶段及结果统计耗时和次数：提交、认领、上下文准备／校验、受理、历史、单轮查询、准入、模型执行 |
-| `arte.chat.turn.lock.acquire` | 从申请事务到取得 Turn 行锁的耗时，包含连接获取和 SQL 执行，不代表纯数据库锁等待 |
-| `arte.chat.turn.transaction` | Turn 写事务总耗时，包含等待及失败路径 |
-| `arte.ai.execution.queue.wait` | 从提交本机任务到 Worker 开始执行的等待 |
-| `arte.ai.provider.duration` | 模型网络交互阶段耗时，包含成功与失败 |
-| `arte.ai.execution.finished` | 模型执行终态次数，包括 OUTCOME_UNKNOWN |
-| `arte.ai.tokens` | 供应商报告的输入／输出 Token；未知用量不记为零 |
-| `arte.execution.workers.active` / `arte.execution.workers.queued` | 本机线程及队列占用 |
-| `arte.database.connections.active` / `idle` / `waiting` | Druid 连接池使用及等待线程数，以固定的数据源 Bean 名区分 |
-| `arte.database.connection.wait` | Druid 连接池累计等待次数与等待时间 |
+| 指标                                                              | 含义                                                                                           |
+|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| `arte.execution.duration` / `arte.execution.operations`           | 按阶段及结果统计耗时和次数：提交、认领、上下文准备／校验、受理、历史、单轮查询、准入、模型执行 |
+| `arte.chat.turn.lock.acquire`                                     | 从申请事务到取得 Turn 行锁的耗时，包含连接获取和 SQL 执行，不代表纯数据库锁等待                |
+| `arte.chat.turn.transaction`                                      | Turn 写事务总耗时，包含等待及失败路径                                                          |
+| `arte.ai.execution.queue.wait`                                    | 从数据库受理排队到 Worker 开始执行的等待，恢复时保留原排队时间                                 |
+| `arte.ai.provider.duration`                                       | 模型网络交互阶段耗时，包含成功与失败                                                           |
+| `arte.ai.execution.finished`                                      | 模型执行终态次数，包括 OUTCOME_UNKNOWN                                                         |
+| `arte.ai.tokens`                                                  | 供应商报告的输入／输出 Token；未知用量不记为零                                                 |
+| `arte.execution.workers.active` / `arte.execution.workers.queued` | 本机线程及队列占用                                                                             |
+| `arte.database.connections.active` / `idle` / `waiting`           | Druid 连接池使用及等待线程数，以固定的数据源 Bean 名区分                                       |
+| `arte.database.connection.wait`                                   | Druid 连接池累计等待次数与等待时间                                                             |
 
 指标只使用低基数阶段、结果及固定数据源名称标签；traceId 不进入指标标签。 数据库纯行锁等待和慢 SQL 仍需结合数据库诊断及现有
 Druid SQL 统计判断。
 
 新增回归验证覆盖 20 条历史仅一次执行查询、一次模型授权、无 Turn 行锁；上下文及同意在行锁事务外；当前权限撤销；指标采集失效不影响业务；
-前端单轮轮询保持已加载分页、终态停止及权限错误后的手动恢复。 后续第二批任务租约／重启恢复与第三批流式／Token
+前端单轮轮询保持已加载分页、终态停止及权限错误后的手动恢复。 第二批任务租约／重启恢复见下文；第三批流式／Token
 上下文预算尚未实施，当前仍是单实例非流式执行。
 
 本批验证：后端相关回归 88 项、前端相关回归 16 项通过。全项目 TypeScript 检查仍有 `canvas-ai-dialog.tsx` 第 204、212 行的既有
 attachments 类型错误，本批聊天代码无报错。 未运行生产 MySQL 压测或真实供应商调用。
+
+## 第二批执行恢复与生命周期（2026-10-03）
+
+生产模型链改为数据库耐久队列：执行、事件、预算预占及工作正文同事务提交，受理接口不再等待本机准入。 Worker
+在专用线程上取得并发许可后认领；数据库单活租约防止两个进程同时执行，任务 token 围栏保护 RUNNING、派发及终态写入。 未完成工作上限为
+threads + queue-capacity，启动速率窗口保存在数据库，重启不会重置。默认维持 4 个并发、32 个排队位置、每分钟最多 60 次启动。
+
+期限内且未派发的失联任务可以恢复；恢复保留 executionId／attemptId，重验输入指纹、当前配置、授权及外发同意。 已派发的失联任务转
+OUTCOME_UNKNOWN，不自动重发，费用继续待核对；旧版本没有正文的未派发遗留任务转 INTERRUPTED 并释放预算预占。
+取消写入数据库，运行中取消及到期关闭已注册 socket，等待实际工作退出后再结算和释放许可。停机先停止受理和认领，保持续约并限时收尾，未认领工作留待重启恢复。
+新配置 lease-duration、poll-interval、shutdown-grace 使用原有 Maven 占位符机制，默认 PT30S、PT0.5S、PT10S。
+
+升级必须先停止旧后端，执行 [工作队列 DDL](../arte-app/scripts/arte-ai-new-work-ddl-mysql.sql)，再重新构建并启动。
+本次没有执行实际数据库迁移；数据库单活约束仍不提供多实例负载均衡。详情见 [模型调用说明](MINIMUM_MODEL_CALL.md)。
+
+DurableModelWorkerIntegrationTest 覆盖原子回滚、排队容量／幂等、重启后的多轮历史、未派发恢复／旧租约拒绝、已派发未知结果、
+持久化取消、速率窗口、过期退款、正文篡改、坏任务隔离、权限撤销、旧版本任务清理及停机后队列保留。 BoundedTaskExecutorTest
+补充取消／到期关闭 I/O 但不提前完成，以及优雅停机。
+
+本批后端相关回归共 95 项通过（其中新增耐久 Worker 集成测试 14 项），包含本机 HTTP 阻塞读取取消验证。 使用 H2 和本机协议替身，没有执行生产
+MySQL 迁移、真实模型调用或压力测试。

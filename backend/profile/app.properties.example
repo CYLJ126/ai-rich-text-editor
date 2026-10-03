@@ -143,3 +143,8 @@ arte.ai.tool.cluster.subscription-retry-ms=30000
 arte.ai.tool.cluster.reconcile-initial-delay-ms=60000
 # 本地工具目录周期性对账间隔，单位毫秒
 arte.ai.tool.cluster.reconcile-interval-ms=60000
+
+# 模型 Worker 租约、数据库队列扫描间隔及停机宽限时间
+arte.execution.support.lease-duration=PT30S
+arte.execution.support.poll-interval=PT0.5S
+arte.execution.support.shutdown-grace=PT10S

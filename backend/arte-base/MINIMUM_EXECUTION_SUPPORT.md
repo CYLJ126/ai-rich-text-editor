@@ -31,7 +31,8 @@ close；不能因 HTTP 断线、取消请求或等待 future 的副本被取消�
 BoundedTaskExecutor 使用固定工作线程和有界队列，满载直接拒绝，不使用 CallerRunsPolicy 把阻塞 SDK 放到提交线程。 TaskHandle
 表示本地 QUEUED／RUNNING／SUCCEEDED／FAILED／CANCELLED／TIMED_OUT，completion 不允许调用方修改实际结果。
 队列中的工作取消／到期后立即移除并完成，运行中的工作只收到停止请求，未来结果要等 Java 工作退出后完成。 ExecutionCheckpoint
-在开始、返回及实现主动检查的位置检查期限／取消／线程中断。关闭执行器也请求合作式停止，不阻塞等待所有工作退出。
+在开始、返回及实现主动检查的位置检查期限／取消／线程中断。onStop 可注册 socket 等停止资源，取消和到期时关闭 I/O，仍不提前完成工作。
+close 请求合作式停止；shutdownGracefully 先停止接收新工作，限时等待结束，超时再请求停止并短暂等待实际退出。
 不会强杀线程、自动取消供应商任务或替底层 SDK 设置 I/O 超时；实现应使用 deadline 设置连接／操作超时并在后续操作前
 checkpoint.check 和重新授权。
 
@@ -125,7 +126,9 @@ arte:
 ```
 
 组合层注册上述租户的 ai.interactive 分区，无供应商／连接专有分区的隐式默认放行。 多租户或按连接限额时，组合层须以已注册配置构造对应
-AdmissionKey／Limits 集合。 LocalAdmissionController 的限制只覆盖当前实例，重启会重置速率窗口。配置拒绝将其自动启用为
+AdmissionKey／Limits 集合。 LocalAdmissionController 的限制只覆盖当前实例，重启会重置其本地速率窗口； ai-new 的
+DurableModelWorker
+另以数据库单活租约和持久化启动窗口约束模型派发，见 [模型调用说明](../arte-ai-new/MINIMUM_MODEL_CALL.md)。配置拒绝将其自动启用为
 multi-instance 模式； 多实例付费调用须由后续权威全局准入／预算提供者落实，本批未接入 Redis 全局额度或预算账本。
 这些默认容量尚未经过负载基准测试。
 

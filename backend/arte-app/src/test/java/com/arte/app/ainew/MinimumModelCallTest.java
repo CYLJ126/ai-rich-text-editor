@@ -319,11 +319,44 @@ class MinimumModelCallTest {
         assertTrue(store.find(scope, id).isPresent());
         assertTrue(store.start(scope, id));
         store.markDispatched(scope, id);
-        jdbc.update("INSERT INTO arte_ai_new_event VALUES (?, ?, 2, 'FAILED', CURRENT_TIMESTAMP, NULL, NULL)", id, submission.attemptId());
+        // 恢复事件使序号按 MAX+1 分配；用约束故障验证终态／结果／费用／事件仍然一并回滚。
+        jdbc.execute("ALTER TABLE arte_ai_new_event ADD CONSTRAINT reject_success_event CHECK (status <> 'SUCCEEDED')");
         assertThrows(RuntimeException.class, () -> store.finish(scope, id, ExecutionStatus.SUCCEEDED, new ModelResult(List.of(new TextPart("result")), List.of(), null, new Usage(1L, 1L, new BigDecimal("0.1"), "USD")), null));
         assertEquals(ExecutionStatus.RUNNING, store.find(scope, id).orElseThrow().status());
         assertEquals(BudgetStatus.RESERVED, store.reservation(scope, id).status());
         assertEquals(0, jdbc.queryForObject("SELECT spent_amount FROM arte_ai_new_budget", BigDecimal.class).signum());
+    }
+
+    @Test
+    void cancellationClosesBlockedSocketWithoutWaitingForProviderResponse() throws Exception {
+        var received = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        server.removeContext("/v1/chat/completions");
+        server.createContext("/v1/chat/completions", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            received.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        try {
+            var coordinator = coordinator(runtime());
+            var accepted = coordinator.submitModel(request("blocked read"), null, "cancel-socket");
+            assertTrue(received.await(2, TimeUnit.SECONDS));
+            assertEquals(com.arte.base.model.execution.CancellationStatus.CANCELLING,
+                    coordinator.cancel(request("viewer").context(), accepted.executionId()));
+            var done = await(coordinator, accepted.executionId());
+            assertEquals(ExecutionStatus.OUTCOME_UNKNOWN, done.status());
+            assertEquals(BudgetStatus.PENDING_RECONCILIATION, store.reservation(scope, accepted.executionId()).status());
+            // 供应商尚未给响应；实际读取已因本机 socket 关闭而退出。
+            assertEquals(1, release.getCount());
+        } finally {
+            release.countDown();
+        }
     }
 
     @Test

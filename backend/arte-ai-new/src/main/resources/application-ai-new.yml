@@ -14,6 +14,9 @@ arte:
       threads: @arte.execution.support.threads@
       queue-capacity: @arte.execution.support.queue-capacity@
       starts-per-minute: @arte.execution.support.starts-per-minute@
+      lease-duration: '@arte.execution.support.lease-duration@'
+      poll-interval: '@arte.execution.support.poll-interval@'
+      shutdown-grace: '@arte.execution.support.shutdown-grace@'
   ai-new:
     model:
       enabled: @arte.ai-new.model.enabled@

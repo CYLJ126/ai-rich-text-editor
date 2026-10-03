@@ -79,6 +79,29 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
         return pool.getQueue().size();
     }
 
+    /**
+     * 停止接收新任务，限时等待；超时后请求停止，仍仅在真实退出时完成 future。
+     */
+    public boolean shutdownGracefully(Duration grace) {
+        if (grace.isNegative()) throw new IllegalArgumentException("negative shutdown grace");
+        synchronized (lifecycle) {
+            closed = true;
+            pool.shutdown();
+        }
+        try {
+            if (!pool.awaitTermination(grace.toNanos(), TimeUnit.NANOSECONDS)) {
+                new ArrayList<>(live).forEach(Work::cancel);
+                pool.awaitTermination(2, TimeUnit.SECONDS);
+            }
+        } catch (InterruptedException interrupted) {
+            new ArrayList<>(live).forEach(Work::cancel);
+            Thread.currentThread().interrupt();
+        } finally {
+            timer.shutdownNow();
+        }
+        return pool.isTerminated();
+    }
+
     @Override
     public void close() {
         ArrayList<Work<?>> pending;
@@ -98,12 +121,14 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
         final CompletableFuture<T> result = new CompletableFuture<>();
         final AtomicBoolean cancellation = new AtomicBoolean();
         final TaskHandle<T> handle;
+        final ExecutionCheckpoint checkpoint;
         TaskState state = TaskState.QUEUED;
         ScheduledFuture<?> deadline;
 
         Work(ExecutionContext context, ExecutionTask<T> task) {
             this.context = context;
             this.task = task;
+            checkpoint = new ExecutionCheckpoint(context, clock, cancellation);
             handle = new TaskHandle<>(UUID.randomUUID().toString(), context, result, this::state, this::cancel);
         }
 
@@ -147,7 +172,7 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
             if (finish) {
                 pool.remove(this);
                 finish(null, ExecutionFailures.beforeStart(CommonErrorCode.DEADLINE_EXCEEDED, context, "execution"));
-            }
+            } else checkpoint.signalStop();
             // RUNNING 只能在实际退出后完成；checkpoint 和连接的 I/O 超时负责合作式停止。
         }
 
@@ -165,7 +190,7 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
             if (finish) {
                 pool.remove(this);
                 finish(null, ExecutionFailures.beforeStart(CommonErrorCode.INTERRUPTED, context, "execution"));
-            }
+            } else checkpoint.signalStop();
             return finish ? CancellationStatus.REQUEST_ACCEPTED : CancellationStatus.CANCELLING;
         }
 
@@ -195,7 +220,6 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
             }
             T value = null;
             Throwable failure = null;
-            var checkpoint = new ExecutionCheckpoint(context, clock, cancellation);
             try {
                 checkpoint.check();
                 value = task.execute(checkpoint);

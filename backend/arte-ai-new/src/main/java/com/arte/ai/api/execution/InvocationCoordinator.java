@@ -9,6 +9,7 @@ import com.arte.ai.model.generation.PreparedModelCall;
 import com.arte.ai.spi.security.ModelAccessPolicy;
 import com.arte.ai.spi.store.ExecutionEventStore;
 import com.arte.ai.spi.store.ExecutionStore;
+import com.arte.ai.spi.store.ModelWorkQueue;
 import com.arte.base.api.admission.AdmissionController;
 import com.arte.base.api.security.EgressPolicy;
 import com.arte.base.exception.BaseException;
@@ -56,6 +57,7 @@ public class InvocationCoordinator {
     private final AuditSink audit;
     private final Clock clock;
     private final Telemetry telemetry;
+    private final ModelWorkQueue workQueue;
     private final ConcurrentMap<String, TaskHandle<?>> live = new ConcurrentHashMap<>();
 
     public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
@@ -67,6 +69,14 @@ public class InvocationCoordinator {
     public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
                                  EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
                                  ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock, Telemetry telemetry) {
+        this(modelBindingResolver, gateway, access, egress, admission, taskExecutor, store, events, budgets, audit, clock, telemetry, null);
+    }
+
+    public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
+                                 EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
+                                 ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock, Telemetry telemetry,
+                                 ModelWorkQueue workQueue) {
+        this.workQueue = workQueue;
         this.telemetry = java.util.Objects.requireNonNull(telemetry);
         this.modelBindingResolver = modelBindingResolver;
         this.gateway = gateway;
@@ -114,6 +124,12 @@ public class InvocationCoordinator {
         String requestDigest = fingerprint(prepared, request.options());
         var duplicate = store.findIdempotent(request.context().scope(), idempotencyKey, requestDigest);
         if (duplicate.isPresent()) return receipt(duplicate.get());
+        if (workQueue != null) {
+            var context = request.context();
+            var deadline = context.deadline() != null && context.deadline().isBefore(executionDeadline) ? context.deadline() : executionDeadline;
+            var submission = new ModelSubmission(UUID.randomUUID().toString(), UUID.randomUUID().toString(), prepared.plan(), context, idempotencyKey, requestDigest);
+            return receipt(workQueue.accept(submission, budgets.quote(), new QueuedModelCall(request, consent, requestDigest, deadline)).execution());
+        }
         AdmissionPermit permit;
         try {
             permit = telemetry.observe(request.context(), "model.admission", () -> admission.acquire(new AdmissionRequest(request.context(),
@@ -177,6 +193,28 @@ public class InvocationCoordinator {
 
     private ModelResult run(ModelExecution execution, InvocationRequest<GenerationRequest> request,
                             PreparedModelCall prepared, ResourceRef consent, ExecutionCheckpoint checkpoint) throws Exception {
+        return run(execution, request, prepared, consent, checkpoint, store);
+    }
+
+    /**
+     * Worker 内部入口；恢复时重新解析定义、验证正文指纹及当前权限，再经过受围栏保护的派发边界。
+     */
+    public ModelResult executeQueued(ModelExecution execution, QueuedModelCall call, ExecutionStore fencedStore,
+                                     ExecutionCheckpoint checkpoint) throws Exception {
+        checkpoint.check();
+        var prepared = prepare(call.request());
+        if (!call.fingerprint().equals(fingerprint(prepared, call.request().options()))
+                || !execution.connectionRef().equals(prepared.plan().connection().ref()))
+            throw fail(call.request(), CommonErrorCode.VERSION_CONFLICT, "queued-definition");
+        return run(execution, call.request(), prepared, call.consent(), checkpoint, fencedStore);
+    }
+
+    public void queuedFailure(ModelExecution execution, QueuedModelCall call, ExecutionStore fencedStore, Throwable failure) {
+        recordFailure(execution, call.request(), failure, fencedStore);
+    }
+
+    private ModelResult run(ModelExecution execution, InvocationRequest<GenerationRequest> request,
+                            PreparedModelCall prepared, ResourceRef consent, ExecutionCheckpoint checkpoint, ExecutionStore store) throws Exception {
         var context = request.context();
         String id = execution.executionId();
         if (!store.start(context.scope(), id)) throw fail(request, CommonErrorCode.VERSION_CONFLICT, "attempt");
@@ -220,13 +258,17 @@ public class InvocationCoordinator {
                 return result;
             } catch (Exception failure) {
                 span.outcome(dispatched ? AuditOutcome.UNKNOWN : AuditOutcome.FAILED);
-                recordFailure(execution, request, failure);
+                recordFailure(execution, request, failure, store);
                 throw failure;
             }
         }
     }
 
     private void recordFailure(ModelExecution execution, InvocationRequest<GenerationRequest> request, Throwable failure) {
+        recordFailure(execution, request, failure, store);
+    }
+
+    private void recordFailure(ModelExecution execution, InvocationRequest<GenerationRequest> request, Throwable failure, ExecutionStore store) {
         var existing = store.find(execution.scope(), execution.executionId()).orElseThrow();
         if (existing.status() != ExecutionStatus.ACCEPTED && existing.status() != ExecutionStatus.RUNNING) return;
         while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
@@ -291,6 +333,7 @@ public class InvocationCoordinator {
 
     public CancellationStatus cancel(ExecutionContext viewer, String executionId) {
         var execution = find(viewer, executionId);
+        if (workQueue != null) return workQueue.requestCancellation(viewer.scope(), executionId);
         var task = live.get(executionId);
         if (task != null) return task.requestCancellation();
         return execution.status() == ExecutionStatus.ACCEPTED || execution.status() == ExecutionStatus.RUNNING

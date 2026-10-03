@@ -56,7 +56,7 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
         int port = endpoint.getPort() == -1 ? "https".equalsIgnoreCase(endpoint.getScheme()) ? 443 : 80 : endpoint.getPort();
         char[] secret = secrets.apply(connection.secretRef());
         if (secret == null || secret.length == 0) throw new IOException("model credential unavailable");
-        try (Socket raw = new Socket()) {
+        try (Socket raw = new Socket(); var stop = checkpoint.onStop(raw)) {
             raw.connect(new InetSocketAddress(addresses[0], port), remaining(checkpoint));
             Socket socket = raw;
             if ("https".equalsIgnoreCase(endpoint.getScheme())) {

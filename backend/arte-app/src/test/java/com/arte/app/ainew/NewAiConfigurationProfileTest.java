@@ -62,12 +62,17 @@ class NewAiConfigurationProfileTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-    void profileConfigurationWiresChatAndItsDependenciesWithoutCallingTheProvider(boolean existingRegistry) {
+    void profileConfigurationWiresChatAndItsDependenciesWithoutCallingTheProvider(boolean existingRegistry) throws Exception {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.setEnvironment(profileEnvironment());
             context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance());
             var datasource = new JdbcDataSource();
-            datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID());
+            datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
+            try (var connection = datasource.getConnection()) {
+                for (var name : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-ai-new-work-ddl-mysql.sql"))
+                    org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection,
+                            com.arte.app.testsupport.MySqlTestScripts.h2Resource(Files.readString(Path.of("scripts", name))));
+            }
             context.registerBean(JdbcTemplate.class, () -> new JdbcTemplate(datasource));
             context.registerBean(DataSourceTransactionManager.class, () -> new DataSourceTransactionManager(datasource));
             context.registerBean(TokenService.class, () -> mock(TokenService.class));

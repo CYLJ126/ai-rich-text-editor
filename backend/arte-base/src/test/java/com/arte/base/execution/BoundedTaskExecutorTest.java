@@ -12,6 +12,7 @@ import com.arte.base.model.identity.PrincipalType;
 import org.junit.Test;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -169,5 +170,74 @@ public class BoundedTaskExecutorTest {
         assertEquals("diagnostic only", error.getCause().getMessage());
         executor.close();
         assertEquals(CommonErrorCode.BUSY.code(), error(executor.submit(context(null), checkpoint -> 1)).error().code());
+    }
+
+    @Test
+    public void stopClosesRegisteredIoButCompletionWaitsForActualExit() throws Exception {
+        var started = new CountDownLatch(1);
+        var closedIo = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (var executor = new BoundedTaskExecutor(1, 0, Clock.systemUTC())) {
+            var task = executor.submit(context(null), checkpoint -> {
+                try (var registration = checkpoint.onStop(closedIo::countDown)) {
+                    started.countDown();
+                    release.await();
+                    checkpoint.check();
+                    return "never";
+                }
+            });
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            assertEquals(CancellationStatus.CANCELLING, task.requestCancellation());
+            assertTrue(closedIo.await(2, TimeUnit.SECONDS));
+            assertFalse(task.completion().toCompletableFuture().isDone());
+            release.countDown();
+            assertEquals(CommonErrorCode.INTERRUPTED.code(), error(task).error().code());
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    public void runningDeadlineClosesIoWithoutCompletingWorkEarly() throws Exception {
+        var closedIo = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (var executor = new BoundedTaskExecutor(1, 0, Clock.systemUTC())) {
+            var task = executor.submit(context(Instant.now().plusMillis(300)), checkpoint -> {
+                try (var registration = checkpoint.onStop(closedIo::countDown)) {
+                    release.await();
+                    checkpoint.check();
+                    return "never";
+                }
+            });
+            assertTrue(closedIo.await(2, TimeUnit.SECONDS));
+            assertFalse(task.completion().toCompletableFuture().isDone());
+            release.countDown();
+            assertEquals(CommonErrorCode.DEADLINE_EXCEEDED.code(), error(task).error().code());
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    public void gracefulShutdownAllowsFinishAndRejectsNewWork() throws Exception {
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var stops = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try (var executor = new BoundedTaskExecutor(1, 0, Clock.systemUTC())) {
+            var task = executor.submit(context(null), checkpoint -> {
+                started.countDown();
+                release.await();
+                return "done";
+            });
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            var stopped = stops.submit(() -> executor.shutdownGracefully(Duration.ofSeconds(2)));
+            release.countDown();
+            assertTrue(stopped.get(3, TimeUnit.SECONDS));
+            assertEquals("done", task.completion().toCompletableFuture().get(2, TimeUnit.SECONDS));
+            assertEquals(CommonErrorCode.BUSY.code(), error(executor.submit(context(null), checkpoint -> "rejected")).error().code());
+        } finally {
+            release.countDown();
+            stops.shutdownNow();
+        }
     }
 }

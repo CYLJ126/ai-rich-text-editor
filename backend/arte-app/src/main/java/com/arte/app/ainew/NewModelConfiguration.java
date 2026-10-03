@@ -35,6 +35,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -103,9 +104,31 @@ public class NewModelConfiguration {
 
     @Bean
     public InvocationCoordinator newModelCoordinator(ConfiguredModelDefinitions definitions, CompatibleChatProviderAdapter provider, ExistingModelAccessPolicy access,
-                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit, ObjectProvider<Telemetry> telemetry) {
+                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit, ObjectProvider<Telemetry> telemetry, JdbcModelWorkQueue queue) {
         return new InvocationCoordinator(new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions), new BindingManager(definitions)),
-                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC(), telemetry.getIfAvailable(Telemetry::disabled));
+                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC(), telemetry.getIfAvailable(Telemetry::disabled), queue);
+    }
+
+    @Bean
+    public JdbcModelWorkQueue newModelWorkQueue(JdbcTemplate jdbc, PlatformTransactionManager manager, JdbcModelExecutionStore store,
+                                                @Value("${arte.execution.support.tenant-id}") String tenant,
+                                                @Value("${arte.execution.support.threads:4}") int threads,
+                                                @Value("${arte.execution.support.queue-capacity:32}") int queued,
+                                                @Value("${arte.execution.support.starts-per-minute:60}") int starts,
+                                                @Value("${arte.execution.support.lease-duration:PT30S}") String lease,
+                                                @Value("${arte.execution.support.poll-interval:PT0.5S}") String poll) {
+        if (Duration.parse(lease).compareTo(Duration.parse(poll).multipliedBy(3)) < 0)
+            throw new IllegalArgumentException("worker lease must exceed three poll intervals");
+        return new JdbcModelWorkQueue(jdbc, manager, store, tenant, threads, queued, starts, Duration.parse(lease));
+    }
+
+    @Bean
+    public DurableModelWorker newDurableModelWorker(JdbcModelWorkQueue queue, InvocationCoordinator coordinator, BoundedTaskExecutor tasks,
+                                                    LocalAdmissionController admission, ObjectProvider<Telemetry> telemetry,
+                                                    @Value("${arte.execution.support.threads:4}") int threads,
+                                                    @Value("${arte.execution.support.poll-interval:PT0.5S}") String poll,
+                                                    @Value("${arte.execution.support.shutdown-grace:PT10S}") String grace) {
+        return new DurableModelWorker(queue, coordinator, tasks, admission, telemetry.getIfAvailable(Telemetry::disabled), threads, Duration.parse(poll), Duration.parse(grace));
     }
 
     @Bean

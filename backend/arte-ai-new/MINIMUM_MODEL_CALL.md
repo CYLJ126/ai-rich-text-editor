@@ -8,8 +8,8 @@
 ```text
 经验证会话 → 服务端任务上下文 → 固定能力／连接／绑定
           → 当前模型使用授权 → 固定协议正文及摘要 → 明确外发同意
-          → 外发检查 → 单机准入 → 数据库原子受理与预算预留
-          → 有界工作线程 → 尝试领取 → 当前配置／授权／外发复查与审计
+          → 外发检查 → 数据库原子受理、预算预留及耐久工作队列
+          → 单活 Worker 租约 → 异步准入、限速及任务认领 → 当前配置／授权／外发复查与审计
           → 记录可能发送 → 受控连接 → 映射结果／用量
           → 原子提交结果、终态事件、预算状态
 ```
@@ -43,20 +43,23 @@ stop／length 终止原因、缺失正文或非法用量时不发布伪造文本
 model／messages／stream=false／max_tokens； 只读取一个 choices 的 message.content、finish_reason 和可选
 prompt_tokens／completion_tokens。 供应商必须通过自己的契约测试；不同供应商的参数名称、收费、限额和特性不能由“兼容”推断。
 
-最终文本及用量存入结果和终态事件；原始请求只保留实际发送正文摘要，未保存全文以供自动重发。
+最终文本及用量存入结果和终态事件；耐久工作表保存版本化文本输入、原始授权上下文、执行期限及同意引用，供未派发工作在期限内恢复。
+不持久化 API Key、会话 Token、SDK 对象或 Java 回调；已派发工作不会自动重发。工作正文包含历史消息，应按聊天数据配置访问、备份及保留策略。
 独立模型入口不写文章或创建会话，不接入知识库／业务来源，也不把任意客户端来源引用当作已授权资料。会话与历史组合由 [最小聊天服务](MINIMUM_CHAT_SERVICE.md)
 提供。
 
 ## 受理、幂等与预算
 
-- 单机准入满载直接拒绝，不先占用数据库预算。相同键的已存在调用在准入满载时也可返回原受理。
+- HTTP 受理不等待本机准入。数据库未完成工作容量为 threads + queue-capacity，满载或本实例没有有效 Worker
+  租约时拒绝新受理；同键重放仍可查询原执行。 Worker 取得本机并发许可后才认领工作，数据库启动速率窗口跨重启保留，排队时间计入执行总期限。
 - 幂等身份固定完整 ExecutionScope、model.generate 和客户端 Idempotency-Key；请求摘要由服务端生成，覆盖实际协议正文、能力／绑定／连接版本、期限和流式选项。
 - 同键同输入返回原 executionId；同键不同输入返回 IDEMPOTENCY_CONFLICT。重放查询不重新调用模型、不重复预留预算。
 - 每个作用域须由运维显式开通 budget 行。当前账本按租户／空间／主体／主体种类隔离，不隐式创建额度，也不声明已实现租户总账／所有预算层级。
-- 接受新调用时锁定权威预算行，核对币种、启用状态、limit - reserved - spent，预算预留、ACCEPTED 记录和受理事件在
-  REQUIRES_NEW / READ_COMMITTED 事务提交。
+- 接受新调用时锁定权威预算行，核对币种、启用状态、limit - reserved - spent，预算预留、ACCEPTED 记录、受理事件和工作正文在
+  REQUIRES_NEW / READ_COMMITTED 同一事务提交；工作表写入失败会一并回滚。
 - 只有受理提交成功才返回 AcceptedExecution／HTTP 202。受理不等于生成成功或业务保存。
-- RUNNING 通过条件领取只启动一次。外发前独立审计提交，再次检查当前策略，并先保存 dispatched 标记；该标记表示
+- 认领、RUNNING、派发及终态写入校验实例租约和任务租约 token。失联且未派发的 RUNNING 可以回到 ACCEPTED，保持原
+  executionId／attemptId 并追加恢复事件。 外发前独立审计提交，再次检查当前策略，并先保存 dispatched 标记；该标记表示
   **可能已经发送**，不证明供应商已接收。
 - 终态、最终结果、终态事件和费用状态在同一数据库事务提交。提交失败不把本地返回值当作成功结果；无权威终态时保留受理／运行状态待核对。
 
@@ -89,7 +92,8 @@ app，避免把 JSON、SDK、Spring 或数据库依赖导入 ai-new。
 数据库、DNS、TLS、socket 是专用工作线程上的阻塞 I/O，不能声明已经非阻塞。 工作总期限取原任务期限与提交起算的 timeout 较早值（HTTP
 新入口为 90 秒）；连接／读等待最多 30 秒且受剩余期限限制。 合作式取消会在检查点停止；阻塞 DNS／系统调用不能保证立即中断，许可一直持有到实际
 Java 工作退出。 HTTP 断线不自动取消；显式 cancel 返回 CANCELLING 只代表停止请求，发送后的终态可能是 OUTCOME_UNKNOWN。
-当前取消句柄限本实例，不提供跨实例取消、远端取消或暂停／继续。
+取消标记写入数据库，由当前执行者读取；未派发排队任务可以确认 CANCELLED 并释放预算。运行中取消或到期通过
+ExecutionCheckpoint.onStop 关闭已注册 socket， 许可和 future 仍等真实工作退出。不能保证立即中断 DNS，也不宣称供应商已取消请求；不提供暂停／继续。
 
 ## 事件、恢复与保留
 
@@ -97,10 +101,15 @@ Java 工作退出。 HTTP 断线不自动取消；显式 cancel 返回 CANCELLIN
 游标、最多 100 条，数据来自数据库，不调用供应商。 没有 SSE、逐 Token 输出、游标归档／过期清理或供应商续传。后续流式输出须按批次耐久提交，再使用
 base 背压流通知订阅者。
 
-重建存储对象或重启进程后可查询已提交结果／事件／费用状态，不恢复原 SDK 调用，也不自动再次收费。 进程退出会失去本地运行句柄，未有终态的记录必须核对原实例。
-`JdbcModelExecutionStore.interruptAbandoned(scope,id)` 是尚未暴露为 HTTP 的运维恢复操作， **仅在已确认原工作退出后调用**：
-未发送的调用转 INTERRUPTED 并释放预留，可能发送的调用转 OUTCOME_UNKNOWN 并保留待对账；不自动重新派发。 尚未接入有租约／fencing
-token 的多实例 Worker、实例心跳／故障扫描、可靠工作队列或自动恢复；部署仍须明确 single-instance。
+JdbcModelWorkQueue 使用数据库时钟和单活 Worker 租约；失去租约的旧进程不能继续领取、派发或写入结果。DurableModelWorker
+周期续约和扫描， 期限内且未派发的工作重新排队，恢复时重新校验输入指纹、定义、当前权限与原始外发同意；授权上下文与执行期限分别保存，不改写已授权任务身份。
+已派发但失联的工作标记 OUTCOME_UNKNOWN，保留 PENDING_RECONCILIATION 预算；不自动重发。升级前缺少工作正文的遗留执行，未派发转
+INTERRUPTED 并释放预留，已派发转未知结果。
+
+停机先标记 draining，拒绝新受理／认领，保持续约并限时等待已开始的工作；宽限期结束后请求停止并关闭已注册 I/O，再释放实例租约。
+未认领工作仍保存在数据库，下次启动在原期限内恢复。默认 lease-duration=PT30S、poll-interval=PT0.5S、shutdown-grace=PT10S， 均由
+app.properties 编译到 application-ai-new.yml。部署仍为 single-instance；同一数据库有第二个进程时只允许一个 Worker
+活跃，备用进程拒绝新受理， 这不是多实例负载均衡方案。恢复事件保持执行内单调序号。
 幂等、结果、事件、任务和同意记录暂不自动清理；生产启用前须确定保留／备份策略，不能随意删除仍需去重／对账的记录。
 
 ## 部署与请求示例
@@ -137,7 +146,8 @@ token 的多实例 Worker、实例心跳／故障扫描、可靠工作队列或�
 
 1. 按 [身份接入说明](../arte-app/SECURITY_BRIDGE.md) 部署安全表及个人作用域映射。
 2. 按 [公共执行说明](../arte-base/MINIMUM_EXECUTION_SUPPORT.md) 部署审计／产物表，设置私有目录和 single-instance 模式。
-3. 部署 `arte-app/scripts/arte-ai-new-model-ddl-mysql.sql`，不修改旧 AI 表。
+3. 部署 `arte-app/scripts/arte-ai-new-model-ddl-mysql.sql` 和 `arte-app/scripts/arte-ai-new-work-ddl-mysql.sql`，不修改旧
+   AI 表。 升级时先停止旧版本，再执行工作表脚本，最后构建／启动新版本；缺少工作表会明确启动失败。
 4. 为实际 tenant／workspace／principal 开通预算，登记默认连接及当前用途／应用策略；这些记录不自动放行。
 5. 配置真实兼容 endpoint、模型、明确版本、价格与环境变量 SecretRef，再开启新模型入口。
 
