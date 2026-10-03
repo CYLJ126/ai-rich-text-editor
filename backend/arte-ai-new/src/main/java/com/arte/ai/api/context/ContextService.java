@@ -43,6 +43,14 @@ public class ContextService {
         this.lifetime = lifetime;
     }
 
+    /**
+     * 准备上下文。
+     *
+     * @param viewer       执行上下文
+     * @param conversation 会话
+     * @param draft        草稿转录
+     * @return 上下文快照
+     */
     public ContextSnapshot prepare(ExecutionContext viewer, Conversation conversation, Turn draft) {
         if (!draft.scope().equals(viewer.scope()) || !conversation.scope().equals(viewer.scope())
                 || !draft.conversationId().equals(conversation.conversationId()))
@@ -80,7 +88,7 @@ public class ContextService {
                     if (selected.size() == historyPairs) break;
                 }
             selected.sort(Comparator.comparingLong(HistoryPair::sequence));
-            var prepared = new ArrayList<Message>(draft.input());
+            var prepared = new ArrayList<>(draft.input());
             if (ChatValues.bytes(prepared) > byteLimit)
                 throw ChatValues.failure(CommonErrorCode.INVALID_ARGUMENT, "chat-capacity");
             // Keep whole question/answer pairs, trimming the oldest selected pairs first.

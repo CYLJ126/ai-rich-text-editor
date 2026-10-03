@@ -73,6 +73,20 @@ public final class NewChatCallService {
         return conversations.delete(viewer, id, version);
     }
 
+    /**
+     * 提交（保存）问题
+     *
+     * @param http      HTTP 请求
+     * @param tenant    租户
+     * @param workspace 工作区
+     * @param id        会话 ID
+     * @param version   版本号
+     * @param text      问题文本
+     * @param options   模型选项
+     * @param key       密钥
+     * @param confirmed 是否确认
+     * @return 本轮结果
+     */
     public ChatTurnResult submit(HttpServletRequest http, String tenant, String workspace, String id, long version, String text,
                                  ModelOptions options, String key, boolean confirmed) {
         requireConfirmation(confirmed);

@@ -17,6 +17,13 @@ public interface ExecutionStore {
     record Acceptance(ModelExecution execution, boolean created) {
     }
 
+    /**
+     * 登记执行、预留预算
+     *
+     * @param submission 执行提交
+     * @param quote      预算报价单
+     * @return 执行受理结果
+     */
     Acceptance accept(ModelSubmission submission, BudgetQuote quote);
 
     Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key, String digest);

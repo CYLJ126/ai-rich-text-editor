@@ -82,6 +82,7 @@ public class ChatService {
         ContractChecks.required(consent, "consent");
         ChatContractChecks.identifier(key, 128, "idempotencyKey");
         ChatContractChecks.positive(version, "conversationVersion");
+        // 确认会话存在且当前用户有权限
         conversations.find(viewer, conversationId);
         reconcileActive(viewer, conversationId);
         var now = ChatValues.now(clock);
@@ -90,12 +91,15 @@ public class ChatService {
         var digest = ChatValues.submission(conversationId, version, original, input, options);
         var draft = new Turn(UUID.randomUUID().toString(), conversationId, viewer.scope(), 1, version, 1, kind,
                 TurnStatus.PREPARING, input, options, original, null, null, new IdempotencyKey(key, operation, digest), null, now, now, null);
+        // 保存 Q1，创建本轮 Turn，处理版本和重复提交
         var claimed = store.claim(draft);
         // Commit the immutable context before any model acceptance transaction can begin.
         var prepared = store.withTurn(viewer.scope(), claimed.turnId(), turn -> {
             if (turn.status() != TurnStatus.PREPARING) return turn;
             try {
                 var conversation = conversations.find(viewer, conversationId);
+                // prepare()：组装本次模型上下文。第一次提问只有 Q1
+                // ready()：保存上下文快照（本轮用户消息、引用片断、历史消息引用等），并将本轮置为 READY
                 return store.ready(turn, contexts.prepare(viewer, conversation, turn), ChatValues.now(clock));
             } catch (BaseException rejected) {
                 if (!confirmed(rejected.error())) throw rejected;
@@ -103,12 +107,21 @@ public class ChatService {
             }
         });
         if (prepared.status() == TurnStatus.READY) {
+            // drive()：确认外发同意，调用 InvocationCoordinator.submitModel()，再关联本轮与模型执行 ID
             prepared = store.withTurn(viewer.scope(), prepared.turnId(), turn -> drive(viewer, turn, consent));
         }
         if (prepared.status() == TurnStatus.REJECTED) throw new BaseException(prepared.rejectionError());
         return find(viewer, conversationId, prepared.turnId());
     }
 
+    /**
+     * drive()：确认外发同意，调用 InvocationCoordinator.submitModel()，再关联本轮与模型执行 ID。
+     *
+     * @param viewer  执行上下文
+     * @param turn    本轮 Turn
+     * @param consent 模型同意提供器
+     * @return 本轮 Turn 与模型执行 ID 关联后的结果
+     */
     private Turn drive(ExecutionContext viewer, Turn turn, ModelConsentProvider consent) {
         if (turn.status() != TurnStatus.READY) return turn;
         var recovered = recover(viewer, turn);

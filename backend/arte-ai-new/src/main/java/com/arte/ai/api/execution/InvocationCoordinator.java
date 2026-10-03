@@ -46,12 +46,12 @@ import java.util.concurrent.ConcurrentMap;
  * 单次非流式模型协调：可靠受理、一个尝试、显式费用／输出状态，不自动重试未知结果。
  */
 public class InvocationCoordinator {
-    private final ModelBindingResolver resolver;
+    private final ModelBindingResolver modelBindingResolver;
     private final ModelGateway gateway;
     private final ModelAccessPolicy access;
     private final EgressPolicy egress;
     private final AdmissionController admission;
-    private final TaskExecutor tasks;
+    private final TaskExecutor taskExecutor;
     private final ExecutionStore store;
     private final ExecutionEventStore events;
     private final BudgetService budgets;
@@ -59,15 +59,15 @@ public class InvocationCoordinator {
     private final Clock clock;
     private final ConcurrentMap<String, TaskHandle<?>> live = new ConcurrentHashMap<>();
 
-    public InvocationCoordinator(ModelBindingResolver resolver, ModelGateway gateway, ModelAccessPolicy access,
-                                 EgressPolicy egress, AdmissionController admission, TaskExecutor tasks, ExecutionStore store,
+    public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
+                                 EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
                                  ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock) {
-        this.resolver = resolver;
+        this.modelBindingResolver = modelBindingResolver;
         this.gateway = gateway;
         this.access = access;
         this.egress = egress;
         this.admission = admission;
-        this.tasks = tasks;
+        this.taskExecutor = taskExecutor;
         this.store = store;
         this.events = events;
         this.budgets = budgets;
@@ -82,7 +82,8 @@ public class InvocationCoordinator {
         ContractChecks.required(request, "request");
         if (request.context().isExpiredAt(clock.instant()))
             throw fail(request, CommonErrorCode.DEADLINE_EXCEEDED, "prepare");
-        var plan = resolver.resolve(request);
+        // 解析模型能力、绑定和连接
+        var plan = modelBindingResolver.resolve(request);
         access.requireAllowed(request.context(), plan);
         try {
             return gateway.prepare(plan, request.input());
@@ -121,6 +122,7 @@ public class InvocationCoordinator {
             String digest = requestDigest;
             var submission = new ModelSubmission(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
                     prepared.plan(), request.context(), idempotencyKey, digest);
+            // 登记执行、预留预算
             var accepted = store.accept(submission, budgets.quote());
             var execution = accepted.execution();
             if (accepted.created()) {
@@ -131,7 +133,8 @@ public class InvocationCoordinator {
                         context.cancellation(), context.authorizationScopes(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
                 TaskHandle<ModelResult> task;
                 try {
-                    task = tasks.submit(boundedContext, checkpoint -> run(execution, request, prepared, consent, checkpoint));
+                    // 提交异步任务，执行模型调用
+                    task = taskExecutor.submit(boundedContext, checkpoint -> run(execution, request, prepared, consent, checkpoint));
                 } catch (RuntimeException rejected) {
                     store.finish(context.scope(), execution.executionId(), ExecutionStatus.FAILED, null,
                             ExecutionFailures.beforeStart(CommonErrorCode.BUSY, context, "dispatch").error());
@@ -168,6 +171,7 @@ public class InvocationCoordinator {
         if (!store.start(context.scope(), id)) throw fail(request, CommonErrorCode.VERSION_CONFLICT, "attempt");
         try {
             checkpoint.check();
+            // 准备发送内容：解析模型能力、绑定和连接
             var current = prepare(request);
             if (!current.plan().equals(prepared.plan()) || !current.contentDigest().equals(prepared.contentDigest()))
                 throw fail(request, CommonErrorCode.VERSION_CONFLICT, "definition");
@@ -181,6 +185,7 @@ public class InvocationCoordinator {
             access.requireAllowed(context, current.plan());
             egress.requireAllowed(egressRequest(request, current, consent), clock);
             store.markDispatched(context.scope(), id);
+            // 与模型交互，生成结果
             var result = gateway.generate(current, checkpoint);
             checkpoint.check();
             access.requireAllowed(context, current.plan());
@@ -214,7 +219,7 @@ public class InvocationCoordinator {
      */
     public ModelExecution find(ExecutionContext viewer, String executionId) {
         var execution = store.find(viewer.scope(), executionId).orElseThrow(() -> ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query"));
-        access.requireAllowed(viewer, resolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
+        access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
         return execution;
     }
 

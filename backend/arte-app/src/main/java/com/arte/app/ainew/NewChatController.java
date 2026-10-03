@@ -67,6 +67,15 @@ public class NewChatController {
         return service.delete(http, tenantId, workspaceId, id, expectedVersion);
     }
 
+    /**
+     * 提交用户输入。
+     *
+     * @param http  HTTP 请求
+     * @param id    会话 ID
+     * @param key   密钥
+     * @param input 提交输入
+     * @return 本轮结果
+     */
     @PostMapping("/{id}/turns")
     public Object submit(HttpServletRequest http, @PathVariable String id, @RequestHeader("Idempotency-Key") String key, @RequestBody Submission input) {
         return ResponseEntity.accepted().body(service.submit(http, input.tenantId(), input.workspaceId(), id, input.expectedVersion(), input.text(), input.options(), key, input.externalTransferConfirmed()));
