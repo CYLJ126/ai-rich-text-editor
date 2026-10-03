@@ -110,6 +110,24 @@ class DurableModelWorkerIntegrationTest {
     }
 
     @Test
+    void workTimesHaveValidDefaultsAndDoNotAutoUpdateWithOtherFields() throws Exception {
+        var conversation = f.create();
+        var accepted = f.submit(conversation, "时间默认值", "time-defaults");
+        String id = accepted.execution().executionId();
+        var original = f.jdbc.queryForMap("SELECT queued_at,deadline_at FROM arte_ai_new_work WHERE execution_id=?", id);
+        f.jdbc.update("UPDATE arte_ai_new_work SET queued_at=DEFAULT,deadline_at=DEFAULT WHERE execution_id=?", id);
+        var defaults = f.jdbc.queryForMap("SELECT queued_at,deadline_at FROM arte_ai_new_work WHERE execution_id=?", id);
+        assertNotNull(defaults.get("queued_at"));
+        assertNotNull(defaults.get("deadline_at"));
+        assertEquals(defaults.get("queued_at"), defaults.get("deadline_at"));
+        // 正常受理必须保存真实期限；取消、续租等更新不得触发业务时间自动更新。
+        f.jdbc.update("UPDATE arte_ai_new_work SET queued_at=?,deadline_at=? WHERE execution_id=?", original.get("queued_at"), original.get("deadline_at"), id);
+        Thread.sleep(20);
+        f.jdbc.update("UPDATE arte_ai_new_work SET cancel_requested=TRUE,lease_until=CURRENT_TIMESTAMP WHERE execution_id=?", id);
+        assertEquals(original, f.jdbc.queryForMap("SELECT queued_at,deadline_at FROM arte_ai_new_work WHERE execution_id=?", id));
+    }
+
+    @Test
     void acceptedBodySurvivesRestartAndContinuesHistoryExactlyOnce() throws Exception {
         var conversation = f.create();
         var accepted = f.submit(conversation, "问题一", "one");
