@@ -65,11 +65,12 @@ class NewAiConfigurationProfileTest {
     void profileConfigurationWiresChatAndItsDependenciesWithoutCallingTheProvider(boolean existingRegistry) throws Exception {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.setEnvironment(profileEnvironment());
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("actions-enabled", Map.of("arte.ai-new.action.enabled", "true")));
             context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance());
             var datasource = new JdbcDataSource();
             datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
             try (var connection = datasource.getConnection()) {
-                for (var name : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-ai-new-work-ddl-mysql.sql", "arte-ai-new-chat-ddl-mysql.sql"))
+                for (var name : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-ai-new-work-ddl-mysql.sql", "arte-ai-new-chat-ddl-mysql.sql", "arte-ai-new-action-ddl-mysql.sql"))
                     org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection,
                             com.arte.app.testsupport.MySqlTestScripts.h2Resource(chatDdl(name)));
             }
@@ -81,10 +82,11 @@ class NewAiConfigurationProfileTest {
             if (existingRegistry)
                 context.registerBean(io.micrometer.core.instrument.MeterRegistry.class, () -> suppliedRegistry);
             context.register(Transactions.class, NewSecurityConfiguration.class, NewExecutionSupportConfiguration.class,
-                    NewModelConfiguration.class, NewChatConfiguration.class);
+                    NewModelConfiguration.class, NewChatConfiguration.class, NewAiActionConfiguration.class);
             context.refresh();
             assertNotNull(context.getBean(NewChatBootstrapService.class));
             assertNotNull(context.getBean(NewChatCallService.class));
+            assertNotNull(context.getBean(NewAiActionCallService.class));
             assertNotNull(context.getBean(PinnedHttpConnectionRuntime.class));
             var registry = context.getBean(io.micrometer.core.instrument.MeterRegistry.class);
             if (existingRegistry) assertSame(suppliedRegistry, registry);

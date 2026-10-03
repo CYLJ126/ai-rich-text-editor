@@ -35,6 +35,8 @@ arte:
       output-token-price: '@arte.ai-new.model.output-token-price@'
       max-input-bytes: @arte.ai-new.model.max-input-bytes@
       max-output-tokens: @arte.ai-new.model.max-output-tokens@
+    action:
+      enabled: @arte.ai-new.action.enabled@
     chat:
       streaming-enabled: @arte.ai-new.chat.streaming-enabled@
       context-window-tokens: @arte.ai-new.chat.context-window-tokens@

@@ -1,17 +1,24 @@
 package com.arte.app.ainew;
 
 import com.arte.ai.model.execution.ExecutionStatus;
+import com.arte.ai.model.execution.ModelEvent;
 import com.arte.ai.model.generation.ModelResult;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.error.CommonErrorCode;
-import com.arte.base.model.execution.*;
+import com.arte.base.model.execution.ExecutionError;
+import com.arte.base.model.execution.ExecutionEvent;
+import com.arte.base.model.execution.ResultCertainty;
+import com.arte.base.model.execution.SideEffectStatus;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 /**
  * 只从耐久事件表补读；有界订阅和发送线程隔离慢连接，断开订阅不取消模型工作。
@@ -46,7 +53,7 @@ public final class ChatEventStreams implements AutoCloseable {
         eventListener = ledger == null ? () -> {
         } : ledger.watchEvents(id -> {
             for (var subscription : subscriptions)
-                if (subscription.observation.executionId().equals(id)) schedule(subscription);
+                if (subscription.executionId.equals(id)) schedule(subscription);
         });
         long interval = ledger == null ? 200 : 2000;
         timer.scheduleWithFixedDelay(this::tick, interval, interval, TimeUnit.MILLISECONDS);
@@ -58,12 +65,22 @@ public final class ChatEventStreams implements AutoCloseable {
         return thread;
     }
 
-    public synchronized SseEmitter open(NewChatCallService.Observation observation, long after) {
+    public SseEmitter open(NewChatCallService.Observation observation, long after) {
+        return open(observation.executionId(), after, (cursor, limit) -> service.events(observation, cursor, limit));
+    }
+
+    /**
+     * 聊天与独立动作共用耐久事件传输；reader 每批重新校验所属场景和当前权限。
+     */
+    public synchronized SseEmitter open(String executionId, long after,
+                                        BiFunction<Long, Integer, List<ExecutionEvent<ModelEvent>>> reader) {
+        Objects.requireNonNull(executionId, "executionId");
+        Objects.requireNonNull(reader, "reader");
         if (stopped.get()) throw new IllegalStateException("stream observer stopped");
         if (after < -1) throw new IllegalArgumentException("invalid event cursor");
         if (!slots.tryAcquire())
             throw new BaseException(ExecutionError.of(CommonErrorCode.BUSY, "chat-stream-capacity", true, SideEffectStatus.NONE, ResultCertainty.CONFIRMED, null));
-        var subscription = new Subscription(observation, after);
+        var subscription = new Subscription(executionId, reader, after);
         subscriptions.add(subscription);
         subscription.emitter.onCompletion(subscription::remove);
         subscription.emitter.onTimeout(subscription::complete);
@@ -93,14 +110,16 @@ public final class ChatEventStreams implements AutoCloseable {
     }
 
     private final class Subscription {
-        final NewChatCallService.Observation observation;
+        final String executionId;
+        final BiFunction<Long, Integer, List<ExecutionEvent<ModelEvent>>> reader;
         final SseEmitter emitter = new SseEmitter(timeoutMillis);
         final AtomicBoolean pending = new AtomicBoolean(), closed = new AtomicBoolean(), dirty = new AtomicBoolean();
         final long opened = System.nanoTime();
         long cursor, lastHeartbeat = opened;
 
-        Subscription(NewChatCallService.Observation observation, long after) {
-            this.observation = observation;
+        Subscription(String executionId, BiFunction<Long, Integer, List<ExecutionEvent<ModelEvent>>> reader, long after) {
+            this.executionId = executionId;
+            this.reader = reader;
             this.cursor = after;
         }
 
@@ -108,7 +127,7 @@ public final class ChatEventStreams implements AutoCloseable {
             try {
                 if (closed.get()) return;
                 dirty.set(false);
-                var events = service.events(observation, cursor, 64);
+                var events = reader.apply(cursor, 64);
                 if (events.size() == 64) dirty.set(true);
                 for (var event : events) {
                     if (closed.get()) return;

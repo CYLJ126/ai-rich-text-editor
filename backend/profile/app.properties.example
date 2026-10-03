@@ -155,3 +155,6 @@ arte.ai-new.chat.context-window-tokens=8192
 arte.ai-new.chat.context-safety-tokens=256
 arte.ai-new.chat.stream-max-clients=64
 arte.ai-new.chat.stream-timeout=PT2M
+
+# 独立文本动作；部署 arte-ai-new-action-ddl-mysql.sql 后设为 true。
+arte.ai-new.action.enabled=false

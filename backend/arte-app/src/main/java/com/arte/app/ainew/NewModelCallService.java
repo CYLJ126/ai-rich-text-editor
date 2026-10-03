@@ -36,7 +36,8 @@ public final class NewModelCallService {
     public AcceptedExecution generate(HttpServletRequest http, String tenant, String workspace, String key, GenerationRequest input, boolean externalTransferConfirmed) {
         com.arte.base.validation.ContractChecks.identifier(key, "idempotencyKey");
         if (key.length() > 128) throw new IllegalArgumentException("idempotencyKey is too long");
-        if (key.startsWith("chat:")) throw new IllegalArgumentException("reserved chat idempotency namespace");
+        if (key.startsWith("chat:") || key.startsWith("action:"))
+            throw new IllegalArgumentException("reserved scene idempotency namespace");
         if (!externalTransferConfirmed)
             throw new AccessDeniedException("arte.ai.external_transfer_confirmation_required");
         var context = viewer(http, tenant, workspace);
