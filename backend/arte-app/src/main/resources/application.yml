@@ -19,7 +19,7 @@ threadPool:
 # Spring 应用配置
 spring:
   profiles:
-    include: core, ai
+    include: core, ai, ai-new
   application:
     name: @spring.application.name@
   servlet:

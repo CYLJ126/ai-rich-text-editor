@@ -1,0 +1,39 @@
+# 由 arte-app 的 ai-new profile 加载；@...@ 在 Maven 构建时由 profile/app.properties 替换。
+arte:
+  security:
+    bridge:
+      enabled: @arte.security.bridge.enabled@
+      task-lifetime: '@arte.security.bridge.task-lifetime@'
+  execution:
+    support:
+      enabled: @arte.execution.support.enabled@
+      mode: '@arte.execution.support.mode@'
+      tenant-id: '@arte.execution.support.tenant-id@'
+      artifact-directory: '@arte.execution.support.artifact-directory@'
+      max-artifact-bytes: @arte.execution.support.max-artifact-bytes@
+      threads: @arte.execution.support.threads@
+      queue-capacity: @arte.execution.support.queue-capacity@
+      starts-per-minute: @arte.execution.support.starts-per-minute@
+  ai-new:
+    model:
+      enabled: @arte.ai-new.model.enabled@
+      tenant-id: '@arte.ai-new.model.tenant-id@'
+      workspace-id: '@arte.ai-new.model.workspace-id@'
+      version: '@arte.ai-new.model.version@'
+      application-id: '@arte.ai-new.model.application-id@'
+      endpoint: '@arte.ai-new.model.endpoint@'
+      model-name: '@arte.ai-new.model.model-name@'
+      api-key: '@arte.ai-new.model.api-key@'
+      secret-env: '@arte.ai-new.model.secret-env@'
+      reasoning-effort: '@arte.ai-new.model.reasoning-effort@'
+      currency: '@arte.ai-new.model.currency@'
+      maximum-call-cost: '@arte.ai-new.model.maximum-call-cost@'
+      input-token-price: '@arte.ai-new.model.input-token-price@'
+      output-token-price: '@arte.ai-new.model.output-token-price@'
+      max-input-bytes: @arte.ai-new.model.max-input-bytes@
+      max-output-tokens: @arte.ai-new.model.max-output-tokens@
+    chat:
+      enabled: @arte.ai-new.chat.enabled@
+      context-max-bytes: @arte.ai-new.chat.context-max-bytes@
+      history-pairs: @arte.ai-new.chat.history-pairs@
+      snapshot-ttl: '@arte.ai-new.chat.snapshot-ttl@'

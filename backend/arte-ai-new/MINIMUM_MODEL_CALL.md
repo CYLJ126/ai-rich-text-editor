@@ -80,8 +80,9 @@ model.generate 和任务保存精确同意，并在调用边界由 ExistingEgres
 此字段不能替代受控连接、用途规则、当前应用策略或同意内容绑定。来源为空仍检查完整消息摘要和外发权限。
 
 生产只允许 HTTPS 的受控完整 endpoint，无凭据／查询／片段；host 固定为运维配置允许集合。 运行时核对全部解析地址拒绝回环、私网、链路本地、多播等，再连接选定
-IP，TLS 仍以原主机校验证书，避免检查与实际连接再次解析 DNS。 不使用系统代理、自动重定向、协议重试或供应商 SDK
-默认重试。凭据只在发送时读取所配置环境变量，SecretRef 不含明文；环境变量是本阶段提供者，后续可换为密钥服务。 响应最多 1
+IP，TLS 仍以原主机校验证书，避免检查与实际连接再次解析 DNS。 不使用系统代理、自动重定向、协议重试或供应商 SDK 默认重试。凭据使用
+`arte.ai-new.model.api-key` 的编译配置；为空时，在发送时读取 `secret-env` 指定的环境变量。SecretRef 不含明文，初始化接口也不返回密钥。
+响应最多 1
 MiB，头部／单行有界，只接收 identity 编码、明确长度、chunked 或关闭连接定界；不提供完整通用 HTTP 客户端特性。 协议适配保留在
 app，避免把 JSON、SDK、Spring 或数据库依赖导入 ai-new。
 
@@ -104,7 +105,28 @@ token 的多实例 Worker、实例心跳／故障扫描、可靠工作队列或�
 
 ## 部署与请求示例
 
-本次只提供代码和增量 SQL， **没有执行运行数据库脚本、启用配置、填写真实密钥或调用真实供应商**。 启用顺序：
+### 当前项目默认配置
+
+`arte-ai-new/src/main/resources/application-ai-new.yml` 与已有 `application-core.yml`、`application-ai.yml` 一样， 由主应用的
+`spring.profiles.include: core, ai, ai-new` 激活并加载，避免与 `arte-app` 的根 `application.yml` 重名。 所有新配置使用
+`@...@` 占位符，Maven 构建时从
+`backend/profile/app.properties` 替换；该 properties 文件不直接作为 Spring 运行时配置加载。
+
+当前默认启用安全桥接、单实例执行支撑、模型和聊天。默认模型为 DeepSeek-V4.1-Flash，API 标识
+`deepseek-flash`，接口为 `https://api.deepseek.com/chat/completions`，使用非思考模式（`reasoning-effort=none`）。
+默认作用域 `personal-1/workspace-1` 对应初始化账号 ID=1 的 admin；与实际成员不符时修改配置。
+私有产物目录为工作目录下的 `data/ai-new/private-artifacts`，4 个执行线程、32 个队列位置、每分钟最多启动 60 次。 当前正文上限
+16384 字节、聊天文本上下文上限 8192 字节、最多 32 轮历史、快照有效期 10 分钟、输出上限 2048 token。
+
+价格按 [DeepSeek 官方价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) 的高峰未命中缓存价格配置： 输入 2
+元／百万 token、输出 8 元／百万 token，币种 CNY，单次预算预留上限 0.10 元。 当前固定单价估算未区分缓存命中或峰谷时段；实际费用以供应商账单为准。数据库预算行须使用相同币种。
+
+`arte.ai-new.model.api-key` 保持为空。填写后重新构建并重启后端，或保留空值并设置环境变量
+`ARTE_NEW_MODEL_API_KEY`。尚未填密钥时仍可启动服务、查询初始化和管理会话，模型外发会因凭据缺失失败。 模型目录、初始化及错误响应不返回该密钥。
+
+配置加载不会自动执行 DDL、建立成员关系、授予应用／连接／外发许可或创建数据库预算额度；这些数据仍按下方步骤准备。
+
+运行数据库脚本、授权数据及预算仍须按部署环境准备；当前没有填写真实密钥或调用真实供应商。准备顺序：
 
 1. 按 [身份接入说明](../arte-app/SECURITY_BRIDGE.md) 部署安全表及个人作用域映射。
 2. 按 [公共执行说明](../arte-base/MINIMUM_EXECUTION_SUPPORT.md) 部署审计／产物表，设置私有目录和 single-instance 模式。

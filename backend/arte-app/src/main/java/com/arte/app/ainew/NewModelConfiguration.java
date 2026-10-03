@@ -35,9 +35,10 @@ import java.net.URI;
 import java.time.Clock;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
- * 显式开启独立最小模型链，需要上一阶段身份和执行支撑 Bean；无默认密钥／预算／许可。
+ * 显式开启独立最小模型链，需要身份和执行支撑 Bean；密钥可来自编译配置或环境变量，不自动授予预算／许可。
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "arte.ai-new.model.enabled", havingValue = "true")
@@ -70,20 +71,27 @@ public class NewModelConfiguration {
     }
 
     @Bean
-    public PinnedHttpConnectionRuntime newModelRuntime(@Value("${arte.ai-new.model.endpoint}") URI endpoint, @Value("${arte.ai-new.model.secret-env}") String env) {
-        return new PinnedHttpConnectionRuntime(Set.of(endpoint.getHost()), ref -> {
+    public PinnedHttpConnectionRuntime newModelRuntime(@Value("${arte.ai-new.model.endpoint}") URI endpoint,
+                                                       @Value("${arte.ai-new.model.secret-env}") String env,
+                                                       @Value("${arte.ai-new.model.api-key:}") String apiKey) {
+        return new PinnedHttpConnectionRuntime(Set.of(endpoint.getHost()), modelCredentials(env, apiKey, System::getenv), 1048576);
+    }
+
+    static Function<SecretRef, char[]> modelCredentials(String env, String apiKey, Function<String, String> environment) {
+        return ref -> {
             if (!env.equals(ref.secretId())) throw new IllegalArgumentException("unknown credential reference");
-            String secret = System.getenv(env);
+            String secret = apiKey.isBlank() ? environment.apply(env) : apiKey;
             return secret == null ? null : secret.toCharArray();
-        }, 1048576);
+        };
     }
 
     @Bean
     public CompatibleChatProviderAdapter newModelProvider(PinnedHttpConnectionRuntime runtime, BudgetQuote quote,
                                                           @Value("${arte.ai-new.model.model-name}") String model, @Value("${arte.ai-new.model.input-token-price}") BigDecimal input,
                                                           @Value("${arte.ai-new.model.output-token-price}") BigDecimal output,
-                                                          @Value("${arte.ai-new.model.max-input-bytes:16384}") int bytes, @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
-        return new CompatibleChatProviderAdapter(runtime, model, input, output, quote, bytes, tokens);
+                                                          @Value("${arte.ai-new.model.max-input-bytes:16384}") int bytes, @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens,
+                                                          @Value("${arte.ai-new.model.reasoning-effort:}") String reasoningEffort) {
+        return new CompatibleChatProviderAdapter(runtime, model, input, output, quote, bytes, tokens, reasoningEffort);
     }
 
     @Bean

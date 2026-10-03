@@ -1,14 +1,26 @@
 package com.arte.app.ainew;
 
-import com.arte.ai.model.generation.*;
-import com.arte.ai.model.message.*;
-import com.arte.ai.model.budget.*;
-import com.arte.ai.spi.adapter.*;
-import com.google.gson.*;
+import com.arte.ai.model.budget.BudgetQuote;
+import com.arte.ai.model.budget.Usage;
+import com.arte.ai.model.generation.GenerationRequest;
+import com.arte.ai.model.generation.ModelPlan;
+import com.arte.ai.model.generation.ModelResult;
+import com.arte.ai.model.generation.PreparedModelCall;
+import com.arte.ai.model.message.MessageRole;
+import com.arte.ai.model.message.TextPart;
+import com.arte.ai.spi.adapter.ConnectionRuntime;
+import com.arte.ai.spi.adapter.ProviderAdapter;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
-import java.math.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * 最小兼容聊天协议适配：文本、一个结果、不流式；工具／模态／结构化输出明确拒绝。
@@ -19,9 +31,15 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
     private final BigDecimal inputPrice, outputPrice;
     private final BudgetQuote quote;
     private final int maxInputBytes, maxOutputTokens;
+    private final String reasoningEffort;
 
     public CompatibleChatProviderAdapter(ConnectionRuntime runtime, String model, BigDecimal inputPrice, BigDecimal outputPrice,
                                          BudgetQuote quote, int maxInputBytes, int maxOutputTokens) {
+        this(runtime, model, inputPrice, outputPrice, quote, maxInputBytes, maxOutputTokens, "");
+    }
+
+    public CompatibleChatProviderAdapter(ConnectionRuntime runtime, String model, BigDecimal inputPrice, BigDecimal outputPrice,
+                                         BudgetQuote quote, int maxInputBytes, int maxOutputTokens, String reasoningEffort) {
         this.runtime = Objects.requireNonNull(runtime);
         this.model = com.arte.base.validation.ContractChecks.identifier(model, "model");
         this.inputPrice = Objects.requireNonNull(inputPrice);
@@ -32,6 +50,9 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
             throw new IllegalArgumentException("invalid controlled model limits or pricing");
         this.maxInputBytes = maxInputBytes;
         this.maxOutputTokens = maxOutputTokens;
+        this.reasoningEffort = Objects.requireNonNull(reasoningEffort);
+        if (!reasoningEffort.isEmpty() && !Set.of("none", "low", "high", "max").contains(reasoningEffort))
+            throw new IllegalArgumentException("invalid reasoning effort");
     }
 
     @Override
@@ -69,6 +90,7 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
         body.add("messages", messages);
         body.addProperty("stream", false);
         body.addProperty("max_tokens", maximum);
+        if (!reasoningEffort.isEmpty()) body.addProperty("reasoning_effort", reasoningEffort);
         if (request.options().temperature() != null) body.addProperty("temperature", request.options().temperature());
         byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
         if (bytes.length > maxInputBytes) throw new IllegalArgumentException("model input too large");

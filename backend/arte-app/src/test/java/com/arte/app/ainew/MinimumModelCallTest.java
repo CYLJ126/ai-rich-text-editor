@@ -160,6 +160,24 @@ class MinimumModelCallTest {
     }
 
     @Test
+    void deepSeekConfigurationSendsFlashModelWithoutThinkingAndUsesConfiguredCnyPrices() throws Exception {
+        var provider = new CompatibleChatProviderAdapter(runtime(), "deepseek-flash", new BigDecimal("0.00000200"),
+                new BigDecimal("0.00000800"), new BudgetQuote(new BigDecimal("0.10000000"), "CNY"),
+                16384, 2048, "none");
+        var request = request("question");
+        var plan = new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions),
+                new BindingManager(definitions)).resolve(request.context(), request.capabilityRef(), request.bindingRef());
+        var prepared = provider.prepare(plan, request.input());
+        var result = tasks.submit(request.context(), prepared.operation()::invoke).completion().toCompletableFuture().get(2, TimeUnit.SECONDS);
+        var body = com.google.gson.JsonParser.parseString(requestBody.get()).getAsJsonObject();
+        assertEquals("deepseek-flash", body.get("model").getAsString());
+        assertEquals("none", body.get("reasoning_effort").getAsString());
+        assertFalse(body.get("stream").getAsBoolean());
+        assertEquals(new BigDecimal("0.00003600"), result.usage().reportedCost());
+        assertEquals("CNY", result.usage().currency());
+    }
+
+    @Test
     void realProtocolCallPersistsResultEventsUsageAndSurvivesStoreReconstruction() throws Exception {
         var coordinator = coordinator(runtime());
         var accepted = coordinator.submitModel(request("question"), null, "key");
