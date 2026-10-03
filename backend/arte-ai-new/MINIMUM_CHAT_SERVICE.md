@@ -116,3 +116,40 @@ arte:
 Spring 事务代理接线。
 `NewChatConfigurationTest` 验证默认关闭及缺失基础设施时启动失败；已有数据契约、安全接入和模型调用测试继续作为回归验证。 H2
 验证不等同于生产 MySQL 部署验证，没有执行实际数据库变更。
+
+## 第一批性能与事务优化（2026-10-03）
+
+历史分页一次读取 Turn，再按执行 ID 批量读取 Execution；模型授权按本次响应中不同的能力／绑定版本去重，不跨请求缓存权限。
+已完成并释放占位的 Turn 不再加行锁；仅 READY 关联恢复和终态占位释放需要条件写入。 前端初次加载及主动刷新仍查询历史，生成期间每两秒只查询当前未完成的
+Turn，并更新原分页缓存；完成、权限错误或观察窗口结束后停止轮询。
+
+上下文装配、历史引用校验和外发同意在 Turn 行锁事务之外执行；提交快照时重新核对 Turn 状态和行版本。 最终模型受理及 Turn
+关联仍用行锁串行保护，模型预算／执行账本仍独立提交，防止并发同键请求误拒绝或重复派发。 新聊天和模型读取授权采用
+SUPPORTS，加入聊天存储的 READ_COMMITTED 事务；异步外发前仍重新检查当前授权。 同意和执行账本的 REQUIRES_NEW 保留，不要求事务跨线程传播。
+
+观测通过公共 Telemetry 端口接入 Micrometer。复用已有 MeterRegistry；没有指标后端时提供 SimpleMeterRegistry，仅在内存中保存统计。
+本次没有新增 Actuator、Prometheus 依赖或开放指标网络接口；要长期保存、查看时间序列及 P95/P99，需要接入指标导出后端。
+默认日志记录失败阶段及超过一秒的阶段耗时，正常短阶段使用 DEBUG，包含 operation、outcome、elapsedMs、traceId，不记录消息、凭据和请求正文。
+
+| 指标 | 含义 |
+| --- | --- |
+| `arte.execution.duration` / `arte.execution.operations` | 按阶段及结果统计耗时和次数：提交、认领、上下文准备／校验、受理、历史、单轮查询、准入、模型执行 |
+| `arte.chat.turn.lock.acquire` | 从申请事务到取得 Turn 行锁的耗时，包含连接获取和 SQL 执行，不代表纯数据库锁等待 |
+| `arte.chat.turn.transaction` | Turn 写事务总耗时，包含等待及失败路径 |
+| `arte.ai.execution.queue.wait` | 从提交本机任务到 Worker 开始执行的等待 |
+| `arte.ai.provider.duration` | 模型网络交互阶段耗时，包含成功与失败 |
+| `arte.ai.execution.finished` | 模型执行终态次数，包括 OUTCOME_UNKNOWN |
+| `arte.ai.tokens` | 供应商报告的输入／输出 Token；未知用量不记为零 |
+| `arte.execution.workers.active` / `arte.execution.workers.queued` | 本机线程及队列占用 |
+| `arte.database.connections.active` / `idle` / `waiting` | Druid 连接池使用及等待线程数，以固定的数据源 Bean 名区分 |
+| `arte.database.connection.wait` | Druid 连接池累计等待次数与等待时间 |
+
+指标只使用低基数阶段、结果及固定数据源名称标签；traceId 不进入指标标签。 数据库纯行锁等待和慢 SQL 仍需结合数据库诊断及现有
+Druid SQL 统计判断。
+
+新增回归验证覆盖 20 条历史仅一次执行查询、一次模型授权、无 Turn 行锁；上下文及同意在行锁事务外；当前权限撤销；指标采集失效不影响业务；
+前端单轮轮询保持已加载分页、终态停止及权限错误后的手动恢复。 后续第二批任务租约／重启恢复与第三批流式／Token
+上下文预算尚未实施，当前仍是单实例非流式执行。
+
+本批验证：后端相关回归 88 项、前端相关回归 16 项通过。全项目 TypeScript 检查仍有 `canvas-ai-dialog.tsx` 第 204、212 行的既有
+attachments 类型错误，本批聊天代码无报错。 未运行生产 MySQL 压测或真实供应商调用。

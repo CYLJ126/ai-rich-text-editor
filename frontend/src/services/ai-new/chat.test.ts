@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {request} from '@umijs/max';
-import {cancelChat, getChatHistory, submitChat} from './chat';
+import {cancelChat, getChatHistory, getChatTurn, submitChat} from './chat';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 const scope = {tenantId: 'tenant', workspaceId: 'workspace', allowedActions: ['resource.egress']};
@@ -28,6 +28,16 @@ beforeEach(() => {
   vi.mocked(request).mockReset();
 });
 describe('chat turn HTTP contracts', () => {
+  it('polls an individual turn with scope, abort signal and response ownership checks', async () => {
+    vi.mocked(request).mockResolvedValue(result);
+    const controller = new AbortController();
+    await getChatTurn(scope, 'c/1', 'turn', controller.signal);
+    expect(request).toHaveBeenCalledWith('/arte/api/ai-new/conversations/c%2F1/turns/turn', expect.objectContaining({
+      params: {tenantId: 'tenant', workspaceId: 'workspace'}, signal: controller.signal,
+    }));
+    await expect(getChatTurn(scope, 'c/1', 'other')).rejects.toMatchObject({status: 502});
+    await expect(getChatTurn(scope, 'other', 'turn')).rejects.toMatchObject({status: 502});
+  });
   it('sends only permitted fields and preserves the idempotency header and version', async () => {
     vi.mocked(request).mockResolvedValue(result);
     await submitChat(scope, 'c/1', command);

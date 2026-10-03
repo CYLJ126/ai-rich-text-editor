@@ -14,6 +14,7 @@ import com.arte.base.model.execution.SideEffectStatus;
 import com.arte.base.model.identity.ExecutionScope;
 import com.arte.base.model.identity.PrincipalRef;
 import com.arte.base.model.identity.PrincipalType;
+import com.arte.base.spi.observability.Telemetry;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -24,8 +25,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -37,8 +40,14 @@ public final class JdbcChatStore implements ChatStore {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate writes;
     private final String jsonParameter;
+    private final Telemetry telemetry;
 
     public JdbcChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager) {
+        this(jdbc, manager, Telemetry.disabled());
+    }
+
+    public JdbcChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager, Telemetry telemetry) {
+        this.telemetry = Objects.requireNonNull(telemetry);
         this.jdbc = Objects.requireNonNull(jdbc);
         writes = new TransactionTemplate(Objects.requireNonNull(manager));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -178,8 +187,20 @@ public final class JdbcChatStore implements ChatStore {
 
     @Override
     public <T> T withTurn(ExecutionScope scope, String id, Function<Turn, T> work) {
-        return writes.execute(tx -> work.apply(one("SELECT * FROM arte_ai_new_turn WHERE turn_id=? AND scope_key=? FOR UPDATE", turnMapper(scope), id, ModelKeys.scope(scope))
-                .orElseThrow(() -> failure(CommonErrorCode.NOT_FOUND))));
+        long started = System.nanoTime();
+        try {
+            return writes.execute(tx -> {
+                var turn = one("SELECT * FROM arte_ai_new_turn WHERE turn_id=? AND scope_key=? FOR UPDATE", turnMapper(scope), id, ModelKeys.scope(scope))
+                        .orElseThrow(() -> failure(CommonErrorCode.NOT_FOUND));
+                // Includes connection acquisition and the locking query; not a pure DB lock-wait measurement.
+                telemetry.duration("arte.chat.turn.lock.acquire", Duration.ofNanos(System.nanoTime() - started),
+                        Map.of(Telemetry.Label.COMPONENT, "ai-new", Telemetry.Label.OPERATION, "turn.lock"));
+                return work.apply(turn);
+            });
+        } finally {
+            telemetry.duration("arte.chat.turn.transaction", Duration.ofNanos(System.nanoTime() - started),
+                    Map.of(Telemetry.Label.COMPONENT, "ai-new", Telemetry.Label.OPERATION, "turn.write"));
+        }
     }
 
     @Override

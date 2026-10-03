@@ -16,7 +16,8 @@ import java.time.Clock;
 /**
  * 模型是独立领域，复用当前账号／成员／任务／应用策略，不把模型伪装成文章资源。
  */
-@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
+// 聊天受理使用 READ_COMMITTED；工作线程在外发前独立重新鉴权，不继承提交线程事务。
+@Transactional(readOnly = true, propagation = Propagation.SUPPORTS, isolation = Isolation.READ_COMMITTED)
 public class ExistingModelAccessPolicy implements ModelAccessPolicy {
     private final JdbcSecurityRepository repository;
     private final Clock clock;

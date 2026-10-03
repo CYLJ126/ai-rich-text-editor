@@ -9,6 +9,8 @@ import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
 import com.arte.app.security.bridge.ExistingIdentityAdapter;
 import com.arte.app.security.bridge.JdbcSecurityRepository;
+import com.arte.base.spi.observability.Telemetry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -35,8 +37,8 @@ public class NewChatConfiguration {
         return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens);
     }
     @Bean
-    public JdbcChatStore newChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager) {
-        return new JdbcChatStore(jdbc, manager);
+    public JdbcChatStore newChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager, ObjectProvider<Telemetry> telemetry) {
+        return new JdbcChatStore(jdbc, manager, telemetry.getIfAvailable(Telemetry::disabled));
     }
 
     @Bean
@@ -60,9 +62,9 @@ public class NewChatConfiguration {
 
     @Bean
     public ChatService newChats(ConversationService conversations, ContextService contexts, JdbcChatStore store,
-                                InvocationCoordinator coordinator, ConfiguredModelDefinitions definitions,
+                                InvocationCoordinator coordinator, ConfiguredModelDefinitions definitions, ObjectProvider<Telemetry> telemetry,
                                 @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
-        return new ChatService(conversations, contexts, store, coordinator, definitions.capabilityRef(), Clock.systemUTC(), tokens);
+        return new ChatService(conversations, contexts, store, coordinator, definitions.capabilityRef(), Clock.systemUTC(), tokens, telemetry.getIfAvailable(Telemetry::disabled));
     }
 
     @Bean

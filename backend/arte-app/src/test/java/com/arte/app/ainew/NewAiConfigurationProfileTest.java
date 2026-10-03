@@ -60,8 +60,9 @@ class NewAiConfigurationProfileTest {
         }
     }
 
-    @Test
-    void profileConfigurationWiresChatAndItsDependenciesWithoutCallingTheProvider() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void profileConfigurationWiresChatAndItsDependenciesWithoutCallingTheProvider(boolean existingRegistry) {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.setEnvironment(profileEnvironment());
             context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance());
@@ -71,12 +72,22 @@ class NewAiConfigurationProfileTest {
             context.registerBean(DataSourceTransactionManager.class, () -> new DataSourceTransactionManager(datasource));
             context.registerBean(TokenService.class, () -> mock(TokenService.class));
             context.registerBean(SqlSessionFactory.class, () -> mock(SqlSessionFactory.class));
+            var suppliedRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+            if (existingRegistry)
+                context.registerBean(io.micrometer.core.instrument.MeterRegistry.class, () -> suppliedRegistry);
             context.register(Transactions.class, NewSecurityConfiguration.class, NewExecutionSupportConfiguration.class,
                     NewModelConfiguration.class, NewChatConfiguration.class);
             context.refresh();
             assertNotNull(context.getBean(NewChatBootstrapService.class));
             assertNotNull(context.getBean(NewChatCallService.class));
             assertNotNull(context.getBean(PinnedHttpConnectionRuntime.class));
+            var registry = context.getBean(io.micrometer.core.instrument.MeterRegistry.class);
+            if (existingRegistry) assertSame(suppliedRegistry, registry);
+            assertInstanceOf(com.arte.app.execution.support.MicrometerExecutionTelemetry.class,
+                    context.getBean(com.arte.base.spi.observability.Telemetry.class));
+            assertEquals(0, registry.get("arte.execution.workers.active").gauge().value());
+            assertEquals(0, registry.get("arte.execution.workers.queued").gauge().value());
+            if (!existingRegistry) suppliedRegistry.close();
         }
     }
 

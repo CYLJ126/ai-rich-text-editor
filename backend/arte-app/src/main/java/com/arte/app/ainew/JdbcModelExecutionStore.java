@@ -31,9 +31,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * 独立事务的单次模型账本：受理+预算及终态+结果+事件+结算各自原子提交。
@@ -115,6 +113,19 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     public Optional<ModelExecution> find(ExecutionScope scope, String id) {
         var rows = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND execution_id = ?", (rs, row) -> map(rs, scope), ModelKeys.scope(scope), id);
         return rows.stream().findFirst();
+    }
+
+    @Override
+    public List<ModelExecution> findAll(ExecutionScope scope, List<String> ids) {
+        if (ids.size() > 256) throw new IllegalArgumentException("execution batch exceeds limit");
+        var distinct = ids.stream().distinct().toList();
+        if (distinct.isEmpty()) return List.of();
+        var args = new ArrayList<Object>();
+        args.add(ModelKeys.scope(scope));
+        args.addAll(distinct);
+        return jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key=? AND execution_id IN ("
+                        + String.join(",", Collections.nCopies(distinct.size(), "?")) + ")",
+                (rs, row) -> map(rs, scope), args.toArray());
     }
 
     @Override

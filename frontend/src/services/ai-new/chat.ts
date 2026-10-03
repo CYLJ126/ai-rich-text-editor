@@ -38,6 +38,14 @@ export async function getChatHistory(scope: WorkspaceSelection, id: string, befo
   return result;
 }
 
+export async function getChatTurn(scope: WorkspaceSelection, id: string, turnId: string, signal?: AbortSignal): Promise<ChatTurnResult> {
+  const result = readContract(turnSchema, await requestAiNew(`${path(id)}/${encodeURIComponent(turnId)}`, {
+    params: selection(scope), signal,
+  }));
+  if (result.turn.conversationId !== id || result.turn.turnId !== turnId) throw new AiNewApiError(502, null);
+  return result;
+}
+
 export async function submitChat(scope: WorkspaceSelection, id: string, command: PendingChatCommand): Promise<ChatTurnResult> {
   const regenerating = command.kind === 'REGENERATION';
   const result = readContract(turnSchema, await requestAiNew(regenerating ? `/conversations/${encodeURIComponent(id)}/regenerate` : path(id), {

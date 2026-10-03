@@ -6,6 +6,7 @@ import com.arte.base.validation.ContractChecks;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 指标与追踪。
@@ -30,6 +31,22 @@ public interface Telemetry {
     void increment(String metric, long amount, Map<Label, String> labels);
 
     void duration(String metric, Duration elapsed, Map<Label, String> labels);
+
+    /**
+     * 同步阶段观测；异步任务应在实际执行线程另外创建 Span。
+     */
+    default <T> T observe(ExecutionContext context, String operation, Supplier<T> work) {
+        try (var span = startSpan(context, operation)) {
+            try {
+                T result = work.get();
+                span.outcome(AuditOutcome.SUCCEEDED);
+                return result;
+            } catch (RuntimeException | Error failed) {
+                span.outcome(AuditOutcome.FAILED);
+                throw failed;
+            }
+        }
+    }
 
     /**
      * 明确关闭采样观测时使用；不能替代审计、执行持久化或预算账本。

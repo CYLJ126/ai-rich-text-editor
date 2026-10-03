@@ -27,6 +27,7 @@ import com.arte.base.model.resource.ResourceRef;
 import com.arte.base.model.security.EgressRequest;
 import com.arte.base.spi.execution.TaskExecutor;
 import com.arte.base.spi.observability.AuditSink;
+import com.arte.base.spi.observability.Telemetry;
 import com.arte.base.validation.ContractChecks;
 
 import java.net.URI;
@@ -34,10 +35,7 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -57,11 +55,19 @@ public class InvocationCoordinator {
     private final BudgetService budgets;
     private final AuditSink audit;
     private final Clock clock;
+    private final Telemetry telemetry;
     private final ConcurrentMap<String, TaskHandle<?>> live = new ConcurrentHashMap<>();
 
     public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
                                  EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
                                  ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock) {
+        this(modelBindingResolver, gateway, access, egress, admission, taskExecutor, store, events, budgets, audit, clock, Telemetry.disabled());
+    }
+
+    public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
+                                 EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
+                                 ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock, Telemetry telemetry) {
+        this.telemetry = java.util.Objects.requireNonNull(telemetry);
         this.modelBindingResolver = modelBindingResolver;
         this.gateway = gateway;
         this.access = access;
@@ -108,11 +114,11 @@ public class InvocationCoordinator {
         String requestDigest = fingerprint(prepared, request.options());
         var duplicate = store.findIdempotent(request.context().scope(), idempotencyKey, requestDigest);
         if (duplicate.isPresent()) return receipt(duplicate.get());
-        var waiting = admission.acquire(new AdmissionRequest(request.context(),
-                new AdmissionKey(request.context().scope().tenantId(), "ai.interactive", null, null), AdmissionPriority.INTERACTIVE, Duration.ZERO));
         AdmissionPermit permit;
         try {
-            permit = waiting.completion().toCompletableFuture().join();
+            permit = telemetry.observe(request.context(), "model.admission", () -> admission.acquire(new AdmissionRequest(request.context(),
+                            new AdmissionKey(request.context().scope().tenantId(), "ai.interactive", null, null), AdmissionPriority.INTERACTIVE, Duration.ZERO))
+                    .completion().toCompletableFuture().join());
         } catch (CompletionException failed) {
             if (failed.getCause() instanceof RuntimeException cause) throw cause;
             throw failed;
@@ -134,7 +140,12 @@ public class InvocationCoordinator {
                 TaskHandle<ModelResult> task;
                 try {
                     // 提交异步任务，执行模型调用
-                    task = taskExecutor.submit(boundedContext, checkpoint -> run(execution, request, prepared, consent, checkpoint));
+                    long queuedAt = System.nanoTime();
+                    task = taskExecutor.submit(boundedContext, checkpoint -> {
+                        telemetry.duration("arte.ai.execution.queue.wait", Duration.ofNanos(System.nanoTime() - queuedAt),
+                                Map.of(Telemetry.Label.COMPONENT, "ai-new", Telemetry.Label.OPERATION, "model.execute"));
+                        return run(execution, request, prepared, consent, checkpoint);
+                    });
                 } catch (RuntimeException rejected) {
                     store.finish(context.scope(), execution.executionId(), ExecutionStatus.FAILED, null,
                             ExecutionFailures.beforeStart(CommonErrorCode.BUSY, context, "dispatch").error());
@@ -169,31 +180,49 @@ public class InvocationCoordinator {
         var context = request.context();
         String id = execution.executionId();
         if (!store.start(context.scope(), id)) throw fail(request, CommonErrorCode.VERSION_CONFLICT, "attempt");
-        try {
-            checkpoint.check();
-            // 准备发送内容：解析模型能力、绑定和连接
-            var current = prepare(request);
-            if (!current.plan().equals(prepared.plan()) || !current.contentDigest().equals(prepared.contentDigest()))
-                throw fail(request, CommonErrorCode.VERSION_CONFLICT, "definition");
-            var decision = egress.requireAllowed(egressRequest(request, current, consent), clock);
-            audit.append(new AuditRecord(id + ":dispatch", "ai.model.dispatch", context.scope(), context.scope().principal(),
-                    context.traceId(), id, clock.instant(), AuditOutcome.ALLOWED,
-                    List.of(current.plan().capability().descriptor().ref().resource(), current.plan().binding().ref().resource(), current.plan().connection().ref().resource()),
-                    Set.of(), decision.policy().policyVersions()));
-            checkpoint.check();
-            // 审计后在发送边界再次核对；任何未确认策略均停止外发。
-            access.requireAllowed(context, current.plan());
-            egress.requireAllowed(egressRequest(request, current, consent), clock);
-            store.markDispatched(context.scope(), id);
-            // 与模型交互，生成结果
-            var result = gateway.generate(current, checkpoint);
-            checkpoint.check();
-            access.requireAllowed(context, current.plan());
-            store.finish(context.scope(), id, ExecutionStatus.SUCCEEDED, result, null);
-            return result;
-        } catch (Exception failure) {
-            recordFailure(execution, request, failure);
-            throw failure;
+        boolean dispatched = false;
+        try (var span = telemetry.startSpan(context, "model.execute")) {
+            try {
+                checkpoint.check();
+                // 准备发送内容：解析模型能力、绑定和连接
+                var current = prepare(request);
+                if (!current.plan().equals(prepared.plan()) || !current.contentDigest().equals(prepared.contentDigest()))
+                    throw fail(request, CommonErrorCode.VERSION_CONFLICT, "definition");
+                var decision = egress.requireAllowed(egressRequest(request, current, consent), clock);
+                audit.append(new AuditRecord(id + ":dispatch", "ai.model.dispatch", context.scope(), context.scope().principal(),
+                        context.traceId(), id, clock.instant(), AuditOutcome.ALLOWED,
+                        List.of(current.plan().capability().descriptor().ref().resource(), current.plan().binding().ref().resource(), current.plan().connection().ref().resource()),
+                        Set.of(), decision.policy().policyVersions()));
+                checkpoint.check();
+                // 审计后在发送边界再次核对；任何未确认策略均停止外发。
+                access.requireAllowed(context, current.plan());
+                egress.requireAllowed(egressRequest(request, current, consent), clock);
+                store.markDispatched(context.scope(), id);
+                dispatched = true;
+                // 与模型交互，生成结果；记录网络阶段成功和失败耗时。
+                ModelResult result;
+                long providerStarted = System.nanoTime();
+                try {
+                    result = gateway.generate(current, checkpoint);
+                } finally {
+                    telemetry.duration("arte.ai.provider.duration", Duration.ofNanos(System.nanoTime() - providerStarted),
+                            Map.of(Telemetry.Label.COMPONENT, "ai-new", Telemetry.Label.OPERATION, "model.generate"));
+                }
+                checkpoint.check();
+                access.requireAllowed(context, current.plan());
+                store.finish(context.scope(), id, ExecutionStatus.SUCCEEDED, result, null);
+                telemetry.increment("arte.ai.execution.finished", 1, Map.of(Telemetry.Label.OUTCOME, ExecutionStatus.SUCCEEDED.name()));
+                if (result.usage().inputTokens() != null)
+                    telemetry.increment("arte.ai.tokens", result.usage().inputTokens(), Map.of(Telemetry.Label.OPERATION, "input"));
+                if (result.usage().outputTokens() != null)
+                    telemetry.increment("arte.ai.tokens", result.usage().outputTokens(), Map.of(Telemetry.Label.OPERATION, "output"));
+                span.outcome(AuditOutcome.SUCCEEDED);
+                return result;
+            } catch (Exception failure) {
+                span.outcome(dispatched ? AuditOutcome.UNKNOWN : AuditOutcome.FAILED);
+                recordFailure(execution, request, failure);
+                throw failure;
+            }
         }
     }
 
@@ -212,6 +241,7 @@ public class InvocationCoordinator {
                 : CommonErrorCode.DEADLINE_EXCEEDED.code().equals(error.code()) ? ExecutionStatus.TIMED_OUT
                 : CommonErrorCode.INTERRUPTED.code().equals(error.code()) ? ExecutionStatus.CANCELLED : ExecutionStatus.FAILED;
         store.finish(execution.scope(), execution.executionId(), status, null, error);
+        telemetry.increment("arte.ai.execution.finished", 1, Map.of(Telemetry.Label.OUTCOME, status.name()));
     }
 
     /**
@@ -221,6 +251,27 @@ public class InvocationCoordinator {
         var execution = store.find(viewer.scope(), executionId).orElseThrow(() -> ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query"));
         access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
         return execution;
+    }
+
+    /**
+     * 批量读取仍检查当前权限；授权去重只限本次调用，不跨请求缓存。
+     */
+    public Map<String, ModelExecution> findAll(ExecutionContext viewer, List<String> ids) {
+        if (ids.size() > 256) throw new IllegalArgumentException("execution batch exceeds limit");
+        ids.forEach(id -> ContractChecks.identifier(id, "executionId"));
+        var result = new HashMap<String, ModelExecution>();
+        var requested = Set.copyOf(ids);
+        var authorized = new HashSet<List<com.arte.ai.model.definition.DefinitionRef>>();
+        for (var execution : store.findAll(viewer.scope(), ids)) {
+            if (!viewer.scope().equals(execution.scope()) || !requested.contains(execution.executionId()))
+                throw ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query");
+            if (authorized.add(List.of(execution.capabilityRef(), execution.bindingRef())))
+                access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
+            result.put(execution.executionId(), execution);
+        }
+        if (!result.keySet().containsAll(ids))
+            throw ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query");
+        return Map.copyOf(result);
     }
 
     /**

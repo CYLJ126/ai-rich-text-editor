@@ -20,4 +20,6 @@ export const chatKeys = {
     [...chatKeys.scope(userId, scope), 'conversation', id] as const,
   history: (userId: string, scope: WorkspaceSelection, id: string) =>
     [...chatKeys.scope(userId, scope), 'history', id] as const,
+  turn: (userId: string, scope: WorkspaceSelection, id: string, turnId?: string) =>
+    [...chatKeys.scope(userId, scope), 'turn', id, turnId] as const,
 };

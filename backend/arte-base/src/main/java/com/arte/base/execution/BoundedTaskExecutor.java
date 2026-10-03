@@ -68,6 +68,17 @@ public final class BoundedTaskExecutor implements TaskExecutor, AutoCloseable {
         return work.handle;
     }
 
+    /**
+     * 本机工作线程与队列的即时观测值，不用于权威准入决策。
+     */
+    public int activeCount() {
+        return pool.getActiveCount();
+    }
+
+    public int queuedCount() {
+        return pool.getQueue().size();
+    }
+
     @Override
     public void close() {
         ArrayList<Work<?>> pending;

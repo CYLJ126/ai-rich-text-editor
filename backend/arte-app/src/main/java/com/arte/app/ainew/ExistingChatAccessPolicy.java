@@ -15,8 +15,9 @@ import java.time.Clock;
 
 /**
  * 聊天元数据复用真实账号、成员和应用／绑定许可；模型结果仍重新核对模型权限。
+ * 加入聊天存储的 READ_COMMITTED 短事务，避免持有 Turn 锁时额外申请鉴权连接；无事务时直接读取。
  */
-@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
+@Transactional(readOnly = true, propagation = Propagation.SUPPORTS, isolation = Isolation.READ_COMMITTED)
 public class ExistingChatAccessPolicy implements ChatAccessPolicy {
     private final JdbcSecurityRepository repository;
     private final ConfiguredModelDefinitions definitions;

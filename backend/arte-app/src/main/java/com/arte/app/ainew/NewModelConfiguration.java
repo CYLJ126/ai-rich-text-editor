@@ -23,6 +23,8 @@ import com.arte.base.admission.LocalAdmissionController;
 import com.arte.base.execution.BoundedTaskExecutor;
 import com.arte.base.model.security.SecretRef;
 import com.arte.base.spi.observability.AuditSink;
+import com.arte.base.spi.observability.Telemetry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -101,9 +103,9 @@ public class NewModelConfiguration {
 
     @Bean
     public InvocationCoordinator newModelCoordinator(ConfiguredModelDefinitions definitions, CompatibleChatProviderAdapter provider, ExistingModelAccessPolicy access,
-                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit) {
+                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit, ObjectProvider<Telemetry> telemetry) {
         return new InvocationCoordinator(new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions), new BindingManager(definitions)),
-                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC());
+                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC(), telemetry.getIfAvailable(Telemetry::disabled));
     }
 
     @Bean

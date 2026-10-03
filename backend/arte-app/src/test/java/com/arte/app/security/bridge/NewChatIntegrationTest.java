@@ -79,6 +79,7 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
     NewChatCallService service;
     ConversationService conversations;
     BoundedTaskExecutor tasks;
+    CompatibleChatProviderAdapter provider;
     LocalAdmissionController admission;
     Connection schemaConnection;
     AtomicInteger calls = new AtomicInteger();
@@ -107,7 +108,7 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
                 new ConnectionDefinition(new DefinitionRef("ai-connection", "model", "v1"), "test", "chat-completions", URI.create("https://provider.example/v1/chat/completions"), new SecretRef("TEST", null), DefinitionStatus.PUBLISHED),
                 new DefinitionRef("ai-binding", "chat", "v1"), TENANT, WORKSPACE);
         var quote = new BudgetQuote(BigDecimal.ONE, "USD");
-        var provider = new CompatibleChatProviderAdapter((connection, body, checkpoint) -> {
+        provider = new CompatibleChatProviderAdapter((connection, body, checkpoint) -> {
             int call = calls.incrementAndGet();
             requests.add(new String(body, StandardCharsets.UTF_8));
             if (block != null && !block.await(3, TimeUnit.SECONDS))
@@ -535,6 +536,114 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
         assertEquals(TurnStatus.ACCEPTED, recovered.turn().status());
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_new_execution", Integer.class));
         assertTrue(calls.get() <= 1);
+    }
+
+    @Test
+    void completedHistoryUsesOneExecutionQueryAndOneModelAuthorizationWithoutTurnLocks() throws Exception {
+        var conversation = create();
+        for (int i = 0; i < 20; i++)
+            finished(conversation, submit(current(conversation), "question-" + i, "key-" + i).turn().turnId());
+        var reads = new java.util.HashMap<String, Integer>();
+        ChatStore counted = (ChatStore) Proxy.newProxyInstance(ChatStore.class.getClassLoader(), new Class<?>[]{ChatStore.class}, (proxy, method, args) -> {
+            reads.merge(method.getName(), 1, Integer::sum);
+            try {
+                return method.invoke(chatStore, args);
+            } catch (InvocationTargetException failure) {
+                throw failure.getCause();
+            }
+        });
+        var executionQueries = new AtomicInteger();
+        var bulkJdbc = new org.springframework.jdbc.core.JdbcTemplate(datasource) {
+            @Override
+            public <T> List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+                if (sql.contains("FROM arte_ai_new_execution")) executionQueries.incrementAndGet();
+                return super.query(sql, mapper, args);
+            }
+        };
+        var bulkStore = new JdbcModelExecutionStore(bulkJdbc, manager, clock);
+        var authorizations = new AtomicInteger();
+        var policy = new ExistingModelAccessPolicy(repository, clock, "new-ai");
+        var reader = new InvocationCoordinator(new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions), new BindingManager(definitions)),
+                new DefaultModelGateway(List.of()), (viewer, plan) -> {
+            authorizations.incrementAndGet();
+            policy.requireAllowed(viewer, plan);
+        },
+                egress, admission, tasks, bulkStore, bulkStore, new BudgetService(new BudgetQuote(BigDecimal.ONE, "USD"), bulkStore),
+                new JdbcAuditSink(jdbc, manager, clock), clock);
+        var core = new ChatService(new ConversationService(counted, access, clock),
+                new ContextService(counted, reader, clock, 4096, 32, Duration.ofMinutes(10)), counted, reader, definitions.capabilityRef(), clock, 10);
+        var page = core.history(viewer(), conversation.conversationId(), Long.MAX_VALUE, 20);
+        assertEquals(20, page.size());
+        assertEquals(1, executionQueries.get());
+        assertEquals(1, authorizations.get());
+        assertEquals(Map.of("conversation", 1, "turns", 1), reads);
+        assertTrue(bulkStore.findAll(new ExecutionScope(TENANT, WORKSPACE, new com.arte.base.model.identity.PrincipalRef("2", com.arte.base.model.identity.PrincipalType.USER)), page.stream().map(item -> item.execution().executionId()).toList()).isEmpty());
+        jdbc.update("UPDATE arte_security_connection SET enabled=FALSE");
+        assertThrows(BaseException.class, () -> core.history(viewer(), conversation.conversationId(), Long.MAX_VALUE, 20));
+        assertEquals(20, calls.get());
+    }
+
+    @Test
+    void observationsCoverChatDatabaseAndModelStagesWithoutChangingExecution() throws Exception {
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        try {
+            var telemetry = new com.arte.app.execution.support.MicrometerExecutionTelemetry(registry);
+            coordinator = new InvocationCoordinator(new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions), new BindingManager(definitions)),
+                    new DefaultModelGateway(List.of(provider)), new ExistingModelAccessPolicy(repository, clock, "new-ai"), egress,
+                    admission, tasks, executions, executions, new BudgetService(new BudgetQuote(BigDecimal.ONE, "USD"), executions),
+                    new JdbcAuditSink(jdbc, manager, clock), clock, telemetry);
+            chatStore = new JdbcChatStore(jdbc, manager, telemetry);
+            conversations = new ConversationService(chatStore, access, clock);
+            var core = new ChatService(conversations, new ContextService(chatStore, coordinator, clock, 4096, 32, Duration.ofMinutes(10)),
+                    chatStore, coordinator, definitions.capabilityRef(), clock, 10, telemetry);
+            var conversation = create();
+            var consentTx = new org.springframework.transaction.support.TransactionTemplate(manager);
+            consentTx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            var submitted = core.submit(viewer(), conversation.conversationId(), 1, "question", null, "observed", request -> consentTx.execute(tx -> consents.confirm(http, request)));
+            finished(conversation, submitted.turn().turnId());
+            core.history(viewer(), conversation.conversationId(), Long.MAX_VALUE, 20);
+            assertEquals(1, registry.get("arte.execution.duration").tag("operation", "chat.submit").timer().count());
+            assertEquals(1, registry.get("arte.execution.duration").tag("operation", "chat.context.prepare").timer().count());
+            assertEquals(1, registry.get("arte.execution.duration").tag("operation", "chat.history").timer().count());
+            assertTrue(registry.get("arte.chat.turn.transaction").timer().count() >= 2);
+            assertEquals(1, registry.get("arte.ai.provider.duration").timer().count());
+            assertEquals(1, registry.get("arte.ai.execution.queue.wait").timer().count());
+            assertEquals(1, calls.get());
+        } finally {
+            registry.close();
+        }
+    }
+
+    @Test
+    void contextPreparationRecheckAndConsentRunOutsideTurnTransaction() throws Exception {
+        var checks = new AtomicInteger();
+        var checkingContexts = new ContextService(chatStore, coordinator, clock, 4096, 32, Duration.ofMinutes(10)) {
+            @Override
+            public com.arte.ai.model.context.ContextSnapshot prepare(ExecutionContext viewer, Conversation conversation, com.arte.ai.model.conversation.Turn draft) {
+                assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                checks.incrementAndGet();
+                return super.prepare(viewer, conversation, draft);
+            }
+
+            @Override
+            public void recheck(ExecutionContext viewer, com.arte.ai.model.context.ContextSnapshot snapshot, boolean fresh) {
+                assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                checks.incrementAndGet();
+                super.recheck(viewer, snapshot, fresh);
+            }
+        };
+        var core = new ChatService(conversations, checkingContexts, chatStore, coordinator, definitions.capabilityRef(), clock, 10);
+        var consentTx = new org.springframework.transaction.support.TransactionTemplate(manager);
+        consentTx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        var conversation = create();
+        var result = core.submit(viewer(), conversation.conversationId(), 1, "question", null, "outside-lock", request -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            checks.incrementAndGet();
+            return consentTx.execute(tx -> consents.confirm(http, request));
+        });
+        assertEquals(ExecutionStatus.SUCCEEDED, finished(conversation, result.turn().turnId()).execution().status());
+        assertEquals(3, checks.get());
+        assertEquals(1, calls.get());
     }
 
     @Test

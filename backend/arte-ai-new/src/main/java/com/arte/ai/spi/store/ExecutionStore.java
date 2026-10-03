@@ -8,6 +8,7 @@ import com.arte.ai.model.generation.ModelResult;
 import com.arte.base.model.execution.ExecutionError;
 import com.arte.base.model.identity.ExecutionScope;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -34,6 +35,13 @@ public interface ExecutionStore {
     Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key);
 
     Optional<ModelExecution> find(ExecutionScope scope, String executionId);
+
+    /**
+     * 同一主体范围内批量读取；持久化实现应使用一次查询，不隐式授予结果读取权限。
+     */
+    default List<ModelExecution> findAll(ExecutionScope scope, List<String> executionIds) {
+        return executionIds.stream().distinct().flatMap(id -> find(scope, id).stream()).toList();
+    }
 
     boolean start(ExecutionScope scope, String executionId);
 

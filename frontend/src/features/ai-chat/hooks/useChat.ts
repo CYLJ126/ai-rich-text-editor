@@ -1,8 +1,8 @@
-import {useInfiniteQuery, useMutation, useQueryClient,} from '@tanstack/react-query';
+import {type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useEffect, useRef, useState} from 'react';
-import {cancelChat, getChatHistory, submitChat} from '@/services/ai-new/chat';
+import {cancelChat, getChatHistory, getChatTurn, submitChat} from '@/services/ai-new/chat';
 import {AiNewApiError} from '@/services/ai-new/request';
-import type {CancellationStatus, PendingChatCommand} from '@/types/ai-new/chat';
+import type {CancellationStatus, ChatTurnResult, PendingChatCommand} from '@/types/ai-new/chat';
 import type {Conversation, WorkspaceSelection,} from '@/types/ai-new/conversation';
 import {pendingStorageKey, readPendingCommand, removePendingCommand, storePendingCommand,} from '../pendingCommands';
 import {chatKeys} from '../queryKeys';
@@ -44,14 +44,6 @@ export function useChat(
     getNextPageParam: (page) =>
       page.length === 20 ? page.at(-1)?.turn.sequence : undefined,
     retry: false,
-    refetchIntervalInBackground: false,
-    refetchInterval: (query) =>
-      !isAccessError(commandError) && !isAccessError(cancelError) &&
-      !query.state.error &&
-      Date.now() - observedFrom.current < observationWindow &&
-      query.state.data?.pages[0]?.some(isTurnPending)
-        ? 2000
-        : false,
   });
   const turns = [
     ...new Map(
@@ -61,6 +53,29 @@ export function useChat(
       ]),
     ).values(),
   ].sort((left, right) => left.turn.sequence - right.turn.sequence);
+  const observedTurnId = turns.find(isTurnPending)?.turn.turnId;
+  const turnQuery = useQuery({
+    queryKey: chatKeys.turn(userId, scope, id, observedTurnId),
+    queryFn: async ({signal}) => {
+      const result = await getChatTurn(scope, id, observedTurnId!, signal);
+      if (!signal.aborted) {
+        // Update only this Turn; loaded history pages and pagination cursors stay intact.
+        client.setQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id), (previous) =>
+          previous && {
+            ...previous, pages: previous.pages.map((page) => page.map((item) =>
+              item.turn.turnId === result.turn.turnId ? result : item))
+          });
+      }
+      return result;
+    },
+    enabled: (query) => !!observedTurnId && history.isSuccess && !history.isError &&
+      !isAccessError(commandError) && !isAccessError(cancelError) && !query.state.error &&
+      Date.now() - observedFrom.current < observationWindow,
+    retry: false,
+    refetchIntervalInBackground: false,
+    refetchInterval: (query) => !query.state.error && query.state.data && isTurnPending(query.state.data) &&
+    Date.now() - observedFrom.current < observationWindow ? 2000 : false,
+  });
   const unfinished = turns.some(isTurnPending);
   const refreshMetadata = () =>
     Promise.all([
@@ -110,7 +125,7 @@ export function useChat(
   const send = async (text: string, replay = false, originalTurnId?: string) => {
     if (
       submitting.current || cancelling.current ||
-      history.isError ||
+      history.isError || turnQuery.isError ||
       !history.isSuccess ||
       history.isFetching
     )
@@ -181,7 +196,7 @@ export function useChat(
   });
   const cancel = async (turnId: string) => {
     const turn = turns.find((item) => item.turn.turnId === turnId);
-    if (submitting.current || cancelling.current || history.isError || !turn?.execution || !isTurnPending(turn)) return;
+    if (submitting.current || cancelling.current || history.isError || turnQuery.isError || !turn?.execution || !isTurnPending(turn)) return;
     if (cancellation?.turnId === turnId && cancellation.status !== 'UNCONFIRMED') return;
     cancelling.current = true;
     setWorking(true);
@@ -206,14 +221,16 @@ export function useChat(
   };
   const refresh = async () => {
     observedFrom.current = Date.now();
-    const [result] = await Promise.all([history.refetch(), refreshMetadata()]);
+    const [result] = await Promise.all([
+      history.refetch(), refreshMetadata(), observedTurnId ? turnQuery.refetch() : Promise.resolve(),
+    ]);
     if (active.current && result.isSuccess) {
       setCommandError(null);
       setCancelError(null);
     }
   };
   return {
-    history,
+    history: {...history, isError: history.isError || turnQuery.isError, error: turnQuery.error ?? history.error},
     turns,
     unfinished,
     pending,

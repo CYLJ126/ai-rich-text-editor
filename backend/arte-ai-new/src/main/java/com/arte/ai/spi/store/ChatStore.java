@@ -13,7 +13,7 @@ import java.util.function.Function;
 
 /**
  * 聊天权威存储。claim 原子比较会话版本、分配顺序、推进版本及占位；重复键须核对摘要。
- * withTurn 在事务内排他锁定提交，回调仅准备／受理异步调用，不等待模型网络结果。
+ * withTurn 在事务内排他锁定提交，回调仅提交状态变更／串行受理异步调用，不装配历史或等待模型网络结果。
  * ready、accept、reject、release 加入同一回调事务；回调回滚不撤销独立模型受理事务。
  */
 public interface ChatStore {
