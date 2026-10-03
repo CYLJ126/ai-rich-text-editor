@@ -1,5 +1,5 @@
 import {Alert, Button, Checkbox, Input, Modal, Space, Spin, Typography,} from 'antd';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {chatErrorText, isAccessError} from '@/features/ai-chat/errors';
 import {useChat} from '@/features/ai-chat/hooks/useChat';
 import {canRegenerateTurn, isTurnPending} from '@/features/ai-chat/executionState';
@@ -25,6 +25,7 @@ export default function ChatPanel({
   onDraftChange: (id: string, text: string, submittedText?: string) => void;
 }) {
   const chat = useChat(userId, scope, conversation, model?.streaming ?? false);
+  const accessDeniedRef = useRef(false);
   const setDraft = (text: string) => onDraftChange(conversation.conversationId, text);
   const [confirmation, setConfirmation] = useState<null | {
     text: string;
@@ -74,12 +75,15 @@ export default function ChatPanel({
     if (!confirmation || !confirmed || !sameBinding) return;
     const command = confirmation;
     setConfirmation(null);
+    const newMessage = !command.replay && !command.originalTurnId;
+    if (newMessage) onDraftChange(conversation.conversationId, '', command.text);
     const accepted = await chat.send(command.text, command.replay, command.originalTurnId);
-    if (accepted && !command.replay && !command.originalTurnId)
-      onDraftChange(conversation.conversationId, '', command.text);
+    if (!accepted && newMessage && !accessDeniedRef.current)
+      onDraftChange(conversation.conversationId, command.text, '');
   };
   const accessDenied = isAccessError(chat.history.error) || isAccessError(chat.commandError) || isAccessError(chat.cancelError);
   useEffect(() => {
+    accessDeniedRef.current = accessDenied;
     if (accessDenied) onDraftChange(conversation.conversationId, '');
   }, [accessDenied, onDraftChange, conversation.conversationId]);
   if (accessDenied)
@@ -140,7 +144,7 @@ export default function ChatPanel({
       ) : chat.history.isPending ? (
         <Spin/>
       ) : (
-        <ChatMessageList turns={chat.turns}/>
+        <ChatMessageList turns={chat.turns} submission={chat.sending ? chat.pending : null}/>
       )}
       {Boolean(chat.commandError) && (
         <Alert type="error" title={chatErrorText(chat.commandError)}/>

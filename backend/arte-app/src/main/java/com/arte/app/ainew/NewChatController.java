@@ -54,7 +54,7 @@ public class NewChatController {
         if (lastEventId != null) after = Long.parseLong(lastEventId);
         var observation = service.observe(http, tenantId, workspaceId, id, turnId);
         if (streams == null) throw new IllegalArgumentException("streaming observer unavailable");
-        return ResponseEntity.ok().header("Cache-Control", "no-store").header("X-Accel-Buffering", "no")
+        return ResponseEntity.ok().header("Cache-Control", "no-store, no-transform").header("X-Accel-Buffering", "no")
                 .body(streams.open(observation, after));
     }
 

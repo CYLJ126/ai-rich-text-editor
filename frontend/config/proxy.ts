@@ -1,3 +1,5 @@
+import type {ClientRequest, IncomingMessage} from 'node:http';
+
 /**
  * @name 代理的配置
  * @see 在生产环境 代理是无法生效的，所以这里没有生产环境的配置
@@ -16,12 +18,17 @@ export default {
     '/arte/': {
       target: 'http://localhost:12636', // 要代理的地址
       changeOrigin: true, // 配置了这个可以从 http 代理到 https；依赖 origin 的功能可能需要这个，比如 cookie
-      compress: false, // 关键配置：修复无法查看响应数据问题
-      ws: true, // SSE 关键配置：禁用缓冲
-      onProxyReq: (proxyReq: any) => {
-        // 重写请求头，移除 accept-encoding，禁止后端返回压缩数据
-        proxyReq.removeHeader('accept-encoding');
+      ws: true, // 支持 WebSocket 升级，与 SSE 响应缓冲无关
+      onProxyReq: (proxyReq: ClientRequest) => {
+        // 禁止上游压缩；浏览器的 Accept-Encoding 仍会触发 Umi 自身的 gzip。
         proxyReq.setHeader('accept-encoding', 'identity');
+      },
+      onProxyRes: (proxyRes: IncomingMessage) => {
+        if (proxyRes.headers['content-type']?.toLowerCase().startsWith('text/event-stream')) {
+          // Umi 的 Express compression 会尊重 no-transform，逐帧透传 SSE。
+          proxyRes.headers['cache-control'] = 'no-store, no-transform';
+          proxyRes.headers['x-accel-buffering'] = 'no';
+        }
       },
     },
     '/drawio/': {

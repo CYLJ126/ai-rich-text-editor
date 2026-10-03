@@ -28,6 +28,7 @@ export function useChat(
   const [cancelError, setCancelError] = useState<unknown>(null);
   const [streamError, setStreamError] = useState<unknown>(null);
   const [streamConnected, setStreamConnected] = useState(false);
+  const [pollExecutionId, setPollExecutionId] = useState<string>();
   const active = useRef(true);
   const submitting = useRef(false);
   const observedFrom = useRef(Date.now());
@@ -57,7 +58,7 @@ export function useChat(
     },
     enabled: (query) => !isAccessError(commandError) && !isAccessError(cancelError) && !isAccessError(streamError) && !isAccessError(query.state.error),
     getNextPageParam: (page) =>
-      page.length === 20 ? page.at(-1)?.turn.sequence : undefined,
+      page.length >= 20 ? page.at(-1)?.turn.sequence : undefined,
     retry: false,
   });
   const turns = [
@@ -69,6 +70,7 @@ export function useChat(
     ).values(),
   ].sort((left, right) => left.turn.sequence - right.turn.sequence);
   const observedTurnId = turns.find(isTurnPending)?.turn.turnId;
+  const observedExecutionId = turns.find(item => item.turn.turnId === observedTurnId)?.execution?.executionId;
   const turnQuery = useQuery({
     queryKey: chatKeys.turn(userId, scope, id, observedTurnId),
     queryFn: async ({signal}) => {
@@ -84,6 +86,7 @@ export function useChat(
       return result;
     },
     enabled: (query) => !!observedTurnId && history.isSuccess && !history.isError &&
+      (!streamingEnabled || !observedExecutionId || pollExecutionId === observedExecutionId) &&
       !isAccessError(commandError) && !isAccessError(cancelError) && !isAccessError(streamError) && !query.state.error &&
       Date.now() - observedFrom.current < observationWindow,
     retry: false,
@@ -91,11 +94,13 @@ export function useChat(
     refetchInterval: (query) => !query.state.error && query.state.data && isTurnPending(query.state.data) &&
     Date.now() - observedFrom.current < observationWindow ? (streamConnected ? 10000 : 2000) : false,
   });
-  const observedExecutionId = turns.find(item => item.turn.turnId === observedTurnId)?.execution?.executionId;
   const streamBlocked = isAccessError(commandError) || isAccessError(cancelError) || isAccessError(streamError) || history.isError;
   useEffect(() => {
     if (!streamingEnabled || !observedTurnId || !observedExecutionId || streamBlocked || Date.now() - observedFrom.current >= observationWindow) return;
     const controller = new AbortController();
+    // Give SSE the first chance to render deltas; an immediate snapshot can finish
+    // the Turn before its stream has even connected. Keep polling as a fallback.
+    const pollTimer = setTimeout(() => setPollExecutionId(observedExecutionId), 10000);
     const previous = client.getQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id))?.pages.flat()
       .find(item => item.turn.turnId === observedTurnId);
     void observeChatEvents(scope, id, observedTurnId, observedExecutionId, previous?.execution?.partialSequence ?? -1,
@@ -110,9 +115,13 @@ export function useChat(
       })
       .catch(error => {
         if (!controller.signal.aborted && isAccessError(error)) setStreamError(error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPollExecutionId(observedExecutionId);
       });
     return () => {
       controller.abort();
+      clearTimeout(pollTimer);
       setStreamConnected(false);
     };
   }, [client, userId, scope.tenantId, scope.workspaceId, id, observedTurnId, observedExecutionId, streamBlocked, streamingEnabled]);
@@ -197,11 +206,25 @@ export function useChat(
     setPending(command);
     observedFrom.current = Date.now();
     let accepted = false;
+    let receivedTurn = false;
     let accessDenied = false;
     try {
       const result = await mutation.mutateAsync(command);
       accepted = result.turn.status === 'ACCEPTED';
       if (!active.current) return accepted;
+      receivedTurn = true;
+      // Render the new question and assistant slot immediately, so SSE can start
+      // without waiting for another round trip to reload the entire history.
+      client.setQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id), previous => {
+        if (!previous) return previous;
+        const exists = previous.pages.some(page => page.some(item => item.turn.turnId === result.turn.turnId));
+        return {
+          ...previous,
+          pages: previous.pages.map((page, index) => exists
+            ? page.map(item => item.turn.turnId === result.turn.turnId ? mergeSnapshot(item, result) : item)
+            : index === 0 ? [result, ...page] : page),
+        };
+      });
       if (
         result.turn.status === 'ACCEPTED' ||
         result.turn.status === 'REJECTED'
@@ -221,7 +244,7 @@ export function useChat(
         clearPending();
     } finally {
       if (active.current && !accessDenied) {
-        await Promise.all([history.refetch(), refreshMetadata()]);
+        await Promise.all([receivedTurn ? Promise.resolve() : history.refetch(), refreshMetadata()]);
       } else if (active.current) {
         await refreshMetadata();
       }

@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ChatBootstrap, Conversation} from '@/types/ai-new/conversation';
 import type {CancellationStatus, ChatTurnResult, ExecutionStatus} from '@/types/ai-new/chat';
 import ChatPage from './index';
+import {type ChatStreamEvent, observeChatEvents} from '@/services/ai-new/stream';
 
 const state = vi.hoisted(() => ({
   location: {pathname: '/AI/Chat', search: ''},
@@ -90,6 +91,122 @@ const makeConversation = (id: string, title: string): Conversation => ({
 });
 
 describe('chat usability', () => {
+  it('shows the question and clears the composer before the POST receipt, without waiting for metadata refresh', async () => {
+    selectFirst();
+    bootstrap.defaultModel = {...model, streaming: true};
+    const original = state.request.getMockImplementation();
+    let resolveSubmission!: () => void;
+    let accepted = false;
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        return new Promise(resolve => {
+          resolveSubmission = () => {
+            accepted = true;
+            const receipt = makeTurn(1, options.data.text, 'RUNNING', options.headers['Idempotency-Key']);
+            turns = [receipt];
+            resolve(receipt);
+          };
+        });
+      }
+      if (accepted && path.endsWith('/conversations/first')) return new Promise(() => {
+      });
+      return original?.(path, options);
+    });
+    view();
+    confirmSend(await sendDialog('立即显示的问题'));
+    const log = screen.getByRole('log');
+    await within(log).findByText('正在发送消息…');
+    expect(within(log).getByText('立即显示的问题')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('');
+    expect(log.querySelectorAll('article')).toHaveLength(1);
+    expect(within(log).queryByText('已受理')).not.toBeInTheDocument();
+    expect(within(log).queryByText('生成中')).not.toBeInTheDocument();
+    expect(sessionStorage.length).toBe(1);
+    await act(async () => resolveSubmission());
+    await within(log).findByText('等待模型回复…');
+    expect(within(log).getAllByText('立即显示的问题')).toHaveLength(1);
+    expect(log.querySelectorAll('article')).toHaveLength(1);
+    expect(within(log).queryByText('正在发送消息…')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('');
+    await waitFor(() => expect(observeChatEvents).toHaveBeenCalledOnce());
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+    expect(sessionStorage.length).toBe(0);
+  });
+  it('restores the cleared draft after an uncertain transport failure while keeping the original request for reconciliation', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    let rejectSubmission!: () => void;
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        return new Promise((_, reject) => {
+          rejectSubmission = () => reject(new Error('Network Error'));
+        });
+      }
+      return original?.(path, options);
+    });
+    view();
+    confirmSend(await sendDialog('连接中断也不丢问题'));
+    await within(screen.getByRole('log')).findByText('正在发送消息…');
+    const input = screen.getByRole('textbox', {name: '消息内容'});
+    expect(input).toHaveValue('');
+    await act(async () => rejectSubmission());
+    await screen.findByText('提交结果尚待核对');
+    await waitFor(() => expect(input).toHaveValue('连接中断也不丢问题'));
+    expect(sessionStorage.length).toBe(1);
+    expect(input).toBeDisabled();
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+  });
+  it('shows each SSE delta before completion without reloading history or racing an immediate result query', async () => {
+    selectFirst();
+    bootstrap.defaultModel = {...model, streaming: true};
+    const stream = await vi.importActual<typeof import('@/services/ai-new/stream')>('@/services/ai-new/stream');
+    vi.mocked(observeChatEvents).mockImplementation(stream.observeChatEvents);
+    let writer!: ReadableStreamDefaultController<Uint8Array>;
+    const fetcher = vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        writer = controller;
+      },
+    }), {headers: {'Content-Type': 'text/event-stream'}}));
+    vi.stubGlobal('fetch', fetcher);
+    const original = state.request.getMockImplementation();
+    let historyReads = 0;
+    state.request.mockImplementation(async (path, options = {}) => {
+      if (path.endsWith('/turns') && options.method !== 'POST') {
+        historyReads++;
+        // A history refresh may arrive after generation has already finished.
+        // The accepted POST receipt must start observation without this request.
+        if (historyReads > 1) return new Promise(() => {
+        });
+      }
+      if (/\/turns\/[^/]+$/.test(path)) return makeTurn(1, '流式问题', 'SUCCEEDED');
+      return original?.(path, options);
+    });
+    view();
+    confirmSend(await sendDialog('流式问题'));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    expect(within(screen.getByRole('log')).getByText('流式问题')).toBeInTheDocument();
+    const emit = async (event: ChatStreamEvent) => {
+      await act(async () => writer.enqueue(new TextEncoder().encode(
+        `id: ${event.sequence}\nevent: model\ndata: ${JSON.stringify(event)}\n\n`,
+      )));
+    };
+    const event: ChatStreamEvent = {
+      executionId: 'execution-1', sequence: 2, status: 'RUNNING', textDelta: '你好', result: null, error: null,
+    };
+    await emit(event);
+    await screen.findByText('你好');
+    expect(screen.queryByText('等待模型回复…')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: '复制回答'})).not.toBeInTheDocument();
+    await emit({...event, sequence: 3, textDelta: '世界😀'});
+    await screen.findByText('你好世界😀');
+    expect(screen.getByRole('button', {name: '请求停止'})).toBeEnabled();
+    await emit({...event, sequence: 4, status: 'SUCCEEDED', textDelta: null, result: {output: [{text: '你好世界😀'}]}});
+    await screen.findByRole('button', {name: '复制回答'});
+    expect(screen.queryByText('正在生成或未完成的部分回答')).not.toBeInTheDocument();
+    expect(historyReads).toBe(1);
+    expect(state.request.mock.calls.some(([path]) => /\/turns\/[^/]+$/.test(path))).toBe(false);
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+  });
   it('keeps independent drafts while browsing conversations and clears them on account changes or leaving the page', async () => {
     selectFirst();
     conversations.push(makeConversation('second', '另一会话'));
@@ -180,7 +297,7 @@ describe('chat usability', () => {
     view();
     confirmSend(await sendDialog('拒绝后继续编辑'));
     await screen.findByText('未受理');
-    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('拒绝后继续编辑');
+    await waitFor(() => expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('拒绝后继续编辑'));
     await waitFor(() => expect(sessionStorage.length).toBe(0));
     expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
   });
@@ -497,6 +614,7 @@ describe('minimal chat loop', () => {
     });
     confirmSend(dialog);
     await screen.findByText(/无法保存待核对请求/);
+    await waitFor(() => expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('一个问题'));
     expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
     storage.mockRestore();
     fireEvent.change(screen.getByRole('textbox', {name: '消息内容'}), {target: {value: '中'.repeat(3000)}});
@@ -572,6 +690,7 @@ describe('minimal chat loop', () => {
   });
 });
 beforeEach(() => {
+  vi.mocked(observeChatEvents).mockReset().mockResolvedValue(undefined);
   localStorage.setItem('umi_locale', 'zh-CN');
   state.location = {pathname: '/AI/Chat', search: ''};
   state.listeners.clear();
@@ -704,6 +823,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   client.clear();
+  vi.unstubAllGlobals();
 });
 
 function view() {

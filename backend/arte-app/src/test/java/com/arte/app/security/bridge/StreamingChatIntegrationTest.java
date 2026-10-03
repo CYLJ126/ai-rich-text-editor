@@ -1,24 +1,32 @@
 package com.arte.app.security.bridge;
 
 import com.arte.ai.api.context.ContextService;
-import com.arte.ai.api.conversation.*;
+import com.arte.ai.api.conversation.ChatService;
+import com.arte.ai.api.conversation.ConversationService;
 import com.arte.ai.context.ConservativeTokenEstimator;
 import com.arte.ai.model.budget.BudgetQuote;
 import com.arte.ai.model.execution.ExecutionStatus;
 import com.arte.ai.spi.adapter.ConnectionRuntime;
-import com.arte.app.ainew.*;
+import com.arte.app.ainew.ChatEventStreams;
+import com.arte.app.ainew.CompatibleChatProviderAdapter;
+import com.arte.app.ainew.NewChatCallService;
+import com.arte.app.ainew.NewChatController;
 import com.arte.base.exception.BaseException;
-import com.arte.base.model.execution.*;
+import com.arte.base.model.execution.CancellationStatus;
 import com.arte.base.spi.observability.Telemetry;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
+import static com.arte.app.security.bridge.SecurityBridgeFixture.TENANT;
+import static com.arte.app.security.bridge.SecurityBridgeFixture.WORKSPACE;
 import static org.junit.jupiter.api.Assertions.*;
-import static com.arte.app.security.bridge.SecurityBridgeFixture.*;
 
 class StreamingChatIntegrationTest {
     DurableModelWorkerIntegrationTest d;
@@ -225,6 +233,8 @@ class StreamingChatIntegrationTest {
             var response = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(request))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn().getResponse();
             String data = response.getContentAsString(StandardCharsets.UTF_8);
+            assertEquals("no-store, no-transform", response.getHeader("Cache-Control"));
+            assertEquals("no", response.getHeader("X-Accel-Buffering"));
             assertTrue(data.contains("event:model"));
             assertTrue(data.contains("答复-1😀"));
             assertTrue(data.contains("SUCCEEDED"));

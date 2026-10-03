@@ -1,4 +1,4 @@
-import {cleanup, fireEvent, render, screen, waitFor,} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor,} from '@testing-library/react';
 import React from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ChatTurnResult} from '@/types/ai-new/chat';
@@ -34,9 +34,65 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('chat reading experience', () => {
+  it('smoothly displays a multi-line delta, follows the visible text and offers skipping after completion', () => {
+    let height = 1000;
+    let now = 0;
+    let nextId = 0;
+    const frames = new Map<number, FrameRequestCallback>();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.set(++nextId, callback);
+      return nextId;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    const play = () => act(() => {
+      now += 17;
+      const callbacks = [...frames.values()];
+      frames.clear();
+      for (const callback of callbacks) callback(now);
+    });
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(() => height);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
+    const running = makeTurn(1);
+    const execution = running.execution;
+    if (!execution) throw new Error('Expected an execution in the fixture');
+    running.execution = {...execution, status: 'RUNNING', result: null, partialText: ''};
+    const {container, rerender} = render(<ChatMessageList turns={[running]}/>);
+    const text = '一二三四五六七八九十\n'.repeat(20);
+    const live: ChatTurnResult = {
+      ...running,
+      execution: {...execution, status: 'RUNNING', result: null, partialText: text}
+    };
+    rerender(<ChatMessageList turns={[live]}/>);
+    const answer = container.querySelector('article [aria-busy]');
+    expect(answer).toHaveTextContent('');
+    height = 1100;
+    play();
+    expect(answer?.querySelector('p')?.textContent).toBe('一二三');
+    const log = screen.getByRole('log');
+    expect(log.scrollTop).toBe(1100);
+    log.scrollTop = 200;
+    fireEvent.scroll(log);
+    height = 1200;
+    play();
+    expect(answer?.querySelector('p')?.textContent).toBe('一二三四五六');
+    expect(log.scrollTop).toBe(200);
+    expect(screen.getByRole('button', {name: '查看最新消息／状态'})).toBeInTheDocument();
+    rerender(<ChatMessageList turns={[makeTurn(1, text)]}/>);
+    expect(answer?.querySelector('p')?.textContent).toBe('一二三四五六');
+    expect(answer).toHaveAttribute('aria-busy', 'true');
+    fireEvent.click(screen.getByRole('button', {name: '显示完整回答'}));
+    expect(answer?.querySelector('p')?.textContent).toBe(text.trimEnd());
+    expect(answer).toHaveAttribute('aria-busy', 'false');
+    expect(log.scrollTop).toBe(200);
+    rerender(<ChatMessageList turns={[makeTurn(2)]}/>);
+    play();
+    expect(screen.getByText('回答2')).toBeInTheDocument();
+    expect(screen.queryByText('一二三四五六')).not.toBeInTheDocument();
+  });
   it('labels incomplete output and only offers answer copying after authoritative success', () => {
     const turn = makeTurn(1);
     turn.execution = {

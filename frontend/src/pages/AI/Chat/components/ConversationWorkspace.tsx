@@ -52,7 +52,7 @@ export default function ConversationWorkspace({
   const onDraftChange = useCallback((id: string, text: string, submittedText?: string) => {
     if (!active.current) return;
     setDrafts((old) => {
-      if (submittedText !== undefined && old[id] !== submittedText) return old;
+      if (submittedText !== undefined && (old[id] ?? '') !== submittedText) return old;
       const next = {...old};
       if (text) next[id] = text;
       else delete next[id];

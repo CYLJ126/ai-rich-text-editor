@@ -1,23 +1,35 @@
-import {Alert, Button, Empty, Space, Tag, Typography} from 'antd';
-import {useLayoutEffect, useRef, useState} from 'react';
-import AssistantMarkdown from './AssistantMarkdown';
+import {Alert, Button, Empty, Space, Spin, Tag, Typography} from 'antd';
+import {useCallback, useLayoutEffect, useRef, useState} from 'react';
+import StreamingAnswer from './StreamingAnswer';
 import CopyTextButton from './CopyTextButton';
 import {isTurnPending} from '@/features/ai-chat/executionState';
 import {executionErrorText} from '@/features/ai-chat/errors';
-import type {ChatTurnResult} from '@/types/ai-new/chat';
+import type {ChatTurnResult, PendingChatCommand} from '@/types/ai-new/chat';
 import {i18nText as t} from '@/utils/i18n';
 
 export default function ChatMessageList({
                                           turns,
+                                          submission,
                                         }: {
   turns: ChatTurnResult[];
+  submission?: PendingChatCommand | null;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const previous = useRef<{ first: string; last: string; height: number } | null>(null);
   const [hasUpdate, setHasUpdate] = useState(false);
   const first = turns[0]?.turn.turnId ?? '';
-  const last = JSON.stringify(turns.at(-1));
+  // The local placeholder disappears as soon as a receipt with this key exists.
+  const submitting = submission && !turns.some(item => item.turn.idempotencyKey.key === submission.key)
+    ? submission : null;
+  const last = JSON.stringify([turns.at(-1), submitting?.key]);
+  const onDisplayChange = useCallback(() => {
+    const element = viewport.current;
+    if (!element) return;
+    if (following.current) element.scrollTop = element.scrollHeight;
+    else setHasUpdate(true);
+    if (previous.current) previous.current.height = element.scrollHeight;
+  }, []);
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!element) return;
@@ -50,7 +62,7 @@ export default function ChatMessageList({
              if (following.current) setHasUpdate(false);
            }}>
 
-      {!turns.length && <Empty description={t('app.aiNew.noMessages')}/>}
+        {!turns.length && !submitting && <Empty description={t('app.aiNew.noMessages')}/>}
       {turns.map((item) => {
         const state = item.execution?.status ?? item.turn.status;
         const failure = item.turn.rejectionError ?? item.execution?.error;
@@ -102,13 +114,8 @@ export default function ChatMessageList({
               </Tag>
               {state === 'SUCCEEDED' && <CopyTextButton text={output} label={t('app.aiNew.copyAnswer')}/>}
             </Space>
-            {item.execution?.status === 'SUCCEEDED' && <AssistantMarkdown text={output}/>}
-            {item.execution?.status !== 'SUCCEEDED' && item.execution?.partialText && (
-              <div style={{marginTop: 8}}>
-                <AssistantMarkdown text={item.execution.partialText}/>
-                <Typography.Text type="secondary">{t('app.aiNew.partialAnswer')}</Typography.Text>
-              </div>
-            )}
+            <StreamingAnswer key={item.execution?.executionId ?? item.turn.turnId}
+                             execution={item.execution} onDisplayChange={onDisplayChange}/>
             {state === 'OUTCOME_UNKNOWN' && (
               <Alert
                 type="warning"
@@ -128,6 +135,23 @@ export default function ChatMessageList({
           </article>
         );
       })}
+        {submitting &&
+          <article style={{borderBottom: '1px solid var(--ant-color-border-secondary)', padding: '16px 0'}}>
+            <Space wrap>
+              <Typography.Text strong>{t('app.aiNew.userMessage')}</Typography.Text>
+              {submitting.kind === 'REGENERATION' && <Tag>{t('app.aiNew.regeneration')}</Tag>}
+            </Space>
+            <div style={{
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              margin: '8px 0 16px'
+            }}>{submitting.body.text}</div>
+            <Typography.Text strong>{t('app.aiNew.assistantMessage')}</Typography.Text>
+            <Space role="status" style={{display: 'flex', marginTop: 8}}>
+              <Spin size="small"/>
+              <Typography.Text type="secondary">{t('app.aiNew.submittingMessage')}</Typography.Text>
+            </Space>
+          </article>}
       </div>
       {hasUpdate && <Button style={{marginTop: 8}} onClick={() => {
         const element = viewport.current;

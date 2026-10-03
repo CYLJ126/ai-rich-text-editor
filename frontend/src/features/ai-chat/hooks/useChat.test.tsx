@@ -2,12 +2,12 @@ import {act, cleanup, renderHook} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import type {PropsWithChildren} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {getChatHistory, getChatTurn} from '@/services/ai-new/chat';
+import {getChatHistory, getChatTurn, submitChat} from '@/services/ai-new/chat';
 import {AiNewApiError} from '@/services/ai-new/request';
 import type {ChatTurnResult} from '@/types/ai-new/chat';
 import type {Conversation} from '@/types/ai-new/conversation';
 import {useChat} from './useChat';
-import {observeChatEvents, type ChatStreamEvent} from '@/services/ai-new/stream';
+import {type ChatStreamEvent, observeChatEvents} from '@/services/ai-new/stream';
 
 vi.mock('@/services/ai-new/chat', () => ({
   getChatHistory: vi.fn(), getChatTurn: vi.fn(), submitChat: vi.fn(), cancelChat: vi.fn(),
@@ -66,6 +66,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(observeChatEvents).mockResolvedValue(undefined);
   localStorage.clear();
+  sessionStorage.clear();
   client = new QueryClient({defaultOptions: {queries: {retry: false}}});
 });
 afterEach(() => {
@@ -75,6 +76,30 @@ afterEach(() => {
 });
 
 describe('single-turn observation', () => {
+  it('adds an accepted turn immediately and keeps older history available after the first page grows', async () => {
+    vi.mocked(getChatHistory).mockResolvedValue(Array.from({length: 20}, (_, i) => turn(40 - i)));
+    vi.mocked(submitChat).mockResolvedValue(turn(41, 'RUNNING'));
+    vi.mocked(getChatTurn).mockResolvedValue(turn(41, 'RUNNING'));
+    const {result} = mount();
+    await tick();
+    await act(async () => {
+      expect(await result.current.send('new question')).toBe(true);
+    });
+    await tick();
+    expect(result.current.turns.at(-1)?.turn.turnId).toBe('turn-41');
+    expect(result.current.turns).toHaveLength(21);
+    expect(getChatHistory).toHaveBeenCalledOnce();
+    expect(observeChatEvents).toHaveBeenCalledWith(scope, 'conversation', 'turn-41', 'execution-41', -1,
+      expect.any(AbortSignal), expect.any(Function), expect.any(Function));
+    expect(result.current.history.hasNextPage).toBe(true);
+    vi.mocked(getChatHistory).mockResolvedValueOnce([turn(20)]);
+    await act(async () => {
+      await result.current.history.fetchNextPage();
+    });
+    await tick();
+    expect(getChatHistory).toHaveBeenLastCalledWith(scope, 'conversation', 21, expect.any(AbortSignal));
+    expect(result.current.turns).toHaveLength(22);
+  });
   it('preserves newer live text while an older history page is being loaded', async () => {
     vi.mocked(getChatHistory).mockResolvedValue(Array.from({length: 20}, (_, i) => turn(40 - i, i === 0 ? 'RUNNING' : 'SUCCEEDED')));
     vi.mocked(getChatTurn).mockResolvedValue(turn(40, 'RUNNING'));
@@ -210,6 +235,9 @@ describe('single-turn observation', () => {
     }));
     await tick();
     expect(result.current.turns.at(-1)?.execution?.partialText).toBe('partial');
+    expect(getChatTurn).not.toHaveBeenCalled();
+    await tick(10000);
+    expect(getChatTurn).toHaveBeenCalledOnce();
     await act(async () => resolvePoll(turn(2, 'RUNNING')));
     await tick();
     expect(result.current.turns.at(-1)?.execution?.partialText).toBe('partial');
@@ -258,6 +286,7 @@ describe('single-turn observation', () => {
     vi.mocked(getChatHistory).mockResolvedValue([turn(1, 'RUNNING')]);
     vi.mocked(getChatTurn).mockRejectedValue(new AiNewApiError(403, null));
     const {result} = mount();
+    await tick();
     await tick();
     expect(result.current.history.isError).toBe(true);
     expect(getChatTurn).toHaveBeenCalledTimes(1);
