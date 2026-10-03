@@ -1,5 +1,6 @@
 import {Alert, Empty, Space, Tag, Typography} from 'antd';
-import {isTurnPending} from '@/features/ai-chat/hooks/useChat';
+import {isTurnPending} from '@/features/ai-chat/executionState';
+import {executionErrorText} from '@/features/ai-chat/errors';
 import type {ChatTurnResult} from '@/types/ai-new/chat';
 import {i18nText as t} from '@/utils/i18n';
 
@@ -13,6 +14,7 @@ export default function ChatMessageList({
       {!turns.length && <Empty description={t('app.aiNew.noMessages')}/>}
       {turns.map((item) => {
         const state = item.execution?.status ?? item.turn.status;
+        const failure = item.turn.rejectionError ?? item.execution?.error;
         return (
           <article
             key={item.turn.turnId}
@@ -79,11 +81,15 @@ export default function ChatMessageList({
                 style={{marginTop: 8}}
               />
             )}
-            {(item.turn.rejectionError || item.execution?.error) && (
+            {failure && (
               <Typography.Paragraph type="secondary" style={{marginTop: 8}}>
-                {t('app.aiNew.generationFailed')}
+                {executionErrorText(failure)}
               </Typography.Paragraph>
             )}
+            {state !== 'SUCCEEDED' && !['ACCEPTED', 'RUNNING'].includes(state) &&
+              <Typography.Paragraph type="secondary">
+                {t('app.aiNew.referenceId')}：{item.execution?.executionId ?? item.turn.turnId}
+              </Typography.Paragraph>}
           </article>
         );
       })}

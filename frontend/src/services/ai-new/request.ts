@@ -2,7 +2,7 @@ import {request} from '@umijs/max';
 import type {ExecutionError} from '@/types/ai-new/conversation';
 
 export class AiNewApiError extends Error {
-  constructor(public readonly status: number, public readonly facts: ExecutionError | null) {
+  constructor(public readonly status: number, public readonly facts: ExecutionError | null, public readonly timedOut = false) {
     super(facts?.code ?? 'AI_NEW_REQUEST_FAILED');
     this.name = 'AiNewApiError';
   }
@@ -21,7 +21,8 @@ export function normalizeApiError(error: unknown): AiNewApiError {
       code: data.code, failureStage: data.failureStage, retryable: data.retryable,
       sideEffectStatus: data.sideEffectStatus, resultCertainty: data.resultCertainty
     } as ExecutionError : null;
-  return new AiNewApiError(response?.status ?? 0, facts);
+  const code = (error as { code?: string } | null)?.code;
+  return new AiNewApiError(response?.status ?? 0, facts, code === 'ECONNABORTED' || code === 'ETIMEDOUT');
 }
 
 export interface AiNewRequestOptions {
@@ -35,6 +36,8 @@ export interface AiNewRequestOptions {
 export async function requestAiNew<T>(path: string, options: AiNewRequestOptions = {}): Promise<T> {
   try {
     return await request<T>(`/arte/api/ai-new${path}`, {
+      // A transport timeout leaves the server outcome unconfirmed; commands retain their original key.
+      timeout: 30_000,
       ...options,
       skipErrorHandler: true,
       headers: {...(options.data === undefined ? {} : {'Content-Type': 'application/json'}), ...options.headers},

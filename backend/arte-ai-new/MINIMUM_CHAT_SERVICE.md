@@ -70,6 +70,7 @@ arte:
 新聊天入口为 `/AI/Chat`，接入与菜单脚本见 [第一步](../../frontend/docs/ai-new-chat-step1.md)
 ，消息发送、外发确认及结果观察见 [第二步最小聊天闭环](../../frontend/docs/ai-new-chat-step2.md)。
 `GET /api/ai-new/chat/bootstrap` 返回当前已授权配置空间、默认模型及外发展示信息；关闭时可查询开关状态。
+页面请求停止、重新生成及异常恢复见 [第三步执行控制与异常处理](../../frontend/docs/ai-new-chat-step3.md)。
 该初始化接口不登记任务、同意或预算，不自动放行外发，也不返回凭据；模型生成仅由用户明确确认后提交聊天请求触发。
 
 基础路径：`/api/ai-new/conversations`，使用现有登录会话。

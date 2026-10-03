@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {ChatTurnResult, PendingChatCommand} from '@/types/ai-new/chat';
+import type {CancellationStatus, ChatTurnResult, PendingChatCommand} from '@/types/ai-new/chat';
 import type {WorkspaceSelection} from '@/types/ai-new/conversation';
 import {readContract} from './contracts';
 import {AiNewApiError, requestAiNew} from './request';
@@ -14,6 +14,7 @@ export const turnSchema = z.object({
     turnId: z.string().min(1), conversationId: z.string().min(1),
     sequence: z.number().int().positive().refine(Number.isSafeInteger),
     kind: z.enum(['MESSAGE', 'REGENERATION']), status: z.enum(['PREPARING', 'READY', 'ACCEPTED', 'REJECTED']),
+    regeneratesTurnId: z.string().min(1).nullable(),
     input: z.array(z.object({role: z.literal('USER'), parts: z.array(text).min(1)})).min(1),
     idempotencyKey: z.object({key: z.string().min(1)}), rejectionError: error.nullable(), createdAt: z.iso.datetime(),
   }),
@@ -38,15 +39,24 @@ export async function getChatHistory(scope: WorkspaceSelection, id: string, befo
 }
 
 export async function submitChat(scope: WorkspaceSelection, id: string, command: PendingChatCommand): Promise<ChatTurnResult> {
-  const result = readContract(turnSchema, await requestAiNew(path(id), {
+  const regenerating = command.kind === 'REGENERATION';
+  const result = readContract(turnSchema, await requestAiNew(regenerating ? `/conversations/${encodeURIComponent(id)}/regenerate` : path(id), {
     method: 'POST', headers: {'Idempotency-Key': command.key},
     data: {
       ...selection(scope),
       expectedVersion: command.body.expectedVersion,
-      text: command.body.text,
+      ...(regenerating ? {originalTurnId: command.body.originalTurnId} : {text: command.body.text}),
       externalTransferConfirmed: command.body.externalTransferConfirmed
     },
   }));
   if (result.turn.conversationId !== id || result.turn.idempotencyKey.key !== command.key) throw new AiNewApiError(502, null);
+  if (result.turn.kind !== (regenerating ? 'REGENERATION' : 'MESSAGE')
+    || (regenerating && result.turn.regeneratesTurnId !== command.body.originalTurnId)) throw new AiNewApiError(502, null);
   return result;
+}
+
+export async function cancelChat(scope: WorkspaceSelection, id: string, turnId: string): Promise<CancellationStatus> {
+  const result = readContract(z.object({status: z.enum(['REQUEST_ACCEPTED', 'CANCELLING', 'CANCELLED', 'UNCONFIRMED', 'ALREADY_COMPLETED'])}),
+    await requestAiNew(`${path(id)}/${encodeURIComponent(turnId)}/cancel`, {method: 'POST', params: selection(scope)}));
+  return result.status;
 }

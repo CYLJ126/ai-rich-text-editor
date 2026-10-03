@@ -10,6 +10,7 @@ export default function ConversationSidebar({
                                               loading,
                                               error,
                                               busy,
+                                              lockedId,
                                               page,
                                               hasNext,
                                               onSearch,
@@ -25,6 +26,7 @@ export default function ConversationSidebar({
   loading: boolean;
   error: string | null;
   busy: boolean;
+  lockedId: string;
   page: number;
   hasNext: boolean;
   onSearch: (title: string) => void;
@@ -118,7 +120,7 @@ export default function ConversationSidebar({
                     size="small"
                     type="text"
                     icon={<EditOutlined aria-hidden="true"/>}
-                    disabled={busy}
+                    disabled={busy || lockedId === item.conversationId}
                     aria-label={t('app.aiNew.renameItem', {
                       title: item.title,
                     })}
@@ -129,7 +131,7 @@ export default function ConversationSidebar({
                     type="text"
                     danger
                     icon={<DeleteOutlined aria-hidden="true"/>}
-                    disabled={busy}
+                    disabled={busy || lockedId === item.conversationId}
                     aria-label={t('app.aiNew.deleteItem', {
                       title: item.title,
                     })}

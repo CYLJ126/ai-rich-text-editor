@@ -1,7 +1,7 @@
 import {RobotOutlined} from '@ant-design/icons';
 import {Alert, App, Button, Card, Descriptions, Empty, Result, Space, Spin, Tag, Typography,} from 'antd';
 import {createStyles} from 'antd-style';
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {chatErrorText, isAccessError} from '@/features/ai-chat/errors';
 import {
   CONVERSATION_PAGE_SIZE,
@@ -55,6 +55,9 @@ export default function ConversationWorkspace({
   const list = useConversations(userId, scope, filter, page);
   const detail = useConversation(userId, scope, selectedId);
   const commands = useConversationCommands(userId, scope);
+  const [executionLock, setExecutionLock] = useState<{ id: string; locked: boolean } | null>(null);
+  const onLockChange = useCallback((id: string, locked: boolean) => setExecutionLock({id, locked}), []);
+  const selectedLocked = executionLock?.id === selectedId && executionLock.locked;
   const model = bootstrap.defaultModel;
   const items = list.error
     ? []
@@ -125,6 +128,7 @@ export default function ConversationWorkspace({
           loading={list.isFetching}
           error={list.error ? chatErrorText(list.error) : null}
           busy={commands.busy}
+          lockedId={selectedLocked ? selectedId : ''}
           page={page}
           hasNext={(list.data?.length ?? 0) > CONVERSATION_PAGE_SIZE}
           onSearch={(value) => {
@@ -176,14 +180,14 @@ export default function ConversationWorkspace({
                 </Typography.Title>
                 <Space>
                   <Button
-                    disabled={commands.busy}
+                    disabled={commands.busy || selectedLocked}
                     onClick={() => setDialog({conversation: detail.data})}
                   >
                     {t('app.aiNew.rename')}
                   </Button>
                   <Button
                     danger
-                    disabled={commands.busy}
+                    disabled={commands.busy || selectedLocked}
                     onClick={() => remove(detail.data)}
                   >
                     {t('app.aiNew.delete')}
@@ -213,7 +217,7 @@ export default function ConversationWorkspace({
                 ]}
               />
               <ChatPanel key={detail.data.conversationId} userId={userId} scope={scope} conversation={detail.data}
-                         model={model}/>
+                         model={model} onLockChange={onLockChange}/>
             </>
           ) : (
             <Empty

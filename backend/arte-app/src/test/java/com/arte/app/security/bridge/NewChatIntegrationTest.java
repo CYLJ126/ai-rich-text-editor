@@ -32,6 +32,7 @@ import com.arte.base.execution.BoundedTaskExecutor;
 import com.arte.base.model.admission.AdmissionKey;
 import com.arte.base.model.admission.AdmissionLimits;
 import com.arte.base.model.execution.ExecutionContext;
+import com.arte.base.model.execution.ResultCertainty;
 import com.arte.base.model.identity.ExecutionScope;
 import com.arte.base.model.security.CommonResourceAction;
 import com.arte.base.model.security.SecretRef;
@@ -335,12 +336,19 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
         long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
         while (calls.get() == 0 && System.nanoTime() < until) Thread.sleep(5);
         assertEquals(1, calls.get());
-        service.cancel(http, TENANT, WORKSPACE, conversation.conversationId(), accepted.turn().turnId());
+        var web = MockMvcBuilders.standaloneSetup(new NewChatController(service))
+                .setMessageConverters(new org.springframework.http.converter.json.JacksonJsonHttpMessageConverter(
+                        com.arte.core.serialize.SerializerFactory.buildJsonMapperWithoutTypeProperty())).build();
+        var receipt = JsonParser.parseString(web.perform(post("/api/ai-new/conversations/" + conversation.conversationId()
+                        + "/turns/" + accepted.turn().turnId() + "/cancel").param("tenantId", TENANT).param("workspaceId", WORKSPACE))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).getAsJsonObject();
+        assertTrue(List.of("REQUEST_ACCEPTED", "CANCELLING").contains(receipt.get("status").getAsString()));
         assertNull(jdbc.queryForObject("SELECT slot_released_at FROM arte_ai_new_turn", java.sql.Timestamp.class));
         block.countDown();
         var completed = finished(conversation, accepted.turn().turnId());
         assertEquals(ExecutionStatus.OUTCOME_UNKNOWN, completed.execution().status());
         assertFalse(completed.turn().occupiesConversationSlot());
+        assertEquals(ResultCertainty.UNKNOWN, completed.execution().error().resultCertainty());
     }
 
     @Test
@@ -445,6 +453,15 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
         assertEquals("SUCCEEDED", execution.get("status").getAsString());
         assertTrue(execution.get("error").isJsonNull());
         assertTrue(execution.getAsJsonObject("result").getAsJsonArray("output").get(0).getAsJsonObject().has("text"));
+        var originalTurnId = turn.get("turnId").getAsString();
+        var regenerationBody = "{\"tenantId\":\"" + TENANT + "\",\"workspaceId\":\"" + WORKSPACE
+                + "\",\"expectedVersion\":2,\"originalTurnId\":\"" + originalTurnId + "\",\"externalTransferConfirmed\":true}";
+        var regeneration = JsonParser.parseString(web.perform(post("/api/ai-new/conversations/" + id + "/regenerate")
+                        .header("Idempotency-Key", "production-regenerate").contentType("application/json").content(regenerationBody))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString()).getAsJsonObject().getAsJsonObject("turn");
+        assertEquals("REGENERATION", regeneration.get("kind").getAsString());
+        assertEquals(originalTurnId, regeneration.get("regeneratesTurnId").getAsString());
+        finished(service.find(http, TENANT, WORKSPACE, id), regeneration.get("turnId").getAsString());
         var invalid = JsonParser.parseString(web.perform(post("/api/ai-new/conversations/" + id + "/turns")
                         .header("Idempotency-Key", "invalid-contract").contentType("application/json").content(submission.replace("问题", "")))
                 .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString()).getAsJsonObject();

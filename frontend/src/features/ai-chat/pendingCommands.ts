@@ -8,14 +8,19 @@ export const pendingStorageKey = (
   scope: WorkspaceSelection,
   id: string,
 ) => prefix + JSON.stringify([userId, scope.tenantId, scope.workspaceId, id]);
-const schema = z.object({
-  key: z.string().uuid(),
-  body: z.object({
+const body = z.object({
     expectedVersion: z.number().int().positive().refine(Number.isSafeInteger),
     text: z.string().min(1),
     externalTransferConfirmed: z.literal(true),
-  }),
 });
+const schema = z.union([
+  z.object({key: z.string().uuid(), kind: z.literal('MESSAGE').optional(), body}),
+  z.object({
+    key: z.string().uuid(),
+    kind: z.literal('REGENERATION'),
+    body: body.extend({originalTurnId: z.string().min(1)})
+  }),
+]);
 
 export function readPendingCommand(key: string): PendingChatCommand | null {
   try {

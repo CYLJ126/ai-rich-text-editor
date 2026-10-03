@@ -4,7 +4,7 @@ import {App} from 'antd';
 import React, {useSyncExternalStore} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ChatBootstrap, Conversation} from '@/types/ai-new/conversation';
-import type {ChatTurnResult} from '@/types/ai-new/chat';
+import type {CancellationStatus, ChatTurnResult, ExecutionStatus} from '@/types/ai-new/chat';
 import ChatPage from './index';
 
 const state = vi.hoisted(() => ({
@@ -70,6 +70,7 @@ let client: QueryClient;
 let rejectWrites: number | null;
 let revoked: boolean;
 let turns: ChatTurnResult[];
+let cancelStatus: CancellationStatus;
 const makeConversation = (id: string, title: string): Conversation => ({
   conversationId: id,
   title,
@@ -81,6 +82,200 @@ const makeConversation = (id: string, title: string): Conversation => ({
   createdAt: '2026-10-02T00:00:00Z',
   updatedAt: '2026-10-02T00:00:00Z',
   deletedAt: null,
+});
+
+describe('execution controls and failures', () => {
+  it('requests stopping once and keeps the conversation locked until its authoritative outcome', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '正在生成的问题', 'RUNNING')];
+    conversations[0].version = 2;
+    view();
+    const stop = await screen.findByRole('button', {name: '请求停止'});
+    await waitFor(() => expect(stop).toBeEnabled());
+    fireEvent.click(stop);
+    fireEvent.click(stop);
+    await screen.findByText('停止请求已受理，正在核对执行结果');
+    expect(state.request.mock.calls.filter(([path]) => path.endsWith('/cancel'))).toHaveLength(1);
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: '重命名：原会话'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: '删除：原会话'})).toBeDisabled();
+    expect(screen.queryByText('已取消')).not.toBeInTheDocument();
+    turns = [makeTurn(1, '正在生成的问题', 'SUCCEEDED')];
+    await act(async () => {
+      await client.invalidateQueries({queryKey: ['ai-new', '7', scope.tenantId, scope.workspaceId, 'history']});
+    });
+    await screen.findByText('回答1');
+    await waitFor(() => expect(screen.getByRole('textbox', {name: '消息内容'})).toBeEnabled());
+    expect(screen.getByRole('button', {name: '重命名：原会话'})).toBeEnabled();
+  });
+  it('shows an unconfirmed stop receipt without releasing the slot or enabling regeneration of unknown outcomes', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '已外发的问题', 'RUNNING')];
+    cancelStatus = 'UNCONFIRMED';
+    view();
+    fireEvent.click(await screen.findByRole('button', {name: '请求停止'}));
+    await screen.findByText('无法确认停止请求，请先查询实际执行状态');
+    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+    turns = [makeTurn(1, '已外发的问题', 'OUTCOME_UNKNOWN')];
+    await act(async () => {
+      await client.invalidateQueries({queryKey: ['ai-new', '7', scope.tenantId, scope.workspaceId, 'history']});
+    });
+    await screen.findByText(/模型调用结果未知/);
+    expect(screen.queryByRole('button', {name: '重新生成回答'})).not.toBeInTheDocument();
+    expect(screen.queryByText('回答1')).not.toBeInTheDocument();
+  });
+  it('regenerates only the latest completed question with fresh consent while preserving old answers and the draft', async () => {
+    selectFirst();
+    turns = [makeTurn(2, '最新问题'), makeTurn(1, '旧问题')];
+    conversations[0].version = 3;
+    view();
+    await screen.findByText('回答2');
+    const input = screen.getByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '还没发送的新草稿'}});
+    fireEvent.click(screen.getByRole('button', {name: '重新生成回答'}));
+    let dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('最新问题')).toBeInTheDocument();
+    expect(within(dialog).getByText(/原回答会保留/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', {name: '确认并发送'})).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('button', {name: /取.*消/}));
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', {name: '重新生成回答'}));
+    dialog = await screen.findByRole('dialog');
+    confirmSend(dialog);
+    await screen.findByText('生成中');
+    const request = state.request.mock.calls.find(([path]) => path.endsWith('/regenerate'))?.[1];
+    expect(request.data).toEqual({
+      ...scope,
+      expectedVersion: 3,
+      originalTurnId: 'turn-2',
+      externalTransferConfirmed: true
+    });
+    expect(request.headers['Idempotency-Key']).not.toBe('history-2');
+    expect(screen.getByText('回答1')).toBeInTheDocument();
+    expect(screen.getByText('回答2')).toBeInTheDocument();
+    turns[0].execution = {
+      executionId: 'regenerated-execution',
+      status: 'SUCCEEDED',
+      result: {output: [{text: '新的回答'}]},
+      error: null
+    };
+    await act(async () => {
+      await client.invalidateQueries({queryKey: ['ai-new', '7', scope.tenantId, scope.workspaceId, 'history']});
+    });
+    await screen.findByText('新的回答');
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('还没发送的新草稿');
+  });
+  it('restores an ambiguous regeneration and replays the same operation, reference, version and key', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '原问题')];
+    conversations[0].version = 2;
+    const original = state.request.getMockImplementation();
+    let failed = false;
+    state.request.mockImplementation(async (path, options = {}) => {
+      if (path.endsWith('/regenerate') && !failed) {
+        failed = true;
+        await original?.(path, options);
+        turns[0].turn.status = 'READY';
+        turns[0].execution = null;
+        throw {code: 'ECONNABORTED'};
+      }
+      if (path.endsWith('/regenerate')) {
+        turns[0].turn.status = 'ACCEPTED';
+        turns[0].execution = {
+          executionId: 'recovered',
+          status: 'SUCCEEDED',
+          result: {output: [{text: '恢复后的回答'}]},
+          error: null
+        };
+      }
+      return original?.(path, options);
+    });
+    const rendered = view();
+    const regenerate = await screen.findByRole('button', {name: '重新生成回答'});
+    await waitFor(() => expect(regenerate).toBeEnabled());
+    fireEvent.click(regenerate);
+    confirmSend(await screen.findByRole('dialog'));
+    await screen.findByText(/请求等待超时/);
+    await screen.findByText('提交结果尚待核对');
+    const first = state.request.mock.calls.find(([path]) => path.endsWith('/regenerate'))?.[1];
+    rendered.unmount();
+    client.clear();
+    view();
+    const replay = await screen.findByRole('button', {name: '重放原提交'});
+    await waitFor(() => expect(replay).toBeEnabled());
+    fireEvent.click(replay);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('确认重新生成')).toBeInTheDocument();
+    confirmSend(dialog);
+    await screen.findByText('恢复后的回答');
+    const requests = state.request.mock.calls.filter(([path]) => path.endsWith('/regenerate'));
+    expect(requests).toHaveLength(2);
+    expect(requests[1][1].data).toEqual(first.data);
+    expect(requests[1][1].headers['Idempotency-Key']).toBe(first.headers['Idempotency-Key']);
+    expect(turns).toHaveLength(2);
+    expect(sessionStorage.length).toBe(0);
+  });
+  it('does not retry a lost cancellation response automatically', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '生成中的问题', 'RUNNING')];
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation((path, options) => path.endsWith('/cancel') ? Promise.reject({response: {status: 503}}) : original?.(path, options));
+    view();
+    fireEvent.click(await screen.findByRole('button', {name: '请求停止'}));
+    await screen.findByText('无法确认停止请求，请先查询实际执行状态');
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    expect(state.request.mock.calls.filter(([path]) => path.endsWith('/cancel'))).toHaveLength(1);
+    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+  });
+  it('requires a fresh authorized read before revealing cached messages after control permission fails', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '不能闪回的私有问题', 'RUNNING')];
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation((path, options) => path.endsWith('/cancel') ? Promise.reject({response: {status: 403}}) : original?.(path, options));
+    view();
+    fireEvent.click(await screen.findByRole('button', {name: '请求停止'}));
+    await screen.findByText(/登录状态或当前权限不可用/);
+    expect(screen.queryByText('不能闪回的私有问题')).not.toBeInTheDocument();
+    let resolveRead!: (value: ChatTurnResult[]) => void;
+    state.request.mockImplementation((path, options) => path.endsWith('/turns') ? new Promise<ChatTurnResult[]>((resolve) => {
+      resolveRead = resolve;
+    }) : original?.(path, options));
+    fireEvent.click(screen.getByRole('button', {name: '重新查询'}));
+    await waitFor(() => expect(resolveRead).toBeDefined());
+    expect(screen.queryByText('不能闪回的私有问题')).not.toBeInTheDocument();
+    await act(async () => {
+      resolveRead(turns);
+    });
+    await screen.findByText('不能闪回的私有问题');
+  });
+  it('presents an explicit budget rejection and preserves the input without auto-dispatching', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation(async (path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        const rejected = makeTurn(1, options.data.text, 'RUNNING', options.headers['Idempotency-Key']);
+        rejected.turn.status = 'REJECTED';
+        rejected.turn.rejectionError = {
+          code: 'arte.common.rate_limited',
+          failureStage: 'budget',
+          retryable: false,
+          sideEffectStatus: 'NONE',
+          resultCertainty: 'CONFIRMED'
+        };
+        rejected.execution = null;
+        turns = [rejected];
+        throw {response: {status: 429, data: rejected.turn.rejectionError}};
+      }
+      return original?.(path, options);
+    });
+    view();
+    confirmSend(await sendDialog('预算不足时保留的问题'));
+    await screen.findAllByText(/当前可用预算不足/);
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('预算不足时保留的问题');
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+    expect(screen.queryByRole('button', {name: '重新生成回答'})).not.toBeInTheDocument();
+  });
 });
 
 describe('minimal chat loop', () => {
@@ -290,6 +485,7 @@ beforeEach(() => {
   rejectWrites = null;
   revoked = false;
   turns = [];
+  cancelStatus = 'REQUEST_ACCEPTED';
   sessionStorage.clear();
   client = new QueryClient({
     defaultOptions: {
@@ -339,6 +535,21 @@ beforeEach(() => {
             },
           },
         };
+      if (path.endsWith('/cancel')) return {status: cancelStatus};
+      if (path.endsWith('/regenerate')) {
+        const key = options.headers?.['Idempotency-Key'] ?? '';
+        let turn = turns.find((item) => item.turn.idempotencyKey.key === key);
+        if (!turn) {
+          const original = turns.find((item) => item.turn.turnId === options.data?.originalTurnId);
+          if (!original) throw {response: {status: 404}};
+          turn = makeTurn(turns.length + 1, original.turn.input[0].parts[0].text, 'RUNNING', key);
+          turn.turn.kind = 'REGENERATION';
+          turn.turn.regeneratesTurnId = original.turn.turnId;
+          conversations[0].version++;
+          turns.unshift(turn);
+        }
+        return turn;
+      }
       if (path.endsWith('/turns')) {
         if (method === 'POST') {
           const key = options.headers?.['Idempotency-Key'] ?? '';
@@ -404,13 +615,13 @@ async function renameDialog() {
   return screen.findByRole('dialog');
 }
 
-function makeTurn(sequence: number, text: string, status: 'RUNNING' | 'SUCCEEDED' | 'OUTCOME_UNKNOWN' = 'SUCCEEDED', key = `history-${sequence}`): ChatTurnResult {
+function makeTurn(sequence: number, text: string, status: ExecutionStatus = 'SUCCEEDED', key = `history-${sequence}`): ChatTurnResult {
   return {
     turn: {
       turnId: `turn-${sequence}`,
       conversationId: 'first',
       sequence,
-      kind: 'MESSAGE',
+      kind: 'MESSAGE', regeneratesTurnId: null,
       status: 'ACCEPTED',
       input: [{role: 'USER', parts: [{text}]}],
       idempotencyKey: {key},
@@ -460,6 +671,7 @@ describe('new conversation management', () => {
       ([, options]) => options.method === 'POST',
     );
     expect(create?.[1].data).toEqual({...scope, title: '新会话'});
+    await waitFor(() => expect(screen.getByRole('button', {name: /重命名：新会话/})).toBeEnabled());
     fireEvent.click(screen.getByRole('button', {name: /重命名：新会话/}));
     dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('会话名称'), {

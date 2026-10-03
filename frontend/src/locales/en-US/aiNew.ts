@@ -1,4 +1,27 @@
 export default {
+  "app.aiNew.referenceId": "Reconciliation reference",
+  "app.aiNew.unlinkedSubmission": "This submission has no linked execution yet. Reconcile its original request or contact an administrator using the reference. It will not be dispatched automatically.",
+  "app.aiNew.error.transportTimeout": "Request wait timed out; the server outcome is unconfirmed. Query the current state before repeating a submission.",
+  "app.aiNew.stopGeneration": "Request stop",
+  "app.aiNew.regenerateAnswer": "Regenerate answer",
+  "app.aiNew.regenerateTitle": "Confirm regeneration",
+  "app.aiNew.regenerateDescription": "Regeneration uses the original context for this question and creates a new model execution. Text may be transferred and charged again. The previous answer is retained.",
+  "app.aiNew.cancellationDescription": "This receipt describes the control request. The execution outcome in history is authoritative; a dispatched call may still incur charges.",
+  "app.aiNew.cancellation.REQUEST_ACCEPTED": "Stop request accepted; reconciling the execution",
+  "app.aiNew.cancellation.CANCELLING": "Requesting execution cancellation",
+  "app.aiNew.cancellation.CANCELLED": "Executor confirmed cancellation; querying the final record",
+  "app.aiNew.cancellation.UNCONFIRMED": "Stop request unconfirmed; query the execution first",
+  "app.aiNew.cancellation.ALREADY_COMPLETED": "Execution already ended; check its final result",
+  "app.aiNew.error.budgetLimit": "Available budget is insufficient or reserved for calls awaiting reconciliation. Check the budget before submitting.",
+  "app.aiNew.error.budgetPolicy": "Budget is missing, disabled or mismatched. Ask an administrator to check it.",
+  "app.aiNew.error.rateLimit": "Execution capacity or request frequency is limited. Query later and act manually.",
+  "app.aiNew.error.idempotency": "The request differs from the recorded submission. Check the original request; do not resend with a new key.",
+  "app.aiNew.error.policy": "Policy or service configuration is unavailable. Ask an administrator to check it.",
+  "app.aiNew.error.deadline": "The request deadline passed. Reconcile the submission and execution first.",
+  "app.aiNew.error.unsupported": "The model or configuration does not support this operation. Check the available configuration.",
+  "app.aiNew.error.interrupted": "Execution was interrupted. Check its final state before deciding to regenerate.",
+  "app.aiNew.error.rejected": "The operation is confirmed to have no side effects. Check input and configuration before acting manually.",
+  "app.aiNew.error.network": "Connection interrupted; the outcome is unconfirmed. Query the current state before repeating a submission.",
   "app.aiNew.messages": "Messages",
   "app.aiNew.loadOlder": "Load older messages",
   "app.aiNew.noMessages": "Send your first question to start the conversation",
@@ -98,9 +121,9 @@ export default {
   'app.aiNew.error.missing':
     'The conversation is missing, deleted, or inaccessible.',
   'app.aiNew.error.input':
-    'Invalid input. Check the title and request parameters.',
+    'Invalid input. Check the content and request parameters.',
   'app.aiNew.error.contract':
     'The service response could not be verified. Reload and check the outcome.',
   'app.aiNew.error.uncertain':
-    'The outcome is uncertain. Reload the conversation list before creating again.',
+    'The outcome is uncertain. Query the current state before repeating a submission.',
 };

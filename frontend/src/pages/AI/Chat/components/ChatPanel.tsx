@@ -2,6 +2,7 @@ import {Alert, Button, Checkbox, Input, Modal, Space, Spin, Typography,} from 'a
 import {useEffect, useState} from 'react';
 import {chatErrorText, isAccessError} from '@/features/ai-chat/errors';
 import {useChat} from '@/features/ai-chat/hooks/useChat';
+import {canRegenerateTurn, isTurnPending} from '@/features/ai-chat/executionState';
 import type {ChatBootstrap, Conversation, WorkspaceSelection,} from '@/types/ai-new/conversation';
 import {i18nText as t} from '@/utils/i18n';
 import ChatMessageList from './ChatMessageList';
@@ -11,17 +12,20 @@ export default function ChatPanel({
                                     scope,
                                     conversation,
                                     model,
+                                    onLockChange,
                                   }: {
   userId: string;
   scope: WorkspaceSelection;
   conversation: Conversation;
   model: ChatBootstrap['defaultModel'];
+  onLockChange: (id: string, locked: boolean) => void;
 }) {
   const chat = useChat(userId, scope, conversation);
   const [draft, setDraft] = useState('');
   const [confirmation, setConfirmation] = useState<null | {
     text: string;
     replay: boolean;
+    originalTurnId?: string;
   }>(null);
   const [confirmed, setConfirmed] = useState(false);
   const transferIdentity = JSON.stringify([
@@ -44,23 +48,32 @@ export default function ChatPanel({
     conversation.modelBindingRef.version === model.bindingRef.version;
   const blocked =
     !sameBinding ||
-    chat.sending ||
+    chat.busy ||
     !chat.history.isSuccess ||
     chat.history.isFetching ||
     Boolean(chat.pending) ||
     chat.unfinished;
-  const openConfirmation = (text: string, replay = false) => {
+  const locked = chat.busy || chat.unfinished || Boolean(chat.pending) || !chat.history.isSuccess;
+  useEffect(() => {
+    onLockChange(conversation.conversationId, locked);
+  }, [onLockChange, conversation.conversationId, locked]);
+  useEffect(() => () => {
+    onLockChange(conversation.conversationId, false);
+  }, [onLockChange, conversation.conversationId]);
+  const latest = chat.turns.at(-1);
+  const regeneratable = latest && canRegenerateTurn(latest) && !chat.unfinished;
+  const openConfirmation = (text: string, replay = false, originalTurnId?: string) => {
     setConfirmed(false);
-    setConfirmation({text, replay});
+    setConfirmation({text, replay, originalTurnId});
   };
   const send = async () => {
     if (!confirmation || !confirmed || !sameBinding) return;
     const command = confirmation;
     setConfirmation(null);
-    const accepted = await chat.send(command.text, command.replay);
-    if (accepted && !command.replay) setDraft('');
+    const accepted = await chat.send(command.text, command.replay, command.originalTurnId);
+    if (accepted && !command.replay && !command.originalTurnId) setDraft('');
   };
-  if (isAccessError(chat.history.error) || isAccessError(chat.commandError))
+  if (isAccessError(chat.history.error) || isAccessError(chat.commandError) || isAccessError(chat.cancelError))
     return (
       <Alert
         type="error"
@@ -87,7 +100,7 @@ export default function ChatPanel({
           {t('app.aiNew.messages')}
         </Typography.Title>
         <Button
-          disabled={chat.sending || chat.history.isFetching}
+          disabled={chat.busy || chat.history.isFetching}
           onClick={() => {
             void chat.refresh();
           }}
@@ -104,6 +117,14 @@ export default function ChatPanel({
             {t('app.aiNew.loadOlder')}
           </Button>
         )}
+        {latest?.execution && isTurnPending(latest) && <Button danger aria-label={t('app.aiNew.stopGeneration')}
+                                                               loading={chat.cancelling}
+                                                               disabled={chat.busy || chat.history.isError || Boolean(chat.cancellation && chat.cancellation.turnId === latest.turn.turnId && chat.cancellation.status !== 'UNCONFIRMED')}
+                                                               onClick={() => {
+                                                                 void chat.cancel(latest.turn.turnId);
+                                                               }}>{t('app.aiNew.stopGeneration')}</Button>}
+        {regeneratable && <Button disabled={blocked}
+                                  onClick={() => openConfirmation(latest.turn.input.flatMap((message) => message.parts.map((part) => part.text)).join('\n'), false, latest.turn.turnId)}>{t('app.aiNew.regenerateAnswer')}</Button>}
       </Space>
       {chat.history.error ? (
         <Alert type="error" title={chatErrorText(chat.history.error)}/>
@@ -112,9 +133,14 @@ export default function ChatPanel({
       ) : (
         <ChatMessageList turns={chat.turns}/>
       )}
-      {Boolean(chat.commandError) && !chat.pending && (
+      {Boolean(chat.commandError) && (
         <Alert type="error" title={chatErrorText(chat.commandError)}/>
       )}
+      {chat.cancellation?.turnId === latest?.turn.turnId && chat.cancellation &&
+        <Alert type={chat.cancellation.status === 'UNCONFIRMED' ? 'warning' : 'info'}
+               title={t(`app.aiNew.cancellation.${chat.cancellation.status}`)}
+               description={t('app.aiNew.cancellationDescription')}/>}
+      {Boolean(chat.cancelError) && <Alert type="error" title={chatErrorText(chat.cancelError)}/>}
       {chat.pending && !chat.sending && (
         <Alert
           type="warning"
@@ -122,7 +148,7 @@ export default function ChatPanel({
           description={t('app.aiNew.pendingDescription')}
           action={
             <Button
-              disabled={
+              disabled={chat.busy ||
                 chat.history.isFetching ||
                 !chat.history.isSuccess ||
                 !sameBinding
@@ -139,6 +165,8 @@ export default function ChatPanel({
       {chat.observationPaused && (
         <Alert type="info" title={t('app.aiNew.observationPaused')}/>
       )}
+      {latest && !latest.execution && latest.turn.status !== 'REJECTED' && !chat.pending &&
+        <Alert type="warning" title={t('app.aiNew.unlinkedSubmission')}/>}
       {!sameBinding && (
         <Alert type="warning" title={t('app.aiNew.bindingChanged')}/>
       )}
@@ -192,17 +220,17 @@ export default function ChatPanel({
       </Space>
       <Modal
         open={confirmation !== null}
-        title={t('app.aiNew.transferTitle')}
+        title={t(confirmation?.originalTurnId || (confirmation?.replay && chat.pending?.kind === 'REGENERATION') ? 'app.aiNew.regenerateTitle' : 'app.aiNew.transferTitle')}
         okText={t('app.aiNew.confirmSend')}
         cancelText={t('app.aiNew.cancel')}
-        okButtonProps={{disabled: !confirmed || chat.sending || !sameBinding}}
+        okButtonProps={{disabled: !confirmed || chat.busy || !sameBinding}}
         onOk={() => {
           void send();
         }}
         onCancel={() => setConfirmation(null)}
       >
         <Typography.Paragraph>
-          {t('app.aiNew.transferDescription')}
+          {t(confirmation?.originalTurnId || (confirmation?.replay && chat.pending?.kind === 'REGENERATION') ? 'app.aiNew.regenerateDescription' : 'app.aiNew.transferDescription')}
         </Typography.Paragraph>
         <Typography.Paragraph>
           <Typography.Text strong>

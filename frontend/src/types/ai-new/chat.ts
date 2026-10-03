@@ -18,6 +18,7 @@ export interface ChatTurnResult {
     sequence: number;
     kind: 'MESSAGE' | 'REGENERATION';
     status: 'PREPARING' | 'READY' | 'ACCEPTED' | 'REJECTED';
+    regeneratesTurnId: string | null;
     input: Array<{ role: 'USER'; parts: Array<{ text: string }> }>;
     idempotencyKey: { key: string };
     rejectionError: ExecutionError | null;
@@ -38,7 +39,8 @@ export interface ChatSubmission {
   externalTransferConfirmed: true;
 }
 
-export interface PendingChatCommand {
-  key: string;
-  body: ChatSubmission;
-}
+export type PendingChatCommand =
+  | { key: string; kind?: 'MESSAGE'; body: ChatSubmission }
+  | { key: string; kind: 'REGENERATION'; body: ChatSubmission & { originalTurnId: string } };
+
+export type CancellationStatus = 'REQUEST_ACCEPTED' | 'CANCELLING' | 'CANCELLED' | 'UNCONFIRMED' | 'ALREADY_COMPLETED';
