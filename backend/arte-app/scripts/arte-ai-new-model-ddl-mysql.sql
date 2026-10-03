@@ -67,3 +67,35 @@ create table if not exists arte_ai_new_event
     default charset=utf8mb4
     collate=utf8mb4_bin
     comment '新 AI 模型执行事件表：耐久输出及事件重放';
+
+-- 第三批流式输出：增量与状态事件同事务提交，部分正文缓存供刷新恢复。
+create table if not exists arte_ai_new_stream_output
+(
+    execution_id  char(36)   not null comment '模型执行 ID，使用 UUID，与模型执行记录关联',
+    partial_text  mediumtext not null comment '已持久化的累计回答正文，用于刷新恢复，不代表调用成功',
+    utf8_bytes    int        not null comment '累计回答正文的 UTF-8 字节数，用于限制流式输出大小',
+    last_sequence bigint     not null comment '已缓存的最后一条文本增量事件序号，用于续传去重',
+    primary key (execution_id),
+    constraint fk_ai_new_stream_execution
+        foreign key (execution_id)
+        references arte_ai_new_execution (execution_id)
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate=utf8mb4_bin
+    comment '新 AI 流式回答缓存表：累计正文、字节数及增量续传游标';
+
+create table if not exists arte_ai_new_stream_delta
+(
+    execution_id char(36) not null comment '模型执行 ID，使用 UUID，与模型执行事件关联',
+    sequence_no  bigint   not null comment '关联的模型执行事件序号，与状态事件共用执行内递增序列',
+    text_delta   text     not null comment '本批新增的模型回答文本，按事件序号拼接，不是累计正文',
+    primary key (execution_id, sequence_no),
+    constraint fk_ai_new_stream_event
+        foreign key (execution_id, sequence_no)
+        references arte_ai_new_event (execution_id, sequence_no)
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate=utf8mb4_bin
+    comment '新 AI 流式文本增量表：与执行事件原子提交，支持按游标重放';

@@ -88,7 +88,7 @@ create table if not exists arte_ai_new_context_snapshot
     model_binding_type    varchar(32)  not null comment '模型绑定引用类型，固定为 ai-binding',
     model_binding_id      varchar(128) not null comment '模型绑定业务 ID',
     model_binding_version varchar(64)  not null comment '固定模型绑定版本，不使用 latest',
-    payload_format        varchar(32)  not null comment '持久化格式版本，固定为 arte.chat.context.v1',
+    payload_format        varchar(32)  not null comment '持久化格式版本：arte.chat.context.v1 或 v2',
     messages_json         json         not null comment '实际组装的模型输入消息列表 JSON',
     fragments_json        json         not null comment '实际来源片段、引用标识及裁剪说明 JSON',
     history_refs_json     json         not null comment '选入的历史提交版本及执行引用列表 JSON',
@@ -121,7 +121,7 @@ create table if not exists arte_ai_new_context_snapshot
     constraint ck_ai_new_snapshot_binding
     check (model_binding_type = 'ai-binding' and model_binding_version <> 'latest'),
     constraint ck_ai_new_snapshot_format
-    check (payload_format = 'arte.chat.context.v1'),
+    check (payload_format in ('arte.chat.context.v1','arte.chat.context.v2')),
     constraint ck_ai_new_snapshot_budget
     check (
               input_byte_limit > 0 and used_input_bytes >= 0
@@ -247,3 +247,22 @@ create table if not exists arte_ai_new_turn
     default charset=utf8mb4
     collate=utf8mb4_bin
     comment '新 AI 聊天轮次提交表：输入、幂等、重新生成、执行关联及串行占位';
+
+-- v2 上下文 Token 计量侧表；保留原有 v1 快照，不改写已提交上下文。
+create table if not exists arte_ai_new_context_token_budget
+(
+    snapshot_id            char(36)     not null comment '关联的 v2 上下文快照 ID，使用 UUID，与快照一对一',
+    context_window_tokens  int          not null comment '应用侧上下文 Token 总容量，包含输入、输出预留及安全余量',
+    input_token_limit      int          not null comment '输入 Token 上限，等于总容量减去输出预留及安全余量',
+    estimated_input_tokens int          not null comment '实际选入消息的输入 Token 保守估算值，不是供应商计费用量',
+    safety_token_reserve   int          not null comment '为分词及协议开销额外保留的安全 Token 数',
+    estimator_version      varchar(128) not null comment 'Token 估算策略版本，与计量事实共同参与快照摘要校验',
+    primary key (snapshot_id),
+    constraint fk_ai_new_token_snapshot
+        foreign key (snapshot_id)
+        references arte_ai_new_context_snapshot (snapshot_id)
+)
+    engine=InnoDB
+    default charset=utf8mb4
+    collate=utf8mb4_bin
+    comment '新 AI 上下文 Token 预算表：v2 快照的容量、输入估算及安全预留事实';
