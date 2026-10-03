@@ -4,6 +4,7 @@ import {App} from 'antd';
 import React, {useSyncExternalStore} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ChatBootstrap, Conversation} from '@/types/ai-new/conversation';
+import type {ChatTurnResult} from '@/types/ai-new/chat';
 import ChatPage from './index';
 
 const state = vi.hoisted(() => ({
@@ -68,6 +69,7 @@ let conversations: Conversation[];
 let client: QueryClient;
 let rejectWrites: number | null;
 let revoked: boolean;
+let turns: ChatTurnResult[];
 const makeConversation = (id: string, title: string): Conversation => ({
   conversationId: id,
   title,
@@ -79,6 +81,198 @@ const makeConversation = (id: string, title: string): Conversation => ({
   createdAt: '2026-10-02T00:00:00Z',
   updatedAt: '2026-10-02T00:00:00Z',
   deletedAt: null,
+});
+
+describe('minimal chat loop', () => {
+  it('requires a fresh transfer confirmation, observes completion and sends the next message with the new version', async () => {
+    selectFirst();
+    view();
+    let dialog = await sendDialog('第一个问题');
+    expect(within(dialog).getByText(model.destination)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', {name: '确认并发送'})).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('button', {name: /取.*消/}));
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+    dialog = await sendDialog('第一个问题');
+    confirmSend(dialog);
+    await screen.findByText('生成中');
+    expect(screen.queryByText('回答1')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+    const first = state.request.mock.calls.find(([, options]) => options.method === 'POST');
+    expect(first?.[1].data).toEqual({
+      ...scope,
+      expectedVersion: 1,
+      text: '第一个问题',
+      externalTransferConfirmed: true
+    });
+    turns[0].execution = {
+      executionId: 'execution-1',
+      status: 'SUCCEEDED',
+      result: {output: [{text: '回答1'}]},
+      error: null
+    };
+    await screen.findByText('回答1', {}, {timeout: 4500});
+    const reads = state.request.mock.calls.filter(([path]) => path.endsWith('/turns')).length;
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    expect(state.request.mock.calls.filter(([path]) => path.endsWith('/turns'))).toHaveLength(reads);
+    dialog = await sendDialog('第二个问题');
+    expect(within(dialog).getByRole('checkbox')).not.toBeChecked();
+    confirmSend(dialog);
+    await waitFor(() => expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(2));
+    const second = state.request.mock.calls.filter(([, options]) => options.method === 'POST')[1];
+    expect(second[1].data.expectedVersion).toBe(2);
+    expect(second[1].headers['Idempotency-Key']).not.toBe(first?.[1].headers['Idempotency-Key']);
+  });
+  it('retains an ambiguous submission across refresh and explicitly replays its original body and key', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    let failed = false;
+    state.request.mockImplementation(async (path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        if (!failed) {
+          failed = true;
+          conversations[0].version = 2;
+          const item = makeTurn(1, options.data.text, 'RUNNING', options.headers['Idempotency-Key']);
+          item.turn.status = 'READY';
+          item.execution = null;
+          turns = [item];
+          throw {response: {status: 503}};
+        }
+        turns[0].turn.status = 'ACCEPTED';
+        turns[0].execution = {
+          executionId: 'execution-1',
+          status: 'SUCCEEDED',
+          result: {output: [{text: '已恢复的回答'}]},
+          error: null
+        };
+      }
+      return original?.(path, options);
+    });
+    const rendered = view();
+    confirmSend(await sendDialog('不要改变这个问题'));
+    await screen.findByText('提交结果尚待核对');
+    const posts = () => state.request.mock.calls.filter(([, options]) => options.method === 'POST');
+    expect(posts()).toHaveLength(1);
+    expect(sessionStorage.length).toBe(1);
+    const first = posts()[0][1];
+    rendered.unmount();
+    client.clear();
+    view();
+    await screen.findByText('提交结果尚待核对');
+    const replay = screen.getByRole('button', {name: '重放原提交'});
+    await waitFor(() => expect(replay).toBeEnabled());
+    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+    fireEvent.click(replay);
+    confirmSend(await screen.findByRole('dialog'));
+    await screen.findByText('已恢复的回答');
+    expect(posts()).toHaveLength(2);
+    expect(posts()[1][1].data).toEqual(first.data);
+    expect(posts()[1][1].headers['Idempotency-Key']).toBe(first.headers['Idempotency-Key']);
+    expect(sessionStorage.length).toBe(0);
+    expect(conversations[0].version).toBe(2);
+  });
+  it('loads history in chronological order using an exclusive sequence cursor', async () => {
+    selectFirst();
+    turns = Array.from({length: 22}, (_, index) => makeTurn(22 - index, `问题${22 - index}`));
+    view();
+    const log = await screen.findByRole('log');
+    await within(log).findByText('问题22');
+    expect(log.querySelectorAll('article')).toHaveLength(20);
+    fireEvent.click(screen.getByRole('button', {name: '加载更早的消息'}));
+    await within(log).findByText('问题1');
+    expect(log.querySelectorAll('article')).toHaveLength(22);
+    expect(log.querySelector('article')?.textContent).toContain('问题1');
+    expect(state.request.mock.calls.some(([, options]) => options.params?.beforeSequence === 3)).toBe(true);
+  });
+  it('renders unknown outcomes without claiming a reply or automatically repeating the call', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '结果未确认的问题', 'OUTCOME_UNKNOWN')];
+    view();
+    await screen.findByText(/模型调用结果未知/);
+    expect(screen.queryByText('回答1')).not.toBeInTheDocument();
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+  });
+  it('does not dispatch when pending-request storage fails or text exceeds the byte limit', async () => {
+    selectFirst();
+    view();
+    const dialog = await sendDialog('一个问题');
+    const storage = vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
+      throw new Error('disabled');
+    });
+    confirmSend(dialog);
+    await screen.findByText(/无法保存待核对请求/);
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+    storage.mockRestore();
+    fireEvent.change(screen.getByRole('textbox', {name: '消息内容'}), {target: {value: '中'.repeat(3000)}});
+    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+  });
+  it('does not turn a reconciled replay dialog into a fresh paid submission', async () => {
+    selectFirst();
+    const key = crypto.randomUUID();
+    sessionStorage.setItem(`arte-ai-new:pending:${JSON.stringify(['7', scope.tenantId, scope.workspaceId, 'first'])}`,
+      JSON.stringify({key, body: {expectedVersion: 1, text: '原问题', externalTransferConfirmed: true}}));
+    const item = makeTurn(1, '原问题', 'RUNNING', key);
+    item.turn.status = 'READY';
+    item.execution = null;
+    turns = [item];
+    view();
+    const replay = await screen.findByRole('button', {name: '重放原提交'});
+    await waitFor(() => expect(replay).toBeEnabled());
+    fireEvent.click(replay);
+    const dialog = await screen.findByRole('dialog');
+    turns = [makeTurn(1, '原问题', 'SUCCEEDED', key)];
+    await act(async () => {
+      await client.invalidateQueries({queryKey: ['ai-new', '7', scope.tenantId, scope.workspaceId, 'history']});
+    });
+    await waitFor(() => expect(sessionStorage.length).toBe(0));
+    await act(async () => {
+      confirmSend(dialog);
+    });
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+  });
+  it('discards a late submit response and its cached mutation after logout', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    let resolveSubmission!: (value: ChatTurnResult) => void;
+    let requestKey = '';
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        requestKey = options.headers['Idempotency-Key'];
+        return new Promise<ChatTurnResult>((resolve) => {
+          resolveSubmission = resolve;
+        });
+      }
+      return original?.(path, options);
+    });
+    const rendered = view();
+    confirmSend(await sendDialog('发送后退出'));
+    await waitFor(() => expect(resolveSubmission).toBeDefined());
+    state.userId = '';
+    rendered.rerender(<QueryClientProvider client={client}><App><ChatPage/></App></QueryClientProvider>);
+    await screen.findByText('无权访问新聊天');
+    const reads = state.request.mock.calls.length;
+    await act(async () => {
+      resolveSubmission(makeTurn(1, '发送后退出', 'SUCCEEDED', requestKey));
+    });
+    expect(state.request.mock.calls).toHaveLength(reads);
+    expect(sessionStorage.length).toBe(0);
+    expect(client.getQueryCache().findAll({queryKey: ['ai-new', '7']})).toHaveLength(0);
+    await waitFor(() => expect(client.getMutationCache().getAll()).toHaveLength(0));
+  });
+  it('hides previous message text when permission for history is revoked', async () => {
+    selectFirst();
+    turns = [makeTurn(1, '私有问题')];
+    view();
+    await screen.findByText('回答1');
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation((path, options) => path.endsWith('/turns')
+      ? Promise.reject({response: {status: 403}}) : original?.(path, options));
+    await act(async () => {
+      await client.invalidateQueries({queryKey: ['ai-new', '7', scope.tenantId, scope.workspaceId, 'history']});
+    });
+    await screen.findByText(/登录状态或当前权限不可用/);
+    expect(screen.queryByText('私有问题')).not.toBeInTheDocument();
+    expect(screen.queryByText('回答1')).not.toBeInTheDocument();
+  });
 });
 beforeEach(() => {
   localStorage.setItem('umi_locale', 'zh-CN');
@@ -95,6 +289,8 @@ beforeEach(() => {
   conversations = [makeConversation('first', '原会话')];
   rejectWrites = null;
   revoked = false;
+  turns = [];
+  sessionStorage.clear();
   client = new QueryClient({
     defaultOptions: {
       queries: {retry: false, gcTime: 0},
@@ -109,6 +305,7 @@ beforeEach(() => {
         method?: string;
         params?: Record<string, unknown>;
         data?: Record<string, unknown>;
+        headers?: Record<string, string>;
       } = {},
     ) => {
       if (path.endsWith('/bootstrap')) return bootstrap;
@@ -118,7 +315,7 @@ beforeEach(() => {
             status: 403,
             data: {
               code: 'arte.common.unauthorized',
-              stage: 'identity',
+              failureStage: 'identity',
               retryable: false,
               sideEffectStatus: 'NONE',
               resultCertainty: 'CONFIRMED',
@@ -135,13 +332,26 @@ beforeEach(() => {
                 rejectWrites === 409
                   ? 'arte.common.version_conflict'
                   : 'arte.common.outcome_unknown',
-              stage: 'store',
+              failureStage: 'store',
               retryable: false,
               sideEffectStatus: rejectWrites === 409 ? 'NONE' : 'UNKNOWN',
               resultCertainty: rejectWrites === 409 ? 'CONFIRMED' : 'UNKNOWN',
             },
           },
         };
+      if (path.endsWith('/turns')) {
+        if (method === 'POST') {
+          const key = options.headers?.['Idempotency-Key'] ?? '';
+          let turn = turns.find((item) => item.turn.idempotencyKey.key === key);
+          if (!turn) {
+            turn = makeTurn(turns.length + 1, String(options.data?.text), 'RUNNING', key);
+            conversations[0].version++;
+            turns.unshift(turn);
+          }
+          return turn;
+        }
+        return turns.filter((item) => options.params?.beforeSequence === undefined || item.turn.sequence < Number(options.params.beforeSequence)).slice(0, 20);
+      }
       if (path.endsWith('/conversations')) {
         if (method === 'POST') {
           const item = makeConversation('created', String(options.data?.title));
@@ -192,6 +402,45 @@ async function renameDialog() {
     await screen.findByRole('button', {name: '重命名：原会话'}),
   );
   return screen.findByRole('dialog');
+}
+
+function makeTurn(sequence: number, text: string, status: 'RUNNING' | 'SUCCEEDED' | 'OUTCOME_UNKNOWN' = 'SUCCEEDED', key = `history-${sequence}`): ChatTurnResult {
+  return {
+    turn: {
+      turnId: `turn-${sequence}`,
+      conversationId: 'first',
+      sequence,
+      kind: 'MESSAGE',
+      status: 'ACCEPTED',
+      input: [{role: 'USER', parts: [{text}]}],
+      idempotencyKey: {key},
+      rejectionError: null,
+      createdAt: '2026-10-03T00:00:00Z'
+    },
+    execution: {
+      executionId: `execution-${sequence}`,
+      status,
+      result: status === 'SUCCEEDED' ? {output: [{text: `回答${sequence}`}]} : null,
+      error: null
+    },
+  };
+}
+
+function selectFirst() {
+  state.location.search = '?tenantId=tenant-real&workspaceId=workspace-real&conversationId=first';
+}
+
+async function sendDialog(text: string) {
+  const input = await screen.findByRole('textbox', {name: '消息内容'});
+  await waitFor(() => expect(input).toBeEnabled());
+  fireEvent.change(input, {target: {value: text}});
+  fireEvent.click(screen.getByRole('button', {name: '发送消息'}));
+  return screen.findByRole('dialog');
+}
+
+function confirmSend(dialog: HTMLElement) {
+  fireEvent.click(within(dialog).getByRole('checkbox'));
+  fireEvent.click(within(dialog).getByRole('button', {name: '确认并发送'}));
 }
 
 describe('new conversation management', () => {

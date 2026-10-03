@@ -13,12 +13,12 @@ export function normalizeApiError(error: unknown): AiNewApiError {
   const response = (error as { response?: { status?: number; data?: unknown } } | null)?.response;
   const data = response?.data as Partial<ExecutionError> | undefined;
   // Only retain the stable error envelope; never display transport / provider text.
-  const facts = data && typeof data.code === 'string' && typeof data.stage === 'string'
+  const facts = data && typeof data.code === 'string' && typeof data.failureStage === 'string'
   && typeof data.retryable === 'boolean'
   && ['NONE', 'OCCURRED', 'UNKNOWN'].includes(data.sideEffectStatus ?? '')
   && ['CONFIRMED', 'UNKNOWN'].includes(data.resultCertainty ?? '')
     ? {
-      code: data.code, stage: data.stage, retryable: data.retryable,
+      code: data.code, failureStage: data.failureStage, retryable: data.retryable,
       sideEffectStatus: data.sideEffectStatus, resultCertainty: data.resultCertainty
     } as ExecutionError : null;
   return new AiNewApiError(response?.status ?? 0, facts);
@@ -29,6 +29,7 @@ export interface AiNewRequestOptions {
   params?: Record<string, unknown>;
   data?: unknown;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 export async function requestAiNew<T>(path: string, options: AiNewRequestOptions = {}): Promise<T> {
@@ -36,7 +37,7 @@ export async function requestAiNew<T>(path: string, options: AiNewRequestOptions
     return await request<T>(`/arte/api/ai-new${path}`, {
       ...options,
       skipErrorHandler: true,
-      headers: options.data === undefined ? undefined : {'Content-Type': 'application/json'},
+      headers: {...(options.data === undefined ? {} : {'Content-Type': 'application/json'}), ...options.headers},
     });
   } catch (error) {
     throw normalizeApiError(error);

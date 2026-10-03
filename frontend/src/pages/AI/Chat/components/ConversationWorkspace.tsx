@@ -14,6 +14,7 @@ import {i18nText as t} from '@/utils/i18n';
 import {navigate} from '../navigation';
 import ConversationDialog from './ConversationDialog';
 import ConversationSidebar from './ConversationSidebar';
+import ChatPanel from './ChatPanel';
 
 const useStyles = createStyles(({css, token}) => ({
   layout: css`display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px;
@@ -211,10 +212,8 @@ export default function ConversationWorkspace({
                   },
                 ]}
               />
-              <Empty
-                style={{margin: '48px 0'}}
-                description={t('app.aiNew.ready')}
-              />
+              <ChatPanel key={detail.data.conversationId} userId={userId} scope={scope} conversation={detail.data}
+                         model={model}/>
             </>
           ) : (
             <Empty

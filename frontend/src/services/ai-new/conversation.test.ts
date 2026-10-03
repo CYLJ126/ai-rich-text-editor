@@ -70,7 +70,7 @@ describe('new chat HTTP contracts', () => {
   it('retains the base error facts while discarding arbitrary transport text', async () => {
     const facts = {
       code: 'arte.common.version_conflict',
-      stage: 'chat-store',
+      failureStage: 'chat-store',
       retryable: false,
       sideEffectStatus: 'NONE',
       resultCertainty: 'CONFIRMED'

@@ -6,6 +6,7 @@ import {Spin} from 'antd';
 import React, {startTransition, useState} from 'react';
 import {logout} from '@/services/ant-design-pro/base';
 import {useQueryClient} from '@tanstack/react-query';
+import {clearPendingChatCommands} from '@/features/ai-chat/pendingCommands';
 import HeaderDropdown from '../HeaderDropdown';
 import ChangePasswordModal from "@/pages/account/settings/components/ChangePasswordModal";
 
@@ -40,6 +41,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const {key} = event;
     if (key === 'logout') {
+      clearPendingChatCommands();
       void queryClient.cancelQueries({queryKey: ['ai-new']});
       queryClient.removeQueries({queryKey: ['ai-new']});
       startTransition(() => {

@@ -1,5 +1,7 @@
 # 新聊天第一步：基础接入与会话管理
 
+本文记录第一步交付范围；当前页面已继续接入 [第二步最小聊天闭环](ai-new-chat-step2.md)。
+
 ## 已实现
 
 入口 `/AI/Chat`，后端基础路径 `/arte/api/ai-new`。与旧 `/AI/ChatManagement` 独立，沿用现有登录、Token 注入、主题、React Query

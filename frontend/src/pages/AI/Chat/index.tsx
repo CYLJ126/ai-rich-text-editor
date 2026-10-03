@@ -8,6 +8,7 @@ import {useChatBootstrap} from '@/features/ai-chat/hooks/useConversations';
 import {chatKeys} from '@/features/ai-chat/queryKeys';
 import {i18nText as t} from '@/utils/i18n';
 import ConversationWorkspace from './components/ConversationWorkspace';
+import {clearPendingChatCommands} from '@/features/ai-chat/pendingCommands';
 import {navigate, scopeValue} from './navigation';
 
 export default function ChatPage() {
@@ -22,6 +23,7 @@ export default function ChatPage() {
   useEffect(() => {
     const old = previousUser.current;
     if (old && old !== userId) {
+      clearPendingChatCommands();
       void client.cancelQueries({queryKey: chatKeys.user(old)});
       client.removeQueries({queryKey: chatKeys.user(old)});
     }

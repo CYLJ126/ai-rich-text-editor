@@ -425,6 +425,31 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
         assertTrue(initialization.get("unavailableReason").isJsonNull());
         assertFalse(initialization.has("success"));
         assertEquals(10, initialization.getAsJsonObject("defaultModel").get("maxOutputTokens").getAsInt());
+        var id = json.get("conversationId").getAsString();
+        var submission = "{\"tenantId\":\"" + TENANT + "\",\"workspaceId\":\"" + WORKSPACE
+                + "\",\"expectedVersion\":1,\"text\":\"问题\",\"externalTransferConfirmed\":true}";
+        var submitted = JsonParser.parseString(web.perform(post("/api/ai-new/conversations/" + id + "/turns")
+                        .header("Idempotency-Key", "production-chat").contentType("application/json").content(submission))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString()).getAsJsonObject();
+        var turn = submitted.getAsJsonObject("turn");
+        assertEquals("ACCEPTED", turn.get("status").getAsString());
+        assertEquals("production-chat", turn.getAsJsonObject("idempotencyKey").get("key").getAsString());
+        assertEquals("USER", turn.getAsJsonArray("input").get(0).getAsJsonObject().get("role").getAsString());
+        assertEquals("问题", turn.getAsJsonArray("input").get(0).getAsJsonObject().getAsJsonArray("parts")
+                .get(0).getAsJsonObject().get("text").getAsString());
+        finished(service.find(http, TENANT, WORKSPACE, id), turn.get("turnId").getAsString());
+        var history = JsonParser.parseString(web.perform(get("/api/ai-new/conversations/" + id + "/turns")
+                        .param("tenantId", TENANT).param("workspaceId", WORKSPACE))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).getAsJsonArray();
+        var execution = history.get(0).getAsJsonObject().getAsJsonObject("execution");
+        assertEquals("SUCCEEDED", execution.get("status").getAsString());
+        assertTrue(execution.get("error").isJsonNull());
+        assertTrue(execution.getAsJsonObject("result").getAsJsonArray("output").get(0).getAsJsonObject().has("text"));
+        var invalid = JsonParser.parseString(web.perform(post("/api/ai-new/conversations/" + id + "/turns")
+                        .header("Idempotency-Key", "invalid-contract").contentType("application/json").content(submission.replace("问题", "")))
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString()).getAsJsonObject();
+        assertEquals("input", invalid.get("failureStage").getAsString());
+        assertFalse(invalid.has("stage"));
     }
 
     @Test

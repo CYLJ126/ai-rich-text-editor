@@ -43,7 +43,7 @@ export interface ChatBootstrap {
 
 export interface ExecutionError {
   code: string;
-  stage: string;
+  failureStage: string;
   retryable: boolean;
   sideEffectStatus: 'NONE' | 'OCCURRED' | 'UNKNOWN';
   resultCertainty: 'CONFIRMED' | 'UNKNOWN';
