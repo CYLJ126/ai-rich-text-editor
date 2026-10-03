@@ -114,7 +114,7 @@ token 的多实例 Worker、实例心跳／故障扫描、可靠工作队列或�
 
 当前默认启用安全桥接、单实例执行支撑、模型和聊天。默认模型为 DeepSeek-V4.1-Flash，API 标识
 `deepseek-flash`，接口为 `https://api.deepseek.com/chat/completions`，使用非思考模式（`reasoning-effort=none`）。
-默认作用域 `personal-1/workspace-1` 对应初始化账号 ID=1 的 admin；与实际成员不符时修改配置。
+默认作用域 `personal-1/workspace-1` 对应账号 ID=1，用户名可以是 `zhangsc` 或其他名称；与实际成员不符时修改配置。
 私有产物目录为工作目录下的 `data/ai-new/private-artifacts`，4 个执行线程、32 个队列位置、每分钟最多启动 60 次。 当前正文上限
 16384 字节、聊天文本上下文上限 8192 字节、最多 32 轮历史、快照有效期 10 分钟、输出上限 2048 token。
 
@@ -126,7 +126,14 @@ token 的多实例 Worker、实例心跳／故障扫描、可靠工作队列或�
 
 配置加载不会自动执行 DDL、建立成员关系、授予应用／连接／外发许可或创建数据库预算额度；这些数据仍按下方步骤准备。
 
-运行数据库脚本、授权数据及预算仍须按部署环境准备；当前没有填写真实密钥或调用真实供应商。准备顺序：
+对于账号 ID=1 及 `personal-1/workspace-1`，在实际连接的数据库准备好上述表后，可手动执行
+[`arte-ai-new-deepseek-admin-dml-mysql.sql`](../arte-app/scripts/arte-ai-new-deepseek-admin-dml-mysql.sql)。 脚本补齐空间成员、AI
+使用与外发应用许可、固定 DeepSeek 连接和用途许可，并初始化 10 元 CNY 的应用侧累计预算上限。 脚本按稳定用户 ID
+和正常账号状态匹配，不要求用户名为 `admin`；文件名中的 `admin` 沿用最初的初始化命名。
+已有记录不会被覆盖，包括撤销的权限、已有额度及消耗；末尾查询会显示当前状态。执行后刷新聊天页面即可，无需重启后端。
+若当前用户、租户、空间、模型绑定版本或应用 ID 与默认值不同，先按实际配置调整脚本；预算／连接键也须用相应 Java 帮助方法重新生成。
+
+运行数据库脚本、授权数据及预算仍须按部署环境准备，应用启动不会自动执行这些脚本。准备顺序：
 
 1. 按 [身份接入说明](../arte-app/SECURITY_BRIDGE.md) 部署安全表及个人作用域映射。
 2. 按 [公共执行说明](../arte-base/MINIMUM_EXECUTION_SUPPORT.md) 部署审计／产物表，设置私有目录和 single-instance 模式。
