@@ -1,4 +1,7 @@
-import {Alert, Empty, Space, Tag, Typography} from 'antd';
+import {Alert, Button, Empty, Space, Tag, Typography} from 'antd';
+import {useLayoutEffect, useRef, useState} from 'react';
+import AssistantMarkdown from './AssistantMarkdown';
+import CopyTextButton from './CopyTextButton';
 import {isTurnPending} from '@/features/ai-chat/executionState';
 import {executionErrorText} from '@/features/ai-chat/errors';
 import type {ChatTurnResult} from '@/types/ai-new/chat';
@@ -9,12 +12,50 @@ export default function ChatMessageList({
                                         }: {
   turns: ChatTurnResult[];
 }) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const previous = useRef<{ first: string; last: string; height: number } | null>(null);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const first = turns[0]?.turn.turnId ?? '';
+  const last = JSON.stringify(turns.at(-1));
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const old = previous.current;
+    if (!old) element.scrollTop = element.scrollHeight;
+    else if (old.first !== first && old.last === last) {
+      // Prepending history keeps the same content under the reader's eyes.
+      element.scrollTop += element.scrollHeight - old.height;
+    } else if (old.last !== last) {
+      if (following.current) element.scrollTop = element.scrollHeight;
+      else setHasUpdate(true);
+    }
+    previous.current = {first, last, height: element.scrollHeight};
+  }, [first, last]);
   return (
-    <div role="log" aria-label={t('app.aiNew.messages')} aria-live="polite">
+    <div style={{minWidth: 0}}>
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: The scrollable history needs keyboard scrolling, including in Safari. */}
+      <div ref={viewport} role="log" tabIndex={0} aria-label={t('app.aiNew.messages')} aria-live="polite"
+           style={{
+             maxHeight: 'clamp(260px, 55vh, 640px)',
+             minHeight: 160,
+             overflowY: 'auto',
+             overflowX: 'hidden',
+             paddingInline: 4,
+             overflowAnchor: 'none'
+           }}
+           onScroll={(event) => {
+             const element = event.currentTarget;
+             following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+             if (following.current) setHasUpdate(false);
+           }}>
+
       {!turns.length && <Empty description={t('app.aiNew.noMessages')}/>}
       {turns.map((item) => {
         const state = item.execution?.status ?? item.turn.status;
         const failure = item.turn.rejectionError ?? item.execution?.error;
+        const input = item.turn.input.flatMap((message) => message.parts.map((part) => part.text)).join('\n');
+        const output = item.execution?.result?.output.map((part) => part.text).join('\n') ?? '';
         return (
           <article
             key={item.turn.turnId}
@@ -33,6 +74,7 @@ export default function ChatMessageList({
               <Typography.Text type="secondary">
                 {new Date(item.turn.createdAt).toLocaleString()}
               </Typography.Text>
+              <CopyTextButton text={input} label={t('app.aiNew.copyQuestion')}/>
             </Space>
             <div
               style={{
@@ -41,11 +83,9 @@ export default function ChatMessageList({
                 margin: '8px 0 16px',
               }}
             >
-              {item.turn.input
-                .flatMap((message) => message.parts.map((part) => part.text))
-                .join('\n')}
+              {input}
             </div>
-            <Space>
+            <Space wrap>
               <Typography.Text strong>
                 {t('app.aiNew.assistantMessage')}
               </Typography.Text>
@@ -60,20 +100,9 @@ export default function ChatMessageList({
               >
                 {t(`app.aiNew.turn.${state}`)}
               </Tag>
+              {state === 'SUCCEEDED' && <CopyTextButton text={output} label={t('app.aiNew.copyAnswer')}/>}
             </Space>
-            {item.execution?.status === 'SUCCEEDED' && (
-              <div
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                  marginTop: 8,
-                }}
-              >
-                {item.execution.result?.output
-                  .map((part) => part.text)
-                  .join('\n')}
-              </div>
-            )}
+            {item.execution?.status === 'SUCCEEDED' && <AssistantMarkdown text={output}/>}
             {state === 'OUTCOME_UNKNOWN' && (
               <Alert
                 type="warning"
@@ -93,6 +122,13 @@ export default function ChatMessageList({
           </article>
         );
       })}
+      </div>
+      {hasUpdate && <Button style={{marginTop: 8}} onClick={() => {
+        const element = viewport.current;
+        if (element) element.scrollTop = element.scrollHeight;
+        following.current = true;
+        setHasUpdate(false);
+      }}>{t('app.aiNew.latestMessages')}</Button>}
     </div>
   );
 }

@@ -1,4 +1,12 @@
 export default {
+  "app.aiNew.copyQuestion": "複製問題",
+  "app.aiNew.copyAnswer": "複製回答",
+  "app.aiNew.copyCode": "複製程式碼",
+  "app.aiNew.copied": "已複製",
+  "app.aiNew.copyFailed": "複製失敗，請選取文字手動複製。",
+  "app.aiNew.latestMessages": "查看最新訊息／狀態",
+  "app.aiNew.composerHint": "Enter 換行，Ctrl / ⌘ + Enter 開啟傳送確認。草稿僅保留在目前頁面；離開頁面、切換空間或帳戶後清除。",
+
   "app.aiNew.referenceId": "核對編號",
   "app.aiNew.unlinkedSubmission": "該提交尚未關聯模型執行，請核對原請求；沒有原請求時可使用核對編號聯絡管理員。頁面不會自動再次派發。",
   "app.aiNew.error.transportTimeout": "請求等待逾時，無法確認伺服器是否已完成。請先重新查詢狀態，避免重複提交。",
@@ -29,7 +37,7 @@ export default {
   "app.aiNew.assistantMessage": "模型",
   "app.aiNew.regeneration": "重新生成",
   "app.aiNew.messageInput": "訊息內容",
-  "app.aiNew.messagePlaceholder": "輸入問題，Ctrl + Enter 開啟傳送確認",
+  "app.aiNew.messagePlaceholder": "輸入問題，Ctrl / ⌘ + Enter 開啟傳送確認",
   "app.aiNew.send": "傳送訊息",
   "app.aiNew.messageBytes": "{bytes} / {limit} 位元組",
   "app.aiNew.transferTitle": "確認外發並傳送",

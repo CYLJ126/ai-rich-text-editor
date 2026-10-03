@@ -141,12 +141,12 @@ export function useChat(
     setStorageFailed(false);
     setPending(command);
     observedFrom.current = Date.now();
-    let received = false;
+    let accepted = false;
     let accessDenied = false;
     try {
       const result = await mutation.mutateAsync(command);
-      received = true;
-      if (!active.current) return true;
+      accepted = result.turn.status === 'ACCEPTED';
+      if (!active.current) return accepted;
       if (
         result.turn.status === 'ACCEPTED' ||
         result.turn.status === 'REJECTED'
@@ -173,7 +173,7 @@ export function useChat(
       submitting.current = false;
       if (active.current) setWorking(false);
     }
-    return received;
+    return accepted;
   };
   const cancelMutation = useMutation({
     mutationKey: [...chatKeys.history(userId, scope, id), 'cancel'], gcTime: 0,

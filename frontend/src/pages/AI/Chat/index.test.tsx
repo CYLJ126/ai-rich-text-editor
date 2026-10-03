@@ -84,6 +84,103 @@ const makeConversation = (id: string, title: string): Conversation => ({
   deletedAt: null,
 });
 
+describe('chat usability', () => {
+  it('keeps independent drafts while browsing conversations and clears them on account changes or leaving the page', async () => {
+    selectFirst();
+    conversations.push(makeConversation('second', '另一会话'));
+    const rendered = view();
+    let input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '原会话草稿'}});
+    fireEvent.click(screen.getByRole('button', {name: '另一会话'}));
+    await screen.findByRole('heading', {name: '另一会话'});
+    input = screen.getByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    expect(input).toHaveValue('');
+    fireEvent.change(input, {target: {value: '另一份草稿'}});
+    fireEvent.click(screen.getByRole('button', {name: '原会话'}));
+    await screen.findByRole('heading', {name: '原会话'});
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('原会话草稿');
+    expect(sessionStorage.length).toBe(0);
+    state.userId = '8';
+    rendered.rerender(<QueryClientProvider client={client}><App><ChatPage/></App></QueryClientProvider>);
+    input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    expect(input).toHaveValue('');
+    fireEvent.change(input, {target: {value: '临时草稿'}});
+    rendered.unmount();
+    view();
+    expect(await screen.findByRole('textbox', {name: '消息内容'})).toHaveValue('');
+  });
+  it.each([{ctrlKey: true}, {metaKey: true}])('opens consent with %j but never during IME composition or ordinary Enter', async (modifier) => {
+    selectFirst();
+    view();
+    const input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '键盘问题'}});
+    fireEvent.keyDown(input, {key: 'Enter'});
+    fireEvent.keyDown(input, {key: 'Enter', ctrlKey: true, isComposing: true});
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.keyDown(input, {key: 'Enter', ...modifier});
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', {name: '确认并发送'})).toBeDisabled();
+    expect(within(dialog).getByText('键盘问题')).toBeInTheDocument();
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+  });
+  it('does not let an old account submission clear an identical draft in the new account', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    let resolveSubmission!: () => void;
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST')
+        return new Promise((resolve) => {
+          resolveSubmission = () => resolve(makeTurn(1, options.data.text, 'RUNNING', options.headers['Idempotency-Key']));
+        });
+      return original?.(path, options);
+    });
+    const rendered = view();
+    confirmSend(await sendDialog('相同文本'));
+    await waitFor(() => expect(resolveSubmission).toBeDefined());
+    state.userId = '8';
+    rendered.rerender(<QueryClientProvider client={client}><App><ChatPage/></App></QueryClientProvider>);
+    const input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '相同文本'}});
+    await act(async () => {
+      resolveSubmission();
+    });
+    expect(input).toHaveValue('相同文本');
+    expect(sessionStorage.length).toBe(0);
+  });
+  it('preserves the draft when a successful HTTP response contains a confirmed rejected turn', async () => {
+    selectFirst();
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation(async (path, options = {}) => {
+      if (path.endsWith('/turns') && options.method === 'POST') {
+        const rejected = makeTurn(1, options.data.text, 'RUNNING', options.headers['Idempotency-Key']);
+        rejected.turn.status = 'REJECTED';
+        rejected.turn.rejectionError = {
+          code: 'arte.common.rate_limited',
+          failureStage: 'budget',
+          retryable: false,
+          sideEffectStatus: 'NONE',
+          resultCertainty: 'CONFIRMED'
+        };
+        rejected.execution = null;
+        turns = [rejected];
+        return rejected;
+      }
+      return original?.(path, options);
+    });
+    view();
+    confirmSend(await sendDialog('拒绝后继续编辑'));
+    await screen.findByText('未受理');
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('拒绝后继续编辑');
+    await waitFor(() => expect(sessionStorage.length).toBe(0));
+    expect(state.request.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+  });
+});
+
 describe('execution controls and failures', () => {
   it('requests stopping once and keeps the conversation locked until its authoritative outcome', async () => {
     selectFirst();

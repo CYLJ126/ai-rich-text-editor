@@ -47,6 +47,18 @@ export default function ConversationWorkspace({
       handles.clear();
     };
   }, []);
+  // Ordinary drafts live only in this mounted user/space workspace, never browser storage.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const onDraftChange = useCallback((id: string, text: string, submittedText?: string) => {
+    if (!active.current) return;
+    setDrafts((old) => {
+      if (submittedText !== undefined && old[id] !== submittedText) return old;
+      const next = {...old};
+      if (text) next[id] = text;
+      else delete next[id];
+      return next;
+    });
+  }, []);
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<{ conversation?: Conversation } | null>(
@@ -96,6 +108,7 @@ export default function ConversationWorkspace({
         try {
           await commands.remove.mutateAsync(conversation);
           if (!active.current) return;
+          onDraftChange(conversation.conversationId, '');
           if (selectedId === conversation.conversationId) navigate(scope);
           void message.success(t('app.aiNew.deleted'));
         } catch (error) {
@@ -108,6 +121,9 @@ export default function ConversationWorkspace({
     confirmations.current.add(confirmation);
   };
   const accessError = isAccessError(list.error) || isAccessError(detail.error);
+  useEffect(() => {
+    if (accessError) setDrafts({});
+  }, [accessError]);
   if (accessError)
     return (
       <Result
@@ -217,7 +233,8 @@ export default function ConversationWorkspace({
                 ]}
               />
               <ChatPanel key={detail.data.conversationId} userId={userId} scope={scope} conversation={detail.data}
-                         model={model} onLockChange={onLockChange}/>
+                         model={model} onLockChange={onLockChange}
+                         draft={drafts[detail.data.conversationId] ?? ''} onDraftChange={onDraftChange}/>
             </>
           ) : (
             <Empty

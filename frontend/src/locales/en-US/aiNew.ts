@@ -1,4 +1,12 @@
 export default {
+  "app.aiNew.copyQuestion": "Copy question",
+  "app.aiNew.copyAnswer": "Copy answer",
+  "app.aiNew.copyCode": "Copy code",
+  "app.aiNew.copied": "Copied",
+  "app.aiNew.copyFailed": "Copy failed. Select the text and copy it manually.",
+  "app.aiNew.latestMessages": "View latest messages / status",
+  "app.aiNew.composerHint": "Enter adds a line; Ctrl / ⌘ + Enter opens confirmation. Drafts stay in this page only and are cleared when you leave, change workspace or switch account.",
+
   "app.aiNew.referenceId": "Reconciliation reference",
   "app.aiNew.unlinkedSubmission": "This submission has no linked execution yet. Reconcile its original request or contact an administrator using the reference. It will not be dispatched automatically.",
   "app.aiNew.error.transportTimeout": "Request wait timed out; the server outcome is unconfirmed. Query the current state before repeating a submission.",
@@ -29,7 +37,7 @@ export default {
   "app.aiNew.assistantMessage": "Model",
   "app.aiNew.regeneration": "Regenerated",
   "app.aiNew.messageInput": "Message",
-  "app.aiNew.messagePlaceholder": "Enter a question. Ctrl + Enter opens confirmation.",
+  "app.aiNew.messagePlaceholder": "Enter a question. Ctrl / ⌘ + Enter opens confirmation.",
   "app.aiNew.send": "Send message",
   "app.aiNew.messageBytes": "{bytes} / {limit} bytes",
   "app.aiNew.transferTitle": "Confirm external transfer",

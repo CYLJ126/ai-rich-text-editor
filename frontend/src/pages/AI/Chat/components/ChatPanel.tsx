@@ -13,15 +13,19 @@ export default function ChatPanel({
                                     conversation,
                                     model,
                                     onLockChange,
+                                    draft,
+                                    onDraftChange,
                                   }: {
   userId: string;
   scope: WorkspaceSelection;
   conversation: Conversation;
   model: ChatBootstrap['defaultModel'];
   onLockChange: (id: string, locked: boolean) => void;
+  draft: string;
+  onDraftChange: (id: string, text: string, submittedText?: string) => void;
 }) {
   const chat = useChat(userId, scope, conversation);
-  const [draft, setDraft] = useState('');
+  const setDraft = (text: string) => onDraftChange(conversation.conversationId, text);
   const [confirmation, setConfirmation] = useState<null | {
     text: string;
     replay: boolean;
@@ -71,9 +75,14 @@ export default function ChatPanel({
     const command = confirmation;
     setConfirmation(null);
     const accepted = await chat.send(command.text, command.replay, command.originalTurnId);
-    if (accepted && !command.replay && !command.originalTurnId) setDraft('');
+    if (accepted && !command.replay && !command.originalTurnId)
+      onDraftChange(conversation.conversationId, '', command.text);
   };
-  if (isAccessError(chat.history.error) || isAccessError(chat.commandError) || isAccessError(chat.cancelError))
+  const accessDenied = isAccessError(chat.history.error) || isAccessError(chat.commandError) || isAccessError(chat.cancelError);
+  useEffect(() => {
+    if (accessDenied) onDraftChange(conversation.conversationId, '');
+  }, [accessDenied, onDraftChange, conversation.conversationId]);
+  if (accessDenied)
     return (
       <Alert
         type="error"
@@ -178,6 +187,8 @@ export default function ChatPanel({
       </label>
       <Input.TextArea
         id="ai-new-message"
+        aria-describedby="ai-new-composer-hint ai-new-message-bytes"
+        status={bytes > (model?.contextMaxBytes ?? 0) ? 'error' : undefined}
         value={draft}
         disabled={blocked}
         autoSize={{minRows: 3, maxRows: 10}}
@@ -185,7 +196,7 @@ export default function ChatPanel({
         placeholder={t('app.aiNew.messagePlaceholder')}
         onKeyDown={(event) => {
           if (
-            event.ctrlKey &&
+            (event.ctrlKey || event.metaKey) &&
             event.key === 'Enter' &&
             !event.nativeEvent.isComposing &&
             !blocked &&
@@ -210,6 +221,7 @@ export default function ChatPanel({
           {t('app.aiNew.send')}
         </Button>
         <Typography.Text
+          id="ai-new-message-bytes"
           type={bytes > (model?.contextMaxBytes ?? 0) ? 'danger' : 'secondary'}
         >
           {t('app.aiNew.messageBytes', {
@@ -218,6 +230,9 @@ export default function ChatPanel({
           })}
         </Typography.Text>
       </Space>
+      <Typography.Text id="ai-new-composer-hint" type="secondary">
+        {t('app.aiNew.composerHint')}
+      </Typography.Text>
       <Modal
         open={confirmation !== null}
         title={t(confirmation?.originalTurnId || (confirmation?.replay && chat.pending?.kind === 'REGENERATION') ? 'app.aiNew.regenerateTitle' : 'app.aiNew.transferTitle')}

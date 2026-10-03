@@ -1,4 +1,12 @@
 export default {
+  "app.aiNew.copyQuestion": "复制问题",
+  "app.aiNew.copyAnswer": "复制回答",
+  "app.aiNew.copyCode": "复制代码",
+  "app.aiNew.copied": "已复制",
+  "app.aiNew.copyFailed": "复制失败，请选中文本手动复制。",
+  "app.aiNew.latestMessages": "查看最新消息／状态",
+  "app.aiNew.composerHint": "Enter 换行，Ctrl / ⌘ + Enter 打开发送确认。草稿仅保留在当前页面；离开页面、切换空间或账户后清除。",
+
   "app.aiNew.referenceId": "核对编号",
   "app.aiNew.unlinkedSubmission": "该提交尚未关联模型执行，请核对原请求；没有原请求时可使用核对编号联系管理员。页面不会自动再次派发。",
   "app.aiNew.error.transportTimeout": "请求等待超时，不能确认服务端是否已完成。请先重新查询状态，避免重复提交。",
@@ -29,7 +37,7 @@ export default {
   "app.aiNew.assistantMessage": "模型",
   "app.aiNew.regeneration": "重新生成",
   "app.aiNew.messageInput": "消息内容",
-  "app.aiNew.messagePlaceholder": "输入问题，Ctrl + Enter 打开发送确认",
+  "app.aiNew.messagePlaceholder": "输入问题，Ctrl / ⌘ + Enter 打开发送确认",
   "app.aiNew.send": "发送消息",
   "app.aiNew.messageBytes": "{bytes} / {limit} 字节",
   "app.aiNew.transferTitle": "确认外发并发送",
