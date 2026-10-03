@@ -36,6 +36,11 @@ arte:
       max-input-bytes: @arte.ai-new.model.max-input-bytes@
       max-output-tokens: @arte.ai-new.model.max-output-tokens@
     chat:
+      streaming-enabled: @arte.ai-new.chat.streaming-enabled@
+      context-window-tokens: @arte.ai-new.chat.context-window-tokens@
+      context-safety-tokens: @arte.ai-new.chat.context-safety-tokens@
+      stream-max-clients: @arte.ai-new.chat.stream-max-clients@
+      stream-timeout: '@arte.ai-new.chat.stream-timeout@'
       enabled: @arte.ai-new.chat.enabled@
       context-max-bytes: @arte.ai-new.chat.context-max-bytes@
       history-pairs: @arte.ai-new.chat.history-pairs@

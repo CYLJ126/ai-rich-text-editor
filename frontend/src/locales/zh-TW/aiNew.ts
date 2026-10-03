@@ -50,6 +50,7 @@ export default {
   "app.aiNew.observationPaused": "自動查詢已暫停，執行狀態仍未確認；請點擊重新查詢繼續觀察。",
   "app.aiNew.bindingChanged": "目前會話的模型設定與可用設定不一致，請重新整理設定或建立新會話。",
   "app.aiNew.storageFailed": "無法儲存待核對請求，本次未傳送。請允許瀏覽器工作階段儲存後再試。",
+  "app.aiNew.partialAnswer": "正在產生或未完成的部分回答",
   "app.aiNew.outcomeUnknown": "模型呼叫結果未知，可能已外發並產生費用。請先核對結果，避免重複傳送同一問題。",
   "app.aiNew.generationFailed": "本次生成未能確認成功，請核對狀態和目前權限／額度。",
   "app.aiNew.turn.PREPARING": "準備中",

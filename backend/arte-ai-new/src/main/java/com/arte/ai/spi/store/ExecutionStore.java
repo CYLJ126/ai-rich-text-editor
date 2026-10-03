@@ -48,4 +48,11 @@ public interface ExecutionStore {
     void markDispatched(ExecutionScope scope, String executionId);
 
     void finish(ExecutionScope scope, String executionId, ExecutionStatus status, ModelResult result, ExecutionError error);
+
+    /**
+     * 先耐久提交输出，再允许订阅者查询；不改变执行终态。
+     */
+    default void appendDelta(ExecutionScope scope, String executionId, String text) {
+        throw new UnsupportedOperationException("durable streaming unavailable");
+    }
 }

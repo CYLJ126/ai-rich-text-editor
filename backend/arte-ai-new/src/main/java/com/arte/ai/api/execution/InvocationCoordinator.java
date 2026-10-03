@@ -102,7 +102,7 @@ public class InvocationCoordinator {
         var plan = modelBindingResolver.resolve(request);
         access.requireAllowed(request.context(), plan);
         try {
-            return gateway.prepare(plan, request.input());
+            return gateway.prepare(plan, request.input(), request.options());
         } catch (IllegalArgumentException invalid) {
             throw fail(request, CommonErrorCode.INVALID_ARGUMENT, "model-input");
         }
@@ -219,6 +219,7 @@ public class InvocationCoordinator {
         String id = execution.executionId();
         if (!store.start(context.scope(), id)) throw fail(request, CommonErrorCode.VERSION_CONFLICT, "attempt");
         boolean dispatched = false;
+        var deltas = new com.arte.ai.execution.DeltaBatcher(text -> store.appendDelta(context.scope(), id, text));
         try (var span = telemetry.startSpan(context, "model.execute")) {
             try {
                 checkpoint.check();
@@ -241,7 +242,8 @@ public class InvocationCoordinator {
                 ModelResult result;
                 long providerStarted = System.nanoTime();
                 try {
-                    result = gateway.generate(current, checkpoint);
+                    result = gateway.generate(current, checkpoint, deltas);
+                    deltas.flush();
                 } finally {
                     telemetry.duration("arte.ai.provider.duration", Duration.ofNanos(System.nanoTime() - providerStarted),
                             Map.of(Telemetry.Label.COMPONENT, "ai-new", Telemetry.Label.OPERATION, "model.generate"));
@@ -257,6 +259,11 @@ public class InvocationCoordinator {
                 span.outcome(AuditOutcome.SUCCEEDED);
                 return result;
             } catch (Exception failure) {
+                try {
+                    deltas.flush();
+                } catch (RuntimeException unavailable) {
+                    failure.addSuppressed(unavailable);
+                }
                 span.outcome(dispatched ? AuditOutcome.UNKNOWN : AuditOutcome.FAILED);
                 recordFailure(execution, request, failure, store);
                 throw failure;

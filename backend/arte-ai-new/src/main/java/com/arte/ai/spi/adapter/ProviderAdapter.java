@@ -11,4 +11,9 @@ public interface ProviderAdapter {
     boolean supports(ModelPlan plan);
 
     PreparedModelCall prepare(ModelPlan plan, GenerationRequest request);
+
+    default PreparedModelCall prepare(ModelPlan plan, GenerationRequest request, com.arte.ai.model.execution.ExecutionOptions options) {
+        if (options.streaming()) throw new IllegalArgumentException("provider streaming unavailable");
+        return prepare(plan, request);
+    }
 }

@@ -50,6 +50,7 @@ export default {
   "app.aiNew.observationPaused": "Automatic queries are paused. The execution remains unconfirmed; query again to continue observing.",
   "app.aiNew.bindingChanged": "The conversation model configuration differs from the available configuration. Refresh configuration or create a conversation.",
   "app.aiNew.storageFailed": "The pending request could not be saved, so nothing was sent. Allow browser session storage and try again.",
+  "app.aiNew.partialAnswer": "Partial answer — generation is running or incomplete",
   "app.aiNew.outcomeUnknown": "The model outcome is unknown. Text may have been sent and charges may apply. Reconcile the result before repeating the question.",
   "app.aiNew.generationFailed": "Generation was not confirmed successful. Check its status, permissions and budget.",
   "app.aiNew.turn.PREPARING": "Preparing",

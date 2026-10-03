@@ -53,7 +53,7 @@ public class NewModelConfiguration {
             @Value("${arte.ai-new.model.secret-env}") String secretEnv) {
         if (!"https".equalsIgnoreCase(endpoint.getScheme()) || !secretEnv.matches("[A-Z][A-Z0-9_]{1,127}"))
             throw new IllegalArgumentException("invalid model endpoint or credential reference");
-        var capability = new CapabilityDefinition(new CapabilityDescriptor(new DefinitionRef("ai-capability", "default-model", version), CapabilityKind.MODEL, null, null, Set.of("text", "non-streaming"), SideEffectKind.EXTERNAL_EFFECT), DefinitionStatus.PUBLISHED);
+        var capability = new CapabilityDefinition(new CapabilityDescriptor(new DefinitionRef("ai-capability", "default-model", version), CapabilityKind.MODEL, null, null, Set.of("text", "non-streaming", "streaming"), SideEffectKind.EXTERNAL_EFFECT), DefinitionStatus.PUBLISHED);
         var connection = new ConnectionDefinition(new DefinitionRef("ai-connection", "default-model", version), "compatible-chat", "chat-completions", endpoint, new SecretRef(secretEnv, null), DefinitionStatus.PUBLISHED);
         return new ConfiguredModelDefinitions(capability, connection, new DefinitionRef("ai-binding", "default-model", version), tenant, workspace);
     }

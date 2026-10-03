@@ -39,12 +39,30 @@ import java.util.function.Consumer;
  * 独立事务的单次模型账本：受理+预算及终态+结果+事件+结算各自原子提交。
  */
 public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionEventStore, BudgetLedger {
+    private static final String EXECUTIONS = "SELECT x.*,CASE WHEN x.status='SUCCEEDED' THEN '' ELSE COALESCE(o.partial_text,'') END AS partial_text,COALESCE(o.last_sequence,-1) AS partial_sequence FROM arte_ai_new_execution x LEFT JOIN arte_ai_new_stream_output o ON o.execution_id=x.execution_id ";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate writes;
     private final Clock clock;
+    private final java.util.Set<java.util.function.Consumer<String>> listeners = new java.util.concurrent.CopyOnWriteArraySet<>();
+
+    public AutoCloseable watchEvents(java.util.function.Consumer<String> listener) {
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
+    }
+
+    private void signal(String id) {
+        for (var listener : listeners) {
+            try {
+                listener.accept(id);
+            } catch (RuntimeException ignored) { /* durable polling remains available */ }
+        }
+    }
+
 
     public JdbcModelExecutionStore(JdbcTemplate jdbc, PlatformTransactionManager manager, Clock clock) {
         this.jdbc = ContractChecks.required(jdbc, "jdbc");
+        jdbc.queryForList("SELECT partial_text,last_sequence FROM arte_ai_new_stream_output WHERE 1=0");
+        jdbc.queryForList("SELECT text_delta FROM arte_ai_new_stream_delta WHERE 1=0");
         this.clock = ContractChecks.required(clock, "clock");
         writes = new TransactionTemplate(ContractChecks.required(manager, "transactionManager"));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -80,7 +98,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
             if (accounts.isEmpty()) throw error(CommonErrorCode.POLICY_UNAVAILABLE, "budget");
             var account = accounts.getFirst();
             String identity = ModelKeys.hash(scopeKey, "model.generate", submission.idempotencyKey());
-            var old = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE identity_key = ? AND scope_key = ?", (rs, row) -> {
+            var old = jdbc.query(EXECUTIONS + "WHERE x.identity_key = ? AND x.scope_key = ?", (rs, row) -> {
                 if (!submission.requestDigest().equals(rs.getString("request_digest")))
                     throw error(CommonErrorCode.IDEMPOTENCY_CONFLICT, "accept");
                 return map(rs, scope);
@@ -108,7 +126,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     @Override
     public Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key, String digest) {
         String scopeKey = ModelKeys.scope(scope);
-        var rows = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND identity_key = ?", (rs, row) -> {
+        var rows = jdbc.query(EXECUTIONS + "WHERE x.scope_key = ? AND x.identity_key = ?", (rs, row) -> {
             if (!digest.equals(rs.getString("request_digest")))
                 throw error(CommonErrorCode.IDEMPOTENCY_CONFLICT, "accept");
             return map(rs, scope);
@@ -119,13 +137,13 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     @Override
     public Optional<ModelExecution> findIdempotent(ExecutionScope scope, String key) {
         String scopeKey = ModelKeys.scope(scope);
-        return jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND identity_key = ?",
+        return jdbc.query(EXECUTIONS + "WHERE x.scope_key = ? AND x.identity_key = ?",
                 (rs, row) -> map(rs, scope), scopeKey, ModelKeys.hash(scopeKey, "model.generate", key)).stream().findFirst();
     }
 
     @Override
     public Optional<ModelExecution> find(ExecutionScope scope, String id) {
-        var rows = jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key = ? AND execution_id = ?", (rs, row) -> map(rs, scope), ModelKeys.scope(scope), id);
+        var rows = jdbc.query(EXECUTIONS + "WHERE x.scope_key = ? AND x.execution_id = ?", (rs, row) -> map(rs, scope), ModelKeys.scope(scope), id);
         return rows.stream().findFirst();
     }
 
@@ -137,7 +155,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
         var args = new ArrayList<Object>();
         args.add(ModelKeys.scope(scope));
         args.addAll(distinct);
-        return jdbc.query("SELECT * FROM arte_ai_new_execution WHERE scope_key=? AND execution_id IN ("
+        return jdbc.query(EXECUTIONS + "WHERE x.scope_key=? AND x.execution_id IN ("
                         + String.join(",", Collections.nCopies(distinct.size(), "?")) + ")",
                 (rs, row) -> map(rs, scope), args.toArray());
     }
@@ -148,7 +166,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     }
 
     boolean startGuarded(ExecutionScope scope, String id, BooleanSupplier guard) {
-        return Boolean.TRUE.equals(writes.execute(tx -> {
+        boolean started = Boolean.TRUE.equals(writes.execute(tx -> {
             jdbc.queryForList("SELECT execution_id FROM arte_ai_new_execution WHERE scope_key=? AND execution_id=? FOR UPDATE", ModelKeys.scope(scope), id);
             if (!guard.getAsBoolean()) return false;
             int updated = jdbc.update("UPDATE arte_ai_new_execution SET status = 'RUNNING', revision = revision + 1 WHERE scope_key = ? AND execution_id = ? AND status = 'ACCEPTED'", ModelKeys.scope(scope), id);
@@ -157,6 +175,8 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
             event(id, execution.attemptId(), nextSequence(id), ExecutionStatus.RUNNING, null, null);
             return true;
         }));
+        if (started) signal(id);
+        return started;
     }
 
     @Override
@@ -216,6 +236,36 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
                     status.name(), encodedResult, encodedError, budgetStatus.name(), key, id);
             event(id, row.attemptId(), nextSequence(id), status, encodedResult, encodedError);
         });
+        signal(id);
+    }
+
+    @Override
+    public void appendDelta(ExecutionScope scope, String id, String text) {
+        appendDeltaGuarded(scope, id, text, () -> true);
+    }
+
+    void appendDeltaGuarded(ExecutionScope scope, String id, String text, BooleanSupplier guard) {
+        int bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        if (bytes < 1 || bytes > 16384) throw new IllegalArgumentException("invalid delta size");
+        writes.executeWithoutResult(tx -> {
+            var rows = jdbc.queryForList("SELECT attempt_id,status,dispatched FROM arte_ai_new_execution WHERE scope_key=? AND execution_id=? FOR UPDATE", ModelKeys.scope(scope), id);
+            if (rows.isEmpty()) throw error(CommonErrorCode.NOT_FOUND, "stream-write");
+            if (!guard.getAsBoolean()) throw error(CommonErrorCode.INTERRUPTED, "work-fence");
+            var execution = rows.getFirst();
+            if (!"RUNNING".equals(execution.get("status")) || !Boolean.TRUE.equals(execution.get("dispatched")))
+                throw error(CommonErrorCode.VERSION_CONFLICT, "stream-write");
+            var sizes = jdbc.queryForList("SELECT utf8_bytes FROM arte_ai_new_stream_output WHERE execution_id=?", id);
+            int previous = sizes.isEmpty() ? 0 : ((Number) sizes.getFirst().get("utf8_bytes")).intValue();
+            if (bytes > 1048576 - previous) throw error(CommonErrorCode.INVALID_ARGUMENT, "stream-capacity");
+            long sequence = nextSequence(id);
+            event(id, (String) execution.get("attempt_id"), sequence, ExecutionStatus.RUNNING, null, null);
+            jdbc.update("INSERT INTO arte_ai_new_stream_delta(execution_id,sequence_no,text_delta) VALUES (?,?,?)", id, sequence, text);
+            if (sizes.isEmpty())
+                jdbc.update("INSERT INTO arte_ai_new_stream_output(execution_id,partial_text,utf8_bytes,last_sequence) VALUES (?,?,?,?)", id, text, bytes, sequence);
+            else
+                jdbc.update("UPDATE arte_ai_new_stream_output SET partial_text=CONCAT(partial_text,?),utf8_bytes=utf8_bytes+?,last_sequence=? WHERE execution_id=?", text, bytes, sequence, id);
+        });
+        signal(id);
     }
 
     @Override
@@ -229,9 +279,9 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
         if (after < -1 || limit <= 0 || limit > 100)
             throw new IllegalArgumentException("invalid event cursor or page size");
         if (find(scope, id).isEmpty()) throw error(CommonErrorCode.NOT_FOUND, "events");
-        return jdbc.query("SELECT e.* FROM arte_ai_new_event e JOIN arte_ai_new_execution x ON x.execution_id = e.execution_id WHERE x.scope_key = ? AND e.execution_id = ? AND e.sequence_no > ? ORDER BY e.sequence_no LIMIT ?", (rs, row) ->
+        return jdbc.query("SELECT e.*,d.text_delta FROM arte_ai_new_event e JOIN arte_ai_new_execution x ON x.execution_id = e.execution_id LEFT JOIN arte_ai_new_stream_delta d ON d.execution_id=e.execution_id AND d.sequence_no=e.sequence_no WHERE x.scope_key = ? AND e.execution_id = ? AND e.sequence_no > ? ORDER BY e.sequence_no LIMIT ?", (rs, row) ->
                 new ExecutionEvent<>(id, rs.getString("attempt_id"), rs.getLong("sequence_no"), "ai.model." + rs.getString("status").toLowerCase(Locale.ROOT), rs.getTimestamp("occurred_at").toInstant(),
-                        new ModelEvent(ExecutionStatus.valueOf(rs.getString("status")), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json"))), null), ModelKeys.scope(scope), id, after, limit);
+                        new ModelEvent(ExecutionStatus.valueOf(rs.getString("status")), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json")), rs.getString("text_delta")), null), ModelKeys.scope(scope), id, after, limit);
     }
 
     /**
@@ -266,7 +316,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     private ModelExecution map(ResultSet rs, ExecutionScope scope) throws SQLException {
         return new ModelExecution(rs.getString("execution_id"), rs.getString("attempt_id"), scope, new DefinitionRef("ai-capability", rs.getString("capability_id"), rs.getString("capability_version")),
                 new DefinitionRef("ai-binding", rs.getString("binding_id"), rs.getString("binding_version")), new DefinitionRef("ai-connection", rs.getString("connection_id"), rs.getString("connection_version")),
-                ExecutionStatus.valueOf(rs.getString("status")), rs.getLong("revision"), rs.getBoolean("dispatched"), rs.getTimestamp("accepted_at").toInstant(), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json")));
+                ExecutionStatus.valueOf(rs.getString("status")), rs.getLong("revision"), rs.getBoolean("dispatched"), rs.getTimestamp("accepted_at").toInstant(), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json")), rs.getString("partial_text"), rs.getLong("partial_sequence"));
     }
 
     private record BudgetAccount(BigDecimal limit, BigDecimal reserved, BigDecimal spent, String currency,

@@ -7,9 +7,15 @@ import {AiNewApiError} from '@/services/ai-new/request';
 import type {ChatTurnResult} from '@/types/ai-new/chat';
 import type {Conversation} from '@/types/ai-new/conversation';
 import {useChat} from './useChat';
+import {observeChatEvents, type ChatStreamEvent} from '@/services/ai-new/stream';
 
 vi.mock('@/services/ai-new/chat', () => ({
   getChatHistory: vi.fn(), getChatTurn: vi.fn(), submitChat: vi.fn(), cancelChat: vi.fn(),
+}));
+vi.mock('@/services/ai-new/stream', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/services/ai-new/stream')>(),
+  observeChatEvents: vi.fn(async () => {
+  }),
 }));
 
 const scope = {tenantId: 'tenant', workspaceId: 'workspace'};
@@ -58,6 +64,7 @@ const mount = () => renderHook(() => useChat('user', scope, conversation), {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
+  vi.mocked(observeChatEvents).mockResolvedValue(undefined);
   localStorage.clear();
   client = new QueryClient({defaultOptions: {queries: {retry: false}}});
 });
@@ -68,6 +75,157 @@ afterEach(() => {
 });
 
 describe('single-turn observation', () => {
+  it('preserves newer live text while an older history page is being loaded', async () => {
+    vi.mocked(getChatHistory).mockResolvedValue(Array.from({length: 20}, (_, i) => turn(40 - i, i === 0 ? 'RUNNING' : 'SUCCEEDED')));
+    vi.mocked(getChatTurn).mockResolvedValue(turn(40, 'RUNNING'));
+    let receive: (event: ChatStreamEvent) => void = () => {
+    };
+    vi.mocked(observeChatEvents).mockImplementation(async (...args) => {
+      receive = args[6];
+      args[7]?.(true);
+      await new Promise<void>(resolve => args[5].addEventListener('abort', () => resolve(), {once: true}));
+    });
+    const {result} = mount();
+    await tick();
+    let resolvePage: (value: ChatTurnResult[]) => void = () => {
+    };
+    vi.mocked(getChatHistory).mockImplementationOnce(() => new Promise(resolve => {
+      resolvePage = resolve;
+    }));
+    let loading: Promise<unknown> | undefined;
+    await act(async () => {
+      loading = result.current.history.fetchNextPage();
+    });
+    await act(async () => receive({
+      executionId: 'execution-40',
+      sequence: 2,
+      status: 'RUNNING',
+      textDelta: '你好',
+      result: null,
+      error: null
+    }));
+    await act(async () => {
+      resolvePage([turn(20)]);
+      await loading;
+    });
+    await tick();
+    await act(async () => receive({
+      executionId: 'execution-40',
+      sequence: 3,
+      status: 'RUNNING',
+      textDelta: '世界',
+      result: null,
+      error: null
+    }));
+    await tick();
+    expect(result.current.turns).toHaveLength(21);
+    expect(result.current.turns.at(-1)?.execution?.partialText).toBe('你好世界');
+  });
+  it('preserves live text and terminal state when an older history refresh finishes', async () => {
+    vi.mocked(getChatHistory).mockResolvedValue([turn(2, 'RUNNING'), turn(1)]);
+    vi.mocked(getChatTurn).mockResolvedValue(turn(2, 'RUNNING'));
+    let receive: (event: ChatStreamEvent) => void = () => {
+    };
+    vi.mocked(observeChatEvents).mockImplementation(async (...args) => {
+      receive = args[6];
+      args[7]?.(true);
+      await new Promise<void>(resolve => args[5].addEventListener('abort', () => resolve(), {once: true}));
+    });
+    const {result} = mount();
+    await tick();
+    let resolveHistory: (value: ChatTurnResult[]) => void = () => {
+    };
+    vi.mocked(getChatHistory).mockImplementationOnce(() => new Promise(resolve => {
+      resolveHistory = resolve;
+    }));
+    let refresh: Promise<unknown> | undefined;
+    await act(async () => {
+      refresh = result.current.history.refetch();
+    });
+    await act(async () => receive({
+      executionId: 'execution-2',
+      sequence: 2,
+      status: 'RUNNING',
+      textDelta: '你好',
+      result: null,
+      error: null
+    }));
+    await act(async () => {
+      resolveHistory([turn(2, 'RUNNING'), turn(1)]);
+      await refresh;
+    });
+    await tick();
+    await act(async () => receive({
+      executionId: 'execution-2',
+      sequence: 3,
+      status: 'RUNNING',
+      textDelta: '世界',
+      result: null,
+      error: null
+    }));
+    await tick();
+    expect(result.current.turns.at(-1)?.execution?.partialText).toBe('你好世界');
+    await act(async () => receive({
+      executionId: 'execution-2',
+      sequence: 4,
+      status: 'SUCCEEDED',
+      textDelta: null,
+      result: {output: [{text: '你好世界'}]},
+      error: null
+    }));
+    await tick();
+    await act(async () => {
+      await result.current.history.refetch();
+    });
+    await tick();
+    expect(result.current.turns.at(-1)?.execution?.status).toBe('SUCCEEDED');
+    expect(result.current.turns.at(-1)?.execution?.result?.output[0].text).toBe('你好世界');
+    expect(result.current.turns).toHaveLength(2);
+  });
+  it('merges live SSE text, rejects an older poll snapshot and aborts after terminal state', async () => {
+    vi.mocked(getChatHistory).mockResolvedValue([turn(2, 'RUNNING'), turn(1)]);
+    let resolvePoll: (value: ChatTurnResult) => void = () => {
+    };
+    vi.mocked(getChatTurn).mockImplementation(() => new Promise(resolve => {
+      resolvePoll = resolve;
+    }));
+    let receive: (event: ChatStreamEvent) => void = () => {
+    };
+    let signal: AbortSignal | undefined;
+    vi.mocked(observeChatEvents).mockImplementation(async (...args) => {
+      signal = args[5];
+      receive = args[6];
+      args[7]?.(true);
+      await new Promise<void>(resolve => args[5].addEventListener('abort', () => resolve(), {once: true}));
+    });
+    const {result} = mount();
+    await tick();
+    await act(async () => receive({
+      executionId: 'execution-2',
+      sequence: 2,
+      status: 'RUNNING',
+      textDelta: 'partial',
+      result: null,
+      error: null
+    }));
+    await tick();
+    expect(result.current.turns.at(-1)?.execution?.partialText).toBe('partial');
+    await act(async () => resolvePoll(turn(2, 'RUNNING')));
+    await tick();
+    expect(result.current.turns.at(-1)?.execution?.partialText).toBe('partial');
+    await act(async () => receive({
+      executionId: 'execution-2',
+      sequence: 3,
+      status: 'SUCCEEDED',
+      textDelta: null,
+      result: {output: [{text: 'final'}]},
+      error: null
+    }));
+    await tick();
+    expect(result.current.turns).toHaveLength(2);
+    expect(result.current.turns.at(-1)?.execution?.result?.output[0].text).toBe('final');
+    expect(signal?.aborted).toBe(true);
+  });
   it('polls only the active turn, preserves older pages and stops after completion', async () => {
     vi.mocked(getChatHistory).mockImplementation(async (_scope, _id, before) =>
       Array.from({length: 20}, (_, i) => turn(before ? 20 - i : 40 - i, !before && i === 0 ? 'RUNNING' : 'SUCCEEDED')));

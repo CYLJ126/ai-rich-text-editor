@@ -2,6 +2,7 @@ import {type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import {useEffect, useRef, useState} from 'react';
 import {cancelChat, getChatHistory, getChatTurn, submitChat} from '@/services/ai-new/chat';
 import {AiNewApiError} from '@/services/ai-new/request';
+import {applyChatStreamEvent, observeChatEvents} from '@/services/ai-new/stream';
 import type {CancellationStatus, ChatTurnResult, PendingChatCommand} from '@/types/ai-new/chat';
 import type {Conversation, WorkspaceSelection,} from '@/types/ai-new/conversation';
 import {pendingStorageKey, readPendingCommand, removePendingCommand, storePendingCommand,} from '../pendingCommands';
@@ -15,6 +16,7 @@ export function useChat(
   userId: string,
   scope: WorkspaceSelection,
   conversation: Conversation,
+  streamingEnabled = true,
 ) {
   const client = useQueryClient();
   const id = conversation.conversationId;
@@ -24,6 +26,8 @@ export function useChat(
   const [storageFailed, setStorageFailed] = useState(false);
   const [cancellation, setCancellation] = useState<{ turnId: string; status: CancellationStatus } | null>(null);
   const [cancelError, setCancelError] = useState<unknown>(null);
+  const [streamError, setStreamError] = useState<unknown>(null);
+  const [streamConnected, setStreamConnected] = useState(false);
   const active = useRef(true);
   const submitting = useRef(false);
   const observedFrom = useRef(Date.now());
@@ -38,9 +42,20 @@ export function useChat(
   const history = useInfiniteQuery({
     queryKey: chatKeys.history(userId, scope, id),
     initialPageParam: undefined as number | undefined,
-    queryFn: ({pageParam, signal}) =>
-      getChatHistory(scope, id, pageParam, signal),
-    enabled: (query) => !isAccessError(commandError) && !isAccessError(cancelError) && !isAccessError(query.state.error),
+    queryFn: ({pageParam, signal}) => getChatHistory(scope, id, pageParam, signal),
+    structuralSharing: (previous, current) => {
+      if (!previous) return current;
+      const latest = new Map((previous as InfiniteData<ChatTurnResult[]>).pages.flat().map(item => [item.turn.turnId, item]));
+      const next = current as InfiniteData<ChatTurnResult[]>;
+      // Merge at cache commit: loading an older page may carry an outdated copy of the first page too.
+      return {
+        ...next, pages: next.pages.map(page => page.map(item => {
+          const existing = latest.get(item.turn.turnId);
+          return existing ? mergeSnapshot(existing, item) : item;
+        }))
+      };
+    },
+    enabled: (query) => !isAccessError(commandError) && !isAccessError(cancelError) && !isAccessError(streamError) && !isAccessError(query.state.error),
     getNextPageParam: (page) =>
       page.length === 20 ? page.at(-1)?.turn.sequence : undefined,
     retry: false,
@@ -63,19 +78,44 @@ export function useChat(
         client.setQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id), (previous) =>
           previous && {
             ...previous, pages: previous.pages.map((page) => page.map((item) =>
-              item.turn.turnId === result.turn.turnId ? result : item))
+              item.turn.turnId === result.turn.turnId ? mergeSnapshot(item, result) : item))
           });
       }
       return result;
     },
     enabled: (query) => !!observedTurnId && history.isSuccess && !history.isError &&
-      !isAccessError(commandError) && !isAccessError(cancelError) && !query.state.error &&
+      !isAccessError(commandError) && !isAccessError(cancelError) && !isAccessError(streamError) && !query.state.error &&
       Date.now() - observedFrom.current < observationWindow,
     retry: false,
     refetchIntervalInBackground: false,
     refetchInterval: (query) => !query.state.error && query.state.data && isTurnPending(query.state.data) &&
-    Date.now() - observedFrom.current < observationWindow ? 2000 : false,
+    Date.now() - observedFrom.current < observationWindow ? (streamConnected ? 10000 : 2000) : false,
   });
+  const observedExecutionId = turns.find(item => item.turn.turnId === observedTurnId)?.execution?.executionId;
+  const streamBlocked = isAccessError(commandError) || isAccessError(cancelError) || isAccessError(streamError) || history.isError;
+  useEffect(() => {
+    if (!streamingEnabled || !observedTurnId || !observedExecutionId || streamBlocked || Date.now() - observedFrom.current >= observationWindow) return;
+    const controller = new AbortController();
+    const previous = client.getQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id))?.pages.flat()
+      .find(item => item.turn.turnId === observedTurnId);
+    void observeChatEvents(scope, id, observedTurnId, observedExecutionId, previous?.execution?.partialSequence ?? -1,
+      controller.signal, event => {
+        if (controller.signal.aborted) return;
+        client.setQueryData<InfiniteData<ChatTurnResult[]>>(chatKeys.history(userId, scope, id), data => data && {
+          ...data,
+          pages: data.pages.map(page => page.map(item => item.turn.turnId === observedTurnId ? applyChatStreamEvent(item, event) : item)),
+        });
+      }, connected => {
+        if (!controller.signal.aborted) setStreamConnected(connected);
+      })
+      .catch(error => {
+        if (!controller.signal.aborted && isAccessError(error)) setStreamError(error);
+      });
+    return () => {
+      controller.abort();
+      setStreamConnected(false);
+    };
+  }, [client, userId, scope.tenantId, scope.workspaceId, id, observedTurnId, observedExecutionId, streamBlocked, streamingEnabled]);
   const unfinished = turns.some(isTurnPending);
   const refreshMetadata = () =>
     Promise.all([
@@ -227,10 +267,15 @@ export function useChat(
     if (active.current && result.isSuccess) {
       setCommandError(null);
       setCancelError(null);
+      setStreamError(null);
     }
   };
   return {
-    history: {...history, isError: history.isError || turnQuery.isError, error: turnQuery.error ?? history.error},
+    history: {
+      ...history,
+      isError: history.isError || turnQuery.isError || isAccessError(streamError),
+      error: streamError ?? turnQuery.error ?? history.error
+    },
     turns,
     unfinished,
     pending,
@@ -244,4 +289,20 @@ export function useChat(
     observationPaused:
       unfinished && Date.now() - observedFrom.current >= observationWindow,
   };
+}
+
+/** 较早开始的历史刷新和轮询不能覆盖 SSE 已提交的增量或终态。 */
+function mergeSnapshot(previous: ChatTurnResult, current: ChatTurnResult): ChatTurnResult {
+  if (!previous.execution || !current.execution || previous.execution.executionId !== current.execution.executionId) return current;
+  if (!isTurnPending(previous) && isTurnPending(current)) return previous;
+  if ((previous.execution.partialSequence ?? -1) > (current.execution.partialSequence ?? -1))
+    return {
+      ...current,
+      execution: {
+        ...current.execution,
+        partialText: previous.execution.partialText,
+        partialSequence: previous.execution.partialSequence
+      }
+    };
+  return current;
 }

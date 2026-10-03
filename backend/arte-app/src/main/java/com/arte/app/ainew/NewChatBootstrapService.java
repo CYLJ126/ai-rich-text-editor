@@ -20,10 +20,17 @@ public class NewChatBootstrapService {
     private final ConfiguredModelDefinitions definitions;
     private final String application, modelName;
     private final int contextBytes, outputTokens;
+    private final boolean streaming;
 
     public NewChatBootstrapService(ExistingIdentityAdapter identity, JdbcSecurityRepository repository,
                                    ConfiguredModelDefinitions definitions, String application, String modelName,
                                    int contextBytes, int outputTokens) {
+        this(identity, repository, definitions, application, modelName, contextBytes, outputTokens, false);
+    }
+
+    public NewChatBootstrapService(ExistingIdentityAdapter identity, JdbcSecurityRepository repository, ConfiguredModelDefinitions definitions,
+                                   String application, String modelName, int contextBytes, int outputTokens, boolean streaming) {
+        this.streaming = streaming;
         this.identity = identity;
         this.repository = repository;
         this.definitions = definitions;
@@ -46,7 +53,7 @@ public class NewChatBootstrapService {
         var binding = definitions.binding(scope, definitions.bindingRef()).orElseThrow();
         var connection = definitions.connection(binding.connectionRef()).orElseThrow();
         var model = new NewChatBootstrap.Model(modelName, connection.providerId(), binding.ref(),
-                connection.endpoint().toASCIIString(), "model.generate", List.of("text"), false, contextBytes, outputTokens);
+                connection.endpoint().toASCIIString(), "model.generate", List.of("text"), streaming, contextBytes, outputTokens);
         return new NewChatBootstrap(true, null,
                 List.of(new NewChatBootstrap.Workspace(scope.tenantId(), scope.workspaceId(), actions)), model);
     }

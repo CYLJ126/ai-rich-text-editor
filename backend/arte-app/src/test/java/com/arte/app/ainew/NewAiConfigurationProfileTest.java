@@ -69,9 +69,9 @@ class NewAiConfigurationProfileTest {
             var datasource = new JdbcDataSource();
             datasource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
             try (var connection = datasource.getConnection()) {
-                for (var name : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-ai-new-work-ddl-mysql.sql"))
+                for (var name : List.of("arte-ai-new-model-ddl-mysql.sql", "arte-ai-new-work-ddl-mysql.sql", "arte-ai-new-chat-ddl-mysql.sql"))
                     org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection,
-                            com.arte.app.testsupport.MySqlTestScripts.h2Resource(Files.readString(Path.of("scripts", name))));
+                            com.arte.app.testsupport.MySqlTestScripts.h2Resource(chatDdl(name)));
             }
             context.registerBean(JdbcTemplate.class, () -> new JdbcTemplate(datasource));
             context.registerBean(DataSourceTransactionManager.class, () -> new DataSourceTransactionManager(datasource));
@@ -94,6 +94,11 @@ class NewAiConfigurationProfileTest {
             assertEquals(0, registry.get("arte.execution.workers.queued").gauge().value());
             if (!existingRegistry) suppliedRegistry.close();
         }
+    }
+
+    private static String chatDdl(String name) throws java.io.IOException {
+        String sql = Files.readString(Path.of("scripts", name));
+        return name.contains("chat") ? sql.substring(sql.indexOf("-- CHAT_TABLES_BEGIN")) : sql;
     }
 
     @Test

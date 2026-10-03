@@ -488,11 +488,12 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
         clock.now = Instant.now();
         try (var spring = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
             spring.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("chat", Map.of(
-                    "arte.ai-new.chat.enabled", "true", "arte.ai-new.model.application-id", "new-ai", "arte.ai-new.model.model-name", "test", "arte.ai-new.model.max-output-tokens", "10")));
+                    "arte.ai-new.chat.enabled", "true", "arte.ai-new.chat.streaming-enabled", "false", "arte.ai-new.model.application-id", "new-ai", "arte.ai-new.model.model-name", "test", "arte.ai-new.model.max-output-tokens", "10")));
             spring.registerBean(org.springframework.jdbc.core.JdbcTemplate.class, () -> jdbc);
             spring.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> manager);
             spring.registerBean(ConfiguredModelDefinitions.class, () -> definitions);
             spring.registerBean(InvocationCoordinator.class, () -> coordinator);
+            spring.registerBean(JdbcModelExecutionStore.class, () -> executions);
             spring.registerBean(JdbcSecurityRepository.class, () -> repository);
             spring.registerBean(ExistingIdentityAdapter.class, () -> identity);
             spring.registerBean(ExecutionContextFactory.class, () -> contexts);

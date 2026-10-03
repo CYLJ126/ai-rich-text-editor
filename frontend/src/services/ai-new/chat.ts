@@ -22,6 +22,8 @@ export const turnSchema = z.object({
     executionId: z.string().min(1),
     status: z.enum(['ACCEPTED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED', 'TIMED_OUT', 'OUTCOME_UNKNOWN', 'CANCELLED']),
     result: z.object({output: z.array(text).min(1)}).nullable(), error: error.nullable(),
+    partialText: z.string().optional(),
+    partialSequence: z.number().int().min(-1).refine(Number.isSafeInteger).optional(),
   }).nullable(),
 }).refine(({turn, execution}) => (turn.status === 'ACCEPTED') === (execution !== null)
   && (turn.status !== 'REJECTED' || turn.rejectionError !== null)

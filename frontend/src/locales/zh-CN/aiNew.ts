@@ -50,6 +50,7 @@ export default {
   "app.aiNew.observationPaused": "自动查询已暂停，执行状态仍未确认；请点击重新查询继续观察。",
   "app.aiNew.bindingChanged": "当前会话的模型配置与可用配置不一致，请刷新配置或新建会话。",
   "app.aiNew.storageFailed": "无法保存待核对请求，本次未发送。请允许浏览器会话存储后再试。",
+  "app.aiNew.partialAnswer": "正在生成或未完成的部分回答",
   "app.aiNew.outcomeUnknown": "模型调用结果未知，可能已外发并产生费用。请先核对结果，避免重复发送同一问题。",
   "app.aiNew.generationFailed": "本次生成未能确认成功，请核对状态和当前权限／额度。",
   "app.aiNew.turn.PREPARING": "准备中",

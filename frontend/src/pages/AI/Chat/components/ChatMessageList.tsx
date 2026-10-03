@@ -103,6 +103,12 @@ export default function ChatMessageList({
               {state === 'SUCCEEDED' && <CopyTextButton text={output} label={t('app.aiNew.copyAnswer')}/>}
             </Space>
             {item.execution?.status === 'SUCCEEDED' && <AssistantMarkdown text={output}/>}
+            {item.execution?.status !== 'SUCCEEDED' && item.execution?.partialText && (
+              <div style={{marginTop: 8}}>
+                <AssistantMarkdown text={item.execution.partialText}/>
+                <Typography.Text type="secondary">{t('app.aiNew.partialAnswer')}</Typography.Text>
+              </div>
+            )}
             {state === 'OUTCOME_UNKNOWN' && (
               <Alert
                 type="warning"

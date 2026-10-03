@@ -8,4 +8,13 @@ import com.arte.base.execution.ExecutionCheckpoint;
  */
 public interface ConnectionRuntime {
     byte[] exchange(ConnectionDefinition connection, byte[] body, ExecutionCheckpoint checkpoint) throws Exception;
+
+    default void exchangeStream(ConnectionDefinition connection, byte[] body, ExecutionCheckpoint checkpoint, ChunkConsumer consumer) throws Exception {
+        throw new UnsupportedOperationException("streaming connection unavailable");
+    }
+
+    @FunctionalInterface
+    interface ChunkConsumer {
+        void accept(byte[] bytes, int offset, int length) throws Exception;
+    }
 }

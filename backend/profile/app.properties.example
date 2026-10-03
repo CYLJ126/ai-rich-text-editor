@@ -148,3 +148,10 @@ arte.ai.tool.cluster.reconcile-interval-ms=60000
 arte.execution.support.lease-duration=PT30S
 arte.execution.support.poll-interval=PT0.5S
 arte.execution.support.shutdown-grace=PT10S
+
+# 新聊天流式输出与上下文 Token 预算
+arte.ai-new.chat.streaming-enabled=true
+arte.ai-new.chat.context-window-tokens=8192
+arte.ai-new.chat.context-safety-tokens=256
+arte.ai-new.chat.stream-max-clients=64
+arte.ai-new.chat.stream-timeout=PT2M

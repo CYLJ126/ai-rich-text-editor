@@ -107,7 +107,7 @@ arte:
 }
 ```
 
-已有模型执行及耐久事件入口继续可用。此阶段没有 SSE、逐 token 输出、文章资料、助手、记忆、工具或旧前端切换。
+已有模型执行及耐久事件入口继续可用。新聊天默认启用流式输出；文章资料、助手、记忆、工具及旧前端切换仍不在本阶段范围。
 
 ## 验证
 
@@ -149,7 +149,7 @@ Druid SQL 统计判断。
 
 新增回归验证覆盖 20 条历史仅一次执行查询、一次模型授权、无 Turn 行锁；上下文及同意在行锁事务外；当前权限撤销；指标采集失效不影响业务；
 前端单轮轮询保持已加载分页、终态停止及权限错误后的手动恢复。 第二批任务租约／重启恢复见下文；第三批流式／Token
-上下文预算尚未实施，当前仍是单实例非流式执行。
+上下文预算见下文；部署仍采用单活 Worker。
 
 本批验证：后端相关回归 88 项、前端相关回归 16 项通过。全项目 TypeScript 检查仍有 `canvas-ai-dialog.tsx` 第 204、212 行的既有
 attachments 类型错误，本批聊天代码无报错。 未运行生产 MySQL 压测或真实供应商调用。
@@ -174,3 +174,47 @@ DurableModelWorkerIntegrationTest 覆盖原子回滚、排队容量／幂等、�
 
 本批后端相关回归共 95 项通过（其中新增耐久 Worker 集成测试 14 项），包含本机 HTTP 阻塞读取取消验证。 使用 H2 和本机协议替身，没有执行生产
 MySQL 迁移、真实模型调用或压力测试。
+
+## 第三批流式输出与 Token 上下文预算（2026-10-03）
+
+新聊天默认发送 stream=true 和 stream_options.include_usage=true，CompatibleChatProviderAdapter 按
+[DeepSeek 对话补全文档](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion/) 解码 SSE，兼容最后终止块携带用量以及单独的空
+choices 用量块。 PinnedHttpConnectionRuntime 继续固定 IP、校验 TLS、限制 HTTP 帧及响应总大小，并在取消／到期时关闭
+socket；不引入隐式重试。 UTF-8 字符、SSE 行和 JSON 事件可以跨任意网络片段，解析器在完整帧到达后发布 assistant content。
+工具输出、异常 finish_reason、非法编码、超大帧或缺少终止标记会终止调用；不把断流前的文字当作成功结果。
+
+模型线程合并增量，首批立即提交，之后在收到新内容时按约 100ms 或约 512 个字符的批次提交，结束及失败时尝试提交剩余部分。
+增量事件、部分正文缓存及游标同事务提交，并沿用 Worker 租约围栏；每次输出总量最多 1 MiB，单批最多 16 KiB。
+落库成功后只发本机唤醒通知，不把模型线程接到浏览器 socket；通知失败仍能从数据库补读。 只有完整结果、成功终态和预算结算原子提交后，回答才成为
+SUCCEEDED 和后续成功历史。 部分输出在刷新、取消、断流及 OUTCOME_UNKNOWN 后仍可查询，保留费用待核对。成功历史响应不重复携带完整
+partialText。
+
+GET /api/ai-new/conversations/{id}/turns/{turnId}/events 返回 text/event-stream，支持 exclusive after 与 Last-Event-ID。
+每帧包含 executionId、sequence、status、textDelta、result、error；前端核对执行身份和单调游标，重复帧不重复拼接。
+连接只订阅耐久事件，断开不自动取消模型；页面刷新后使用已保存部分正文的游标补读，不重新发送问题。
+每次事件读取重新检查当前权限，权限撤销停止输出。连接默认最多 2 分钟，到期需重新认证订阅；服务端默认最多 64 个订阅、4 个发送线程，
+每个订阅最多一个在途发送任务，慢连接不增加无界缓冲。提交通知触发立即补读，另有每两秒的数据库恢复扫描和十秒心跳。
+页面连接正常时每十秒查询当前轮次校准状态，流不可用时恢复两秒查询；最多四次有退避的 SSE 连接尝试。
+这些重连只补读已提交事件，不重试模型请求。轮询、手动刷新以及加载更早历史时的旧快照不能覆盖已经展示的增量或终态。
+
+上下文同时核对文本 UTF-8 字节、消息数量和 Token 预算： estimatedInputTokens + outputTokenReserve + safetyTokenReserve <=
+contextWindowTokens。 默认应用侧 context-window-tokens=8192、context-safety-tokens=256，输出上限仍为 2048，因此默认输入估算上限为
+5888； 这不是供应商官方模型窗口声明。TokenEstimator 是可替换策略，当前 ConservativeTokenEstimator 使用 UTF-8
+字节加每条消息及回复模板余量， 版本为 utf8-byte-upper-bound-v1，明确是保守估算，不是 DeepSeek 官方精确分词或实际计费用量。
+整对裁剪最旧问答，优先保留最新成功历史和完整当前问题；当前问题单独超过容量则在预算预占与模型派发之前拒绝。
+重新生成保持原始上下文，重新核对新输出预留。计量事实与估算器版本纳入 v2 快照摘要并保存到侧表，旧 v1 快照继续读取。
+
+新增配置仍使用 application-ai-new.yml 中的 Maven 占位符，从 app.properties 编译进去：
+streaming-enabled=true、context-window-tokens=8192、context-safety-tokens=256、stream-max-clients=64、stream-timeout=PT2M。
+streaming-enabled=false 可以保持非流式模型调用和当前轮次查询观察。初始化接口 streaming 字段反映实际聊天模式。
+
+升级顺序：停止旧后端，确认第二批工作表已部署，执行
+[第三批迁移脚本](../arte-app/scripts/arte-ai-new-stream-ddl-mysql.sql)，重新构建并启动。 脚本新增增量、部分正文及 Token
+预算表，并原子放宽快照格式约束以接受 v1/v2，不改写旧快照或聊天数据。 新安装的模型和聊天基础 DDL 已包含新表；已有数据库仍须执行迁移脚本更新原快照约束。
+缺少所需表会在启用组件时启动失败。反向代理须保留 SSE 流和长连接，不缓存响应；服务端返回 Cache-Control: no-store 与
+X-Accel-Buffering: no。 本次没有执行生产数据库迁移或真实供应商调用。
+
+本批后端相关回归 114 项、前端相关回归 58 项通过，覆盖逐字节 UTF-8 流、实际本机 HTTP 分块传输、部分输出刷新／游标补读、断流与取消、
+旧租约拒写、增量事务回滚、权限撤销、有界订阅、上下文整对裁剪与摘要保护、旧快照升级兼容，以及前端刷新／分页与增量并发合并。
+数据库验证使用 H2；升级测试将 MySQL 多子句 ALTER 拆为 H2 等价语句，不证明 MySQL 部署语法或 DDL 原子性。 全项目 TypeScript
+检查仍只有 canvas-ai-dialog.tsx 第 204、212 行既有 attachments 类型错误，本批聊天代码无新增类型报错。

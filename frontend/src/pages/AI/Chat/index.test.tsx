@@ -33,6 +33,11 @@ vi.mock('@umijs/max', () => ({
     },
   },
 }));
+vi.mock('@/services/ai-new/stream', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/services/ai-new/stream')>(),
+  observeChatEvents: vi.fn(async () => {
+  }),
+}));
 vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({
                     children,
@@ -633,6 +638,12 @@ beforeEach(() => {
           },
         };
       if (path.endsWith('/cancel')) return {status: cancelStatus};
+      if (/\/turns\/[^/]+$/.test(path)) {
+        const id = decodeURIComponent(path.split('/').at(-1) ?? '');
+        const turn = turns.find(item => item.turn.turnId === id);
+        if (!turn) throw {response: {status: 404}};
+        return turn;
+      }
       if (path.endsWith('/regenerate')) {
         const key = options.headers?.['Idempotency-Key'] ?? '';
         let turn = turns.find((item) => item.turn.idempotencyKey.key === key);

@@ -18,6 +18,7 @@ import java.sql.Connection;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -59,6 +60,34 @@ class ChatSchemaTest {
                 schemaConnection.close();
             }
         }
+    }
+
+    @Test
+    void streamUpgradePreservesV1SnapshotsAndAllowsV2WithoutRewritingData() throws Exception {
+        jdbc.execute("DROP TABLE arte_ai_new_context_token_budget");
+        jdbc.execute("DROP TABLE arte_ai_new_stream_delta");
+        jdbc.execute("DROP TABLE arte_ai_new_stream_output");
+        jdbc.execute("ALTER TABLE arte_ai_new_context_snapshot DROP CONSTRAINT ck_ai_new_snapshot_format");
+        jdbc.execute("ALTER TABLE arte_ai_new_context_snapshot ADD CONSTRAINT ck_ai_new_snapshot_format CHECK(payload_format='arte.chat.context.v1')");
+        snapshot("legacy", "conversation", SCOPE, 1);
+        var before = jdbc.queryForMap("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id='legacy'");
+        denied(() -> jdbc.update("UPDATE arte_ai_new_context_snapshot SET payload_format='arte.chat.context.v2' WHERE snapshot_id='legacy'"));
+        String upgrade = Files.readString(Path.of("scripts", "arte-ai-new-stream-ddl-mysql.sql"));
+        // H2 does not support MySQL's multi-clause ALTER; test the same constraint changes sequentially.
+        // This verifies compatibility and preservation, not MySQL DDL atomicity or deployment syntax.
+        upgrade = upgrade.replace("drop check ck_ai_new_snapshot_format,", "drop constraint ck_ai_new_snapshot_format; alter table arte_ai_new_context_snapshot");
+        ScriptUtils.executeSqlScript(schemaConnection, MySqlTestScripts.h2Resource(upgrade));
+        var after = jdbc.queryForMap("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id='legacy'");
+        before.forEach((column, value) -> {
+            if (value instanceof byte[] bytes) assertArrayEquals(bytes, (byte[]) after.get(column), column);
+            else assertEquals(value, after.get(column), column);
+        });
+        snapshot("new", "conversation", SCOPE, 1);
+        jdbc.update("UPDATE arte_ai_new_context_snapshot SET payload_format='arte.chat.context.v2' WHERE snapshot_id='new'");
+        jdbc.update("INSERT INTO arte_ai_new_context_token_budget VALUES('new',8192,5888,100,256,'utf8-byte-upper-bound-v1')");
+        denied(() -> jdbc.update("UPDATE arte_ai_new_context_snapshot SET payload_format='unrecognized' WHERE snapshot_id='new'"));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_new_stream_delta", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_new_stream_output", Integer.class));
     }
 
     @Test

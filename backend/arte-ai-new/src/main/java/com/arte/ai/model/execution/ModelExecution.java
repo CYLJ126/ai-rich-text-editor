@@ -13,5 +13,10 @@ import java.time.Instant;
 public record ModelExecution(String executionId, String attemptId, ExecutionScope scope,
                              DefinitionRef capabilityRef, DefinitionRef bindingRef, DefinitionRef connectionRef,
                              ExecutionStatus status, long revision, boolean dispatched, Instant acceptedAt,
-                             ModelResult result, ExecutionError error) {
+                             ModelResult result, ExecutionError error, String partialText, long partialSequence) {
+    public ModelExecution(String executionId, String attemptId, ExecutionScope scope, DefinitionRef capabilityRef, DefinitionRef bindingRef,
+                          DefinitionRef connectionRef, ExecutionStatus status, long revision, boolean dispatched, Instant acceptedAt,
+                          ModelResult result, ExecutionError error) {
+        this(executionId, attemptId, scope, capabilityRef, bindingRef, connectionRef, status, revision, dispatched, acceptedAt, result, error, "", -1);
+    }
 }

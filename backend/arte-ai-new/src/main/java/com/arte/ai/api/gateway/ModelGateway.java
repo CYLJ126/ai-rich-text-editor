@@ -11,6 +11,16 @@ import com.arte.ai.model.generation.PreparedModelCall;
 public interface ModelGateway {
     PreparedModelCall prepare(ModelPlan plan, GenerationRequest request);
 
+    default PreparedModelCall prepare(ModelPlan plan, GenerationRequest request, com.arte.ai.model.execution.ExecutionOptions options) {
+        if (options.streaming()) throw new IllegalArgumentException("gateway streaming unavailable");
+        return prepare(plan, request);
+    }
+
+    default ModelResult generate(PreparedModelCall prepared, com.arte.base.execution.ExecutionCheckpoint checkpoint,
+                                 java.util.function.Consumer<String> deltas) throws Exception {
+        return prepared.streamingOperation() == null ? generate(prepared, checkpoint) : prepared.streamingOperation().invoke(checkpoint, deltas);
+    }
+
     default ModelResult generate(PreparedModelCall prepared, com.arte.base.execution.ExecutionCheckpoint checkpoint) throws Exception {
         return prepared.operation().invoke(checkpoint);
     }

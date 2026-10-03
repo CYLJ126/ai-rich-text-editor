@@ -49,6 +49,7 @@ public final class JdbcChatStore implements ChatStore {
     public JdbcChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager, Telemetry telemetry) {
         this.telemetry = Objects.requireNonNull(telemetry);
         this.jdbc = Objects.requireNonNull(jdbc);
+        jdbc.queryForList("SELECT estimator_version FROM arte_ai_new_context_token_budget WHERE 1=0");
         writes = new TransactionTemplate(Objects.requireNonNull(manager));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         writes.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
@@ -211,9 +212,12 @@ public final class JdbcChatStore implements ChatStore {
         ChatValues.verify(snapshot);
         var binding = snapshot.modelBindingRef();
         var budget = snapshot.budget();
-        jdbc.update("INSERT INTO arte_ai_new_context_snapshot(snapshot_id,conversation_id,scope_key,conversation_version,model_binding_type,model_binding_id,model_binding_version,payload_format,messages_json,fragments_json,history_refs_json,input_byte_limit,used_input_bytes,output_token_reserve,content_digest,created_at,expires_at) VALUES (?,?,?,?,?,?,?,'arte.chat.context.v1'," + jsonParameter + "," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
-                snapshot.snapshotId(), snapshot.conversationId(), ModelKeys.scope(snapshot.scope()), snapshot.conversationVersion(), binding.definitionType(), binding.definitionId(), binding.version(),
+        jdbc.update("INSERT INTO arte_ai_new_context_snapshot(snapshot_id,conversation_id,scope_key,conversation_version,model_binding_type,model_binding_id,model_binding_version,payload_format,messages_json,fragments_json,history_refs_json,input_byte_limit,used_input_bytes,output_token_reserve,content_digest,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?," + jsonParameter + "," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
+                snapshot.snapshotId(), snapshot.conversationId(), ModelKeys.scope(snapshot.scope()), snapshot.conversationVersion(), binding.definitionType(), binding.definitionId(), binding.version(), budget.contextWindowTokens() == null ? "arte.chat.context.v1" : "arte.chat.context.v2",
                 ChatJson.messages(snapshot.messages()), "[]", ChatJson.history(snapshot.history()), budget.inputByteLimit(), budget.usedInputBytes(), budget.outputTokenReserve(), snapshot.contentDigest(), timestamp(snapshot.createdAt()), timestamp(snapshot.expiresAt()));
+        if (budget.contextWindowTokens() != null)
+            jdbc.update("INSERT INTO arte_ai_new_context_token_budget(snapshot_id,context_window_tokens,input_token_limit,estimated_input_tokens,safety_token_reserve,estimator_version) VALUES (?,?,?,?,?,?)",
+                    snapshot.snapshotId(), budget.contextWindowTokens(), budget.inputTokenLimit(), budget.estimatedInputTokens(), budget.safetyTokenReserve(), budget.estimatorVersion());
         changed(jdbc.update("UPDATE arte_ai_new_turn SET status='READY',context_snapshot_id=?,row_version=row_version+1,updated_at=? WHERE turn_id=? AND scope_key=? AND row_version=? AND status='PREPARING'",
                 snapshot.snapshotId(), timestamp(later(now, expected.updatedAt())), expected.turnId(), ModelKeys.scope(expected.scope()), expected.version()));
         return turn(expected.scope(), expected.turnId()).orElseThrow();
@@ -248,14 +252,22 @@ public final class JdbcChatStore implements ChatStore {
     @Override
     public Optional<ContextSnapshot> snapshot(ExecutionScope scope, String id) {
         return one("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id=? AND scope_key=?", (rs, row) -> {
-            if (!"arte.chat.context.v1".equals(rs.getString("payload_format")) || !ChatJson.emptyArray(rs.getString("fragments_json")))
+            if (!java.util.Set.of("arte.chat.context.v1", "arte.chat.context.v2").contains(rs.getString("payload_format")) || !ChatJson.emptyArray(rs.getString("fragments_json")))
                 throw failure(CommonErrorCode.UNSUPPORTED);
             var value = new ContextSnapshot(rs.getString("snapshot_id"), rs.getString("conversation_id"), scope, rs.getLong("conversation_version"), binding(rs),
                     ChatJson.messages(rs.getString("messages_json")), List.of(), ChatJson.history(rs.getString("history_refs_json")),
-                    new ContextBudget(rs.getInt("input_byte_limit"), rs.getInt("used_input_bytes"), rs.getInt("output_token_reserve")), rs.getString("content_digest"), instant(rs, "created_at"), instant(rs, "expires_at"));
+                    contextBudget(rs), rs.getString("content_digest"), instant(rs, "created_at"), instant(rs, "expires_at"));
             ChatValues.verify(value);
             return value;
         }, id, ModelKeys.scope(scope));
+    }
+
+    private ContextBudget contextBudget(java.sql.ResultSet rs) throws java.sql.SQLException {
+        int bytes = rs.getInt("input_byte_limit"), used = rs.getInt("used_input_bytes"), output = rs.getInt("output_token_reserve");
+        if ("arte.chat.context.v1".equals(rs.getString("payload_format")))
+            return new ContextBudget(bytes, used, output);
+        return jdbc.queryForObject("SELECT * FROM arte_ai_new_context_token_budget WHERE snapshot_id=?", (row, index) ->
+                new ContextBudget(bytes, used, output, row.getInt("context_window_tokens"), row.getInt("input_token_limit"), row.getInt("estimated_input_tokens"), row.getInt("safety_token_reserve"), row.getString("estimator_version")), rs.getString("snapshot_id"));
     }
 
     private RowMapper<Conversation> conversationMapper(ExecutionScope expected) {

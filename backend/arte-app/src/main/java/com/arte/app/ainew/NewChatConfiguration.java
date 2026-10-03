@@ -33,8 +33,9 @@ public class NewChatConfiguration {
                                                     @Value("${arte.ai-new.model.application-id:ai-new-model}") String application,
                                                     @Value("${arte.ai-new.model.model-name}") String modelName,
                                                     @Value("${arte.ai-new.chat.context-max-bytes:8192}") int bytes,
-                                                    @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
-        return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens);
+                                                    @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens,
+                                                    @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming) {
+        return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens, streaming);
     }
     @Bean
     public JdbcChatStore newChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager, ObjectProvider<Telemetry> telemetry) {
@@ -56,15 +57,25 @@ public class NewChatConfiguration {
     public ContextService newChatContexts(JdbcChatStore store, InvocationCoordinator coordinator,
                                           @Value("${arte.ai-new.chat.context-max-bytes:8192}") int bytes,
                                           @Value("${arte.ai-new.chat.history-pairs:32}") int history,
-                                          @Value("${arte.ai-new.chat.snapshot-ttl:PT10M}") String ttl) {
-        return new ContextService(store, coordinator, Clock.systemUTC(), bytes, history, Duration.parse(ttl));
+                                          @Value("${arte.ai-new.chat.snapshot-ttl:PT10M}") String ttl,
+                                          @Value("${arte.ai-new.chat.context-window-tokens:8192}") int window,
+                                          @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety) {
+        return new ContextService(store, coordinator, Clock.systemUTC(), bytes, history, Duration.parse(ttl), window, safety, new com.arte.ai.context.ConservativeTokenEstimator());
     }
 
     @Bean
     public ChatService newChats(ConversationService conversations, ContextService contexts, JdbcChatStore store,
                                 InvocationCoordinator coordinator, ConfiguredModelDefinitions definitions, ObjectProvider<Telemetry> telemetry,
-                                @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
-        return new ChatService(conversations, contexts, store, coordinator, definitions.capabilityRef(), Clock.systemUTC(), tokens, telemetry.getIfAvailable(Telemetry::disabled));
+                                @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens,
+                                @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming) {
+        return new ChatService(conversations, contexts, store, coordinator, definitions.capabilityRef(), Clock.systemUTC(), tokens, telemetry.getIfAvailable(Telemetry::disabled), streaming);
+    }
+
+    @Bean(destroyMethod = "close")
+    public ChatEventStreams newChatEventStreams(NewChatCallService service, JdbcModelExecutionStore ledger,
+                                                @Value("${arte.ai-new.chat.stream-max-clients:64}") int clients,
+                                                @Value("${arte.ai-new.chat.stream-timeout:PT2M}") String timeout) {
+        return new ChatEventStreams(service, clients, Duration.parse(timeout), ledger);
     }
 
     @Bean

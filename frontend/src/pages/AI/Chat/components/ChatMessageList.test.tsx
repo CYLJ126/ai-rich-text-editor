@@ -37,6 +37,25 @@ afterEach(() => {
 });
 
 describe('chat reading experience', () => {
+  it('labels incomplete output and only offers answer copying after authoritative success', () => {
+    const turn = makeTurn(1);
+    turn.execution = {
+      ...turn.execution!,
+      status: 'OUTCOME_UNKNOWN',
+      result: null,
+      partialText: '**部分回答**',
+      partialSequence: 2
+    };
+    const {rerender} = render(<ChatMessageList turns={[turn]}/>);
+    expect(screen.getByText('部分回答').tagName).toBe('STRONG');
+    expect(screen.getByText('正在生成或未完成的部分回答')).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: '复制回答'})).not.toBeInTheDocument();
+    expect(screen.getByText(/模型调用结果未知/)).toBeInTheDocument();
+    rerender(<ChatMessageList turns={[makeTurn(1, '**完整回答**')]}/>);
+    expect(screen.getByText('完整回答')).toBeInTheDocument();
+    expect(screen.queryByText('正在生成或未完成的部分回答')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: '复制回答'})).toBeInTheDocument();
+  });
   it('renders Markdown and copies the original question, answer and code without executing HTML or loading images', async () => {
     const text =
       '## 标题\n\n**重点**与`inline`\n\n- 条目\n\n```js\nconst n = 1;\n```\n\n[文档](https://example.com/docs)\n\n[危险](javascript:alert%281%29)\n\n![图片说明](https://example.com/tracker.png)\n\n<script>alert(1)</script>\n\n<iframe src="https://example.com"></iframe>';

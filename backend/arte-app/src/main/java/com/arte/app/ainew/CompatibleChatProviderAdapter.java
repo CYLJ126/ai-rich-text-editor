@@ -62,6 +62,11 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
 
     @Override
     public PreparedModelCall prepare(ModelPlan plan, GenerationRequest request) {
+        return prepare(plan, request, new com.arte.ai.model.execution.ExecutionOptions(java.time.Duration.ofSeconds(90), false));
+    }
+
+    @Override
+    public PreparedModelCall prepare(ModelPlan plan, GenerationRequest request, com.arte.ai.model.execution.ExecutionOptions options) {
         if (!request.tools().isEmpty() || request.outputSchema() != null || request.messages().size() > 128)
             throw new IllegalArgumentException("unsupported model input");
         var messages = new JsonArray();
@@ -88,7 +93,12 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
         var body = new JsonObject();
         body.addProperty("model", model);
         body.add("messages", messages);
-        body.addProperty("stream", false);
+        body.addProperty("stream", options.streaming());
+        if (options.streaming()) {
+            var streamOptions = new JsonObject();
+            streamOptions.addProperty("include_usage", true);
+            body.add("stream_options", streamOptions);
+        }
         body.addProperty("max_tokens", maximum);
         if (!reasoningEffort.isEmpty()) body.addProperty("reasoning_effort", reasoningEffort);
         if (request.options().temperature() != null) body.addProperty("temperature", request.options().temperature());
@@ -99,7 +109,16 @@ public final class CompatibleChatProviderAdapter implements ProviderAdapter {
                 .add(outputPrice.multiply(BigDecimal.valueOf(maximum)));
         if (upper.compareTo(quote.maximumAmount()) > 0)
             throw new IllegalArgumentException("request exceeds per-call budget quote");
-        return new PreparedModelCall(plan, ModelKeys.digest(bytes), bytes.length, checkpoint -> parse(runtime.exchange(plan.connection(), bytes.clone(), checkpoint)));
+        return new PreparedModelCall(plan, ModelKeys.digest(bytes), bytes.length,
+                checkpoint -> {
+                    if (options.streaming()) throw new IllegalArgumentException("stream sink required");
+                    return parse(runtime.exchange(plan.connection(), bytes.clone(), checkpoint));
+                }, options.streaming() ? (checkpoint, deltas) -> {
+            var stream = new ChatCompletionStream(deltas);
+            runtime.exchangeStream(plan.connection(), bytes.clone(), checkpoint, stream::accept);
+            checkpoint.check();
+            return parse(stream.result());
+        } : null);
     }
 
     ModelResult parse(byte[] response) {

@@ -23,8 +23,6 @@ public final class ModelBindingResolver {
     }
 
     public ModelPlan resolve(InvocationRequest<GenerationRequest> request) {
-        if (request.options().streaming())
-            throw ExecutionFailures.beforeStart(CommonErrorCode.UNSUPPORTED, request.context(), "model");
         return resolve(request.context(), request.capabilityRef(), request.bindingRef());
     }
 

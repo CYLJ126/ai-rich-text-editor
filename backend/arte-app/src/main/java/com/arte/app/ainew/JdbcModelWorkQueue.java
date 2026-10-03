@@ -262,6 +262,12 @@ public final class JdbcModelWorkQueue implements ModelWorkQueue {
                 });
                 cleanup(lease);
             }
+
+            public void appendDelta(ExecutionScope scope, String id, String text) {
+                requireIdentity(lease, scope, id);
+                ledger.appendDeltaGuarded(scope, id, text, () -> valid(lease, false, false));
+            }
+
         };
     }
 

@@ -13,6 +13,7 @@ import com.arte.ai.model.execution.ExecutionStatus;
 import com.arte.ai.model.message.Message;
 import com.arte.ai.model.message.MessageRole;
 import com.arte.ai.spi.store.ChatStore;
+import com.arte.ai.spi.strategy.TokenEstimator;
 import com.arte.base.model.error.CommonErrorCode;
 import com.arte.base.model.execution.ExecutionContext;
 
@@ -29,9 +30,16 @@ public class ContextService {
     private final Clock clock;
     private final int byteLimit, historyPairs;
     private final Duration lifetime;
+    private final TokenEstimator estimator;
+    private final int contextWindow, safetyTokens;
 
     public ContextService(ChatStore store, InvocationCoordinator coordinator, Clock clock, int byteLimit,
                           int historyPairs, Duration lifetime) {
+        this(store, coordinator, clock, byteLimit, historyPairs, lifetime, 0, 0, null);
+    }
+
+    public ContextService(ChatStore store, InvocationCoordinator coordinator, Clock clock, int byteLimit,
+                          int historyPairs, Duration lifetime, int contextWindow, int safetyTokens, TokenEstimator estimator) {
         if (byteLimit < 1 || byteLimit > 1048576 || historyPairs < 0 || historyPairs > 32
                 || lifetime.isNegative() || lifetime.isZero() || lifetime.compareTo(Duration.ofHours(1)) > 0)
             throw new IllegalArgumentException("invalid context limits");
@@ -41,6 +49,11 @@ public class ContextService {
         this.byteLimit = byteLimit;
         this.historyPairs = historyPairs;
         this.lifetime = lifetime;
+        if (estimator != null && (contextWindow < 256 || contextWindow > 2097152 || safetyTokens < 0 || safetyTokens >= contextWindow))
+            throw new IllegalArgumentException("invalid context token limits");
+        this.estimator = estimator;
+        this.contextWindow = contextWindow;
+        this.safetyTokens = safetyTokens;
     }
 
     /**
@@ -89,14 +102,14 @@ public class ContextService {
                 }
             selected.sort(Comparator.comparingLong(HistoryPair::sequence));
             var prepared = new ArrayList<>(draft.input());
-            if (ChatValues.bytes(prepared) > byteLimit)
+            if (!fits(prepared, draft.modelOptions().maxOutputTokens()))
                 throw ChatValues.failure(CommonErrorCode.INVALID_ARGUMENT, "chat-capacity");
             // Keep whole question/answer pairs, trimming the oldest selected pairs first.
             while (!selected.isEmpty()) {
                 var candidate = new ArrayList<Message>();
                 selected.forEach(pair -> candidate.addAll(pair.messages()));
                 candidate.addAll(draft.input());
-                if (candidate.size() <= 128 && ChatValues.bytes(candidate) <= byteLimit) {
+                if (fits(candidate, draft.modelOptions().maxOutputTokens())) {
                     prepared = candidate;
                     break;
                 }
@@ -108,9 +121,11 @@ public class ContextService {
         int bytes = ChatValues.bytes(messages);
         if (bytes > byteLimit) throw ChatValues.failure(CommonErrorCode.INVALID_ARGUMENT, "chat-capacity");
         int tokens = draft.modelOptions().maxOutputTokens();
-        var budget = new ContextBudget(byteLimit, bytes, tokens);
+        if (!fits(messages, tokens)) throw ChatValues.failure(CommonErrorCode.INVALID_ARGUMENT, "chat-token-capacity");
+        var budget = estimator == null ? new ContextBudget(byteLimit, bytes, tokens)
+                : new ContextBudget(byteLimit, bytes, tokens, contextWindow, contextWindow - tokens - safetyTokens, estimator.estimate(messages), safetyTokens, estimator.version());
         var now = ChatValues.now(clock);
-        var digest = ChatValues.context(draft.conversationId(), draft.conversationVersion(), conversation.modelBindingRef(), messages, history, byteLimit, bytes, tokens);
+        var digest = ChatValues.context(draft.conversationId(), draft.conversationVersion(), conversation.modelBindingRef(), messages, history, budget);
         return new ContextSnapshot(UUID.randomUUID().toString(), draft.conversationId(), viewer.scope(), draft.conversationVersion(),
                 conversation.modelBindingRef(), messages, List.of(), history, budget, digest, now, now.plus(lifetime));
     }
@@ -119,6 +134,10 @@ public class ContextService {
         if (!snapshot.scope().equals(viewer.scope()))
             throw ChatValues.failure(CommonErrorCode.NOT_FOUND, "chat-context");
         ChatValues.verify(snapshot);
+        if (!fits(snapshot.messages(), snapshot.budget().outputTokenReserve())
+                || snapshot.budget().estimatorVersion() != null && estimator != null
+                && (!estimator.version().equals(snapshot.budget().estimatorVersion()) || estimator.estimate(snapshot.messages()) != snapshot.budget().estimatedInputTokens()))
+            throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "chat-token-capacity");
         if (requireFresh && snapshot.isExpiredAt(clock.instant()))
             throw ChatValues.failure(CommonErrorCode.DEADLINE_EXCEEDED, "chat-context");
         if (snapshot.messages().size() > 128 || snapshot.messages().stream().anyMatch(m -> m.role() != MessageRole.USER && m.role() != MessageRole.ASSISTANT))
@@ -151,4 +170,9 @@ public class ContextService {
     }
 
     private record HistoryPair(long sequence, Turn turn, List<Message> messages) { }
+
+    private boolean fits(List<Message> messages, int outputTokens) {
+        return messages.size() <= 128 && ChatValues.bytes(messages) <= byteLimit
+                && (estimator == null || (long) estimator.estimate(messages) + outputTokens + safetyTokens <= contextWindow);
+    }
 }

@@ -43,6 +43,17 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
 
     @Override
     public byte[] exchange(ConnectionDefinition connection, byte[] body, ExecutionCheckpoint checkpoint) throws Exception {
+        var result = new ByteArrayOutputStream();
+        exchangeTo(connection, body, checkpoint, (bytes, offset, length) -> result.write(bytes, offset, length), false);
+        return result.toByteArray();
+    }
+
+    @Override
+    public void exchangeStream(ConnectionDefinition connection, byte[] body, ExecutionCheckpoint checkpoint, ChunkConsumer consumer) throws Exception {
+        exchangeTo(connection, body, checkpoint, consumer, true);
+    }
+
+    private void exchangeTo(ConnectionDefinition connection, byte[] body, ExecutionCheckpoint checkpoint, ChunkConsumer consumer, boolean streaming) throws Exception {
         checkpoint.check();
         URI endpoint = connection.endpoint();
         String host = endpoint.getHost();
@@ -78,7 +89,7 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
                 String authority = host.contains(":") && !host.startsWith("[") ? "[" + host + "]" : host;
                 var output = connected.getOutputStream();
                 String headers = "POST " + path + " HTTP/1.1\r\nHost: " + authority + ":" + port
-                        + "\r\nAuthorization: Bearer " + new String(secret) + "\r\nContent-Type: application/json\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\nContent-Length: " + body.length + "\r\n\r\n";
+                        + "\r\nAuthorization: Bearer " + new String(secret) + "\r\nContent-Type: application/json\r\nAccept: " + (streaming ? "text/event-stream" : "application/json") + "\r\nAccept-Encoding: identity\r\nConnection: close\r\nContent-Length: " + body.length + "\r\n\r\n";
                 output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
                 output.write(body);
                 output.flush();
@@ -102,7 +113,9 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
                 String encoding = responseHeaders.get("content-encoding");
                 if (encoding != null && !encoding.equalsIgnoreCase("identity"))
                     throw new IOException("unsupported response encoding");
-                var result = new ByteArrayOutputStream();
+                if (streaming && !responseHeaders.getOrDefault("content-type", "").toLowerCase(Locale.ROOT).startsWith("text/event-stream"))
+                    throw new IOException("invalid model stream type");
+                var result = new ResponseBody(consumer);
                 String transfer = responseHeaders.get("transfer-encoding");
                 if (transfer != null) {
                     if (!transfer.equalsIgnoreCase("chunked") || responseHeaders.containsKey("content-length"))
@@ -137,14 +150,14 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
                     }
                 }
                 checkpoint.check();
-                return result.toByteArray();
+                return;
             }
         } finally {
             Arrays.fill(secret, '\0');
         }
     }
 
-    private void copy(InputStream input, ByteArrayOutputStream output, long length, Socket socket, ExecutionCheckpoint checkpoint) throws IOException {
+    private void copy(InputStream input, ResponseBody output, long length, Socket socket, ExecutionCheckpoint checkpoint) throws Exception {
         byte[] buffer = new byte[8192];
         while (length > 0) {
             checkpoint.check();
@@ -153,6 +166,25 @@ public final class PinnedHttpConnectionRuntime implements ConnectionRuntime {
             if (count < 0) throw new EOFException("incomplete model response");
             output.write(buffer, 0, count);
             length -= count;
+        }
+    }
+
+    private final class ResponseBody {
+        private final ChunkConsumer consumer;
+        private int size;
+
+        ResponseBody(ChunkConsumer consumer) {
+            this.consumer = consumer;
+        }
+
+        int size() {
+            return size;
+        }
+
+        void write(byte[] bytes, int offset, int length) throws Exception {
+            if (length > maxResponseBytes - size) throw new IOException("model response too large");
+            size += length;
+            consumer.accept(bytes, offset, length);
         }
     }
 

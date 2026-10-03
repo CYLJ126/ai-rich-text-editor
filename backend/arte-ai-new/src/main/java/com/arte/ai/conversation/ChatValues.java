@@ -2,6 +2,7 @@ package com.arte.ai.conversation;
 
 import com.arte.ai.model.context.ContextHistoryRef;
 import com.arte.ai.model.context.ContextSnapshot;
+import com.arte.ai.model.context.ContextBudget;
 import com.arte.ai.model.conversation.Turn;
 import com.arte.ai.model.definition.DefinitionRef;
 import com.arte.ai.model.generation.ModelOptions;
@@ -59,8 +60,13 @@ public final class ChatValues {
 
     public static String context(String conversation, long version, DefinitionRef binding, List<Message> messages,
                                  List<ContextHistoryRef> history, int byteLimit, int usedBytes, int outputTokens) {
+        return context(conversation, version, binding, messages, history, new ContextBudget(byteLimit, usedBytes, outputTokens));
+    }
+
+    public static String context(String conversation, long version, DefinitionRef binding, List<Message> messages,
+                                 List<ContextHistoryRef> history, ContextBudget budget) {
         return hash(out -> {
-            field(out, "arte.chat.context.v1");
+            field(out, budget.contextWindowTokens() == null ? "arte.chat.context.v1" : "arte.chat.context.v2");
             field(out, conversation);
             out.writeLong(version);
             field(out, binding.definitionType());
@@ -73,16 +79,22 @@ public final class ChatValues {
                 out.writeLong(ref.turnVersion());
                 field(out, ref.executionId());
             }
-            out.writeInt(byteLimit);
-            out.writeInt(usedBytes);
-            out.writeInt(outputTokens);
+            out.writeInt(budget.inputByteLimit());
+            out.writeInt(budget.usedInputBytes());
+            out.writeInt(budget.outputTokenReserve());
+            if (budget.contextWindowTokens() != null) {
+                out.writeInt(budget.contextWindowTokens());
+                out.writeInt(budget.inputTokenLimit());
+                out.writeInt(budget.estimatedInputTokens());
+                out.writeInt(budget.safetyTokenReserve());
+                field(out, budget.estimatorVersion());
+            }
         });
     }
 
     public static void verify(ContextSnapshot snapshot) {
         if (!snapshot.fragments().isEmpty() || !snapshot.contentDigest().equals(context(snapshot.conversationId(), snapshot.conversationVersion(),
-                snapshot.modelBindingRef(), snapshot.messages(), snapshot.history(), snapshot.budget().inputByteLimit(),
-                snapshot.budget().usedInputBytes(), snapshot.budget().outputTokenReserve())))
+                snapshot.modelBindingRef(), snapshot.messages(), snapshot.history(), snapshot.budget())))
             throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");
         if (bytes(snapshot.messages()) != snapshot.budget().usedInputBytes())
             throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");

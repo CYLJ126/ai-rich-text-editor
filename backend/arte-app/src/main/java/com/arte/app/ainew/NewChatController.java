@@ -35,9 +35,27 @@ public class NewChatController {
     }
 
     private final NewChatCallService service;
+    private final ChatEventStreams streams;
 
     public NewChatController(NewChatCallService service) {
+        this(service, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NewChatController(NewChatCallService service, ChatEventStreams streams) {
         this.service = service;
+        this.streams = streams;
+    }
+
+    @GetMapping(value = "/{id}/turns/{turnId}/events", produces = "text/event-stream")
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.SseEmitter> events(HttpServletRequest http,
+                                                                                                   @PathVariable String id, @PathVariable String turnId, @RequestParam String tenantId, @RequestParam String workspaceId,
+                                                                                                   @RequestParam(defaultValue = "-1") long after, @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
+        if (lastEventId != null) after = Long.parseLong(lastEventId);
+        var observation = service.observe(http, tenantId, workspaceId, id, turnId);
+        if (streams == null) throw new IllegalArgumentException("streaming observer unavailable");
+        return ResponseEntity.ok().header("Cache-Control", "no-store").header("X-Accel-Buffering", "no")
+                .body(streams.open(observation, after));
     }
 
     @PostMapping

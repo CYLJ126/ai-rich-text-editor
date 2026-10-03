@@ -111,6 +111,20 @@ public final class NewChatCallService {
         return chats.cancel(viewer(http, tenant, workspace, false), id, turn);
     }
 
+    public record Observation(ExecutionContext viewer, String conversationId, String turnId, String executionId) {
+    }
+
+    public Observation observe(HttpServletRequest http, String tenant, String workspace, String id, String turn) {
+        var viewer = viewer(http, tenant, workspace, false);
+        var result = chats.find(viewer, id, turn);
+        if (result.execution() == null) throw ChatValues.failure(CommonErrorCode.BUSY, "chat-stream");
+        return new Observation(viewer, id, turn, result.execution().executionId());
+    }
+
+    public List<com.arte.base.model.execution.ExecutionEvent<com.arte.ai.model.execution.ModelEvent>> events(Observation observation, long after, int limit) {
+        return chats.events(observation.viewer(), observation.conversationId(), observation.turnId(), after, limit);
+    }
+
     private ExecutionContext viewer(HttpServletRequest http, String tenant, String workspace, boolean external) {
         Set<String> actions = external ? Set.of(CommonResourceAction.AI_PROCESS.code(), CommonResourceAction.EGRESS.code()) : Set.of(CommonResourceAction.AI_PROCESS.code());
         return contexts.create(http, tenant, workspace, application, definitions.bindingRef().definitionId(), actions);

@@ -19,8 +19,12 @@ public final class DefaultModelGateway implements ModelGateway {
     }
 
     public PreparedModelCall prepare(ModelPlan plan, GenerationRequest request) {
+        return prepare(plan, request, new com.arte.ai.model.execution.ExecutionOptions(java.time.Duration.ofSeconds(90), false));
+    }
+
+    public PreparedModelCall prepare(ModelPlan plan, GenerationRequest request, com.arte.ai.model.execution.ExecutionOptions options) {
         var candidates = adapters.stream().filter(adapter -> adapter.supports(plan)).toList();
         if (candidates.size() != 1) throw new IllegalArgumentException("exactly one model adapter is required");
-        return candidates.getFirst().prepare(plan, request);
+        return candidates.getFirst().prepare(plan, request, options);
     }
 }

@@ -29,6 +29,8 @@ export interface ChatTurnResult {
     status: ExecutionStatus;
     result: null | { output: Array<{ text: string }> };
     error: ExecutionError | null;
+    partialText?: string;
+    partialSequence?: number;
   };
 }
 

@@ -46,7 +46,7 @@ public class ChatService {
     private final Clock clock;
     private final int outputTokens;
     private final Telemetry telemetry;
-    private static final ExecutionOptions OPTIONS = new ExecutionOptions(Duration.ofSeconds(90), false);
+    private final ExecutionOptions executionOptions;
 
     public ChatService(ConversationService conversations, ContextService contexts, ChatStore store,
                        InvocationCoordinator coordinator, DefinitionRef capability, Clock clock, int outputTokens) {
@@ -56,6 +56,12 @@ public class ChatService {
     public ChatService(ConversationService conversations, ContextService contexts, ChatStore store,
                        InvocationCoordinator coordinator, DefinitionRef capability, Clock clock, int outputTokens,
                        Telemetry telemetry) {
+        this(conversations, contexts, store, coordinator, capability, clock, outputTokens, telemetry, false);
+    }
+
+    public ChatService(ConversationService conversations, ContextService contexts, ChatStore store, InvocationCoordinator coordinator,
+                       DefinitionRef capability, Clock clock, int outputTokens, Telemetry telemetry, boolean streaming) {
+        this.executionOptions = new ExecutionOptions(Duration.ofSeconds(90), streaming);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.conversations = Objects.requireNonNull(conversations);
         this.contexts = Objects.requireNonNull(contexts);
@@ -111,6 +117,14 @@ public class ChatService {
         return find(viewer, conversationId, prepared.turnId());
     }
 
+    public List<ExecutionEvent<com.arte.ai.model.execution.ModelEvent>> events(ExecutionContext viewer, String conversationId, String turnId, long after, int limit) {
+        var current = find(viewer, conversationId, turnId);
+        if (current.execution() == null) throw ChatValues.failure(CommonErrorCode.BUSY, "chat-stream");
+        var batch = coordinator.events(viewer, current.execution().executionId(), after, limit);
+        conversations.find(viewer, conversationId);
+        return batch;
+    }
+
     private Turn prepareContext(ExecutionContext viewer, Turn turn) {
         if (turn.status() != TurnStatus.PREPARING) return turn;
         ContextSnapshot snapshot;
@@ -146,7 +160,7 @@ public class ChatService {
             if (!snapshot.modelBindingRef().equals(conversation.modelBindingRef()) || snapshot.conversationVersion() != turn.conversationVersion())
                 throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "chat-binding");
             request = new InvocationRequest<>(capability, snapshot.modelBindingRef(),
-                    new GenerationRequest(snapshot.messages(), turn.modelOptions(), List.of(), null), OPTIONS, viewer);
+                    new GenerationRequest(snapshot.messages(), turn.modelOptions(), List.of(), null), executionOptions, viewer);
             var prepared = coordinator.prepare(request);
             // Consent commits before the final Turn lock / independent model acceptance transaction.
             consentRef = consent.confirm(coordinator.egressRequest(request, prepared, null));

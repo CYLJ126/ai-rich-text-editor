@@ -1,6 +1,6 @@
 # ai-new 最小模型调用
 
-依据顶层设计 §2.5、§2.6、§2.8 和快速受理／耐久输出约定，打通一条独立的 **文本、非流式、一个尝试**模型链。 生产代码依赖方向为
+依据顶层设计 §2.5、§2.6、§2.8 和快速受理／耐久输出约定，打通一条独立的 **文本、可选流式、一个尝试**模型链。 生产代码依赖方向为
 `app → ai-new → base`。app 同时保留旧 AI 依赖；旧聊天路径、模型表、供应商适配器和前端没有切换。
 
 ## 已实现的链路
@@ -38,10 +38,11 @@ Invocation／Attempt 声明保留，未来多尝试、Job／Run 关联再扩展�
 128 条消息、16 KiB 完整协议正文、2048 输出 tokens；输入／输出上限可在明确范围内配置。
 消息、文本部件、请求、结果和配置集合使用不可变副本；基础选项、固定版本、费用／用量完成结构校验。
 
-工具、TOOL 消息、多模态产物、结构化输出、streaming、其他网关或未知协议特性明确拒绝，不静默转换为可用能力。 模型返回工具请求、非
+工具、TOOL 消息、多模态产物、结构化输出、其他网关或未知协议特性明确拒绝，不静默转换为可用能力。 模型返回工具请求、非
 stop／length 终止原因、缺失正文或非法用量时不发布伪造文本结果。 适配器是明确的兼容协议子集：`POST` 配置中的完整聊天路径，发送
-model／messages／stream=false／max_tokens； 只读取一个 choices 的 message.content、finish_reason 和可选
-prompt_tokens／completion_tokens。 供应商必须通过自己的契约测试；不同供应商的参数名称、收费、限额和特性不能由“兼容”推断。
+model／messages／stream／max_tokens。非流式读取一个 choices 的 message.content、finish_reason 和可选
+prompt_tokens／completion_tokens；新聊天默认启用流式，按 SSE 逐帧读取 assistant delta、终止标记及用量，再形成相同的最终结果。
+供应商必须通过自己的契约测试；不同供应商的参数名称、收费、限额和特性不能由“兼容”推断。
 
 最终文本及用量存入结果和终态事件；耐久工作表保存版本化文本输入、原始授权上下文、执行期限及同意引用，供未派发工作在期限内恢复。
 不持久化 API Key、会话 Token、SDK 对象或 Java 回调；已派发工作不会自动重发。工作正文包含历史消息，应按聊天数据配置访问、备份及保留策略。
@@ -97,9 +98,9 @@ ExecutionCheckpoint.onStop 关闭已注册 socket， 许可和 future 仍等真�
 
 ## 事件、恢复与保留
 
-本阶段非流式事件为 ACCEPTED、RUNNING、终态，序号单调；确认未启动的工作可能没有 RUNNING 事件。 GET events 使用 exclusive after
-游标、最多 100 条，数据来自数据库，不调用供应商。 没有 SSE、逐 Token 输出、游标归档／过期清理或供应商续传。后续流式输出须按批次耐久提交，再使用
-base 背压流通知订阅者。
+非流式事件为 ACCEPTED、RUNNING、终态，序号单调；流式调用增加带 textDelta 的 RUNNING 耐久事件。确认未启动的工作可能没有
+RUNNING 事件。 GET events 使用 exclusive after 游标、最多 100 条，数据来自数据库，不调用供应商。 新聊天 SSE
+在批次耐久提交后补读事件；游标归档／过期清理和供应商续传尚未提供。流式断开只重连订阅，不重新执行模型。
 
 JdbcModelWorkQueue 使用数据库时钟和单活 Worker 租约；失去租约的旧进程不能继续领取、派发或写入结果。DurableModelWorker
 周期续约和扫描， 期限内且未派发的工作重新排队，恢复时重新校验输入指纹、定义、当前权限与原始外发同意；授权上下文与执行期限分别保存，不改写已授权任务身份。
@@ -240,3 +241,6 @@ mvn -o -pl arte-app -am -Dmaven.compiler.proc=full \
 MySQL 并发与精度、供应商兼容性／真实费用、生产 TLS／DNS／出口、跨节点故障、负载及保留策略验证。
 
 聊天服务为耐久提交派生 `chat:<turnId>` 模型幂等键；独立模型 HTTP 入口保留并拒绝该前缀，防止调用方占用聊天关联的受理身份。
+
+第三批流式协议、上下文 Token
+预算、迁移及验证详情见 [最小聊天服务](MINIMUM_CHAT_SERVICE.md#第三批流式输出与-token-上下文预算2026-10-03)。

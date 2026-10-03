@@ -24,7 +24,7 @@ export default function ChatPanel({
   draft: string;
   onDraftChange: (id: string, text: string, submittedText?: string) => void;
 }) {
-  const chat = useChat(userId, scope, conversation);
+  const chat = useChat(userId, scope, conversation, model?.streaming ?? false);
   const setDraft = (text: string) => onDraftChange(conversation.conversationId, text);
   const [confirmation, setConfirmation] = useState<null | {
     text: string;

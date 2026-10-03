@@ -360,6 +360,50 @@ class MinimumModelCallTest {
     }
 
     @Test
+    void actualChunkedHttpStreamCommitsPartialBeforeProviderFinishes() throws Exception {
+        var release = new CountDownLatch(1);
+        server.removeContext("/v1/chat/completions");
+        server.createContext("/v1/chat/completions", exchange -> {
+            calls.incrementAndGet();
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+            exchange.sendResponseHeaders(200, 0);
+            try (var output = exchange.getResponseBody()) {
+                output.write("data: {\"choices\":[{\"delta\":{\"content\":\"中😀\"},\"finish_reason\":null}]}\n\n".getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                try {
+                    release.await(4, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                output.write("data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2}}\n\ndata: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        try {
+            var coordinator = coordinator(runtime());
+            var original = request("stream");
+            var streaming = new InvocationRequest<>(original.capabilityRef(), original.bindingRef(), original.input(), new ExecutionOptions(Duration.ofSeconds(10), true), original.context());
+            var accepted = coordinator.submitModel(streaming, null, "real-stream");
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (store.find(scope, accepted.executionId()).orElseThrow().partialText().isEmpty() && System.nanoTime() < until)
+                Thread.sleep(5);
+            var partial = store.find(scope, accepted.executionId()).orElseThrow();
+            assertEquals("中😀", partial.partialText());
+            assertEquals(ExecutionStatus.RUNNING, partial.status());
+            assertNull(partial.result());
+            release.countDown();
+            var done = await(coordinator, accepted.executionId());
+            assertEquals(ExecutionStatus.SUCCEEDED, done.status());
+            assertEquals(3L, done.result().usage().inputTokens());
+            assertEquals(BudgetStatus.SETTLED, store.reservation(scope, accepted.executionId()).status());
+            assertTrue(requestBody.get().contains("\"stream\":true"));
+            assertEquals(1, calls.get());
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
     void simultaneousAcceptanceCannotOverspendOrReserveTheSameKeyTwice() throws Exception {
         var req = request("question");
         var prepared = coordinator(runtime()).prepare(req);
@@ -389,7 +433,7 @@ class MinimumModelCallTest {
     void unsupportedInputsAndProductionLoopbackAreRejected() throws Exception {
         var coordinator = coordinator(runtime());
         var req = request("question");
-        assertThrows(BaseException.class, () -> coordinator.prepare(new InvocationRequest<>(req.capabilityRef(), req.bindingRef(), req.input(), new ExecutionOptions(Duration.ofSeconds(5), true), req.context())));
+        assertNotNull(coordinator.prepare(new InvocationRequest<>(req.capabilityRef(), req.bindingRef(), req.input(), new ExecutionOptions(Duration.ofSeconds(5), true), req.context())).streamingOperation());
         var invalid = new GenerationRequest(List.of(new Message(MessageRole.TOOL, List.of(new TextPart("tool")))), req.input().options(), List.of(), null);
         assertThrows(BaseException.class, () -> coordinator.prepare(new InvocationRequest<>(req.capabilityRef(), req.bindingRef(), invalid, req.options(), req.context())));
         var production = new PinnedHttpConnectionRuntime(Set.of("localhost"), ref -> "secret".toCharArray(), 1000);
