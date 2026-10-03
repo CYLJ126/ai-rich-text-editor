@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -164,17 +165,20 @@ public class WebSecurityConfig {
     }
 
     /**
-     * 搜寻未注解 @AnonymousAccess 或 @PreAuthorize 的 url
+     * 搜寻未声明 @AnonymousAccess 或方法／类级 @PreAuthorize 的 url
      *
      * @return 禁止访问的 url 列表
      */
     private String[] getUnControlUrls(Map<RequestMappingInfo, HandlerMethod> handlerMethodMap) {
-        // 搜寻未注解 @AnonymousAccess 或 @PreAuthorize 的 url，禁止访问
+        // 方法或控制器类均可声明 @PreAuthorize；仅无权限声明的接口禁止访问
         List<String> all = new ArrayList<>();
         for (Map.Entry<RequestMappingInfo, HandlerMethod> infoEntry : handlerMethodMap.entrySet()) {
             HandlerMethod handlerMethod = infoEntry.getValue();
             AnonymousAccess anonymousAccess = handlerMethod.getMethodAnnotation(AnonymousAccess.class);
             PreAuthorize preAuthorize = handlerMethod.getMethodAnnotation(PreAuthorize.class);
+            if (preAuthorize == null) {
+                preAuthorize = AnnotatedElementUtils.findMergedAnnotation(handlerMethod.getBeanType(), PreAuthorize.class);
+            }
             if (ObjectUtil.isAllEmpty(anonymousAccess, preAuthorize)) {
                 all.addAll(getPatterns(infoEntry.getKey()));
                 all.addAll(getPathPatterns(infoEntry.getKey()));
