@@ -1,4 +1,7 @@
+import aiNew from './aiNew';
+
 export default {
+  ...aiNew,
   'app.common.search.placeholder': '搜索...',
   'app.common.noResults': '暂无结果',
   'app.common.create': '创建',

@@ -13,10 +13,12 @@ class NewChatConfigurationTest {
     @Test
     void chatBeansAndRoutesRemainAbsentUntilExplicitlyEnabled() {
         try (var context = new AnnotationConfigApplicationContext()) {
-            context.register(NewChatConfiguration.class, NewChatController.class);
+            context.register(NewChatConfiguration.class, NewChatController.class, NewChatBootstrapController.class);
             context.refresh();
             assertTrue(context.getBeansOfType(NewChatCallService.class).isEmpty());
             assertTrue(context.getBeansOfType(NewChatController.class).isEmpty());
+            assertTrue(context.getBean(NewChatBootstrapController.class).bootstrap(null).workspaces().isEmpty());
+            assertTrue(!context.getBean(NewChatBootstrapController.class).bootstrap(null).enabled());
         }
     }
 

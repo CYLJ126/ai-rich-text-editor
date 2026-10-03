@@ -1,4 +1,7 @@
+import aiNew from './aiNew';
+
 export default {
+  ...aiNew,
   'app.common.search.placeholder': 'Search...',
   'app.common.noResults': 'No results',
   'app.common.create': 'Create',

@@ -8,6 +8,7 @@ export default function access(
   const isAdmin = hasAdminRole(currentUser);
   return {
     canAdmin: isAdmin,
+    canViewAiChat: isAdmin || includesValue(currentUser?.menus, 'AIChat'),
     canViewAiTools:
       isAdmin ||
       includesValue(currentUser?.menus, AI_TOOL_MENU_CODE) ||

@@ -45,4 +45,11 @@ public final class ConfiguredModelDefinitions implements ModelDefinitionStore {
     public DefinitionRef bindingRef() {
         return binding;
     }
+
+    /**
+     * 当前固定模型覆盖的作用域；调用方仍须验证成员和应用许可。
+     */
+    public ExecutionScope configuredScope(com.arte.base.model.identity.PrincipalRef principal) {
+        return new ExecutionScope(tenant, workspace, principal);
+    }
 }

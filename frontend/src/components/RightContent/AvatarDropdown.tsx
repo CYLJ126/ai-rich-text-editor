@@ -5,6 +5,7 @@ import type {MenuProps} from 'antd';
 import {Spin} from 'antd';
 import React, {startTransition, useState} from 'react';
 import {logout} from '@/services/ant-design-pro/base';
+import {useQueryClient} from '@tanstack/react-query';
 import HeaderDropdown from '../HeaderDropdown';
 import ChangePasswordModal from "@/pages/account/settings/components/ChangePasswordModal";
 
@@ -15,6 +16,7 @@ type GlobalHeaderRightProps = {
 export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
                                                                    children,
                                                                  }) => {
+  const queryClient = useQueryClient();
   const loginOut = async () => {
     await logout();
     localStorage.removeItem('user_token');
@@ -38,6 +40,8 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const {key} = event;
     if (key === 'logout') {
+      void queryClient.cancelQueries({queryKey: ['ai-new']});
+      queryClient.removeQueries({queryKey: ['ai-new']});
       startTransition(() => {
         setInitialState((s) => ({...s, currentUser: undefined}));
       });

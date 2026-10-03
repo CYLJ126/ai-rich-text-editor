@@ -7,6 +7,7 @@ import com.arte.ai.api.execution.InvocationCoordinator;
 import com.arte.ai.spi.security.ChatAccessPolicy;
 import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
+import com.arte.app.security.bridge.ExistingIdentityAdapter;
 import com.arte.app.security.bridge.JdbcSecurityRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,6 +25,15 @@ import java.time.Duration;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "arte.ai-new.chat.enabled", havingValue = "true")
 public class NewChatConfiguration {
+    @Bean
+    public NewChatBootstrapService newChatBootstrap(ExistingIdentityAdapter identity, JdbcSecurityRepository repository,
+                                                    ConfiguredModelDefinitions definitions,
+                                                    @Value("${arte.ai-new.model.application-id:ai-new-model}") String application,
+                                                    @Value("${arte.ai-new.model.model-name}") String modelName,
+                                                    @Value("${arte.ai-new.chat.context-max-bytes:8192}") int bytes,
+                                                    @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
+        return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens);
+    }
     @Bean
     public JdbcChatStore newChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager) {
         return new JdbcChatStore(jdbc, manager);

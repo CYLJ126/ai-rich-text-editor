@@ -1,4 +1,5 @@
 export default {
+  'menu.AIChat': '新聊天',
   'menu.HomePage': '首頁',
   'menu.welcome': '歡迎',
   'menu.more-blocks': '更多區塊',

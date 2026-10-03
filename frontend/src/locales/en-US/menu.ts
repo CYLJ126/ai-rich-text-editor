@@ -1,4 +1,5 @@
 export default {
+  'menu.AIChat': 'New chat',
   'menu.HomePage': 'Home Page',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',

@@ -373,11 +373,79 @@ class NewChatIntegrationTest extends SecurityBridgeFixture {
     }
 
     @Test
+    void bootstrapUsesVerifiedMembershipAndPublishesOnlyDisplayConfiguration() throws Exception {
+        var bootstrap = new NewChatBootstrapService(identity, repository, definitions, "new-ai", "test-model", 4096, 10);
+        int before = jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_task", Integer.class);
+        var result = bootstrap.read(http);
+        assertTrue(result.enabled());
+        assertNull(result.unavailableReason());
+        assertEquals(TENANT, result.workspaces().getFirst().tenantId());
+        assertEquals(WORKSPACE, result.workspaces().getFirst().workspaceId());
+        assertTrue(result.workspaces().getFirst().allowedActions().contains(CommonResourceAction.EGRESS.code()));
+        assertEquals("test-model", result.defaultModel().name());
+        assertEquals("https://provider.example/v1/chat/completions", result.defaultModel().destination());
+        assertEquals(4096, result.defaultModel().contextMaxBytes());
+        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_task", Integer.class));
+        assertEquals(0, calls.get());
+        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory();
+        beans.registerSingleton("bootstrap", bootstrap);
+        var controller = new NewChatBootstrapController(beans.getBeanProvider(NewChatBootstrapService.class));
+        var response = MockMvcBuilders.standaloneSetup(controller).build().perform(get("/api/ai-new/chat/bootstrap"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertFalse(response.contains("secretRef"));
+        assertFalse(response.contains("secretId"));
+        assertFalse(response.contains("TEST"));
+        jdbc.update("UPDATE arte_security_application_policy SET binding_enabled=FALSE WHERE action_code=?", CommonResourceAction.EGRESS.code());
+        assertEquals(List.of(CommonResourceAction.AI_PROCESS.code()), bootstrap.read(http).workspaces().getFirst().allowedActions());
+        jdbc.update("UPDATE arte_security_application_policy SET binding_enabled=FALSE WHERE action_code=?", CommonResourceAction.AI_PROCESS.code());
+        assertEquals("NO_ACCESS", bootstrap.read(http).unavailableReason());
+        assertNull(bootstrap.read(http).defaultModel());
+    }
+
+    @Test
+    void productionJsonConverterMatchesTheNewFrontendContracts() throws Exception {
+        var bootstrap = new NewChatBootstrapService(identity, repository, definitions, "new-ai", "test", 4096, 10);
+        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory();
+        beans.registerSingleton("bootstrap", bootstrap);
+        var web = MockMvcBuilders.standaloneSetup(new NewChatController(service),
+                        new NewChatBootstrapController(beans.getBeanProvider(NewChatBootstrapService.class)))
+                .setMessageConverters(new org.springframework.http.converter.json.JacksonJsonHttpMessageConverter(
+                        com.arte.core.serialize.SerializerFactory.buildJsonMapperWithoutTypeProperty())).build();
+        var json = JsonParser.parseString(web.perform(post("/api/ai-new/conversations").contentType("application/json")
+                        .content("{\"tenantId\":\"" + TENANT + "\",\"workspaceId\":\"" + WORKSPACE + "\",\"title\":\"Web contract\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).getAsJsonObject();
+        assertEquals("ACTIVE", json.get("status").getAsString());
+        assertEquals("USER", json.getAsJsonObject("scope").getAsJsonObject("principal").get("type").getAsString());
+        assertEquals(1, json.get("version").getAsLong());
+        assertTrue(json.get("deletedAt").isJsonNull());
+        assertNotNull(Instant.parse(json.get("createdAt").getAsString()));
+        var initialization = JsonParser.parseString(web.perform(get("/api/ai-new/chat/bootstrap"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).getAsJsonObject();
+        assertTrue(initialization.get("enabled").getAsBoolean());
+        assertTrue(initialization.get("unavailableReason").isJsonNull());
+        assertFalse(initialization.has("success"));
+        assertEquals(10, initialization.getAsJsonObject("defaultModel").get("maxOutputTokens").getAsInt());
+    }
+
+    @Test
+    void bootstrapDoesNotRevealConfiguredSpaceToOtherOrRevokedMembers() {
+        var bootstrap = new NewChatBootstrapService(identity, repository, definitions, "new-ai", "test", 4096, 10);
+        login("bob", 2);
+        assertTrue(bootstrap.read(http).workspaces().isEmpty());
+        assertNull(bootstrap.read(http).defaultModel());
+        login("alice", 1);
+        jdbc.update("UPDATE arte_security_member SET enabled=FALSE WHERE user_id='1'");
+        assertTrue(bootstrap.read(http).workspaces().isEmpty());
+        jdbc.update("UPDATE arte_rbac_user SET status='3' WHERE id=1");
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> bootstrap.read(http));
+    }
+
+    @Test
     void springWiringKeepsConsentVisibleAcrossIndependentTransactions() throws Exception {
         clock.now = Instant.now();
         try (var spring = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
             spring.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource("chat", Map.of(
-                    "arte.ai-new.chat.enabled", "true", "arte.ai-new.model.application-id", "new-ai", "arte.ai-new.model.max-output-tokens", "10")));
+                    "arte.ai-new.chat.enabled", "true", "arte.ai-new.model.application-id", "new-ai", "arte.ai-new.model.model-name", "test", "arte.ai-new.model.max-output-tokens", "10")));
             spring.registerBean(org.springframework.jdbc.core.JdbcTemplate.class, () -> jdbc);
             spring.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> manager);
             spring.registerBean(ConfiguredModelDefinitions.class, () -> definitions);

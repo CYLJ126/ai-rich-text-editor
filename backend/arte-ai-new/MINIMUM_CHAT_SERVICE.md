@@ -67,6 +67,10 @@ arte:
 
 ## HTTP 入口
 
+第一步前端会话管理入口为 `/AI/Chat`，接入与菜单脚本见 [新聊天第一步](../../frontend/docs/ai-new-chat-step1.md)。
+`GET /api/ai-new/chat/bootstrap` 返回当前已授权配置空间、默认模型及外发展示信息；关闭时可查询开关状态。
+该初始化接口不登记任务、同意或预算，不自动放行外发，也不返回凭据；第一步前端没有触发模型生成。
+
 基础路径：`/api/ai-new/conversations`，使用现有登录会话。
 
 | 操作     | 方法与相对路径                     | 输入                                                                                                                          |
