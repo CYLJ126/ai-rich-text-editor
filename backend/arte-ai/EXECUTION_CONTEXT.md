@@ -6,6 +6,8 @@
 
 实现暂放在 `com.arte.ainew`，保持与旧 AI 链路隔离。`common.execution` 是不依赖 Spring、Reactor 或 AI SDK 的共用数据契约，未来可迁移公共契约模块。现有 `UserContext`、认证过滤器、旧聊天和 SSE 控制器均未修改。
 
+最小聊天及执行记录的数据类型、幂等／重新生成语义、字段校验与后续存储边界见 [最小 AI 数据契约 v1](DATA_CONTRACTS.md)。这里的上下文构建仍不表示可靠受理；复用幂等键时应返回原受理身份，不能用新构建的 executionId 覆盖原 Invocation。
+
 ## 数据与运行对象
 
 - `ExecutionPrincipal`：稳定主体 ID、名称及 USER／SERVICE 类型，不包含密码、Token 或在线会话对象。

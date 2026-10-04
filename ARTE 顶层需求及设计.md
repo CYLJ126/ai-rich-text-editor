@@ -333,7 +333,7 @@ MCP 是协议；HTTP、SSE、stdio 是传输或输出方式；Skill 是指令与
 | 连接与使用 | CapabilityDefinition、ConnectionDefinition、BindingDefinition                                                 | 分别表示操作契约、连接方式和主体可使用的配置；支持按租户／空间绑定                                            |
 | 可复用配置 | AssistantDefinition、ChatProfile、AiActionDefinition、SkillDefinition、StrategyDefinition、WorkflowDefinition | 定义与使用实例分离；助手可用于多个会话，实际执行记录解析后的版本                                              |
 | 发布       | ReleaseManifest                                                                                               | 固定配置依赖与校验结果，不承诺供应商模型行为永久不变                                                          |
-| 执行       | Invocation、Attempt、Job、Run、RemoteTaskRef                                                                  | Invocation 是单次能力操作，Attempt 是一次尝试；Job 是可恢复工作项，Run 是多步任务；远端任务另有身份与生命周期 |
+| 执行       | Invocation、Attempt、Job、Run、RemoteTaskRef                                                                  | Invocation 是一次逻辑能力操作，Attempt 是一次实际尝试；主动重新生成与自动重试使用不同身份规则；Job 是可恢复工作项，Run 是多步任务；远端任务另有身份与生命周期 |
 | 修改       | ChangeSet、ApplicationRecord                                                                                  | 提案与应用分离；具体补丁由目标领域定义，应用记录关联业务新版本                                                |
 
 每类状态只设一个权威来源：业务数据库管理文章、配置、授权、应用记录和单次调用记录；对象存储管理产物字节；检索索引和任务查询视图是可重建投影。引入持久化编排引擎时，Run
@@ -373,7 +373,7 @@ MCP 是协议；HTTP、SSE、stdio 是传输或输出方式；Skill 是指令与
 
 - 独立聊天、文章侧边栏和未来业务侧边栏共用 Conversation／Turn 及输出契约，通过 `ChatProfile` 设定默认资料、动作和允许能力；独立聊天按
   P1 开放。
-- 同一会话的普通轮次按会话版本串行推进，冲突请求明确等待或拒绝；重新生成创建新 Attempt，不默认重放此前的写操作。
+- 同一会话的普通轮次按会话版本串行推进，冲突请求明确等待或拒绝。相同幂等请求返回原 Invocation；系统自动重试在原 Invocation 下增加 Attempt；用户主动重新生成创建新 Invocation 并关联原 Turn 与调用，编辑重发创建新 Turn 并保留原轮次／分支。已成功的调用不重新进入执行态，不默认重放此前的写操作。
 - `AiActionDefinition` 定义总结、翻译、改写、续写等动作的输入范围、输出类型和应用方式；一次动作无需先创建会话。
 - 从动作继续追问时，显式关联该次动作、选入资料、结果与采纳状态；不将所有放弃结果和其他动作历史自动加入上下文。
 - 三种应用方式分别落到展示结果、形成插入提案、形成替换提案。生成成功、提案产生、用户采纳和文章保存是分别可查询的状态。
@@ -523,7 +523,7 @@ P0 保证已保存文章和已持久化结果可恢复查询，不保证任意�
   事件循环。异步方法返回值不代表底层已经非阻塞。[Spring WebFlux 的并发与背压模型](https://docs.spring.io/spring-framework/reference/web/webflux/new-framework.html)
 - 浏览器使用 SSE 接收生成与状态事件，普通 HTTP 完成命令、查询和取消；实时协作在 P2 使用
   WebSocket。事件创建与订阅分离，用户刷新或换实例后仍能按游标订阅。
-- 每个执行流具有 `executionId + attemptId + sequence`、事件类型、时间和负载；序号在同一流中单调递增，不承诺所有任务全局有序。前端去重并识别间隙，终态不与未完成片段混淆。
+- 每个执行流具有 `executionId + attemptId + sequence`、事件类型、时间和负载；sequence 在同一 executionId 内跨 Attempt 单调递增，游标为 executionId + afterSequence 的排他位置，不承诺所有任务全局有序。前端去重并识别间隙，终态不与未完成片段混淆。
 - 输出按时间／字节阈值批量持久化，持久化后发布可重放批次；终态与最终结果引用在状态权威库同一次提交。事件存储独立部署时通过
   Outbox 同步终态，订阅端可查询最终状态补齐，不能假定两个库原子写入。避免逐 Token 写业务数据库。保存前的缓冲片段在进程故障时允许丢失，不能对客户端声明已耐久。
 - 浏览器断线默认只结束观看，不默认取消已受理任务；用户“停止”通过显式取消命令传播到执行器及适配器。任务有独立期限，不因没有订阅者无限运行。
@@ -678,10 +678,10 @@ AgentRuntime。组合模块依赖双方的公开端口，提供适配实现。�
 
 | 契约 | 最小内容 | 约束 |
 |---|---|---|
-| ExecutionContext | 经验证的主体／租户／空间、traceId、父执行、deadline、取消信号、授权范围、预算引用、发布引用、适用幂等键 | 服务端构建；预算与发布使用通用引用，不引入 AI 专有实体 |
+| ExecutionContext | 执行身份、经验证的主体／租户／空间、traceId、父执行、deadline、授权范围、预算引用、发布引用、适用幂等键 | 服务端构建、可持久化；进程内取消信号单独放在运行上下文；预算与发布使用通用引用，不引入 AI 专有实体 |
 | ResourceRef／SourceRef | 资源类型、ID、版本标识、草稿标识、范围引用与内容摘要 | 范围结构由资源领域解释；查看及重用时重新授权 |
-| AcceptedExecution | executionId、执行种类、初始状态、状态与事件查询地址 | 表示可靠受理，不表示生成、业务保存或应用完成 |
-| ExecutionEvent | 执行／尝试标识、单调序号、事件类型、时间、负载或引用 | 事件类型与负载由所属模块扩展，重放不重新执行业务 |
+| AcceptedExecution | executionId、执行种类、受理时间；HTTP 层生成状态与事件查询地址 | 只在受理记录与可恢复派发依据提交后返回，不表示生成、业务保存或应用完成 |
+| ExecutionEvent | 执行／尝试标识、执行内跨 Attempt 单调序号、事件类型、时间、负载类型与 Schema 版本 | 平台事件在保存后发布；供应商增量与耐久事件分开；事件类型与负载由所属模块扩展，重放不重新执行业务 |
 | ExecutionError | 稳定错误码、失败阶段、可重试性、副作用情况、结果确定性、关联 ID | 不泄露凭据／全文；具体错误扩展由各模块定义 |
 | ChangeSet | 目标领域、资源、基准版本／草稿摘要、领域补丁、来源、应用约束 | 共用变更信封；具体补丁 Schema 与应用规则由领域提供，不能携带任意数据库语句 |
 | ApplyRequest／ChangeApplicationResult | applicationKey、expectedVersion、补丁／采纳引用、新版本或冲突信息 | 应用标识与生成标识分别管理，应用去重与保存由目标领域事务保证 |
@@ -768,6 +768,17 @@ BT --> D
 | ToolInvocation／ToolResult | 工具、Schema 约束的输入、结构化结果、来源或产物 | 参数验证、授权与副作用检查后执行 |
 | 远程应用请求／RemoteApplicationResult | 应用输入、远端会话／任务、结果及控制能力 | 保留远端生命周期，不伪装为普通模型响应 |
 
+#### 2.2.1 最小 AI 数据契约与身份规则
+
+首批可实现的数据契约、字段与校验见 [最小 AI 数据契约 v1](backend/arte-ai/DATA_CONTRACTS.md)。源码位于 `com.arte.ainew`，复用现有不可变执行身份与授权数据；公共引用和执行信封暂留 `ainew.common`，未来整体迁移到公共契约模块，不修改旧 `ai` 或文章实现。
+
+- Conversation 组织交流，Turn 固定一次用户输入与回答候选，Invocation 保存一次逻辑调用，Attempt 保存实际尝试与执行归属；会话不复制执行终态作为第二权威。
+- 主动重新生成建立新 Invocation 并关联原调用／Turn；自动重试只增加原 Invocation 的 Attempt。编辑重发建立新 Turn，原输入与历史分支保持可追溯。相同作用域幂等键、相同规范化请求摘要返回原受理，不以新分配 ID 覆盖原身份。
+- ContextRequest 描述选择要求，ContextSnapshot 固定实际输入、来源、容量与裁剪事实；规范化消息已包含资料片段，来源映射不能重复拼接。资源引用与快照均不授予当前读取／外发权限。
+- GenerationEvent 表达供应商适配后的增量；ExecutionEvent 包装已持久化的有界批次、状态与终态。游标只恢复观看，不恢复模型调用；ModelResult 是结果快照，模型工具请求不等于已经执行业务。
+- 缺失用量保持未知，估算与供应商报告分别表达；未知费用保留待对账，超时或取消不自动释放预留。状态 UNKNOWN 禁止重新排队／执行，仅允许经有证据的远端核对收敛为确定终态。
+- 字段不可变及结构校验先落实；Schema、引用归属、摘要计算、当前授权、版本／fencing 条件更新、原子提交与账本防重由下一阶段应用和存储边界落实，不能由构造对象冒充已提交。
+
 #### 2.3 场景入口、会话与上下文接口
 
 | 接口族              | 主要操作                                       | 边界                                             |
@@ -799,7 +810,7 @@ BT --> D
 | EmbeddingGateway      | embed、向量与版本结果                       | 向量专有契约，与聊天输出分开                       |
 | MediaGateway          | 生成、查询任务、获取产物、请求取消          | 同步／异步分别返回，共享供应商连接适配             |
 | ToolGateway           | invoke、返回 ToolResult                     | 重新检查绑定、参数、资源权限及副作用               |
-| ApplicationGateway    | 调用远程应用／Agent，继续远端会话，查询任务 | 保留远端身份、生命周期与结果，隔离不同主体的会话   |
+| RemoteApplicationGateway | 调用远程应用／Agent，继续远端会话，查询任务 | 保留远端身份、生命周期与结果，隔离不同主体的会话   |
 
 五类 Gateway 并列，共享管道与连接适配。模型提出工具调用，由运行时经 InvocationCoordinator 和 ToolGateway 执行；供应商托管工具按远端委托能力管理，不能宣称本地可以逐步拦截。
 

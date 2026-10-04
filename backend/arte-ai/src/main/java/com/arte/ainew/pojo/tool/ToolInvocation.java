@@ -1,16 +1,30 @@
 package com.arte.ainew.pojo.tool;
 
+import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.common.value.StructuredValue;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.execution.CapabilityInput;
+
+import java.util.Objects;
+
 /**
- * 受控工具调用输入。
- *
- * <p>描述工具身份与操作、符合该工具 Schema 的输入参数，以及适用的调用关联和执行约束。
- * 模型提出调用或构造此输入不表示工具已经执行，也不授予工具或资源访问权限。
- *
- * <p>执行前由工具网关重新检查绑定、参数、资源权限及副作用，
- * 通用准入与预算经过统一执行链路；结构化输出、来源、产物及操作结果确定性由 ToolResult 表达。
+ * 受控工具输入，callId 关联模型提议，不充当平台幂等键。实际副作用等级从受信工具定义解析。
+ * 网关检查绑定、Schema、资源权限及副作用；通用准入／预算进入协调链路，不直接修改领域数据库。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 17:20 ✾
- **/
-public class ToolInvocation {
+ */
+public record ToolInvocation(String callId, DefinitionRef tool,
+                             StructuredValue.ObjectValue arguments) implements CapabilityInput {
+    public ToolInvocation {
+        ContractChecks.id(callId, "callId");
+        Objects.requireNonNull(tool, "tool").requireType("tool");
+        Objects.requireNonNull(arguments, "arguments");
+    }
+
+    @Override
+    public CapabilityDescriptor.Kind kind() {
+        return CapabilityDescriptor.Kind.TOOL;
+    }
 }
