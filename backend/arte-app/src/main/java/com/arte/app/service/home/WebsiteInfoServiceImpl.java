@@ -5,8 +5,6 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.app.api.home.WebsiteInfoService;
 import com.arte.app.common.constant.WebsiteNewsParamHandler;
 import com.arte.app.common.enums.WebsiteResolveTypeEnum;
@@ -20,6 +18,8 @@ import com.arte.core.enums.StatusEnum;
 import com.arte.core.exception.BusinessException;
 import com.arte.core.utils.LogUtil;
 import com.arte.core.utils.crypto.Sm3Util;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +56,9 @@ public class WebsiteInfoServiceImpl extends ServiceImpl<WebsiteInfoMapper, Websi
 
     @Value("${http.proxy.port}")
     private int proxyPort;
+
+    @Value("${arte.homepage.website.loadWhenStart:false}")
+    private boolean loadWhenStart;
 
     @Resource
     private RedissonClient redissonClient;
@@ -198,7 +201,9 @@ public class WebsiteInfoServiceImpl extends ServiceImpl<WebsiteInfoMapper, Websi
         parserMap.put(WebsiteResolveTypeEnum.JSON, applicationContext.getBean(NewsListJsonParser.class));
         parserMap.put(WebsiteResolveTypeEnum.STRING, applicationContext.getBean(NewsListStringParser.class));
         parserMap.put(WebsiteResolveTypeEnum.ESCAPE_STR, applicationContext.getBean(NewsListEscapeStrParser.class));
-        load();
+        if (loadWhenStart) {
+            load();
+        }
     }
 
     private NewsListParser getParser(WebsiteResolveTypeEnum resolveType) {

@@ -36,6 +36,9 @@ security.sm2.publicKey=your-sm2-public-key-here
 # ======================== 代理配置 ========================
 http.proxy.host=your-proxy-host-here
 http.proxy.port=your-proxy-port-here
+# ======================== 首页资讯网站配置 ========================
+# 是否在启动时加载网站资讯，默认开启
+arte.homepage.website.loadWhenStart=true
 # ======================== 文件上传下载配置 ========================
 spring.servlet.multipart.max-file-size=10MB
 spring.servlet.multipart.max-request-size=10MB
@@ -72,7 +75,7 @@ rich-text.storage.qiniu.image-expire-days=7
 spring.ai.embedding.provider=bge-large
 # 注：在 bge-small 时需要
 spring.ai.embedding.exclude=
-# 注：以下配置在 bge-large 时需要
+# 注：以下配置在 bge-large 时需
 # onnx文件
 spring.ai.embedding.transformer.onnx.model-uri=file://your-onnx-model-path-here
 spring.ai.embedding.transformer.tokenizer.uri=file://your-tokenizer-path-here
