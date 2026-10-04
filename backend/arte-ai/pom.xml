@@ -20,6 +20,15 @@
     </properties>
 
     <dependencies>
+        <!-- 新执行上下文直接依赖 Reactor 与身份契约，不启用新的 Web 栈。 -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.arte</groupId>
             <artifactId>arte-core</artifactId>
@@ -88,6 +97,11 @@
             <scope>compile</scope>
         </dependency>
         <!-- Test 说明：test scope 是不会传递的，依赖模块应自行引入 -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
