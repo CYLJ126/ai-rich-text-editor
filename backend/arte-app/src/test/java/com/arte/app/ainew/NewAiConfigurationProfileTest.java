@@ -82,11 +82,15 @@ class NewAiConfigurationProfileTest {
             if (existingRegistry)
                 context.registerBean(io.micrometer.core.instrument.MeterRegistry.class, () -> suppliedRegistry);
             context.register(Transactions.class, NewSecurityConfiguration.class, NewExecutionSupportConfiguration.class,
-                    NewModelConfiguration.class, NewChatConfiguration.class, NewAiActionConfiguration.class);
+                    NewModelConfiguration.class, NewChatConfiguration.class, NewAiActionConfiguration.class,
+                    com.arte.app.service.richtext.ArticleContextQueryService.class, ArticleResourceContextAdapter.class,
+                    NewResourceContextController.class);
             context.refresh();
             assertNotNull(context.getBean(NewChatBootstrapService.class));
             assertNotNull(context.getBean(NewChatCallService.class));
             assertNotNull(context.getBean(NewAiActionCallService.class));
+            assertNotNull(context.getBean(com.arte.ai.api.context.ResourceContextService.class));
+            assertNotNull(context.getBean(ArticleResourceContextAdapter.class));
             assertNotNull(context.getBean(PinnedHttpConnectionRuntime.class));
             var registry = context.getBean(io.micrometer.core.instrument.MeterRegistry.class);
             if (existingRegistry) assertSame(suppliedRegistry, registry);

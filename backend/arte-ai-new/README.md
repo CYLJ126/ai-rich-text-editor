@@ -6,7 +6,8 @@
 [最小模型调用](MINIMUM_MODEL_CALL.md) 已实现固定能力／连接／绑定解析、类型化模型网关和单次执行协调。 app
 提供兼容聊天协议、受控连接、现有身份与外发同意、原子预算预留、执行与可重放事件存储，并提供独立新 HTTP 路径。 新 AI 生产代码仍只依赖
 base。[最小聊天服务](MINIMUM_CHAT_SERVICE.md) 已基于独立数据模型实现会话管理、文本与历史上下文、提交、重新生成、取消及受理关联恢复。
-[最小独立动作](MINIMUM_ACTION_SERVICE.md) 已实现改写、补充要求、固定输入、幂等提交、查询、取消、重新生成及流式事件；其他网关及编排尚未实现。
+[最小独立动作](MINIMUM_ACTION_SERVICE.md) 已实现改写、补充要求、固定输入、幂等提交、查询、取消、重新生成及流式事件。
+[最小资料上下文](MINIMUM_RESOURCE_CONTEXT.md) 已接入保存文章、草稿、选区及显式参考，提供预览、实际来源与范围、容量反馈和逐项授权；其他网关及编排尚未实现。
 
 依据 [ARTE 顶层需求及设计](../../ARTE顶层需求及设计.md) 的「顶层接口 §2」及「设计 §7」声明新 AI 平台契约。
 
@@ -37,6 +38,7 @@ Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或�
 | [ChatService](src/main/java/com/arte/ai/api/conversation/ChatService.java)                         | `class`     | `api.conversation`   | 聊天场景入口               |
 | [AiActionService](src/main/java/com/arte/ai/api/action/AiActionService.java)                       | `class`     | `api.action`         | 独立 AI 动作入口           |
 | [ContextService](src/main/java/com/arte/ai/api/context/ContextService.java)                        | `class`     | `api.context`        | 上下文组织                 |
+| [ResourceContextService](src/main/java/com/arte/ai/api/context/ResourceContextService.java)        | `class`     | `api.context`        | 显式资料及固定来源装配     |
 | [MemoryService](src/main/java/com/arte/ai/api/memory/MemoryService.java)                           | `class`     | `api.memory`         | 允许保留的记忆管理         |
 | [CapabilityCatalog](src/main/java/com/arte/ai/api/control/CapabilityCatalog.java)                  | `class`     | `api.control`        | 能力契约目录               |
 | [ConnectionManager](src/main/java/com/arte/ai/api/control/ConnectionManager.java)                  | `class`     | `api.control`        | 连接配置管理               |
@@ -77,7 +79,7 @@ Maven 直接依赖仅为 `arte-base`，不依赖旧 `arte-ai`、`arte-core` 或�
 的领域变更处理端口。未注册提供者的能力不暴露为可用；AI 核心以用户消息与历史即可独立运行。
 
 类型声明不表示已实现全部阶段能力。按设计 §2.8
-的职责划分，模型、流式输出、耐久恢复、会话、聊天、纯文本历史上下文及最小改写动作已组合完成。助手、资源上下文、成果采纳、记忆及其他网关逐步补充，Workflow／Agent
+的职责划分，模型、流式输出、耐久恢复、会话、聊天、纯文本历史上下文、最小改写动作及动作资料上下文已组合完成。助手、成果采纳、记忆及其他网关逐步补充，Workflow／Agent
 按需实现。产品 P0／P1／P2 分期仍以需求文档为准。
 
 app 并列依赖新旧 AI 模块，通过显式开关启用新入口，旧 AI 依赖和调用保留。原有 `main/resources/application-ai.yml`

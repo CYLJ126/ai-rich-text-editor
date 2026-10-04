@@ -1,5 +1,6 @@
 package com.arte.app.ainew;
 
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.control.BindingManager;
 import com.arte.ai.api.control.CapabilityCatalog;
 import com.arte.ai.api.control.ConnectionManager;
@@ -104,9 +105,9 @@ public class NewModelConfiguration {
 
     @Bean
     public InvocationCoordinator newModelCoordinator(ConfiguredModelDefinitions definitions, CompatibleChatProviderAdapter provider, ExistingModelAccessPolicy access,
-                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit, ObjectProvider<Telemetry> telemetry, JdbcModelWorkQueue queue) {
+                                                     ExistingEgressPolicy egress, LocalAdmissionController admission, BoundedTaskExecutor tasks, JdbcModelExecutionStore store, BudgetService budgets, AuditSink audit, ObjectProvider<Telemetry> telemetry, JdbcModelWorkQueue queue, ObjectProvider<ResourceContextService> resourceContexts) {
         return new InvocationCoordinator(new ModelBindingResolver(new CapabilityCatalog(definitions), new ConnectionManager(definitions), new BindingManager(definitions)),
-                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC(), telemetry.getIfAvailable(Telemetry::disabled), queue);
+                new DefaultModelGateway(List.of(provider)), access, egress, admission, tasks, store, store, budgets, audit, Clock.systemUTC(), telemetry.getIfAvailable(Telemetry::disabled), queue, resourceContexts.getIfAvailable());
     }
 
     @Bean

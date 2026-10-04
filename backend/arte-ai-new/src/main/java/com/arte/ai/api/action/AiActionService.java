@@ -1,10 +1,14 @@
 package com.arte.ai.api.action;
 
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.execution.InvocationCoordinator;
 import com.arte.ai.context.ConservativeTokenEstimator;
+import com.arte.ai.context.ResourceContextValues;
 import com.arte.ai.conversation.ChatValues;
 import com.arte.ai.model.action.AiActionExecution;
 import com.arte.ai.model.action.AiActionResult;
+import com.arte.ai.model.context.ResourceContextSelection;
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.definition.DefinitionRef;
 import com.arte.ai.model.execution.*;
 import com.arte.ai.model.generation.GenerationRequest;
@@ -20,6 +24,7 @@ import com.arte.base.model.execution.CancellationStatus;
 import com.arte.base.model.execution.ExecutionContext;
 import com.arte.base.model.execution.ExecutionEvent;
 import com.arte.base.model.execution.IdempotencyKey;
+import com.arte.base.model.resource.ResourceRef;
 import com.arte.base.validation.ContractChecks;
 
 import java.io.ByteArrayOutputStream;
@@ -45,10 +50,18 @@ public final class AiActionService {
     private final int bytes, outputTokens, window, safety;
     private final ExecutionOptions executionOptions;
     private final TokenEstimator estimator;
+    private final ResourceContextService resourceContexts;
 
     public AiActionService(AiActionStore store, InvocationCoordinator coordinator, DefinitionRef capability,
                            DefinitionRef binding, Clock clock, int bytes, int outputTokens, int window, int safety,
                            boolean streaming) {
+        this(store, coordinator, capability, binding, clock, bytes, outputTokens, window, safety, streaming, null);
+    }
+
+    public AiActionService(AiActionStore store, InvocationCoordinator coordinator, DefinitionRef capability,
+                           DefinitionRef binding, Clock clock, int bytes, int outputTokens, int window, int safety,
+                           boolean streaming, ResourceContextService resourceContexts) {
+        this.resourceContexts = resourceContexts;
         this.store = Objects.requireNonNull(store);
         this.coordinator = Objects.requireNonNull(coordinator);
         this.capability = Objects.requireNonNull(capability);
@@ -76,7 +89,49 @@ public final class AiActionService {
         var input = List.of(message(MessageRole.SYSTEM, INSTRUCTION),
                 message(MessageRole.USER, "改写要求：\n" + (requirements == null ? "" : requirements)),
                 message(MessageRole.USER, "原文：\n" + text));
-        return submit(viewer, REWRITE, capability, binding, input, normalize(options), executionOptions, null, key, consent);
+        return submit(viewer, REWRITE, capability, binding, input, normalize(options), executionOptions, null, key, consent, null);
+    }
+
+    public ResourceContextSnapshot preview(ExecutionContext viewer, String actionId, String text, String requirements,
+                                            ResourceContextSelection target, List<ResourceContextSelection> references, ModelOptions options) {
+        if (!REWRITE.definitionId().equals(actionId)) throw ChatValues.failure(CommonErrorCode.UNSUPPORTED, "action-definition");
+        if (requirements != null && requirements.length() > bytes) throw new IllegalArgumentException("requirements exceed limit");
+        var normalized = normalize(options);
+        return contexts().prepare(viewer, binding, List.of(message(MessageRole.SYSTEM, INSTRUCTION),
+                message(MessageRole.USER, "改写要求：\n" + (requirements == null ? "" : requirements))),
+                text, target, references, normalized.maxOutputTokens());
+    }
+
+    public AiActionResult submit(ExecutionContext viewer, String actionId, String text, String requirements,
+                                 ResourceContextSelection target, List<ResourceContextSelection> references, ModelOptions options,
+                                 String expectedContextDigest, String key, ModelConsentProvider consent) {
+        validateKey(key);
+        // 已登记的请求保留原实际输入，重复请求仍核对预览摘要；不把当前版本替换进旧动作。
+        var duplicate = store.findIdempotent(viewer.scope(), key);
+        if (duplicate.isPresent() && duplicate.get().resourceContext() != null) {
+            var existing = duplicate.get();
+            verify(existing);
+            if (!existing.scope().equals(viewer.scope()) || !existing.resourceContext().contentDigest().equals(expectedContextDigest))
+                throw ChatValues.failure(CommonErrorCode.IDEMPOTENCY_CONFLICT, "action-context");
+            // 核对请求参数仍指向同一原文及参考，随后用受保护的固定输入恢复。
+            if (!REWRITE.definitionId().equals(actionId) || existing.regeneratesActionId() != null
+                    || !existing.modelOptions().equals(normalize(options))
+                    || !existing.resourceContext().selectionDigest().equals(ResourceContextValues.selectionDigest(viewer.scope(), binding,
+                    List.of(message(MessageRole.SYSTEM, INSTRUCTION), message(MessageRole.USER, "改写要求：\n" + (requirements == null ? "" : requirements))),
+                    text, target, references, normalize(options).maxOutputTokens())))
+                throw ChatValues.failure(CommonErrorCode.IDEMPOTENCY_CONFLICT, "action-context");
+            return submit(viewer, existing.actionRef(), existing.capabilityRef(), existing.bindingRef(), existing.input(), existing.modelOptions(),
+                    existing.executionOptions(), existing.regeneratesActionId(), key, consent, existing.resourceContext());
+        }
+        var snapshot = preview(viewer, actionId, text, requirements, target, references, options);
+        if (!snapshot.contentDigest().equals(expectedContextDigest)) throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "action-context-preview");
+        return submit(viewer, REWRITE, capability, binding, snapshot.messages(), normalize(options), executionOptions, null, key, consent, snapshot);
+    }
+
+    /** 组合入口为当前查询注册固定资源范围；仅返回引用，正文需经 find／events 重新授权。 */
+    public List<ResourceRef> resourceRefs(ExecutionContext viewer, String id) {
+        var action = required(viewer, id);
+        return action.resourceContext() == null ? List.of() : action.resourceContext().fragments().stream().map(f -> f.source().resource()).toList();
     }
 
     public AiActionResult regenerate(ExecutionContext viewer, String originalId, ModelOptions options,
@@ -91,25 +146,29 @@ public final class AiActionService {
                     || previous.status() == ExecutionStatus.OUTCOME_UNKNOWN)
                 throw ChatValues.failure(CommonErrorCode.BUSY, "action-regenerate");
         }
+        var snapshot = original.resourceContext() == null ? null : contexts().renew(viewer, original.resourceContext(), normalized.maxOutputTokens());
         return submit(viewer, original.actionRef(), original.capabilityRef(), original.bindingRef(), original.input(),
-                normalized, original.executionOptions(), originalId, key, consent);
+                normalized, original.executionOptions(), originalId, key, consent, snapshot);
     }
 
     private AiActionResult submit(ExecutionContext viewer, DefinitionRef action, DefinitionRef capability, DefinitionRef binding,
                                   List<Message> input, ModelOptions options, ExecutionOptions executionOptions,
-                                  String original, String key, ModelConsentProvider consent) {
+                                  String original, String key, ModelConsentProvider consent, ResourceContextSnapshot resourceContext) {
         validateKey(key);
         Objects.requireNonNull(consent, "consent");
         validateCapacity(input, options);
-        var digest = digest(action, capability, binding, input, options, executionOptions, original);
+        var digest = digest(action, capability, binding, input, options, executionOptions, original, resourceContext);
         var draft = new AiActionExecution(UUID.randomUUID().toString(), viewer.scope(), action, capability, binding,
-                input, options, executionOptions, original, new IdempotencyKey(key, "ai.action.submit", digest), ChatValues.now(clock));
+                input, options, executionOptions, original, new IdempotencyKey(key, "ai.action.submit", digest), ChatValues.now(clock), resourceContext);
         var duplicate = store.findIdempotent(viewer.scope(), key);
         if (duplicate.isPresent()) {
             if (!duplicate.get().scope().equals(viewer.scope()))
                 throw ChatValues.failure(CommonErrorCode.NOT_FOUND, "action-query");
             verify(duplicate.get());
             requireDigest(duplicate.get(), digest);
+            if (duplicate.get().resourceContext() != null) contexts().recheck(viewer, duplicate.get().resourceContext(), false);
+            var accepted = execution(viewer, duplicate.get());
+            if (accepted.isPresent()) return new AiActionResult(duplicate.get(), accepted.get());
         }
         var request = request(viewer, duplicate.orElse(draft));
         // 当前模型授权和正文校验在登记前完成，外发同意不在动作事务内获取。
@@ -120,6 +179,9 @@ public final class AiActionService {
         verify(claimed);
         var existing = execution(viewer, claimed);
         if (existing.isPresent()) return new AiActionResult(claimed, existing.get());
+        // 同键竞争中的快照 ID／时间可能不同；只提交数据库已登记的实际快照。
+        request = request(viewer, claimed);
+        prepared = coordinator.prepare(request);
         var consentRef = consent.confirm(coordinator.egressRequest(request, prepared, null));
         coordinator.submitModel(request, consentRef, modelKey(claimed));
         return find(viewer, claimed.actionExecutionId());
@@ -127,6 +189,7 @@ public final class AiActionService {
 
     public AiActionResult find(ExecutionContext viewer, String id) {
         var action = required(viewer, id);
+        if (action.resourceContext() != null) contexts().recheck(viewer, action.resourceContext(), false);
         var execution = execution(viewer, action);
         if (execution.isEmpty()) coordinator.prepare(request(viewer, action));
         return new AiActionResult(action, execution.orElse(null));
@@ -135,14 +198,14 @@ public final class AiActionService {
     public List<ExecutionEvent<ModelEvent>> events(ExecutionContext viewer, String id, long after, int limit) {
         if (after < -1 || limit < 1 || limit > 100) throw new IllegalArgumentException("invalid action event page");
         var action = required(viewer, id);
+        if (action.resourceContext() != null) contexts().recheck(viewer, action.resourceContext(), false);
         var execution = execution(viewer, action).orElseThrow(() -> ChatValues.failure(CommonErrorCode.BUSY, "action-events"));
         return coordinator.events(viewer, execution.executionId(), after, limit);
     }
 
     public CancellationStatus cancel(ExecutionContext viewer, String id) {
         var action = required(viewer, id);
-        var execution = execution(viewer, action).orElseThrow(() -> ChatValues.failure(CommonErrorCode.BUSY, "action-cancel"));
-        return coordinator.cancel(viewer, execution.executionId());
+        return coordinator.cancelIdempotent(viewer, modelKey(action));
     }
 
     private AiActionExecution required(ExecutionContext viewer, String id) {
@@ -154,14 +217,16 @@ public final class AiActionService {
     }
 
     private static void verify(AiActionExecution action) {
+        if (action.resourceContext() != null) ResourceContextValues.verify(action.resourceContext());
         if (!digest(action.actionRef(), action.capabilityRef(), action.bindingRef(), action.input(), action.modelOptions(),
-                action.executionOptions(), action.regeneratesActionId()).equals(action.submissionKey().requestDigest()))
+                action.executionOptions(), action.regeneratesActionId(), action.resourceContext()).equals(action.submissionKey().requestDigest()))
             throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "action-input");
     }
 
     private Optional<ModelExecution> execution(ExecutionContext viewer, AiActionExecution action) {
         return coordinator.findIdempotent(viewer, modelKey(action)).map(execution -> {
-            if (!execution.capabilityRef().equals(action.capabilityRef()) || !execution.bindingRef().equals(action.bindingRef()))
+            if (!execution.capabilityRef().equals(action.capabilityRef()) || !execution.bindingRef().equals(action.bindingRef())
+                    || !Objects.equals(execution.resourceContext(), action.resourceContext()))
                 throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "action-association");
             return execution;
         });
@@ -169,7 +234,7 @@ public final class AiActionService {
 
     private InvocationRequest<GenerationRequest> request(ExecutionContext viewer, AiActionExecution action) {
         return new InvocationRequest<>(action.capabilityRef(), action.bindingRef(),
-                new GenerationRequest(action.input(), action.modelOptions(), List.of(), null), action.executionOptions(), viewer);
+                new GenerationRequest(action.input(), action.modelOptions(), List.of(), null, action.resourceContext()), action.executionOptions(), viewer);
     }
 
     private ModelOptions normalize(ModelOptions options) {
@@ -193,7 +258,7 @@ public final class AiActionService {
     }
 
     private static String digest(DefinitionRef action, DefinitionRef capability, DefinitionRef binding, List<Message> input,
-                                 ModelOptions options, ExecutionOptions executionOptions, String original) {
+                                 ModelOptions options, ExecutionOptions executionOptions, String original, ResourceContextSnapshot resourceContext) {
         try {
             var bytes = new ByteArrayOutputStream();
             var out = new DataOutputStream(bytes);
@@ -206,6 +271,7 @@ public final class AiActionService {
             out.writeUTF(ChatValues.submission("arte.action.input.v1", 1, original, input, options));
             out.writeUTF(executionOptions.timeout().toString());
             out.writeBoolean(executionOptions.streaming());
+            if (resourceContext != null) { out.writeUTF("arte.resource.context.v1"); out.writeUTF(resourceContext.contentDigest()); }
             return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
         } catch (IOException | NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);
@@ -215,6 +281,11 @@ public final class AiActionService {
     private static void requireDigest(AiActionExecution action, String digest) {
         if (!action.submissionKey().requestDigest().equals(digest))
             throw ChatValues.failure(CommonErrorCode.IDEMPOTENCY_CONFLICT, "action-idempotency");
+    }
+
+    private ResourceContextService contexts() {
+        if (resourceContexts == null) throw ChatValues.failure(CommonErrorCode.UNSUPPORTED, "resource-context-provider");
+        return resourceContexts;
     }
 
     public static String modelKey(AiActionExecution action) {

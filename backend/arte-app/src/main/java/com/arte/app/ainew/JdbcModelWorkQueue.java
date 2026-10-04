@@ -138,6 +138,7 @@ public final class JdbcModelWorkQueue implements ModelWorkQueue {
     @Override
     public ExecutionStore.Acceptance accept(ModelSubmission submission, BudgetQuote quote, QueuedModelCall call) {
         if (!tenant.equals(submission.context().scope().tenantId()) || !submission.context().equals(call.request().context())
+                || !java.util.Objects.equals(submission.resourceContext(), call.request().input().resourceContext())
                 || !submission.requestDigest().equals(call.fingerprint()))
             throw failure(CommonErrorCode.INVALID_ARGUMENT, "work-context");
         var payload = ModelWorkJson.encode(call);

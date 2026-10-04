@@ -1,11 +1,14 @@
 package com.arte.app.ainew;
 
 import com.arte.ai.api.action.AiActionService;
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.execution.InvocationCoordinator;
 import com.arte.ai.model.definition.DefinitionRef;
 import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
+import com.arte.app.service.richtext.ArticleContextQueryService;
 import com.arte.app.testsupport.MySqlTestScripts;
+import com.arte.base.api.security.AuthorizationService;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -60,16 +63,21 @@ class NewAiActionConfigurationTest {
             context.registerBean(InvocationCoordinator.class, () -> mock(InvocationCoordinator.class));
             context.registerBean(ExecutionContextFactory.class, () -> mock(ExecutionContextFactory.class));
             context.registerBean(EgressConsentService.class, () -> mock(EgressConsentService.class));
+            context.registerBean(AuthorizationService.class, () -> mock(AuthorizationService.class));
             context.registerBean(JdbcModelExecutionStore.class, () -> new JdbcModelExecutionStore(jdbc, manager, java.time.Clock.systemUTC()));
             var definitions = mock(ConfiguredModelDefinitions.class);
             when(definitions.capabilityRef()).thenReturn(new DefinitionRef("ai-capability", "default-model", "v1"));
             when(definitions.bindingRef()).thenReturn(new DefinitionRef("ai-binding", "default-model", "v1"));
             context.registerBean(ConfiguredModelDefinitions.class, () -> definitions);
-            context.register(NewAiActionConfiguration.class, NewAiActionController.class, NewChatConfiguration.class);
+            context.register(NewAiActionConfiguration.class, NewAiActionController.class, NewChatConfiguration.class,
+                    ArticleContextQueryService.class, ArticleResourceContextAdapter.class, NewResourceContextController.class);
             context.refresh();
             assertNotNull(context.getBean(AiActionService.class));
             assertNotNull(context.getBean(NewAiActionController.class));
             assertNotNull(context.getBean(AiActionEventStreams.class));
+            assertNotNull(context.getBean(ResourceContextService.class));
+            assertNotNull(context.getBean(ArticleResourceContextAdapter.class));
+            assertNotNull(context.getBean(NewResourceContextController.class));
             assertTrue(context.getBeansOfType(NewChatCallService.class).isEmpty());
             assertThrows(RuntimeException.class, () -> jdbc.queryForList("SELECT * FROM arte_ai_new_conversation"));
         }

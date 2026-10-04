@@ -76,7 +76,8 @@ public final class JdbcAiActionStore implements AiActionStore {
 
     private static String encode(AiActionExecution action) {
         var o = new JsonObject();
-        o.addProperty("format", "arte.action.input.v1");
+        o.addProperty("format", action.resourceContext() == null ? "arte.action.input.v1" : "arte.action.input.v2");
+        if (action.resourceContext() != null) o.add("resourceContext", JsonParser.parseString(ResourceContextJson.encode(action.resourceContext())));
         o.add("action", ref(action.actionRef()));
         o.add("capability", ref(action.capabilityRef()));
         o.add("binding", ref(action.bindingRef()));
@@ -90,14 +91,14 @@ public final class JdbcAiActionStore implements AiActionStore {
 
     private AiActionExecution decode(ResultSet row, int index) throws SQLException {
         var o = JsonParser.parseString(row.getString("payload_json")).getAsJsonObject();
-        if (!"arte.action.input.v1".equals(ModelJson.value(o, "format")))
+        if (!java.util.Set.of("arte.action.input.v1", "arte.action.input.v2").contains(ModelJson.value(o, "format")))
             throw new IllegalArgumentException("unsupported action input format");
         var scope = new ExecutionScope(row.getString("tenant_id"), row.getString("workspace_id"),
                 new PrincipalRef(row.getString("principal_id"), PrincipalType.valueOf(row.getString("principal_type"))));
         return new AiActionExecution(row.getString("action_id"), scope, ref(o.getAsJsonObject("action")),
                 ref(o.getAsJsonObject("capability")), ref(o.getAsJsonObject("binding")), ChatJson.messages(o.get("messages").toString()),
                 ChatJson.options(o.get("options").toString()), new ExecutionOptions(Duration.parse(ModelJson.value(o, "timeout")), o.get("streaming").getAsBoolean()),
-                ModelJson.value(o, "original"), new IdempotencyKey(row.getString("submission_key"), "ai.action.submit", row.getString("request_digest")), row.getTimestamp("created_at").toInstant());
+                ModelJson.value(o, "original"), new IdempotencyKey(row.getString("submission_key"), "ai.action.submit", row.getString("request_digest")), row.getTimestamp("created_at").toInstant(), "arte.action.input.v2".equals(ModelJson.value(o, "format")) ? ResourceContextJson.decode(o.get("resourceContext").toString()) : null);
     }
 
     private static JsonObject ref(DefinitionRef ref) {

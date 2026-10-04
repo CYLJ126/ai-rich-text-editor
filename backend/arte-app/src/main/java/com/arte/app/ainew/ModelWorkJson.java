@@ -30,7 +30,8 @@ final class ModelWorkJson {
             throw new IllegalArgumentException("queued model supports text only");
         var context = request.context();
         var o = new JsonObject();
-        o.addProperty("format", "arte.model.work.v1");
+        o.addProperty("format", request.input().resourceContext() == null ? "arte.model.work.v1" : "arte.model.work.v2");
+        if (request.input().resourceContext() != null) o.add("resourceContext", JsonParser.parseString(ResourceContextJson.encode(request.input().resourceContext())));
         o.add("capability", ref(request.capabilityRef()));
         o.add("binding", ref(request.bindingRef()));
         o.add("messages", JsonParser.parseString(ChatJson.messages(request.input().messages())));
@@ -65,7 +66,7 @@ final class ModelWorkJson {
 
     static QueuedModelCall decode(String json) {
         var o = JsonParser.parseString(json).getAsJsonObject();
-        if (!"arte.model.work.v1".equals(value(o, "format")))
+        if (!java.util.Set.of("arte.model.work.v1", "arte.model.work.v2").contains(value(o, "format")))
             throw new IllegalArgumentException("unsupported work format");
         var scopes = new HashSet<String>();
         o.getAsJsonArray("scopes").forEach(v -> scopes.add(v.getAsString()));
@@ -75,7 +76,8 @@ final class ModelWorkJson {
                 value(o, "trace"), value(o, "parent"), value(o, "deadline") == null ? null : Instant.parse(value(o, "deadline")),
                 value(o, "cancellation") == null ? null : new CancellationRef(value(o, "cancellation")), scopes,
                 resource(o.get("budget")), resource(o.get("release")), key == null ? null : new IdempotencyKey(value(key, "key"), value(key, "operation"), value(key, "digest")));
-        var input = new GenerationRequest(ChatJson.messages(o.get("messages").toString()), ChatJson.options(o.get("options").toString()), List.of(), null);
+        var input = new GenerationRequest(ChatJson.messages(o.get("messages").toString()), ChatJson.options(o.get("options").toString()), List.of(), null,
+                "arte.model.work.v2".equals(value(o, "format")) ? ResourceContextJson.decode(o.get("resourceContext").toString()) : null);
         return new QueuedModelCall(new InvocationRequest<>(ref(o.getAsJsonObject("capability")), ref(o.getAsJsonObject("binding")), input,
                 new ExecutionOptions(Duration.parse(value(o, "timeout")), o.get("streaming").getAsBoolean()), context),
                 ChatJson.resources(o.get("resources").toString()).getFirst(), value(o, "fingerprint"), Instant.parse(value(o, "executeBy")));

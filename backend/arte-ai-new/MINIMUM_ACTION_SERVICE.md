@@ -1,7 +1,7 @@
 # 最小独立 AI 动作
 
 第一批实现内置已发布文本动作 `rewrite/v1`：传入原文和补充要求，提交改写、查询、取消、重新生成及读取流式结果。动作无需创建
-Conversation 或 Turn，也不读取旧 AI 表。文章资料适配、选区锚点、修改提案、编辑器采纳和正式文章保存属于后续步骤。
+Conversation 或 Turn，也不读取旧 AI 表。第二步已接入 [文章资料、草稿、选区及参考上下文](MINIMUM_RESOURCE_CONTEXT.md)；修改提案、编辑器采纳和正式文章保存属于后续步骤。
 
 ## 输入与执行
 
@@ -9,7 +9,7 @@ Conversation 或 Turn，也不读取旧 AI 表。文章资料适配、选区锚�
 base。服务端固定动作指令、能力／绑定版本。客户端只能提交文本、补充要求和受限模型选项，提示词角色、连接、凭据与执行身份由服务端控制。首期输入是用户明确传入的文本，不将它标记为经过验证的文章来源。改写指令要求保留原文事实、含义，只输出改写正文；输出质量仍需用户核对。
 
 `AiActionExecution` 是不可变输入快照，包含作用域、动作版本、模型版本、最终消息、模型／执行选项、再生成来源、提交幂等键、摘要及登记时间。首期快照直接存储在动作表，不复用要求存在聊天会话的
-ContextSnapshot 表。下一批资源上下文可在此基础上接入来源及范围。
+ContextSnapshot 表。资料改写还附带独立 ResourceContextSnapshot，保留实际来源、范围、容量和摘要；旧纯文本输入仍支持。
 
 输入同时核对 UTF-8 字节数和 Token 预算，包含系统指令与要求；不静默截断原文。使用与聊天相同的保守 UTF-8 Token
 估算策略，估算不代表供应商实际计费。读取、重放、重新生成及控制前验证固定输入摘要。
@@ -69,6 +69,7 @@ stream-max-clients／stream-timeout；同时启用动作和聊天时两者各受
 
 1. 确认现有新模型、身份、预算及耐久工作队列已经部署，包括模型的流式增量与部分正文表。
 2. 执行 [动作增量 DDL](../arte-app/scripts/arte-ai-new-action-ddl-mysql.sql)。新安装也执行同一脚本；该表不依赖聊天表。
+   已有实例部署第二步版本还须先执行 [资料上下文升级 DDL](../arte-app/scripts/arte-ai-new-resource-context-ddl-mysql.sql)，具体升级顺序见资料上下文说明。
 3. 在 `backend/profile/app.properties` 设置 `arte.ai-new.action.enabled=true`，重新构建并启动。默认
    false；开启后缺少动作表或基础设施会启动失败。
 

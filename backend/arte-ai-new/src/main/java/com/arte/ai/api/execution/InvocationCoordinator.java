@@ -1,7 +1,9 @@
 package com.arte.ai.api.execution;
 
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.gateway.ModelGateway;
 import com.arte.ai.execution.ModelBindingResolver;
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.execution.*;
 import com.arte.ai.model.generation.GenerationRequest;
 import com.arte.ai.model.generation.ModelResult;
@@ -58,6 +60,7 @@ public class InvocationCoordinator {
     private final Clock clock;
     private final Telemetry telemetry;
     private final ModelWorkQueue workQueue;
+    private final ResourceContextService resourceContexts;
     private final ConcurrentMap<String, TaskHandle<?>> live = new ConcurrentHashMap<>();
 
     public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
@@ -76,6 +79,14 @@ public class InvocationCoordinator {
                                  EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
                                  ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock, Telemetry telemetry,
                                  ModelWorkQueue workQueue) {
+        this(modelBindingResolver, gateway, access, egress, admission, taskExecutor, store, events, budgets, audit, clock, telemetry, workQueue, null);
+    }
+
+    public InvocationCoordinator(ModelBindingResolver modelBindingResolver, ModelGateway gateway, ModelAccessPolicy access,
+                                 EgressPolicy egress, AdmissionController admission, TaskExecutor taskExecutor, ExecutionStore store,
+                                 ExecutionEventStore events, BudgetService budgets, AuditSink audit, Clock clock, Telemetry telemetry,
+                                 ModelWorkQueue workQueue, ResourceContextService resourceContexts) {
+        this.resourceContexts = resourceContexts;
         this.workQueue = workQueue;
         this.telemetry = java.util.Objects.requireNonNull(telemetry);
         this.modelBindingResolver = modelBindingResolver;
@@ -101,6 +112,11 @@ public class InvocationCoordinator {
         // 解析模型能力、绑定和连接
         var plan = modelBindingResolver.resolve(request);
         access.requireAllowed(request.context(), plan);
+        if (request.input().resourceContext() != null) {
+            if (!request.bindingRef().equals(request.input().resourceContext().bindingRef()))
+                throw fail(request, CommonErrorCode.VERSION_CONFLICT, "resource-context-binding");
+            checkResources(request.context(), request.input().resourceContext(), true);
+        }
         try {
             return gateway.prepare(plan, request.input(), request.options());
         } catch (IllegalArgumentException invalid) {
@@ -109,11 +125,13 @@ public class InvocationCoordinator {
     }
 
     public EgressRequest egressRequest(InvocationRequest<GenerationRequest> request, PreparedModelCall prepared, ResourceRef consent) {
-        return EgressRequest.of(request.context(), List.of(), prepared.plan().destination(), "model.generate", prepared.contentDigest(), consent);
+        var snapshot = request.input().resourceContext();
+        return EgressRequest.of(request.context(), snapshot == null ? List.of() : snapshot.fragments().stream().map(f -> f.source()).toList(),
+                prepared.plan().destination(), "model.generate", prepared.contentDigest(), consent);
     }
 
     /**
-     * 消息来源为空的最小链路；业务来源后续经 ContextService 解析并逐项授权，不接受伪造来源。
+     * 纯文本或已固定资料的统一受理；实际来源经过资料适配器逐项授权。
      */
     public AcceptedExecution submitModel(InvocationRequest<GenerationRequest> request, ResourceRef consent, String idempotencyKey) {
         ContractChecks.identifier(idempotencyKey, "idempotencyKey");
@@ -121,13 +139,13 @@ public class InvocationCoordinator {
         Instant executionDeadline = clock.instant().plus(request.options().timeout());
         var prepared = prepare(request);
         egress.requireAllowed(egressRequest(request, prepared, consent), clock);
-        String requestDigest = fingerprint(prepared, request.options());
+        String requestDigest = fingerprint(prepared, request.options(), request.input().resourceContext());
         var duplicate = store.findIdempotent(request.context().scope(), idempotencyKey, requestDigest);
         if (duplicate.isPresent()) return receipt(duplicate.get());
         if (workQueue != null) {
             var context = request.context();
             var deadline = context.deadline() != null && context.deadline().isBefore(executionDeadline) ? context.deadline() : executionDeadline;
-            var submission = new ModelSubmission(UUID.randomUUID().toString(), UUID.randomUUID().toString(), prepared.plan(), context, idempotencyKey, requestDigest);
+            var submission = new ModelSubmission(UUID.randomUUID().toString(), UUID.randomUUID().toString(), prepared.plan(), context, idempotencyKey, requestDigest, request.input().resourceContext());
             return receipt(workQueue.accept(submission, budgets.quote(), new QueuedModelCall(request, consent, requestDigest, deadline)).execution());
         }
         AdmissionPermit permit;
@@ -143,7 +161,7 @@ public class InvocationCoordinator {
         try {
             String digest = requestDigest;
             var submission = new ModelSubmission(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
-                    prepared.plan(), request.context(), idempotencyKey, digest);
+                    prepared.plan(), request.context(), idempotencyKey, digest, request.input().resourceContext());
             // 登记执行、预留预算
             var accepted = store.accept(submission, budgets.quote());
             var execution = accepted.execution();
@@ -202,8 +220,10 @@ public class InvocationCoordinator {
     public ModelResult executeQueued(ModelExecution execution, QueuedModelCall call, ExecutionStore fencedStore,
                                      ExecutionCheckpoint checkpoint) throws Exception {
         checkpoint.check();
+        if (!java.util.Objects.equals(execution.resourceContext(), call.request().input().resourceContext()))
+            throw fail(call.request(), CommonErrorCode.VERSION_CONFLICT, "queued-context");
         var prepared = prepare(call.request());
-        if (!call.fingerprint().equals(fingerprint(prepared, call.request().options()))
+        if (!call.fingerprint().equals(fingerprint(prepared, call.request().options(), call.request().input().resourceContext()))
                 || !execution.connectionRef().equals(prepared.plan().connection().ref()))
             throw fail(call.request(), CommonErrorCode.VERSION_CONFLICT, "queued-definition");
         return run(execution, call.request(), prepared, call.consent(), checkpoint, fencedStore);
@@ -250,6 +270,7 @@ public class InvocationCoordinator {
                 }
                 checkpoint.check();
                 access.requireAllowed(context, current.plan());
+                checkResources(context, request.input().resourceContext(), true);
                 store.finish(context.scope(), id, ExecutionStatus.SUCCEEDED, result, null);
                 telemetry.increment("arte.ai.execution.finished", 1, Map.of(Telemetry.Label.OUTCOME, ExecutionStatus.SUCCEEDED.name()));
                 if (result.usage().inputTokens() != null)
@@ -299,6 +320,7 @@ public class InvocationCoordinator {
     public ModelExecution find(ExecutionContext viewer, String executionId) {
         var execution = store.find(viewer.scope(), executionId).orElseThrow(() -> ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query"));
         access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
+        checkResources(viewer, execution.resourceContext(), false);
         return execution;
     }
 
@@ -316,6 +338,7 @@ public class InvocationCoordinator {
                 throw ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "query");
             if (authorized.add(List.of(execution.capabilityRef(), execution.bindingRef())))
                 access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
+            checkResources(viewer, execution.resourceContext(), false);
             result.put(execution.executionId(), execution);
         }
         if (!result.keySet().containsAll(ids))
@@ -339,7 +362,9 @@ public class InvocationCoordinator {
     }
 
     public CancellationStatus cancel(ExecutionContext viewer, String executionId) {
-        var execution = find(viewer, executionId);
+        // 控制只返回取消状态；即使资料读取许可已撤销，仍允许主体停止自己的模型执行。
+        var execution = store.find(viewer.scope(), executionId).orElseThrow(() -> ExecutionFailures.beforeStart(CommonErrorCode.NOT_FOUND, viewer, "cancel"));
+        access.requireAllowed(viewer, modelBindingResolver.resolve(viewer, execution.capabilityRef(), execution.bindingRef()));
         if (workQueue != null) return workQueue.requestCancellation(viewer.scope(), executionId);
         var task = live.get(executionId);
         if (task != null) return task.requestCancellation();
@@ -347,11 +372,27 @@ public class InvocationCoordinator {
                 ? CancellationStatus.UNCONFIRMED : CancellationStatus.ALREADY_COMPLETED;
     }
 
+    public CancellationStatus cancelIdempotent(ExecutionContext viewer, String key) {
+        var execution = store.findIdempotent(viewer.scope(), key).orElseThrow(() -> ExecutionFailures.beforeStart(CommonErrorCode.BUSY, viewer, "cancel"));
+        return cancel(viewer, execution.executionId());
+    }
+
     private static BaseException fail(InvocationRequest<?> request, CommonErrorCode code, String stage) {
         return ExecutionFailures.beforeStart(code, request.context(), stage);
     }
 
+    private void checkResources(ExecutionContext viewer, ResourceContextSnapshot snapshot, boolean external) {
+        if (snapshot == null) return;
+        if (resourceContexts == null)
+            throw ExecutionFailures.beforeStart(CommonErrorCode.UNSUPPORTED, viewer, "resource-context-provider");
+        resourceContexts.recheck(viewer, snapshot, external);
+    }
+
     public static String fingerprint(PreparedModelCall prepared, ExecutionOptions options) {
+        return fingerprint(prepared, options, null);
+    }
+
+    public static String fingerprint(PreparedModelCall prepared, ExecutionOptions options, ResourceContextSnapshot resourceContext) {
         try {
             var bytes = new java.io.ByteArrayOutputStream();
             var out = new java.io.DataOutputStream(bytes);
@@ -364,6 +405,10 @@ public class InvocationCoordinator {
             out.writeUTF(prepared.contentDigest());
             out.writeUTF(options.timeout().toString());
             out.writeBoolean(options.streaming());
+            if (resourceContext != null) {
+                out.writeUTF("arte.resource.context.v1");
+                out.writeUTF(resourceContext.contentDigest());
+            }
             return "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
         } catch (java.security.NoSuchAlgorithmException | java.io.IOException impossible) {
             throw new IllegalStateException(impossible);

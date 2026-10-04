@@ -35,6 +35,7 @@ create table if not exists arte_ai_new_execution
     reserved_amount    decimal(24, 8) not null comment '本次执行的费用预留金额',
     currency           varchar(16)    not null comment '费用币种',
     budget_status      varchar(32)    not null comment '预算状态：RESERVED、SETTLED、PENDING_RECONCILIATION 或 RELEASED',
+    resource_context_json mediumtext  null     comment '固定资料上下文 JSON，含实际来源、范围、预算与摘要；纯文本旧调用为空，读取及外发须重新授权',
     result_json        mediumtext     null     comment '类型化模型结果 JSON，尚无结果时为空',
     error_json         text           null     comment '稳定执行错误信封 JSON，无错误时为空',
     primary key (execution_id),

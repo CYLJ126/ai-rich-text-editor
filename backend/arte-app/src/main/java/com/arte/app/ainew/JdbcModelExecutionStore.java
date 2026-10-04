@@ -63,6 +63,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
         this.jdbc = ContractChecks.required(jdbc, "jdbc");
         jdbc.queryForList("SELECT partial_text,last_sequence FROM arte_ai_new_stream_output WHERE 1=0");
         jdbc.queryForList("SELECT text_delta FROM arte_ai_new_stream_delta WHERE 1=0");
+        jdbc.queryForList("SELECT resource_context_json FROM arte_ai_new_execution WHERE 1=0");
         this.clock = ContractChecks.required(clock, "clock");
         writes = new TransactionTemplate(ContractChecks.required(manager, "transactionManager"));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -113,9 +114,9 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
             var plan = submission.plan();
             var now = Timestamp.from(clock.instant());
             jdbc.update("UPDATE arte_ai_new_budget SET reserved_amount = reserved_amount + ?, revision = revision + 1 WHERE scope_key = ?", quote.maximumAmount(), scopeKey);
-            jdbc.update("INSERT INTO arte_ai_new_execution (execution_id, attempt_id, scope_key, identity_key, request_digest, capability_id, capability_version, binding_id, binding_version, connection_id, connection_version, status, revision, dispatched, accepted_at, reserved_amount, currency, budget_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', 1, FALSE, ?, ?, ?, 'RESERVED')",
+            jdbc.update("INSERT INTO arte_ai_new_execution (execution_id, attempt_id, scope_key, identity_key, request_digest, capability_id, capability_version, binding_id, binding_version, connection_id, connection_version, status, revision, dispatched, accepted_at, reserved_amount, currency, budget_status, resource_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', 1, FALSE, ?, ?, ?, 'RESERVED', ?)",
                     submission.executionId(), submission.attemptId(), scopeKey, identity, submission.requestDigest(), plan.capability().descriptor().ref().definitionId(), plan.capability().descriptor().ref().version(),
-                    plan.binding().ref().definitionId(), plan.binding().ref().version(), plan.connection().ref().definitionId(), plan.connection().ref().version(), now, quote.maximumAmount(), quote.currency());
+                    plan.binding().ref().definitionId(), plan.binding().ref().version(), plan.connection().ref().definitionId(), plan.connection().ref().version(), now, quote.maximumAmount(), quote.currency(), ResourceContextJson.encode(submission.resourceContext()));
             event(submission.executionId(), submission.attemptId(), 0, ExecutionStatus.ACCEPTED, null, null);
             var execution = find(scope, submission.executionId()).orElseThrow();
             enqueue.accept(execution);
@@ -316,7 +317,7 @@ public final class JdbcModelExecutionStore implements ExecutionStore, ExecutionE
     private ModelExecution map(ResultSet rs, ExecutionScope scope) throws SQLException {
         return new ModelExecution(rs.getString("execution_id"), rs.getString("attempt_id"), scope, new DefinitionRef("ai-capability", rs.getString("capability_id"), rs.getString("capability_version")),
                 new DefinitionRef("ai-binding", rs.getString("binding_id"), rs.getString("binding_version")), new DefinitionRef("ai-connection", rs.getString("connection_id"), rs.getString("connection_version")),
-                ExecutionStatus.valueOf(rs.getString("status")), rs.getLong("revision"), rs.getBoolean("dispatched"), rs.getTimestamp("accepted_at").toInstant(), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json")), rs.getString("partial_text"), rs.getLong("partial_sequence"));
+                ExecutionStatus.valueOf(rs.getString("status")), rs.getLong("revision"), rs.getBoolean("dispatched"), rs.getTimestamp("accepted_at").toInstant(), ModelJson.result(rs.getString("result_json")), ModelJson.error(rs.getString("error_json")), rs.getString("partial_text"), rs.getLong("partial_sequence"), ResourceContextJson.decode(rs.getString("resource_context_json")));
     }
 
     private record BudgetAccount(BigDecimal limit, BigDecimal reserved, BigDecimal spent, String currency,

@@ -1,5 +1,7 @@
 package com.arte.app.ainew;
 
+import com.arte.ai.context.ContextCapacityException;
+import com.arte.ai.model.context.ResourceContextSelection;
 import com.arte.ai.model.generation.ModelOptions;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.execution.ExecutionError;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -19,7 +22,11 @@ import java.util.Map;
 @PreAuthorize("isAuthenticated()")
 public class NewAiActionController {
     public record Submission(String tenantId, String workspaceId, String text, String requirements,
-                             ModelOptions options, boolean externalTransferConfirmed) {
+                             ModelOptions options, boolean externalTransferConfirmed, ResourceContextSelection target,
+                             List<ResourceContextSelection> references, String expectedContextDigest) {
+        public Submission(String tenant, String workspace, String text, String requirements, ModelOptions options, boolean confirmed) {
+            this(tenant, workspace, text, requirements, options, confirmed, null, null, null);
+        }
     }
 
     public record Regeneration(String tenantId, String workspaceId, ModelOptions options,
@@ -37,8 +44,22 @@ public class NewAiActionController {
     @PostMapping("/{actionId}/executions")
     public Object submit(HttpServletRequest http, @PathVariable String actionId, @RequestHeader("Idempotency-Key") String key,
                          @RequestBody Submission input) {
-        var result = service.submit(http, input.tenantId(), input.workspaceId(), actionId, input.text(), input.requirements(), input.options(), key, input.externalTransferConfirmed());
+        var result = input.target() != null || input.references() != null && !input.references().isEmpty() || input.expectedContextDigest() != null
+                ? service.submit(http, input.tenantId(), input.workspaceId(), actionId, input.text(), input.requirements(), input.target(), input.references(),
+                input.options(), input.expectedContextDigest(), key, input.externalTransferConfirmed())
+                : service.submit(http, input.tenantId(), input.workspaceId(), actionId, input.text(), input.requirements(), input.options(), key, input.externalTransferConfirmed());
         return ResponseEntity.accepted().location(URI.create("/api/ai-new/actions/executions/" + result.action().actionExecutionId())).body(result);
+    }
+
+    @PostMapping("/{actionId}/context")
+    public Object preview(HttpServletRequest http, @PathVariable String actionId, @RequestBody Submission input) {
+        return service.preview(http, input.tenantId(), input.workspaceId(), actionId, input.text(), input.requirements(),
+                input.target(), input.references(), input.options());
+    }
+
+    @ExceptionHandler(ContextCapacityException.class)
+    public ResponseEntity<?> capacity(ContextCapacityException failure) {
+        return ResponseEntity.badRequest().body(Map.of("error", failure.error(), "capacity", failure.capacity()));
     }
 
     @GetMapping("/executions/{id}")

@@ -9,7 +9,7 @@ create table if not exists arte_ai_new_action
     principal_id    varchar(128) not null comment '提交主体 ID，由登录身份确定，不接受请求体指定',
     submission_key  varchar(128) not null comment '客户端提交幂等键，同一主体范围内唯一；重新生成使用新键',
     request_digest  char(71)     not null comment '动作定义、固定输入、模型版本、选项及再生成来源的 SHA-256 摘要，含 sha256: 前缀',
-    payload_json    mediumtext   not null comment 'arte.action.input.v1 格式的不可变输入 JSON，含指令、原文、要求、固定定义版本及可空再生成来源；不存储凭据',
+    payload_json    mediumtext   not null comment '不可变动作输入 JSON，v1 为纯文本，v2 含固定资料快照；含指令、要求、定义版本及可空再生成来源，不存储凭据',
     created_at      timestamp(6) not null default current_timestamp(6) comment '动作输入登记时间，微秒精度；不代表模型已受理或生成成功',
     primary key (action_id),
     constraint uq_ai_new_action_submission unique (scope_key, submission_key),

@@ -1,9 +1,12 @@
 package com.arte.app.ainew;
 
 import com.arte.ai.api.action.AiActionService;
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.execution.InvocationCoordinator;
+import com.arte.ai.spi.business.ResourceContextAdapter;
 import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -26,14 +29,23 @@ public class NewAiActionConfiguration {
     }
 
     @Bean
+    public ResourceContextService newResourceContexts(ObjectProvider<ResourceContextAdapter> adapters,
+                                                       @Value("${arte.ai-new.model.max-input-bytes:16384}") int bytes,
+                                                       @Value("${arte.ai-new.chat.context-window-tokens:8192}") int window,
+                                                       @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety,
+                                                       @Value("${arte.ai-new.chat.snapshot-ttl:PT10M}") String ttl) {
+        return new ResourceContextService(adapters.orderedStream().toList(), Clock.systemUTC(), Duration.parse(ttl), bytes, window, safety);
+    }
+
+    @Bean
     public AiActionService newAiActions(JdbcAiActionStore store, InvocationCoordinator coordinator, ConfiguredModelDefinitions definitions,
                                         @Value("${arte.ai-new.model.max-input-bytes:16384}") int bytes,
                                         @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens,
                                         @Value("${arte.ai-new.chat.context-window-tokens:8192}") int window,
                                         @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety,
-                                        @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming) {
+                                        @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming, ResourceContextService resourceContexts) {
         return new AiActionService(store, coordinator, definitions.capabilityRef(), definitions.bindingRef(), Clock.systemUTC(),
-                bytes, tokens, window, safety, streaming);
+                bytes, tokens, window, safety, streaming, resourceContexts);
     }
 
     @Bean
