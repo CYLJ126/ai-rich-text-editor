@@ -1,4 +1,7 @@
 export default {
+  'app.aiNew.rag.error.readPolicy': 'The model application is not permitted to read articles. Ask an administrator to check article read permission; signing in again cannot grant it.',
+  'app.aiNew.rag.error.applicationPolicy': 'The model application or binding has missing or disabled operation permissions. Contact an administrator.',
+  'app.aiNew.rag.error.articleAccess': 'The selected article is not authorized for reading or AI processing. Ask an administrator to check its permissions.',
   'app.aiNew.rag.error.sources': 'Too many article sources in the conversation history. Start a new conversation to continue.',
   'app.aiNew.rag.mode': 'Article retrieval',
   'app.aiNew.rag.mode.NONE': 'No article retrieval',

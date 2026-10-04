@@ -121,12 +121,16 @@ describe('article retrieval consent', () => {
     expect(post?.[1].data).toMatchObject({text: '检索问题', previewId: 'preview', expectedContextDigest: ragContext.contentDigest});
     expect(JSON.stringify(post?.[1].data)).not.toContain('unsafe');
   });
-  it('does not open consent or dispatch a model request when retrieval has no results', async () => {
+  it.each([
+    [404, 'arte.common.not_found', 'rag-no-results', '没有找到可用的文章片段，请调整问题或文章范围。'],
+    [403, 'arte.common.unauthorized', 'application-policy-read', '当前模型应用未获准读取文章，请联系管理员检查文章读取许可；重新登录无法补齐此许可。'],
+    [403, 'arte.common.unauthorized', 'rag-article', '所选文章未获准读取或用于 AI 处理，请联系管理员检查该文章的授权。'],
+  ])('keeps the draft and avoids model dispatch after retrieval rejection %s / %s / %s', async (status, code, failureStage, guidance) => {
     selectFirst(); bootstrap.defaultModel = {...model, retrievalEnabled: true};
     const original = state.request.getMockImplementation();
     state.request.mockImplementation((path, options = {}) => {
-      if (path.endsWith('/rag-preview')) return Promise.reject({response: {status: 404, data: {
-        code: 'arte.common.not_found', failureStage: 'rag-no-results', retryable: false, sideEffectStatus: 'NONE', resultCertainty: 'CONFIRMED',
+      if (path.endsWith('/rag-preview')) return Promise.reject({response: {status, data: {
+        code, failureStage, retryable: false, sideEffectStatus: 'NONE', resultCertainty: 'CONFIRMED',
       }}});
       return original?.(path, options);
     });
@@ -139,7 +143,7 @@ describe('article retrieval consent', () => {
     await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, {target: {value: '没有命中的问题'}});
     fireEvent.click(screen.getByRole('button', {name: '发送消息'}));
-    await screen.findByText('没有找到可用的文章片段，请调整问题或文章范围。');
+    await screen.findByText(guidance);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(input).toHaveValue('没有命中的问题');
     expect(state.request.mock.calls.some(([path, options]) => path.endsWith('/turns') && options.method === 'POST')).toBe(false);

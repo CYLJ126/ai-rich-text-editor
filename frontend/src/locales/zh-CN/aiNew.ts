@@ -17,6 +17,9 @@ export default {
   'app.aiNew.rag.error.expired': '检索预览已过期，请重新预览后发送。',
   'app.aiNew.rag.error.disabled': '文章检索尚未启用，请检查服务配置。',
   'app.aiNew.rag.error.libraryCapacity': '当前空间的文章候选数量超过首期上限，请选择具体文章检索。',
+  'app.aiNew.rag.error.readPolicy': '当前模型应用未获准读取文章，请联系管理员检查文章读取许可；重新登录无法补齐此许可。',
+  'app.aiNew.rag.error.applicationPolicy': '当前模型应用或绑定的操作许可缺失或已停用，请联系管理员核对。',
+  'app.aiNew.rag.error.articleAccess': '所选文章未获准读取或用于 AI 处理，请联系管理员检查该文章的授权。',
 
   "app.aiNew.copyQuestion": "复制问题",
   "app.aiNew.copyAnswer": "复制回答",

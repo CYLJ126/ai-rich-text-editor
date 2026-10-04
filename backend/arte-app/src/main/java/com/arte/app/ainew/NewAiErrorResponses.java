@@ -1,11 +1,13 @@
 package com.arte.app.ainew;
 
+import com.arte.app.security.bridge.ExecutionAccessDeniedException;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.error.CommonErrorCode;
 import com.arte.base.model.execution.ExecutionError;
 import com.arte.base.model.execution.ResultCertainty;
 import com.arte.base.model.execution.SideEffectStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 
 /**
  * 新 AI 入口共享的稳定错误信封。
@@ -26,6 +28,14 @@ final class NewAiErrorResponses {
 
     static ResponseEntity<ExecutionError> denied() {
         return ResponseEntity.status(403).body(ExecutionError.of(CommonErrorCode.UNAUTHORIZED, "identity", false, SideEffectStatus.NONE, ResultCertainty.CONFIRMED, null));
+    }
+
+    static ResponseEntity<ExecutionError> denied(AccessDeniedException failure) {
+        if (failure instanceof ExecutionAccessDeniedException access) {
+            return ResponseEntity.status(403).body(ExecutionError.of(CommonErrorCode.UNAUTHORIZED,
+                    access.failureStage(), false, SideEffectStatus.NONE, ResultCertainty.CONFIRMED, null));
+        }
+        return denied();
     }
 
     static ResponseEntity<ExecutionError> unavailable() {

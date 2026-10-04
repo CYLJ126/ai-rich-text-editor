@@ -155,8 +155,8 @@ public class NewChatController {
     }
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
-    public ResponseEntity<ExecutionError> denied() {
-        return NewAiErrorResponses.denied();
+    public ResponseEntity<ExecutionError> denied(org.springframework.security.access.AccessDeniedException error) {
+        return NewAiErrorResponses.denied(error);
     }
 
     @ExceptionHandler({IllegalArgumentException.class, org.springframework.http.converter.HttpMessageNotReadableException.class})

@@ -47,6 +47,17 @@ arte.ai-new.chat.retrieval-enabled=true
 应用动作策略同时需要允许 `resource.read`、`resource.ai_process`，发送时还需要 `resource.egress`。
 本实现不自动为文章或用户增加权限。缺少 READ 应用策略时，文章选择和预览会被拒绝。
 
+普通聊天初始化脚本 `arte-ai-new-deepseek-admin-dml-mysql.sql` 仅配置 AI 使用和外发动作，
+个人资料回填脚本也只登记空间归属；两者都不会补文章级 AI 或外发许可。
+需要检索文章时，手动执行 `../arte-app/scripts/arte-ai-new-rag-permissions-mysql.sql`，
+核对用户/空间/应用/绑定参数，并将 `@rag_article_id` 从 `NULL` 改为允许用于 AI 的自有文章 ID。
+脚本仅补缺失的应用读取许可和所指定文章的 AI/外发许可，保留既有撤权，不授权整个库。
+多篇文章逐篇指定；分享文章需要管理员核对后单独授权。
+
+如果普通聊天正常而文章检索报权限错误，先核对上述三项许可，无需反复重新登录。
+应用读取许可缺失或停用时，HTTP 返回 `403`、阶段 `application-policy-read`，界面显示文章读取配置提示；
+服务端 WARN 会记录应用、绑定、动作，以及 `application_policy_missing` 或 `application_or_binding_disabled`。
+
 ## 调用位置
 
 | 类 | 职责 |

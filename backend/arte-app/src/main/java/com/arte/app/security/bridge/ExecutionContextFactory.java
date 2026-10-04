@@ -3,8 +3,11 @@ package com.arte.app.security.bridge;
 import com.arte.base.model.execution.ExecutionContext;
 import com.arte.base.model.identity.ExecutionScope;
 import com.arte.base.model.resource.ResourceRef;
+import com.arte.base.model.security.CommonResourceAction;
 import com.arte.base.validation.ContractChecks;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,7 @@ import java.util.UUID;
  * applicationId／bindingId 由所属入口从受控配置选定；持久化策略逐项限制所请求动作。
  */
 public class ExecutionContextFactory {
+    private static final Logger log = LoggerFactory.getLogger(ExecutionContextFactory.class);
     private final ExistingIdentityAdapter identity;
     private final JdbcSecurityRepository repository;
     private final Clock clock;
@@ -68,8 +72,13 @@ public class ExecutionContextFactory {
         if (member.isEmpty() || !member.get().enabled()) throw denied();
         for (String action : actions) {
             var policy = repository.applicationPolicy(tenantId, workspaceId, applicationId, bindingId, action);
-            if (policy.isEmpty() || !policy.get().applicationEnabled() || !policy.get().bindingEnabled())
-                throw denied();
+            if (policy.isEmpty() || !policy.get().applicationEnabled() || !policy.get().bindingEnabled()) {
+                log.warn("新入口应用动作被拒绝：tenant={}, workspace={}, application={}, binding={}, action={}, reason={}",
+                        tenantId, workspaceId, applicationId, bindingId, action,
+                        policy.isEmpty() ? "application_policy_missing" : "application_or_binding_disabled");
+                throw new ExecutionAccessDeniedException(CommonResourceAction.READ.code().equals(action)
+                        ? "application-policy-read" : "application-policy");
+            }
         }
         var deadline = clock.instant().plus(taskLifetime);
         var context = new ExecutionContext(scope, UUID.randomUUID().toString(), null, deadline,

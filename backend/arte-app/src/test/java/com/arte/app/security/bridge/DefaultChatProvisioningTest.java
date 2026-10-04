@@ -33,6 +33,65 @@ class DefaultChatProvisioningTest extends SecurityBridgeFixture {
         }
     }
 
+    void ragPermissions(Integer articleId) throws Exception {
+        String script = Files.readString(Path.of("scripts/arte-ai-new-rag-permissions-mysql.sql"));
+        if (articleId != null) script = script.replace("set @rag_article_id = NULL;", "set @rag_article_id = " + articleId + ";");
+        try (var connection = datasource.getConnection()) {
+            ScriptUtils.executeSqlScript(connection, MySqlTestScripts.h2Resource(script));
+        }
+    }
+
+    @Test
+    void ragScriptAddsReadPolicyButOnlyGrantsTheExplicitlySelectedOwnedArticle() throws Exception {
+        defaultUser("alice");
+        execute("arte-ai-new-deepseek-admin-dml-mysql.sql");
+        ragPermissions(null);
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_application_policy", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant", Integer.class));
+        ragPermissions(10);
+        ragPermissions(10);
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant WHERE resource_id='11'", Integer.class));
+        var context = contexts.create(http, TENANT, WORKSPACE, "ai-new-model", "default-model",
+                java.util.Set.of("resource.read", "resource.ai_process", "resource.egress"));
+        assertTrue(repository.resourceGrant(ResourceRef.current("ARTICLE", "10"), context.scope().principal(), "resource.ai_process").orElseThrow().enabled());
+        assertTrue(repository.resourceGrant(ResourceRef.current("ARTICLE", "10"), context.scope().principal(), "resource.egress").orElseThrow().enabled());
+    }
+
+    @Test
+    void ragScriptRetainsRevocationsAndCannotGrantDeletedForeignOrNonOwnedArticles() throws Exception {
+        defaultUser("alice");
+        execute("arte-ai-new-deepseek-admin-dml-mysql.sql");
+        ragPermissions(10);
+        jdbc.update("UPDATE arte_security_resource_grant SET enabled=FALSE, revision=2 WHERE resource_id='10'");
+        ragPermissions(10);
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant WHERE enabled=TRUE", Integer.class));
+        jdbc.update("UPDATE arte_rt_article SET create_by='bob' WHERE id=11");
+        ragPermissions(11);
+        jdbc.update("UPDATE arte_rt_article SET create_by='alice',is_delete=1 WHERE id=11");
+        ragPermissions(11);
+        jdbc.update("UPDATE arte_rt_article SET is_delete=0 WHERE id=11");
+        jdbc.update("UPDATE arte_security_resource SET workspace_id='other' WHERE resource_id='11' AND resource_type='ARTICLE'");
+        ragPermissions(11);
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant", Integer.class));
+        jdbc.update("UPDATE arte_security_application_policy SET binding_enabled=FALSE WHERE action_code='resource.read'");
+        ragPermissions(10);
+        assertFalse(jdbc.queryForObject("SELECT binding_enabled FROM arte_security_application_policy WHERE action_code='resource.read'", Boolean.class));
+    }
+
+    @Test
+    void ragScriptCannotGrantWithoutAnActiveMemberAndAiApplication() throws Exception {
+        defaultUser("alice");
+        ragPermissions(10);
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_application_policy", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant", Integer.class));
+        execute("arte-ai-new-deepseek-admin-dml-mysql.sql");
+        jdbc.update("UPDATE arte_security_application_policy SET binding_enabled=FALSE WHERE action_code='resource.ai_process'");
+        ragPermissions(10);
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_application_policy", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_security_resource_grant", Integer.class));
+    }
+
     void defaultUser(String name) {
         jdbc.update("UPDATE arte_rbac_user SET user_name=? WHERE id=1", name);
         login(name, 1);

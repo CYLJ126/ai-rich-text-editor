@@ -14,6 +14,13 @@ beforeEach(() => {
   localStorage.setItem('umi_locale', 'zh-CN');
 });
 describe('execution failure guidance', () => {
+  it('distinguishes missing article read policy and article authorization from an invalid session', () => {
+    expect(chatErrorText(new AiNewApiError(403, facts('unauthorized', 'application-policy-read')))).toContain('文章读取许可');
+    expect(chatErrorText(new AiNewApiError(403, facts('unauthorized', 'application-policy')))).toContain('操作许可');
+    expect(chatErrorText(new AiNewApiError(403, facts('unauthorized', 'rag-article')))).toContain('该文章的授权');
+    expect(chatErrorText(new AiNewApiError(403, facts('unauthorized', 'identity')))).toContain('登录状态');
+    expect(chatErrorText(new AiNewApiError(404, facts('not_found', 'rag-article')))).toContain('不存在');
+  });
   it('distinguishes budget exhaustion, missing budget policy and execution rate limits', () => {
     expect(executionErrorText(facts('rate_limited', 'budget'))).toContain(
       '可用预算不足',

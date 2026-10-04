@@ -105,6 +105,23 @@ class ChatRagIntegrationTest {
         assertEquals(0, f.calls.get()); verifyNoInteractions(oldSearch);
         assertEquals(preview, previews.find(f.scope, preview.previewId()));
     }
+    @Test void missingOrDisabledApplicationReadPolicyHasAnExplicitHttpFailureBeforeSearching() throws Exception {
+        var mvc = MockMvcBuilders.standaloneSetup(new NewChatController(f.service)).build();
+        var body = "{\"tenantId\":\"" + TENANT + "\",\"workspaceId\":\"" + WORKSPACE + "\",\"expectedVersion\":1,\"text\":\"解释文章\",\"retrieval\":{\"mode\":\"ARTICLE_LIBRARY\",\"articleIds\":[],\"semanticSearch\":true,\"maxResults\":10}}";
+        f.jdbc.update("DELETE FROM arte_security_application_policy WHERE action_code=?", CommonResourceAction.READ.code());
+        var response = mvc.perform(post("/api/ai-new/conversations/" + conversation.conversationId() + "/rag-preview")
+                .contentType("application/json").content(body)).andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+        var error = com.google.gson.JsonParser.parseString(response).getAsJsonObject();
+        assertEquals("application-policy-read", error.get("failureStage").getAsString());
+        assertEquals("arte.common.unauthorized", error.get("code").getAsString());
+        assertEquals("NONE", error.get("sideEffectStatus").getAsString());
+        f.policy(CommonResourceAction.READ.code());
+        f.jdbc.update("UPDATE arte_security_application_policy SET binding_enabled=FALSE WHERE action_code=?", CommonResourceAction.READ.code());
+        var disabled = assertThrows(ExecutionAccessDeniedException.class, () -> preview(selection(ARTICLE_LIBRARY)));
+        assertEquals("application-policy-read", disabled.failureStage());
+        assertNotNull(f.service.find(f.http, TENANT, WORKSPACE, conversation.conversationId()));
+        verifyNoInteractions(oldSearch); assertEquals(0, f.calls.get());
+    }
     @Test void selectedEsRetrievalFreezesChunksAndStreamsThemThroughTheSharedWorker() throws Exception {
         var preview = preview(selection(SELECTED_ARTICLES, "10", "11"));
         var params = ArgumentCaptor.forClass(ArticleParam.class); verify(oldSearch).hybridSearch(params.capture());
