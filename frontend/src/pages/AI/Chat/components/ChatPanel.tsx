@@ -1,5 +1,9 @@
-import {Alert, Button, Checkbox, Input, Modal, Space, Spin, Typography,} from 'antd';
+import {Alert, Button, Checkbox, Input, Modal, Select, Space, Spin, Typography,} from 'antd';
 import {useEffect, useRef, useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import {getChatContext, getRetrievalArticles, getRetrievalPreview, previewChatRetrieval} from '@/services/ai-new/chat';
+import type {RagContext, RetrievalMode} from '@/types/ai-new/chat';
+import RagSources from './RagSources';
 import {chatErrorText, isAccessError} from '@/features/ai-chat/errors';
 import {useChat} from '@/features/ai-chat/hooks/useChat';
 import {canRegenerateTurn, isTurnPending} from '@/features/ai-chat/executionState';
@@ -31,18 +35,39 @@ export default function ChatPanel({
     text: string;
     replay: boolean;
     originalTurnId?: string;
+    previewId?: string;
+    context?: RagContext | null;
   }>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>('NONE');
+  const [articleIds, setArticleIds] = useState<string[]>([]);
+  const [semanticSearch, setSemanticSearch] = useState(true);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<unknown>(null);
+  const previewAttempt = useRef(0);
+  const articleChoices = useQuery({
+    queryKey: ['ai-new', userId, scope.tenantId, scope.workspaceId, 'rag-articles'],
+    queryFn: ({signal}) => getRetrievalArticles(scope, signal),
+    enabled: Boolean(model?.retrievalEnabled) && ['ARTICLE_FULL_TEXT', 'SELECTED_ARTICLES'].includes(retrievalMode),
+    retry: false,
+  });
   const transferIdentity = JSON.stringify([
+    userId,
     model?.destination,
     model?.name,
     model?.bindingRef,
     model?.purpose,
+    model?.retrievalEnabled,
+    scope.tenantId, scope.workspaceId,
   ]);
   useEffect(() => {
     setConfirmation(null);
     setConfirmed(false);
-  }, [transferIdentity]);
+    setRetrievalMode('NONE'); setArticleIds([]); setPreviewError(null);
+    previewAttempt.current++;
+    setPreviewing(false);
+  }, [transferIdentity, conversation.conversationId]);
+  useEffect(() => () => { previewAttempt.current++; }, []);
   const bytes = new TextEncoder().encode(draft).length;
   const sameBinding =
     model &&
@@ -53,6 +78,7 @@ export default function ChatPanel({
     conversation.modelBindingRef.version === model.bindingRef.version;
   const blocked =
     !sameBinding ||
+    previewing ||
     chat.busy ||
     !chat.history.isSuccess ||
     chat.history.isFetching ||
@@ -67,9 +93,32 @@ export default function ChatPanel({
   }, [onLockChange, conversation.conversationId]);
   const latest = chat.turns.at(-1);
   const regeneratable = latest && canRegenerateTurn(latest) && !chat.unfinished;
-  const openConfirmation = (text: string, replay = false, originalTurnId?: string) => {
-    setConfirmed(false);
-    setConfirmation({text, replay, originalTurnId});
+  const openConfirmation = async (text: string, replay = false, originalTurnId?: string) => {
+    const attempt = ++previewAttempt.current;
+    setConfirmed(false); setPreviewError(null); setPreviewing(true);
+    try {
+      let context: RagContext | null = null;
+      let previewId: string | undefined;
+      if (replay && chat.pending?.body.previewId) {
+        const preview = await getRetrievalPreview(scope, conversation.conversationId, chat.pending.body.previewId);
+        if (preview.context.contentDigest !== chat.pending.body.expectedContextDigest) throw new Error('preview mismatch');
+        context = preview.context; previewId = preview.previewId;
+      } else if (originalTurnId || (replay && chat.pending?.kind === 'REGENERATION')) {
+        const regenerationId = originalTurnId ?? (chat.pending?.kind === 'REGENERATION' ? chat.pending.body.originalTurnId : undefined);
+        const original = chat.turns.find(turn => turn.turn.turnId === regenerationId);
+        if (!original || original.execution?.resourceContext)
+          context = await getChatContext(scope, conversation.conversationId, regenerationId!);
+      } else if (!replay && retrievalMode !== 'NONE') {
+        const preview = await previewChatRetrieval(scope, conversation.conversationId, conversation.version, text,
+          {mode: retrievalMode, articleIds: retrievalMode === 'ARTICLE_LIBRARY' ? [] : articleIds, semanticSearch, maxResults: 10});
+        context = preview.context; previewId = preview.previewId;
+      }
+      if (attempt === previewAttempt.current) setConfirmation({text, replay, originalTurnId, context, previewId});
+    } catch (error) {
+      if (attempt === previewAttempt.current) setPreviewError(error);
+    } finally {
+      if (attempt === previewAttempt.current) setPreviewing(false);
+    }
   };
   const send = async () => {
     if (!confirmation || !confirmed || !sameBinding) return;
@@ -77,7 +126,7 @@ export default function ChatPanel({
     setConfirmation(null);
     const newMessage = !command.replay && !command.originalTurnId;
     if (newMessage) onDraftChange(conversation.conversationId, '', command.text);
-    const accepted = await chat.send(command.text, command.replay, command.originalTurnId);
+    const accepted = await chat.send(command.text, command.replay, command.originalTurnId, command.previewId && command.context ? {previewId: command.previewId, contentDigest: command.context.contentDigest} : undefined);
     if (!accepted && newMessage && !accessDeniedRef.current)
       onDraftChange(conversation.conversationId, command.text, '');
   };
@@ -92,13 +141,11 @@ export default function ChatPanel({
         type="error"
         title={t('app.aiNew.error.access')}
         action={
-          <Button
-            onClick={() => {
-              void chat.refresh();
-            }}
-          >
-            {t('app.aiNew.refresh')}
-          </Button>
+          <Space>
+            <Button onClick={() => { void chat.refresh(); }}>{t('app.aiNew.refresh')}</Button>
+            {latest?.execution && isTurnPending(latest) && <Button danger loading={chat.cancelling}
+                onClick={() => { void chat.cancel(latest.turn.turnId); }}>{t('app.aiNew.stopGeneration')}</Button>}
+          </Space>
         }
       />
     );
@@ -186,6 +233,24 @@ export default function ChatPanel({
       {chat.storageFailed && (
         <Alert type="error" title={t('app.aiNew.storageFailed')}/>
       )}
+      {model?.retrievalEnabled && <Space orientation="vertical" style={{width: '100%'}}>
+        <Typography.Text strong>{t('app.aiNew.rag.mode')}</Typography.Text>
+        <Select aria-label={t('app.aiNew.rag.mode')} value={retrievalMode} disabled={blocked}
+                style={{width: '100%'}} onChange={(mode: RetrievalMode) => {setRetrievalMode(mode); setArticleIds([]); setPreviewError(null);}}
+                options={(['NONE', 'ARTICLE_FULL_TEXT', 'SELECTED_ARTICLES', 'ARTICLE_LIBRARY'] as const)
+                  .map(mode => ({value: mode, label: t(`app.aiNew.rag.mode.${mode}`)}))}/>
+        {['ARTICLE_FULL_TEXT', 'SELECTED_ARTICLES'].includes(retrievalMode) && <>
+          <Select mode="multiple" aria-label={t('app.aiNew.rag.articles')} placeholder={t('app.aiNew.rag.articles')}
+                  value={articleIds} disabled={blocked} loading={articleChoices.isFetching} style={{width: '100%'}}
+                  maxCount={retrievalMode === 'ARTICLE_FULL_TEXT' ? 1 : 16} optionFilterProp="label"
+                  onChange={setArticleIds} options={articleChoices.data?.map(article => ({value: article.id, label: `${article.title} (#${article.id})`}))}/>
+          {articleChoices.error && <Alert type="error" title={chatErrorText(articleChoices.error)}/>}
+        </>}
+        {['SELECTED_ARTICLES', 'ARTICLE_LIBRARY'].includes(retrievalMode) && <Checkbox checked={semanticSearch} disabled={blocked}
+            onChange={event => setSemanticSearch(event.target.checked)}>{t('app.aiNew.rag.semantic')}</Checkbox>}
+        {retrievalMode !== 'NONE' && <Typography.Text type="secondary">{t('app.aiNew.rag.hint')}</Typography.Text>}
+      </Space>}
+      {Boolean(previewError) && <Alert type="error" title={chatErrorText(previewError)}/>}
       <label htmlFor="ai-new-message">
         <Typography.Text strong>{t('app.aiNew.messageInput')}</Typography.Text>
       </label>
@@ -205,7 +270,8 @@ export default function ChatPanel({
             !event.nativeEvent.isComposing &&
             !blocked &&
             draft.trim() &&
-            bytes <= (model?.contextMaxBytes ?? 0)
+            bytes <= (model?.contextMaxBytes ?? 0) &&
+            (!['ARTICLE_FULL_TEXT', 'SELECTED_ARTICLES'].includes(retrievalMode) || articleIds.length > 0)
           ) {
             event.preventDefault();
             openConfirmation(draft);
@@ -216,9 +282,10 @@ export default function ChatPanel({
         <Button
           type="primary"
           aria-label={t('app.aiNew.send')}
-          loading={chat.sending}
+          loading={chat.sending || previewing}
           disabled={
             blocked || !draft.trim() || bytes > (model?.contextMaxBytes ?? 0)
+            || (['ARTICLE_FULL_TEXT', 'SELECTED_ARTICLES'].includes(retrievalMode) && articleIds.length === 0)
           }
           onClick={() => openConfirmation(draft)}
         >
@@ -265,6 +332,15 @@ export default function ChatPanel({
         >
           {confirmation?.text}
         </Typography.Paragraph>
+        {confirmation?.context && <>
+          <Typography.Paragraph>{t('app.aiNew.rag.budget', {bytes: confirmation.context.budget.usedInputBytes,
+            limit: confirmation.context.budget.inputByteLimit, tokens: confirmation.context.budget.estimatedInputTokens})}</Typography.Paragraph>
+          <RagSources fragments={confirmation.context.fragments}/>
+          <details><summary>{t('app.aiNew.rag.inputs')}</summary>
+            <div style={{whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto'}}>{confirmation.context.messages
+              .map(message => message.parts.map(part => part.text).join('\n')).join('\n\n')}</div>
+          </details>
+        </>}
         <Checkbox
           checked={confirmed}
           onChange={(event) => setConfirmed(event.target.checked)}

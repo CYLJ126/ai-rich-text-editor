@@ -1,5 +1,6 @@
 package com.arte.ai.model.conversation;
 
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.generation.ModelOptions;
 import com.arte.ai.model.message.Message;
 import com.arte.ai.model.message.MessageRole;
@@ -38,8 +39,17 @@ public record Turn(
         ExecutionError rejectionError,
         Instant createdAt,
         Instant updatedAt,
-        Instant slotReleasedAt
+        Instant slotReleasedAt,
+        ResourceContextSnapshot resourceContext
 ) {
+    public Turn(String turnId, String conversationId, ExecutionScope scope, long sequence, long conversationVersion,
+                long version, TurnKind kind, TurnStatus status, List<Message> input, ModelOptions modelOptions,
+                String regeneratesTurnId, String contextSnapshotId, String executionId, IdempotencyKey idempotencyKey,
+                ExecutionError rejectionError, Instant createdAt, Instant updatedAt, Instant slotReleasedAt) {
+        this(turnId, conversationId, scope, sequence, conversationVersion, version, kind, status, input, modelOptions,
+                regeneratesTurnId, contextSnapshotId, executionId, idempotencyKey, rejectionError, createdAt, updatedAt, slotReleasedAt, null);
+    }
+
     public Turn {
         turnId = ChatContractChecks.identifier(turnId, 64, "turnId");
         conversationId = ChatContractChecks.identifier(conversationId, 64, "conversationId");
@@ -55,6 +65,9 @@ public record Turn(
             throw new IllegalArgumentException("turn input must contain only user text messages");
         }
         modelOptions = ContractChecks.required(modelOptions, "modelOptions");
+        if (resourceContext != null && (!scope.equals(resourceContext.scope())
+                || !java.util.Objects.equals(modelOptions.maxOutputTokens(), resourceContext.budget().outputTokenReserve())))
+            throw new IllegalArgumentException("turn resource context scope or budget mismatch");
         regeneratesTurnId = ChatContractChecks.optionalIdentifier(regeneratesTurnId, 64, "regeneratesTurnId");
         if (kind == TurnKind.MESSAGE && regeneratesTurnId != null
                 || kind == TurnKind.REGENERATION && (regeneratesTurnId == null || regeneratesTurnId.equals(turnId))) {

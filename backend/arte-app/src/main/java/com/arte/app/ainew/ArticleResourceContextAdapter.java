@@ -12,12 +12,11 @@ import com.arte.base.model.execution.ExecutionContext;
 import com.arte.base.model.resource.SourceRef;
 import com.arte.base.model.security.AuthorizationRequest;
 import com.arte.base.model.security.CommonResourceAction;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /** 文章组合适配；先授权，再通过文章领域查询固定版本或验证用户草稿。 */
 @Component
-@ConditionalOnProperty(name = "arte.ai-new.action.enabled", havingValue = "true")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${arte.ai-new.action.enabled:false} or ${arte.ai-new.chat.enabled:false}")
 public final class ArticleResourceContextAdapter implements ResourceContextAdapter {
     private final ArticleContextQueryService articles;
     private final AuthorizationService authorization;

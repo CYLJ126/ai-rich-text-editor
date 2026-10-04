@@ -36,6 +36,7 @@ export interface ChatBootstrap {
     purpose: string;
     inputTypes: string[];
     streaming: boolean;
+    retrievalEnabled?: boolean;
     contextMaxBytes: number;
     maxOutputTokens: number;
   };

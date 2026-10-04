@@ -171,7 +171,7 @@ export function useChat(
     retry: false,
     networkMode: 'always',
   });
-  const send = async (text: string, replay = false, originalTurnId?: string) => {
+  const send = async (text: string, replay = false, originalTurnId?: string, preview?: {previewId: string; contentDigest: string}) => {
     if (
       submitting.current || cancelling.current ||
       history.isError || turnQuery.isError ||
@@ -183,7 +183,8 @@ export function useChat(
     if (!replay && (pending || unfinished)) return false;
     const latest = turns.at(-1);
     if (!replay && originalTurnId && (!latest || latest.turn.turnId !== originalTurnId || !canRegenerateTurn(latest))) return false;
-    const body = {expectedVersion: conversation.version, text, externalTransferConfirmed: true as const};
+    const body = {expectedVersion: conversation.version, text, externalTransferConfirmed: true as const,
+      ...(preview ? {previewId: preview.previewId, expectedContextDigest: preview.contentDigest} : {})};
     const command: PendingChatCommand =
       replay && pending
         ? pending
@@ -259,7 +260,7 @@ export function useChat(
   });
   const cancel = async (turnId: string) => {
     const turn = turns.find((item) => item.turn.turnId === turnId);
-    if (submitting.current || cancelling.current || history.isError || turnQuery.isError || !turn?.execution || !isTurnPending(turn)) return;
+    if (submitting.current || cancelling.current || !turn?.execution || !isTurnPending(turn)) return;
     if (cancellation?.turnId === turnId && cancellation.status !== 'UNCONFIRMED') return;
     cancelling.current = true;
     setWorking(true);

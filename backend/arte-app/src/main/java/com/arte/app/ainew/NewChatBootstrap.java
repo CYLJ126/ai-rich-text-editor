@@ -21,7 +21,11 @@ public record NewChatBootstrap(boolean enabled, String unavailableReason, List<W
 
     public record Model(String name, String providerId, DefinitionRef bindingRef, String destination,
                         String purpose, List<String> inputTypes, boolean streaming,
-                        int contextMaxBytes, int maxOutputTokens) {
+                        int contextMaxBytes, int maxOutputTokens, boolean retrievalEnabled) {
+        public Model(String name, String providerId, DefinitionRef bindingRef, String destination, String purpose,
+                     List<String> inputTypes, boolean streaming, int contextMaxBytes, int maxOutputTokens) {
+            this(name, providerId, bindingRef, destination, purpose, inputTypes, streaming, contextMaxBytes, maxOutputTokens, false);
+        }
         public Model {
             inputTypes = List.copyOf(inputTypes);
         }

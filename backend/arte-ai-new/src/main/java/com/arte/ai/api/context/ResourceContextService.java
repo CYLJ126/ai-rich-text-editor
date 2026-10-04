@@ -76,12 +76,30 @@ public final class ResourceContextService {
         for (var fragment : snapshot.fragments()) adapter(fragment.source().resource().resourceType()).authorize(viewer, fragment.source(), forEgress);
     }
 
+    /** 仅供服务端可信组装器使用；业务提供者先授权读取，派发时仍逐项重新检查权限。 */
+    public ResourceContextSnapshot assemble(ExecutionContext viewer, DefinitionRef binding, List<Message> messages,
+                                             List<ContextFragment> fragments, int outputTokens, String selectionDigest) {
+        return snapshot(viewer, binding, messages, fragments, outputTokens, selectionDigest);
+    }
+
+    /** 场景可以降低字节预算；模型预算仍作为上界，预览展示最终实际使用的上限。 */
+    public ResourceContextSnapshot assemble(ExecutionContext viewer, DefinitionRef binding, List<Message> messages,
+                                             List<ContextFragment> fragments, int outputTokens, String selectionDigest, int scenarioByteLimit) {
+        if (scenarioByteLimit < 1) throw new IllegalArgumentException("invalid scenario byte limit");
+        return snapshot(viewer, binding, messages, fragments, outputTokens, selectionDigest, Math.min(bytes, scenarioByteLimit));
+    }
+
     private ResourceContextSnapshot snapshot(ExecutionContext viewer, DefinitionRef binding, List<Message> messages,
                                               List<ContextFragment> fragments, int outputTokens, String selectionDigest) {
+        return snapshot(viewer, binding, messages, fragments, outputTokens, selectionDigest, bytes);
+    }
+
+    private ResourceContextSnapshot snapshot(ExecutionContext viewer, DefinitionRef binding, List<Message> messages,
+                                              List<ContextFragment> fragments, int outputTokens, String selectionDigest, int byteLimit) {
         int used = ChatValues.bytes(messages), estimated = estimator.estimate(messages), tokenLimit = window - safety - outputTokens;
-        if (outputTokens < 1 || tokenLimit < 1 || used > bytes || estimated > tokenLimit)
-            throw new ContextCapacityException(new ContextCapacityException.Capacity(used, bytes, estimated, tokenLimit, outputTokens, safety));
-        var budget = new ContextBudget(bytes, used, outputTokens, window, tokenLimit, estimated, safety, estimator.version());
+        if (outputTokens < 1 || tokenLimit < 1 || used > byteLimit || estimated > tokenLimit)
+            throw new ContextCapacityException(new ContextCapacityException.Capacity(used, byteLimit, estimated, tokenLimit, outputTokens, safety));
+        var budget = new ContextBudget(byteLimit, used, outputTokens, window, tokenLimit, estimated, safety, estimator.version());
         var now = ChatValues.now(clock);
         return new ResourceContextSnapshot(UUID.randomUUID().toString(), viewer.scope(), binding, messages, fragments, budget,
                 ResourceContextValues.digest(viewer.scope(), binding, messages, fragments, budget, selectionDigest), selectionDigest, now, now.plus(lifetime));

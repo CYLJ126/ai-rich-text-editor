@@ -5,6 +5,13 @@ import type {ExecutionError} from '@/types/ai-new/conversation';
 export function chatErrorText(error: unknown): string {
   if (!(error instanceof AiNewApiError))
     return i18nText('app.aiNew.error.general');
+  const stage = error.facts?.failureStage;
+  const ragStages: Record<string, string> = {
+    'rag-no-results': 'empty', 'rag-index-stale': 'stale', 'rag-preview-expired': 'expired',
+    'rag-disabled': 'disabled', 'rag-library-capacity': 'libraryCapacity', 'chat-source-capacity': 'sources',
+    'resource-context-capacity': 'capacity', 'chat-capacity': 'capacity', 'chat-token-capacity': 'capacity',
+  };
+  if (stage && ragStages[stage]) return i18nText(`app.aiNew.rag.error.${ragStages[stage]}`);
   const code = error.facts?.code;
   if (isAccessError(error) || code === 'arte.common.unauthorized') return i18nText('app.aiNew.error.access');
   if (error.timedOut) return i18nText('app.aiNew.error.transportTimeout');

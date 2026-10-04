@@ -16,6 +16,7 @@ export const bootstrapSchema = z.object({
   defaultModel: z.object({
     name: z.string(), providerId: z.string(), bindingRef: ref,
     destination: z.url(), purpose: z.string(), inputTypes: z.array(z.string()), streaming: z.boolean(),
+    retrievalEnabled: z.boolean().optional(),
     contextMaxBytes: z.number().int().positive(), maxOutputTokens: z.number().int().positive()
   }).nullable(),
 });

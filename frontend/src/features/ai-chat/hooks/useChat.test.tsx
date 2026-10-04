@@ -76,6 +76,24 @@ afterEach(() => {
 });
 
 describe('single-turn observation', () => {
+  it('persists the retrieval preview before sending and keeps it unchanged after transport failure and reload', async () => {
+    vi.mocked(getChatHistory).mockResolvedValue([]);
+    vi.mocked(submitChat).mockRejectedValue(new AiNewApiError(0, null));
+    const first = mount();
+    await tick();
+    const preview = {previewId: 'preview', contentDigest: `sha256:${'a'.repeat(64)}`};
+    await act(async () => { expect(await first.result.current.send('question', false, undefined, preview)).toBe(false); });
+    const frozen = vi.mocked(submitChat).mock.calls[0][2];
+    expect(first.result.current.pending?.body).toMatchObject({previewId: 'preview', expectedContextDigest: preview.contentDigest});
+    first.unmount();
+    const second = mount();
+    await tick();
+    expect(second.result.current.pending).toEqual(frozen);
+    await act(async () => { expect(await second.result.current.send('edited question', true)).toBe(false); });
+    expect(vi.mocked(submitChat).mock.calls[1][2]).toEqual(frozen);
+    expect(frozen.body.text).toBe('question');
+    expect(frozen.body.expectedVersion).toBe(41);
+  });
   it('adds an accepted turn immediately and keeps older history available after the first page grows', async () => {
     vi.mocked(getChatHistory).mockResolvedValue(Array.from({length: 20}, (_, i) => turn(40 - i)));
     vi.mocked(submitChat).mockResolvedValue(turn(41, 'RUNNING'));

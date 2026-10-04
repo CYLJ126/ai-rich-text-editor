@@ -1,6 +1,8 @@
 package com.arte.app.ainew;
 
 import com.arte.ai.api.context.ContextService;
+import com.arte.ai.api.context.RagContextService;
+import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.conversation.ChatService;
 import com.arte.ai.api.conversation.ConversationService;
 import com.arte.ai.api.execution.InvocationCoordinator;
@@ -9,6 +11,7 @@ import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
 import com.arte.app.security.bridge.ExistingIdentityAdapter;
 import com.arte.app.security.bridge.JdbcSecurityRepository;
+import com.arte.app.service.richtext.ArticleRetrievalQueryService;
 import com.arte.base.spi.observability.Telemetry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +29,7 @@ import java.time.Duration;
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "arte.ai-new.chat.enabled", havingValue = "true")
+@org.springframework.context.annotation.Import(NewResourceContextConfiguration.class)
 public class NewChatConfiguration {
     @Bean
     public NewChatBootstrapService newChatBootstrap(ExistingIdentityAdapter identity, JdbcSecurityRepository repository,
@@ -34,8 +38,9 @@ public class NewChatConfiguration {
                                                     @Value("${arte.ai-new.model.model-name}") String modelName,
                                                     @Value("${arte.ai-new.chat.context-max-bytes:8192}") int bytes,
                                                     @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens,
-                                                    @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming) {
-        return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens, streaming);
+                                                    @Value("${arte.ai-new.chat.streaming-enabled:true}") boolean streaming,
+                                                    @Value("${arte.ai-new.chat.retrieval-enabled:false}") boolean retrieval) {
+        return new NewChatBootstrapService(identity, repository, definitions, application, modelName, bytes, tokens, streaming).withRetrievalEnabled(retrieval);
     }
     @Bean
     public JdbcChatStore newChatStore(JdbcTemplate jdbc, PlatformTransactionManager manager, ObjectProvider<Telemetry> telemetry) {
@@ -59,8 +64,10 @@ public class NewChatConfiguration {
                                           @Value("${arte.ai-new.chat.history-pairs:32}") int history,
                                           @Value("${arte.ai-new.chat.snapshot-ttl:PT10M}") String ttl,
                                           @Value("${arte.ai-new.chat.context-window-tokens:8192}") int window,
-                                          @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety) {
-        return new ContextService(store, coordinator, Clock.systemUTC(), bytes, history, Duration.parse(ttl), window, safety, new com.arte.ai.context.ConservativeTokenEstimator());
+                                          @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety, ObjectProvider<ResourceContextService> resources) {
+        var result = new ContextService(store, coordinator, Clock.systemUTC(), bytes, history, Duration.parse(ttl), window, safety, new com.arte.ai.context.ConservativeTokenEstimator());
+        if (resources.getIfAvailable() != null) result.withResources(resources.getIfAvailable());
+        return result;
     }
 
     @Bean
@@ -81,7 +88,15 @@ public class NewChatConfiguration {
     @Bean
     public NewChatCallService newChatCalls(ConversationService conversations, ChatService chats, ExecutionContextFactory contexts,
                                            EgressConsentService consents, ConfiguredModelDefinitions definitions,
-                                           @Value("${arte.ai-new.model.application-id:ai-new-model}") String application, PlatformTransactionManager manager) {
-        return new NewChatCallService(conversations, chats, contexts, consents, definitions, application, manager);
+                                           @Value("${arte.ai-new.model.application-id:ai-new-model}") String application, PlatformTransactionManager manager,
+                                           ObjectProvider<RagContextService> rag,
+                                           ObjectProvider<ArticleRetrievalQueryService> articles,
+                                           ObjectProvider<ArticleResourceRetrievalAdapter> provider,
+                                           ObjectProvider<JdbcRetrievalPreviewStore> previews,
+                                           ObjectProvider<ResourceContextService> resourceContexts,
+                                           @Value("${arte.ai-new.model.max-output-tokens:2048}") int tokens) {
+        var result = new NewChatCallService(conversations, chats, contexts, consents, definitions, application, manager);
+        if (rag.getIfAvailable() != null) result.withRetrieval(articles.getObject(), provider.getObject(), rag.getObject(), previews.getObject(), resourceContexts.getObject(), tokens);
+        return result;
     }
 }

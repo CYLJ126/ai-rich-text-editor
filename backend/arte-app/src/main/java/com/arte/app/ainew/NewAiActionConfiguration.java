@@ -3,10 +3,8 @@ package com.arte.app.ainew;
 import com.arte.ai.api.action.AiActionService;
 import com.arte.ai.api.context.ResourceContextService;
 import com.arte.ai.api.execution.InvocationCoordinator;
-import com.arte.ai.spi.business.ResourceContextAdapter;
 import com.arte.app.security.bridge.EgressConsentService;
 import com.arte.app.security.bridge.ExecutionContextFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -22,19 +20,11 @@ import java.time.Duration;
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "arte.ai-new.action.enabled", havingValue = "true")
+@org.springframework.context.annotation.Import(NewResourceContextConfiguration.class)
 public class NewAiActionConfiguration {
     @Bean
     public JdbcAiActionStore newAiActionStore(JdbcTemplate jdbc, PlatformTransactionManager manager) {
         return new JdbcAiActionStore(jdbc, manager);
-    }
-
-    @Bean
-    public ResourceContextService newResourceContexts(ObjectProvider<ResourceContextAdapter> adapters,
-                                                       @Value("${arte.ai-new.model.max-input-bytes:16384}") int bytes,
-                                                       @Value("${arte.ai-new.chat.context-window-tokens:8192}") int window,
-                                                       @Value("${arte.ai-new.chat.context-safety-tokens:256}") int safety,
-                                                       @Value("${arte.ai-new.chat.snapshot-ttl:PT10M}") String ttl) {
-        return new ResourceContextService(adapters.orderedStream().toList(), Clock.systemUTC(), Duration.parse(ttl), bytes, window, safety);
     }
 
     @Bean

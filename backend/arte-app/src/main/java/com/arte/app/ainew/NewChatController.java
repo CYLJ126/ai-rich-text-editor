@@ -1,5 +1,6 @@
 package com.arte.app.ainew;
 
+import com.arte.ai.model.context.ResourceRetrievalRequest;
 import com.arte.ai.model.generation.ModelOptions;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.execution.ExecutionError;
@@ -27,7 +28,35 @@ public class NewChatController {
     }
 
     public record Submission(String tenantId, String workspaceId, long expectedVersion, String text,
-                             ModelOptions options, boolean externalTransferConfirmed) {
+                             ModelOptions options, boolean externalTransferConfirmed, String previewId, String expectedContextDigest) {
+        public Submission(String tenantId, String workspaceId, long expectedVersion, String text, ModelOptions options, boolean externalTransferConfirmed) {
+            this(tenantId, workspaceId, expectedVersion, text, options, externalTransferConfirmed, null, null);
+        }
+    }
+
+    public record RetrievalPreview(String tenantId, String workspaceId, long expectedVersion, String text,
+                                   ResourceRetrievalRequest retrieval, ModelOptions options) { }
+
+    @GetMapping("/rag/articles")
+    public Object articles(HttpServletRequest http, @RequestParam String tenantId, @RequestParam String workspaceId) {
+        return service.articles(http, tenantId, workspaceId);
+    }
+
+    @PostMapping("/{id}/rag-preview")
+    public Object preview(HttpServletRequest http, @PathVariable String id, @RequestBody RetrievalPreview input) {
+        return service.preview(http, input.tenantId(), input.workspaceId(), id, input.expectedVersion(), input.text(), input.retrieval(), input.options());
+    }
+
+    @GetMapping("/{id}/rag-preview/{previewId}")
+    public Object preview(HttpServletRequest http, @PathVariable String id, @PathVariable String previewId,
+                          @RequestParam String tenantId, @RequestParam String workspaceId) {
+        return service.preview(http, tenantId, workspaceId, id, previewId);
+    }
+
+    @GetMapping("/{id}/turns/{turnId}/context")
+    public Object context(HttpServletRequest http, @PathVariable String id, @PathVariable String turnId,
+                          @RequestParam String tenantId, @RequestParam String workspaceId) {
+        return service.context(http, tenantId, workspaceId, id, turnId);
     }
 
     public record Regeneration(String tenantId, String workspaceId, long expectedVersion, String originalTurnId,
@@ -96,7 +125,7 @@ public class NewChatController {
      */
     @PostMapping("/{id}/turns")
     public Object submit(HttpServletRequest http, @PathVariable String id, @RequestHeader("Idempotency-Key") String key, @RequestBody Submission input) {
-        return ResponseEntity.accepted().body(service.submit(http, input.tenantId(), input.workspaceId(), id, input.expectedVersion(), input.text(), input.options(), key, input.externalTransferConfirmed()));
+        return ResponseEntity.accepted().body(service.submit(http, input.tenantId(), input.workspaceId(), id, input.expectedVersion(), input.text(), input.options(), key, input.externalTransferConfirmed(), input.previewId(), input.expectedContextDigest()));
     }
 
     @PostMapping("/{id}/regenerate")

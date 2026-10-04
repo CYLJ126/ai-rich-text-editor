@@ -26,8 +26,16 @@ public record ContextSnapshot(
         ContextBudget budget,
         String contentDigest,
         Instant createdAt,
-        Instant expiresAt
+        Instant expiresAt,
+        ResourceContextSnapshot resourceContext
 ) {
+    public ContextSnapshot(String snapshotId, String conversationId, ExecutionScope scope, long conversationVersion,
+                           DefinitionRef modelBindingRef, List<Message> messages, List<ContextFragment> fragments,
+                           List<ContextHistoryRef> history, ContextBudget budget, String contentDigest, Instant createdAt, Instant expiresAt) {
+        this(snapshotId, conversationId, scope, conversationVersion, modelBindingRef, messages, fragments, history, budget,
+                contentDigest, createdAt, expiresAt, null);
+    }
+
     public ContextSnapshot {
         snapshotId = ChatContractChecks.identifier(snapshotId, 64, "snapshotId");
         conversationId = ChatContractChecks.identifier(conversationId, 64, "conversationId");
@@ -47,6 +55,10 @@ public record ContextSnapshot(
             throw new IllegalArgumentException("context citations and historical turns must be unique");
         }
         budget = ContractChecks.required(budget, "budget");
+        if (resourceContext != null && (!scope.equals(resourceContext.scope()) || !modelBindingRef.equals(resourceContext.bindingRef())
+                || !messages.equals(resourceContext.messages()) || !fragments.equals(resourceContext.fragments())
+                || !budget.equals(resourceContext.budget()) || !createdAt.equals(resourceContext.createdAt()) || !expiresAt.equals(resourceContext.expiresAt())))
+            throw new IllegalArgumentException("chat and resource context mismatch");
         contentDigest = ChatContractChecks.digest(contentDigest, "contentDigest");
         createdAt = ContractChecks.required(createdAt, "createdAt");
         expiresAt = ContractChecks.required(expiresAt, "expiresAt");

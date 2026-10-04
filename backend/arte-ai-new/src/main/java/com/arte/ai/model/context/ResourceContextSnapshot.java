@@ -19,7 +19,7 @@ public record ResourceContextSnapshot(String snapshotId, ExecutionScope scope, D
         bindingRef = ContractChecks.required(bindingRef, "bindingRef");
         messages = List.copyOf(ContractChecks.required(messages, "messages"));
         fragments = List.copyOf(ContractChecks.required(fragments, "fragments"));
-        if (messages.isEmpty() || messages.size() > 128 || fragments.size() > 17
+        if (messages.isEmpty() || messages.size() > 128 || fragments.size() > 512
                 || fragments.stream().map(ContextFragment::citationId).distinct().count() != fragments.size())
             throw new IllegalArgumentException("invalid resource context size");
         budget = ContractChecks.required(budget, "budget");

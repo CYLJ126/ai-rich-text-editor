@@ -3,6 +3,7 @@ package com.arte.app.ainew;
 import com.arte.ai.conversation.ChatValues;
 import com.arte.ai.model.context.ContextBudget;
 import com.arte.ai.model.context.ContextSnapshot;
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.conversation.*;
 import com.arte.ai.model.definition.DefinitionRef;
 import com.arte.ai.spi.store.ChatStore;
@@ -50,6 +51,8 @@ public final class JdbcChatStore implements ChatStore {
         this.telemetry = Objects.requireNonNull(telemetry);
         this.jdbc = Objects.requireNonNull(jdbc);
         jdbc.queryForList("SELECT estimator_version FROM arte_ai_new_context_token_budget WHERE 1=0");
+        jdbc.queryForList("SELECT resource_context_json FROM arte_ai_new_turn WHERE 1=0");
+        jdbc.queryForList("SELECT resource_context_json FROM arte_ai_new_context_snapshot WHERE 1=0");
         writes = new TransactionTemplate(Objects.requireNonNull(manager));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         writes.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
@@ -142,8 +145,8 @@ public final class JdbcChatStore implements ChatStore {
                 if (draft.kind() == TurnKind.REGENERATION) validateRegeneration(draft);
                 long sequence = Math.addExact(jdbc.queryForObject("SELECT COALESCE(MAX(sequence_no),0) FROM arte_ai_new_turn WHERE conversation_id=? AND scope_key=?", Long.class, draft.conversationId(), key), 1);
                 var time = timestamp(later(draft.createdAt(), conversation.updatedAt()));
-                jdbc.update("INSERT INTO arte_ai_new_turn(turn_id,conversation_id,scope_key,sequence_no,conversation_version,row_version,kind,status,payload_format,input_json,model_options_json,regenerates_turn_id,idempotency_operation,idempotency_key,request_digest,created_at,updated_at) VALUES (?,?,?,?,?,1,?,'PREPARING','arte.chat.turn.v1'," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
-                        draft.turnId(), draft.conversationId(), key, sequence, draft.conversationVersion(), draft.kind().name(), ChatJson.messages(draft.input()), ChatJson.options(draft.modelOptions()),
+                jdbc.update("INSERT INTO arte_ai_new_turn(turn_id,conversation_id,scope_key,sequence_no,conversation_version,row_version,kind,status,payload_format,input_json,model_options_json,resource_context_json,regenerates_turn_id,idempotency_operation,idempotency_key,request_digest,created_at,updated_at) VALUES (?,?,?,?,?,1,?,'PREPARING','arte.chat.turn.v1'," + jsonParameter + "," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
+                        draft.turnId(), draft.conversationId(), key, sequence, draft.conversationVersion(), draft.kind().name(), ChatJson.messages(draft.input()), ChatJson.options(draft.modelOptions()), ResourceContextJson.encode(draft.resourceContext()),
                         draft.regeneratesTurnId(), draft.idempotencyKey().operation(), draft.idempotencyKey().key(), draft.idempotencyKey().requestDigest(), time, time);
                 jdbc.update("UPDATE arte_ai_new_conversation SET row_version=row_version+1,updated_at=? WHERE conversation_id=? AND scope_key=?", time, draft.conversationId(), key);
                 return turn(scope, draft.turnId()).orElseThrow();
@@ -212,9 +215,9 @@ public final class JdbcChatStore implements ChatStore {
         ChatValues.verify(snapshot);
         var binding = snapshot.modelBindingRef();
         var budget = snapshot.budget();
-        jdbc.update("INSERT INTO arte_ai_new_context_snapshot(snapshot_id,conversation_id,scope_key,conversation_version,model_binding_type,model_binding_id,model_binding_version,payload_format,messages_json,fragments_json,history_refs_json,input_byte_limit,used_input_bytes,output_token_reserve,content_digest,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?," + jsonParameter + "," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
+        jdbc.update("INSERT INTO arte_ai_new_context_snapshot(snapshot_id,conversation_id,scope_key,conversation_version,model_binding_type,model_binding_id,model_binding_version,payload_format,messages_json,fragments_json,history_refs_json,resource_context_json,input_byte_limit,used_input_bytes,output_token_reserve,content_digest,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?," + jsonParameter + "," + jsonParameter + "," + jsonParameter + "," + jsonParameter + ",?,?,?,?,?,?)",
                 snapshot.snapshotId(), snapshot.conversationId(), ModelKeys.scope(snapshot.scope()), snapshot.conversationVersion(), binding.definitionType(), binding.definitionId(), binding.version(), budget.contextWindowTokens() == null ? "arte.chat.context.v1" : "arte.chat.context.v2",
-                ChatJson.messages(snapshot.messages()), "[]", ChatJson.history(snapshot.history()), budget.inputByteLimit(), budget.usedInputBytes(), budget.outputTokenReserve(), snapshot.contentDigest(), timestamp(snapshot.createdAt()), timestamp(snapshot.expiresAt()));
+                ChatJson.messages(snapshot.messages()), fragmentsJson(snapshot.resourceContext()), ChatJson.history(snapshot.history()), ResourceContextJson.encode(snapshot.resourceContext()), budget.inputByteLimit(), budget.usedInputBytes(), budget.outputTokenReserve(), snapshot.contentDigest(), timestamp(snapshot.createdAt()), timestamp(snapshot.expiresAt()));
         if (budget.contextWindowTokens() != null)
             jdbc.update("INSERT INTO arte_ai_new_context_token_budget(snapshot_id,context_window_tokens,input_token_limit,estimated_input_tokens,safety_token_reserve,estimator_version) VALUES (?,?,?,?,?,?)",
                     snapshot.snapshotId(), budget.contextWindowTokens(), budget.inputTokenLimit(), budget.estimatedInputTokens(), budget.safetyTokenReserve(), budget.estimatorVersion());
@@ -252,14 +255,21 @@ public final class JdbcChatStore implements ChatStore {
     @Override
     public Optional<ContextSnapshot> snapshot(ExecutionScope scope, String id) {
         return one("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id=? AND scope_key=?", (rs, row) -> {
-            if (!java.util.Set.of("arte.chat.context.v1", "arte.chat.context.v2").contains(rs.getString("payload_format")) || !ChatJson.emptyArray(rs.getString("fragments_json")))
+            if (!java.util.Set.of("arte.chat.context.v1", "arte.chat.context.v2").contains(rs.getString("payload_format")))
                 throw failure(CommonErrorCode.UNSUPPORTED);
+            var resources = ResourceContextJson.decode(rs.getString("resource_context_json"));
+            if (!com.google.gson.JsonParser.parseString(fragmentsJson(resources)).equals(com.google.gson.JsonParser.parseString(rs.getString("fragments_json"))))
+                throw failure(CommonErrorCode.VERSION_CONFLICT);
             var value = new ContextSnapshot(rs.getString("snapshot_id"), rs.getString("conversation_id"), scope, rs.getLong("conversation_version"), binding(rs),
-                    ChatJson.messages(rs.getString("messages_json")), List.of(), ChatJson.history(rs.getString("history_refs_json")),
-                    contextBudget(rs), rs.getString("content_digest"), instant(rs, "created_at"), instant(rs, "expires_at"));
+                    ChatJson.messages(rs.getString("messages_json")), resources == null ? List.of() : resources.fragments(), ChatJson.history(rs.getString("history_refs_json")),
+                    contextBudget(rs), rs.getString("content_digest"), instant(rs, "created_at"), instant(rs, "expires_at"), resources);
             ChatValues.verify(value);
             return value;
         }, id, ModelKeys.scope(scope));
+    }
+
+    private static String fragmentsJson(ResourceContextSnapshot resources) {
+        return resources == null ? "[]" : com.google.gson.JsonParser.parseString(ResourceContextJson.encode(resources)).getAsJsonObject().get("fragments").toString();
     }
 
     private ContextBudget contextBudget(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -288,7 +298,7 @@ public final class JdbcChatStore implements ChatStore {
             return new Turn(rs.getString("turn_id"), rs.getString("conversation_id"), scope, rs.getLong("sequence_no"), rs.getLong("conversation_version"), rs.getLong("row_version"),
                     TurnKind.valueOf(rs.getString("kind")), TurnStatus.valueOf(rs.getString("status")), ChatJson.messages(rs.getString("input_json")), ChatJson.options(rs.getString("model_options_json")),
                     rs.getString("regenerates_turn_id"), rs.getString("context_snapshot_id"), rs.getString("execution_id"),
-                    new IdempotencyKey(rs.getString("idempotency_key"), rs.getString("idempotency_operation"), rs.getString("request_digest")), error, instant(rs, "created_at"), instant(rs, "updated_at"), instant(rs, "slot_released_at"));
+                    new IdempotencyKey(rs.getString("idempotency_key"), rs.getString("idempotency_operation"), rs.getString("request_digest")), error, instant(rs, "created_at"), instant(rs, "updated_at"), instant(rs, "slot_released_at"), ResourceContextJson.decode(rs.getString("resource_context_json")));
         };
     }
 

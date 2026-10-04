@@ -17,9 +17,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests production table constraints in H2; MySQL deployment syntax still needs a MySQL check.
@@ -60,6 +58,30 @@ class ChatSchemaTest {
                 schemaConnection.close();
             }
         }
+    }
+
+    @Test
+    void ragUpgradeKeepsLegacyChatRowsAndAllowsNullableResourceSidecars() throws Exception {
+        snapshot("legacy-rag", "conversation", SCOPE, 1);
+        preparing("legacy-rag-turn", "conversation", SCOPE, 1, "legacy-rag-key");
+        jdbc.execute("ALTER TABLE arte_ai_new_context_snapshot DROP COLUMN resource_context_json");
+        jdbc.execute("ALTER TABLE arte_ai_new_turn DROP COLUMN resource_context_json");
+        var snapshotBefore = jdbc.queryForMap("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id='legacy-rag'");
+        var turnBefore = jdbc.queryForMap("SELECT * FROM arte_ai_new_turn WHERE turn_id='legacy-rag-turn'");
+        ScriptUtils.executeSqlScript(schemaConnection, MySqlTestScripts.h2Resource(Files.readString(Path.of("scripts/arte-ai-new-rag-upgrade-mysql.sql"))));
+        ScriptUtils.executeSqlScript(schemaConnection, MySqlTestScripts.h2Resource(Files.readString(Path.of("scripts/arte-ai-new-rag-ddl-mysql.sql"))));
+        var snapshotAfter = jdbc.queryForMap("SELECT * FROM arte_ai_new_context_snapshot WHERE snapshot_id='legacy-rag'");
+        var turnAfter = jdbc.queryForMap("SELECT * FROM arte_ai_new_turn WHERE turn_id='legacy-rag-turn'");
+        for (var previous : java.util.List.of(snapshotBefore, turnBefore)) {
+            var after = previous == snapshotBefore ? snapshotAfter : turnAfter;
+            previous.forEach((column, value) -> {
+                if (value instanceof byte[] bytes) assertArrayEquals(bytes, (byte[]) after.get(column), column);
+                else assertEquals(value, after.get(column), column);
+            });
+            assertEquals(null, after.get("resource_context_json"));
+        }
+        // The preview table cannot attach a different subject's scope to this conversation.
+        denied(() -> jdbc.update("INSERT INTO arte_ai_new_retrieval_preview VALUES ('cross',?,'conversation',1,?,'{}',CURRENT_TIMESTAMP,DATEADD('MINUTE',10,CURRENT_TIMESTAMP))", OTHER_SCOPE, DIGEST));
     }
 
     @Test

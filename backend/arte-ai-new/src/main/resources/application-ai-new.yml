@@ -38,6 +38,7 @@ arte:
     action:
       enabled: @arte.ai-new.action.enabled@
     chat:
+      retrieval-enabled: @arte.ai-new.chat.retrieval-enabled@
       streaming-enabled: @arte.ai-new.chat.streaming-enabled@
       context-window-tokens: @arte.ai-new.chat.context-window-tokens@
       context-safety-tokens: @arte.ai-new.chat.context-safety-tokens@

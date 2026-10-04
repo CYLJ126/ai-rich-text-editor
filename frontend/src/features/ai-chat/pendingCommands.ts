@@ -12,6 +12,8 @@ const body = z.object({
     expectedVersion: z.number().int().positive().refine(Number.isSafeInteger),
     text: z.string().min(1),
     externalTransferConfirmed: z.literal(true),
+    previewId: z.string().min(1).max(64).optional(),
+    expectedContextDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
 });
 const schema = z.union([
   z.object({key: z.string().uuid(), kind: z.literal('MESSAGE').optional(), body}),
@@ -20,7 +22,7 @@ const schema = z.union([
     kind: z.literal('REGENERATION'),
     body: body.extend({originalTurnId: z.string().min(1)})
   }),
-]);
+]).refine(command => Boolean(command.body.previewId) === Boolean(command.body.expectedContextDigest));
 
 export function readPendingCommand(key: string): PendingChatCommand | null {
   try {

@@ -4,6 +4,7 @@ import com.arte.ai.api.context.ContextService;
 import com.arte.ai.api.execution.InvocationCoordinator;
 import com.arte.ai.conversation.ChatValues;
 import com.arte.ai.model.context.ContextSnapshot;
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.conversation.ChatTurnResult;
 import com.arte.ai.model.conversation.Turn;
 import com.arte.ai.model.conversation.TurnKind;
@@ -24,11 +25,13 @@ import com.arte.ai.validation.ChatContractChecks;
 import com.arte.base.exception.BaseException;
 import com.arte.base.model.error.CommonErrorCode;
 import com.arte.base.model.execution.*;
+import com.arte.base.model.resource.ResourceRef;
 import com.arte.base.spi.observability.Telemetry;
 import com.arte.base.validation.ContractChecks;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -78,7 +81,43 @@ public class ChatService {
         ContractChecks.required(text, "text");
         if (text.isBlank() || text.length() > 1048576) throw new IllegalArgumentException("invalid text size");
         return telemetry.observe(viewer, "chat.submit", () -> submit(viewer, conversationId, version,
-                List.of(new Message(MessageRole.USER, List.of(new TextPart(text)))), normalize(options), null, key, consent));
+                List.of(new Message(MessageRole.USER, List.of(new TextPart(text)))), normalize(options), null, key, consent, null));
+    }
+
+    /** 已由服务端预览并固定的资料输入；正文不能由客户端自行组装为可信快照。 */
+    public ChatTurnResult submit(ExecutionContext viewer, String conversationId, long version, String text,
+                                ModelOptions options, String key, ModelConsentProvider consent,
+                                ResourceContextSnapshot resources) {
+        if (text == null || text.isBlank() || text.length() > 1048576) throw new IllegalArgumentException("invalid text size");
+        return submit(viewer, conversationId, version, List.of(new Message(MessageRole.USER, List.of(new TextPart(text)))),
+                normalize(options), null, key, consent, Objects.requireNonNull(resources));
+    }
+
+    /** 仅供可信 HTTP 组合层登记精确任务范围；本接口不返回内容，读取结果仍逐项授权。 */
+    public List<ResourceRef> resourceRefs(ExecutionContext viewer, String conversationId) {
+        return resourceRefs(viewer, conversationId, Long.MAX_VALUE, 256);
+    }
+
+    public List<ResourceRef> resourceRefs(ExecutionContext viewer, String conversationId, long beforeSequence, int limit) {
+        if (beforeSequence < 1 || limit < 1 || limit > 256) throw new IllegalArgumentException("invalid resource metadata page");
+        conversations.find(viewer, conversationId);
+        var refs = new LinkedHashSet<ResourceRef>();
+        for (var turn : store.turns(viewer.scope(), conversationId, beforeSequence, limit)) {
+            if (turn.resourceContext() != null) turn.resourceContext().fragments().forEach(f -> refs.add(f.source().resource()));
+            if (turn.contextSnapshotId() != null) store.snapshot(viewer.scope(), turn.contextSnapshotId()).ifPresent(snapshot ->
+                    snapshot.fragments().forEach(f -> refs.add(f.source().resource())));
+        }
+        return List.copyOf(refs);
+    }
+
+    public List<ResourceRef> resourceRefs(ExecutionContext viewer, String conversationId, String turnId) {
+        conversations.find(viewer, conversationId);
+        var turn = requiredTurn(viewer, conversationId, turnId);
+        var refs = new LinkedHashSet<ResourceRef>();
+        if (turn.resourceContext() != null) turn.resourceContext().fragments().forEach(f -> refs.add(f.source().resource()));
+        if (turn.contextSnapshotId() != null) store.snapshot(viewer.scope(), turn.contextSnapshotId()).ifPresent(snapshot ->
+                snapshot.fragments().forEach(f -> refs.add(f.source().resource())));
+        return List.copyOf(refs);
     }
 
     public ChatTurnResult regenerate(ExecutionContext viewer, String conversationId, long version, String originalId,
@@ -91,11 +130,11 @@ public class ChatService {
         if (!terminal(execution.status()) || execution.status() == ExecutionStatus.OUTCOME_UNKNOWN)
             throw ChatValues.failure(CommonErrorCode.BUSY, "chat-regenerate");
         return submit(viewer, conversationId, version, original.input(),
-                options == null ? original.modelOptions() : normalize(options), originalId, key, consent);
+                options == null ? original.modelOptions() : normalize(options), originalId, key, consent, null);
     }
 
     private ChatTurnResult submit(ExecutionContext viewer, String conversationId, long version, List<Message> input,
-                                  ModelOptions options, String original, String key, ModelConsentProvider consent) {
+                                  ModelOptions options, String original, String key, ModelConsentProvider consent, ResourceContextSnapshot resources) {
         ContractChecks.required(consent, "consent");
         ChatContractChecks.identifier(key, 128, "idempotencyKey");
         ChatContractChecks.positive(version, "conversationVersion");
@@ -105,9 +144,9 @@ public class ChatService {
         var now = ChatValues.now(clock);
         var kind = original == null ? TurnKind.MESSAGE : TurnKind.REGENERATION;
         String operation = original == null ? "chat.turn.submit" : "chat.turn.regenerate";
-        var digest = ChatValues.submission(conversationId, version, original, input, options);
+        var digest = ChatValues.submission(conversationId, version, original, input, options, resources);
         var draft = new Turn(UUID.randomUUID().toString(), conversationId, viewer.scope(), 1, version, 1, kind,
-                TurnStatus.PREPARING, input, options, original, null, null, new IdempotencyKey(key, operation, digest), null, now, now, null);
+                TurnStatus.PREPARING, input, options, original, null, null, new IdempotencyKey(key, operation, digest), null, now, now, null, resources);
         // 保存 Q1，创建本轮 Turn，处理版本和重复提交
         var claimed = telemetry.observe(viewer, "chat.turn.claim", () -> store.claim(draft));
         // History assembly and authorization do not hold the Turn lock or a write connection.
@@ -151,7 +190,7 @@ public class ChatService {
         var snapshot = store.snapshot(viewer.scope(), turn.contextSnapshotId())
                 .orElseThrow(() -> ChatValues.failure(CommonErrorCode.NOT_FOUND, "chat-context"));
         InvocationRequest<GenerationRequest> request;
-        com.arte.base.model.resource.ResourceRef consentRef;
+        ResourceRef consentRef;
         try {
             telemetry.observe(viewer, "chat.context.recheck", () -> {
                 contexts.recheck(viewer, snapshot, true);
@@ -160,7 +199,7 @@ public class ChatService {
             if (!snapshot.modelBindingRef().equals(conversation.modelBindingRef()) || snapshot.conversationVersion() != turn.conversationVersion())
                 throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "chat-binding");
             request = new InvocationRequest<>(capability, snapshot.modelBindingRef(),
-                    new GenerationRequest(snapshot.messages(), turn.modelOptions(), List.of(), null), executionOptions, viewer);
+                    new GenerationRequest(snapshot.messages(), turn.modelOptions(), List.of(), null, snapshot.resourceContext()), executionOptions, viewer);
             var prepared = coordinator.prepare(request);
             // Consent commits before the final Turn lock / independent model acceptance transaction.
             consentRef = consent.confirm(coordinator.egressRequest(request, prepared, null));
@@ -180,7 +219,7 @@ public class ChatService {
     }
 
     private Turn acceptModel(ExecutionContext viewer, Turn turn, InvocationRequest<GenerationRequest> request,
-                             com.arte.base.model.resource.ResourceRef consentRef) {
+                             ResourceRef consentRef) {
         AcceptedExecution accepted;
         try {
             accepted = telemetry.observe(viewer, "chat.model.accept", () -> coordinator.submitModel(request, consentRef, ChatValues.modelKey(turn)));
@@ -222,7 +261,8 @@ public class ChatService {
     }
 
     private void requireAssociation(ContextSnapshot snapshot, ModelExecution execution) {
-        if (!snapshot.modelBindingRef().equals(execution.bindingRef()) || !capability.equals(execution.capabilityRef()))
+        if (!snapshot.modelBindingRef().equals(execution.bindingRef()) || !capability.equals(execution.capabilityRef())
+                || !Objects.equals(snapshot.resourceContext(), execution.resourceContext()))
             throw ChatValues.failure(CommonErrorCode.VERSION_CONFLICT, "chat-recovery");
     }
 
@@ -239,6 +279,7 @@ public class ChatService {
         return telemetry.observe(viewer, "chat.turn.find", () -> {
             conversations.find(viewer, conversationId);
             var turn = reconcileReady(viewer, requiredTurn(viewer, conversationId, turnId));
+            contexts.recheckResources(viewer, turn.resourceContext());
             if (turn.status() != TurnStatus.ACCEPTED) return new ChatTurnResult(turn, null);
             return result(turn, coordinator.find(viewer, turn.executionId()));
         });
@@ -259,6 +300,7 @@ public class ChatService {
             conversations.find(viewer, conversationId);
             var turns = store.turns(viewer.scope(), conversationId, beforeSequence, limit).stream()
                     .map(turn -> reconcileReady(viewer, turn)).toList();
+            turns.forEach(turn -> contexts.recheckResources(viewer, turn.resourceContext()));
             var executions = coordinator.findAll(viewer, turns.stream()
                     .filter(turn -> turn.status() == TurnStatus.ACCEPTED).map(Turn::executionId).toList());
             return turns.stream().map(turn -> turn.status() == TurnStatus.ACCEPTED
@@ -266,11 +308,25 @@ public class ChatService {
         });
     }
 
+    public ContextSnapshot context(ExecutionContext viewer, String conversationId, String turnId) {
+        find(viewer, conversationId, turnId);
+        var turn = requiredTurn(viewer, conversationId, turnId);
+        var snapshot = store.snapshot(viewer.scope(), turn.contextSnapshotId())
+                .orElseThrow(() -> ChatValues.failure(CommonErrorCode.NOT_FOUND, "chat-context"));
+        contexts.recheck(viewer, snapshot, false);
+        return snapshot;
+    }
+
     public CancellationStatus cancel(ExecutionContext viewer, String conversationId, String turnId) {
-        var current = find(viewer, conversationId, turnId);
-        if (current.execution() == null) throw ChatValues.failure(CommonErrorCode.BUSY, "chat-cancel");
-        // A request to cancel does not release the serial slot.
-        return coordinator.cancel(viewer, current.turn().executionId());
+        conversations.find(viewer, conversationId);
+        var turn = requiredTurn(viewer, conversationId, turnId);
+        CancellationStatus receipt;
+        if (turn.executionId() != null) receipt = coordinator.cancel(viewer, turn.executionId());
+        else if (turn.status() == TurnStatus.READY) receipt = coordinator.cancelIdempotent(viewer, ChatValues.modelKey(turn));
+        else throw ChatValues.failure(CommonErrorCode.BUSY, "chat-cancel");
+        if (turn.status() == TurnStatus.ACCEPTED && (receipt == CancellationStatus.CANCELLED || receipt == CancellationStatus.ALREADY_COMPLETED))
+            store.withTurn(viewer.scope(), turn.turnId(), current -> current.occupiesConversationSlot() ? store.release(current, ChatValues.now(clock)) : current);
+        return receipt;
     }
 
     public void reconcileActive(ExecutionContext viewer, String conversationId) {

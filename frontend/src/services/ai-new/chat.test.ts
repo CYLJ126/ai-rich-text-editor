@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {request} from '@umijs/max';
-import {cancelChat, getChatHistory, getChatTurn, submitChat} from './chat';
+import {cancelChat, getChatHistory, getChatTurn, getRetrievalPreview, previewChatRetrieval, submitChat} from './chat';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 const scope = {tenantId: 'tenant', workspaceId: 'workspace', allowedActions: ['resource.egress']};
@@ -28,6 +28,36 @@ beforeEach(() => {
   vi.mocked(request).mockReset();
 });
 describe('chat turn HTTP contracts', () => {
+  it('sends the fixed preview identity and digest when replaying a RAG submission', async () => {
+    const rag = {...command, body: {...command.body, previewId: 'preview', expectedContextDigest: `sha256:${'a'.repeat(64)}`}};
+    vi.mocked(request).mockResolvedValue(result);
+    await submitChat(scope, 'c/1', rag);
+    await submitChat(scope, 'c/1', rag);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(request).mock.calls[0]).toEqual(vi.mocked(request).mock.calls[1]);
+    expect(request).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      data: {tenantId: 'tenant', workspaceId: 'workspace', ...rag.body},
+    }));
+  });
+  it('previews selected retrieval and validates the ownership of saved preview responses', async () => {
+    const context = {
+      contentDigest: `sha256:${'a'.repeat(64)}`, expiresAt: '2026-10-03T01:00:00Z',
+      messages: [{role: 'USER', parts: [{text: 'fixed article content'}]}],
+      fragments: [{citationId: 'article-1', content: 'fixed article content', truncated: true, coverageDescription: 'ES chunk',
+        source: {resource: {resourceType: 'ARTICLE', resourceId: '10', version: '1', rangeRef: 'es-chunk:one', contentDigest: `sha256:${'b'.repeat(64)}`}}}],
+      budget: {usedInputBytes: 100, inputByteLimit: 8192, estimatedInputTokens: 120, inputTokenLimit: 6000},
+    };
+    const preview = {previewId: 'preview', conversationId: 'c/1', conversationVersion: 7, context};
+    const retrieval = {mode: 'SELECTED_ARTICLES' as const, articleIds: ['10'], semanticSearch: true, maxResults: 10};
+    vi.mocked(request).mockResolvedValue(preview);
+    expect(await previewChatRetrieval(scope, 'c/1', 7, 'question', retrieval)).toEqual(preview);
+    expect(request).toHaveBeenLastCalledWith('/arte/api/ai-new/conversations/c%2F1/rag-preview', expect.objectContaining({
+      data: {tenantId: 'tenant', workspaceId: 'workspace', expectedVersion: 7, text: 'question', retrieval},
+    }));
+    await expect(previewChatRetrieval(scope, 'c/1', 8, 'question', retrieval)).rejects.toMatchObject({status: 502});
+    await expect(getRetrievalPreview(scope, 'c/1', 'other')).rejects.toMatchObject({status: 502});
+    await expect(getRetrievalPreview(scope, 'other', 'preview')).rejects.toMatchObject({status: 502});
+  });
   it('polls an individual turn with scope, abort signal and response ownership checks', async () => {
     vi.mocked(request).mockResolvedValue(result);
     const controller = new AbortController();

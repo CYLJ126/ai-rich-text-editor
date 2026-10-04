@@ -1,6 +1,7 @@
 import {Alert, Button, Empty, Space, Spin, Tag, Typography} from 'antd';
 import {useCallback, useLayoutEffect, useRef, useState} from 'react';
 import StreamingAnswer from './StreamingAnswer';
+import RagSources from './RagSources';
 import CopyTextButton from './CopyTextButton';
 import {isTurnPending} from '@/features/ai-chat/executionState';
 import {executionErrorText} from '@/features/ai-chat/errors';
@@ -114,6 +115,7 @@ export default function ChatMessageList({
               </Tag>
               {state === 'SUCCEEDED' && <CopyTextButton text={output} label={t('app.aiNew.copyAnswer')}/>}
             </Space>
+            {item.execution?.resourceContext && <RagSources fragments={item.execution.resourceContext.fragments}/>}
             <StreamingAnswer key={item.execution?.executionId ?? item.turn.turnId}
                              execution={item.execution} onDisplayChange={onDisplayChange}/>
             {state === 'OUTCOME_UNKNOWN' && (

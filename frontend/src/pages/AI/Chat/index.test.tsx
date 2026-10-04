@@ -4,7 +4,7 @@ import {App} from 'antd';
 import React, {useSyncExternalStore} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ChatBootstrap, Conversation} from '@/types/ai-new/conversation';
-import type {CancellationStatus, ChatTurnResult, ExecutionStatus} from '@/types/ai-new/chat';
+import type {CancellationStatus, ChatTurnResult, ExecutionStatus, RagContext} from '@/types/ai-new/chat';
 import ChatPage from './index';
 import {type ChatStreamEvent, observeChatEvents} from '@/services/ai-new/stream';
 
@@ -77,6 +77,74 @@ let rejectWrites: number | null;
 let revoked: boolean;
 let turns: ChatTurnResult[];
 let cancelStatus: CancellationStatus;
+
+const ragContext: RagContext = {
+  contentDigest: `sha256:${'a'.repeat(64)}`, expiresAt: '2026-10-03T01:00:00Z',
+  messages: [{role: 'USER', parts: [{text: '已固定的文章资料 <script>unsafe()</script>'}]}],
+  fragments: [{citationId: 'article-1', content: '已固定的文章资料 <script>unsafe()</script>', truncated: true,
+    coverageDescription: 'ES 片段，并非全文', source: {resource: {resourceType: 'ARTICLE', resourceId: '10', version: '1',
+      rangeRef: 'es-chunk:one', contentDigest: `sha256:${'b'.repeat(64)}`}}}],
+  budget: {usedInputBytes: 100, inputByteLimit: 8192, estimatedInputTokens: 120, inputTokenLimit: 6000},
+};
+
+describe('article retrieval consent', () => {
+  it('waits for the library preview and sends only after the actual passages are confirmed', async () => {
+    selectFirst(); bootstrap.defaultModel = {...model, retrievalEnabled: true};
+    const original = state.request.getMockImplementation();
+    let resolvePreview!: () => void;
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/rag-preview')) return new Promise(resolve => {
+        resolvePreview = () => resolve({previewId: 'preview', conversationId: 'first', conversationVersion: 1, context: ragContext});
+      });
+      return original?.(path, options);
+    });
+    const rendered = view();
+    const mode = await screen.findByRole('combobox', {name: '文章检索'});
+    await waitFor(() => expect(mode).toBeEnabled());
+    fireEvent.mouseDown(mode); fireEvent.click(mode);
+    fireEvent.click(await screen.findByText('检索当前空间中获准使用的文章库'));
+    const input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '检索问题'}});
+    fireEvent.click(screen.getByRole('button', {name: '发送消息'}));
+    await waitFor(() => expect(resolvePreview).toBeDefined());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(state.request.mock.calls.some(([path, options]) => path.endsWith('/turns') && options.method === 'POST')).toBe(false);
+    await act(async () => resolvePreview());
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', {name: '确认并发送'})).toBeDisabled();
+    expect(within(dialog).getByText('ES 片段，并非全文')).toBeInTheDocument();
+    expect(rendered.container.querySelector('script')).toBeNull();
+    confirmSend(dialog);
+    await waitFor(() => expect(state.request.mock.calls.some(([path, options]) => path.endsWith('/turns') && options.method === 'POST')).toBe(true));
+    const post = state.request.mock.calls.find(([path, options]) => path.endsWith('/turns') && options.method === 'POST');
+    expect(post?.[1].data).toMatchObject({text: '检索问题', previewId: 'preview', expectedContextDigest: ragContext.contentDigest});
+    expect(JSON.stringify(post?.[1].data)).not.toContain('unsafe');
+  });
+  it('does not open consent or dispatch a model request when retrieval has no results', async () => {
+    selectFirst(); bootstrap.defaultModel = {...model, retrievalEnabled: true};
+    const original = state.request.getMockImplementation();
+    state.request.mockImplementation((path, options = {}) => {
+      if (path.endsWith('/rag-preview')) return Promise.reject({response: {status: 404, data: {
+        code: 'arte.common.not_found', failureStage: 'rag-no-results', retryable: false, sideEffectStatus: 'NONE', resultCertainty: 'CONFIRMED',
+      }}});
+      return original?.(path, options);
+    });
+    view();
+    const mode = await screen.findByRole('combobox', {name: '文章检索'});
+    await waitFor(() => expect(mode).toBeEnabled());
+    fireEvent.mouseDown(mode); fireEvent.click(mode);
+    fireEvent.click(await screen.findByText('检索当前空间中获准使用的文章库'));
+    const input = await screen.findByRole('textbox', {name: '消息内容'});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '没有命中的问题'}});
+    fireEvent.click(screen.getByRole('button', {name: '发送消息'}));
+    await screen.findByText('没有找到可用的文章片段，请调整问题或文章范围。');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(input).toHaveValue('没有命中的问题');
+    expect(state.request.mock.calls.some(([path, options]) => path.endsWith('/turns') && options.method === 'POST')).toBe(false);
+  });
+});
 const makeConversation = (id: string, title: string): Conversation => ({
   conversationId: id,
   title,

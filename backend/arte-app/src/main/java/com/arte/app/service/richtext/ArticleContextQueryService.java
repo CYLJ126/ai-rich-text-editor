@@ -1,6 +1,5 @@
 package com.arte.app.service.richtext;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -8,7 +7,7 @@ import java.util.Optional;
 
 /** 文章领域的只读投影；调用方负责资源授权，不依赖旧 ThreadLocal 或 AI 实体。 */
 @Service
-@ConditionalOnProperty(name = "arte.ai-new.action.enabled", havingValue = "true")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("${arte.ai-new.action.enabled:false} or ${arte.ai-new.chat.enabled:false}")
 public class ArticleContextQueryService {
     public record ArticleText(String id, String title, String version, String text) { }
     private final JdbcTemplate jdbc;

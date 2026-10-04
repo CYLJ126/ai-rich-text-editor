@@ -1,8 +1,10 @@
 package com.arte.ai.conversation;
 
+import com.arte.ai.context.ResourceContextValues;
+import com.arte.ai.model.context.ContextBudget;
 import com.arte.ai.model.context.ContextHistoryRef;
 import com.arte.ai.model.context.ContextSnapshot;
-import com.arte.ai.model.context.ContextBudget;
+import com.arte.ai.model.context.ResourceContextSnapshot;
 import com.arte.ai.model.conversation.Turn;
 import com.arte.ai.model.definition.DefinitionRef;
 import com.arte.ai.model.generation.ModelOptions;
@@ -92,9 +94,22 @@ public final class ChatValues {
         });
     }
 
+    public static String submission(String conversation, long version, String original, List<Message> input, ModelOptions options,
+                                    ResourceContextSnapshot resources) {
+        String plain = submission(conversation, version, original, input, options);
+        return resources == null ? plain : hash(out -> { field(out, "arte.chat.submission.resources.v1"); field(out, plain); field(out, resources.contentDigest()); });
+    }
+
+    public static String context(String conversation, long version, DefinitionRef binding, List<Message> messages,
+                                 List<ContextHistoryRef> history, ContextBudget budget, ResourceContextSnapshot resources) {
+        String plain = context(conversation, version, binding, messages, history, budget);
+        return resources == null ? plain : hash(out -> { field(out, "arte.chat.context.resources.v1"); field(out, plain); field(out, resources.contentDigest()); });
+    }
+
     public static void verify(ContextSnapshot snapshot) {
-        if (!snapshot.fragments().isEmpty() || !snapshot.contentDigest().equals(context(snapshot.conversationId(), snapshot.conversationVersion(),
-                snapshot.modelBindingRef(), snapshot.messages(), snapshot.history(), snapshot.budget())))
+        if (snapshot.resourceContext() != null) ResourceContextValues.verify(snapshot.resourceContext());
+        if ((snapshot.resourceContext() == null && !snapshot.fragments().isEmpty()) || !snapshot.contentDigest().equals(context(snapshot.conversationId(), snapshot.conversationVersion(),
+                snapshot.modelBindingRef(), snapshot.messages(), snapshot.history(), snapshot.budget(), snapshot.resourceContext())))
             throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");
         if (bytes(snapshot.messages()) != snapshot.budget().usedInputBytes())
             throw failure(CommonErrorCode.VERSION_CONFLICT, "chat-context");
