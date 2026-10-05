@@ -15,7 +15,7 @@ import java.util.List;
  * @author zhangsc
  * @since 2026-06-13
  */
-@MybatisParams(value = "arte_ai_message", queryFields = {})
+@MybatisParams(value = "arte_ai_model_config", queryFields = {})
 public interface ModelConfigMapper extends BaseMapper<ModelConfigDto> {
     /**
      * 清除同一 modelType 下所有默认标记
