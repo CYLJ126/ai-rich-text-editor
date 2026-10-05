@@ -31,15 +31,12 @@ const MathFormulaView: React.FC = () => {
     };
   }, [operationMode]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleModalConfirm = useCallback(
     (latex: string, type: MathFormulaType) => {
-      setModalState((prev) => {
-        prev.onUpdate?.(latex, type);
-        return CLOSED;
-      });
+      modalState.onUpdate?.(latex, type);
+      setModalState(CLOSED);
     },
-    [],
+    [modalState.onUpdate],
   );
 
   const handleModalCancel = useCallback(() => {
