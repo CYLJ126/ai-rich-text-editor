@@ -1,6 +1,6 @@
 # 最小 AI 数据契约 v1
 
-日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 JDBC 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，模型调用及 HTTP API 尚未接入。
+日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 
 ## 1. 所有权、关系与实现范围
 
@@ -18,7 +18,7 @@ Conversation 不保存执行状态的另一份权威副本；它通过执行引�
 
 动作、向量或后台能力调用可以没有 Conversation／Turn。会话不持有另一份执行终态；关联资料不授予资源访问权。Conversation／Turn 的 version 与 Invocation／Attempt 的 version 分别用于所属对象的条件更新，不混用。
 
-当前代码包含不可变值对象、结构校验、状态关系谓词，以及独立存储／预算方法契约和 JDBC 事务实现；执行协调与策略仍由应用层接入。公共身份、引用和执行信封暂放在 `ainew.common`，未来整体迁移公共契约模块。复用现有 `ExecutionContext` 和运行上下文分离，不改变旧 `ai`、公共认证链路或文章实现。
+当前代码包含不可变值对象、结构校验、状态关系谓词，以及独立存储／预算方法契约和 MyBatis 事务实现；执行协调与策略仍由应用层接入。公共身份、引用和执行信封暂放在 `ainew.common`，未来整体迁移公共契约模块。复用现有 `ExecutionContext` 和运行上下文分离，不改变旧 `ai`、公共认证链路或文章实现。
 
 ## 2. 提交、重试、重新生成与编辑重发
 

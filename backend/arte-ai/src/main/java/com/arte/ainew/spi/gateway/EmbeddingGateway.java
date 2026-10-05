@@ -1,5 +1,10 @@
 package com.arte.ainew.spi.gateway;
 
+import com.arte.ainew.pojo.embedding.EmbeddingRequest;
+import com.arte.ainew.pojo.embedding.EmbeddingResult;
+import com.arte.ainew.pojo.execution.GatewayCall;
+import reactor.core.publisher.Mono;
+
 /**
  * 向量网关
  * <p>
@@ -10,4 +15,9 @@ package com.arte.ainew.spi.gateway;
  * @since 2026/10/4 17:00 ✾
  **/
 public interface EmbeddingGateway {
+
+    /**
+     * 一次受治理的向量请求；核对输入顺序／身份、维度及向量空间，不自行重试。
+     */
+    Mono<EmbeddingResult> embed(GatewayCall<EmbeddingRequest> call);
 }

@@ -1,5 +1,12 @@
 package com.arte.ainew.spi.adapter;
 
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.ainew.context.ExecutionRuntimeContext;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import reactor.core.publisher.Mono;
+
 /**
  * 连接与运行资源管理端口，供连接实现扩展。
  *
@@ -13,5 +20,31 @@ package com.arte.ainew.spi.adapter;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 17:47 ✾
  **/
-public interface ConnectionRuntime {
+public interface ConnectionRuntime<H> {
+
+    /**
+     * 按固定连接、主体隔离和当前凭据版本获取资源；执行停用、出口与凭据授权检查。
+     */
+    Mono<Lease<H>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime);
+
+    /**
+     * 每个领取句柄幂等释放；正常结束、异常和取消均须释放，可由 usingWhen 组合。
+     */
+    Mono<Void> release(Lease<H> lease);
+
+    /**
+     * 受信配置变更／故障时失效连接资源；不得因此自动重放已发送业务。
+     */
+    Mono<Void> invalidate(DefinitionRef connection, ExecutionContext context);
+
+    /**
+     * 实例内资源借用凭证，禁止序列化或从 HTTP 构造；handle 不进入普通结果或日志。
+     */
+    interface Lease<H> {
+        DefinitionRef connection();
+
+        ExecutionOwner owner();
+
+        H handle();
+    }
 }

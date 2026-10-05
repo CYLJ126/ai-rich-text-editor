@@ -1,5 +1,10 @@
 package com.arte.ainew.api.control;
 
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import reactor.core.publisher.Mono;
+
 /**
  * 连接管理服务
  * <p>
@@ -10,4 +15,9 @@ package com.arte.ainew.api.control;
  * @since 2026/10/4 17:33 ✾
  **/
 public interface ConnectionManager {
+
+    /**
+     * 解析受信、固定版本的连接配置及 SecretRef；不返回明文凭据，停用状态必须保留。
+     */
+    Mono<ConnectionDefinition> resolve(DefinitionRef connection, ExecutionContext context);
 }

@@ -1,5 +1,10 @@
 package com.arte.ainew.api.control;
 
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.ainew.pojo.control.ResolvedBinding;
+import reactor.core.publisher.Mono;
+
 /**
  * 绑定/解绑管理服务
  * <p>
@@ -10,4 +15,7 @@ package com.arte.ainew.api.control;
  * @since 2026/10/4 17:34 ✾
  **/
 public interface BindingManager {
+
+    /** 解析精确发布版本并检查能力、使用范围与停用状态；不能以 latest 替换记录的版本。 */
+    Mono<ResolvedBinding> resolve(DefinitionRef binding, DefinitionRef capability, ExecutionContext context);
 }

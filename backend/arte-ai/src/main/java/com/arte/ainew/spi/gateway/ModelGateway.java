@@ -1,5 +1,10 @@
 package com.arte.ainew.spi.gateway;
 
+import com.arte.ainew.pojo.execution.GatewayCall;
+import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.pojo.generation.GenerationSignal;
+import reactor.core.publisher.Flux;
+
 /**
  * 模型网关服务
  * <p>
@@ -10,4 +15,12 @@ package com.arte.ainew.spi.gateway;
  * @since 2026/10/4 16:58 ✾
  **/
 public interface ModelGateway {
+
+    /**
+     * 每次订阅至多发送一次模型请求；同一流返回增量及最终 Result／Failure，不拆成两次远端调用。
+     * 冷 Publisher，仅 Coordinator 订阅；不内部 subscribe、retry 或推进 Invocation 状态。
+     * 遵守期限、取消与输出上限；无结束信号的流结束不能当成成功。
+     * 业务失败转换为 Failure；订阅前校验／基础设施异常可 onError，协调器不得据此假定未执行。
+     */
+    Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call);
 }

@@ -1,5 +1,10 @@
 package com.arte.ainew.api.entry;
 
+import com.arte.ainew.common.execution.AcceptedExecution;
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.pojo.entry.EntryRequests;
+import reactor.core.publisher.Mono;
+
 /**
  * AI 动作入口
  * <p>
@@ -10,4 +15,8 @@ package com.arte.ainew.api.entry;
  * @since 2026/10/4 16:51 ✾
  **/
 public interface AiActionService {
+    /**
+     * 解析已发布动作与类型化输入，选择上下文及能力，通过 Coordinator 受理；不直接改业务资源。
+     */
+    Mono<AcceptedExecution> execute(EntryRequests.Action request, ExecutionContext context);
 }

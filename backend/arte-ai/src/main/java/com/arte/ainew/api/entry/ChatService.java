@@ -1,5 +1,10 @@
 package com.arte.ainew.api.entry;
 
+import com.arte.ainew.common.execution.AcceptedExecution;
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.pojo.entry.EntryRequests;
+import reactor.core.publisher.Mono;
+
 /**
  * 聊天入口
  * <p>
@@ -12,4 +17,13 @@ package com.arte.ainew.api.entry;
  * @since 2026/10/4 16:51 ✾
  **/
 public interface ChatService {
+    /**
+     * 新建轮次／追问／编辑重发；核对会话版本、历史与角色后组装上下文，通过 Coordinator 可靠受理。
+     */
+    Mono<AcceptedExecution> submit(EntryRequests.Chat request, ExecutionContext context);
+
+    /**
+     * 校验原调用及会话归属，复用固定 Turn；重建／重新授权上下文，新建 Invocation 并关联原调用。
+     */
+    Mono<AcceptedExecution> regenerate(EntryRequests.Regenerate request, ExecutionContext context);
 }

@@ -1,5 +1,10 @@
 package com.arte.ainew.spi.gateway;
 
+import com.arte.ainew.pojo.execution.GatewayCall;
+import com.arte.ainew.pojo.tool.ToolInvocation;
+import com.arte.ainew.pojo.tool.ToolResult;
+import reactor.core.publisher.Mono;
+
 /**
  * 工具网关
  * <p>
@@ -12,4 +17,9 @@ package com.arte.ainew.spi.gateway;
  * @since 2026/10/4 17:00 ✾
  **/
 public interface ToolGateway {
+
+    /**
+     * 重新校验绑定、工具 Schema、权限及副作用；一次调用，不自行执行模型后续决策或重试。
+     */
+    Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call);
 }
