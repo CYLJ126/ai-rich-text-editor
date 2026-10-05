@@ -1,6 +1,6 @@
 # 最小 AI 数据契约 v1
 
-日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；不表示模型调用、数据库事务、HTTP API 或分布式执行已经实现。
+日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 JDBC 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，模型调用及 HTTP API 尚未接入。
 
 ## 1. 所有权、关系与实现范围
 
@@ -18,7 +18,7 @@ Conversation 不保存执行状态的另一份权威副本；它通过执行引�
 
 动作、向量或后台能力调用可以没有 Conversation／Turn。会话不持有另一份执行终态；关联资料不授予资源访问权。Conversation／Turn 的 version 与 Invocation／Attempt 的 version 分别用于所属对象的条件更新，不混用。
 
-当前代码包含 JDK 值对象、结构校验及状态关系谓词，不提供执行、存储或策略实现。公共身份、引用和执行信封暂放在 `ainew.common`，未来整体迁移公共契约模块。复用现有 `ExecutionContext` 和运行上下文分离，不改变旧 `ai`、公共认证链路或文章实现。
+当前代码包含不可变值对象、结构校验、状态关系谓词，以及独立存储／预算方法契约和 JDBC 事务实现；执行协调与策略仍由应用层接入。公共身份、引用和执行信封暂放在 `ainew.common`，未来整体迁移公共契约模块。复用现有 `ExecutionContext` 和运行上下文分离，不改变旧 `ai`、公共认证链路或文章实现。
 
 ## 2. 提交、重试、重新生成与编辑重发
 
@@ -31,7 +31,7 @@ Conversation 不保存执行状态的另一份权威副本；它通过执行引�
 | 用户编辑输入后重发 | 新 Turn、新 Invocation；supersedesTurnId 关联原轮次，parentTurnId 明确新历史路径；不修改已执行的用户输入 |
 | 重放事件／查询结果 | 只读取记录，不建立 Invocation 或 Attempt |
 
-幂等作用域至少包括 tenant、subject、操作类型及目标会话／动作身份；服务端计算请求摘要，覆盖固定能力／绑定版本、实际业务输入、资料／快照内容、执行选项、关联轮次等有效语义。排除新分配 executionId、traceId、授权解析时刻等临时数据；deadline 应使用可复现的请求期限策略参与摘要，不能把每次接收时重新计算的时间直接造成同键冲突。具体规范化编码与去重保留窗口在受理实现中固定。
+当前存储的幂等作用域包括 tenant、workspace、subject 和稳定 capability.id；目标会话／动作身份进入请求摘要，同键换目标明确冲突。服务端计算请求摘要，覆盖固定能力／绑定版本、实际业务输入、资料／快照内容、执行选项、关联轮次等有效语义。排除新分配 executionId、traceId、授权解析时刻等临时数据；deadline 应使用可复现的请求期限策略参与摘要，不能把每次接收时重新计算的时间直接造成同键冲突。具体规范化编码仍由准入实现固定；当前耐久去重记录不自动过期，后续归档须保持约定的保留窗口。
 
 已知终态不返回 RUNNING。UNKNOWN 停止新执行，可以依据同一次远端操作的核对证据收敛到 SUCCEEDED／FAILED／CANCELLED，不能重新排队或盲目派发。此处 terminal 表示已停止执行，UNKNOWN 的结果事实仍可经核对收敛，并追加更高序号的终态事件；其他确定终态不能被重新生成覆盖。状态图谓词只是必要条件，存储仍须检查版本、执行归属和核对证据，并记录审计。Attempt 超时或中断不表示未执行，也不证明没有费用；错误 certainty=UNKNOWN 时必须使用 UNKNOWN 状态，不能以普通失败隐藏不确定性。
 
@@ -83,17 +83,17 @@ ArtifactRef 只能代表已经校验并转存到本系统的固定产物；供�
 
 构造器执行 SDK 无关的结构校验：非空、范围、唯一标识、必要字段、有限向量、时间顺序与状态内的一致性。当前绝对结构上限为标识 256 字符、文本合计 1,000,000 个 Java 字符、常规列表 256 项、消息部件／产物 64 项、工具 128 项、结构化树深度 32／节点 10,000。执行选项上限为尝试 10 次（含首次）、输出 32 MiB、工具步骤 100／并发 16；默认聊天应使用更低配额并可禁用工具。字符上限不等于字节、Token 或费用；同时限制请求总字节与运行缓冲。
 
-数据布局初版为 v1。持久化／传输编码信封必须携带受信类型别名和 schemaVersion，引用的定义 version 与记录的乐观锁 version 是不同概念。ExecutionEvent、ResultRef 已显式包含相关编码版本；其他根记录由对应编码信封携带。以下是下一阶段编码器必须遵循的约定，而非已完成的 JSON 编解码实现：
+数据布局初版为 v1。持久化／传输编码信封必须携带受信类型别名和 schemaVersion，引用的定义 version 与记录的乐观锁 version 是不同概念。ExecutionEvent、ResultRef 已显式包含相关编码版本；其他根记录由对应编码信封携带。以下约定区分内部耐久快照与尚待实现的 HTTP 传输编码；内部白名单实现见 [存储契约](DISTRIBUTED_PERSISTENCE.md)：
 
 - 使用受信别名（例如 `ai.invocation`、`ai.output-batch`），白名单映射到固定具体类型；不启用按任意 Java 类名的默认多态反序列化。
-- StructuredValue 映射为标准 JSON 值；消息部件、输出格式、增量事件和异步结果使用显式 discriminator。CapabilityInput 解码依据已登记能力／Schema，不能相信客户端提供的类名。
+- HTTP 传输中 StructuredValue 映射为标准 JSON 值；内部快照使用显式类型包装。消息部件、输出格式、增量事件和异步结果使用显式 discriminator。CapabilityInput 解码依据已登记能力／Schema，不能相信客户端提供的类名。
 - Instant 使用 UTC ISO-8601；Money.amount 使用十进制字符串，currency 使用 ISO 币种代码；摘要使用小写 SHA-256 十六进制。大序号在浏览器协议中使用十进制字符串，避免 JavaScript 数字精度损失。
 - 增加可选字段须明确默认含义；移除／改义字段或增加不兼容枚举值升级 Schema，并为旧任务提供转换或旧版本 Worker。未知版本明确拒绝，不用默认值冒充兼容。
 - 不序列化 ExecutionRuntimeContext、进程内取消信号、Authentication、凭据或 SDK 对象；引用再使用时重新授权。含全文的请求／结果不能直接写入普通日志，record.toString() 也不例外。
 
-Java Serializable 用于测试数据不持有运行对象；测试仅对自身创建的可信对象做往返。生产存储与网络采用上述版本化显式编码，不使用 Java 原生反序列化接收不可信字节。完整 JSON 多态编解码及 HTTP DTO 另随接口方法设计落实。
+Java Serializable 用于测试数据不持有运行对象；测试仅对自身创建的可信对象做往返。生产存储与网络采用上述版本化显式编码，不使用 Java 原生反序列化接收不可信字节。已新增内部耐久快照的白名单 JSON 编码器；StructuredValue 内部使用显式类型包装，HTTP 标准 JSON DTO 仍由传输适配器落实。
 
-## 7. 下一阶段应用／存储边界
+## 7. 存储已落实的保证与应用边界
 
 - 原子受理：当前授权、能力与绑定解析、Schema／角色／模态校验、摘要计算、会话版本及活跃轮次串行校验、幂等唯一约束，以及 Invocation／Turn 关联与可恢复派发依据提交。
 - 执行与恢复：租约和 fencing、Attempt 唯一序号、发出前持久化事实、显式重试策略、未知结果核对、期限与取消命令传播。构造记录不代表这些保证已经实现。
@@ -103,16 +103,18 @@ Java Serializable 用于测试数据不持有运行对象；测试仅对自身�
 
 模型路由、上下文选择和重试保留独立版本化策略边界；当前先固定默认绑定、显式资料选择与保守重试规则。策略方法签名随应用接口设计落实。Agent 决策／结果组合、Workflow／Run、复杂记忆及完整评估数据后置，不为高级场景提前建立持久化引擎。
 
+原子受理、版本／租约／fencing、事件防重／序号／过期游标、终态／结果引用／Outbox 同库提交、预算预留／结算已由 [MyBatis 存储实现](DISTRIBUTED_PERSISTENCE.md) 落实。当前授权、规范化摘要、业务 Schema、上下文组装、结果字节落盘、轮询发布与订阅仍由应用层实现。
+
 ## 8. 验证
 
-从 backend 运行新增契约及现有执行上下文测试：
+从 backend 运行存储、数据契约及现有执行上下文测试：
 
 ```bash
 mvn -o -pl arte-ai -am \
   -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
   -Dslf4j.provider=ch.qos.logback.classic.spi.LogbackServiceProvider \
-  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.context.*Test' \
+  '-Dtest=com.arte.ainew.persistence.*Test,com.arte.ainew.contract.*Test,com.arte.ainew.context.*Test' \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-覆盖不可变嵌套集合、有界结构、能力输入匹配、幂等必需字段、期限、重新生成关系、未知执行与费用、实际上下文、工具提议、向量对应、远端身份及可信序列化往返。现有上下文测试继续验证授权、跨线程身份隔离、Worker 重建与取消／期限。该范围不证明数据库原子性、生产 JSON 编码、供应商协议兼容或多实例恢复已经完成。
+覆盖不可变嵌套集合、有界结构、能力输入匹配、幂等必需字段、期限、重新生成关系、未知执行与费用、实际上下文、工具提议、向量对应、远端身份及可信序列化往返。现有上下文测试继续验证授权、跨线程身份隔离、Worker 重建与取消／期限。新增存储测试验证 H2 MySQL 模式下的事务回滚、跨实例竞争与恢复；仍须验证实际 MySQL 部署与供应商协议兼容性。

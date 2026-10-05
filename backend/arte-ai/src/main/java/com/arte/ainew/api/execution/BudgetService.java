@@ -1,5 +1,11 @@
 package com.arte.ainew.api.execution;
 
+import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.pojo.budget.BudgetCommands;
+import com.arte.ainew.pojo.budget.BudgetReservation;
+import com.arte.ainew.pojo.execution.StoreOutcome;
+import reactor.core.publisher.Mono;
+
 /**
  * 预算服务
  * 用于管理任务执行过程中使用的资源，如模型资源、远程服务资源等。
@@ -14,4 +20,20 @@ package com.arte.ainew.api.execution;
  * @since 2026/10/4 17:42 ✾
  **/
 public interface BudgetService {
+    /**
+     * 原子检查币种／费率／余额，并预留和关联 Attempt；不得采用先读余额再扣减的实现。
+     */
+    Mono<StoreOutcome<BudgetReservation>> reserve(BudgetCommands.Reserve command);
+
+    /**
+     * reservationId + settlementKey 去重先于 CAS；同键异内容、重复最终结算均拒绝。
+     */
+    Mono<StoreOutcome<BudgetReservation>> settle(BudgetCommands.Settle command);
+
+    Mono<BudgetCommands.Account> account(ExecutionOwner owner, String budgetRef);
+
+    /**
+     * 当前权威快照，用于断线恢复及核对 CAS；不存在或归属不符返回空 Mono。
+     */
+    Mono<BudgetReservation> reservation(ExecutionOwner owner, String reservationId);
 }

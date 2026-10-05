@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.EventMapper">
+    <select id="nextSequence" resultType="java.lang.Long" useCache="false">
+        SELECT next_sequence FROM arte_ai_invocation WHERE id_key=#{idKey}
+    </select>
+    <insert id="insertEvent">
+        INSERT INTO arte_ai_event(invocation_key,sequence_no,snapshot) VALUES (#{invocationKey},#{sequenceNo},#{snapshot})
+    </insert>
+    <update id="saveNextSequence">
+        UPDATE arte_ai_invocation SET next_sequence=#{nextSequence} WHERE id_key=#{idKey}
+    </update>
+    <select id="writtenBytes" resultType="java.lang.Long" useCache="false">
+        SELECT written_bytes FROM arte_ai_invocation WHERE id_key=#{idKey}
+    </select>
+    <update id="addWrittenBytes">
+        UPDATE arte_ai_invocation SET written_bytes=written_bytes+#{bytes} WHERE id_key=#{idKey}
+    </update>
+    <select id="events" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_event WHERE invocation_key=#{invocationKey} AND sequence_no&gt;#{afterSequence} ORDER BY sequence_no LIMIT #{limit}
+    </select>
+    <select id="retainedAfter" resultType="java.lang.Long" useCache="false">
+        SELECT retained_after FROM arte_ai_invocation WHERE id_key=#{idKey}
+    </select>
+    <delete id="discardEvents">
+        DELETE FROM arte_ai_event WHERE invocation_key=#{invocationKey} AND sequence_no&lt;=#{throughSequence}
+    </delete>
+    <update id="saveRetainedAfter">
+        UPDATE arte_ai_invocation SET retained_after=#{retainedAfter} WHERE id_key=#{idKey}
+    </update>
+</mapper>

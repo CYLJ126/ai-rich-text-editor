@@ -20,6 +20,16 @@
     </properties>
 
     <dependencies>
+        <!-- 新执行存储显式依赖 JDBC；阻塞事务由适配器调度到专用线程。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- 新执行上下文直接依赖 Reactor 与身份契约，不启用新的 Web 栈。 -->
         <dependency>
             <groupId>io.projectreactor</groupId>
@@ -135,6 +145,18 @@
     </dependencyManagement>
 
     <build>
+        <!-- 部署 DDL 仅作为测试资源；不进入运行时 classpath 或应用 JAR。 -->
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>scripts</directory>
+                <includes>
+                    <include>arte-ai-new-ddl-mysql.sql</include>
+                </includes>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

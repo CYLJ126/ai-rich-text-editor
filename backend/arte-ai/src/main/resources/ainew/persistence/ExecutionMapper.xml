@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper">
+    <resultMap id="AcceptanceRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$AcceptanceRow">
+        <constructor>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="AttemptCountersRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$AttemptCountersRow">
+        <constructor>
+            <arg column="next_attempt" javaType="_int"/>
+            <arg column="next_fence" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="OperationRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$OperationRow">
+        <constructor>
+            <arg column="digest" javaType="java.lang.String"/>
+            <arg column="first_sequence" javaType="_long"/>
+            <arg column="event_count" javaType="_int"/>
+            <arg column="result_snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="attemptPurpose" resultType="java.lang.String" useCache="false">
+        SELECT purpose FROM arte_ai_attempt WHERE id_key=#{idKey}
+    </select>
+    <update id="saveInvocation">
+        UPDATE arte_ai_invocation SET snapshot=#{snapshot} WHERE id_key=#{idKey}
+    </update>
+    <update id="saveAttempt">
+        UPDATE arte_ai_attempt SET snapshot=#{snapshot} WHERE id_key=#{idKey}
+    </update>
+    <select id="acceptance" resultMap="AcceptanceRow" useCache="false">
+        SELECT request_digest, invocation_key FROM arte_ai_acceptance WHERE scope_key=#{scopeKey} AND idempotency_key=#{idempotencyKey}
+    </select>
+    <insert id="insertInvocation">
+        INSERT INTO arte_ai_invocation(id_key,owner_key,snapshot,next_attempt,next_fence,next_sequence,retained_after,written_bytes) VALUES (#{idKey},#{ownerKey},#{snapshot},0,0,0,0,0)
+    </insert>
+    <insert id="insertAcceptance">
+        INSERT INTO arte_ai_acceptance(scope_key,idempotency_key,request_digest,invocation_key) VALUES (#{scopeKey},#{idempotencyKey},#{requestDigest},#{invocationKey})
+    </insert>
+    <select id="attemptCounters" resultMap="AttemptCountersRow" useCache="false">
+        SELECT next_attempt,next_fence FROM arte_ai_invocation WHERE id_key=#{idKey}
+    </select>
+    <insert id="insertAttempt">
+        INSERT INTO arte_ai_attempt(id_key,invocation_key,attempt_number,purpose,snapshot) VALUES (#{idKey},#{invocationKey},#{attemptNumber},#{purpose},#{snapshot})
+    </insert>
+    <update id="advanceAttemptCounters">
+        UPDATE arte_ai_invocation SET next_attempt=#{nextAttempt},next_fence=#{nextFence} WHERE id_key=#{idKey}
+    </update>
+    <select id="nextFence" resultType="java.lang.Long" useCache="false">
+        SELECT next_fence FROM arte_ai_invocation WHERE id_key=#{idKey}
+    </select>
+    <update id="savePurpose">
+        UPDATE arte_ai_attempt SET purpose=#{purpose} WHERE id_key=#{idKey}
+    </update>
+    <update id="saveNextFence">
+        UPDATE arte_ai_invocation SET next_fence=#{nextFence} WHERE id_key=#{idKey}
+    </update>
+    <select id="operation" resultMap="OperationRow" useCache="false">
+        SELECT digest,first_sequence,event_count,result_snapshot FROM arte_ai_operation WHERE invocation_key=#{invocationKey} AND operation_key=#{operationKey}
+    </select>
+    <insert id="insertCompletion">
+        INSERT INTO arte_ai_operation(invocation_key,operation_key,digest,first_sequence,event_count,result_snapshot) VALUES (#{invocationKey},#{operationKey},#{digest},#{firstSequence},#{eventCount},#{resultSnapshot})
+    </insert>
+    <insert id="insertVerifiedCompletion">
+        INSERT INTO arte_ai_operation(invocation_key,operation_key,digest,first_sequence,event_count,result_snapshot,evidence_ref) VALUES (#{invocationKey},#{operationKey},#{digest},#{firstSequence},#{eventCount},#{resultSnapshot},#{evidenceRef})
+    </insert>
+    <insert id="insertAppend">
+        INSERT INTO arte_ai_operation(invocation_key,operation_key,digest,first_sequence,event_count) VALUES (#{invocationKey},#{operationKey},#{digest},#{firstSequence},#{eventCount})
+    </insert>
+    <select id="invocationSnapshot" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_invocation WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+    </select>
+    <select id="attemptSnapshot" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_attempt WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+    </select>
+</mapper>

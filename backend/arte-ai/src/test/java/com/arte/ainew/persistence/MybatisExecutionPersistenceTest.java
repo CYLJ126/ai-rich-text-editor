@@ -58,7 +58,7 @@ public class MybatisExecutionPersistenceTest {
         dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000");
         codec = new JacksonExecutionRecordCodec();
         scheduler = Schedulers.newBoundedElastic(12, 256, "ainew-mybatis-test");
-        new ResourceDatabasePopulator(new ClassPathResource("ainew/persistence/schema-mysql.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql")).execute(dataSource);
         first = new MybatisExecutionPersistence(dataSource, codec, scheduler);
         second = new MybatisExecutionPersistence(dataSource, codec, scheduler);
         jdbc = new JdbcTemplate(dataSource);
@@ -107,8 +107,8 @@ public class MybatisExecutionPersistenceTest {
         var invalid = new MybatisExecutionPersistence(dataSource, codec, Schedulers.parallel());
         assertThrows(IllegalStateException.class, () -> invalid.accept(
                 new Accept(candidate("wrong-scheduler", "wrong-scheduler", null, null), null)).block());
-        assertEquals(0, count("ainew_invocation"));
-        assertEquals(0, count("ainew_lock"));
+        assertEquals(0, count("arte_ai_invocation"));
+        assertEquals(0, count("arte_ai_lock"));
     }
 
     @Test public void simultaneousAcceptanceReturnsOneDurableIdentityAndDispatch() {
@@ -117,8 +117,8 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(1, results.stream().filter(r -> r.code() == APPLIED).count());
         assertEquals(23, results.stream().filter(r -> r.code() == REPLAYED).count());
         assertEquals(1, results.stream().map(r -> id(r.value())).distinct().count());
-        assertEquals(1, count("ainew_invocation")); assertEquals(1, count("ainew_acceptance"));
-        assertEquals(1, count("ainew_event")); assertEquals(2, count("ainew_outbox"));
+        assertEquals(1, count("arte_ai_invocation")); assertEquals(1, count("arte_ai_acceptance"));
+        assertEquals(1, count("arte_ai_event")); assertEquals(2, count("arte_ai_outbox"));
         var other = candidate("other", "same-key", null, null);
         other = new Invocation(other.request(), "b".repeat(64), null, null, null, other.state(), 0, null, null, null,
                 other.acceptedAt(), other.updatedAt());
@@ -134,19 +134,19 @@ public class MybatisExecutionPersistenceTest {
                 List.of("inv"), null, 0, at, at);
         var failing = faulty(value -> value instanceof ExecutionEvent<?>);
         assertThrows(IllegalStateException.class, () -> failing.accept(new Accept(invocation, turn)).block());
-        assertEquals(0, count("ainew_invocation")); assertEquals(0, count("ainew_turn"));
-        assertEquals(0, count("ainew_acceptance")); assertEquals(0, count("ainew_outbox"));
-        assertEquals(Long.valueOf(0), jdbc.queryForObject("SELECT version_no FROM ainew_conversation", Long.class));
+        assertEquals(0, count("arte_ai_invocation")); assertEquals(0, count("arte_ai_turn"));
+        assertEquals(0, count("arte_ai_acceptance")); assertEquals(0, count("arte_ai_outbox"));
+        assertEquals(Long.valueOf(0), jdbc.queryForObject("SELECT version_no FROM arte_ai_conversation_new", Long.class));
         assertEquals(APPLIED, first.accept(new Accept(invocation, turn)).block().code());
         var busy = candidate("busy", "other-key", null, new Invocation.ConversationLink("conversation", 1, "other-turn"));
         var busyTurn = new Turn("other-turn", "conversation", 2, null, null, turn.userMessage(), List.of("busy"), null, 0, at, at);
         assertEquals(CONVERSATION_BUSY, second.accept(new Accept(busy, busyTurn)).block().code());
-        assertEquals(1, count("ainew_invocation"));
+        assertEquals(1, count("arte_ai_invocation"));
     }
 
     @Test public void coldPublisherWritesOnlyOnSubscriptionAndDoesNotBlockCallerThread() {
         var publisher = first.accept(new Accept(candidate("inv", "key", null, null), null));
-        assertEquals(0, count("ainew_invocation"));
+        assertEquals(0, count("arte_ai_invocation"));
         var thread = publisher.map(ignored -> Thread.currentThread().getName()).block();
         assertTrue(thread.startsWith("ainew-mybatis-test"));
         assertEquals(REPLAYED, publisher.block().code());
@@ -170,7 +170,7 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(1, results.stream().filter(r -> r.code() == VERSION_CONFLICT).count());
         assertEquals(INVALID_STATE, second.createAttempt(new CreateAttempt(new Version(OWNER, "inv", 1), "duplicate", "worker",
                 Duration.ofSeconds(30))).block().code());
-        assertEquals(1, count("ainew_attempt"));
+        assertEquals(1, count("arte_ai_attempt"));
     }
 
     @Test public void expiredWorkerIsFencedAndUndispatchedAttemptCanBeRecovered() throws Exception {
@@ -206,8 +206,8 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(APPLIED, second.commitCompletion(new Complete(completion.guard(), completion.completionKey(), completion.terminal(),
                 completion.usage(), "provider-query-proof")).block().code());
         assertEquals(Invocation.State.SUCCEEDED, first.find(OWNER, "inv").block().state());
-        assertEquals("provider-query-proof", jdbc.queryForObject("SELECT evidence_ref FROM ainew_operation WHERE evidence_ref IS NOT NULL", String.class));
-        assertEquals(1, count("ainew_attempt"));
+        assertEquals("provider-query-proof", jdbc.queryForObject("SELECT evidence_ref FROM arte_ai_operation WHERE evidence_ref IS NOT NULL", String.class));
+        assertEquals(1, count("arte_ai_attempt"));
     }
 
     @Test public void onlyProvenSafeFailureMayCreateTheNextUniqueAttempt() {
@@ -239,27 +239,27 @@ public class MybatisExecutionPersistenceTest {
         var duplicate = new Append(guard, "batch-1", List.of(batch("output-1")));
         assertEquals(REPLAYED, second.appendBatch(duplicate).block().code());
         assertEquals(IDEMPOTENCY_CONFLICT, second.appendBatch(new Append(guard, "batch-1", List.of(batch("different")))).block().code());
-        assertEquals(26, count("ainew_event"));
+        assertEquals(26, count("arte_ai_event"));
         assertEquals(0, first.replay(OWNER, page.next(), 256).block().value().events().size());
     }
 
     @Test public void failedAppendAndCompletionLeaveNoPartialStateOrPublication() {
         accept("inv", null); create("inv"); dispatch("inv");
         // 第二个 INSERT 被数据库拒绝，验证第一个事件、Outbox 及计数器随事务一起回滚。
-        jdbc.execute("ALTER TABLE ainew_event ADD CONSTRAINT injected_append_fault CHECK(sequence_no<>4)");
+        jdbc.execute("ALTER TABLE arte_ai_event ADD CONSTRAINT injected_append_fault CHECK(sequence_no<>4)");
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
                 () -> first.appendBatch(new Append(guard("inv"), "batch", List.of(batch("x"), batch("y")))).block());
-        jdbc.execute("ALTER TABLE ainew_event DROP CONSTRAINT injected_append_fault");
-        assertEquals(2, count("ainew_event")); assertEquals(0, count("ainew_operation"));
+        jdbc.execute("ALTER TABLE arte_ai_event DROP CONSTRAINT injected_append_fault");
+        assertEquals(2, count("arte_ai_event")); assertEquals(0, count("arte_ai_operation"));
         var failCompletion = faulty(value -> value instanceof ExecutionEvent<?> event && event.kind() == ExecutionEvent.Kind.TERMINAL);
         var completion = success("inv", "finish");
         assertThrows(IllegalStateException.class, () -> failCompletion.commitCompletion(completion).block());
         assertEquals(Invocation.State.RUNNING, second.find(OWNER, "inv").block().state());
         assertEquals(Attempt.State.RUNNING, second.findAttempt(OWNER, "inv", "attempt-inv").block().state());
-        assertEquals(2, count("ainew_event")); assertEquals(3, count("ainew_outbox"));
+        assertEquals(2, count("arte_ai_event")); assertEquals(3, count("arte_ai_outbox"));
         assertEquals(APPLIED, first.commitCompletion(completion).block().code());
         assertEquals(REPLAYED, second.commitCompletion(completion).block().code());
-        assertEquals(3, count("ainew_event")); assertEquals(4, count("ainew_outbox"));
+        assertEquals(3, count("arte_ai_event")); assertEquals(4, count("arte_ai_outbox"));
         var changed = new Complete(completion.guard(), "finish", new ExecutionPayload.Terminal(Invocation.State.CANCELLED, null, null),
                 Usage.unknown(), null);
         assertEquals(IDEMPOTENCY_CONFLICT, first.commitCompletion(changed).block().code());
@@ -303,7 +303,7 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(10, results.stream().filter(r -> r.code() == APPLIED).count());
         assertEquals(14, results.stream().filter(r -> r.code() == INSUFFICIENT_BUDGET).count());
         assertEquals(money("100"), first.account(OWNER, "budget").block().held());
-        assertEquals(10, count("ainew_reservation"));
+        assertEquals(10, count("arte_ai_reservation"));
         var winner = results.stream().filter(StoreOutcome::successful).findFirst().orElseThrow().value();
         var replay = commands.stream().filter(c -> c.reservationId().equals(winner.reservationId())).findFirst().orElseThrow();
         assertEquals(REPLAYED, second.reserve(replay).block().code());
@@ -350,7 +350,7 @@ public class MybatisExecutionPersistenceTest {
         var balance = first.account(OWNER, "budget").block();
         assertEquals(BudgetReservation.State.SETTLED, second.reservation(OWNER, reserved.reservationId()).block().state());
         assertNull(first.reservation(new ExecutionOwner("tenant", "workspace", "other"), reserved.reservationId()).block());
-        assertEquals("bill-ref", jdbc.queryForObject("SELECT evidence_ref FROM ainew_settlement WHERE evidence_kind='PROVIDER_BILL'", String.class));
+        assertEquals("bill-ref", jdbc.queryForObject("SELECT evidence_ref FROM arte_ai_settlement WHERE evidence_kind='PROVIDER_BILL'", String.class));
         assertEquals(money("0"), balance.held()); assertEquals(money("120"), balance.charged());
         assertEquals(0, balance.available().compareTo(new BigDecimal("-20")));
         accept("next", "budget"); create("next");
@@ -366,7 +366,7 @@ public class MybatisExecutionPersistenceTest {
         account("100"); accept("inv", "budget"); create("inv");
         var failReserve = faulty(value -> value instanceof Attempt a && a.budgetReservationId() != null);
         assertThrows(IllegalStateException.class, () -> failReserve.reserve(reserveCommand("inv", "10")).block());
-        assertEquals(0, count("ainew_reservation")); assertEquals(money("0"), first.account(OWNER, "budget").block().held());
+        assertEquals(0, count("arte_ai_reservation")); assertEquals(money("0"), first.account(OWNER, "budget").block().held());
         assertNull(first.findAttempt(OWNER, "inv", "attempt-inv").block().budgetReservationId());
         var reserved = first.reserve(reserveCommand("inv", "10")).block().value();
         var settlement = new BudgetSettlement("release", reserved.reservationId(), BudgetSettlement.State.RELEASED,
@@ -374,7 +374,7 @@ public class MybatisExecutionPersistenceTest {
         var command = new BudgetCommands.Settle(OWNER, 0, settlement, BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED, "proof");
         var failSettle = faulty(value -> value instanceof BudgetReservation r && r.state() == BudgetReservation.State.RELEASED);
         assertThrows(IllegalStateException.class, () -> failSettle.settle(command).block());
-        assertEquals(money("10"), first.account(OWNER, "budget").block().held()); assertEquals(0, count("ainew_settlement"));
+        assertEquals(money("10"), first.account(OWNER, "budget").block().held()); assertEquals(0, count("arte_ai_settlement"));
         assertEquals(APPLIED, first.settle(command).block().code()); assertEquals(money("0"), first.account(OWNER, "budget").block().held());
         assertEquals(INSUFFICIENT_BUDGET, first.markDispatch(new Dispatch(guard("inv"), null)).block().code());
     }
@@ -423,7 +423,7 @@ public class MybatisExecutionPersistenceTest {
                 new ExecutionPayload.Terminal(Invocation.State.CANCELLED, null, null));
         assertEquals(APPLIED, first.commitCompletion(completion).block().code());
         assertEquals(REPLAYED, second.commitCompletion(completion).block().code());
-        assertEquals(0, count("ainew_attempt"));
+        assertEquals(0, count("arte_ai_attempt"));
         var another = candidate("replacement", "key-replacement", null, new Invocation.ConversationLink("conversation", 1, "turn"));
         var replacement = new Invocation(another.request(), another.requestDigest(), another.conversation(), null, "original", another.state(),
                 0, null, null, null, another.acceptedAt(), another.updatedAt());
@@ -440,7 +440,7 @@ public class MybatisExecutionPersistenceTest {
         accept("inv", null); create("inv"); dispatch("inv");
         assertEquals(APPLIED, first.appendBatch(new Append(guard("inv"), "one", List.of(batch("x".repeat(60_000))))).block().code());
         assertEquals(INVALID_STATE, second.appendBatch(new Append(guard("inv"), "two", List.of(batch("y".repeat(60_000))))).block().code());
-        assertEquals(3, count("ainew_event")); assertEquals(4, count("ainew_outbox"));
+        assertEquals(3, count("arte_ai_event")); assertEquals(4, count("arte_ai_outbox"));
     }
 
     @Test public void reservationExpiryStopsDispatchWithoutAutomaticallyFreeingFunds() throws Exception {
@@ -460,7 +460,7 @@ public class MybatisExecutionPersistenceTest {
         Thread.sleep(1100);
         assertEquals(LEASE_LOST, second.commitCompletion(completion).block().code());
         assertEquals(Invocation.State.RUNNING, first.find(OWNER, "inv").block().state());
-        assertEquals(2, count("ainew_event")); assertEquals(0, count("ainew_operation"));
+        assertEquals(2, count("arte_ai_event")); assertEquals(0, count("arte_ai_operation"));
     }
 
     private MybatisExecutionPersistence faulty(java.util.function.Predicate<Object> when) {

@@ -133,9 +133,10 @@ public class ArticleRetrievalAugmentationAdvisor extends AbstractRetrievalAugmen
         if (CollUtil.isNotEmpty(article.getTags())) {
             QueryWrapper<TagDto> queryWrapper = new QueryWrapper<>();
             queryWrapper.in(TagPo.COL_ID, article.getTags());
-            MybatisInterceptor.ignore();
-            List<TagDto> tagList = tagService.list(queryWrapper);
-            tags.addAll(tagList.stream().map(TagDto::getName).toList());
+            try (var scope = MybatisInterceptor.ignoreScope()) {
+                List<TagDto> tagList = tagService.list(queryWrapper);
+                tags.addAll(tagList.stream().map(TagDto::getName).toList());
+            }
         }
         return getPromptByGenerateType(chatRequestDto, article, tags);
     }

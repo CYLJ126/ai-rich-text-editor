@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.OutboxMapper">
+    <resultMap id="OutboxRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$OutboxRow">
+        <constructor>
+            <arg column="worker_id" javaType="java.lang.String"/>
+            <arg column="token" javaType="_long"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="owner_tenant" javaType="java.lang.String"/>
+            <arg column="owner_workspace" javaType="java.lang.String"/>
+            <arg column="owner_subject" javaType="java.lang.String"/>
+            <arg column="kind" javaType="java.lang.String"/>
+            <arg column="sequence_no" javaType="_long"/>
+            <arg column="delivered" javaType="_int"/>
+            <arg column="lease_until" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="PendingMessageRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$PendingMessageRow">
+        <constructor>
+            <arg column="message_key" javaType="java.lang.String"/>
+            <arg column="invocation_id" javaType="java.lang.String"/>
+            <arg column="sequence_no" javaType="_long"/>
+            <arg column="token" javaType="_long"/>
+            <arg column="owner_tenant" javaType="java.lang.String"/>
+            <arg column="owner_workspace" javaType="java.lang.String"/>
+            <arg column="owner_subject" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <insert id="insertMessage">
+        INSERT INTO arte_ai_outbox(message_key,invocation_key,invocation_id,owner_tenant,owner_workspace,owner_subject,kind,sequence_no,worker_id,token,lease_until,delivered) VALUES (#{messageKey},#{invocationKey},#{invocationId},#{ownerTenant},#{ownerWorkspace},#{ownerSubject},#{kind},#{sequenceNo},NULL,0,0,0)
+    </insert>
+    <select id="pendingMessages" resultMap="PendingMessageRow" useCache="false">
+        SELECT message_key,invocation_id,sequence_no,token,owner_tenant,owner_workspace,owner_subject FROM arte_ai_outbox WHERE kind=#{kind} AND delivered=0 AND lease_until&lt;=#{currentTime} ORDER BY lease_until,message_key LIMIT #{limit} FOR UPDATE
+    </select>
+    <update id="claimMessage">
+        UPDATE arte_ai_outbox SET worker_id=#{workerId},token=#{token},lease_until=#{leaseUntil} WHERE message_key=#{messageKey}
+    </update>
+    <select id="lockMessage" resultMap="OutboxRow" useCache="false">
+        SELECT * FROM arte_ai_outbox WHERE message_key=#{messageKey} FOR UPDATE
+    </select>
+    <update id="deliverMessage">
+        UPDATE arte_ai_outbox SET delivered=1 WHERE message_key=#{messageKey}
+    </update>
+    <select id="countUndelivered" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*) FROM arte_ai_outbox WHERE invocation_key=#{invocationKey} AND kind=#{kind} AND sequence_no&lt;=#{throughSequence} AND delivered=0
+    </select>
+</mapper>

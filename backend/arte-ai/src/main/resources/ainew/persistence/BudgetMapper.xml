@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.BudgetMapper">
+    <resultMap id="SettlementRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$SettlementRow">
+        <constructor>
+            <arg column="digest" javaType="java.lang.String"/>
+            <arg column="result_snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <insert id="insertAccount">
+        INSERT INTO arte_ai_account(id_key,owner_key,snapshot) VALUES (#{idKey},#{ownerKey},#{snapshot})
+    </insert>
+    <update id="saveAccount">
+        UPDATE arte_ai_account SET snapshot=#{snapshot} WHERE id_key=#{idKey}
+    </update>
+    <update id="saveReservation">
+        UPDATE arte_ai_reservation SET snapshot=#{snapshot} WHERE id_key=#{idKey}
+    </update>
+    <select id="reservationForAttempt" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_reservation WHERE attempt_key=#{attemptKey} AND invocation_key=#{invocationKey}
+    </select>
+    <insert id="insertReservation">
+        INSERT INTO arte_ai_reservation(id_key,account_key,invocation_key,attempt_key,snapshot) VALUES (#{idKey},#{accountKey},#{invocationKey},#{attemptKey},#{snapshot})
+    </insert>
+    <select id="settlement" resultMap="SettlementRow" useCache="false">
+        SELECT digest,result_snapshot FROM arte_ai_settlement WHERE reservation_key=#{reservationKey} AND settlement_key=#{settlementKey}
+    </select>
+    <insert id="insertSettlement">
+        INSERT INTO arte_ai_settlement(reservation_key,settlement_key,digest,snapshot,result_snapshot,evidence_kind,evidence_ref) VALUES (#{reservationKey},#{settlementKey},#{digest},#{snapshot},#{resultSnapshot},#{evidenceKind},#{evidenceRef})
+    </insert>
+    <select id="accountSnapshot" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_account WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+    </select>
+    <select id="reservationSnapshot" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_reservation WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+    </select>
+</mapper>
