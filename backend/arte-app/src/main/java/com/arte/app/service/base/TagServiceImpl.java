@@ -3,8 +3,6 @@ package com.arte.app.service.base;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.app.api.base.TagRelationService;
 import com.arte.app.api.base.TagService;
 import com.arte.app.common.constant.DwConstant;
@@ -16,6 +14,8 @@ import com.arte.app.pojo.base.TagRelationDto;
 import com.arte.app.pojo.base.param.TagParam;
 import com.arte.core.interceptor.MybatisInterceptor;
 import com.arte.core.pojo.UserContext;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -52,8 +52,9 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, TagDto> implements Ta
     }
 
     public void refresh() {
-        MybatisInterceptor.ignore();
-        list().forEach(tag -> TAG_MAP.put(tag.getId(), tag));
+        try (var scope = MybatisInterceptor.ignoreScope()) {
+            list().forEach(tag -> TAG_MAP.put(tag.getId(), tag));
+        }
     }
 
     @Override
