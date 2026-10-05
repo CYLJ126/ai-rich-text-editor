@@ -1,4 +1,5 @@
-import {InputRule, nodePasteRule} from '@tiptap/core';
+import {type Editor, InputRule, nodePasteRule} from '@tiptap/core';
+import type {Node as ProseMirrorNode} from '@tiptap/pm/model';
 import {BlockMath, InlineMath, Mathematics, type MathematicsOptions,} from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import './MathFormula.less';
@@ -27,9 +28,6 @@ export interface MathFormulaOptions extends MathematicsOptions {
    */
   enableClickEdit?: boolean;
 }
-
-// 保存当前编辑器实例，供点击回调使用
-let currentEditor: any = null;
 
 const insertMathFormula = (
   editor: any,
@@ -197,15 +195,61 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
   },
 
   addExtensions() {
+    // 节点视图传入所属编辑器，避免其他编辑器的创建/销毁影响公式保存。
+    const handleClickEdit = (
+      editor: Editor,
+      node: ProseMirrorNode,
+      pos: number,
+      type: MathFormulaType,
+    ) => {
+      if (!this.options.enableClickEdit || editor.isDestroyed || !editor.isEditable) return;
+
+      modalBridge.handler?.openModal(type, node.attrs.latex ?? '', (newLatex, newType) => {
+        if (editor.isDestroyed || !editor.isEditable) return;
+        const currentNode = editor.state.doc.nodeAt(pos);
+        if (!currentNode || currentNode.type !== node.type) return;
+
+        if (newType !== type) {
+          editor.chain().focus().insertContentAt(
+            {from: pos, to: pos + currentNode.nodeSize},
+            {
+              type: newType === 'block' ? 'blockMath' : 'inlineMath',
+              attrs: {latex: newLatex},
+            },
+          ).run();
+          return;
+        }
+
+        // 数学扩展读取 editor.state 中的选区，链式 setNodeSelection 尚未提交。
+        // 显式传入被点击公式的位置，确保更新正文并触发文章保存状态同步。
+        const chain = editor.chain().focus();
+        if (type === 'block') {
+          chain.updateBlockMath({latex: newLatex, pos}).run();
+        } else {
+          chain.updateInlineMath({latex: newLatex, pos}).run();
+        }
+      });
+    };
+
     return [
-      MathFormulaBlock.configure({
+      MathFormulaBlock.extend({
+        addNodeView() {
+          this.options.onClick = (node, pos) => handleClickEdit(this.editor, node, pos, 'block');
+          return this.parent?.() ?? null;
+        },
+      }).configure({
         ...this.options.blockOptions,
         katexOptions: {
           ...this.options.katexOptions,
           displayMode: true,
         },
       }),
-      MathFormulaInline.configure({
+      MathFormulaInline.extend({
+        addNodeView() {
+          this.options.onClick = (node, pos) => handleClickEdit(this.editor, node, pos, 'inline');
+          return this.parent?.() ?? null;
+        },
+      }).configure({
         ...this.options.inlineOptions,
         katexOptions: {
           ...this.options.katexOptions,
@@ -428,17 +472,6 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
     };
   },
 
-  onCreate() {
-    this.parent?.();
-    // 存储编辑器实例
-    currentEditor = this.editor;
-  },
-
-  onDestroy() {
-    this.parent?.();
-    // 清理编辑器实例
-    currentEditor = null;
-  },
   // 快捷键设置
   addKeyboardShortcuts() {
     return {
@@ -469,56 +502,9 @@ export const MathFormula = Mathematics.extend<MathFormulaOptions>({
 
 // 配置方法，用于自定义配置
 export const configureMathFormula = (options: MathFormulaOptions = {}) => {
-  /**
-   * 点击已有公式时，通过 bridge 打开弹窗编辑
-   */
-  const handleClickEdit = (node: any, pos: number, type: MathFormulaType) => {
-    if (!options.enableClickEdit || !currentEditor) return;
-    if (!modalBridge.handler) return;
-
-    modalBridge.handler.openModal(
-      type,
-      node.attrs.latex ?? '',
-      (newLatex, newType) => {
-        try {
-          if (newType !== type) {
-            currentEditor
-              .chain()
-              .focus()
-              .insertContentAt(
-                { from: pos, to: pos + node.nodeSize },
-                {
-                  type: newType === 'block' ? 'blockMath' : 'inlineMath',
-                  attrs: { latex: newLatex },
-                },
-              )
-              .run();
-            return;
-          }
-
-          const updateCmd =
-            type === 'block' ? 'updateBlockMath' : 'updateInlineMath';
-          currentEditor
-            .chain()
-            .focus()
-            .setNodeSelection(pos)
-            [updateCmd]({ latex: newLatex })
-            .run();
-        } catch (error) {
-          console.error(`Failed to update ${type} math:`, error);
-        }
-      },
-    );
-  };
-
   return MathFormula.configure({
+    ...options,
     enableClickEdit: options.enableClickEdit ?? true,
-    blockOptions: {
-      onClick: (node: any, pos: number) => handleClickEdit(node, pos, 'block'),
-    },
-    inlineOptions: {
-      onClick: (node: any, pos: number) => handleClickEdit(node, pos, 'inline'),
-    },
   } as any);
 };
 
