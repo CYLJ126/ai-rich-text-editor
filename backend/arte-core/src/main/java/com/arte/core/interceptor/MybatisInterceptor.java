@@ -1,371 +1,189 @@
 package com.arte.core.interceptor;
 
-import cn.hutool.core.date.DatePattern;
-import cn.hutool.core.util.ArrayUtil;
-import cn.hutool.core.util.BooleanUtil;
-import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.extension.plugins.inner.BaseMultiTableInnerInterceptor;
 import com.arte.core.annotations.MybatisParams;
-import com.arte.core.enums.ResultCodeEnum;
-import com.arte.core.exception.CommonException;
-import com.arte.core.i18n.MessageUtils;
-import com.arte.core.pojo.UserContext;
-import lombok.extern.slf4j.Slf4j;
-import net.sf.jsqlparser.expression.*;
-import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
-import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
-import net.sf.jsqlparser.expression.operators.relational.Between;
-import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
-import net.sf.jsqlparser.expression.operators.relational.InExpression;
-import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
-import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.schema.Column;
-import net.sf.jsqlparser.schema.Table;
-import net.sf.jsqlparser.statement.Statement;
-import org.apache.ibatis.executor.statement.StatementHandler;
+import com.baomidou.mybatisplus.extension.plugins.inner.InnerInterceptor;
+import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
+import org.apache.ibatis.mapping.SqlCommandType;
+import org.apache.ibatis.mapping.SqlSource;
+import org.apache.ibatis.reflection.SystemMetaObject;
+import org.apache.ibatis.session.ResultHandler;
+import org.apache.ibatis.session.RowBounds;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.Timestamp;
-import java.time.*;
-import java.util.Collection;
-import java.util.Date;
+import java.util.*;
 
 /**
- * Mybatis 拦截器，对于注解了 {@link MybatisParams} 参数的实体类或 Mapper 接口或方法，会自动添加插入字段
+ * 旧业务审计／创建人条件插件。方法注解 > Mapper 注解 > 实体注解。
+ * 查询在生成缓存键前改写；写操作包装 SqlSource，使 SIMPLE/REUSE/BATCH 每次执行都绑定当前审计值。
+ * 不保存 SQL 阶段或审计值的 ThreadLocal。此插件不替代业务授权，也不负责租户隔离。
  *
  * @author zhangsc
  * @since 2025/7/21 20:11
  */
-@Slf4j
-public abstract class MybatisInterceptor extends BaseMultiTableInnerInterceptor {
+public abstract class MybatisInterceptor implements InnerInterceptor {
+    private static final ThreadLocal<IgnoreScope> IGNORE_SCOPE = new ThreadLocal<>();
+    private final SqlCommandType commandType;
 
-    /**
-     * 字段名值
-     *
-     * @param tableName 表名
-     * @param objName   Java 字段名
-     * @param sqlName   sql 字段名
-     * @param value     Java 对象值
-     */
-    public record FieldAndValue(String tableName, String objName, String sqlName, Object value) {
+    protected MybatisInterceptor(SqlCommandType commandType) {
+        this.commandType = commandType;
     }
 
     /**
-     * 用于记录当前处理的 Sql 语句类型，判断是否该执行相关 SQL 处理方法，确保只会有一种类型的拦截器执行
+     * 仅用于可信同步代码，必须 try-with-resources；不会传播到 Reactor 或异步任务。
      */
-    protected static ThreadLocal<String> statementType = new ThreadLocal<>();
-
-    /**
-     * 需要添加的字段名和值列表
-     */
-    protected static ThreadLocal<FieldAndValue[]> supplement = new ThreadLocal<>();
-
-    /**
-     * 忽略拦截，在业务方法逻辑中，通过设置此线程变量为 true，则该方法将不执行拦截逻辑
-     */
-    protected static ThreadLocal<Boolean> ignore = new ThreadLocal<>();
-
-    public static void ignore() {
-        ignore.set(true);
+    public static IgnoreScope ignoreScope() {
+        return new IgnoreScope();
     }
 
     /**
-     * 是否处理该 Sql 语句
-     *
-     * @param statement Sql 语句
-     * @return 是否处理该 Sql 语句
+     * 忽略拦截器作用域。
+     * 生命周期：通过实现 AutoCloseable 接口，在 try-with-resources 语句中使用，确保拦截器作用域在当前线程内按顺序关闭。
      */
-    abstract boolean checkStatementType(Statement statement);
+    public static final class IgnoreScope implements AutoCloseable {
+        private final Thread owner = Thread.currentThread();
+        private final IgnoreScope previous = IGNORE_SCOPE.get();
+        private boolean closed;
 
-    /**
-     * 根据注解获取需要添加的字段，不同的 Sql 语句类型返回不同的字段
-     *
-     * @param annotation 注解
-     * @return 要添加的字段名数组
-     */
-    abstract String[] getFieldsByStatementType(MybatisParams annotation);
+        private IgnoreScope() {
+            IGNORE_SCOPE.set(this);
+        }
 
-    /**
-     * 向 Sql 语句添加字段
-     *
-     * @param statement      Sql 语句
-     * @param fieldAndValues 要添加的字段名和值列表
-     */
-    abstract void addFieldsByStatementType(Statement statement, FieldAndValue[] fieldAndValues);
-
-    abstract String getStatementType();
-
-    @Override
-    public Expression buildTableExpression(Table table, Expression where, String whereSegment) {
-        throw new UnsupportedOperationException(MessageUtils.get("error.common.interceptorUnsupported"));
+        @Override
+        public void close() {
+            if (closed) return;
+            if (Thread.currentThread() != owner || IGNORE_SCOPE.get() != this) {
+                throw new IllegalStateException("Interceptor scopes must close in nesting order on their opening thread");
+            }
+            if (previous == null) IGNORE_SCOPE.remove();
+            else IGNORE_SCOPE.set(previous);
+            closed = true;
+        }
     }
 
     @Override
-    public void beforePrepare(StatementHandler sh, Connection connection, Integer transactionTimeout) {
-        try {
-            FieldAndValue[] fieldAndValues = supplement.get();
-            // 不是对应的 SQL 类型、字段名值列表为空、被线程忽略掉，均不处理
-            if (!StrUtil.equals(getStatementType(), statementType.get()) || ArrayUtil.isEmpty(fieldAndValues) || BooleanUtil.isTrue(ignore.get())) {
-                return;
-            }
-            // 获取 BoundSql
-            BoundSql boundSql = sh.getBoundSql();
-            String originalSql = boundSql.getSql();
-            log.debug("原始 SQL: {}", originalSql);
-            // 解析并修改 SQL
-            Statement statement = CCJSqlParserUtil.parse(originalSql);
-            if (checkStatementType(statement)) {
-                addFieldsByStatementType(statement, fieldAndValues);
-                String modifiedSql = statement.toString();
-                log.debug("修改后 SQL: {}", modifiedSql);
-                // 使用反射修改 BoundSql 中的 sql
-                Field sqlField = BoundSql.class.getDeclaredField("sql");
-                sqlField.setAccessible(true);
-                sqlField.set(boundSql, modifiedSql);
-            }
-        } catch (Exception e) {
-            log.error("SQL 修改失败，按原语句执行", e);
-        } finally {
-            // 执行 UPDATE 语句时，会先进一次 INSERT，再进 UPDATE，这里避免进 INSERT 时把参数清空掉
-            if (StrUtil.equals(getStatementType(), statementType.get())) {
-                supplement.remove();
-                ignore.remove();
-                statementType.remove();
+    public void beforeQuery(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds,
+                            ResultHandler resultHandler, BoundSql boundSql) {
+        if (commandType != SqlCommandType.SELECT) return;
+        MybatisParams annotation = annotation(ms, parameter);
+        if (annotation != null && annotation.queryFields().length != 0) {
+            AuditSqlRewriter.rewrite(ms, boundSql, annotation);
+        }
+    }
+
+    @Override
+    public void beforeUpdate(Executor executor, MappedStatement ms, Object parameter) {
+        if (commandType == SqlCommandType.SELECT || ms.getSqlCommandType() != commandType) return;
+        // 元数据只安装一次；包装器自身无每次执行的可变状态。
+        synchronized (ms) {
+            if (!(ms.getSqlSource() instanceof AuditedSqlSource)) {
+                SystemMetaObject.forObject(ms).setValue("sqlSource", new AuditedSqlSource(ms, ms.getSqlSource()));
             }
         }
     }
 
-    /**
-     * 检查是否有 {@link MybatisParams} 注解，并返回注解
-     *
-     * @param ms        MappedStatement
-     * @param parameter 请求参数
-     * @return {@link MybatisParams} 注解
-     */
-    protected MybatisParams checkAndGetAnnotation(MappedStatement ms, Object parameter) {
-        if (BooleanUtil.isTrue(ignore.get())) {
-            log.debug("{} 数据处理通过 ThreadLocal 被设置为忽略，不做拦截", ms.getId());
-            return null;
+    private record AuditedSqlSource(MappedStatement statement, SqlSource delegate) implements SqlSource {
+        @Override
+        public BoundSql getBoundSql(Object parameter) {
+            BoundSql original = delegate.getBoundSql(parameter);
+            MybatisParams annotation = annotation(statement, parameter);
+            if (annotation == null) return original;
+            // 不修改原 SqlSource 返回的对象，保留 foreach/bind 的额外参数。
+            BoundSql bound = new BoundSql(statement.getConfiguration(), original.getSql(), original.getParameterMappings(), parameter);
+            original.getAdditionalParameters().forEach(bound::setAdditionalParameter);
+            AuditSqlRewriter.rewrite(statement, bound, annotation);
+            return bound;
         }
-        // 先获取实体类上的注解
-        MybatisParams annotation = getAnnotation(parameter);
-        if (annotation == null) {
-            // 其次 Mapper 中的注解
-            annotation = getAnnotation(ms);
-        }
-        if (annotation == null || annotation.ignore()) {
-            log.debug("{} 数据处理参数注解不存在，或注解被设置为忽略，不做拦截", ms.getId());
-            return null;
-        }
-        return annotation;
     }
 
     /**
-     * 准备需要添加的字段和值
+     * 获取会影响当前 SQL 执行的注解，方法注解 > Mapper 注解 > 实体注解
      *
-     * @param ms        MappedStatement
+     * @param ms        映射语句
      * @param parameter 参数
+     * @return 注解，或 null
      */
-    protected FieldAndValue[] fillFieldAndValues(MappedStatement ms, Object parameter) {
-        MybatisParams annotation = checkAndGetAnnotation(ms, parameter);
-        if (annotation == null) {
-            return null;
+    private static MybatisParams annotation(MappedStatement ms, Object parameter) {
+        if (IGNORE_SCOPE.get() != null) return null;
+        int split = ms.getId().lastIndexOf('.');
+        MybatisParams annotation = null;
+        if (split > 0) {
+            try {
+                Class<?> mapper = Class.forName(ms.getId().substring(0, split));
+                String methodName = ms.getId().substring(split + 1);
+                for (Method method : mapper.getMethods()) {
+                    if (!method.getName().equals(methodName)) continue;
+                    // 获取 mapper 方法注解
+                    MybatisParams candidate = method.getAnnotation(MybatisParams.class);
+                    if (candidate != null) {
+                        if (annotation != null && !annotation.equals(candidate)) {
+                            throw new IllegalStateException("Conflicting overloaded mapper annotations: " + ms.getId());
+                        }
+                        annotation = candidate;
+                    }
+                }
+                // 获取 mapper 注解
+                if (annotation == null) annotation = mapper.getAnnotation(MybatisParams.class);
+            } catch (ClassNotFoundException e) {
+                // XML namespace 可以不是接口；继续检查实体注解。
+            }
         }
-        FieldAndValue[] fieldAndValues = getValues(annotation.value(), getFieldsByStatementType(annotation));
-        if (fieldAndValues.length == 0) {
-            log.debug("{} 没有需要添加的更新字段", ms.getId());
-            return null;
-        }
-        log.info("{} 新增更新值：{}", ms.getId(), printParams(fieldAndValues));
-        return fieldAndValues;
+        if (annotation == null)
+            // 获取实体注解
+            annotation = entityAnnotation(parameter, Collections.newSetFromMap(new IdentityHashMap<>()));
+        return annotation == null || annotation.ignore() ? null : annotation;
     }
 
     /**
-     * 根据 MappedStatement 获取 mapper 方法注解
+     * 获取实体类上的注解
+     * 若遇 Map/Collection 则递归检查其元素
      *
-     * @param mappedStatement mappedStatement 对象
-     * @return MybatisParams 注解
+     * @param parameter 实体类
+     * @param seen      避环集合
+     * @return 实体类上的注解，或 null
      */
-    protected MybatisParams getAnnotation(MappedStatement mappedStatement) {
-        String mapperClassName = mappedStatement.getId().substring(0, mappedStatement.getId().lastIndexOf("."));
-        String methodName = mappedStatement.getId().substring(mappedStatement.getId().lastIndexOf(".") + 1);
-        try {
-            // 加载Mapper接口类
-            Class<?> mapperClass = Class.forName(mapperClassName);
-            // 获取Mapper接口方法
-            Method[] methods = mapperClass.getMethods();
-            Method targetMethod = null;
-            for (Method method : methods) {
-                if (method.getName().equals(methodName)) {
-                    targetMethod = method;
-                    break;
+    private static MybatisParams entityAnnotation(Object parameter, Set<Object> seen) {
+        if (parameter == null || !seen.add(parameter)) return null;
+        if (parameter instanceof Map<?, ?> map) {
+            MybatisParams found = null;
+            for (Object value : map.values()) {
+                MybatisParams candidate = entityAnnotation(value, seen);
+                if (candidate != null) {
+                    if (found != null && !found.equals(candidate))
+                        throw new IllegalStateException("Conflicting entity audit annotations");
+                    found = candidate;
                 }
             }
-            // 1. 优先获取方法上的 @MybatisParams 注解
-            if (targetMethod != null) {
-                MybatisParams annotation = targetMethod.getAnnotation(MybatisParams.class);
-                if (annotation != null) {
-                    return annotation;
+            return found;
+        }
+        if (parameter instanceof Iterable<?> items) {
+            MybatisParams found = null;
+            for (Object value : items) {
+                MybatisParams candidate = entityAnnotation(value, seen);
+                if (candidate != null) {
+                    if (found != null && !found.equals(candidate))
+                        throw new IllegalStateException("Conflicting batch audit annotations");
+                    found = candidate;
                 }
             }
-            // 2. 其次获取 Mapper 接口上的 @MybatisParams 注解
-            return mapperClass.getAnnotation(MybatisParams.class);
-        } catch (ClassNotFoundException e) {
-            throw new CommonException(ResultCodeEnum.SYSTEM_EXCEPTION, mappedStatement.getId() + "方法未找到");
+            return found;
         }
-    }
-
-    /**
-     * 获取实体类上的 {@link MybatisParams} 注解
-     *
-     * @param parameter 实体类请求参数
-     * @return {@link MybatisParams} 注解
-     */
-    protected MybatisParams getAnnotation(Object parameter) {
-        if (parameter == null) {
-            return null;
-        }
-        Class<?> aClass = parameter.getClass();
-        if (!StrUtil.startWith(aClass.getPackageName(), "com.arte")) {
-            // 只拦截本项目功能
-            return null;
-        }
-        while (aClass != null) {
-            MybatisParams annotation = aClass.getAnnotation(MybatisParams.class);
-            if (annotation != null) {
-                return annotation;
-            } else {
-                aClass = aClass.getSuperclass();
-            }
+        if (!parameter.getClass().getPackageName().startsWith("com.arte")) return null;
+        for (Class<?> type = parameter.getClass(); type != null; type = type.getSuperclass()) {
+            MybatisParams annotation = type.getAnnotation(MybatisParams.class);
+            if (annotation != null) return annotation;
         }
         return null;
     }
 
     /**
-     * 获取字段名与字段值
-     *
-     * @param tableName 表名
-     * @param fields    要处理的字段列表
-     * @return FieldAndValue 列表
-     */
-    protected FieldAndValue[] getValues(String tableName, String[] fields) {
-        FieldAndValue[] values = new FieldAndValue[fields.length];
-        for (int i = 0; i < fields.length; i++) {
-            values[i] = new FieldAndValue(tableName, fields[i], camelToSnake(fields[i]), getValue(fields[i]));
-        }
-        return values;
-    }
-
-    protected Object getValue(String fieldName) {
-        return switch (fieldName) {
-            case MybatisParams.CREATE_BY, MybatisParams.UPDATE_BY ->
-                    UserContext.hasUserOnlineInfo() ? UserContext.getUserOnlineInfo().getUserName() : StrUtil.EMPTY;
-            case MybatisParams.CREATE_TIME, MybatisParams.UPDATE_TIME -> LocalDateTime.now();
-            default -> null;
-        };
-    }
-
-    /**
      * 驼峰转下划线
      *
-     * @param camelCase 驼峰命名字符串
+     * @param name 驼峰命名字符串
      * @return 下划线命名字符串
      */
-    public static String camelToSnake(String camelCase) {
-        if (camelCase == null || camelCase.isEmpty()) {
-            return camelCase;
-        }
-        // 使用正则表达式匹配大写字母并在前面加下划线
-        String snakeCase = camelCase.replaceAll("([A-Z])", "_$1").toLowerCase();
-        // 处理开头可能多出的下划线
-        if (snakeCase.startsWith("_")) {
-            snakeCase = snakeCase.substring(1);
-        }
-        return snakeCase;
-    }
-
-    public static String printParams(FieldAndValue[] params) {
-        StringBuilder sb = new StringBuilder();
-        for (FieldAndValue param : params) {
-            sb.append(String.format("java 字段[%s]，sql 字段[%s]，值[%s]；\n", param.objName, param.sqlName(), param.value()));
-        }
-        return sb.toString();
-    }
-
-    public static Expression and(Collection<Expression> expressions) {
-        if (expressions.isEmpty()) {
-            return null;
-        }
-        return expressions.stream().reduce(AndExpression::new).get();
-    }
-
-    public static Expression or(Collection<Expression> expressions) {
-        if (expressions.isEmpty()) {
-            return null;
-        }
-        return expressions.stream().reduce(OrExpression::new).get();
-    }
-
-    public static Expression createIsNullExpression(String columnName) {
-        Column column = new Column(columnName);
-        return new IsNullExpression().withLeftExpression(column);
-    }
-
-    public static Expression createBetweenExpression(String columnName, Object start, Object end) {
-        Column column = new Column(columnName);
-        Expression startExpr = valueExpression(start);
-        Expression endExpr = valueExpression(end);
-
-        Between between = new Between();
-        between.setLeftExpression(column);
-        between.setBetweenExpressionStart(startExpr);
-        between.setBetweenExpressionEnd(endExpr);
-        return between;
-    }
-
-    public static Expression createInExpression(String columnName, Object... values) {
-        Column column = new Column(columnName);
-        ExpressionList<Expression> exprList = new ExpressionList<>();
-
-        for (Object value : values) {
-            exprList.addExpressions(valueExpression(value));
-        }
-
-        InExpression inExpr = new InExpression();
-        inExpr.setLeftExpression(column);
-        inExpr.setRightExpression(exprList);
-        return inExpr;
-    }
-
-    protected static Expression valueExpression(Object value) {
-        Expression expr;
-        switch (value) {
-            case String s -> expr = new StringValue(s);
-            case Integer i -> expr = new LongValue(i.toString());
-            case Long l -> expr = new LongValue(l.toString());
-            case Number number -> expr = new DoubleValue(number.toString());
-            case Boolean b -> expr = new BooleanValue(b);
-            case Timestamp timestamp -> expr = new TimestampValue(timestamp.toString());
-            case java.sql.Date date -> expr = new DateValue(date);
-            case Date date -> expr = new TimestampValue(new Timestamp(date.getTime()).toString());
-            case LocalDate date -> expr = new StringValue(date.format(DatePattern.NORM_DATE_FORMATTER));
-            case LocalDateTime dateTime -> expr = new StringValue(dateTime.format(DatePattern.NORM_DATETIME_FORMATTER));
-            case Instant instant -> {
-                LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-                String formattedDateTime = ldt.format(DatePattern.NORM_DATETIME_FORMATTER);
-                expr = new StringValue(formattedDateTime);
-            }
-            case ZonedDateTime zonedDateTime -> {
-                LocalDateTime ldt = zonedDateTime.toLocalDateTime();
-                String formattedDateTime = ldt.format(DatePattern.NORM_DATETIME_FORMATTER);
-                expr = new StringValue(formattedDateTime);
-            }
-            default -> expr = new IsNullExpression();
-        }
-        return expr;
+    public static String camelToSnake(String name) {
+        return name.replaceAll("([A-Z])", "_$1").replaceFirst("^_", "").toLowerCase(Locale.ROOT);
     }
 }

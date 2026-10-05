@@ -1,12 +1,13 @@
 package com.arte.app.config;
 
+import com.arte.core.interceptor.MybatisDeleteInterceptor;
+import com.arte.core.interceptor.MybatisInsertInterceptor;
+import com.arte.core.interceptor.MybatisQueryInterceptor;
+import com.arte.core.interceptor.MybatisUpdateInterceptor;
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
-import com.arte.core.interceptor.MybatisInsertInterceptor;
-import com.arte.core.interceptor.MybatisQueryInterceptor;
-import com.arte.core.interceptor.MybatisUpdateInterceptor;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +34,8 @@ public class MybatisPlusConfig {
         interceptor.addInnerInterceptor(new MybatisInsertInterceptor());
         // 更新参数插件
         interceptor.addInnerInterceptor(new MybatisUpdateInterceptor());
+        // 删除沿用 queryFields 的创建人约束
+        interceptor.addInnerInterceptor(new MybatisDeleteInterceptor());
         // 乐观锁插件
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         // 分页插件
