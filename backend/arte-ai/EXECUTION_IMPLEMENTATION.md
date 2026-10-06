@@ -113,6 +113,32 @@ flowchart TB
 
 `pollOnce()` 返回本批尝试处理的消息数量；消息处理失败会记录安全错误分类并保留未 ACK 的记录，因此返回数量不表示成功生成数量。业务完成以 status 为准。
 
+### 手动初始化、派发与真实模型联调
+
+提供了 [NewAiManualIT](../arte-app/src/test/java/com/arte/app/ainew/NewAiManualIT.java)，从 `backend/profile/app.properties` 只读取 `spring.datasource.druid.app.*` 物理数据源参数，AI 参数使用过滤后的 `ainew/config/application.properties`，只装配物理 appDataSource 与新 AI 组件。本地 profile 是 Maven 构建参数，不能直接作为 AI 运行配置覆盖列表；例如 bindings 的嵌套 capability 在资源过滤时补齐。修改 profile 中的 AI 参数后，先通过 Maven `test-compile` 重新生成资源再运行 IDE 测试。它不使用 arte-app 默认的 H2 测试配置，不依赖先启动完整应用，不执行建表脚本。IT 后缀不被默认 Surefire 单元测试扫描，需明确选择方法运行。
+
+在 IDE 中将 Working directory 设置为 `backend/arte-app`，配置进程环境变量 `ARTE_DEEPSEEK_API_KEY`，然后分别运行：
+
+| 方法 | 实际动作 |
+|---|---|
+| initializeExampleBudget | 使用当前配置的空间及 zhangsc 测试身份申请 ai:budget:admin，调用 BudgetAccountInitializer.initialize("example-budget", context)；重复执行不清空 held／charged，不调用模型 |
+| dispatchOneBatch | 调用 Worker.pollOnce 并等待完成；没有待派发消息返回 0。会消费该数据库中的一批 DISPATCH，可能包含其他主体的任务 |
+| submitTextAndDispatch | 初始化预算 → 创建新会话 → 提交文本 → 手动领取，直到本次调用结束 → 查询状态和模型结果；会写入真实数据库并调用真实模型 |
+
+默认测试名称为 `zhangsc`；更换名称可设置 JVM 参数 `-Darte.ai-new.manual.subject=你的用户名`，仍须匹配固定 grants。这里构造已认证身份仅用于本地测试；生产入口必须从真实认证上下文取得身份，不能接受客户端自报用户名来创建已认证对象。
+
+从项目根目录运行初始化方法：
+
+```bash
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=ch.qos.logback.classic.spi.LogbackServiceProvider \
+  '-Dtest=NewAiManualIT#initializeExampleBudget' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+需要手动派发时，将选择器改为 `NewAiManualIT#dispatchOneBatch`；完整联调改为 `NewAiManualIT#submitTextAndDispatch`。不要仅调用 Mono 方法而不订阅；本测试使用 block 等待实际执行完成，正式响应式入口应返回组合后的 Mono／Flux。
+
 | 配置 | 默认值／约束 |
 |---|---|
 | concurrency | 4，范围 1～32；每实例最多领取可立即执行的数量 |
