@@ -197,6 +197,45 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     @Override
+    public Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey, String requestDigest) {
+        Objects.requireNonNull(conversation, "conversation");
+        ContractChecks.id(idempotencyKey, "idempotencyKey");
+        ContractChecks.digest(requestDigest, "requestDigest");
+        ContractChecks.require(conversation.version() == 0 && conversation.state() == Conversation.State.ACTIVE, "Conversation must be pristine");
+        return outcome(() -> {
+            var owner = ownerKey(conversation.owner());
+            var key = hash(idempotencyKey);
+            lock(hash("conversation-creation", owner, key));
+            var existing = admission.conversationCreation(owner, key);
+            if (existing != null) {
+                require(existing.requestDigest().equals(requestDigest), IDEMPOTENCY_CONFLICT);
+                var original = snapshot(admission.conversationSnapshot(existing.conversationKey(), false), Conversation.class);
+                require(original != null && original.owner().equals(conversation.owner()), NOT_FOUND);
+                return StoreOutcome.replayed(original);
+            }
+            admission.insertConversation(hash(conversation.conversationId()), owner, 0, codec.encode(conversation));
+            admission.insertConversationCreation(owner, key, requestDigest, hash(conversation.conversationId()));
+            return StoreOutcome.applied(conversation);
+        });
+    }
+
+    @Override
+    public Mono<Invocation> findAccepted(ExecutionOwner owner, String capabilityId, String idempotencyKey) {
+        Objects.requireNonNull(owner, "owner");
+        ContractChecks.id(capabilityId, "capabilityId");
+        ContractChecks.id(idempotencyKey, "idempotencyKey");
+        return tx(() -> {
+            var records = execution.acceptance(hash(ownerKey(owner), capabilityId), hash(idempotencyKey));
+            if (records.isEmpty()) { return null; }
+            var original = snapshot(execution.invocationSnapshot(records.getFirst().invocationKey(), false), Invocation.class);
+            if (original == null || !ExecutionOwner.from(original.request().context()).equals(owner)) {
+                throw new IllegalStateException("Broken acceptance record");
+            }
+            return original;
+        });
+    }
+
+    @Override
     public Mono<Void> createAccount(BudgetCommands.Account account) {
         Objects.requireNonNull(account, "account");
         ContractChecks.require(account.version() == 0 && account.held().amount().signum() == 0

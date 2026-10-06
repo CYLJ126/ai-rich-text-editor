@@ -23,20 +23,40 @@ import java.time.Duration;
  * @since 2026/10/4 17:40 ✾
  **/
 public interface ExecutionStore {
-    /** 原子提交幂等记录、Invocation、可选 Turn／会话 CAS、首事件和派发 Outbox；成功才可返回 Accepted。 */
+    /**
+     * 原子提交幂等记录、Invocation、可选 Turn／会话 CAS、首事件和派发 Outbox；成功才可返回 Accepted。
+     */
     Mono<StoreOutcome<Invocation>> accept(ExecutionCommands.Accept command);
 
-    /** 当前授权归属不匹配与不存在均不返回对象；调用者仍负责校验权限／grant。 */
+    /**
+     * 当前授权归属不匹配与不存在均不返回对象；调用者仍负责校验权限／grant。
+     */
     Mono<Invocation> find(ExecutionOwner owner, String invocationId);
+
+    /**
+     * 按耐久受理作用域读取原调用，供应用在会话版本／时间检查之前核对幂等摘要；不授予访问权。
+     */
+    Mono<Invocation> findAccepted(ExecutionOwner owner, String capabilityId, String idempotencyKey);
+
     Mono<Attempt> findAttempt(ExecutionOwner owner, String invocationId, String attemptId);
 
     Mono<StoreOutcome<Attempt>> createAttempt(ExecutionCommands.CreateAttempt command);
+
     Mono<StoreOutcome<Attempt>> acquireLease(ExecutionCommands.AcquireLease command);
-    /** 续租也作版本比较；失败后停止发送、追加和提交，不能认为仍拥有执行权。 */
+
+    /**
+     * 续租也作版本比较；失败后停止发送、追加和提交，不能认为仍拥有执行权。
+     */
     Mono<StoreOutcome<Attempt>> renewLease(ExecutionCommands.Guard guard, Duration lease);
+
     Mono<StoreOutcome<Attempt>> markDispatch(ExecutionCommands.Dispatch command);
+
     Mono<StoreOutcome<Attempt>> updateConditionally(ExecutionCommands.FailAttempt command);
-    /** 不提供 save(finalSnapshot)：只有此边界可提交终态、结果引用、事件及 Outbox。 */
+
+    /**
+     * 不提供 save(finalSnapshot)：只有此边界可提交终态、结果引用、事件及 Outbox。
+     */
     Mono<StoreOutcome<Invocation>> commitCompletion(ExecutionCommands.Complete command);
+
     Mono<StoreOutcome<Invocation>> commitCompletion(ExecutionCommands.CompleteBeforeAttempt command);
 }

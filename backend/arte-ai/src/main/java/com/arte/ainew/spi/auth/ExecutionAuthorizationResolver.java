@@ -17,6 +17,7 @@ import java.util.Set;
  */
 @FunctionalInterface
 public interface ExecutionAuthorizationResolver {
+
     Mono<ExecutionAuthorization> resolve(String authenticatedName, String tenantId,
                                          String workspaceId, Set<String> requestedScopes);
 }

@@ -1,5 +1,6 @@
 package com.arte.ainew.persistence.mybatis.mapper;
 
+import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationCreationRow;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationGateRow;
 import org.apache.ibatis.annotations.Param;
 
@@ -10,6 +11,11 @@ import org.apache.ibatis.annotations.Param;
  * @since 2026/10/4 23:30 ✾
  */
 public interface AdmissionMapper {
+    ConversationCreationRow conversationCreation(@Param("ownerKey") String ownerKey, @Param("commandKey") String commandKey);
+
+    int insertConversationCreation(@Param("ownerKey") String ownerKey, @Param("commandKey") String commandKey,
+                                   @Param("requestDigest") String requestDigest, @Param("conversationKey") String conversationKey);
+
     int insertConversation(
             @Param("idKey") String idKey,
             @Param("ownerKey") String ownerKey,

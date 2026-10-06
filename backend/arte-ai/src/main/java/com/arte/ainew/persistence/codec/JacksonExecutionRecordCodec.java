@@ -6,13 +6,11 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.embedding.EmbeddingRequest;
-import com.arte.ainew.pojo.execution.Attempt;
-import com.arte.ainew.pojo.execution.CapabilityInput;
-import com.arte.ainew.pojo.execution.ExecutionPayload;
-import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationEvent;
 import com.arte.ainew.pojo.generation.GenerationRequest;
@@ -45,17 +43,24 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
             Map.entry(Turn.class, "turn"), Map.entry(BudgetCommands.Account.class, "budget-account"),
-            Map.entry(BudgetReservation.class, "budget-reservation"), Map.entry(BudgetSettlement.class, "budget-settlement"));
+            Map.entry(BudgetReservation.class, "budget-reservation"), Map.entry(BudgetSettlement.class, "budget-settlement"),
+            Map.entry(ContextSnapshot.class, "context-snapshot"), Map.entry(InvocationResult.class, "invocation-result"));
     private final JsonMapper mapper;
 
     public JacksonExecutionRecordCodec() {
         var builder = JsonMapper.builder();
         builder.addMixIn(Money.class, MoneyShape.class);
         for (var base : new Class<?>[] { CapabilityInput.class, ChatMessage.ContentPart.class,
-                GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class }) {
+                GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class,
+                InvocationResult.class }) {
             builder.addMixIn(base, Named.class);
         }
         builder.registerSubtypes(
+                new NamedType(InvocationResult.Generation.class, "result-generation"),
+                new NamedType(InvocationResult.Embedding.class, "result-embedding"),
+                new NamedType(InvocationResult.Tool.class, "result-tool"),
+                new NamedType(InvocationResult.Media.class, "result-media"),
+                new NamedType(InvocationResult.RemoteApplication.class, "result-remote"),
                 new NamedType(GenerationRequest.class, "generation"), new NamedType(EmbeddingRequest.class, "embedding"),
                 new NamedType(ToolInvocation.class, "tool"), new NamedType(MediaRequest.class, "media"),
                 new NamedType(RemoteApplicationRequest.class, "remote"),
@@ -76,7 +81,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
 
     @Override public String encode(Object value) {
         validate(value);
-        var alias = ROOTS.get(value.getClass());
+        var alias = ROOTS.get(value instanceof InvocationResult ? InvocationResult.class : value.getClass());
         if (alias == null) { throw new IllegalArgumentException("Unregistered snapshot type"); }
         var node = mapper.createObjectNode();
         node.put("schemaVersion", 1).put("type", alias);

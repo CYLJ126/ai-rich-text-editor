@@ -1,14 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.arte.ainew.persistence.mybatis.mapper.AdmissionMapper">
-    <resultMap id="ConversationGateRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$ConversationGateRow">
+    <resultMap id="ConversationCreationRow"
+               type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$ConversationCreationRow">
+        <constructor>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="conversation_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="conversationCreation" resultMap="ConversationCreationRow" useCache="false">
+        SELECT request_digest,conversation_key FROM arte_ai_conversation_creation WHERE owner_key=#{ownerKey} AND
+        command_key=#{commandKey}
+    </select>
+    <insert id="insertConversationCreation">
+        INSERT INTO arte_ai_conversation_creation(owner_key,command_key,request_digest,conversation_key)
+        VALUES (#{ownerKey},#{commandKey},#{requestDigest},#{conversationKey})
+    </insert>
+    <resultMap id="ConversationGateRow"
+               type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$ConversationGateRow">
         <constructor>
             <arg column="version_no" javaType="_long"/>
             <arg column="active_invocation" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
     <insert id="insertConversation">
-        INSERT INTO arte_ai_conversation_new(id_key,owner_key,version_no,active_invocation,snapshot) VALUES (#{idKey},#{ownerKey},#{versionNo},NULL,#{snapshot})
+        INSERT INTO arte_ai_conversation_new(id_key,owner_key,version_no,active_invocation,snapshot) VALUES
+        (#{idKey},#{ownerKey},#{versionNo},NULL,#{snapshot})
     </insert>
     <select id="conversationGate" resultMap="ConversationGateRow" useCache="false">
         SELECT version_no,active_invocation FROM arte_ai_conversation_new WHERE id_key=#{idKey}
@@ -20,21 +37,26 @@
         SELECT COUNT(*) FROM arte_ai_turn WHERE conversation_key=#{conversationKey} AND sequence_no=#{sequenceNo}
     </select>
     <insert id="insertTurn">
-        INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,snapshot) VALUES (#{idKey},#{conversationKey},#{sequenceNo},#{snapshot})
+        INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,snapshot) VALUES
+        (#{idKey},#{conversationKey},#{sequenceNo},#{snapshot})
     </insert>
     <update id="saveTurn">
         UPDATE arte_ai_turn SET snapshot=#{snapshot} WHERE id_key=#{idKey}
     </update>
     <update id="advanceConversation">
-        UPDATE arte_ai_conversation_new SET version_no=#{versionNo},active_invocation=#{activeInvocation},snapshot=#{snapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_conversation_new SET
+        version_no=#{versionNo},active_invocation=#{activeInvocation},snapshot=#{snapshot} WHERE id_key=#{idKey}
     </update>
     <update id="releaseConversation">
-        UPDATE arte_ai_conversation_new SET active_invocation=NULL WHERE id_key=#{idKey} AND active_invocation=#{activeInvocation}
+        UPDATE arte_ai_conversation_new SET active_invocation=NULL WHERE id_key=#{idKey} AND
+        active_invocation=#{activeInvocation}
     </update>
     <select id="conversationSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT snapshot FROM arte_ai_conversation_new WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+        SELECT snapshot FROM arte_ai_conversation_new WHERE id_key=#{idKey}
+        <if test="forUpdate">FOR UPDATE</if>
     </select>
     <select id="turnSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT snapshot FROM arte_ai_turn WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
+        SELECT snapshot FROM arte_ai_turn WHERE id_key=#{idKey}
+        <if test="forUpdate">FOR UPDATE</if>
     </select>
 </mapper>

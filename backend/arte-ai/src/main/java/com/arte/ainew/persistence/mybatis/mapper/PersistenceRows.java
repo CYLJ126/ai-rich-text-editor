@@ -7,11 +7,17 @@ package com.arte.ainew.persistence.mybatis.mapper;
  * @since 2026/10/4 23:30 ✾
  */
 public final class PersistenceRows {
+
     private PersistenceRows() {
     }
 
     public record AcceptanceRow(String requestDigest, String invocationKey) {
     }
+
+    public record ConversationCreationRow(String requestDigest, String conversationKey) { }
+
+    public record PayloadRow(String ownerKey, String invocationKey, String attemptKey, String resultType,
+                             int schemaVersion, int partial, String payloadDigest, String snapshot) { }
 
     public record ConversationGateRow(long versionNo, String activeInvocation) {
     }

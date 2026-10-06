@@ -1,6 +1,6 @@
 # AI 调用接口契约
 
-适用于 `com.arte.ainew`。本次只声明方法及配套数据契约，不添加协调器、网关、适配器、Bean、HTTP API 或新的存储实现。
+适用于 `com.arte.ainew`。方法及数据契约已声明，第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。模型派发、网关、供应商适配及 HTTP API 尚未实现。
 
 ## 1. 最小生成链路
 
@@ -57,7 +57,7 @@ flowchart TB
 
 独立调用可由可信应用组装 InvocationSubmission，不必创建会话。入口不能绕过 Coordinator 调用 Gateway。
 
-| 接口 | 本次声明 |
+| 接口 | 方法契约 |
 |---|---|
 | InvocationCoordinator | submit、dispatch、reconcile、control |
 | ModelGateway | generate，同次订阅返回增量及结果／失败事实 |
@@ -86,8 +86,8 @@ flowchart TB
 - dispatch 只供内部 Worker 消费已领取的派发 Outbox，核验消息及 Attempt 租约／fencing，内部协调准入、预留、续租、发送、安全重试、输出和结算。不把每个内部步骤公开成入口可乱序调用的方法。
 - GatewayCall 固定请求、绑定、已标记发送的 Attempt 和 runtime；允许刷新授权，不能更换 owner、扩大原授权范围或延长期限。构造对象不是数据库提交或有效租约的证明。
 - reconcile 只核对 UNKNOWN 的同一次远端操作及费用，有证据才更新，不重发原请求。不支持核对时明确报告无法确认，保留未知结果及待对账预算。
-- control 必须耐久保存命令及幂等事实，再返回回执；跨实例取消不能只依赖本地 cancellation。当前存储尚无控制命令持久化实现，本次声明不代表该保证已落地。
-- 受理、创建会话需有效幂等键；控制命令使用 commandKey。会话创建防重及历史版本查询仍需后续实现。重复订阅业务命令必须防重；订阅取消不能证明远端未执行。
+- control 必须耐久保存命令及幂等事实，再返回回执；跨实例取消不能只依赖本地 cancellation。当前存储尚无控制命令持久化实现，受理协调器明确拒绝 control；方法声明不代表该保证已落地。
+- 受理、创建会话需有效幂等键；控制命令使用 commandKey。会话创建防重已落地，历史版本查询仍需后续实现。重复订阅业务命令必须防重；订阅取消不能证明远端未执行。
 
 ## 3. 生成流与供应商边界
 
@@ -105,14 +105,14 @@ Delta* → Failure(ExecutionError, Usage, 可选部分结果) → onComplete
 
 ProviderAdapter 的 Q／S 为内部协议／SDK 类型，R 为已登记的平台结果 DTO，注册键为 providerId＋kind。纯映射不做阻塞 I/O。生成流映射单独放在 GenerationProviderAdapter，其他能力不强行套入生成增量。能力声明不等于授权，不支持的特性明确拒绝。
 
-ConnectionDefinition 首批覆盖 HTTP(S) 配置，使用 SecretRef。结构合法不等于出口安全，发送时仍检查目标、重定向、停用及凭据权限。ResolvedBinding.rate 缺失表示费率尚未解析，不能据此宣称免费。受管进程、MCP 会话及协议恢复矩阵后续扩展专用契约。
+ConnectionDefinition 首批覆盖 HTTP(S) 配置，使用 SecretRef。结构合法不等于出口安全，发送时仍检查目标、重定向、停用及凭据权限。ResolvedBinding.rate 缺失表示费率尚未解析，不能据此宣称免费；当前固定受理实现要求绑定能解析已登记费率。受管进程、MCP 会话及协议恢复矩阵后续扩展专用契约。
 
 ## 4. 查询与字节存储
 
 - 查询携带当前可信 ExecutionContext；owner、执行 ID 及游标不授予访问权。应用接口不存在／不可见明确失败；基础存储 find 不存在可返回 empty。
 - replay 有界单页；watch 以耐久事件为权威，通知仅唤醒回读。慢消费者缓冲有界，历史到实时切换不得遗漏，断线以排他游标恢复，取消观看不取消任务。游标过期读取 status 及权威结果，不静默丢弃历史。
 - ExecutionResultStore 使用封闭 InvocationResult；Pending 媒体／远端任务不是已完成结果。先保存字节，再提交终态引用；查询核对 owner、权威引用、类型白名单、Schema 及摘要。
-- 两个新字节存储端口暂未实现，也未注册到现有 ExecutionRecordCodec，未新增表或修改 DDL。后续需选择数据库／对象存储、编码及保留策略，不能假定现有编码器已支持新信封。
+- 两个字节存储端口已提供隔离 MyBatis 实现，并在 ExecutionRecordCodec 注册上下文／结果白名单。新增表见完整 DDL 及受理增量脚本，部署时显式执行；保留与孤立字节回收任务后续接入。
 - Mono／Flux 不证明底层非阻塞；未来 MyBatis／SDK 阻塞调用须经有界调度桥接，不能占用事件线程。纯映射、注册元数据与句柄访问保持同步。
 
 ## 5. 后置接口

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.PayloadMapper">
+    <resultMap id="PayloadRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$PayloadRow">
+        <constructor>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="attempt_key" javaType="java.lang.String"/>
+            <arg column="result_type" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="_int"/>
+            <arg column="partial" javaType="_int"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="context" resultMap="PayloadRow" useCache="false">
+        SELECT owner_key,NULL AS invocation_key,NULL AS attempt_key,'context-snapshot' AS result_type,
+               1 AS schema_version,0 AS partial,payload_digest,snapshot FROM arte_ai_context_snapshot WHERE id_key=#{idKey}
+    </select>
+    <insert id="insertContext">
+        INSERT INTO arte_ai_context_snapshot(id_key,owner_key,payload_digest,snapshot) VALUES (#{idKey},#{ownerKey},#{digest},#{snapshot})
+    </insert>
+    <select id="result" resultMap="PayloadRow" useCache="false">
+        SELECT owner_key,invocation_key,attempt_key,result_type,schema_version,partial,payload_digest,snapshot
+        FROM arte_ai_result WHERE id_key=#{idKey}
+    </select>
+    <insert id="insertResult">
+        INSERT INTO arte_ai_result(id_key,owner_key,invocation_key,attempt_key,result_key,result_type,schema_version,partial,payload_digest,snapshot)
+        VALUES (#{idKey},#{ownerKey},#{invocationKey},#{attemptKey},#{resultKey},#{resultType},1,#{partial},#{digest},#{snapshot})
+    </insert>
+</mapper>

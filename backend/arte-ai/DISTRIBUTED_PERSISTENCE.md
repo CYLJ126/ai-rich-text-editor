@@ -1,6 +1,6 @@
 # AI 执行存储与预算事务契约 v1
 
-本轮将原来空的 ExecutionStore、ExecutionEventStore 和 BudgetService 落实为 Reactor 方法契约，提供 `ainew.persistence.mybatis.MybatisExecutionPersistence` 的同库事务实现。所有新运行代码在 `com.arte.ainew`，没有自动注册 Bean，也没有接入旧 AI、控制器或供应商调用。
+ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。现已增加默认关闭、显式开启的 Spring 受理装配，以及上下文／结果字节存储；使用方式见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)。尚未接入控制器、Worker 或供应商调用。
 
 ## 1. 原子边界
 
@@ -68,13 +68,13 @@ var persistence = new MybatisExecutionPersistence(
 // AdmissionCatalogStore 和 BudgetService；应用关闭时 dispose persistenceScheduler。
 ```
 
-MybatisExecutionPersistence 显式创建独立 ExecutionSqlSessionFactory 和 SqlSessionTemplate，共用同一 DataSourceTransactionManager 管理的连接。该工厂不注册为默认 Bean，不加入旧 MapperScan，也不继承旧审计、权限、乐观锁或分页插件；cacheEnabled=false、localCacheScope=STATEMENT、默认 SIMPLE 执行器，锁查询和数据库时钟均不从缓存返回。内部快照的 SQL 参数日志关闭，避免输入／授权数据进入 debug 日志。Mapper 按 Execution、Admission、Event、Outbox、Budget、System 划分，SQL 全部位于同名 XML，投影使用 PersistenceRows 类型，不用动态表名或 Map 强转。JacksonExecutionRecordCodec 位于 persistence.codec，编码协议独立于数据库实现。
+MybatisExecutionPersistence 显式创建独立 ExecutionSqlSessionFactory 和 SqlSessionTemplate，共用同一 DataSourceTransactionManager 管理的连接。该工厂不注册为默认 Bean，不加入旧 MapperScan，也不继承旧审计、权限、乐观锁或分页插件；cacheEnabled=false、localCacheScope=STATEMENT、默认 SIMPLE 执行器，锁查询和数据库时钟均不从缓存返回。内部快照的 SQL 参数日志关闭，避免输入／授权数据进入 debug 日志。Mapper 按 Execution、Admission、Event、Outbox、Budget、System、Payload 划分，SQL 全部位于同名 XML，投影使用 PersistenceRows 类型，不用动态表名或 Map 强转。JacksonExecutionRecordCodec 位于 persistence.codec，编码协议独立于数据库实现。
 
 这是 Reactor 接口下的 MyBatis／JDBC 阻塞隔离适配器，数据库事务仍是阻塞调用；Mono 为冷执行，整个事务在同一个 Scheduler 工作线程内完成。误用 Reactor 非阻塞线程 Scheduler 会在开始数据库工作前报错；需要全链路非阻塞时另实现同契约的 R2DBC 适配器。所有端口必须共享同一权威 DataSource，不能将某个写端口替换到另一数据库后仍宣称原子提交。数据库与 JDBC 会话时区统一 UTC；租约／受理／更新时间使用数据库时钟，不用各 Worker 的本地时间仲裁。
 
 内部快照采用独立 Jackson mapper、schemaVersion=1 和稳定类型别名白名单，拒绝任意类名及未登记输入／事件版本，不使用 Java 原生反序列化。StructuredValue 在内部快照使用显式类型包装；传输层标准 JSON DTO 和 Schema 升级迁移仍须单独实现。
 
-本轮提供权威存储与账本基础，不代表 AI 层已完整达到上线条件。仍须接入真实准入／协调器、供应商与结果存储、轮询发布／订阅、证据验证及部署迁移。授权解析、费用策略和结果字节校验不能省略。
+目前已提供权威存储、账本、固定控制面授权、准入协调器及不可变结果字节存储。完整调用仍须实现供应商适配、Worker、轮询发布／订阅、费用估算与证据验证，并完成实际 MySQL 部署验证。
 
 ## 6. 验证
 
