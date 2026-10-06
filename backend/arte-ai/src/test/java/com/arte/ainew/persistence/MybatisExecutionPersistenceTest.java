@@ -266,6 +266,38 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(INVALID_STATE, first.commitCompletion(success("inv", "other-key")).block().code());
     }
 
+    @Test public void outboxValidationAndRenewalCheckIdentityAndDoNotReviveExpiredClaims() {
+        accept("inv", null);
+        var message = first.claim(OutboxMessage.Kind.DISPATCH, "worker", Duration.ofSeconds(30), 1).block().getFirst();
+        assertEquals(APPLIED, second.validateClaim(message).block().code());
+        var renewed = second.renewClaim(message, Duration.ofSeconds(60)).block().value();
+        assertEquals(message.fencingToken(), renewed.fencingToken());
+        assertTrue(renewed.leaseExpiresAt().isAfter(message.leaseExpiresAt()));
+        var wrongOwner = new OutboxMessage(message.messageId(), message.invocationId(), new ExecutionOwner("tenant", "workspace", "other"),
+                message.kind(), message.eventSequence(), message.workerId(), message.fencingToken(), message.leaseExpiresAt());
+        assertEquals(LEASE_LOST, first.validateClaim(wrongOwner).block().code());
+        assertEquals(LEASE_LOST, first.renewClaim(wrongOwner, Duration.ofSeconds(30)).block().code());
+        jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
+        assertEquals(LEASE_LOST, first.validateClaim(renewed).block().code());
+        assertEquals(LEASE_LOST, first.renewClaim(renewed, Duration.ofSeconds(30)).block().code());
+        var reclaimed = second.claim(OutboxMessage.Kind.DISPATCH, "other-worker", Duration.ofSeconds(30), 1).block().getFirst();
+        assertTrue(reclaimed.fencingToken() > renewed.fencingToken());
+        assertEquals(APPLIED, second.acknowledge(reclaimed).block().code());
+        assertEquals(LEASE_LOST, first.validateClaim(reclaimed).block().code());
+    }
+
+    @Test public void inventedPartialResultEvidenceCannotProveKnownFailureAfterDispatch() {
+        accept("inv", null); create("inv"); dispatch("inv");
+        var reference = new ResultRef("invented-result", "model-result", 1, DIGEST, true);
+        var error = new ExecutionError("MODEL_OUTPUT_INCOMPLETE", ExecutionError.Phase.OUTPUT, false,
+                ExecutionError.SideEffect.CONFIRMED, ExecutionError.Certainty.KNOWN, "trace");
+        var completion = new Complete(guard("inv"), "finish", new ExecutionPayload.Terminal(Invocation.State.FAILED, reference, error),
+                Usage.unknown(), "model-result:" + reference.resultId());
+        assertEquals(RECONCILIATION_REQUIRED, first.commitCompletion(completion).block().code());
+        assertEquals(Invocation.State.RUNNING, first.find(OWNER, "inv").block().state());
+        assertEquals(0, count("arte_ai_operation"));
+    }
+
     @Test public void outboxSurvivesPublisherCrashAndRejectsStaleAcknowledge() throws Exception {
         accept("inv", null);
         var messages = first.claim(OutboxMessage.Kind.DISPATCH, "publisher-1", Duration.ofSeconds(1), 1).block();

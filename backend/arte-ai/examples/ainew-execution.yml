@@ -1,0 +1,12 @@
+# 此文件不会自动加载。在已有 ainew-generation.yml 配置基础上显式导入。
+# 仅开启派发／查询；worker-enabled 默认 false，测试可调用 InvocationDispatchWorker.pollOnce()。
+# 改为 true 后应用启动会轮询数据库并消费已受理任务；请先手动建表及初始化预算账户。
+arte:
+  ai-new-execution:
+    enabled: true
+    worker-enabled: false
+    concurrency: 4
+    poll-interval: 1s
+    outbox-lease: 2m
+    attempt-lease: 2m
+    reservation-retention: 1d

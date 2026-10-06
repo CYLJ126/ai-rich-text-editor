@@ -115,6 +115,10 @@ public enum ResultCodeEnum {
     AI_RECONCILIATION_NOT_ENABLED("205039", "result.ai.admission.reconciliationNotEnabled"),
     /** 执行控制尚未启用。 */
     AI_CONTROL_NOT_ENABLED("205040", "result.ai.admission.controlNotEnabled"),
+    /** 尚无可读取的权威结果（可先查询执行状态或读取已保存事件）。 */
+    AI_RESULT_NOT_AVAILABLE("205041", "result.ai.admission.resultNotAvailable"),
+    /** 实时事件观看尚未启用。 */
+    AI_EVENT_WATCH_NOT_ENABLED("205042", "result.ai.admission.eventWatchNotEnabled"),
     /** AI 请求受理异常。 */
     AI_ADMISSION_EXCEPTION("305001", "result.ai.admission.admissionException"),
 

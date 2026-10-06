@@ -103,7 +103,7 @@ Java Serializable 用于测试数据不持有运行对象；测试仅对自身�
 
 模型路由、上下文选择和重试保留独立版本化策略边界；当前先固定默认绑定、显式资料选择与保守重试规则。策略方法签名随应用接口设计落实。Agent 决策／结果组合、Workflow／Run、复杂记忆及完整评估数据后置，不为高级场景提前建立持久化引擎。
 
-原子受理、版本／租约／fencing、事件防重／序号／过期游标、终态／结果引用／Outbox 同库提交、预算预留／结算已由 [MyBatis 存储实现](DISTRIBUTED_PERSISTENCE.md) 落实。当前固定授权、文本 Schema、规范化摘要、无历史文本组装、快照及结果字节存储和可靠受理已由 [受理应用层](ADMISSION_IMPLEMENTATION.md) 实现；模型派发、供应商输出校验、轮询发布与订阅后续接入。
+原子受理、版本／租约／fencing、事件防重／序号／过期游标、终态／结果引用／Outbox 同库提交、预算预留／结算已由 [MyBatis 存储实现](DISTRIBUTED_PERSISTENCE.md) 落实。固定授权、文本 Schema、规范化摘要、无历史文本组装、快照及结果字节存储和可靠受理由 [受理应用层](ADMISSION_IMPLEMENTATION.md) 实现；最小文本生成派发、供应商输出校验、终态协调与结果查询已由 [异步执行](EXECUTION_IMPLEMENTATION.md) 接入。EVENT 发布与实时订阅后续实现。
 
 ## 8. 验证
 

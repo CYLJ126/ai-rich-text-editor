@@ -1,2 +1,3 @@
 com.arte.ainew.config.NewAiAdmissionConfiguration
 com.arte.ainew.config.NewAiGenerationConfiguration
+com.arte.ainew.config.NewAiExecutionConfiguration

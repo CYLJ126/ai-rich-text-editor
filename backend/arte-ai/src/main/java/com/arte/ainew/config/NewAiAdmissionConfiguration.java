@@ -176,6 +176,7 @@ public class NewAiAdmissionConfiguration {
      * 当前仅实现 submit，派发、核对和控制尚未启用；受理阶段不预留预算或调用模型。
      */
     @Bean("newAiInvocationCoordinator")
+    @ConditionalOnProperty(prefix = "arte.ai-new-execution", name = "enabled", havingValue = "false", matchIfMissing = true)
     InvocationCoordinator invocationCoordinator(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisExecutionPersistence executions,
                                                 MybatisPayloadPersistence snapshots, NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
         return new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, snapshots, executions, properties, clock);

@@ -2,7 +2,7 @@
 
 已实现受控 WebClient／Reactor Netty HTTP 客户端、Spring SSE codec、DeepSeek 专有 DTO 与平台生成信号映射。新链路不经过 Spring AI 的 DeepSeekChatModel、DeepSeekApi、ChatClient 或 Advisor；不增加框架自动重试、工具执行或记忆注入。
 
-本步验收范围是一次内部 `ModelGateway.generate` 订阅。`ChatService.submit` 仍只可靠受理；Worker、`InvocationCoordinator.dispatch`、Attempt／预算生命周期及终态提交由第 5 步接入，因此开启配置后不会自动发送已受理请求。
+本步验收范围是一次内部 `ModelGateway.generate` 订阅。`ChatService.submit` 仍只可靠受理；Worker、`InvocationCoordinator.dispatch`、Attempt／预算生命周期及终态提交现已由 [第 5～6 步](EXECUTION_IMPLEMENTATION.md) 接入并使用独立开关。只开启本步配置不会自动发送已受理请求。
 
 ## 实现分工
 
@@ -67,4 +67,4 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-下一步接入 Worker／dispatch：核验 Outbox 和 Attempt 的租约、fencing／版本，原子预留预算及提交发送事实，再构造 GatewayCall。消费生成信号，保存有界事件与结果字节，提交终态及结果引用，已知费用结算，未知费用保持待对账。入口不能为了测试绕过这些步骤直接调用 Gateway；GatewayCall 的结构校验不能证明数据库提交、预算预留或有效租约。
+Worker／dispatch 已接入，配置及完整测试入口见 [异步执行](EXECUTION_IMPLEMENTATION.md)：核验 Outbox 和 Attempt 的租约、fencing／版本，原子预留预算及提交发送事实，再构造 GatewayCall；保存输出、结果及终态，已知费用结算，未知费用待对账。入口不能为了测试绕过这些步骤直接调用 Gateway；GatewayCall 的结构校验不能证明数据库提交、预算预留或有效租约。

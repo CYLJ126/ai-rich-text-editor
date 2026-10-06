@@ -8,7 +8,11 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Turn 下的一次逻辑能力调用的权威状态快照
+ * 一次逻辑能力调用的权威状态快照
+ * <p>
+ * 记录一次逻辑调用的状态，例如 ACCEPTED、RUNNING、SUCCEEDED、FAILED、UNKNOWN，以及当前 Attempt、结果引用、错误和版本。
+ * 可关联会话中的 Turn，状态以执行存储的耐久记录为准。
+ * “权威”的意思是：判断调用是否完成，应以 ExecutionStore 中耐久提交的 Invocation 状态为准。Worker 的本地变量、模型流结束或 HTTP 返回成功，都不能单独证明调用成功。
  * <p>
  * id 为 request.context.executionId；version 用于条件更新。
  * requestDigest 由服务端规范化操作输入计算，排除新生成 ID、trace、授权快照等临时数据。

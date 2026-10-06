@@ -59,6 +59,8 @@ throw new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
 | AI_DISPATCH_NOT_ENABLED | 205038 | 模型派发尚未启用 |
 | AI_RECONCILIATION_NOT_ENABLED | 205039 | 执行核对尚未启用 |
 | AI_CONTROL_NOT_ENABLED | 205040 | 执行控制尚未启用 |
+| AI_RESULT_NOT_AVAILABLE | 205041 | 结果尚未生成或执行没有可读取结果 |
+| AI_EVENT_WATCH_NOT_ENABLED | 205042 | 实时事件观看尚未启用 |
 | AI_ADMISSION_EXCEPTION | 305001 | AI 请求受理异常 |
 
 所有 StoreOutcome.Code 拒绝值均通过应用层 AdmissionException.fromStoreRejection(code) 显式映射为对应结果码。映射使用穷尽 switch，新增结果值须补充映射；APPLIED 和 REPLAYED 表示成功，尝试转换会抛出 IllegalArgumentException。存储契约仍使用自身的结果枚举。

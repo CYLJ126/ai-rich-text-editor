@@ -1,19 +1,19 @@
 # AI 调用接口契约
 
-适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。Worker／模型派发、终态协调及 HTTP API 尚未实现。
+适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。第 5～6 步的 Worker、派发与终态协调、预算生命周期、状态／结果／事件重放及完整生成测试已实现，详见 [异步执行与测试入口](EXECUTION_IMPLEMENTATION.md)。HTTP API、实时 watch、耐久控制及远端核对尚未实现。
 
 ## 1. 最小生成链路
 
 ```text
 ChatService → ContextService → InvocationCoordinator.submit
                                   ↓ 受理记录＋DISPATCH Outbox 提交
-Worker → InvocationCoordinator.dispatch
+InvocationDispatchWorker.pollOnce → InvocationCoordinator.dispatch
           → 领取 Attempt／预算预留／发送标记耐久提交
           → ModelGateway.generate(GatewayCall<GenerationRequest>)
           → GenerationProviderAdapter／ProtocolAdapter／ConnectionRuntime
           → 输出保存／结果字节保存／终态与结果引用提交／预算结算
 
-ExecutionControl／ExecutionEventService → 当前授权下查询、控制及观看
+ExecutionControl.status／ExecutionEventService.result、replay → 当前授权下查询
 ```
 
 ```mermaid
@@ -27,7 +27,7 @@ flowchart TB
     end
 
     subgraph Execution["异步 Worker 与单次模型交互"]
-        Worker["Worker 领取派发 Outbox"] --> Dispatch["InvocationCoordinator.dispatch"]
+        Worker["InvocationDispatchWorker.pollOnce<br/>ExecutionOutboxStore.claim(DISPATCH)"] --> Dispatch["InvocationCoordinator.dispatch<br/>GenerationDispatcher"]
         Dispatch --> Guard["核验租约／fencing、领取 Attempt<br/>预算预留、发送标记耐久提交"]
         Guard --> Gateway["ModelGateway.generate"]
         Gateway --> Adapter["GenerationProviderAdapter<br/>请求及响应语义映射"]
@@ -47,9 +47,9 @@ flowchart TB
 
     subgraph Access["当前授权下查询、控制与观看"]
         Control["ExecutionControl"] -. "状态查询" .-> Terminal
-        Control -. "耐久控制命令" .-> Command["InvocationCoordinator.control"]
+        Control -. "耐久控制命令（待实现）" .-> Command["InvocationCoordinator.control"]
         Command -. "跨实例通知／运行取消信号" .-> Dispatch
-        Watching["ExecutionEventService"] -. "游标重放／实时观看" .-> Events
+        Watching["ExecutionEventService"] -. "replay 游标重放<br/>watch 待实现" .-> Events
         Watching -. "权威状态及结果引用" .-> Terminal
         Watching -. "授权后的结果读取" .-> Results
     end
@@ -76,14 +76,14 @@ flowchart TB
 | 其他四类 Gateway | 已有专有输入对应的执行方法；媒体／远端应用补充 query、cancel |
 | BusinessToolAdapter／ResourceContextAdapter | 工具声明及领域调用／资源类型及授权解析 |
 
-已有预算、执行、事件、Outbox、准入目录和授权解析端口继续复用，本次不改变其实现。
+已有预算、执行、事件、Outbox、准入目录和授权解析端口继续复用；派发补充 Outbox 核验／续租和失效 Attempt 原子停止契约，见 [存储与预算](DISTRIBUTED_PERSISTENCE.md)。
 
 ## 2. 受理、执行与控制
 
 - InvocationSubmission 是内部参数。Coordinator 计算规范化请求摘要、构造初始 Invocation，不接收客户端自报状态。生成消息必须与实际 ContextSnapshot 一致。
 - 快照字节先可靠保存，再提交其引用；摘要覆盖实际内容，不以新分配 snapshotId 代替内容。未受理的孤立快照按保留策略回收。授权、来源、容量及快照有效期由应用边界核对。
 - newTurn 表示本次新建轮次；重新生成时 Coordinator 加载原 Turn、追加候选引用，再按现有 Accept 契约提交，不改变原轮次身份、路径和输入。
-- dispatch 只供内部 Worker 消费已领取的派发 Outbox，核验消息及 Attempt 租约／fencing，内部协调准入、预留、续租、发送、安全重试、输出和结算。不把每个内部步骤公开成入口可乱序调用的方法。
+- dispatch 只供内部 Worker 消费已领取的派发 Outbox，核验消息及 Attempt 租约／fencing，内部协调准入、预留、续租、发送、输出和结算。当前 maxAttempts=1，不重试模型交互；失效且可能发送的 Attempt 收敛 UNKNOWN。不把每个内部步骤公开成入口可乱序调用的方法。
 - GatewayCall 固定请求、绑定、已标记发送的 Attempt 和 runtime；允许刷新授权，不能更换 owner、扩大原授权范围或延长期限。构造对象不是数据库提交或有效租约的证明。
 - reconcile 只核对 UNKNOWN 的同一次远端操作及费用，有证据才更新，不重发原请求。不支持核对时明确报告无法确认，保留未知结果及待对账预算。
 - control 必须耐久保存命令及幂等事实，再返回回执；跨实例取消不能只依赖本地 cancellation。当前存储尚无控制命令持久化实现，受理协调器明确拒绝 control；方法声明不代表该保证已落地。
@@ -121,4 +121,4 @@ ConnectionDefinition 首批覆盖 HTTP(S) 配置，使用 SecretRef。结构合�
 
 AssistantManager、SkillRegistry、DefinitionRegistry、ReleaseManager、MemoryService、ResourceRetrievalProvider、EvaluationService、WorkflowRuntime、AgentRuntime，以及控制面完整 CRUD、会话改名／删除／资料修改、动作转追问，保留后续阶段。它们需要专有版本定义、补丁、分页或 Run 契约，不用 Object／任意 Map 提前填满接口。动作执行入口先固定方法；动作定义、发布解析及运行仍需后续契约。
 
-模型路由、分布式准入、重试和输出校验策略由后续协调实现按依赖拆分。Worker、策略、字节存储、事件观看和运行装配完成前，建表及本次声明仍不足以真实调用 AI。
+最小文本生成现已形成 Service 层闭环，开启配置并完成账户初始化后可测试。动态路由、独立限流、自动安全重试、实时观看及对外 HTTP API 按后续阶段实现；建表本身仍不等于功能启用。

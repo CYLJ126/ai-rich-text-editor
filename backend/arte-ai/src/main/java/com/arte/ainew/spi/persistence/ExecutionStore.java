@@ -49,6 +49,12 @@ public interface ExecutionStore {
      */
     Mono<StoreOutcome<Attempt>> renewLease(ExecutionCommands.Guard guard, Duration lease);
 
+    /**
+     * 原子停止数据库时钟下已失效的活跃 Attempt；未发送收敛为 INTERRUPTED，可能发送收敛为 UNKNOWN。
+     * 推进版本／fencing 并提交终态及事件，不接管或重发；费用由预算端口独立处理。
+     */
+    Mono<StoreOutcome<Invocation>> stopExpired(ExecutionCommands.Version target);
+
     Mono<StoreOutcome<Attempt>> markDispatch(ExecutionCommands.Dispatch command);
 
     Mono<StoreOutcome<Attempt>> updateConditionally(ExecutionCommands.FailAttempt command);

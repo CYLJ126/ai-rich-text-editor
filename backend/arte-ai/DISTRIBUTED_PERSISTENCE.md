@@ -1,6 +1,6 @@
 # AI 执行存储与预算事务契约 v1
 
-ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。现已增加默认关闭、显式开启的 Spring 受理装配，以及上下文／结果字节存储；使用方式见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)。尚未接入控制器、Worker 或供应商调用。
+ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。受理及字节存储见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)；受控供应商交互、Worker 与生成闭环现已接入，见 [第 5～6 步实现说明](EXECUTION_IMPLEMENTATION.md)。各阶段显式开启，对外控制器尚未实现。
 
 ## 1. 原子边界
 
@@ -9,6 +9,8 @@ ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契�
 | accept | 幂等记录、Invocation、可选 Turn、会话版本／活跃调用门闩、ACCEPTED 事件、派发 Outbox 一起提交 | 同键同摘要返回原 Invocation；同键异摘要拒绝；会话版本过旧或已有活跃调用拒绝 |
 | createAttempt | 校验 Invocation 版本、期限、前一次尝试的安全重试事实；分配唯一序号、递增 fencing token，关联 activeAttempt，写 STARTED 事件及 Outbox | 每次创建增加 Invocation.version；消息重投不能无条件创建新尝试；未知副作用先核对 |
 | acquireLease / renewLease | 租约依据数据库时钟，检查版本／activeAttempt；接管时递增 fencing token；续租增加 Attempt.version | 过期 Worker 的追加、发送标记、续租和提交全部拒绝 |
+| stopExpired | Invocation CAS、数据库时钟检查活跃 Attempt 已过期；增加版本与 fencing，提交终态、事件及发布 Outbox | NOT_STARTED 为 INTERRUPTED，可能发送为 UNKNOWN；不重发，预算独立处理 |
+| validateClaim / renewClaim | 锁定 Outbox，检查完整消息身份、Worker、token、未 ACK 和数据库时钟下租约有效 | 同 token 续租；失效领取不能复活，重新领取递增 token |
 | markDispatch | 在外部调用前耐久标记 MAY_HAVE_EXECUTED；有 budgetRef 时验证有效 RESERVED 预留 | 必须成功提交后才发送；发送失败／超时不恢复 NOT_STARTED |
 | updateConditionally | 两份版本、Worker、token、有效租约同时校验；只保存有明确事实的失败 Attempt | 可能执行且副作用未排除时拒绝；Invocation 终态另走 commitCompletion |
 | appendBatch | 同一 Invocation 跨 Attempt 分配连续 sequence；整批事件、batchKey、防重摘要、输出字节计数及发布 Outbox 一起提交 | 同键同批次返回原序号；同键异内容拒绝；超过输出上限整批拒绝 |
@@ -25,7 +27,7 @@ ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契�
 ## 2. Worker 与崩溃恢复
 
 1. 准入层完成当前授权、Schema、固定引用、上下文快照与规范化摘要验证，调用 accept。成功提交后才生成 AcceptedExecution。
-2. 独立轮询器 claim(DISPATCH) 获取耐久任务指针及受信 owner，读取原 Invocation，并通过 ExecutionContextFactory 重新授权／恢复执行上下文。
+2. InvocationDispatchWorker.pollOnce 通过 claim(DISPATCH) 获取耐久任务指针及受信 owner，读取原 Invocation，保留身份并限制到 options.deadline，由派发边界重新授权；权限撤销或已过期由协调器耐久结束。
 3. 使用当前 Invocation.version 创建 Attempt；存储分配序号和 fencing token。重复派发先读取现状，不能在冲突后直接递增尝试数。
 4. 计费绑定必须提供 budgetRef。reserve 成功会增加 Attempt.version；重新读取 Attempt 后构造 Guard。
 5. markDispatch 成功也增加 Attempt.version；重新读取最新 Guard，再调用供应商。输出先 appendBatch，外部发布交给 Outbox。事务内部不执行供应商请求或推送。
@@ -35,7 +37,9 @@ Guard 同时包含 Invocation.version、Attempt.version、activeAttemptId、Work
 
 过期且 NOT_STARTED 的 Attempt 可以通过 EXECUTE 租约接管。已经 MAY_HAVE_EXECUTED／CONFIRMED 的尝试只允许 RECONCILE 租约，markDispatch 对此租约拒绝；核对提交必须提供受信 evidenceRef。UNKNOWN 不能创建新 Attempt，只能核对为 SUCCEEDED／FAILED／CANCELLED。完成核对的 evidenceRef 和结算的证据类型／引用随事务耐久保存。证据引用的真实性和远端状态由可信协调器／账单服务验证；非空字符串本身不是证明。
 
-只有已知、允许重试的失败，且没有发送或已排除副作用，才能新增 Attempt，仍受 maxAttempts 与绝对 deadline 限制。存储不能保证外部系统 exactly-once；供应商幂等请求键可提供额外保证，未知结果始终先核对。Worker 和 Outbox 轮询器是下一阶段应用实现，本轮没有启动后台执行线程。
+只有已知、允许重试的失败，且没有发送或已排除副作用，才能新增 Attempt，仍受 maxAttempts 与绝对 deadline 限制。存储不能保证外部系统 exactly-once；供应商幂等请求键可提供额外保证，未知结果始终先核对。当前 Worker 仅派发一次生成，不自动重试；失效 Attempt 使用 stopExpired 收敛，已结束调用只恢复结算。自动消费由独立 worker-enabled 显式开启。
+
+已保存且校验的模型结束结果可以证明输出不完整：FAILED／MODEL_OUTPUT_INCOMPLETE 使用部分 model-result 引用和对应证据，存储核对结果行的 owner、Invocation、Attempt、类型、Schema、摘要、partial／complete 和用量。缺失字节或仅提供证据字符串仍返回 RECONCILIATION_REQUIRED；其他可能发送的已知失败继续要求排除副作用或远端核对。
 
 ## 3. 预算与费用事实
 
@@ -74,7 +78,7 @@ MybatisExecutionPersistence 显式创建独立 ExecutionSqlSessionFactory 和 Sq
 
 内部快照采用独立 Jackson mapper、schemaVersion=1 和稳定类型别名白名单，拒绝任意类名及未登记输入／事件版本，不使用 Java 原生反序列化。StructuredValue 在内部快照使用显式类型包装；传输层标准 JSON DTO 和 Schema 升级迁移仍须单独实现。
 
-目前已提供权威存储、账本、固定控制面授权、准入协调器及不可变结果字节存储。完整调用仍须实现供应商适配、Worker、轮询发布／订阅、费用估算与证据验证，并完成实际 MySQL 部署验证。
+目前已提供权威存储、账本、固定控制面授权、可靠受理、不可变结果字节存储、受控供应商适配、Worker、生成终态与预算协调及结果查询。EVENT 发布／实时订阅、远端核对以及实际 MySQL 部署验证仍需后续完成。
 
 ## 6. 验证
 

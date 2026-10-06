@@ -2,7 +2,7 @@
 
 准入业务异常统一使用 CommonException.resultCode；枚举、标准响应数字码及国际化文案见 [准入错误码说明](ADMISSION_ERROR_CODES.md)。
 
-当前可以通过 Service 集成测试验证：创建会话 → 组装单条用户文本 → 保存实际快照 → 可靠受理 → 读取 Invocation／Turn／派发 Outbox。成功受理后状态为 ACCEPTED。第 4 步的模型网关可独立启用，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)；尚无 Worker 或对外 HTTP API。
+当前可以通过 Service 集成测试验证：创建会话 → 组装单条用户文本 → 保存实际快照 → 可靠受理 → 读取 Invocation／Turn／派发 Outbox。成功受理后状态为 ACCEPTED。第 4 步的模型网关可独立启用，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)；第 5～6 步的 Worker 和完整生成闭环另行开启，见 [异步执行](EXECUTION_IMPLEMENTATION.md)。对外 HTTP API 尚未实现。
 
 ## TODO
 
@@ -77,4 +77,4 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 
 测试覆盖跨实例受理及会话创建竞争、版本推进后的重放、改变输入／期限的冲突、跨主体拒绝、真实事务回滚、字节完整性、账本不重置、Spring 配置装配，以及异常结果码和跨线程国际化响应。本次 109 项相关测试与 arte-app 编译通过。实际 MySQL 部署仍须单独验证，本次测试使用 H2 MySQL 模式。
 
-第 4 步的单个供应商适配、协议交换、受控连接和 ModelGateway 已实现，见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。后续实现第 5～6 步的 Worker／dispatch、Attempt 及预算生命周期、输出与终态提交、状态／结果服务和完整生成测试。目前 dispatch／reconcile／control 明确返回未启用错误；不会自行启动调用或伪造完成。
+第 4 步的单个供应商适配、协议交换、受控连接和 ModelGateway 已实现，见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。第 5～6 步的 Worker／dispatch、Attempt 及预算生命周期、输出与终态提交、状态／结果服务和完整生成测试已实现，见 [异步执行](EXECUTION_IMPLEMENTATION.md)。未开启 execution 时仍使用仅受理协调器；reconcile／control 明确返回未启用错误。

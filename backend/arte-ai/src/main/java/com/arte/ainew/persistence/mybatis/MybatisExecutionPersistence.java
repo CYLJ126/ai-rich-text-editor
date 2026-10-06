@@ -51,6 +51,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final BudgetMapper budget;
     private final EventMapper event;
     private final OutboxMapper outbox;
+    private final PayloadMapper payload;
     private final TransactionTemplate transaction;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
@@ -63,6 +64,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.budget = sessions.getMapper(BudgetMapper.class);
         this.event = sessions.getMapper(EventMapper.class);
         this.outbox = sessions.getMapper(OutboxMapper.class);
+        this.payload = sessions.getMapper(PayloadMapper.class);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
@@ -455,6 +457,34 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     @Override
+    public Mono<StoreOutcome<Invocation>> stopExpired(Version target) {
+        return outcome(() -> {
+            var invocation = invocation(target);
+            version(invocation, target);
+            require(!invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
+            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+            boolean uncertain = attempt.dispatch() != Attempt.Dispatch.NOT_STARTED;
+            var error = new ExecutionError("WORKER_LEASE_EXPIRED", ExecutionError.Phase.DISPATCH, false,
+                    uncertain ? ExecutionError.SideEffect.POSSIBLE : ExecutionError.SideEffect.NONE,
+                    uncertain ? ExecutionError.Certainty.UNKNOWN : ExecutionError.Certainty.KNOWN,
+                    invocation.request().context().traceId());
+            var terminal = new ExecutionPayload.Terminal(uncertain ? Invocation.State.UNKNOWN : Invocation.State.INTERRUPTED, null, error);
+            long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+            save(changed(attempt, Attempt.State.valueOf(terminal.state().name()), attempt.dispatch(), attempt.remoteRequestId(),
+                    attempt.budgetReservationId(), attempt.usage(), error, attempt.workerId(), fence, attempt.leaseExpiresAt()));
+            execution.saveNextFence(fence, hash(id(invocation)));
+            var completed = state(invocation, terminal.state(), attempt.attemptId(), null, error);
+            save(completed);
+            event(completed, attempt.attemptId(), terminal);
+            if (!uncertain && completed.conversation() != null) {
+                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+            }
+            return StoreOutcome.applied(completed);
+        });
+    }
+
+    @Override
     public Mono<StoreOutcome<Attempt>> updateConditionally(FailAttempt command) {
         return outcome(() -> {
             var invocation = invocation(command.guard().invocation());
@@ -524,11 +554,33 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && (reconciliation || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
             require(command.terminal().state() != Invocation.State.UNKNOWN || attempt.dispatch() != Attempt.Dispatch.NOT_STARTED,
                     INVALID_STATE);
-            // 可能执行的调用只有明确副作用 NONE 的错误或受信核对才能认定已知失败／取消。
+            // 已校验并保存的模型终止响应可证明输出不完整；其他可能执行的失败仍需 NONE 或远端核对。
             if (!reconciliation && attempt.dispatch() != Attempt.Dispatch.NOT_STARTED
                     && command.terminal().state() != Invocation.State.SUCCEEDED && command.terminal().state() != Invocation.State.UNKNOWN) {
-                require(command.terminal().error() != null
-                        && command.terminal().error().sideEffect() == ExecutionError.SideEffect.NONE, RECONCILIATION_REQUIRED);
+                var terminal = command.terminal();
+                boolean verifiedOutput = terminal.state() == Invocation.State.FAILED && terminal.result() != null
+                        && terminal.result().partial() && terminal.result().resultType().equals("model-result") && terminal.error() != null
+                        && terminal.error().code().equals("MODEL_OUTPUT_INCOMPLETE")
+                        && terminal.error().phase() == ExecutionError.Phase.OUTPUT
+                        && terminal.error().certainty() == ExecutionError.Certainty.KNOWN
+                        && terminal.error().sideEffect() == ExecutionError.SideEffect.CONFIRMED
+                        && ("model-result:" + terminal.result().resultId()).equals(command.evidenceRef());
+                if (verifiedOutput) {
+                    var ref = terminal.result();
+                    var row = payload.result(ref.resultId());
+                    verifiedOutput = row != null && row.partial() == 1 && row.resultType().equals("model-result")
+                            && row.ownerKey().equals(ownerKey(command.guard().invocation().owner()))
+                            && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
+                            && row.schemaVersion() == ref.schemaVersion() && row.payloadDigest().equals(ref.contentDigest())
+                            && row.payloadDigest().equals(com.arte.ainew.serialization.CanonicalJson.sha256(row.snapshot()));
+                    if (verifiedOutput) {
+                        var value = codec.decode(row.snapshot(), InvocationResult.class);
+                        verifiedOutput = value instanceof InvocationResult.Generation generation && !generation.value().complete()
+                                && generation.value().usage().equals(command.usage());
+                    }
+                }
+                require(terminal.error() != null && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
+                        || verifiedOutput, RECONCILIATION_REQUIRED);
             }
             var completed = state(invocation, command.terminal().state(), attempt.attemptId(), command.terminal().result(), command.terminal().error());
             var attemptState = Attempt.State.valueOf(completed.state().name());
@@ -674,6 +726,40 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
             outbox.deliverMessage(message.messageId());
             return StoreOutcome.applied(message);
+        });
+    }
+
+    private void claimed(OutboxMessage message, com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow row) {
+        require(message.workerId().equals(row.workerId()) && message.fencingToken() == row.token()
+                && hash(message.invocationId()).equals(row.invocationKey())
+                && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()))
+                && message.kind().name().equals(row.kind()) && message.eventSequence() == row.sequenceNo()
+                && row.delivered() == 0 && row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
+    }
+
+    @Override
+    public Mono<StoreOutcome<OutboxMessage>> validateClaim(OutboxMessage message) {
+        Objects.requireNonNull(message, "message");
+        return outcome(() -> {
+            var rows = outbox.lockMessage(message.messageId());
+            require(!rows.isEmpty(), NOT_FOUND);
+            claimed(message, rows.getFirst());
+            return StoreOutcome.applied(message);
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<OutboxMessage>> renewClaim(OutboxMessage message, Duration lease) {
+        Objects.requireNonNull(message, "message");
+        validLease(lease);
+        return outcome(() -> {
+            var rows = outbox.lockMessage(message.messageId());
+            require(!rows.isEmpty(), NOT_FOUND);
+            claimed(message, rows.getFirst());
+            var expiry = now().plus(lease);
+            outbox.claimMessage(message.workerId(), message.fencingToken(), expiry.toEpochMilli(), message.messageId());
+            return StoreOutcome.applied(new OutboxMessage(message.messageId(), message.invocationId(), message.owner(), message.kind(),
+                    message.eventSequence(), message.workerId(), message.fencingToken(), expiry));
         });
     }
 
