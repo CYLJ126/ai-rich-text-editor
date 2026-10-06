@@ -144,6 +144,8 @@ public class NewAiManualIT {
 
     /**
      * 初始化预算、提交新的会话／文本、手动派发、查询真实模型结果；每次运行创建新调用。
+     * <p>
+     * 提交落库 → 手动消费派发 → 等待批次结束 → 查询状态 → 读取持久化结果 → 打印文本
      */
     @Test
     public void submitTextAndDispatch() throws Exception {
@@ -174,7 +176,7 @@ public class NewAiManualIT {
                     new GenerationOptions(outputTokens, null, null, List.of()),
                     new ExecutionOptions(execution.deadline(), 1, properties.limits().maxOutputBytes(), 0, 0,
                             properties.limits().maximumTimeout()));
-            // ChatService：提交聊天请求
+            // ChatService：提交聊天请求，调用 InvocationCoordinator.submit 受理并落库
             var accepted = context.getBean(ChatService.class).submit(request, execution).block(DB_WAIT);
             assertNotNull(accepted);
             System.out.println("Accepted execution: " + accepted.executionId());
@@ -183,10 +185,11 @@ public class NewAiManualIT {
             Invocation status;
             do {
                 var remaining = Duration.ofNanos(Math.max(1, stopAt - System.nanoTime()));
-                // InvocationDispatchWorker：手动派发
+                // InvocationDispatchWorker：手动派发，ExecutionOutboxStore.claim() 领取任务，InvocationCoordinator.dispatch() 执行任务
+                // block() 触发订阅，并阻塞当前 JUnit 测试线程，直到本批处理完成或等待超时
                 context.getBean(InvocationDispatchWorker.class).pollOnce().block(remaining);
                 var read = executionContext(context, Set.of("ai:read"), "read-" + UUID.randomUUID());
-                // ExecutionControl：查询执行状态
+                // ExecutionControl：从数据库查询执行状态，ExecutionControl.status() 验证读取权限，再按所属主体和调用 ID 查询 Invocation
                 status = Objects.requireNonNull(context.getBean(ExecutionControl.class)
                         .status(accepted.executionId(), read).block(DB_WAIT));
                 if (status.state().terminal()) {
@@ -197,6 +200,7 @@ public class NewAiManualIT {
             assertEquals(Invocation.State.SUCCEEDED, status.state(), () -> "Execution " + accepted.executionId()
                     + " did not succeed; inspect its persisted status/error");
             var read = executionContext(context, Set.of("ai:read"), "result-" + UUID.randomUUID());
+            // 从数据库读取已提交的结果，ExecutionEventService.result() 先查 Invocation，取得其中的权威结果引用，再读取对应结果记录
             var result = context.getBean(ExecutionEventService.class).result(accepted.executionId(), read).block(DB_WAIT);
             var generation = assertInstanceOf(InvocationResult.Generation.class, result);
             assertTrue(generation.value().complete());
