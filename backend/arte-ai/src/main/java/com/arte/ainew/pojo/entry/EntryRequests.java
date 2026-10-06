@@ -17,6 +17,7 @@ import java.util.Objects;
  * @since 2026/10/5 13:09 ✾
  */
 public final class EntryRequests {
+
     private EntryRequests() {
     }
 

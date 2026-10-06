@@ -7,7 +7,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * SDK 无关的结构校验与绝对安全上限。入口、绑定与租户配额应施加更低的场景上限；
+ * SDK 无关的结构校验与绝对安全上限
+ * <p>
+ * 入口、绑定与租户配额应施加更低的场景上限；
  * 字符上限不等于 Token、UTF-8 字节或费用额度，不替代授权与 Schema 校验。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -19,8 +21,17 @@ public final class ContractChecks {
     public static final int MAX_PARTS = 64;
     public static final int MAX_TOOLS = 128;
 
-    private ContractChecks() { }
+    private ContractChecks() {
+    }
 
+    /**
+     * 文本校验：非空、限长
+     *
+     * @param value 文本值
+     * @param field 字段名
+     * @param limit 最大字符数
+     * @return 文本值或抛出异常
+     */
     public static String text(String value, String field, int limit) {
         if (value == null || value.isBlank() || value.length() > limit) {
             throw new IllegalArgumentException(field + " must be non-blank and at most " + limit + " characters");

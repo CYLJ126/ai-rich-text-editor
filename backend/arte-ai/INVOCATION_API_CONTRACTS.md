@@ -1,6 +1,6 @@
 # AI 调用接口契约
 
-适用于 `com.arte.ainew`。方法及数据契约已声明，第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。模型派发、网关、供应商适配及 HTTP API 尚未实现。
+适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。Worker／模型派发、终态协调及 HTTP API 尚未实现。
 
 ## 1. 最小生成链路
 

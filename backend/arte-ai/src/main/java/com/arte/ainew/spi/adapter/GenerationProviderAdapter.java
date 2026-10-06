@@ -7,7 +7,9 @@ import com.arte.ainew.pojo.generation.ModelResult;
 import reactor.core.publisher.Flux;
 
 /**
- * 生成供应商的流映射扩展；非流结果使用 ProviderAdapter.mapResult。
+ * 生成供应商的流映射扩展
+ * <p>
+ * 非流结果使用 ProviderAdapter.mapResult。
  * 聚合工具参数、用量及完整输出，在同一次上游订阅中产生唯一 Result／Failure；
  * 不内部 subscribe、cache 无界输出或重新调用供应商，缺失结束信号不得伪装成功。
  *

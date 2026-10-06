@@ -18,9 +18,14 @@ public sealed interface GenerationEvent extends Serializable permits GenerationE
         return 0;
     }
 
+    /**
+     * 空格及换行也是有效增量；只拒绝空字符串，最终输出完整性由结果校验判断。
+     */
     record TextDelta(String text) implements GenerationEvent {
+
         public TextDelta {
-            ContractChecks.text(text, "text", ContractChecks.MAX_TEXT_CHARS);
+            Objects.requireNonNull(text, "text");
+            ContractChecks.range(text.length(), "text.length", 1, ContractChecks.MAX_TEXT_CHARS);
         }
 
         @Override
@@ -32,8 +37,8 @@ public sealed interface GenerationEvent extends Serializable permits GenerationE
     /**
      * 参数片段不是完整 JSON，不能执行；先按 index 聚合并解析成 ToolCall，再执行 Schema／授权校验。
      */
-    record ToolCallDelta(int index, String callId, String toolName,
-                         String argumentsFragment) implements GenerationEvent {
+    record ToolCallDelta(int index, String callId, String toolName, String argumentsFragment) implements GenerationEvent {
+
         public ToolCallDelta {
             ContractChecks.range(index, "index", 0, ContractChecks.MAX_TOOLS - 1);
             ContractChecks.optionalId(callId, "callId");
@@ -50,12 +55,14 @@ public sealed interface GenerationEvent extends Serializable permits GenerationE
     }
 
     record UsageReported(Usage usage) implements GenerationEvent {
+
         public UsageReported {
             Objects.requireNonNull(usage, "usage");
         }
     }
 
     record Finished(ModelResult.FinishReason reason) implements GenerationEvent {
+
         public Finished {
             Objects.requireNonNull(reason, "reason");
         }

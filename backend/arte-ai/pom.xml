@@ -20,6 +20,15 @@
     </properties>
 
     <dependencies>
+        <!-- 新模型交互显式依赖响应式 HTTP 客户端，不启用 WebFlux 服务端。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+        </dependency>
         <!-- 新执行存储显式依赖 JDBC；阻塞事务由适配器调度到专用线程。 -->
         <dependency>
             <groupId>org.springframework</groupId>

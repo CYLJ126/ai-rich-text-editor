@@ -1,0 +1,76 @@
+# 此文件不会自动加载。替换主体、能力、连接和费率配置后，使用 spring.config.import 显式导入。
+# 第 4 步示例：开启单次 DeepSeek 交互，不启动 Worker 或实现派发。
+# 仅保存凭据引用和环境变量名称。预算仍由 BudgetAccountInitializer 显式初始化。
+arte:
+  ai-new:
+    enabled: true
+    data-source-bean: appDataSource
+    release-ref: example-release-v1
+    persistence:
+      threads: 4
+      queued-tasks: 256
+    limits:
+      max-input-bytes: 65536
+      max-output-tokens: 4096
+      max-output-bytes: 1048576
+      maximum-timeout: 2m
+      snapshot-retention: 15m
+    grants:
+      - subject-name: example-user
+        subject-id: example-subject-id
+        principal-kind: USER
+        tenant-id: example-tenant
+        workspace-id: example-workspace
+        grant-ref: example-grant-v1
+        enabled: true
+        scopes: [ai:invoke, ai:conversation, ai:read, ai:budget:admin]
+        binding-ids: [default-text]
+        budget-refs: [example-budget]
+    capabilities:
+      - &text-capability
+        definition: {type: capability, id: text-generation, version: v1}
+        kind: GENERATION
+        input-schema: {type: schema, id: generation-request, version: v1}
+        output-schema: {type: schema, id: model-result, version: v1}
+        features: [TEXT_INPUT, STREAMING, USAGE_REPORTING]
+        side-effect: READ_ONLY
+        availability: EXECUTABLE
+    bindings:
+      - definition: {type: binding, id: default-text, version: v1}
+        capability: *text-capability
+        connection: {type: connection, id: default-model, version: v1}
+        remote-operation: deepseek-chat
+        context-window-tokens: 8192
+        rate: {type: rate, id: example-rate, version: v1}
+    connections:
+      - definition: {type: connection, id: default-model, version: v1}
+        provider-id: deepseek
+        protocol: {type: protocol, id: chat-completions-sse, version: v1}
+        endpoint: https://api.deepseek.com/v1
+        credential: {type: secret, id: example-credential, version: v1}
+        state: ENABLED
+        connect-timeout: 5s
+        response-timeout: 2m
+        max-response-bytes: 1048576
+    rates:
+      # 示例数字用于演示字段，不代表任何供应商价格。
+      - definition: {type: rate, id: example-rate, version: v1}
+        input-per-million: {amount: "1", currency: CNY}
+        output-per-million: {amount: "2", currency: CNY}
+    budgets:
+      - budget-ref: example-budget
+        owner: {tenant-id: example-tenant, workspace-id: example-workspace, subject-id: example-subject-id}
+        limit: {amount: "100", currency: CNY}
+        rate: {type: rate, id: example-rate, version: v1}
+  ai-new-generation:
+    enabled: true
+    allowed-origins: [https://api.deepseek.com]
+    secrets:
+      - reference: {type: secret, id: example-credential, version: v1}
+        environment-variable: ARTE_DEEPSEEK_API_KEY
+    max-pools: 32
+    connections-per-pool: 8
+    pending-acquires: 32
+    acquire-timeout: 5s
+    max-frame-bytes: 65536
+    max-request-bytes: 1048576

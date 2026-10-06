@@ -13,6 +13,7 @@ import java.util.Objects;
  * @since 2026/10/5 13:09 ✾
  */
 public sealed interface GenerationSignal permits GenerationSignal.Delta, GenerationSignal.Result, GenerationSignal.Failure {
+
     record Delta(GenerationEvent event) implements GenerationSignal {
         public Delta {
             Objects.requireNonNull(event, "event");
