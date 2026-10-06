@@ -101,6 +101,12 @@ flowchart TB
 
 在已有配置上增加 [执行配置示例](examples/ainew-execution.yml)。三个功能开关分别为 `arte.ai-new.enabled`、`arte.ai-new-generation.enabled`、`arte.ai-new-execution.enabled`。执行开关默认关闭；开启后注册完整协调器和读取服务，替代仅受理的协调器。
 
+本仓库已将完整参数接入 `backend/profile/app.properties`，可复制的版本见 [app.properties.example](../profile/app.properties.example)。Maven dev profile 将参数过滤到 `classpath:ainew/config/application.properties`，已有的 `application-ai.yml` 自动导入该运行时文件；修改参数后需要重新构建资源。不要仅在 Maven 参数文件中新增未被运行时模板引用的字段，也不要同时叠加两份不同的固定配置列表。
+
+`ARTE_DEEPSEEK_API_KEY` 配置在实际 Java 进程的环境中。本机 zsh 可在 `~/.zshenv` 中配置并通过新终端或 `source ~/.zshenv` 加载；从该终端启动应用。已有 IDE 进程不会自动获取变量，需设置其 Run/Debug Configuration 的 Environment variables，或从已加载变量的终端重启 IDE。部署时使用服务／容器环境注入。参数文件及构建资源仅保存环境变量名称／引用，旧 Spring AI 的 DeepSeek Key 也改为该环境变量引用。
+
+参数中的 `example-user`／主体与空间标识、费率均为测试示例。真实登录须将 subject-name 与 Authentication.getName() 对应，主体／空间与预算 owner 保持一致；数据库预算账户仍需显式初始化。
+
 `arte.ai-new-execution.worker-enabled=false` 默认保持手动消费，装配阶段不访问数据库或供应商。集成测试可在 submit 成功后调用 `InvocationDispatchWorker.pollOnce()`，然后用**新建的当前可信上下文**调用 `ExecutionControl.status`、`ExecutionEventService.result`、`replay`。不要为读取重用已经过期的原执行上下文。Mono 是冷执行，测试订阅后才运行；`block` 仅用于测试入口，HTTP 事件线程返回 Mono／Flux。
 
 需要后台消费时设置 `worker-enabled=true`，Spring 启动 Worker 自动轮询。此时会访问数据库，且有已受理任务时会调用所配置的模型。Worker 停止会取消本次订阅并停止轮询；没有耐久取消命令就不会伪造 CANCELLED 终态，遗留任务在租约失效后恢复。

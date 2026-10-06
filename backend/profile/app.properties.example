@@ -84,7 +84,8 @@ spring.ai.embedding.transformer.onnx.gpu-device-id=-1
 # 重要，防止输入长度不一致报错
 spring.ai.embedding.transformer.tokenizer.options.padding=true
 # ======================== Spring AI 配置 ========================
-spring.ai.deepseek.api-key=your-deepseek-api-key-here
+# Legacy Spring AI also reads the process environment; no plaintext key in build resources.
+spring.ai.deepseek.api-key=${ARTE_DEEPSEEK_API_KEY}
 # ======================== mcp client 配置 ========================
 spring.ai.mcp.client.name=arte-mcp-client
 # ======================== mcp server 配置 ========================
@@ -92,3 +93,124 @@ spring.ai.mcp.server.name=arte-mcp-server
 # 配置路径为 项目根路径加端点路径，如 http://localhost:8000/arte/mcp
 spring.ai.mcp.server.endpoint=/mcp
 spring.ai.mcp.server.disallow-delete=true
+
+# ======================== New AI fixed configuration ========================
+# Maven filters this file into classpath:ainew/config/application.properties.
+# application-ai.yml imports that runtime file; changing this file requires rebuilding resources.
+# These values match examples/ainew-generation.yml; the example identity/rates are for testing.
+arte.ai-new.enabled=true
+arte.ai-new.data-source-bean=appDataSource
+arte.ai-new.release-ref=example-release-v1
+arte.ai-new.persistence.threads=4
+arte.ai-new.persistence.queued-tasks=256
+arte.ai-new.limits.max-input-bytes=65536
+arte.ai-new.limits.max-output-tokens=4096
+arte.ai-new.limits.max-output-bytes=1048576
+arte.ai-new.limits.maximum-timeout=2m
+arte.ai-new.limits.snapshot-retention=15m
+
+# Trusted authorization: subject-name must equal Authentication.getName().
+# For a real login, replace the example identity and keep the budget owner in sync.
+arte.ai-new.grants[0].subject-name=example-user
+arte.ai-new.grants[0].subject-id=example-subject-id
+arte.ai-new.grants[0].principal-kind=USER
+arte.ai-new.grants[0].tenant-id=example-tenant
+arte.ai-new.grants[0].workspace-id=example-workspace
+arte.ai-new.grants[0].grant-ref=example-grant-v1
+arte.ai-new.grants[0].enabled=true
+arte.ai-new.grants[0].scopes=ai:invoke,ai:conversation,ai:read,ai:budget:admin
+arte.ai-new.grants[0].binding-ids=default-text
+arte.ai-new.grants[0].budget-refs=example-budget
+
+# Capability and schemas; the runtime template reuses this descriptor for binding.capability.
+arte.ai-new.capabilities[0].definition.type=capability
+arte.ai-new.capabilities[0].definition.id=text-generation
+arte.ai-new.capabilities[0].definition.version=v1
+arte.ai-new.capabilities[0].kind=GENERATION
+arte.ai-new.capabilities[0].input-schema.type=schema
+arte.ai-new.capabilities[0].input-schema.id=generation-request
+arte.ai-new.capabilities[0].input-schema.version=v1
+arte.ai-new.capabilities[0].output-schema.type=schema
+arte.ai-new.capabilities[0].output-schema.id=model-result
+arte.ai-new.capabilities[0].output-schema.version=v1
+arte.ai-new.capabilities[0].features=TEXT_INPUT,STREAMING,USAGE_REPORTING
+arte.ai-new.capabilities[0].side-effect=READ_ONLY
+arte.ai-new.capabilities[0].availability=EXECUTABLE
+
+# Fixed binding: conservative input+output context capacity, and a fixed rate version.
+arte.ai-new.bindings[0].definition.type=binding
+arte.ai-new.bindings[0].definition.id=default-text
+arte.ai-new.bindings[0].definition.version=v1
+arte.ai-new.bindings[0].connection.type=connection
+arte.ai-new.bindings[0].connection.id=default-model
+arte.ai-new.bindings[0].connection.version=v1
+arte.ai-new.bindings[0].remote-operation=deepseek-chat
+arte.ai-new.bindings[0].context-window-tokens=8192
+arte.ai-new.bindings[0].rate.type=rate
+arte.ai-new.bindings[0].rate.id=example-rate
+arte.ai-new.bindings[0].rate.version=v1
+
+# Connection: endpoint is a base URL; allowed-origins below must not contain /v1.
+arte.ai-new.connections[0].definition.type=connection
+arte.ai-new.connections[0].definition.id=default-model
+arte.ai-new.connections[0].definition.version=v1
+arte.ai-new.connections[0].provider-id=deepseek
+arte.ai-new.connections[0].protocol.type=protocol
+arte.ai-new.connections[0].protocol.id=chat-completions-sse
+arte.ai-new.connections[0].protocol.version=v1
+arte.ai-new.connections[0].endpoint=https://api.deepseek.com/v1
+arte.ai-new.connections[0].credential.type=secret
+arte.ai-new.connections[0].credential.id=example-credential
+arte.ai-new.connections[0].credential.version=v1
+arte.ai-new.connections[0].state=ENABLED
+arte.ai-new.connections[0].connect-timeout=5s
+arte.ai-new.connections[0].response-timeout=2m
+arte.ai-new.connections[0].max-response-bytes=1048576
+
+# Example prices per million tokens, NOT current provider prices; replace before billed use.
+arte.ai-new.rates[0].definition.type=rate
+arte.ai-new.rates[0].definition.id=example-rate
+arte.ai-new.rates[0].definition.version=v1
+arte.ai-new.rates[0].input-per-million.amount=1
+arte.ai-new.rates[0].input-per-million.currency=CNY
+arte.ai-new.rates[0].output-per-million.amount=2
+arte.ai-new.rates[0].output-per-million.currency=CNY
+
+# Configuration does not create the database account.
+# Call BudgetAccountInitializer.initialize with ai:budget:admin before submit.
+arte.ai-new.budgets[0].budget-ref=example-budget
+arte.ai-new.budgets[0].owner.tenant-id=example-tenant
+arte.ai-new.budgets[0].owner.workspace-id=example-workspace
+arte.ai-new.budgets[0].owner.subject-id=example-subject-id
+arte.ai-new.budgets[0].limit.amount=100
+arte.ai-new.budgets[0].limit.currency=CNY
+arte.ai-new.budgets[0].rate.type=rate
+arte.ai-new.budgets[0].rate.id=example-rate
+arte.ai-new.budgets[0].rate.version=v1
+
+# ARTE_DEEPSEEK_API_KEY 配置位置（此文件只写变量名称，不保存真实 Key）：
+# Environment variables 中配置 ARTE_DEEPSEEK_API_KEY，或从加载变量的终端重启 IDE。
+# 服务器/容器：将变量注入实际 Java 应用进程；只给 Maven 构建进程配置还不够。
+# 修改本文件或 app.properties 后需重新构建资源；不会自动建表或初始化预算账户。
+arte.ai-new-generation.enabled=true
+arte.ai-new-generation.allowed-origins=https://api.deepseek.com
+arte.ai-new-generation.secrets[0].reference.type=secret
+arte.ai-new-generation.secrets[0].reference.id=example-credential
+arte.ai-new-generation.secrets[0].reference.version=v1
+arte.ai-new-generation.secrets[0].environment-variable=ARTE_DEEPSEEK_API_KEY
+arte.ai-new-generation.max-pools=32
+arte.ai-new-generation.connections-per-pool=8
+arte.ai-new-generation.pending-acquires=32
+arte.ai-new-generation.acquire-timeout=5s
+arte.ai-new-generation.max-frame-bytes=65536
+arte.ai-new-generation.max-request-bytes=1048576
+
+# Manual dispatch by default; set worker-enabled=true for automatic database polling.
+# Execute the manual DDL and initialize the budget first. No startup DDL/account creation.
+arte.ai-new-execution.enabled=true
+arte.ai-new-execution.worker-enabled=false
+arte.ai-new-execution.concurrency=4
+arte.ai-new-execution.poll-interval=1s
+arte.ai-new-execution.outbox-lease=2m
+arte.ai-new-execution.attempt-lease=2m
+arte.ai-new-execution.reservation-retention=1d

@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: classpath:ainew/config/application.properties
   autoconfigure:
     exclude:
       - @spring.ai.embedding.exclude@

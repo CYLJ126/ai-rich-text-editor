@@ -113,7 +113,7 @@ public final class AdmissionAuthorization {
      * 根据上下文中的主体 ID、名称、类型、租户和工作空间，查找处于启用状态的配置；找不到就抛出 AccessDeniedException。
      * 调用方据此判断该主体能否使用某个绑定或预算。grant 本身不重新查询授权，也不检查操作权限或执行期限。
      *
-     * @param context
+      * @param context 执行上下文
      * @return 授权配置（包含 bindingIds、budgetRefs 等信息）
      */
     public Grant grant(ExecutionContext context) {
