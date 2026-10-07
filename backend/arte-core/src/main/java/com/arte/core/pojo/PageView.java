@@ -1,13 +1,13 @@
 package com.arte.core.pojo;
 
-import com.arte.core.i18n.MessageUtils;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Pair;
+import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.i18n.MessageUtils;
+import com.arte.core.utils.ExceptionUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.arte.core.enums.ResultCodeEnum;
-import com.arte.core.utils.ExceptionUtil;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -133,7 +133,7 @@ public class PageView<T> extends Page<T> implements IResult<T> {
         try {
             return function.apply(req);
         } catch (Exception e) {
-            log.error(String.format("程序运行出错！请求参数：【%s】", req.toString()), e);
+            log.error("业务调用失败", e);
             return exception(e);
         }
     }
@@ -142,7 +142,7 @@ public class PageView<T> extends Page<T> implements IResult<T> {
         try {
             return function.apply(req1, req2);
         } catch (Exception e) {
-            log.error(String.format("程序运行出错！请求参数：req1: 【%s】，req2: 【%s】", req1.toString(), req2.toString()), e);
+            log.error("业务调用失败", e);
             return exception(e);
         }
     }
