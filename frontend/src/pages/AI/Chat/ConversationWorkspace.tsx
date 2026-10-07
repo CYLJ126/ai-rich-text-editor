@@ -1,15 +1,19 @@
 import {Alert, Button, Card, Empty, Form, Input, Modal, Pagination, Tag,} from 'antd';
 import React, {useState} from 'react';
 import {AiApiError, type AiScope} from '@/services/arte-ai';
+import ChatPanel from './ChatPanel';
+import type {ChatTestConfig} from './config';
 import {CONVERSATION_PAGE_SIZE, useConversations} from './useConversations';
 
 export default function ConversationWorkspace({
                                                 scope,
                                                 dirty,
+                                                config,
                                                 t,
                                               }: {
   scope: AiScope | null;
   dirty: boolean;
+  config: ChatTestConfig | null;
   t: (key: string) => string;
 }) {
   const conversations = useConversations(scope);
@@ -178,7 +182,6 @@ export default function ConversationWorkspace({
                 <dt>{t('updatedAt')}</dt>
                 <dd className="m-0 break-all">{selected.updatedAt}</dd>
               </dl>
-              <Alert type="info" title={t('messagesNextStep')}/>
             </>
           ) : (
             <div className="flex min-h-56 items-center justify-center">
@@ -188,23 +191,36 @@ export default function ConversationWorkspace({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-2 text-[var(--ant-color-text-secondary)]">
-          <span>{t('invocationState')}：—</span>
-          <span>
-            {t('budgetAvailable')}：{t('notQueried')}
-          </span>
-        </div>
-        <Input.TextArea
-          disabled
-          aria-label={t('messageInput')}
-          autoSize={{minRows: 3, maxRows: 6}}
-          placeholder={t('messagePlaceholder')}
-        />
-        <div className="flex justify-end">
-          <Button type="primary" disabled>
-            {t('send')}
-          </Button>
-        </div>
+        {selected && config ? (
+          <ChatPanel
+            key={selected.conversationId}
+            config={config}
+            conversation={selected}
+            dirty={dirty}
+            onUpdated={conversations.updateConversation}
+            t={t}
+          />
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2 text-[var(--ant-color-text-secondary)]">
+              <span>{t('invocationState')}：—</span>
+              <span>
+                {t('budgetAvailable')}：{t('notQueried')}
+              </span>
+            </div>
+            <Input.TextArea
+              disabled
+              aria-label={t('messageInput')}
+              autoSize={{minRows: 3, maxRows: 6}}
+              placeholder={t('messagePlaceholder')}
+            />
+            <div className="flex justify-end">
+              <Button type="primary" disabled>
+                {t('send')}
+              </Button>
+            </div>
+          </>
+        )}
       </Card>
       <Modal
         title={t('createConversation')}

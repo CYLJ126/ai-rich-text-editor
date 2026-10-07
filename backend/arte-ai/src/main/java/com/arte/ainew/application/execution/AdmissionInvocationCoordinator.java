@@ -85,7 +85,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
         if (turn != null && (turn.parentTurnId() != null || turn.supersedesTurnId() != null
                 || turn.version() != 0 || turn.selectedInvocationId() != null
                 || !turn.invocationIds().equals(List.of(request.context().executionId()))
-                || !TextInputs.contentDigest(List.of(turn.userMessage())).equals(snapshot.contentDigest()))) {
+                || !TextInputs.contentDigest(List.of(turn.userMessage())).equals(TextInputs.contentDigest(List.of(snapshot.messages().getLast()))))) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_NEW_TURN);
         }
         var digest = AdmissionDigests.submission(submission);

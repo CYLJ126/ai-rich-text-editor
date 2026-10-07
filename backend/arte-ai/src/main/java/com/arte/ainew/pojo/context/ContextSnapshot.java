@@ -11,9 +11,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 服务端实际输入快照，messages 是最终规范化消息（包括已编入的资料），fragments 是来源映射，不再次拼入输入。
+ * 服务端实际输入快照
+ * <p>
+ * 固定本次调用的用户消息、历史消息、模型绑定、Token 容量约束、估算值及有效期。
+ * messages 是最终规范化消息（包括已编入的资料），fragments 是来源映射，不再次拼入输入。
  * history.turnIds 必须记录实际选入轮次，不再含模糊的最近历史选择。计数与摘要由受信组装器计算并核对。
- * contentDigest 覆盖规范化输入，不等于供应商协议正文摘要。expiresAt 不删除字节、不授予授权；过期禁止新调用。
+ * contentDigest 覆盖规范化输入，不等于供应商协议正文摘要。
+ * expiresAt 不删除字节、不授予授权；过期禁止新调用。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 17:08 ✾

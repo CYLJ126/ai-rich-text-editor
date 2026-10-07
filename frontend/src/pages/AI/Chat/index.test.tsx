@@ -2,7 +2,7 @@ import {cleanup, fireEvent, render, screen, waitFor,} from '@testing-library/rea
 import React from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import messages from '@/locales/zh-CN/aiChat';
-import {getConversation, listConversations} from '@/services/arte-ai';
+import {getBudget, getConversation, listConversations, queryTurnsOfConversation,} from '@/services/arte-ai';
 import {CHAT_CONFIG_STORAGE_KEY, chatConfigSchema, DEFAULT_CHAT_CONFIG, saveChatConfig,} from './config';
 import AiChatPage from './index';
 
@@ -23,6 +23,8 @@ vi.mock('@/services/arte-ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/arte-ai')>()),
   listConversations: vi.fn(),
   getConversation: vi.fn(),
+  getBudget: vi.fn(),
+  queryTurnsOfConversation: vi.fn(),
 }));
 
 const valid = {
@@ -40,6 +42,36 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   localStorage.clear();
+  vi.mocked(getBudget).mockResolvedValue({
+    httpStatus: 200,
+    body: {
+      success: true,
+      code: '200',
+      desc: 'OK',
+      data: {
+        budgetRef: 'budget-1',
+        currency: 'CNY',
+        limit: '100',
+        held: '0',
+        charged: '0',
+        available: '100',
+        rateVersion: {type: 'rate', id: 'rate-1', version: 'v1'},
+        version: 0,
+      },
+    },
+  });
+  vi.mocked(queryTurnsOfConversation).mockResolvedValue({
+    httpStatus: 200,
+    body: {
+      success: true,
+      code: '200',
+      desc: 'OK',
+      records: [],
+      current: 1,
+      size: 10,
+      total: 0,
+    },
+  });
   vi.mocked(listConversations).mockResolvedValue({
     httpStatus: 200,
     body: {

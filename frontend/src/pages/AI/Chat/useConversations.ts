@@ -119,6 +119,26 @@ export function useConversations(scope: AiScope | null) {
     }
   };
 
+  const updateConversation = useCallback(
+    (conversation: ConversationResponse) => {
+      setSelected((previous) =>
+        previous?.conversationId === conversation.conversationId &&
+        previous.version <= conversation.version
+          ? conversation
+          : previous,
+      );
+      setRecords((previous) =>
+        previous.map((record) =>
+          record.conversationId === conversation.conversationId &&
+          record.version <= conversation.version
+            ? conversation
+            : record,
+        ),
+      );
+    },
+    [],
+  );
+
   useEffect(() => {
     void loadPage(1);
     return () => {
@@ -144,5 +164,6 @@ export function useConversations(scope: AiScope | null) {
     createError,
     pendingTitle,
     create,
+    updateConversation,
   };
 }

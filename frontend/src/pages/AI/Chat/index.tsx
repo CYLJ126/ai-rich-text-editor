@@ -129,6 +129,7 @@ export default function AiChatPage() {
         <ConversationWorkspace
           key={JSON.stringify(scope)}
           scope={scope}
+          config={config}
           dirty={dirty}
           t={t}
         />

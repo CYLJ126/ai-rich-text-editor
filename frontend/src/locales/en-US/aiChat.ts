@@ -1,13 +1,15 @@
 export default {
+  'app.aiChat.unknownOutcome':
+    'The invocation outcome is unknown. Reconcile it on the backend, then refresh history before continuing. Do not resubmit the message.',
   'app.aiChat.title': 'AI Chat Test',
   'app.aiChat.subtitle':
     'Configure the test environment for conversations, messages, history, and budgets.',
   'app.aiChat.status.missing': 'Configuration required',
   'app.aiChat.status.applied': 'Configuration applied',
   'app.aiChat.status.draft': 'Unapplied changes',
-  'app.aiChat.stageTitle': 'Step 3: Create, list, and select conversations',
+  'app.aiChat.stageTitle': 'Step 4: Messages, conversation history, and budget',
   'app.aiChat.stageDescription':
-    'Conversation creation, paginated lists, and details are connected. Apply configuration to manage conversations; messages, history, and budgets follow in later steps.',
+    'Message submission, execution status and results, history, and budget queries are connected. Wait for the current invocation to finish before sending the next turn.',
   'app.aiChat.conversations': 'Conversations',
   'app.aiChat.createConversation': 'New conversation',
   'app.aiChat.conversationsEmpty': 'No conversations in this workspace',
@@ -81,8 +83,6 @@ export default {
   'app.aiChat.conversationState': 'Conversation state',
   'app.aiChat.createdAt': 'Created at',
   'app.aiChat.updatedAt': 'Updated at',
-  'app.aiChat.messagesNextStep':
-    'Conversation ready. Sending messages and loading history will be connected in the next step.',
   'app.aiChat.create': 'Create',
   'app.aiChat.cancel': 'Close',
   'app.aiChat.retryCreate': 'Retry creation',
@@ -93,4 +93,44 @@ export default {
   'app.aiChat.error.login': 'Your login has expired. Please sign in again.',
   'app.aiChat.error.permission':
     'Check conversation API permissions and access to this tenant and workspace.',
+  'app.aiChat.refreshHistory': 'Refresh history',
+  'app.aiChat.refreshBudget': 'Refresh budget',
+  'app.aiChat.loadingHistory': 'Loading conversation history…',
+  'app.aiChat.historyEmpty':
+    'No messages yet. Send the first message to start.',
+  'app.aiChat.history': 'Conversation history',
+  'app.aiChat.role.USER': 'User',
+  'app.aiChat.role.ASSISTANT': 'Assistant',
+  'app.aiChat.partialResult': 'Partial result',
+  'app.aiChat.usage': 'Input / output tokens',
+  'app.aiChat.unknown': 'Unknown',
+  'app.aiChat.finishReason': 'Finish reason',
+  'app.aiChat.waitingReply': 'Waiting for the model response…',
+  'app.aiChat.noResult': 'No response available yet',
+  'app.aiChat.error.phase': 'Failure phase',
+  'app.aiChat.correlationId': 'Correlation ID',
+  'app.aiChat.invocationId': 'Invocation ID',
+  'app.aiChat.loadingBudget': 'Loading',
+  'app.aiChat.budgetLimit': 'Budget limit',
+  'app.aiChat.budgetHeld': 'Held',
+  'app.aiChat.budgetCharged': 'Charged',
+  'app.aiChat.insufficientBudget':
+    'No available budget. Add funds and refresh.',
+  'app.aiChat.pollPaused':
+    'Automatic polling paused. The invocation may still be running; resume querying the same invocation.',
+  'app.aiChat.resumePolling': 'Resume polling',
+  'app.aiChat.polling':
+    'Querying execution status. Wait for the current invocation to finish.',
+  'app.aiChat.retryMessageHint':
+    'The submission outcome is uncertain. Retrying reuses the same request and idempotency key. Check history before refreshing or switching conversations.',
+  'app.aiChat.retryMessage': 'Retry submission',
+  'app.aiChat.execution.ACCEPTED': 'Accepted',
+  'app.aiChat.execution.QUEUED': 'Queued',
+  'app.aiChat.execution.RUNNING': 'Running',
+  'app.aiChat.execution.SUCCEEDED': 'Succeeded',
+  'app.aiChat.execution.FAILED': 'Failed',
+  'app.aiChat.execution.CANCELLED': 'Cancelled',
+  'app.aiChat.execution.TIMED_OUT': 'Timed out',
+  'app.aiChat.execution.INTERRUPTED': 'Interrupted',
+  'app.aiChat.execution.UNKNOWN': 'Unknown outcome',
 };

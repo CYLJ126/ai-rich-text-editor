@@ -62,10 +62,10 @@ public class NewAiChatController {
             Locale locale) {
         var timeout = Duration.ofSeconds(request.timeoutSeconds());
         // 创建执行上下文 → 解析绑定 → 提交请求
-        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION),
+        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
                         timeout, request.budgetRef(), idempotencyKey)
-                .flatMap(context -> bindingManager.resolve(request.binding(), request.capability(), context)
-                        .flatMap(binding -> chatService.submit(chatRequest(request, binding, context, timeout), context)))
+                .flatMap(executionContext -> bindingManager.resolve(request.binding(), request.capability(), executionContext)
+                        .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)))
                 .map(accepted -> ResultContext.success(ChatAcceptedResponse.from(request.conversationId(), accepted),
                         ResultCodeEnum.SUCCESS, locale));
     }

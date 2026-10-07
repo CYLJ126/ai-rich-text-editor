@@ -2,6 +2,7 @@ package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
+import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
 import com.arte.ainew.application.control.FixedControlCatalog;
@@ -130,8 +131,9 @@ final class AdmissionFixture {
         payloads = new MybatisPayloadPersistence(dataSource, codec, scheduler);
         catalog = new FixedControlCatalog(properties, authorization, clock);
         budgets = new BudgetAccountInitializer(catalog, authorization, executions, executions);
-        contexts = new TextContextService(authorization, catalog, payloads, properties, clock);
         conversations = new DefaultConversationService(executions, authorization, clock);
+        contexts = new TextContextService(authorization, catalog, payloads, properties, clock,
+                new ChatHistoryLoader(conversations, authorization, executions, payloads, payloads));
         coordinator = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
         chat = new DefaultChatService(authorization, conversations, catalog, contexts, coordinator, clock);
     }

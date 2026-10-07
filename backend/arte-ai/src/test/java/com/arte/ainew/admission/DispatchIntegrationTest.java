@@ -78,6 +78,7 @@ public class DispatchIntegrationTest {
         final java.util.concurrent.ExecutorService httpThreads = Executors.newFixedThreadPool(4);
         final HttpServer server;
         final AtomicInteger requests = new AtomicInteger();
+        final List<String> requestBodies = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         final AtomicBoolean failSettlement = new AtomicBoolean();
         volatile String body = chunk("你好", "stop", USAGE) + "data: [DONE]\n\n";
         volatile String tail = "";
@@ -104,7 +105,7 @@ public class DispatchIntegrationTest {
             server.setExecutor(httpThreads);
             server.createContext("/", exchange -> {
                 requests.incrementAndGet();
-                exchange.getRequestBody().readAllBytes();
+                requestBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
                 exchange.sendResponseHeaders(200, 0);
                 try (var output = exchange.getResponseBody()) {
@@ -223,6 +224,103 @@ public class DispatchIntegrationTest {
             jdbc.execute("DROP ALL OBJECTS");
             timer.dispose();
             db.dispose();
+        }
+    }
+
+    @Test
+    public void nextRoundUsesOwnedCommittedHistoryAndReplayKeepsOriginalContext() throws Exception {
+        try (var rig = new Rig()) {
+            var conversation = rig.conversation();
+            var first = rig.submit(conversation, "first");
+            rig.worker.pollOnce().block(WAIT);
+            var current = rig.fixture.context("alice", "second");
+            var second = rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), 1, "second question", current), current).block(WAIT);
+            rig.worker.pollOnce().block(WAIT);
+            var payload = GenerationJson.mapper(65536).readTree(rig.requestBodies.get(1)).get("messages");
+            assertEquals(3, payload.size());
+            assertEquals("user", payload.get(0).get("role").asText());
+            assertEquals("hello", payload.get(0).get("content").asText());
+            assertEquals("assistant", payload.get(1).get("role").asText());
+            assertEquals("你好", payload.get(1).get("content").asText());
+            assertEquals("second question", payload.get(2).get("content").asText());
+            var snapshot = rig.fixture.contexts.find(rig.invocation(second).contextSnapshotId(), rig.fixture.context("alice", "read")).block(WAIT);
+            assertEquals(List.of(rig.invocation(first).conversation().turnId()), snapshot.history().turnIds());
+            var turn = rig.fixture.conversations.turn(conversation.conversationId(), rig.invocation(second).conversation().turnId(), current).block(WAIT);
+            assertEquals("second question", ((ChatMessage.Text) turn.userMessage().content().getFirst()).text());
+            var next = rig.fixture.context("alice", "third");
+            rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), 2, "third question", next), next).block(WAIT);
+            rig.worker.pollOnce().block(WAIT);
+            var replayContext = rig.fixture.context("alice", "second");
+            assertEquals(second, rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), 1, "second question", replayContext), replayContext).block(WAIT));
+            var conflict = assertThrows(AdmissionException.class, () -> rig.chat.submit(
+                    rig.fixture.chatRequest(conversation.conversationId(), 1, "changed question", replayContext), replayContext).block(WAIT));
+            assertEquals(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT, conflict.getResultCode());
+            assertEquals(3, rig.requests.get());
+            assertEquals(3, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Long.class).longValue());
+        }
+    }
+
+    @Test
+    public void unknownOutcomeKeepsConversationBusyWithoutResubmission() throws Exception {
+        try (var rig = new Rig()) {
+            rig.body = chunk("partial", null, "null");
+            var conversation = rig.conversation();
+            var first = rig.submit(conversation, "first");
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(first).state());
+            var current = rig.fixture.context("alice", "second");
+            var error = assertThrows(AdmissionException.class, () -> rig.chat.submit(
+                    rig.fixture.chatRequest(conversation.conversationId(), 1, "next", current), current).block(WAIT));
+            assertEquals(ResultCodeEnum.AI_CONVERSATION_BUSY, error.getResultCode());
+            assertEquals(1, rig.requests.get());
+            assertEquals(1, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Long.class).longValue());
+        }
+    }
+
+    @Test
+    public void knownFailedPartialOutputIsExcludedFromNextRoundContext() throws Exception {
+        try (var rig = new Rig()) {
+            rig.body = chunk("partial", "length", USAGE) + "data: [DONE]\n\n";
+            var conversation = rig.conversation();
+            var first = rig.submit(conversation, "first");
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.FAILED, rig.invocation(first).state());
+            rig.body = chunk("complete", "stop", USAGE) + "data: [DONE]\n\n";
+            var current = rig.fixture.context("alice", "second");
+            var second = rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), 1, "next", current), current).block(WAIT);
+            rig.worker.pollOnce().block(WAIT);
+            var snapshot = rig.fixture.contexts.find(rig.invocation(second).contextSnapshotId(), rig.fixture.context("alice", "read")).block(WAIT);
+            assertNull(snapshot.history());
+            assertEquals(1, snapshot.messages().size());
+            assertEquals("next", ((ChatMessage.Text) snapshot.messages().getFirst().content().getFirst()).text());
+            assertEquals(2, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void historyIsBoundedToTenRecentTurnsAndCapacityOverflowIsExplicit() throws Exception {
+        try (var rig = new Rig()) {
+            var conversation = rig.conversation();
+            AcceptedExecution latest = null;
+            for (int i = 0; i < 12; i++) {
+                var current = rig.fixture.context("alice", "round-" + i);
+                latest = rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), i, "question-" + i, current), current).block(WAIT);
+                rig.worker.pollOnce().block(WAIT);
+            }
+            var snapshot = rig.fixture.contexts.find(rig.invocation(latest).contextSnapshotId(), rig.fixture.context("alice", "read")).block(WAIT);
+            assertEquals(10, snapshot.history().turnIds().size());
+            assertEquals(21, snapshot.messages().size());
+            assertEquals("question-1", ((ChatMessage.Text) snapshot.messages().getFirst().content().getFirst()).text());
+            var current = rig.fixture.context("alice", "small-capacity");
+            var original = rig.fixture.chatRequest(conversation.conversationId(), 12, "next", current);
+            var selection = new com.arte.ainew.pojo.context.ContextRequest(original.context().messages(), null, List.of(), List.of(), null,
+                    new com.arte.ainew.pojo.context.ContextBudget(1024, 128, 256, 0));
+            var limited = new com.arte.ainew.pojo.entry.EntryRequests.Chat(original.conversationId(), original.expectedVersion(), null, null,
+                    selection, original.capability(), original.binding(), original.generationOptions(), original.options());
+            var error = assertThrows(AdmissionException.class, () -> rig.chat.submit(limited, current).block(WAIT));
+            assertEquals(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED, error.getResultCode());
+            assertEquals(12, rig.requests.get());
+            assertEquals(12, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Long.class).longValue());
         }
     }
 

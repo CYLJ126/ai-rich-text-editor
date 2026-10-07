@@ -33,12 +33,16 @@ import java.util.Map;
  * @since 2026/10/4 23:11 ✾
  */
 public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
+
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-    private interface Named { }
+    private interface Named {
+    }
+
     private interface MoneyShape {
         @JsonFormat(shape = JsonFormat.Shape.STRING)
         java.math.BigDecimal amount();
     }
+
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
             Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
@@ -50,9 +54,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     public JacksonExecutionRecordCodec() {
         var builder = JsonMapper.builder();
         builder.addMixIn(Money.class, MoneyShape.class);
-        for (var base : new Class<?>[] { CapabilityInput.class, ChatMessage.ContentPart.class,
+        for (var base : new Class<?>[]{CapabilityInput.class, ChatMessage.ContentPart.class,
                 GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class,
-                InvocationResult.class }) {
+                InvocationResult.class}) {
             builder.addMixIn(base, Named.class);
         }
         builder.registerSubtypes(
@@ -79,21 +83,29 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         mapper = builder.build();
     }
 
-    @Override public String encode(Object value) {
+    @Override
+    public String encode(Object value) {
         validate(value);
         var alias = ROOTS.get(value instanceof InvocationResult ? InvocationResult.class : value.getClass());
-        if (alias == null) { throw new IllegalArgumentException("Unregistered snapshot type"); }
+        if (alias == null) {
+            throw new IllegalArgumentException("Unregistered snapshot type");
+        }
         var node = mapper.createObjectNode();
         node.put("schemaVersion", 1).put("type", alias);
         node.set("body", mapper.valueToTree(value));
         var json = mapper.writeValueAsString(node);
-        if (json.length() > 4_000_000) { throw new IllegalArgumentException("Snapshot exceeds limit"); }
+        if (json.length() > 4_000_000) {
+            throw new IllegalArgumentException("Snapshot exceeds limit");
+        }
         return json;
     }
 
-    @Override public <T> T decode(String json, Class<T> expectedType) {
+    @Override
+    public <T> T decode(String json, Class<T> expectedType) {
         var alias = ROOTS.get(expectedType);
-        if (alias == null || json.length() > 4_000_000) { throw new IllegalArgumentException("Unregistered or oversized snapshot"); }
+        if (alias == null || json.length() > 4_000_000) {
+            throw new IllegalArgumentException("Unregistered or oversized snapshot");
+        }
         var node = mapper.readTree(json);
         if (node.path("schemaVersion").asInt() != 1 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");

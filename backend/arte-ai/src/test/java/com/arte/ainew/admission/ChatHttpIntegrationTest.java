@@ -160,7 +160,7 @@ public class ChatHttpIntegrationTest {
         var input = (GenerationRequest) stored.request().input();
         assertEquals(ChatMessage.Role.USER, input.messages().getFirst().role());
         assertEquals("你好 世界\n  保留空白  ", ((ChatMessage.Text) input.messages().getFirst().content().getFirst()).text());
-        assertEquals(Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), stored.request().context().authorization().scopes());
+        assertEquals(Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), stored.request().context().authorization().scopes());
         assertEquals("release-v1", stored.request().context().releaseRef());
         assertEquals(Duration.ofSeconds(60), stored.request().options().requestedTimeout());
         assertEquals(1, stored.request().options().maxAttempts());

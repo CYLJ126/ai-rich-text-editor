@@ -7,6 +7,7 @@ import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
+import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
@@ -170,13 +171,15 @@ public class NewAiAdmissionConfiguration {
     }
 
     /**
-     * 单条用户文本的上下文组装及快照读取服务，检查绑定、输入大小和上下文容量，标记 Token 估算。
+     * 单条用户文本与最近十轮完整历史的上下文组装及快照读取服务，检查绑定、输入大小和上下文容量，标记 Token 估算。
      * assemble 只构造快照，由协调器受理时持久化；find 从字节存储读取并检查当前权限及归属。
      */
     @Bean("newAiContextService")
     ContextService contextService(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisPayloadPersistence store,
-                                  NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
-        return new TextContextService(authorization, catalog, store, properties, clock);
+                                  NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
+                                  ConversationService conversations, MybatisExecutionPersistence executions) {
+        return new TextContextService(authorization, catalog, store, properties, clock,
+                new ChatHistoryLoader(conversations, authorization, executions, store, store));
     }
 
     /**

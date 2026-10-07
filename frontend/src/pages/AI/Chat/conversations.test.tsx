@@ -176,7 +176,9 @@ describe('会话请求与并发处理', () => {
 describe('会话界面', () => {
   it('点击列表项查询详情，展示版本，消息输入仍为下一步占位', async () => {
     vi.mocked(listConversations).mockResolvedValue(page([conversation('a')]));
-    render(<ConversationWorkspace scope={scope} dirty={false} t={t}/>);
+    render(
+      <ConversationWorkspace scope={scope} config={null} dirty={false} t={t}/>,
+    );
     fireEvent.click(await screen.findByRole('button', {name: '会话 a a'}));
     const details = await screen.findByLabelText('会话详情');
     expect(within(details).getByText('3')).toBeInTheDocument();
@@ -195,7 +197,9 @@ describe('会话界面', () => {
     vi.mocked(createConversation).mockRejectedValueOnce(
       new TypeError('timeout'),
     );
-    render(<ConversationWorkspace scope={scope} dirty={false} t={t}/>);
+    render(
+      <ConversationWorkspace scope={scope} config={null} dirty={false} t={t}/>,
+    );
     fireEvent.click(screen.getByRole('button', {name: '新建会话'}));
     fireEvent.click(await screen.findByRole('button', {name: /^创\s*建$/}));
     await screen.findByText('请填写此项，不能只包含空白');
@@ -222,7 +226,9 @@ describe('会话界面', () => {
     vi.mocked(listConversations).mockRejectedValueOnce(
       new AiApiError(403, {code: '403', desc: '无访问授权'}),
     );
-    render(<ConversationWorkspace scope={scope} dirty={false} t={t}/>);
+    render(
+      <ConversationWorkspace scope={scope} config={null} dirty={false} t={t}/>,
+    );
     await screen.findByText(/无访问授权.*HTTP 403/);
     expect(screen.getByText(t('error.permission'))).toBeInTheDocument();
     expect(screen.queryByText(t('conversationsEmpty'))).not.toBeInTheDocument();
