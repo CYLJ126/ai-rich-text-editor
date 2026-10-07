@@ -19,8 +19,8 @@ import java.util.Map;
 @EnableScheduling
 @SpringBootApplication
 @Import(CacheAutoConfiguration.class)
-// 这里指定了扫描路径，会抑制模块中的自动配置上的自动扫描，所以要显示指定扫描路径
-@ComponentScan(basePackages = {"com.arte.core", "com.arte.app", "com.arte.ai"})
+// 新 AI 服务由自动配置装配；HTTP 入口位于独立的 ainew.web 包，需要显式扫描。
+@ComponentScan(basePackages = {"com.arte.core", "com.arte.app", "com.arte.ai", "com.arte.ainew.web"})
 public class AIRichTextEditorApplication {
     public static void main(String[] args) {
         ConfigurableApplicationContext ctx = SpringApplication.run(AIRichTextEditorApplication.class, args);
