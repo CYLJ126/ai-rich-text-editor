@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 @ToString
 @Accessors(chain = true)
 @Slf4j
-public class ResultContext<T> implements IResult<T>, Serializable {
+public class ResultContext<T> implements IResult, Serializable {
     @Serial
     private static final long serialVersionUID = 71449509739969614L;
 

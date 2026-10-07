@@ -55,7 +55,7 @@ public class WebAspect {
     @Around(value = "(execution(public * com.arte.app.web.controller..*.*(..))" +
             "&& !execution(* com.arte.app.web.interceptor..*.*(..)))")
     public Object deal(ProceedingJoinPoint pjp) {
-        IResult<?> result = null;
+        IResult result = null;
         Logger logger = LoggerFactory.getLogger(pjp.getTarget().getClass());
         String methodName = pjp.getTarget().getClass().getSimpleName() + "#" + pjp.getSignature().getName();
         logger.info("方法：{}，请求参数摘要：{}", methodName, summarizeArguments(pjp.getArgs()));
@@ -68,7 +68,7 @@ public class WebAspect {
                 logger.info("方法{}，消耗时间：{}ms，返回结果摘要：{}", methodName, System.currentTimeMillis() - start, summarizeResult(realResult));
                 return realResult;
             }
-            result = (ResultContext<?>) pjp.proceed();
+            result = (IResult) pjp.proceed();
             if (result.getSuccess() == null || result.getCode() == null) {
                 throw new CommonException(ResultCodeEnum.UNKNOWN, "success|code返回结果有误！");
             }
@@ -123,11 +123,15 @@ public class WebAspect {
 
     private String summarizeResult(Object result) {
         try {
-            if (result instanceof IResult<?> iResult) {
-                String dataSummary = summarizeValue(iResult.getData());
+            if (result instanceof IResult iResult) {
+                String dataSummary = result instanceof ResultContext<?> context
+                        ? summarizeValue(context.getData()) : CharSequenceUtil.EMPTY;
+                String pageSummary = result instanceof PageView<?> page
+                        ? summarizeValue(page) : CharSequenceUtil.EMPTY;
                 return "{code=" + iResult.getCode()
                         + ", success=" + iResult.getSuccess()
-                        + (CharSequenceUtil.isEmpty(dataSummary) ? "" : ", data=" + dataSummary) + "}";
+                        + (CharSequenceUtil.isEmpty(dataSummary) ? "" : ", data=" + dataSummary)
+                        + (CharSequenceUtil.isEmpty(pageSummary) ? "" : ", page=" + pageSummary) + "}";
             }
             if (result instanceof ResponseEntity<?> response) {
                 String bodySummary = summarizeValue(response.getBody());

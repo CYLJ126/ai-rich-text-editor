@@ -21,7 +21,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * 列表查询结果包装器
@@ -35,7 +37,7 @@ import java.util.function.Function;
 @ToString
 @Accessors(chain = true)
 @EqualsAndHashCode(callSuper = true)
-public class PageView<T> extends Page<T> implements IResult<T> {
+public class PageView<T> extends Page<T> implements IResult {
     @Serial
     private static final long serialVersionUID = 6763151138770152002L;
 
@@ -69,6 +71,22 @@ public class PageView<T> extends Page<T> implements IResult<T> {
             return null;
         }
         return super.getRecords();
+    }
+
+    public Stream<T> stream() {
+        List<T> records = getRecords();
+        return records == null ? Stream.empty() : records.stream();
+    }
+
+    public boolean isEmpty() {
+        return CollUtil.isEmpty(getRecords());
+    }
+
+    public void forEach(Consumer<? super T> action) {
+        List<T> records = getRecords();
+        if (CollUtil.isNotEmpty(records)) {
+            records.forEach(action);
+        }
     }
 
     public static <T> PageView<T> success(IPage<T> page) {

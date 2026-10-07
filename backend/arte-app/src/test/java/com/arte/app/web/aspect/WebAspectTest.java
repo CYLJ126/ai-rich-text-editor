@@ -1,5 +1,7 @@
 package com.arte.app.web.aspect;
 
+import com.arte.core.pojo.PageView;
+import com.arte.core.pojo.ResultContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -53,6 +57,31 @@ public class WebAspectTest {
         String summary = ReflectionTestUtils.invokeMethod(aspect, "summarizeResult", response);
 
         assertEquals("ResponseEntity{status=200 OK}", summary);
+    }
+
+    @Test
+    public void shouldSummarizeResultContextData() {
+        String summary = ReflectionTestUtils.invokeMethod(aspect, "summarizeResult",
+                ResultContext.success(new ArrayList<>(List.of("first", "second"))));
+
+        assertEquals("{code=100000, success=true, data=ArrayList{size=2}}", summary);
+    }
+
+    @Test
+    public void shouldSummarizePageMetadataWithoutReadingRecords() {
+        var page = new PageView<String>() {
+            @Override
+            public List<String> getRecords() {
+                throw new IllegalStateException("records must not be read for log summaries");
+            }
+        };
+        page.setCurrent(2);
+        page.setSize(10);
+        page.setTotal(15);
+
+        String summary = ReflectionTestUtils.invokeMethod(aspect, "summarizeResult", page);
+
+        assertEquals("{code=100000, success=true, page=Page{current=2, size=10, total=15}}", summary);
     }
 
     private String summarizeValue(Object value) {
