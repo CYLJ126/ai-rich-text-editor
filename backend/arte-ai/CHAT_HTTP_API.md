@@ -1,5 +1,8 @@
 # 新 AI 消息提交 HTTP 接口
 
+模型绑定、能力固定版本、兼容预算及服务器参数限制可通过
+[聊天配置发现接口](CONFIGURATION_HTTP_API.md) 获取；提交时仍重新验证授权、配置和预算。
+
 `NewAiChatController` 沿用会话 Controller 的 POST、`@Valid`、方法级认证声明、`Mono<ResultContext<...>>` 和按请求 Locale 包装的风格。启用条件为 `arte.ai-new.enabled=true`。
 
 ## 请求

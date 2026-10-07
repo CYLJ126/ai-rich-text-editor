@@ -132,11 +132,26 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     }
 
     private List<CapabilityDescriptor> available(ExecutionContext context) {
+        return availableBindings(context).stream().map(ResolvedBinding::capability).distinct().toList();
+    }
+
+    private List<ResolvedBinding> availableBindings(ExecutionContext context) {
         var ids = authorization.grant(context).bindingIds();
         return properties.bindings().stream().filter(b -> ids.contains(b.definition().id())
                         && b.capability().availability() == CapabilityDescriptor.Availability.EXECUTABLE
                         && connections.get(b.connection()).state() == ConnectionDefinition.State.ENABLED)
-                .map(ResolvedBinding::capability).distinct().toList();
+                .toList();
+    }
+
+    /**
+     * 有界固定目录中的当前可见绑定；同一能力的不同绑定和版本分别保留。
+     */
+    public Flux<ResolvedBinding> discoverBindings(CapabilityDescriptor.Kind kind, ExecutionContext context) {
+        Objects.requireNonNull(kind, "kind");
+        return authorization.require(context, AdmissionAuthorization.INVOKE).flatMapMany(current ->
+                Flux.fromIterable(availableBindings(current).stream().filter(b -> b.capability().kind() == kind)
+                        .sorted(Comparator.comparing((ResolvedBinding b) -> b.definition().id())
+                                .thenComparing(b -> b.definition().version())).toList()));
     }
 
     @Override

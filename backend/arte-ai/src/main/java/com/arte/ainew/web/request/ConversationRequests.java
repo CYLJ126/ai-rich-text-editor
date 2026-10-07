@@ -20,6 +20,7 @@ import java.util.List;
  * @since 2026/10/7 15:38 ✾
  */
 public final class ConversationRequests {
+
     private ConversationRequests() {
     }
 

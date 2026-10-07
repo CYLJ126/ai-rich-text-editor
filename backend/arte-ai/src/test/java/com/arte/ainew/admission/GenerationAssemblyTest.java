@@ -1,8 +1,13 @@
 package com.arte.ainew.admission;
 
+import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiGenerationConfiguration;
 import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.context.ExecutionContextFactory;
+import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.infrastructure.http.EnvironmentCredentialResolver;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
@@ -13,11 +18,15 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import reactor.core.publisher.Mono;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -80,6 +89,17 @@ public class GenerationAssemblyTest {
             assertNotNull(context.getBean(ModelGateway.class));
             assertNotNull(context.getBean("newAiHttpConnectionRuntime"));
             assertSame(custom, context.getBean(ConnectionCredentialResolver.class));
+            var configuration = context.getBean(NewAiProperties.class);
+            var grant = configuration.grants().getFirst();
+            var execution = context.getBean(ExecutionContextFactory.class).create(
+                    UsernamePasswordAuthenticationToken.authenticated(grant.subjectName(), "unused", List.of()),
+                    new ExecutionContextRequest(grant.tenantId(), grant.workspaceId(), Set.of(AdmissionAuthorization.INVOKE),
+                            Duration.ofSeconds(30), null, null, configuration.releaseRef(), null)).block();
+            var options = context.getBean(ChatConfigurationQueryService.class).discover(execution).block();
+            assertNotNull(options);
+            assertEquals(1, options.options().size());
+            assertEquals("deepseek-chat", options.options().getFirst().displayName());
+            assertEquals(List.of("example-budget"), options.options().getFirst().budgetRefs());
             assertEquals(0, credentialReads.get());
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class).secrets().getFirst().environmentVariable());
         }

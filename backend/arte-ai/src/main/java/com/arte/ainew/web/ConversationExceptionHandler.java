@@ -1,10 +1,7 @@
 package com.arte.ainew.web;
 
 import com.arte.ainew.application.support.AdmissionException;
-import com.arte.ainew.web.controller.NewAiBudgetController;
-import com.arte.ainew.web.controller.NewAiChatController;
-import com.arte.ainew.web.controller.NewAiConversationController;
-import com.arte.ainew.web.controller.NewAiInvocationController;
+import com.arte.ainew.web.controller.*;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.IResult;
 import com.arte.core.pojo.PageView;
@@ -32,7 +29,7 @@ import java.util.Locale;
  * @since 2026/10/7 15:38 ✾
  */
 @RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class,
-        NewAiInvocationController.class, NewAiBudgetController.class})
+        NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ConversationExceptionHandler {

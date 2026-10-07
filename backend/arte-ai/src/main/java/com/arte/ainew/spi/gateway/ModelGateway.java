@@ -1,5 +1,7 @@
 package com.arte.ainew.spi.gateway;
 
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
@@ -15,6 +17,14 @@ import reactor.core.publisher.Flux;
  * @since 2026/10/4 16:58 ✾
  **/
 public interface ModelGateway {
+
+    /**
+     * 本地元数据判断：该网关是否支持此绑定／连接的纯文本流式聊天。
+     * 不读取凭据、不发请求、不授予权限；自定义网关须显式声明支持，否则不进入聊天发现列表。
+     */
+    default boolean supportsTextChat(ResolvedBinding binding, ConnectionDefinition connection) {
+        return false;
+    }
 
     /**
      * 每次订阅至多发送一次模型请求；同一流返回增量及最终 Result／Failure，不拆成两次远端调用。

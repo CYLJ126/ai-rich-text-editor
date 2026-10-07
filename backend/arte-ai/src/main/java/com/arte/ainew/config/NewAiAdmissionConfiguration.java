@@ -11,6 +11,7 @@ import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
+import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.entry.DefaultChatService;
@@ -21,8 +22,10 @@ import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -168,6 +171,15 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiBudgetAccountQueryService")
     BudgetAccountQueryService budgetQueryService(FixedControlCatalog catalog, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
         return new BudgetAccountQueryService(catalog, authorization, store);
+    }
+
+    /**
+     * 延迟读取实际网关的支持声明；注册时不创建模型客户端或访问任何数据源。
+     */
+    @Bean("newAiChatConfigurationQueryService")
+    ChatConfigurationQueryService chatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
+                                                                FixedControlCatalog catalog, ObjectProvider<ModelGateway> gateway) {
+        return new ChatConfigurationQueryService(properties, authorization, catalog, gateway::getIfAvailable);
     }
 
     /**

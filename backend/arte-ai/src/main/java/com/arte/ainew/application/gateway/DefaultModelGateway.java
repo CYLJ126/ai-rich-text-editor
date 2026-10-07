@@ -4,6 +4,9 @@ import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.infrastructure.http.GenerationException;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
@@ -47,6 +50,15 @@ public final class DefaultModelGateway<Q, S, H> implements ModelGateway {
         this.provider = provider;
         this.protocol = protocol;
         this.clock = clock;
+    }
+
+    @Override
+    public boolean supportsTextChat(ResolvedBinding binding, ConnectionDefinition connection) {
+        return binding.connection().equals(connection.definition())
+                && provider.providerId().equals(connection.providerId()) && protocol.definition().equals(connection.protocol())
+                && provider.kind() == CapabilityDescriptor.Kind.GENERATION && provider.capabilities().contains(binding.capability())
+                && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
+                && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING);
     }
 
     @Override
