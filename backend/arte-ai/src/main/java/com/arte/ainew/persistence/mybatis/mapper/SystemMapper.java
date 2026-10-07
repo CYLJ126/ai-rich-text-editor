@@ -6,11 +6,13 @@ import java.sql.Timestamp;
 
 /**
  * 仅供独立的新 AI SqlSessionFactory 使用；SQL 定义在同名 XML 中。
+ * TODO 后续需评估性能，是否需要优化。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 23:30 ✾
  */
 public interface SystemMapper {
+    
     Timestamp databaseTime();
 
     int ensureLock(@Param("key") String key);
