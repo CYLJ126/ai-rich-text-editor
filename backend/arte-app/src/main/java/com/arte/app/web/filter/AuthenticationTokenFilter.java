@@ -15,6 +15,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -40,6 +41,9 @@ public class AuthenticationTokenFilter extends OncePerRequestFilter {
     @Resource
     private WebSecurityProperties webSecurityProperties;
 
+    @Resource
+    private SecurityContextRepository securityContextRepository;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         LogUtil.setIdIfNull();
@@ -64,8 +68,11 @@ public class AuthenticationTokenFilter extends OncePerRequestFilter {
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userDetails.getUsername(), userDetails.getPassword(), userDetails.getAuthorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            // 将认证过的凭证保存到security的上下文中以便于在程序中使用
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            // 当前线程使用新上下文，并显式保存供同一次请求的 ASYNC 分发恢复身份。
+            var securityContext = SecurityContextHolder.createEmptyContext();
+            securityContext.setAuthentication(authentication);
+            SecurityContextHolder.setContext(securityContext);
+            securityContextRepository.saveContext(securityContext, request, response);
             // Token 续期
             try {
                 tokenService.renewal(authToken, request);

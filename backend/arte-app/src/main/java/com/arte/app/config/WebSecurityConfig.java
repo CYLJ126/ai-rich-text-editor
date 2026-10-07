@@ -26,6 +26,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.condition.PathPatternsRequestCondition;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -48,10 +50,15 @@ import java.util.stream.Collectors;
 public class WebSecurityConfig {
 
     @Resource
-    private AuthenticationTokenFilter authenticationTokenFilter;
-
-    @Resource
     private ApplicationContext applicationContext;
+
+    /**
+     * 仅在同一个请求的多次分发之间恢复身份，不创建 HTTP Session。
+     */
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new RequestAttributeSecurityContextRepository();
+    }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
@@ -85,11 +92,17 @@ public class WebSecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity httpSecurity,
+                                           AuthenticationTokenFilter authenticationTokenFilter,
+                                           SecurityContextRepository securityContextRepository) throws Exception {
         RequestMappingHandlerMapping requestMappingHandlerMapping = (RequestMappingHandlerMapping) applicationContext.getBean("requestMappingHandlerMapping");
         Map<RequestMappingInfo, HandlerMethod> handlerMethodMap = requestMappingHandlerMapping.getHandlerMethods();
         //由于使用的是JWT，这里不需要csrf防护
         httpSecurity.csrf(CsrfConfigurer::disable)
+                // JWT 认证后显式保存到请求属性，ASYNC 分发时由 SecurityContextHolderFilter 恢复。
+                .securityContext(configurer -> configurer
+                        .requireExplicitSave(true)
+                        .securityContextRepository(securityContextRepository))
                 //基于token，所以不需要session
                 .sessionManagement(sessionManagementConfigurer -> sessionManagementConfigurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorizationRegistry -> authorizationRegistry
