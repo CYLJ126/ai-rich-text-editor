@@ -51,4 +51,41 @@ class MybatisPagesTest {
         assertEquals(0L, second.getTotal());
         assertTrue(second.getRecords().isEmpty());
     }
+
+    @Test
+    void overflowingOffsetsAreRejectedBeforeCreatingQueryPage() {
+        for (long size : List.of(2L, 20L, PageParam.MAX_SIZE)) {
+            PageParam param = new PageParam();
+            param.setSize(size);
+            // 最大安全页码的下一页：current 本身合法，偏移量乘法溢出。
+            param.setCurrent(Long.MAX_VALUE / size + 2);
+            var error = assertThrows(IllegalArgumentException.class, () -> MybatisPages.from(param));
+            assertInstanceOf(ArithmeticException.class, error.getCause());
+
+            param.setCurrent(Long.MAX_VALUE);
+            assertThrows(IllegalArgumentException.class, () -> MybatisPages.from(param));
+        }
+    }
+
+    @Test
+    void largestSafeOffsetsRemainValidWithoutAnArbitraryPageLimit() {
+        for (long size : List.of(2L, 20L, PageParam.MAX_SIZE)) {
+            PageParam param = new PageParam();
+            param.setSize(size);
+            param.setCurrent(Long.MAX_VALUE / size + 1);
+
+            var page = MybatisPages.from(param);
+            assertEquals(param.getCurrent().longValue(), page.getCurrent());
+            assertEquals(Long.MAX_VALUE - Long.MAX_VALUE % size, page.offset());
+        }
+
+        PageParam singleRecordPage = new PageParam();
+        singleRecordPage.setCurrent(Long.MAX_VALUE);
+        singleRecordPage.setSize(1L);
+        assertEquals(Long.MAX_VALUE - 1, MybatisPages.from(singleRecordPage).offset());
+
+        PageParam firstPage = new PageParam();
+        firstPage.setSize(PageParam.MAX_SIZE);
+        assertEquals(0, MybatisPages.from(firstPage).offset());
+    }
 }
