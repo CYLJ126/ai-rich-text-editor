@@ -145,7 +145,8 @@ arte.ai-new.bindings[0].connection.type=connection
 arte.ai-new.bindings[0].connection.id=default-model
 arte.ai-new.bindings[0].connection.version=v1
 arte.ai-new.bindings[0].remote-operation=deepseek-chat
-arte.ai-new.bindings[0].context-window-tokens=8192
+# Multi-turn test capacity: input 32768 plus reserved output 512 fits this application limit.
+arte.ai-new.bindings[0].context-window-tokens=65536
 arte.ai-new.bindings[0].rate.type=rate
 arte.ai-new.bindings[0].rate.id=example-rate
 arte.ai-new.bindings[0].rate.version=v1

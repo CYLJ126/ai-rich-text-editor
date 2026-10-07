@@ -37,6 +37,9 @@ export interface InvocationView {
   status?: InvocationStatusResponse;
   result?: InvocationResultResponse;
   error?: unknown;
+  /** 实时文字预览及已提交增量，完整结果优先展示；预览不证明执行成功。 */
+  streamText?: string;
+  streamAttemptId?: string;
 }
 
 interface PendingMessage {
@@ -82,6 +85,13 @@ export function useChatSession(
   const created = useRef<string | null>(null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const cursors = useRef(new Map<string, number>());
+  const committedTextOffsets = useRef(new Map<string, number>());
+  const pendingText = useRef(
+    new Map<
+      string,
+      { attemptId?: string; chunks: Map<number, string>; chars: number }
+    >(),
+  );
   const refreshedTerminalVersions = useRef(new Map<string, number>());
   const expiredCursors = useRef(new Set<string>());
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +102,76 @@ export function useChatSession(
     poll: null as AbortController | null,
   });
   const alive = useRef(true);
+
+  function appendText(
+    id: string,
+    offset: number,
+    text: string,
+    attemptId?: string,
+  ) {
+    const previous = views.current[id];
+    const pending = pendingText.current.get(id) ?? {
+      attemptId,
+      chunks: new Map<number, string>(),
+      chars: 0,
+    };
+    if (
+      previous?.result ||
+      (attemptId &&
+        ((pending.attemptId && pending.attemptId !== attemptId) ||
+          (previous?.streamAttemptId &&
+            previous.streamAttemptId !== attemptId) ||
+          (previous?.status?.activeAttemptId &&
+            previous.status.activeAttemptId !== attemptId)))
+    )
+      return;
+    pending.attemptId ??= attemptId;
+    let appended = previous?.streamText ?? '';
+    // 短暂乱序先有界保存，前面的字到达后立即拼接；真的丢包仍由耐久 OUTPUT 补齐。
+    if (offset > appended.length) {
+      const existing = pending.chunks.get(offset);
+      if (existing !== undefined && existing !== text)
+        throw new Error('AI streamed text is inconsistent');
+      if (
+        existing === undefined &&
+        pending.chunks.size < 512 &&
+        pending.chars + text.length <= 131_072
+      ) {
+        pending.chunks.set(offset, text);
+        pending.chars += text.length;
+        pendingText.current.set(id, pending);
+      }
+      return;
+    }
+    const merge = (start: number, chunk: string) => {
+      const overlap = Math.min(chunk.length, appended.length - start);
+      if (appended.slice(start, start + overlap) !== chunk.slice(0, overlap))
+        throw new Error('AI streamed text is inconsistent');
+      appended += chunk.slice(overlap);
+    };
+    merge(offset, text);
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const [start, chunk] of pending.chunks) {
+        if (start > appended.length) continue;
+        merge(start, chunk);
+        pending.chunks.delete(start);
+        pending.chars -= chunk.length;
+        progressed = true;
+      }
+    }
+    if (!pending.chunks.size) pendingText.current.delete(id);
+    if (appended.length > 1_000_000)
+      throw new Error('AI streamed text is too large');
+    if (appended === previous?.streamText) return;
+    publish({
+      [id]: {
+        streamText: appended,
+        ...(pending.attemptId ? {streamAttemptId: pending.attemptId} : {}),
+      },
+    });
+  }
 
   function publish(entries: Record<string, InvocationView>) {
     for (const [id, entry] of Object.entries(entries)) {
@@ -127,7 +207,12 @@ export function useChatSession(
             },
           };
       }
-      views.current[id] = view;
+      views.current[id] = {
+        ...previous,
+        ...(view.status ? {error: undefined} : {}),
+        ...view,
+      };
+      if (view.result) pendingText.current.delete(id);
     }
     views.current = {...views.current};
     setInvocations(views.current);
@@ -209,7 +294,7 @@ export function useChatSession(
         controller.signal.addEventListener('abort', finish, {once: true});
         if (controller.signal.aborted) finish();
       });
-    const refresh = async (id: string) => {
+    const refreshOnce = async (id: string) => {
       const view = await readInvocation(id, controller.signal);
       if (!valid()) return;
       publish({[id]: view});
@@ -233,11 +318,51 @@ export function useChatSession(
         ]);
       }
     };
+    // STARTED／预留通知的 HTTP 查询不能阻塞文本消费。合并重叠查询，终态等待最后一次权威刷新。
+    const refreshing = new Map<string, Promise<void>>();
+    const refreshAgain = new Set<string>();
+    const refresh = (id: string): Promise<void> => {
+      const existing = refreshing.get(id);
+      if (existing) {
+        refreshAgain.add(id);
+        return existing;
+      }
+      const promise = (async () => {
+        do {
+          refreshAgain.delete(id);
+          await refreshOnce(id);
+        } while (
+          valid() &&
+          watched.current.includes(id) &&
+          refreshAgain.has(id)
+          );
+      })().finally(() => {
+        refreshing.delete(id);
+        refreshAgain.delete(id);
+      });
+      refreshing.set(id, promise);
+      return promise;
+    };
     const observe = async (id: string) => {
       while (valid() && watched.current.includes(id)) {
         try {
-          // 首次建连或断线时确认权威状态，防止完成发生在 HTTP 202 与建连之间。
-          await refresh(id);
+          // 状态查询与建连并行。避免慢 HTTP 查询挡住模型首段；SSE 重放仍覆盖 202 到建连间的完成事件。
+          if (expiredCursors.current.has(id)) {
+            await refresh(id);
+          } else {
+            void refresh(id).catch((error) => {
+              if (!valid()) return;
+              setPollError(error);
+              if (
+                error instanceof AiApiError &&
+                [401, 403].includes(error.httpStatus)
+              ) {
+                controller.abort();
+                if (expiry.current) clearTimeout(expiry.current);
+                setWatching(false);
+              }
+            });
+          }
           if (!valid() || !watched.current.includes(id)) return;
           if (!expiredCursors.current.has(id)) {
             await watchInvocation(
@@ -248,19 +373,43 @@ export function useChatSession(
               },
               async (event) => {
                 if (!valid()) return;
-                if (
-                  event.kind === 'STARTED' ||
-                  event.kind === 'TERMINAL' ||
-                  event.kind === 'BUDGET_CHANGED'
-                )
+                if (event.sequence <= (cursors.current.get(id) ?? 0)) return;
+                if (event.kind === 'OUTPUT' && event.text !== undefined) {
+                  const offset = committedTextOffsets.current.get(id) ?? 0;
+                  appendText(id, offset, event.text);
+                  committedTextOffsets.current.set(
+                    id,
+                    offset + event.text.length,
+                  );
+                } else if (event.kind === 'TERMINAL') {
                   await refresh(id);
-                if (
-                  event.kind === 'BUDGET_CHANGED' &&
-                  valid() &&
-                  views.current[id]?.status &&
-                  isActive(views.current[id].status)
-                )
-                  await loadBudget();
+                } else if (
+                  event.kind === 'STARTED' ||
+                  event.kind === 'BUDGET_CHANGED'
+                ) {
+                  void refresh(id)
+                    .then(async () => {
+                      if (
+                        event.kind === 'BUDGET_CHANGED' &&
+                        valid() &&
+                        views.current[id]?.status &&
+                        isActive(views.current[id].status)
+                      )
+                        await loadBudget();
+                    })
+                    .catch((error) => {
+                      if (!valid()) return;
+                      setPollError(error);
+                      if (
+                        error instanceof AiApiError &&
+                        [401, 403].includes(error.httpStatus)
+                      ) {
+                        controller.abort();
+                        if (expiry.current) clearTimeout(expiry.current);
+                        setWatching(false);
+                      }
+                    });
+                }
                 // 回调成功后才推进游标，结果读取失败可以重放终态通知。
                 if (valid()) cursors.current.set(id, event.sequence);
               },
@@ -268,6 +417,10 @@ export function useChatSession(
                 signal: controller.signal,
                 onConnected: () => {
                   if (valid()) setPollError(null);
+                },
+                onText: (delta) => {
+                  if (valid() && watched.current.includes(id))
+                    appendText(id, delta.offset, delta.text, delta.attemptId);
                 },
               },
             );
@@ -507,6 +660,7 @@ export function useChatSession(
     return () => {
       alive.current = false;
       stopWatching();
+      pendingText.current.clear();
       for (const request of Object.values(requests.current)) request?.abort();
     };
   }, []);

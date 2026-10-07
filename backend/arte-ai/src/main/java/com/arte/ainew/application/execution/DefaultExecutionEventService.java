@@ -7,6 +7,7 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationBudgetState;
 import com.arte.ainew.pojo.execution.InvocationResult;
@@ -43,22 +44,22 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     /**
      * 已提交的调用状态存储，用于确认归属、读取结果引用及判断调用是否进入终态。
      */
-    private final ExecutionStore executions;
+    private final ExecutionStore executionStore;
 
     /**
      * 已提交事件及保留边界的存储，按调用内排他游标读取有界页面，不依赖通知携带业务内容。
      */
-    private final ExecutionEventStore events;
+    private final ExecutionEventStore executionEventStore;
 
     /**
      * 结果内容存储，沿可信 ResultRef 检查归属、类型、版本及摘要后读取。
      */
-    private final ExecutionResultStore results;
+    private final ExecutionResultStore executionResultStore;
 
     /**
      * 本节点的唤醒通道，可接收本地发布或 Redis 广播后的提示；为 null 时仅支持结果读取和分页重放。
      */
-    private final LocalExecutionEventNotifier notifier;
+    private final LocalExecutionEventNotifier localExecutionEventNotifier;
 
     /**
      * 计算本次订阅上下文的剩余期限；可注入时钟，不改变原模型调用的执行期限。
@@ -69,6 +70,8 @@ public final class DefaultExecutionEventService implements ExecutionEventService
      * 当前 Attempt 的预算状态查询器；RESERVED 时继续等待，兼容装配为 null 时不等待预算。
      */
     private final InvocationBudgetStatusResolver budgetStatus;
+
+    private final LiveTextNotifier liveTextNotifier;
 
     /**
      * 实时订阅每次重放的最大事件数；满页连续读取下一页，与通知次数或 SSE 帧大小无关。
@@ -83,28 +86,52 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     /**
      * 兼容只读取结果／重放的独立装配；实时订阅必须显式共享同一个通知器。
      */
-    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executions,
-                                        ExecutionEventStore events, ExecutionResultStore results) {
-        this(authorization, executions, events, results, null, Clock.systemUTC());
+    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executionStore,
+                                        ExecutionEventStore executionEventStore, ExecutionResultStore executionResultStore) {
+        this(authorization, executionStore, executionEventStore, executionResultStore, null, Clock.systemUTC());
     }
 
-    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executions,
-                                        ExecutionEventStore events, ExecutionResultStore results,
-                                        LocalExecutionEventNotifier notifier, Clock clock) {
-        this(authorization, executions, events, results, notifier, clock,
-                executions instanceof BudgetService budgets ? new InvocationBudgetStatusResolver(executions, budgets) : null);
+    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executionStore,
+                                        ExecutionEventStore executionEventStore, ExecutionResultStore executionResultStore,
+                                        LocalExecutionEventNotifier localExecutionEventNotifier, Clock clock) {
+        this(authorization, executionStore, executionEventStore, executionResultStore, localExecutionEventNotifier, clock,
+                executionStore instanceof BudgetService budgets ? new InvocationBudgetStatusResolver(executionStore, budgets) : null);
     }
 
-    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executions,
-                                        ExecutionEventStore events, ExecutionResultStore results,
-                                        LocalExecutionEventNotifier notifier, Clock clock, InvocationBudgetStatusResolver budgetStatus) {
+    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executionStore,
+                                        ExecutionEventStore executionEventStore, ExecutionResultStore executionResultStore,
+                                        LocalExecutionEventNotifier localExecutionEventNotifier, Clock clock, InvocationBudgetStatusResolver budgetStatus) {
+        this(authorization, executionStore, executionEventStore, executionResultStore, localExecutionEventNotifier, clock, budgetStatus, null);
+    }
+
+    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executionStore,
+                                        ExecutionEventStore executionEventStore, ExecutionResultStore executionResultStore,
+                                        LocalExecutionEventNotifier localExecutionEventNotifier, Clock clock, InvocationBudgetStatusResolver budgetStatus,
+                                        LiveTextNotifier liveTextNotifier) {
+        this.liveTextNotifier = liveTextNotifier;
         this.budgetStatus = budgetStatus;
-        this.notifier = notifier;
+        this.localExecutionEventNotifier = localExecutionEventNotifier;
         this.clock = clock;
         this.authorization = authorization;
-        this.executions = executions;
-        this.events = events;
-        this.results = results;
+        this.executionStore = executionStore;
+        this.executionEventStore = executionEventStore;
+        this.executionResultStore = executionResultStore;
+    }
+
+    @Override
+    public Flux<LiveTextDelta> watchText(String invocationId, ExecutionContext context) {
+        if (liveTextNotifier == null) return Flux.empty();
+        var preview = Flux.defer(() -> authorization.require(context, AdmissionAuthorization.READ).flatMapMany(current -> {
+            var owner = ExecutionOwner.from(current);
+            return executionStore.find(owner, invocationId)
+                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                    .flatMapMany(ignored -> liveTextNotifier.watch(owner, invocationId).publishOn(Schedulers.parallel(), 1));
+        }));
+        var reauthorize = Flux.interval(REAUTHORIZE_INTERVAL)
+                .concatMap(ignored -> authorization.require(context, AdmissionAuthorization.READ), 1)
+                .thenMany(Flux.<LiveTextDelta>never());
+        return Flux.merge(1, preview, reauthorize).takeUntilOther(Mono.delay(Duration.between(clock.instant(), context.deadline()).isNegative()
+                ? Duration.ZERO : Duration.between(clock.instant(), context.deadline())));
     }
 
     /**
@@ -123,9 +150,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     public Mono<StoreOutcome<ExecutionEventStore.Page>> replay(ExecutionEvent.Cursor cursor, int limit, ExecutionContext context) {
         // 权限通过后再按完整归属定位调用，不能仅凭客户端提供的 executionId 读取事件。
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current ->
-                executions.find(ExecutionOwner.from(current), cursor.executionId())
+                executionStore.find(ExecutionOwner.from(current), cursor.executionId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                        .flatMap(ignored -> events.replay(ExecutionOwner.from(current), cursor, limit)));
+                        .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)));
     }
 
     /**
@@ -146,7 +173,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
      */
     @Override
     public Flux<ExecutionEvent<?>> watch(ExecutionEvent.Cursor cursor, ExecutionContext context) {
-        if (notifier == null) {
+        if (localExecutionEventNotifier == null) {
             // 兼容仅装配结果读取和重放的场景，明确拒绝实时订阅。
             return Flux.error(new AdmissionException(ResultCodeEnum.AI_EVENT_WATCH_NOT_ENABLED));
         }
@@ -166,9 +193,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
             var live = authorization.require(context, AdmissionAuthorization.READ).flatMapMany(current -> {
                 var owner = ExecutionOwner.from(current);
                 // 确认调用归属后才注册监听；授权刷新不允许身份变化，因此后续可沿用此 owner。
-                return executions.find(owner, cursor.executionId())
+                return executionStore.find(owner, cursor.executionId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                        .flatMapMany(ignored -> notifier.watch(owner, cursor.executionId())
+                        .flatMapMany(ignored -> localExecutionEventNotifier.watch(owner, cursor.executionId())
                                 // notifier 先登记监听再发初始 0L；合并提示不会删除数据库事件。
                                 // 将后续处理移出通知发送线程，预取 1 个提示；JDBC 调度仍由存储实现负责。
                                 .publishOn(Schedulers.parallel(), 1)
@@ -214,7 +241,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     private Flux<ExecutionEvent<?>> drain(ExecutionOwner owner, String id, AtomicLong after, Sinks.One<Void> done,
                                           AtomicBoolean outcomeDelivered, boolean confirmedFinished) {
         // defer 保证每次递归实际订阅时使用最新 after，不提前捕获旧游标。
-        return Flux.defer(() -> events.replay(owner, new ExecutionEvent.Cursor(id, after.get()), WATCH_PAGE_SIZE)
+        return Flux.defer(() -> executionEventStore.replay(owner, new ExecutionEvent.Cursor(id, after.get()), WATCH_PAGE_SIZE)
                 .flatMapMany(outcome -> {
                     if (!outcome.successful()) {
                         // 将游标过期等存储拒绝转成订阅错误，不能跳过已经裁剪的历史继续输出。
@@ -227,7 +254,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                             done.tryEmitEmpty();
                             return Flux.empty();
                         }
-                        return executions.find(owner, id).flatMapMany(invocation -> {
+                        return executionStore.find(owner, id).flatMapMany(invocation -> {
                             // UNKNOWN 虽属于终态，但从已追平游标重连且本次尚无相关事件时，继续等待核对。
                             if (!invocation.state().terminal() || invocation.state() == Invocation.State.UNKNOWN
                                     && !outcomeDelivered.get()) {
@@ -275,14 +302,14 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     public Mono<InvocationResult> result(String invocationId, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
             var owner = ExecutionOwner.from(current);
-            return executions.find(owner, invocationId)
+            return executionStore.find(owner, invocationId)
                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                     .flatMap(invocation -> {
                         // 以调用记录中的引用作为可见性依据：结果字节可能先写入，但未关联时不能对外读取。
                         if (invocation.result() == null) {
                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_RESULT_NOT_AVAILABLE));
                         }
-                        return results.find(owner, invocationId, invocation.result())
+                        return executionResultStore.find(owner, invocationId, invocation.result())
                                 // 有可信引用却无对应内容属于异常，不能降级成普通“结果尚未就绪”。
                                 .switchIfEmpty(Mono.error(new IllegalStateException("Committed result bytes are missing")));
                     });

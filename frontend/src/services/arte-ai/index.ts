@@ -11,7 +11,10 @@ export {
   getInvocationStatus,
   invocationEvent,
 } from './invocation';
-export type {InvocationNotification} from './invocationStream';
+export type {
+  InvocationNotification,
+  LiveTextNotification,
+} from './invocationStream';
 export {watchInvocation} from './invocationStream';
 export type {AiRequestOptions} from './request';
 export {AiApiError} from './request';

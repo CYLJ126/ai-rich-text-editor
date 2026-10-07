@@ -53,12 +53,16 @@ try {
 
 ## 执行通知
 
-`watchInvocation({scope, invocationId, afterSequence}, onEvent, {signal, onConnected?})` 返回持续读取连接的 Promise。
-通知类型为 `{executionId, sequence, kind}`，成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。
-支持分块 UTF-8、多行 data、CR/LF、注释心跳、安全 error 帧；单帧上限 64 KiB，45 秒无数据中止旧连接。 页面负责低频 HTTP
+`watchInvocation({scope, invocationId, afterSequence}, onEvent, {signal, onConnected?, onText?})` 返回持续读取连接的
+Promise。 通知类型为 `{executionId, sequence, kind, text?}`，OUTPUT 的 text 为已落库的文本增量，旧服务端只发指针时缺省。
+成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。
+`onText` 接收独立的 `text-delta`：`{executionId, attemptId, offset, text}`，offset 按 UTF-16 计数。 每帧最多 256 个 UTF-16
+字符，没有 SSE id，不推进耐久游标。它是模型预览，可能重复或缺失；页面按偏移合并并由 OUTPUT／终态结果修复。 支持分块 UTF-8、多行
+data、CR/LF、注释心跳、安全 error 帧；单帧最多 8 Mi 个解码字符，以兼容历史大批次的 JSON 转义， 单批 text 和页面累计增量均限
+1,000,000 个 UTF-16 字符；45 秒无数据中止旧连接。页面负责低频 HTTP
 恢复、重连、401/403 停止与 410 权威快照恢复。
 
-预算变更通知 BUDGET_CHANGED 与其他 SSE 通知一样只携带指针。通过 getInvocationStatus.budgetState 查询本次预留处理状态，通过
+预算变更通知 BUDGET_CHANGED 只携带指针。通过 getInvocationStatus.budgetState 查询本次预留处理状态，通过
 getBudget 查询金额。 TERMINAL 不保证预算已结算；RESERVED 时继续观察，SETTLED/RELEASED/PENDING_RECONCILIATION 后读取账本快照。
 PENDING_RECONCILIATION 表示金额尚待核对，不能视为零费用。结算阶段可在 Invocation.version 不变时更新。 多实例广播由后端
 Redis 实现，前端继续使用相同 SSE/HTTP API 与 sequence 游标。

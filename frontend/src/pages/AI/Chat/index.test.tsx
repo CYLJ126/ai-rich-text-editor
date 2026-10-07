@@ -108,6 +108,44 @@ function fillReferences() {
 }
 
 describe('配置与会话页面', () => {
+  it('旧额度可更新为多轮联调额度，保留配置引用和其他参数，应用后才保存', async () => {
+    const previous = chatConfigSchema.parse({
+      ...valid,
+      maxInputTokens: 4096,
+      maxOutputTokens: 1024,
+      timeoutSeconds: 90,
+      temperature: 0.25,
+      topP: 0.8,
+    });
+    saveChatConfig(previous);
+    render(<AiChatPage/>);
+    const saved = localStorage.getItem(CHAT_CONFIG_STORAGE_KEY);
+    expect(
+      screen.getByLabelText('最大输入 Token', {exact: true}),
+    ).toHaveValue('4096');
+    fireEvent.click(screen.getByRole('button', {name: '使用多轮联调额度'}));
+    expect(
+      screen.getByLabelText('最大输入 Token', {exact: true}),
+    ).toHaveValue('32768');
+    expect(
+      screen.getByLabelText('最大输出 Token', {exact: true}),
+    ).toHaveValue('512');
+    expect(screen.getByText('配置有未应用修改')).toBeInTheDocument();
+    expect(localStorage.getItem(CHAT_CONFIG_STORAGE_KEY)).toBe(saved);
+    apply();
+    await waitFor(() =>
+      expect(
+        JSON.parse(localStorage.getItem(CHAT_CONFIG_STORAGE_KEY) ?? '{}')
+          .config,
+      ).toEqual({
+        ...previous,
+        maxInputTokens: 32768,
+        maxOutputTokens: 512,
+      }),
+    );
+    expect(screen.getByText('本地配置已应用')).toBeInTheDocument();
+  });
+
   it('展示三个区域和真实空状态，暂不发送接口请求', () => {
     render(<AiChatPage/>);
     expect(
@@ -187,7 +225,7 @@ describe('配置与会话页面', () => {
     expect(screen.getByLabelText('租户 ID', {exact: true})).toHaveValue('');
     expect(
       screen.getByLabelText('最大输入 Token', {exact: true}),
-    ).toHaveValue('4096');
+    ).toHaveValue('32768');
     expect(localStorage.getItem(CHAT_CONFIG_STORAGE_KEY)).toBeNull();
     expect(screen.queryByText('本地配置已应用')).not.toBeInTheDocument();
     expect(screen.getByText('待配置')).toBeInTheDocument();

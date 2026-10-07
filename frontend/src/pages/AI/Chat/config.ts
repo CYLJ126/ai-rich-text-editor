@@ -44,7 +44,7 @@ export const chatConfigSchema = z.object({
 export type ChatTestConfig = z.output<typeof chatConfigSchema>;
 export type ChatConfigValues = z.input<typeof chatConfigSchema>;
 
-/** 引用必须填写真实发布值；数值仅为可修改的测试初始值。 */
+/** 引用必须填写真实发布值；多轮联调默认输入 32768、输出 512，需匹配后端绑定容量与预算。 */
 export const DEFAULT_CHAT_CONFIG: ChatConfigValues = {
   tenantId: '',
   workspaceId: '',
@@ -53,7 +53,7 @@ export const DEFAULT_CHAT_CONFIG: ChatConfigValues = {
   bindingId: '',
   bindingVersion: '',
   budgetRef: '',
-  maxInputTokens: 4096,
+  maxInputTokens: 32768,
   maxOutputTokens: 512,
   timeoutSeconds: 60,
   temperature: null,

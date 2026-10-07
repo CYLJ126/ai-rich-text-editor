@@ -1,5 +1,6 @@
 package com.arte.ainew.infrastructure.http;
 
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiGenerationProperties;
@@ -15,6 +16,7 @@ import reactor.core.publisher.Flux;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 单次 Chat Completions HTTP／SSE 交换
@@ -79,10 +81,13 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
             if (body.length > properties.maxRequestBytes()) {
                 throw GenerationException.beforeSend("REQUEST_LIMIT_EXCEEDED");
             }
+            var timing = InvocationTiming.start(call.runtime().execution(), call.attempt().attemptId());
+            var firstFrame = new AtomicBoolean();
             var handle = connection.handle();
             // 使用句柄中的固定 URI，发送 JSON 并要求 SSE 响应。
             return handle.client().post().uri(handle.uri()).accept(MediaType.TEXT_EVENT_STREAM)
                     .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchangeToFlux(response -> {
+                        timing.mark("PROVIDER_HEADERS");
                         long[] received = {0};
                         // 转换原正文流，避免替换正文时提前消费；累计上限包含 SSE 协议开销。
                         var bounded = response.mutate().body(original -> original
@@ -123,10 +128,13 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
                             if (data.getBytes(StandardCharsets.UTF_8).length > properties.maxFrameBytes()) {
                                 return Flux.error(GenerationException.output("SSE_FRAME_LIMIT_EXCEEDED"));
                             }
+                            if (!data.equals("[DONE]") && firstFrame.compareAndSet(false, true))
+                                timing.mark("PROVIDER_FIRST_DATA_FRAME");
                             // [DONE] 显式传给供应商适配器，takeUntil 在发布它之后终止流。
                             return Flux.just(data.equals("[DONE]") ? new SseFrame.Done() : new SseFrame.Data(data));
                         }, 1).takeUntil(frame -> frame instanceof SseFrame.Done);
-                    });
+                    }).doFinally(signal -> timing.mark("PROVIDER_STREAM_END_" + signal.name()))
+                    .contextWrite(context -> context.put(InvocationTiming.class, timing));
         });
     }
 }

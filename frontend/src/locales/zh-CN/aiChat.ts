@@ -1,4 +1,7 @@
 export default {
+  'app.aiChat.useMultiTurnLimits': '使用多轮联调额度',
+  'app.aiChat.multiTurnLimitsHint':
+    '输入额度包含历史提问、历史回复和本轮提问。多轮联调建议输入 32768、输出 512，需后端绑定窗口至少 33280；调大输入额度会增加预算预留。点击按钮后再应用配置。',
   'app.aiChat.unknownOutcome':
     '调用结果尚未确认，会话暂不能继续。请先由后端核对结果，再刷新历史；不要重新提交原消息。',
   'app.aiChat.title': 'AI 对话测试',
@@ -97,6 +100,9 @@ export default {
   'app.aiChat.usage': '输入 / 输出 Token',
   'app.aiChat.unknown': '未知',
   'app.aiChat.finishReason': '结束原因',
+  'app.aiChat.outputLimitReached': '回复达到输出 Token 上限，已保留部分内容',
+  'app.aiChat.outputLimitHint':
+    '在右侧调大“最大输出 Token”（例如 2048），点击“应用配置”后再发送新消息，或要求模型简短回答。额度须符合后端配置；调大额度会增加预算预留。本次调用不会自动续写。',
   'app.aiChat.waitingReply': '正在等待模型回复…',
   'app.aiChat.noResult': '尚无可用回答',
   'app.aiChat.error.phase': '失败阶段',
@@ -129,4 +135,7 @@ export default {
   'app.aiChat.budgetState.PENDING_RECONCILIATION': '待对账（保留预留）',
   'app.aiChat.budgetState.SETTLED': '已结算',
   'app.aiChat.budgetState.RELEASED': '已释放',
+  'app.aiChat.streamedReply': '实时回复',
+  'app.aiChat.streamingReply': '正在生成…',
+  'app.aiChat.streamedPartial': '已接收部分输出，完整结果尚未可用。',
 };

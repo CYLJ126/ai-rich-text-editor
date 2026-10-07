@@ -3,6 +3,7 @@ package com.arte.ainew.admission;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.execution.*;
+import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
@@ -89,6 +90,8 @@ public class InvocationHttpIntegrationTest {
     private static final Map<String, String> SCOPE = Map.of("tenantId", "tenant", "workspaceId", "workspace");
     private static final String OUTPUT = "你好 世界\n  保留空白  ";
     private final JsonMapper json = JsonMapper.builder().build();
+    private final com.arte.ainew.application.execution.LiveTextNotifier liveText = new com.arte.ainew.application.execution.LiveTextNotifier();
+    private volatile reactor.core.publisher.Sinks.One<Void> outputGate;
     private final AtomicInteger modelCalls = new AtomicInteger();
     private JdbcTemplate jdbc;
     private Scheduler database;
@@ -98,6 +101,8 @@ public class InvocationHttpIntegrationTest {
     private LocalValidatorFactoryBean validator;
     private MockMvc mvc;
     private String mode = "success";
+    private reactor.core.publisher.Sinks.Many<GenerationSignal> controlled;
+    private final CountDownLatch gatewaySubscribed = new CountDownLatch(1);
     private LocalExecutionEventNotifier notifier;
     private ExecutionEventPublisher publisher;
     private DefaultExecutionEventService eventService;
@@ -121,10 +126,28 @@ public class InvocationHttpIntegrationTest {
         var authorization = authorization(fixture.properties, Clock.systemUTC());
         var settings = new NewAiExecutionProperties(true, false, 4, Duration.ofSeconds(1),
                 Duration.ofMinutes(1), Duration.ofMinutes(1), Duration.ofDays(1));
-        var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.executions, fixture.executions,
+        var previewStore = new com.arte.ainew.spi.persistence.ExecutionEventStore() {
+            public Mono<StoreOutcome<List<ExecutionEvent<?>>>> appendBatch(ExecutionCommands.Append command) {
+                return Mono.defer(() -> (outputGate == null ? Mono.<Void>empty() : outputGate.asMono())
+                        .then(fixture.executions.appendBatch(command)));
+            }
+
+            public Mono<StoreOutcome<Page>> replay(ExecutionOwner owner, ExecutionEvent.Cursor cursor, int limit) {
+                return fixture.executions.replay(owner, cursor, limit);
+            }
+
+            public Mono<StoreOutcome<ExecutionEvent.Cursor>> discardThrough(ExecutionOwner owner, String id, long sequence) {
+                return fixture.executions.discardThrough(owner, id, sequence);
+            }
+        };
+        var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.executions, previewStore,
                 fixture.executions, fixture.payloads, fixture.payloads, fixture.executions,
                 call -> Flux.defer(() -> {
                     modelCalls.incrementAndGet();
+                    if (mode.equals("controlled")) {
+                        gatewaySubscribed.countDown();
+                        return controlled.asFlux();
+                    }
                     boolean complete = mode.equals("success");
                     var usage = complete ? new Usage(Usage.Basis.PROVIDER_REPORTED, 3L, 2L, 5L) : Usage.unknown();
                     var result = new ModelResult("test-result", new ModelResult.ModelIdentity("test-provider", "test-model", null),
@@ -135,7 +158,7 @@ public class InvocationHttpIntegrationTest {
                             false, ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "safe-correlation"), usage, result)
                             : new GenerationSignal.Result(result);
                     return Flux.just(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT)), terminal);
-                }), fixture.properties, settings, Clock.systemUTC());
+                }), fixture.properties, settings, Clock.systemUTC(), liveText);
         var coordinator = new DefaultInvocationCoordinator(fixture.coordinator, dispatcher);
         publisher = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer);
         worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
@@ -153,7 +176,8 @@ public class InvocationHttpIntegrationTest {
         var factory = new ExecutionContextFactory(new FixedExecutionAuthorizationResolver(properties), clock);
         var http = new NewAiHttpContext(factory, properties);
         var authorization = authorization(properties, clock);
-        eventService = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads, notifier, clock);
+        eventService = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads, notifier, clock,
+                new InvocationBudgetStatusResolver(fixture.executions, fixture.executions), liveText);
         mvc = standaloneSetup(
                 new NewAiConversationController(fixture.conversations, new ConversationHttpContext(http, properties)),
                 new NewAiChatController(fixture.chat, fixture.catalog, http, properties),
@@ -308,7 +332,7 @@ public class InvocationHttpIntegrationTest {
     }
 
     @Test
-    public void sseReplaysCompletedInvocationAndKeepsOnlySmallNotifications() throws Exception {
+    public void sseReplaysCommittedTextAndKeepsOtherPayloadsPrivate() throws Exception {
         var id = submit();
         dispatch();
         var request = query(id);
@@ -324,12 +348,128 @@ public class InvocationHttpIntegrationTest {
         }
         assertEquals(200, stream.getResponse().getStatus());
         assertTrue(stream.getResponse().getContentType().startsWith("text/event-stream"));
+        assertTrue(stream.getResponse().getContentType().toLowerCase(java.util.Locale.ROOT).contains("charset=utf-8"));
         assertEquals("no", stream.getResponse().getHeader("X-Accel-Buffering"));
-        var body = stream.getResponse().getContentAsString();
+        var body = stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertFalse(body, body.contains("\\u4f60"));
         assertTrue(body, body.contains("event:invocation"));
         assertTrue(body, body.contains("TERMINAL"));
         assertFalse(body.contains("private user input"));
-        assertFalse(body.contains(OUTPUT));
+        var notifications = Arrays.stream(body.split("\n")).filter(line -> line.startsWith("data:"))
+                .map(line -> json.readTree(line.substring(5))).toList();
+        assertEquals(OUTPUT, notifications.stream().filter(value -> value.path("kind").asString().equals("OUTPUT"))
+                .map(value -> value.path("text").asString()).reduce("", String::concat));
+        assertTrue(notifications.stream().filter(value -> !value.path("kind").asString().equals("OUTPUT"))
+                .noneMatch(value -> value.has("text")));
+        assertFalse(body.contains("authorization"));
+        assertEquals(1, modelCalls.get());
+    }
+
+    @Test
+    public void liveTextReachesBrowserWhileOutputTransactionAndEventPublisherAreBlocked() throws Exception {
+        mode = "controlled";
+        controlled = reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();
+        outputGate = reactor.core.publisher.Sinks.one();
+        var id = submit();
+        var request = query(id);
+        request.put("afterSequence", 0);
+        var response = mvc.perform(post("/ai-new/invocation/watchInvocation")
+                .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+        response.getAsyncResult(5000);
+        var stream = mvc.perform(asyncDispatch(response)).andReturn();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (liveText.subscriberCount() == 0 && System.nanoTime() < end) Thread.sleep(5);
+        assertEquals(1, liveText.subscriberCount());
+        var work = worker.pollOnce().toFuture();
+        try {
+            assertTrue(gatewaySubscribed.await(5, TimeUnit.SECONDS));
+            controlled.tryEmitNext(new GenerationSignal.Delta(new GenerationEvent.TextDelta("你")));
+            controlled.tryEmitNext(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT.substring(1))));
+            end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            while (!stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains("保留空白")
+                    && System.nanoTime() < end) Thread.sleep(5);
+            var body = stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(body, body.contains("event:text-delta"));
+            assertTrue(body, body.contains("保留空白"));
+            assertTrue(body, body.contains("\"offset\":1"));
+            assertFalse(body, body.contains("\"kind\":\"OUTPUT\""));
+            assertFalse(work.isDone());
+            assertTrue(fixture.executions.replay(AdmissionFixture.owner("alice-id"), new ExecutionEvent.Cursor(id, 0), 256).block()
+                    .value().events().stream().noneMatch(event -> event.kind() == ExecutionEvent.Kind.OUTPUT));
+            outputGate.tryEmitEmpty();
+            var model = new ModelResult("controlled", new ModelResult.ModelIdentity("test-provider", "test-model", null),
+                    List.of(new ChatMessage("answer", ChatMessage.Role.ASSISTANT, List.of(new ChatMessage.Text(OUTPUT)), List.of(), null)),
+                    ModelResult.FinishReason.STOP, true, null, new Usage(Usage.Basis.PROVIDER_REPORTED, 3L, 2L, 5L), List.of());
+            controlled.tryEmitNext(new GenerationSignal.Result(model));
+            controlled.tryEmitComplete();
+            assertEquals(1, work.get(5, TimeUnit.SECONDS).intValue());
+            publisher.pollOnce().block();
+            stream.getAsyncResult(5000);
+            mvc.perform(asyncDispatch(stream)).andReturn();
+            assertEquals(0, liveText.subscriberCount());
+            assertEquals("SUCCEEDED", send(STATUS, query(id), 200).path("data").path("state").asString());
+            assertEquals(1, modelCalls.get());
+        } finally {
+            outputGate.tryEmitEmpty();
+            work.cancel(true);
+        }
+    }
+
+    @Test
+    public void sseShowsFirstAndSparseTextBeforeModelFinishesAndReplaysBySequence() throws Exception {
+        mode = "controlled";
+        controlled = reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();
+        var id = submit();
+        var owner = AdmissionFixture.owner("alice-id");
+        var request = query(id);
+        request.put("afterSequence", 0);
+        var response = mvc.perform(post("/ai-new/invocation/watchInvocation")
+                .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+        response.getAsyncResult(5000);
+        var stream = mvc.perform(asyncDispatch(response)).andReturn();
+        var work = worker.pollOnce().toFuture();
+        assertTrue(gatewaySubscribed.await(5, TimeUnit.SECONDS));
+        controlled.tryEmitNext(new GenerationSignal.Delta(new GenerationEvent.TextDelta("你")));
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        List<ExecutionEvent<?>> outputs = List.of();
+        while (outputs.isEmpty() && System.nanoTime() < end) {
+            outputs = fixture.executions.replay(owner, new ExecutionEvent.Cursor(id, 0), 256).block().value().events().stream()
+                    .filter(event -> event.kind() == ExecutionEvent.Kind.OUTPUT).toList();
+            if (outputs.isEmpty()) Thread.sleep(10);
+        }
+        assertEquals(1, outputs.size());
+        assertFalse(work.isDone());
+        publisher.pollOnce().block();
+        end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (!stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains("\"text\":\"你\"") && System.nanoTime() < end)
+            Thread.sleep(10);
+        assertTrue(stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).contains("\"text\":\"你\""));
+        assertFalse(stream.getResponse().getContentAsString().contains("TERMINAL"));
+        controlled.tryEmitNext(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT.substring(1))));
+        // 未达到 32 条，也未结束模型流，必须由时间阈值提交第二段。
+        end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (outputs.size() < 2 && System.nanoTime() < end) {
+            outputs = fixture.executions.replay(owner, new ExecutionEvent.Cursor(id, 0), 256).block().value().events().stream()
+                    .filter(event -> event.kind() == ExecutionEvent.Kind.OUTPUT).toList();
+            if (outputs.size() < 2) Thread.sleep(10);
+        }
+        assertEquals(2, outputs.size());
+        assertFalse(work.isDone());
+        var replay = eventService.watch(new ExecutionEvent.Cursor(id, outputs.getFirst().sequence()), fixture.context("alice", "resume"))
+                .filter(event -> event.kind() == ExecutionEvent.Kind.OUTPUT).next().block(Duration.ofSeconds(3));
+        assertEquals(outputs.getLast().sequence(), replay.sequence());
+        var model = new ModelResult("controlled", new ModelResult.ModelIdentity("test-provider", "test-model", null),
+                List.of(new ChatMessage("answer", ChatMessage.Role.ASSISTANT, List.of(new ChatMessage.Text(OUTPUT)), List.of(), null)),
+                ModelResult.FinishReason.STOP, true, null, new Usage(Usage.Basis.PROVIDER_REPORTED, 3L, 2L, 5L), List.of());
+        controlled.tryEmitNext(new GenerationSignal.Result(model));
+        controlled.tryEmitComplete();
+        assertEquals(1, work.get(5, TimeUnit.SECONDS).intValue());
+        publisher.pollOnce().block();
+        stream.getAsyncResult(5000);
+        mvc.perform(asyncDispatch(stream)).andReturn();
+        assertEquals("SUCCEEDED", send(STATUS, query(id), 200).path("data").path("state").asString());
         assertEquals(1, modelCalls.get());
     }
 
@@ -447,6 +587,65 @@ public class InvocationHttpIntegrationTest {
             Thread.sleep(10);
         }
         assertTrue(bus.isReady());
+    }
+
+    @Test
+    public void redisLiveTextReachesAuthorizedRemoteWatcherWithoutEventOutbox() throws Exception {
+        var clientA = isolatedRedis();
+        var clientB = isolatedRedis();
+        var textB = new LiveTextNotifier();
+        var options = new NewAiEventProperties(NewAiEventProperties.Transport.REDIS, "arte-test:" + UUID.randomUUID(), Duration.ofSeconds(2));
+        var busA = new RedisExecutionEventBroadcast(clientA, notifier, options, liveText);
+        var busB = new RedisExecutionEventBroadcast(clientB, new LocalExecutionEventNotifier(), options, textB);
+        var remote = new DefaultExecutionEventService(authorization(fixture.properties, Clock.systemUTC()), fixture.executions,
+                fixture.executions, fixture.payloads, notifier, Clock.systemUTC(), null, textB);
+        var observed = new CopyOnWriteArrayList<com.arte.ainew.common.execution.LiveTextDelta>();
+        var delivered = new CountDownLatch(2);
+        var foreign = new AtomicInteger();
+        reactor.core.Disposable watch = null;
+        reactor.core.Disposable other = null;
+        reactor.core.Disposable local = null;
+        var localObserved = new CopyOnWriteArrayList<com.arte.ainew.common.execution.LiveTextDelta>();
+        try {
+            busA.start();
+            busB.start();
+            awaitReady(busA);
+            awaitReady(busB);
+            var id = submit();
+            watch = remote.watchText(id, fixture.context("alice", "remote-text"))
+                    .subscribe(delta -> {
+                        observed.add(delta);
+                        delivered.countDown();
+                    });
+            long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            while (textB.subscriberCount() == 0 && System.nanoTime() < end) Thread.sleep(5);
+            assertEquals(1, textB.subscriberCount());
+            other = textB.watch(AdmissionFixture.owner("bob-id"), id).subscribe(delta -> foreign.incrementAndGet());
+            var first = new com.arte.ainew.common.execution.LiveTextDelta(AdmissionFixture.owner("alice-id"), id, "attempt", 0, "你🙂");
+            var second = new com.arte.ainew.common.execution.LiveTextDelta(AdmissionFixture.owner("alice-id"), id, "attempt", 3, "\n 好");
+            local = liveText.watch(AdmissionFixture.owner("alice-id"), id).subscribe(localObserved::add);
+            liveText.emit(first);
+            liveText.emit(second);
+            busA.publishText(first).block(Duration.ofSeconds(3));
+            busA.publishText(second).block(Duration.ofSeconds(3));
+            assertTrue(delivered.await(3, TimeUnit.SECONDS));
+            assertEquals(List.of(first, second), observed);
+            assertEquals(List.of(first, second), localObserved); // Redis 不再把本地已显示的字回送第二次。
+            assertEquals(0, foreign.get());
+            assertEquals(0, modelCalls.get());
+            assertTrue(fixture.executions.replay(AdmissionFixture.owner("alice-id"), new ExecutionEvent.Cursor(id, 0), 256).block()
+                    .value().events().stream().noneMatch(event -> event.kind() == ExecutionEvent.Kind.OUTPUT));
+            assertThrows(AdmissionException.class, () -> remote.watchText(id, fixture.context("bob", "denied-text")).next().block());
+        } finally {
+            if (watch != null) watch.dispose();
+            if (other != null) other.dispose();
+            if (local != null) local.dispose();
+            busA.stop();
+            busB.stop();
+            clientA.shutdown();
+            clientB.shutdown();
+        }
+        assertEquals(0, textB.subscriberCount());
     }
 
     @Test

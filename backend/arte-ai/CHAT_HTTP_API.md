@@ -42,6 +42,10 @@ Accept-Language: zh-CN
 - `expectedVersion` 从会话创建或详情取得。新请求遇到旧版本或活跃调用返回冲突；重放原提交时须保留原版本、文本及全部生成／容量／超时选择。
 - 服务端分配 USER 消息 ID、ExecutionContext、发布引用及绝对 deadline；仅构造单条 USER 文本，不接收客户端身份、角色、历史内容或模型凭据。
 - `maxInputTokens` 是输入容量上限。输出预留等于 `generationOptions.maxOutputTokens`；二者之和不得超过实际授权绑定的上下文窗口。输入 UTF-8 字节上限和输出 Token 上限仍由现有 Service 校验。当前 `utf8-estimate-v1` 为保守容量估算，不是计费用量。
+- 输入上限、输出上限分别不能超过绑定窗口，合计超出窗口时明确返回 HTTP 400／`205010`（AI_CONTEXT_CAPACITY_EXCEEDED）；
+  合计容量合法但输出超过服务器 `arte.ai-new.limits.max-output-tokens` 时返回 HTTP 400／`205004`
+  （AI_EXECUTION_LIMIT_EXCEEDED）。 本地 profile 的窗口为 65536、输出上限为 4096，可使用输入 32768／输出
+  512。不能把输入、输出都填成窗口值；这表示需要两倍容量。 拒绝发生在受理前，不创建 Invocation、Turn、快照或派发消息，不调用模型、不预留预算。
 - `timeoutSeconds` 是整数秒，范围为 1 秒到服务器配置 `maximumTimeout`，不静默截断。相对超时也写入 `ExecutionOptions.requestedTimeout`，同键重放不会因重新分配绝对期限而冲突，也不能延长原调用。
 - 尝试次数固定为 1、工具步骤和并发固定为 0、输出字节上限来自服务端配置。
 
@@ -74,7 +78,8 @@ Accept-Language: zh-CN
 | 409 | 幂等键内容冲突、会话版本冲突或会话忙 |
 | 500 | 基础设施错误 |
 
-预算不足是在 Worker 预留时确定的执行失败，不能将 202 解释为余额足够。当前接口仅提交无历史的单轮文本，历史上下文、重新生成、编辑重发不属于本次实现。
+预算不足是在 Worker 预留时确定的执行失败，不能将 202 解释为余额足够。客户端仅提交本轮文本，服务端按会话版本加载最近最多十轮的完整成功回复；历史和本轮文本共同占用输入额度。
+参数及业务拒绝使用 WARN 日志记录 method、path、HTTP 状态、业务 code 和异常类型；不记录请求正文、认证头或异常原文。
 
 页面可通过 [预算查询接口](BUDGET_HTTP_API.md) 展示账户限额、held、charged 和 available。正余额不代替 Worker
 的原子预留；结果已生成也不代表预算已完成结算。

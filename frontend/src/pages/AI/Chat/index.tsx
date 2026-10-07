@@ -63,6 +63,22 @@ export default function AiChatPage() {
     setWarning(clearChatConfig() ? null : 'clearFailed');
   };
 
+  const useMultiTurnLimits = () => {
+    form.setFields([
+      {
+        name: 'maxInputTokens',
+        value: DEFAULT_CHAT_CONFIG.maxInputTokens,
+        errors: [],
+      },
+      {
+        name: 'maxOutputTokens',
+        value: DEFAULT_CHAT_CONFIG.maxOutputTokens,
+        errors: [],
+      },
+    ]);
+    setDirty(true);
+  };
+
   const stringField = (name: keyof ChatConfigValues, placeholder?: string) => (
     <Form.Item key={name} name={name} label={t(`field.${name}`)} required>
       <Input maxLength={256} placeholder={placeholder}/>
@@ -215,6 +231,12 @@ export default function AiChatPage() {
             <p className="text-xs text-[var(--ant-color-text-secondary)]">
               {t('limitsHint')}
             </p>
+            <p className="text-xs text-[var(--ant-color-text-secondary)]">
+              {t('multiTurnLimitsHint')}
+            </p>
+            <Button className="mb-3" onClick={useMultiTurnLimits}>
+              {t('useMultiTurnLimits')}
+            </Button>
             <div className="grid grid-cols-2 gap-x-3">
               {numberField('maxInputTokens', 1, 10_000_000)}
               {numberField('maxOutputTokens', 1, 1_000_000)}

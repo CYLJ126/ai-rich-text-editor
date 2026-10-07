@@ -1,5 +1,6 @@
 package com.arte.ainew.application.execution;
 
+import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import reactor.core.publisher.Mono;
 
@@ -13,4 +14,11 @@ import reactor.core.publisher.Mono;
 public interface ExecutionEventBroadcast {
 
     Mono<Void> publish(OutboxMessage message);
+
+    /**
+     * 预览没有耐久游标；LOCAL 模式已直接分发，Redis 模式另行发布原始文字增量。
+     */
+    default Mono<Void> publishText(LiveTextDelta delta) {
+        return Mono.empty();
+    }
 }

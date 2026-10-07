@@ -307,6 +307,37 @@ public class ChatHttpIntegrationTest {
     }
 
     @Test
+    public void oversizedInputAndOutputReturnSpecificCodesWithoutAcceptance() throws Exception {
+        var previous = fixture.properties;
+        var binding = previous.bindings().getFirst();
+        var properties = new NewAiProperties(previous.enabled(), previous.dataSourceBean(), previous.releaseRef(), previous.persistence(),
+                new NewAiProperties.Limits(65536, 4096, previous.limits().maxOutputBytes(),
+                        previous.limits().maximumTimeout(), previous.limits().snapshotRetention()),
+                previous.grants(), previous.capabilities(), List.of(new com.arte.ainew.pojo.control.ResolvedBinding(binding.definition(),
+                binding.capability(), binding.connection(), binding.remoteOperation(), 65536L, binding.rate())),
+                previous.connections(), previous.rates(), previous.budgets());
+        fixture = new AdmissionFixture(dataSource, scheduler, fixture.codec, properties);
+        configureMvc();
+        var id = create();
+        var request = request(id, 0, "李白和哪些著名诗人有过交集");
+        request.put("maxInputTokens", 65536);
+        request.put("generationOptions", Map.of("maxOutputTokens", 65536, "stopSequences", List.of()));
+        var capacity = submit(request, "oversized-context", 400);
+        assertEquals(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED.getCode(), capacity.path("code").asString());
+        assertEquals(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED.getDesc(Locale.ENGLISH), capacity.path("desc").asString());
+        request.put("maxInputTokens", 32768);
+        request.put("generationOptions", Map.of("maxOutputTokens", 4097, "stopSequences", List.of()));
+        assertEquals(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED.getCode(), submit(request, "oversized-output", 400).path("code").asString());
+        assertEquals(0, count("arte_ai_invocation"));
+        assertEquals(0, count("arte_ai_turn"));
+        assertEquals(0, count("arte_ai_context_snapshot"));
+        assertEquals(0, count("arte_ai_outbox"));
+        // 推荐额度仍可正常受理；不运行 Worker，因此不会发起供应商请求或预算预留。
+        request.put("generationOptions", Map.of("maxOutputTokens", 512, "stopSequences", List.of()));
+        assertTrue(submit(request, "valid-limits", 202).path("success").asBoolean());
+    }
+
+    @Test
     public void serverCapacityTimeoutAndOutputLimitsAreEnforced() throws Exception {
         var request = request(create(), 0, "hello");
         var excessive = new LinkedHashMap<>(request);
@@ -314,7 +345,7 @@ public class ChatHttpIntegrationTest {
         submit(excessive, "timeout", 400);
         excessive = new LinkedHashMap<>(request);
         excessive.put("maxInputTokens", 1024);
-        submit(excessive, "capacity", 400);
+        assertEquals(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED.getCode(), submit(excessive, "capacity", 400).path("code").asString());
         excessive = new LinkedHashMap<>(request);
         excessive.put("maxInputTokens", 700);
         excessive.put("generationOptions", Map.of("maxOutputTokens", 257, "stopSequences", List.of()));

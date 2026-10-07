@@ -34,12 +34,19 @@ import java.time.Clock;
 @ConditionalOnProperty(prefix = "arte.ai-new-execution", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiEventProperties.class})
 public class NewAiExecutionConfiguration {
+
+    @Bean("newAiLiveTextNotifier")
+    LiveTextNotifier liveTextNotifier() {
+        return new LiveTextNotifier();
+    }
+
     @Bean("newAiGenerationDispatcher")
     GenerationDispatcher dispatcher(AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                     MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, ModelGateway gateway,
-                                    NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock) {
+                                    NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock,
+                                    LiveTextNotifier liveText) {
         return new GenerationDispatcher(authorization, catalog, executions, executions, executions, payloads, payloads,
-                executions, gateway, admission, execution, clock);
+                executions, gateway, admission, execution, clock, liveText);
     }
 
     @Bean("newAiInvocationCoordinator")
@@ -61,8 +68,8 @@ public class NewAiExecutionConfiguration {
     }
 
     @Bean("newAiExecutionEventService")
-    ExecutionEventService events(AdmissionAuthorization authorization, MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, LocalExecutionEventNotifier notifier, @Qualifier("newAiClock") Clock clock, InvocationBudgetStatusResolver budgetStatus) {
-        return new DefaultExecutionEventService(authorization, executions, executions, payloads, notifier, clock, budgetStatus);
+    ExecutionEventService events(AdmissionAuthorization authorization, MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, LocalExecutionEventNotifier notifier, @Qualifier("newAiClock") Clock clock, InvocationBudgetStatusResolver budgetStatus, LiveTextNotifier liveText) {
+        return new DefaultExecutionEventService(authorization, executions, executions, payloads, notifier, clock, budgetStatus, liveText);
     }
 
     @Bean(name = "newAiWorkerScheduler", destroyMethod = "dispose")
@@ -72,7 +79,7 @@ public class NewAiExecutionConfiguration {
 
     @Bean("newAiExecutionEventBroadcast")
     ExecutionEventBroadcast broadcast(NewAiEventProperties properties, LocalExecutionEventNotifier notifier,
-                                      ObjectProvider<RedissonClient> redis, NewAiExecutionProperties execution) {
+                                      ObjectProvider<RedissonClient> redis, NewAiExecutionProperties execution, LiveTextNotifier liveText) {
         if (properties.transport() == NewAiEventProperties.Transport.LOCAL) {
             return message -> Mono.fromRunnable(() -> notifier.publish(message));
         }
@@ -82,7 +89,12 @@ public class NewAiExecutionConfiguration {
         if (client == null) {
             throw new IllegalStateException("Redis event transport requires the existing RedissonClient bean");
         }
-        return new RedisExecutionEventBroadcast(client, notifier, properties);
+        return new RedisExecutionEventBroadcast(client, notifier, properties, liveText);
+    }
+
+    @Bean("newAiLiveTextPublisher")
+    LiveTextPublisher liveTextPublisher(LiveTextNotifier liveText, ExecutionEventBroadcast broadcast) {
+        return new LiveTextPublisher(liveText, broadcast);
     }
 
     @Bean("newAiExecutionEventPublisher")

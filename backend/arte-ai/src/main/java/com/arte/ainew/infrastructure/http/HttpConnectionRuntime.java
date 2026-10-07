@@ -2,6 +2,7 @@ package com.arte.ainew.infrastructure.http;
 
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -182,7 +183,9 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
             var http = HttpClient.create(pool.provider).runOn(loops).resolver(pool.resolver)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectMillis)
                     .responseTimeout(definition.responseTimeout()).disableRetry(true).followRedirect(false)
-                    .httpResponseDecoder(spec -> spec.maxHeaderSize(16_384));
+                    .httpResponseDecoder(spec -> spec.maxHeaderSize(16_384))
+                    .doAfterRequest((request, connection) -> request.currentContextView().<InvocationTiming>getOrEmpty(InvocationTiming.class)
+                            .ifPresent(timing -> timing.mark("PROVIDER_REQUEST_SENT")));
             String base = definition.endpoint().toString();
             var uri = URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/chat/completions");
             var client = WebClient.builder().clientConnector(new ReactorClientHttpConnector(http))

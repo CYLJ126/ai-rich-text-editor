@@ -5,6 +5,7 @@ import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.execution.InvocationBudgetStatusResolver;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.config.NewAiProperties;
@@ -12,6 +13,7 @@ import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.ainew.web.request.InvocationRequests;
 import com.arte.ainew.web.response.InvocationEventsResponse;
+import com.arte.ainew.web.response.InvocationNotification;
 import com.arte.ainew.web.response.InvocationResultResponse;
 import com.arte.ainew.web.response.InvocationStatusResponse;
 import com.arte.core.enums.ResultCodeEnum;
@@ -36,6 +38,7 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 查询执行状态、结果、耐久事件及 SSE 通知，后续增加取消
@@ -48,6 +51,10 @@ import java.util.Set;
 @PreAuthorize("isAuthenticated()")
 @ConditionalOnProperty(name = {"arte.ai-new.enabled", "arte.ai-new-execution.enabled"}, havingValue = "true")
 public class NewAiInvocationController {
+    /**
+     * SSE 使用独立的紧凑 UTF-8 JSON，避免全局 pretty-print／非 ASCII 转义放大每个小片段。
+     */
+    private static final tools.jackson.databind.json.JsonMapper SSE_JSON = tools.jackson.databind.json.JsonMapper.builder().build();
 
     private final ExecutionControl executionControl;
     private final ExecutionEventService executionEventService;
@@ -108,7 +115,8 @@ public class NewAiInvocationController {
      * 通过 POST/fetch 和现有 Bearer Token 建立 SSE 订阅，从排他游标补读历史并接收新事件。
      * 建连前验证读取权限、调用归属及游标，失败返回 HTTP 错误；建连后异常转换为 error 帧。
      * <p>
-     * 通知只含调用 ID、序号及类别，结果、历史和预算由前端通过 HTTP 查询。
+     * OUTPUT 附带已落库文本；text-delta 是不等待落库的实时预览，使用文字偏移去重，不推进耐久游标。
+     * 终态结果、历史和预算通过 HTTP 查询；预览本身不证明成功或已保存。
      * 先发送 connected 注释，再合并事件与每 15 秒一次的心跳；事件流结束时停止心跳。
      * 连接期限取 60 秒与配置最大期限的较小值，不延长模型调用；心跳不查数据库。
      *
@@ -117,6 +125,7 @@ public class NewAiInvocationController {
      */
     @PostMapping(value = "/watchInvocation", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Mono<ResponseEntity<Flux<ServerSentEvent<Object>>>> watchInvocation(@Valid @RequestBody InvocationRequests.Watch request) {
+        long started = System.nanoTime();
         // 排他游标：仅接收大于 afterSequence 的事件，支持断线续读。
         var cursor = new ExecutionEvent.Cursor(request.invocationId(), request.afterSequence());
         // 创建本次观看的 READ 上下文，期限独立于模型执行。
@@ -126,13 +135,23 @@ public class NewAiInvocationController {
                     if (!preflight.successful()) {
                         throw AdmissionException.fromStoreRejection(preflight.code());
                     }
+                    var timing = new InvocationTiming(request.invocationId(), executionContext.traceId(), null, started);
+                    timing.mark("SSE_READY");
+                    var firstText = new AtomicBoolean();
+                    var firstPreview = new AtomicBoolean();
                     // 仅用于在事件流结束时停止心跳。
                     var done = Sinks.<Void>one();
                     Flux<ServerSentEvent<Object>> events = executionEventService.watch(cursor, executionContext)
-                            // 编码通知；SSE id 使用事件序号，不直接发送业务 payload。
-                            .map(event -> ServerSentEvent.<Object>builder(Map.of("executionId", event.executionId(),
-                                            "sequence", event.sequence(), "kind", event.kind().name())).event("invocation")
-                                    .id(Long.toString(event.sequence())).build())
+                            // 从已重新授权的耐久事件投影文字；Redis 仍只广播指针。
+                            .map(event -> {
+                                var notification = InvocationNotification.from(event);
+                                if (notification.get("text") instanceof String text && !text.isEmpty()
+                                        && firstText.compareAndSet(false, true))
+                                    timing.mark("SSE_FIRST_TEXT_ENQUEUED", started, event.sequence());
+                                timing.batch("SSE_EVENT_ENQUEUED", started, event.sequence());
+                                return ServerSentEvent.<Object>builder(SSE_JSON.writeValueAsString(notification)).event("invocation")
+                                        .id(Long.toString(event.sequence())).build();
+                            })
                             // 响应开始后通过 error 帧报告错误，不再修改 HTTP 状态或暴露异常详情。
                             .onErrorResume(error -> Flux.just(streamError(error)))
                             // 正常完成或发送完错误帧后，通知心跳流结束。
@@ -144,11 +163,22 @@ public class NewAiInvocationController {
                     var heartbeat = Flux.interval(Duration.ofSeconds(15))
                             .map(ignored -> ServerSentEvent.builder().comment("heartbeat").build())
                             .takeUntilOther(done.asMono());
+                    // 文字预览不经过落库／EVENT 领取／重放；不给 SSE id，浏览器不能用它推进耐久游标。
+                    var text = executionEventService.watchText(request.invocationId(), executionContext)
+                            .map(delta -> {
+                                if (firstPreview.compareAndSet(false, true))
+                                    timing.mark("SSE_FIRST_LIVE_TEXT_ENQUEUED");
+                                return ServerSentEvent.<Object>builder(SSE_JSON.writeValueAsString(Map.of("executionId", delta.executionId(),
+                                                "attemptId", delta.attemptId(), "offset", delta.offset(), "text", delta.text())))
+                                        .event("text-delta").build();
+                            }).takeUntilOther(done.asMono());
                     // 先发送连接标记，再合并事件和心跳；每个来源预取 1 条。
                     var stream = Flux.concat(Flux.just(ServerSentEvent.builder().comment("connected").build()),
-                            Flux.merge(1, events, heartbeat));
+                                    Flux.merge(1, events, text, heartbeat))
+                            .onErrorResume(error -> Flux.just(streamError(error)))
+                            .doFinally(signal -> timing.mark("SSE_END_" + signal.name()));
                     // 返回流式响应，禁止缓存，并请求代理关闭响应缓冲。
-                    return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
+                    return ResponseEntity.ok().contentType(new MediaType("text", "event-stream", java.nio.charset.StandardCharsets.UTF_8))
                             .header("Cache-Control", "no-cache, no-transform").header("X-Accel-Buffering", "no")
                             .body(stream);
                 }));

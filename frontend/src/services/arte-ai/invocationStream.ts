@@ -5,15 +5,33 @@ import type {ExecutionEvent, InvocationQuery} from './types';
 export type InvocationNotification = Pick<
   ExecutionEvent,
   'executionId' | 'sequence' | 'kind'
->;
-const MAX_FRAME_SIZE = 64 * 1024;
+> & {
+  /** OUTPUT 的已落库文字，旧服务端只发指针时缺省。 */
+  text?: string;
+};
+
+/** 非耐久文字预览；offset 按 UTF-16 字符单元计数，不推进事件 sequence。 */
+export interface LiveTextNotification {
+  executionId: string;
+  attemptId: string;
+  offset: number;
+  text: string;
+}
+
+// 服务端单批文本上限 1,000,000 字符；JSON 转义最坏约 6 倍，兼容历史大批次。
+const MAX_FRAME_SIZE = 8 * 1024 * 1024;
+const MAX_TEXT_CHARS = 1_000_000;
 const IDLE_TIMEOUT_MS = 45_000;
 
-/** POST SSE 可携带现有 Bearer Token；只接收已提交事件指针，不自动提交或重执行消息。 */
+/** POST SSE 携带现有 Token；接收耐久事件与非耐久文字预览，不自动提交或重执行消息。 */
 export async function watchInvocation(
   request: InvocationQuery & { afterSequence: number },
   onEvent: (event: InvocationNotification) => void | Promise<void>,
-  options: { signal: AbortSignal; onConnected?: () => void },
+  options: {
+    signal: AbortSignal;
+    onConnected?: () => void;
+    onText?: (delta: LiveTextNotification) => void;
+  },
 ): Promise<void> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -90,6 +108,27 @@ export async function watchInvocation(
         const body = payload as { httpStatus?: number };
         throw new AiApiError(body?.httpStatus ?? 503, payload);
       }
+      if (type === 'text-delta') {
+        const delta = payload as LiveTextNotification;
+        if (
+          !delta ||
+          delta.executionId !== request.invocationId ||
+          id !== '' ||
+          typeof delta.attemptId !== 'string' ||
+          !delta.attemptId.trim() ||
+          delta.attemptId.length > 256 ||
+          !Number.isSafeInteger(delta.offset) ||
+          delta.offset < 0 ||
+          typeof delta.text !== 'string' ||
+          !delta.text.length ||
+          delta.text.length > 256 ||
+          delta.offset + delta.text.length > MAX_TEXT_CHARS
+        ) {
+          throw new Error('Invalid AI text preview');
+        }
+        options.onText?.(delta);
+        return;
+      }
       if (type !== 'invocation') return;
       const event = payload as InvocationNotification;
       if (
@@ -97,6 +136,10 @@ export async function watchInvocation(
         event.executionId !== request.invocationId ||
         !Number.isSafeInteger(event.sequence) ||
         event.sequence < 1 ||
+        (event.text !== undefined &&
+          (event.kind !== 'OUTPUT' ||
+            typeof event.text !== 'string' ||
+            event.text.length > MAX_TEXT_CHARS)) ||
         !/^\d+$/.test(id) ||
         Number(id) !== event.sequence ||
         ![

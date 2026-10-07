@@ -36,6 +36,72 @@ afterEach(() => {
 });
 
 describe('带认证的 Invocation SSE', () => {
+  it('实时文字帧保留 UTF-8 与空白、不携带耐久游标，不干扰事件去重', async () => {
+    const delta = {
+      executionId: 'invocation',
+      attemptId: 'attempt',
+      offset: 0,
+      text: '你🙂\n ',
+    };
+    const body =
+      frame(1, 'ACCEPTED') +
+      `event: text-delta\ndata: ${JSON.stringify(delta)}\n\n` +
+      frame(1, 'ACCEPTED') +
+      frame(2);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          stream(Array.from(bytes(body), (value) => new Uint8Array([value]))),
+        ),
+    );
+    const event = vi.fn();
+    const text = vi.fn();
+    await watchInvocation(query, event, {
+      signal: new AbortController().signal,
+      onText: text,
+    });
+    expect(text).toHaveBeenCalledExactlyOnceWith(delta);
+    expect(event.mock.calls.map(([value]) => value.sequence)).toEqual([1, 2]);
+  });
+
+  it.each([
+    {offset: -1},
+    {offset: 1.5},
+    {offset: 1_000_000},
+    {text: ''},
+    {text: '字'.repeat(257)},
+    {attemptId: ''},
+    {executionId: 'other'},
+  ])('拒绝非法实时文字帧', async (invalid) => {
+    const delta = {
+      executionId: 'invocation',
+      attemptId: 'attempt',
+      offset: 0,
+      text: '字',
+      ...invalid,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          stream([
+            bytes(`event: text-delta\ndata: ${JSON.stringify(delta)}\n\n`),
+          ]),
+        ),
+    );
+    const onText = vi.fn();
+    await expect(
+      watchInvocation(query, vi.fn(), {
+        signal: new AbortController().signal,
+        onText,
+      }),
+    ).rejects.toThrow();
+    expect(onText).not.toHaveBeenCalled();
+  });
+
   it('跨字节/CRLF 分块解析、多行 data 和注释心跳，重复序号只通知一次', async () => {
     const text =
       ': 心跳\r\n\r\nid: 1\r\nevent: invocation\r\ndata: {"executionId":"invocation",\r\ndata: "sequence":1,"kind":"ACCEPTED"}\r\n\r\n' +
@@ -69,6 +135,47 @@ describe('带认证的 Invocation SSE', () => {
       body: JSON.stringify(query),
     });
   });
+
+  it('解析文字增量并保持换行空白，重复序号不再追加', async () => {
+    const output = {
+      ...notification,
+      kind: 'OUTPUT',
+      text: ' 你好\n<script>文本</script> ',
+    };
+    const body = `id: 1\nevent: invocation\ndata: ${JSON.stringify(output)}\n\n`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(stream([bytes(body + body)])),
+    );
+    const received = vi.fn();
+    await watchInvocation(query, received, {
+      signal: new AbortController().signal,
+    });
+    expect(received).toHaveBeenCalledExactlyOnceWith(output);
+  });
+
+  it.each([null, 123, 'x'.repeat(1_000_001)])(
+    '拒绝非法或超出服务端总文字上限的增量',
+    async (text) => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            stream([
+              bytes(
+                `id: 1\nevent: invocation\ndata: ${JSON.stringify({...notification, kind: 'OUTPUT', text})}\n\n`,
+              ),
+            ]),
+          ),
+      );
+      await expect(
+        watchInvocation(query, vi.fn(), {
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toThrow();
+    },
+  );
 
   it('支持单独 CR 的最终帧且忽略恢复游标之前的通知', async () => {
     vi.stubGlobal(
@@ -125,7 +232,7 @@ describe('带认证的 Invocation SSE', () => {
     for (const text of [
       frame(1).replace('invocation","sequence', 'foreign","sequence'),
       frame(1).replace('id: 1', 'id: 2'),
-      `data: ${'x'.repeat(65537)}`,
+      `data: ${'x'.repeat(8 * 1024 * 1024 + 1)}`,
     ]) {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(stream([bytes(text)])));
       await expect(

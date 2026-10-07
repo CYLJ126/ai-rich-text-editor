@@ -3,6 +3,8 @@ package com.arte.ainew.web.controller;
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextBudget;
@@ -60,12 +62,15 @@ public class NewAiChatController {
             @Valid @RequestBody ChatRequests.Submit request,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             Locale locale) {
+        long started = System.nanoTime();
         var timeout = Duration.ofSeconds(request.timeoutSeconds());
         // 创建执行上下文 → 解析绑定 → 提交请求
         return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
                         timeout, request.budgetRef(), idempotencyKey)
                 .flatMap(executionContext -> bindingManager.resolve(request.binding(), request.capability(), executionContext)
-                        .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)))
+                        .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)
+                                .doOnNext(accepted -> new InvocationTiming(accepted.executionId(), executionContext.traceId(), null, started)
+                                        .mark("CHAT_ACCEPTED"))))
                 .map(accepted -> ResultContext.success(ChatAcceptedResponse.from(request.conversationId(), accepted),
                         ResultCodeEnum.SUCCESS, locale));
     }
@@ -83,6 +88,16 @@ public class NewAiChatController {
      */
     private EntryRequests.Chat chatRequest(ChatRequests.Submit request, ResolvedBinding binding,
                                            ExecutionContext context, Duration timeout) {
+        // HTTP 字段范围合法不代表组合合法；在构造契约对象前返回明确业务码，避免只得到通用 IllegalArgumentException。
+        long inputTokens = request.maxInputTokens();
+        long outputTokens = request.generationOptions().maxOutputTokens();
+        long contextWindow = binding.contextWindowTokens();
+        if (inputTokens > contextWindow || outputTokens > contextWindow || inputTokens > contextWindow - outputTokens) {
+            throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED);
+        }
+        if (outputTokens > properties.limits().maxOutputTokens()) {
+            throw new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED);
+        }
         // 用户消息
         var userMessage = new ChatMessage(UUID.randomUUID().toString(), ChatMessage.Role.USER,
                 List.of(new ChatMessage.Text(request.text())), List.of(), null);

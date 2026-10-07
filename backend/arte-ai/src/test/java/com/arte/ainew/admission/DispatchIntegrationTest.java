@@ -533,7 +533,7 @@ public class DispatchIntegrationTest {
             var accepted = rig.submit(rig.conversation(), "submit");
             rig.worker.start();
             assertTrue(rig.worker.isRunning());
-            Flux.interval(Duration.ofMillis(50))
+            Flux.interval(Duration.ofMillis(50)).onBackpressureLatest()
                     .concatMap(ignored -> Mono.fromCallable(() -> rig.jdbc.queryForObject(
                             "SELECT delivered FROM arte_ai_outbox WHERE kind='DISPATCH'", Integer.class)).subscribeOn(rig.db))
                     .filter(delivered -> delivered == 1).next().block(WAIT);

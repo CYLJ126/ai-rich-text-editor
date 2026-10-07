@@ -1,6 +1,7 @@
 package com.arte.ainew.application.execution;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiEventProperties;
 import com.arte.ainew.pojo.execution.OutboxMessage;
@@ -23,8 +24,9 @@ import java.util.Set;
 import java.util.concurrent.CompletionStage;
 
 /**
- * 所有实例（包括 worker-disabled 的 HTTP 节点）均订阅。Redis 只传 owner/id/sequence 指针，
- * 不承载消息正文、金额或凭据。Pub/Sub 丢失的提示在重新订阅时触发耐久重放；
+ * 所有实例（包括 worker-disabled 的 HTTP 节点）均订阅。耐久事件只传 owner/id/sequence 指针；
+ * live-text-v2 另传有界模型文字预览、偏移与发送节点标识，忽略本节点回送；兼容接收 v1。
+ * Pub/Sub 丢失的提示／预览在重新订阅时通过耐久重放恢复；
  * 发布失败保留 EVENT Outbox，统一恢复扫描重试。停机只移除本组件的监听器，不关闭共享客户端。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -37,6 +39,18 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
      * 通知 JSON 的长度上限，按 String.length() 的 UTF-16 字符单元计数；发送与接收均检查，不是字节数上限。
      */
     private static final int MAX_SIGNAL_CHARS = 8192;
+    private static final String LEGACY_TEXT_PREFIX = "live-text-v1:";
+    private static final String TEXT_PREFIX = "live-text-v2:";
+    private final String senderId = java.util.UUID.randomUUID().toString();
+    private static final int MAX_TEXT_SIGNAL_CHARS = 16384;
+    private final LiveTextNotifier liveTextNotifier;
+
+    public record TextSignal(String senderId, LiveTextDelta delta) {
+        public TextSignal {
+            ContractChecks.id(senderId, "senderId");
+            Objects.requireNonNull(delta, "delta");
+        }
+    }
 
     /**
      * 使用配置通道名称和 StringCodec 创建的 Redis Topic，负责发布通知及管理本组件的两类监听器。
@@ -114,6 +128,12 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
     public RedisExecutionEventBroadcast(RedissonClient client,
                                         LocalExecutionEventNotifier localExecutionEventNotifier,
                                         NewAiEventProperties properties) {
+        this(client, localExecutionEventNotifier, properties, null);
+    }
+
+    public RedisExecutionEventBroadcast(RedissonClient client, LocalExecutionEventNotifier localExecutionEventNotifier,
+                                        NewAiEventProperties properties, LiveTextNotifier liveTextNotifier) {
+        this.liveTextNotifier = liveTextNotifier;
         this.redisTopic = Objects.requireNonNull(client, "Redis transport requires RedissonClient")
                 .getTopic(properties.channel(), StringCodec.INSTANCE);
         this.localExecutionEventNotifier = localExecutionEventNotifier;
@@ -129,6 +149,15 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
         });
     }
 
+    @Override
+    public Mono<Void> publishText(LiveTextDelta delta) {
+        return Mono.defer(() -> {
+            String encoded = TEXT_PREFIX + jsonMapper.writeValueAsString(new TextSignal(senderId, delta));
+            ContractChecks.require(encoded.length() <= MAX_TEXT_SIGNAL_CHARS, "Oversized text preview");
+            return Mono.fromCompletionStage(redisTopic.publishAsync(encoded)).timeout(properties.publishTimeout()).then();
+        });
+    }
+
     /**
      * 处理 Redis 消息监听器收到的通知 JSON：先检查长度，再反序列化为 Signal 并通过其构造器校验字段。
      * 校验成功后，按 owner、invocationId 和 sequence 唤醒本地订阅者；实际事件读取与序号去重由后续订阅流程完成。
@@ -138,6 +167,21 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
      */
     private void receive(String encoded) {
         try {
+            if (encoded.startsWith(TEXT_PREFIX)) {
+                if (encoded.length() > MAX_TEXT_SIGNAL_CHARS)
+                    throw new IllegalArgumentException("Oversized text preview");
+                var signal = jsonMapper.readValue(encoded.substring(TEXT_PREFIX.length()), TextSignal.class);
+                if (liveTextNotifier != null && !senderId.equals(signal.senderId()))
+                    liveTextNotifier.receive(signal.delta());
+                return;
+            }
+            if (encoded.startsWith(LEGACY_TEXT_PREFIX)) {
+                if (encoded.length() > MAX_TEXT_SIGNAL_CHARS)
+                    throw new IllegalArgumentException("Oversized text preview");
+                var delta = jsonMapper.readValue(encoded.substring(LEGACY_TEXT_PREFIX.length()), LiveTextDelta.class);
+                if (liveTextNotifier != null) liveTextNotifier.receive(delta);
+                return;
+            }
             if (encoded.length() > MAX_SIGNAL_CHARS) {
                 throw new IllegalArgumentException("Oversized notification");
             }

@@ -150,7 +150,14 @@ mvn -o -f backend/pom.xml -pl arte-app -am \
 
 Outbox 和 Attempt 使用不同的租约及 fencing token。新增 `ExecutionOutboxStore.validateClaim／renewClaim` 以数据库时钟检查完整身份，不允许已经失效的领取复活；Attempt 所有写入使用新读取的 Guard。只在存储明确返回 VERSION_CONFLICT 时有限次重新读取，模型交互不 retry。
 
-每次创建 Worker 的身份唯一，不读取旧 ThreadLocal 用户或连接路由。多实例归属由数据库锁与版本仲裁；单实例也限制重复 pollOnce 重叠。生成信号只订阅一次，以最多 32 条的一批顺序追加事件，遵守已有输出字节上限和反压。先耐久保存结果字节，再原子提交终态、引用、事件及 EVENT Outbox，最后独立结算并 ACK DISPATCH。
+每次创建 Worker 的身份唯一，不读取旧 ThreadLocal 用户或连接路由。多实例归属由数据库锁与版本仲裁；单实例也限制重复 pollOnce
+重叠。生成信号只订阅一次，首个文本增量立即关闭当前窗口，后续按最多 128 条信号或 500
+毫秒的一批顺序追加事件，遵守已有输出字节上限和反压。先耐久保存结果字节，再原子提交终态、引用、事件及 EVENT Outbox，最后独立结算并
+ACK DISPATCH。
+
+模型 TextDelta 另经 LiveTextNotifier 立即分发非耐久预览，独立的有界 LiveTextPublisher 负责 Redis 跨实例传输。
+预览不等待上述批次提交，也不赋予事件游标；浏览器通过文字 offset 与耐久 OUTPUT 合并，最终沿 HTTP 权威结果校准。
+不新增每字一次的事务、状态请求或预算处理；预览丢失时从原事件链路恢复，不重执行模型。
 
 重投时先读现状：
 

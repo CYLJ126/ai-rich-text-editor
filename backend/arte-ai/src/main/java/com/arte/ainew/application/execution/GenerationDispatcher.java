@@ -4,9 +4,11 @@ import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
@@ -55,11 +57,21 @@ public final class GenerationDispatcher {
     private final NewAiProperties newAiProperties;
     private final NewAiExecutionProperties newAiExecutionProperties;
     private final Clock clock;
+    private final LiveTextNotifier liveTextNotifier;
 
     public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
                                 ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
                                 NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock) {
+        this(admissionAuthorization, fixedControlCatalog, executionStore, executionEventStore, executionOutboxStore,
+                contextSnapshotStore, executionResultStore, budgetService, modelGateway, newAiProperties, newAiExecutionProperties, clock, null);
+    }
+
+    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
+                                ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
+                                ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
+                                NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
+        this.liveTextNotifier = liveTextNotifier;
         this.admissionAuthorization = admissionAuthorization;
         this.fixedControlCatalog = fixedControlCatalog;
         this.executionStore = executionStore;
@@ -84,9 +96,12 @@ public final class GenerationDispatcher {
                     || !message.owner().equals(ExecutionOwner.from(runtime.execution()))) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_OWNER_MISMATCH));
             }
+            var timing = InvocationTiming.start(runtime.execution(), null);
+            timing.mark("DISPATCH_START");
             return executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
                     .then(load(message.owner(), message.invocationId()))
                     .flatMap(invocation -> {
+                        timing.mark("DISPATCH_LOADED");
                         if (!invocation.request().context().authorization().scopes().containsAll(runtime.execution().authorization().scopes())
                                 || !Objects.equals(invocation.request().context().budgetRef(), runtime.execution().budgetRef())
                                 || !Objects.equals(invocation.request().context().releaseRef(), runtime.execution().releaseRef())
@@ -100,12 +115,12 @@ public final class GenerationDispatcher {
                             // 活跃租约不可接管；过期且可能发送的执行只收敛 UNKNOWN，绝不重发。
                             return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied).flatMap(this::settle);
                         }
-                        return start(invocation, message, runtime);
-                    });
+                        return start(invocation, message, runtime, timing);
+                    }).doFinally(signal -> timing.mark("DISPATCH_END_" + signal.name()));
         });
     }
 
-    private Mono<Void> start(Invocation invocation, OutboxMessage message, ExecutionRuntimeContext runtime) {
+    private Mono<Void> start(Invocation invocation, OutboxMessage message, ExecutionRuntimeContext runtime, InvocationTiming timing) {
         var persisted = invocation.request();
         if (!(persisted.input() instanceof GenerationRequest generation)) {
             return rejectBeforeAttempt(invocation, new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY));
@@ -128,11 +143,12 @@ public final class GenerationDispatcher {
                 })
                 .onErrorResume(error -> predictable(error)
                         ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
+                .doOnNext(prepared -> timing.mark("PREFLIGHT_READY"))
                 .flatMap(prepared -> executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
                         .then(executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
                                 CanonicalJson.key(message.invocationId(), "attempt-1"), message.workerId(), newAiExecutionProperties.attemptLease())))
                         .flatMap(GenerationDispatcher::applied)
-                        .flatMap(attempt -> new Session(invocation, message, prepared, attempt).run()));
+                        .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run()));
     }
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
@@ -214,14 +230,21 @@ public final class GenerationDispatcher {
         final OutboxMessage message;
         final Prepared prepared;
         final Attempt claimed;
+        final InvocationTiming timing;
+        final AtomicBoolean firstTextReceived = new AtomicBoolean();
+        final AtomicBoolean firstTextCommitted = new AtomicBoolean();
         final AtomicBoolean completed = new AtomicBoolean();
         final StringBuilder text = new StringBuilder();
         Usage usage = Usage.unknown();
         GenerationSignal terminal;
         long batchNumber;
         boolean hasTextDelta;
+        int liveTextOffset;
+        boolean liveTextEnded;
 
-        Session(Invocation initial, OutboxMessage message, Prepared prepared, Attempt claimed) {
+        Session(Invocation initial, OutboxMessage message, Prepared prepared, Attempt claimed, InvocationTiming timing) {
+            this.timing = timing;
+            timing.mark("ATTEMPT_CREATED");
             this.initial = initial;
             this.message = message;
             this.prepared = prepared;
@@ -250,9 +273,11 @@ public final class GenerationDispatcher {
             return guarded(guard -> budgetService.reserve(new BudgetCommands.Reserve(guard,
                     CanonicalJson.key(claimed.attemptId(), "reservation"), amount, prepared.binding().rate(),
                     newAiExecutionProperties.reservationRetention())), 3)
+                    .doOnNext(ignored -> timing.mark("BUDGET_RESERVED"))
                     .then(executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied))
                     .then(guarded(guard -> executionStore.markDispatch(new ExecutionCommands.Dispatch(guard,
                             CanonicalJson.key(claimed.attemptId(), "remote-request"))), 3))
+                    .doOnNext(ignored -> timing.mark("DISPATCH_MARKED"))
                     .flatMap(attempt -> consume(new GatewayCall<>(prepared.request(), prepared.binding(), attempt, prepared.runtime())))
                     .flatMap(this::finish);
         }
@@ -272,9 +297,19 @@ public final class GenerationDispatcher {
         }
 
         Mono<GenerationSignal> consume(GatewayCall<GenerationRequest> call) {
-            return Flux.defer(() -> modelGateway.generate(call))
-                    .onErrorResume(error -> Flux.just(failure("PROVIDER_FLOW_INTERRUPTED")))
-                    .buffer(32)
+            var signals = Flux.defer(() -> {
+                        timing.mark("GATEWAY_SUBSCRIBED");
+                        return modelGateway.generate(call);
+                    }).doOnNext(signal -> {
+                        if (signal instanceof GenerationSignal.Delta(GenerationEvent.TextDelta delta)) {
+                            if (firstTextReceived.compareAndSet(false, true)) timing.mark("FIRST_TEXT_DELTA");
+                            preview(delta.text());
+                        } else if (!(signal instanceof GenerationSignal.Delta)) {
+                            liveTextEnded = true;
+                        }
+                    }).doOnComplete(() -> timing.mark("GATEWAY_COMPLETED"))
+                    .onErrorResume(error -> Flux.just(failure("PROVIDER_FLOW_INTERRUPTED")));
+            return GenerationOutputBatches.batch(signals)
                     .concatMap(this::saveBatch, 1)
                     .then(Mono.defer(() -> Mono.just(terminal == null ? failure("MISSING_GENERATION_TERMINAL") : terminal)))
                     .timeout(Duration.between(clock.instant(), prepared.runtime().execution().deadline()).isNegative()
@@ -282,6 +317,24 @@ public final class GenerationDispatcher {
                     .onErrorResume(TimeoutException.class, error -> Mono.just(failure("INVOCATION_TIMED_OUT")))
                     .onErrorResume(GenerationException.class, error -> Mono.just(new GenerationSignal.Failure(
                             error.error(prepared.request().context().traceId()), usage, null)));
+        }
+
+        void preview(String value) {
+            if (liveTextNotifier == null || liveTextEnded || completed.get()
+                    || !clock.instant().isBefore(prepared.runtime().execution().deadline())) return;
+            if (liveTextOffset + value.length() > com.arte.ainew.common.validation.ContractChecks.MAX_TEXT_CHARS) {
+                liveTextEnded = true;
+                return;
+            }
+            // 大片段只做有界拆分，不增加定时等待，也不切断 UTF-16 代理对。
+            for (int start = 0; start < value.length(); ) {
+                int end = Math.min(value.length(), start + LiveTextDelta.MAX_CHARS);
+                if (end < value.length() && Character.isHighSurrogate(value.charAt(end - 1))) end--;
+                liveTextNotifier.emit(new LiveTextDelta(message.owner(), message.invocationId(), claimed.attemptId(),
+                        liveTextOffset + start, value.substring(start, end)));
+                start = end;
+            }
+            liveTextOffset += value.length();
         }
 
         Mono<Void> saveBatch(List<GenerationSignal> signals) {
@@ -312,8 +365,15 @@ public final class GenerationDispatcher {
                     return Mono.empty();
                 }
                 String batchKey = claimed.attemptId() + ":" + batchNumber++;
+                long started = System.nanoTime();
                 return guarded(guard -> executionEventStore.appendBatch(new ExecutionCommands.Append(guard, batchKey,
-                        List.of(new ExecutionPayload.OutputBatch(deltas)))), 3).then();
+                        List.of(new ExecutionPayload.OutputBatch(deltas)))), 3).doOnNext(events -> {
+                    long sequence = events.getFirst().sequence();
+                    if (deltas.stream().anyMatch(GenerationEvent.TextDelta.class::isInstance)
+                            && firstTextCommitted.compareAndSet(false, true))
+                        timing.mark("FIRST_OUTPUT_COMMITTED", started, sequence);
+                    timing.batch("OUTPUT_BATCH_COMMITTED", started, sequence);
+                }).then();
             });
         }
 
@@ -347,7 +407,8 @@ public final class GenerationDispatcher {
                 Mono<java.util.Optional<ResultRef>> reference = result == null ? Mono.just(java.util.Optional.empty())
                         : executionResultStore.put(message.owner(), message.invocationId(), claimed.attemptId(), "generation-result",
                         new InvocationResult.Generation(result)).flatMap(GenerationDispatcher::applied).map(java.util.Optional::of);
-                return reference.flatMap(saved -> {
+                long resultStart = System.nanoTime();
+                return reference.doOnNext(saved -> timing.mark(saved.isPresent() ? "RESULT_STORED" : "RESULT_NOT_AVAILABLE", resultStart, 0)).flatMap(saved -> {
                     var ref = saved.orElse(null);
                     Invocation.State state;
                     ExecutionError error;
@@ -373,9 +434,18 @@ public final class GenerationDispatcher {
                     }
                     var payload = new ExecutionPayload.Terminal(state, ref, error);
                     var proof = evidence;
+                    long terminalStart = System.nanoTime();
                     return guarded(guard -> executionStore.commitCompletion(new ExecutionCommands.Complete(guard,
                             "generation-completion", payload, finalUsage, proof)), 3)
-                            .doOnNext(ignored -> completed.set(true)).flatMap(GenerationDispatcher.this::settle);
+                            .doOnNext(ignored -> {
+                                completed.set(true);
+                                timing.mark("TERMINAL_COMMITTED", terminalStart, 0);
+                            })
+                            .flatMap(invocation -> {
+                                long budgetStart = System.nanoTime();
+                                return GenerationDispatcher.this.settle(invocation)
+                                        .doOnSuccess(ignored -> timing.mark("BUDGET_PROCESSING_DONE", budgetStart, 0));
+                            });
                 });
             });
         }

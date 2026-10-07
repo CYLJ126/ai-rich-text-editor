@@ -474,6 +474,357 @@ describe('消息、历史和预算', () => {
     expect(turnsForChat).not.toHaveBeenCalled();
   });
 
+  it('实时片段短暂乱序时有界暂存，缺口补齐后立即显示，不等待落库或轮询', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    const options = vi.mocked(watchInvocation).mock.calls[0][2];
+    const raw = (offset: number, text: string) =>
+      options.onText?.({
+        executionId: 'invocation-1',
+        attemptId: 'attempt',
+        offset,
+        text,
+      });
+    const reads = vi.mocked(getInvocationStatus).mock.calls.length;
+    await act(async () => {
+      raw(2, '世界');
+      raw(2, '世界');
+      raw(4, '！');
+      raw(0, '你好');
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你好世界！',
+    );
+    expect(getInvocationStatus).toHaveBeenCalledTimes(reads);
+    expect(turnsForChat).not.toHaveBeenCalled();
+  });
+
+  it('首次状态查询挂起仍建立 SSE 并显示模型文字', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus)
+      .mockResolvedValueOnce(reply(status('invocation-1', 'RUNNING', 1)))
+      .mockImplementation(() => new Promise(() => {
+      }));
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    await act(async () => {
+      vi.mocked(watchInvocation).mock.calls[0][2].onText?.({
+        executionId: 'invocation-1',
+        attemptId: 'attempt',
+        offset: 0,
+        text: '首字',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '首字',
+    );
+  });
+
+  it('模型预览立即显示，Redis 回送与落库重放不重复，缺口由落库补齐，终态校准', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    const [_, notify, options] = vi.mocked(watchInvocation).mock.calls[0];
+    const raw = (offset: number, text: string, attemptId = 'attempt') =>
+      options.onText?.({
+        executionId: 'invocation-1',
+        attemptId,
+        offset,
+        text,
+      });
+    await act(async () => {
+      raw(0, '你🙂');
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你🙂',
+    );
+    const reads = vi.mocked(getInvocationStatus).mock.calls.length;
+    await act(async () => {
+      raw(0, '你🙂');
+      raw(3, '\n 好');
+      raw(6, '错误尝试', 'another-attempt');
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: '你🙂\n 好',
+      });
+      raw(8, '！');
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你🙂\n 好',
+    );
+    expect(getInvocationStatus).toHaveBeenCalledTimes(reads);
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 5,
+        kind: 'OUTPUT',
+        text: '世界',
+      });
+      raw(8, '！');
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你🙂\n 好世界！',
+    );
+    await act(async () => {
+      hook.result.current.resume();
+    });
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(watchInvocation).mock.calls[1][0].afterSequence).toBe(5);
+    await act(async () => {
+      vi.mocked(watchInvocation).mock.calls[1][2].onText?.({
+        executionId: 'invocation-1',
+        attemptId: 'attempt',
+        offset: 8,
+        text: '！',
+      });
+      await vi.mocked(watchInvocation).mock.calls[1][1]({
+        executionId: 'invocation-1',
+        sequence: 6,
+        kind: 'OUTPUT',
+        text: '！',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你🙂\n 好世界！',
+    );
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'SUCCEEDED', 3)),
+    );
+    await act(async () => {
+      await vi.mocked(watchInvocation).mock.calls[1][1]({
+        executionId: 'invocation-1',
+        sequence: 7,
+        kind: 'TERMINAL',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].result).toEqual(
+      result('invocation-1'),
+    );
+    expect(turnsForChat).not.toHaveBeenCalled();
+    hook.unmount();
+    await act(async () => {
+      raw(9, '卸载后不显示');
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '你🙂\n 好世界！',
+    );
+  });
+
+  it('实时文字保持空白、重复序号不重复追加，历史刷新和重连保留文字，终态使用完整结果', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    const notify = vi.mocked(watchInvocation).mock.calls[0][1];
+    const reads = vi.mocked(getInvocationStatus).mock.calls.length;
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: ' 你\n',
+      });
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: ' 你\n',
+      });
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 5,
+        kind: 'OUTPUT',
+        text: '好 ',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      ' 你\n好 ',
+    );
+    expect(getInvocationStatus).toHaveBeenCalledTimes(reads);
+    expect(getInvocationResult).not.toHaveBeenCalled();
+    await act(async () => {
+      await hook.result.current.loadHistory();
+      hook.result.current.resume();
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      ' 你\n好 ',
+    );
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(watchInvocation).mock.calls[1][0].afterSequence).toBe(5);
+    await act(async () => {
+      await vi.mocked(watchInvocation).mock.calls[1][1]({
+        executionId: 'invocation-1',
+        sequence: 5,
+        kind: 'OUTPUT',
+        text: '重复',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      ' 你\n好 ',
+    );
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'SUCCEEDED', 3)),
+    );
+    await act(async () => {
+      await vi.mocked(watchInvocation).mock.calls[1][1]({
+        executionId: 'invocation-1',
+        sequence: 6,
+        kind: 'TERMINAL',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].result).toEqual(
+      result('invocation-1'),
+    );
+    expect(getInvocationResult).toHaveBeenCalledOnce();
+    expect(turnsForChat).not.toHaveBeenCalled();
+  });
+
+  it('后台状态查询挂起不会阻塞文字通知，离开会话后旧增量不再修改页面', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    vi.mocked(getInvocationStatus).mockImplementation(
+      () => new Promise(() => {
+      }),
+    );
+    const notify = vi.mocked(watchInvocation).mock.calls[0][1];
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 2,
+        kind: 'STARTED',
+      });
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: '及时显示',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '及时显示',
+    );
+    hook.unmount();
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 5,
+        kind: 'OUTPUT',
+        text: '迟到',
+      });
+    });
+    expect(hook.result.current.invocations['invocation-1'].streamText).toBe(
+      '及时显示',
+    );
+  });
+
+  it('页面显示未完成的回复并按普通文字转义 HTML，失败后仍保留部分输出', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    const page = render(
+      <ChatPanel
+        config={config}
+        conversation={conversation}
+        dirty={false}
+        onUpdated={vi.fn()}
+        t={t}
+      />,
+    );
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    const notify = vi.mocked(watchInvocation).mock.calls[0][1];
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: '首字 <script>alert(1)</script>',
+      });
+    });
+    expect(screen.getByLabelText('实时回复').textContent).toBe(
+      '首字 <script>alert(1)</script>',
+    );
+    expect(page.container.querySelector('script')).toBeNull();
+    expect(getInvocationResult).not.toHaveBeenCalled();
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'FAILED', 3)),
+    );
+    await act(async () => {
+      await notify({
+        executionId: 'invocation-1',
+        sequence: 5,
+        kind: 'TERMINAL',
+      });
+    });
+    expect(screen.getByLabelText('实时回复').textContent).toContain('首字');
+    expect(screen.getByText('已接收部分输出，完整结果尚未可用。')).toBeTruthy();
+  });
+
+  it('发送后历史查询挂起时仍立即显示当前回复', async () => {
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply(status('invocation-1', 'RUNNING', 1)),
+    );
+    vi.mocked(turnsForChat).mockImplementation(async () => {
+      vi.mocked(getConversation).mockReturnValue(new Promise(() => {
+      }));
+      return reply(
+        {
+          invocationId: 'invocation-1',
+          conversationId: 'conversation',
+          kind: 'INVOCATION',
+          acceptedAt: conversation.createdAt,
+        },
+        202,
+      );
+    });
+    render(
+      <ChatPanel
+        config={config}
+        conversation={conversation}
+        dirty={false}
+        onUpdated={vi.fn()}
+        t={t}
+      />,
+    );
+    const input = screen.getByRole('textbox', {name: t('messageInput')});
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, {target: {value: '你好'}});
+    fireEvent.click(screen.getByRole('button', {name: t('send')}));
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    await act(async () => {
+      await vi.mocked(watchInvocation).mock.calls[0][1]({
+        executionId: 'invocation-1',
+        sequence: 4,
+        kind: 'OUTPUT',
+        text: '历史还在加载，首段先显示',
+      });
+    });
+    expect(screen.getByLabelText('实时回复').textContent).toBe(
+      '历史还在加载，首段先显示',
+    );
+    expect(getInvocationResult).not.toHaveBeenCalled();
+  });
+
   it('终态先显示回答，继续观察预算；结算事件刷新余额且不重复读取结果或重连', async () => {
     vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
     vi.mocked(getInvocationStatus).mockResolvedValue(
@@ -696,6 +1047,49 @@ describe('消息、历史和预算', () => {
       stopped,
     );
     expect(watchInvocation).toHaveBeenCalledTimes(streams);
+    expect(turnsForChat).not.toHaveBeenCalled();
+  });
+
+  it('LENGTH 显示输出额度不足的原因和操作提示，并保留部分结果，不自动续写', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(
+      reply<InvocationStatusResponse>({
+        ...status('invocation-1', 'FAILED', 3),
+        resultAvailable: true,
+        partial: true,
+        error: {
+          code: 'MODEL_OUTPUT_INCOMPLETE',
+          phase: 'OUTPUT',
+          retryable: false,
+          sideEffect: 'CONFIRMED',
+          certainty: 'KNOWN',
+          correlationId: 'trace-1',
+        },
+      }),
+    );
+    const partial = result('invocation-1');
+    if (partial.kind === 'GENERATION') {
+      partial.result.value.complete = false;
+      partial.result.value.finishReason = 'LENGTH';
+      partial.result.value.usage.outputTokens = 512;
+    }
+    vi.mocked(getInvocationResult).mockResolvedValue(reply(partial));
+    render(
+      <ChatPanel
+        config={config}
+        conversation={conversation}
+        dirty={false}
+        onUpdated={vi.fn()}
+        t={t}
+      />,
+    );
+    expect(
+      await screen.findByText(t('outputLimitReached')),
+    ).toBeInTheDocument();
+    expect(screen.getByText(t('outputLimitHint'))).toBeInTheDocument();
+    expect(
+      screen.getByText('回复 <script>alert(1)</script>'),
+    ).toBeInTheDocument();
     expect(turnsForChat).not.toHaveBeenCalled();
   });
 

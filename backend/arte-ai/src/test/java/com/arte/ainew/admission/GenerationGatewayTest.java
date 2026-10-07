@@ -218,6 +218,42 @@ public class GenerationGatewayTest {
     }
 
     @Test
+    public void providerTimingIncludesSentHeadersAndFirstFrameWithoutCredentialsOrText() throws Exception {
+        var messages = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        var logger = (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(com.arte.ainew.application.support.InvocationTiming.class);
+        var previous = logger.getLevel();
+        var additive = logger.isAdditive();
+        var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("timing-test", null, null, false,
+                org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override
+            public void append(org.apache.logging.log4j.core.LogEvent event) {
+                messages.add(event.getMessage().getFormattedMessage());
+            }
+        };
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(org.apache.logging.log4j.Level.INFO);
+        logger.setAdditive(false);
+        try (var rig = new Rig()) {
+            var call = rig.call();
+            rig.gateway.generate(call).collectList().block(WAIT);
+            // [DONE] 经 takeUntil 结束正常模型响应，下游停止消费会取消协议正文流。
+            for (var stage : List.of("PROVIDER_REQUEST_SENT", "PROVIDER_HEADERS", "PROVIDER_FIRST_DATA_FRAME", "PROVIDER_STREAM_END_CANCEL")) {
+                assertTrue(messages.toString(), messages.stream().anyMatch(message -> message.contains("stage=" + stage)
+                        && message.contains("invocationId=" + call.runtime().execution().executionId())
+                        && message.contains("attemptId=" + call.attempt().attemptId())));
+            }
+            assertFalse(messages.toString().contains("test-token"));
+            assertFalse(messages.toString().contains("你好"));
+        } finally {
+            logger.removeAppender(appender);
+            logger.setLevel(previous);
+            logger.setAdditive(additive);
+            appender.stop();
+        }
+    }
+
+    @Test
     public void coldSingleRequestPreservesWhitespaceAndMapsActualModelAndFinalUsage() throws Exception {
         try (var rig = new Rig()) {
             rig.reply.set(Reply.sse(": heartbeat\n\n" + chunk("你", null, "null") + chunk(" \n", null, "null")

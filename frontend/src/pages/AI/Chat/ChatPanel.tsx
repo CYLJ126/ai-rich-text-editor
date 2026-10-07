@@ -140,6 +140,28 @@ export default function ChatPanel({
                     {t('finishReason')}：{model.finishReason}
                   </p>
                 </>
+              ) : invocation?.streamText ? (
+                <>
+                  <section
+                    className="m-0 whitespace-pre-wrap break-words"
+                    aria-label={t('streamedReply')}
+                  >
+                    {invocation.streamText}
+                  </section>
+                  <p
+                    role="status"
+                    className="m-0 text-xs text-[var(--ant-color-text-secondary)]"
+                  >
+                    {t(
+                      invocation.status &&
+                      !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(
+                        invocation.status.state,
+                      )
+                        ? 'streamedPartial'
+                        : 'streamingReply',
+                    )}
+                  </p>
+                </>
               ) : (
                 <p className="m-0 text-sm text-[var(--ant-color-text-secondary)]">
                   {t(
@@ -155,8 +177,21 @@ export default function ChatPanel({
               {invocation?.status?.error && (
                 <Alert
                   type="warning"
-                  title={invocation.status.error.code}
-                  description={`${t('error.phase')}：${invocation.status.error.phase} · ${t('correlationId')}：${invocation.status.error.correlationId}`}
+                  title={
+                    model?.finishReason === 'LENGTH'
+                      ? t('outputLimitReached')
+                      : invocation.status.error.code
+                  }
+                  description={
+                    <>
+                      {model?.finishReason === 'LENGTH' && (
+                        <p>{t('outputLimitHint')}</p>
+                      )}
+                      {invocation.status.error.code} · {t('error.phase')}：
+                      {invocation.status.error.phase} · {t('correlationId')}：
+                      {invocation.status.error.correlationId}
+                    </>
+                  }
                 />
               )}
               {error(invocation?.error, () => void chat.loadHistory(chat.page))}
@@ -169,6 +204,33 @@ export default function ChatPanel({
           );
         })}
       </ol>
+      {current?.streamText &&
+        !current.result &&
+        !chat.turns.some(
+          (turn) =>
+            (turn.selectedInvocationId ?? turn.invocationIds.at(-1)) ===
+            chat.invocationId,
+        ) && (
+          <div className="space-y-2 rounded border border-solid border-[var(--ant-color-border)] p-3">
+            <span>{t('role.ASSISTANT')}</span>
+            <section
+              className="m-0 whitespace-pre-wrap break-words"
+              aria-label={t('streamedReply')}
+            >
+              {current.streamText}
+            </section>
+            <p role="status" className="m-0 text-xs">
+              {t(
+                current.status &&
+                !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(
+                  current.status.state,
+                )
+                  ? 'streamedPartial'
+                  : 'streamingReply',
+              )}
+            </p>
+          </div>
+        )}
       <Pagination
         size="small"
         simple

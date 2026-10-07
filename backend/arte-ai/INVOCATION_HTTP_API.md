@@ -124,7 +124,7 @@ Content-Type: application/json
 ```
 
 使用 fetch 流式读取，以便携带现有认证头。`afterSequence` 为必填排他游标，浏览器成功处理通知后保存 sequence，重连携带该值。
-首次连接从 0 重放；事件指针可能重复，按调用 ID 和 sequence 去重。
+首次连接从 0 重放；通知可能重复，按调用 ID 和 sequence 去重后再追加文字。
 
 ```text
 id:5
@@ -133,9 +133,33 @@ data:{"executionId":"<调用 ID>","sequence":5,"kind":"TERMINAL"}
 
 ```
 
-通知仅包含调用 ID、序号和种类，不携带原请求、输出正文或预算金额。收到 STARTED/TERMINAL/BUDGET_CHANGED
+OUTPUT 通知附带已落库的文本增量，同一个 OutputBatch 中的 TextDelta 按原顺序合并，保留空白与换行：
+
+```text
+id:4
+event:invocation
+data:{"executionId":"<调用 ID>","sequence":4,"kind":"OUTPUT","text":"你好\n"}
+
+```
+
+其他通知只包含调用 ID、序号和种类；不发送原请求、工具参数、供应商原始帧或预算金额。收到 STARTED/TERMINAL/BUDGET_CHANGED
 时用原有状态接口读取权威状态；有已提交结果时读取结果。 TERMINAL 到达即可展示回答及历史；若
 budgetState=RESERVED，继续观察直到预算通知到达并刷新账本。流关闭不代表调用或结算成功。
+
+同一连接另外接收 `text-delta`，用于展示模型原始文字增量，不等待 OutputBatch、数据库提交或 EVENT Outbox。 该帧没有 SSE id 或
+sequence，只包含调用、尝试、文字及起始 UTF-16 偏移：
+
+```text
+event:text-delta
+data:{"executionId":"<调用 ID>","attemptId":"<尝试 ID>","offset":0,"text":"你好"}
+
+```
+
+这是非耐久预览，不证明成功、已保存或已扣费。服务端检查当前 READ 授权与完整归属，长连接每 10 秒重新授权；
+结束、异常、过期或取消时注销预览监听。模型原始片段通常为一至几个字；最大 256 个 UTF-16 字符，大片段只做有界拆分， 保留代理对。SSE
+采用紧凑 UTF-8 JSON，不受全局 pretty-print 或非 ASCII 转义影响；不人为增加逐字播放延时。 浏览器按 offset 合并预览，以独立的已提交文字偏移处理
+OUTPUT。重叠部分不重复显示，未知缺口等待耐久事件补齐； 只有成功处理 invocation 通知才推进 afterSequence，不能用预览跳过重放。最终
+HTTP 结果覆盖预览。
 
 - Invocation/Event/EVENT Outbox 同事务提交。afterCommit 只异步唤醒发布器；回滚不通知。
 - `ExecutionEventPublisher` 只消费 EVENT，每批最多 64 条，校验租约后发布并 ACK。无在线浏览器也可 ACK；之后建连仍从耐久
@@ -157,7 +181,7 @@ Worker 时，可分别手动调用两个 Worker 的 pollOnce。
 ### 预算变更与 Redis 跨实例广播
 
 `reserve` 和首次 `settle` 在账本事务内追加 `BUDGET_CHANGED` Event 和 EVENT Outbox，payload 为
-`{state,reservationVersion,accountVersion}`。SSE 仍只传指针。回滚不通知；幂等重放不重复写事件、不重复扣费。
+`{state,reservationVersion,accountVersion}`。预算 SSE 通知只传指针。回滚不通知；幂等重放不重复写事件、不重复扣费。
 终态提交和账本结算独立，通知序号也独立于 Invocation.version；历史读取无需等到扣费结束。
 
 配置在 `backend/profile/app.properties`，构建过滤到 AI application.properties：
@@ -174,13 +198,52 @@ publish-timeout 限制为 100ms～30s，且必须短于 Outbox 租约。 所有 
 Worker 的节点领取 EVENT，发布成功后才 ACK。 广播仅传 `{schemaVersion,owner,invocationId,sequence}`，显式
 StringCodec，不发送正文、金额或凭据。
 
+实时文字另外使用同一 Topic 的 `live-text-v2:` 格式，包含 senderId 和 delta（owner/executionId/attemptId/offset/text）。
+接收端忽略自己的 senderId，避免本地直推后 Redis 再回送相同文字；兼容接收旧 `live-text-v1:`。
+发布端本地立即分发，跨实例通过独立的有界预览队列异步发布，不等待 Outbox 领取或确认。 该队列最多 256
+个片段；满队列／发布失败会丢弃预览，每个观看者最多缓存 1024 个片段，短暂突发保序，超限丢弃最旧预览，缺失片段由 OUTPUT 重放补齐。
+预览不重试模型，不写入 Redis 持久列表，也不改变账本。各节点需同时升级；旧节点仍能处理原耐久事件指针，但忽略预览格式。
+
 Redis Pub/Sub 提示不耐久（见 [Redis 官方说明](https://redis.io/docs/latest/develop/use-cases/pub-sub/)）；数据库 Event 与
 Outbox 是权威。 发布失败、超时或 ACK 失败保留租约等待恢复扫描；发布成功但订阅端断开时，重新订阅会唤醒本节点所有连接按游标重读数据库。
 重复提示通过 sequence 去重，按 owner 隔离；浏览器断线通过重放和 10 秒 HTTP 兜底恢复。 停机只移除本组件的监听器，不关闭共享
 RedissonClient。
 
 无新增 DDL、菜单或权限。应先重建后端、更新所有实例，再启用 Redis 广播；新增预算事件要求这些实例使用支持 budget-changed 的编码器。
-本次仍不提供逐字输出。
+文本输出支持流式上屏：首个 TextDelta 立即关闭当前批次，后续按最多 128 条信号或 500 毫秒成批提交。
+时间阈值从当前批次第一条信号开始计时，数据库耗时、消费反压及通知传输仍会增加实际可见延迟。 每批先完成耐久事件与 EVENT
+Outbox 事务，再唤醒发布器；耐久 Redis 通知只广播指针，HTTP 节点从数据库读取文字。 模型与耐久写入之间最多缓存 8192 条信号，累计文本受
+100 万 UTF-16 单元及网关输出字节上限约束。 超限取消本次流并报告未知结果，不丢失输出后标记成功，也不自动重执行。 实时
+text-delta 在模型回调中先独立分发，不等待这些阶段。前端有界暂存乱序片段，缺口补齐即上屏。前端合并 offset 与
+sequence，断线重放不重复拼接， TERMINAL 后由 getInvocationResult 校准完整回复和用量。
+断流且完整结果不可用时，已收到的文字仅作为部分输出展示，不代表调用成功，也不自动重发。
+
+### 分段耗时日志
+
+按调用 ID 筛选 `AI_TIMING` 日志，可区分模型首段等待、提交与通知延迟以及终态后的预算处理。 日志仅含调用
+ID、traceId、attemptId、阶段、耗时和事件序号，不记录用户／模型正文或凭据。
+
+| 阶段                                                                                    | 含义                                                                        |
+|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| CHAT_ACCEPTED → DISPATCH_START                                                          | HTTP 受理后到 Worker 开始派发的等待                                         |
+| DISPATCH_LOADED / PREFLIGHT_READY / ATTEMPT_CREATED / BUDGET_RESERVED / DISPATCH_MARKED | 加载、配置授权检查、创建尝试、预留及发送标记完成                            |
+| GATEWAY_SUBSCRIBED → PROVIDER_REQUEST_SENT                                              | 进入模型网关至请求正文发送完成，含连接／凭据检查和网络建连                  |
+| PROVIDER_HEADERS                                                                        | 收到响应头，此时未必已有模型文字                                            |
+| PROVIDER_FIRST_DATA_FRAME                                                               | 第一条有效供应商 data 帧，可能是角色或用量帧                                |
+| FIRST_TEXT_DELTA                                                                        | 适配器产出第一条文字；与 PROVIDER_REQUEST_SENT 的时间差用于观察首段文字等待 |
+| FIRST_OUTPUT_COMMITTED                                                                  | 第一批文字耐久提交，phaseMs 含 Guard 读取、冲突重试与事务提交               |
+| SSE_FIRST_LIVE_TEXT_ENQUEUED                                                            | 第一个非耐久文字预览进入 SSE，和 FIRST_TEXT_DELTA 对齐可观察实时通道延迟    |
+| EVENT_PUBLISHED / EVENT_ACKED（DEBUG）                                                  | 对应 sequence 的通知发布与 Outbox 确认完成                                  |
+| SSE_FIRST_TEXT_ENQUEUED（INFO） / SSE_EVENT_ENQUEUED（DEBUG）                           | 文字／事件进入 MVC SSE 响应流；并非浏览器已收到或完成绘制                   |
+| PROVIDER_STREAM_END_* / GATEWAY_COMPLETED                                               | 协议正文停止消费／适配器信号流正常完成；不是执行成功证明                    |
+| RESULT_STORED / RESULT_NOT_AVAILABLE / TERMINAL_COMMITTED                               | 保存结果或无可用结果、耐久终态提交完成                                      |
+| BUDGET_PROCESSING_DONE / DISPATCH_END_* / SSE_END_*                                     | 预算处理流程、派发订阅与观看连接结束；需结合状态接口确认结果                |
+
+INFO 记录关键阶段，逐批 OUTPUT_BATCH_COMMITTED、EVENT 发布／确认与 SSE 排队使用 DEBUG，诊断时单独打开
+`com.arte.ainew.application.support.InvocationTiming` 的 DEBUG 即可。`elapsedMs` 从当前组件流程开始，`phaseMs` 从指定阶段开始，
+均使用单调时钟；跨组件用日志时间、invocationId 和 sequence 对齐，不相减不同组件的 elapsedMs。跨节点对齐需保证时钟同步。 正常收到
+`[DONE]` 时，takeUntil 会取消上游正文，可能记录 PROVIDER_STREAM_END_CANCEL；它不等同于业务 CANCELLED。 SSE 请求在 DevTools
+的“内容下载”时间包含连接持续时间，不能将它直接解释为模型耗时。
 
 Spring MVC 使用响应式流适配
 SSE，并根据写入需求消费事件，参见 [Spring 官方异步请求文档](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html)。

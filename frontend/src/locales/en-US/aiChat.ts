@@ -1,4 +1,7 @@
 export default {
+  'app.aiChat.useMultiTurnLimits': 'Use multi-turn test limits',
+  'app.aiChat.multiTurnLimitsHint':
+    'The input limit includes previous questions, replies, and the current question. Multi-turn testing uses 32768 input and 512 output tokens, requiring a binding window of at least 33280. A larger input limit increases the budget reservation. Apply the configuration after using this button.',
   'app.aiChat.unknownOutcome':
     'The invocation outcome is unknown. Reconcile it on the backend, then refresh history before continuing. Do not resubmit the message.',
   'app.aiChat.title': 'AI Chat Test',
@@ -105,6 +108,10 @@ export default {
   'app.aiChat.usage': 'Input / output tokens',
   'app.aiChat.unknown': 'Unknown',
   'app.aiChat.finishReason': 'Finish reason',
+  'app.aiChat.outputLimitReached':
+    'Output token limit reached; partial reply retained',
+  'app.aiChat.outputLimitHint':
+    'Increase Max output tokens (for example, to 2048), apply the configuration, then send a new message, or request a shorter answer. The limit must fit the backend configuration; a larger limit increases the budget reservation. This invocation will not continue automatically.',
   'app.aiChat.waitingReply': 'Waiting for the model response…',
   'app.aiChat.noResult': 'No response available yet',
   'app.aiChat.error.phase': 'Failure phase',
@@ -140,4 +147,8 @@ export default {
     'Pending reconciliation (hold retained)',
   'app.aiChat.budgetState.SETTLED': 'Settled',
   'app.aiChat.budgetState.RELEASED': 'Released',
+  'app.aiChat.streamedReply': 'Streamed reply',
+  'app.aiChat.streamingReply': 'Generating…',
+  'app.aiChat.streamedPartial':
+    'Partial output received; the final result is not available.',
 };

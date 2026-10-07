@@ -1,6 +1,7 @@
 package com.arte.ainew.application.execution;
 
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
@@ -127,8 +128,18 @@ public final class ExecutionEventPublisher implements SmartLifecycle {
                         }
                         // 发布流程正常结束后，then 才订阅 ACK 流；确认时存储再次核验 Worker、token 和有效租约。
                         // ack 成功贡献 1，否则转为异常交给本条消息的恢复分支；ACK 不要求当前存在在线浏览器。
-                        return executionEventBroadcast.publish(message).then(executionOutboxStore.acknowledge(message)).flatMap(ack -> ack.successful() ? Mono.just(1)
-                                : Mono.error(AdmissionException.fromStoreRejection(ack.code())));
+                        var timing = new InvocationTiming(message.invocationId(), null, null, System.nanoTime());
+                        return executionEventBroadcast.publish(message)
+                                .doOnSuccess(ignored -> timing.batch("EVENT_PUBLISHED", timing.startedNanos(), message.eventSequence()))
+                                .then(Mono.defer(() -> {
+                                    long ackStart = System.nanoTime();
+                                    return executionOutboxStore.acknowledge(message).flatMap(ack -> {
+                                        if (!ack.successful())
+                                            return Mono.error(AdmissionException.fromStoreRejection(ack.code()));
+                                        timing.batch("EVENT_ACKED", ackStart, message.eventSequence());
+                                        return Mono.just(1);
+                                    });
+                                }));
                     }).onErrorResume(error -> {
                         // 单条失败不终止整批，也不在这里重新发布；保留未确认记录，租约到期后再领取。
                         log.warn("AI EVENT message {} was not acknowledged", message.messageId());
