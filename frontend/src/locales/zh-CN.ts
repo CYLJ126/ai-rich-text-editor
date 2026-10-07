@@ -1,4 +1,5 @@
 import app from './zh-CN/app';
+import aiChat from './zh-CN/aiChat';
 import component from './zh-CN/component';
 import globalHeader from './zh-CN/globalHeader';
 import menu from './zh-CN/menu';
@@ -14,6 +15,7 @@ export default {
   'layout.user.link.terms': '条款',
   'app.preview.down.block': '下载此页面到本地项目',
   ...app,
+  ...aiChat,
   ...pages,
   ...globalHeader,
   ...menu,

@@ -1,4 +1,5 @@
 import app from './en-US/app';
+import aiChat from './en-US/aiChat';
 import component from './en-US/component';
 import globalHeader from './en-US/globalHeader';
 import menu from './en-US/menu';
@@ -14,6 +15,7 @@ export default {
   'layout.user.link.terms': 'Terms',
   'app.preview.down.block': 'Download this page to your local project',
   ...app,
+  ...aiChat,
   ...globalHeader,
   ...menu,
   ...settingDrawer,

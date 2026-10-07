@@ -1,7 +1,7 @@
 // https://umijs.org/config/
 
-import { join } from 'node:path';
-import { defineConfig } from '@umijs/max';
+import {join} from 'node:path';
+import {defineConfig} from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 
@@ -97,6 +97,10 @@ export default defineConfig({
   // umi routes: https://umijs.org/docs/routing
   // 注释，从后端获取菜单和路由
   // routes,
+  // Chat 目录只注册页面入口，配置、测试和说明文档不作为约定式路由。
+  conventionRoutes: {
+    exclude: [/^AI\/Chat\/(?!index\.tsx$)/],
+  },
   /**
    * @name theme 主题的配置
    * @description 虽然叫主题，但是其实只是 less 的变量设置
