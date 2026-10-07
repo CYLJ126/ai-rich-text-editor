@@ -69,6 +69,10 @@ public class ConversationExceptionHandler {
         if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
             // 不记录请求正文、快照或底层异常文本，它们可能包含用户输入或数据库参数。
             log.error("New AI HTTP failure, type={}", exception.getClass().getName());
+        } else {
+            // 可预期拒绝也留诊断线索；不写请求参数、异常原文、认证头或用户／模型正文。
+            log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, type={}",
+                    request.getMethod(), path, status.value(), code.getCode(), exception.getClass().getName());
         }
         return ResponseEntity.status(status).body(body);
     }
