@@ -60,7 +60,7 @@ Accept-Language: zh-CN
 
 回执只在 Invocation、Turn、会话版本和 DISPATCH Outbox 的受理事务成功后返回。返回 202 不表示模型已完成或预算已结算；Controller 不调用 Gateway、不主动派发、不等待模型结果。执行需要另外启用生成与执行配置，以及 Worker 自动轮询或显式手动消费。
 
-当前 `AcceptedExecution` 不包含轮次 ID；响应不伪造轮次 ID 或当前会话版本。可通过现有 `queryTurnsOfConversation` 查询轮次的 `invocationIds` 与本次调用对应。后续实现 `NewAiInvocationController` 的状态／结果接口后，页面通过 `invocationId` 查询进度和回答。
+当前 `AcceptedExecution` 不包含轮次 ID；响应不伪造轮次 ID 或当前会话版本。可通过现有 `queryTurnsOfConversation` 查询轮次的 `invocationIds` 与本次调用对应。页面通过 [执行查询接口](INVOCATION_HTTP_API.md) 的 `invocationId` 查询进度、回答和已持久化事件；状态响应也包含受理关联的轮次 ID。
 
 同键同内容返回原受理回执及原受理时间；新操作须使用新幂等键。不要因网络超时自动生成新键重发。
 
