@@ -9,9 +9,11 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -20,6 +22,10 @@ import java.util.function.Supplier;
 
 /**
  * 返回结果包装，用于系统间调用、前后端调用
+ * <p>
+ * desc 保存最终展示文本，setter 不负责翻译。
+ * 工厂方法支持 message key；未指定 Locale 时使用调用线程语言，适用于同步 MVC 调用。
+ * 异步或响应式调用应在 HTTP 入口取得 Locale，传入显式 Locale 工厂方法。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2024/7/12 23:24 ✾
@@ -46,8 +52,7 @@ public class ResultContext<T> implements IResult, Serializable {
 
     @Override
     public ResultContext<T> setDesc(String desc) {
-        // desc 支持传 message key，按当前语言解析；未收录的原始文本原样返回
-        this.desc = MessageUtils.get(desc);
+        this.desc = desc;
         return this;
     }
 
@@ -85,10 +90,24 @@ public class ResultContext<T> implements IResult, Serializable {
     }
 
     public static <T> ResultContext<T> success(T data, ResultCodeEnum resultCode, String desc) {
+        return success(data, resultCode, desc, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建标准成功响应，适用于异步或响应式调用。
+     */
+    public static <T> ResultContext<T> success(T data, ResultCodeEnum resultCode, Locale locale) {
+        return success(data, resultCode, resultCode.getDesc(locale), locale);
+    }
+
+    /**
+     * 按显式请求语言解析 message key；未收录的文本原样保存。
+     */
+    public static <T> ResultContext<T> success(T data, ResultCodeEnum resultCode, String desc, Locale locale) {
         ResultContext<T> result = new ResultContext<>();
         result.code = resultCode.getCode();
         result.success = Boolean.TRUE;
-        result.setDesc(desc);
+        result.setDesc(MessageUtils.get(locale, desc));
         result.setData(data);
         return result;
     }
@@ -98,8 +117,15 @@ public class ResultContext<T> implements IResult, Serializable {
     }
 
     public static <T> ResultContext<T> exception(Throwable ex) {
-        Pair<ResultCodeEnum, String> errPair = ExceptionUtil.desensitizePair(ex);
-        return fail(errPair.getKey(), errPair.getValue());
+        return exception(ex, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建安全异常响应，不回传原始异常消息。
+     */
+    public static <T> ResultContext<T> exception(Throwable ex, Locale locale) {
+        Pair<ResultCodeEnum, String> errPair = ExceptionUtil.desensitizePair(ex, locale);
+        return fail(errPair.getKey(), errPair.getValue(), locale);
     }
 
     public static <T> ResultContext<T> fail() {
@@ -120,10 +146,24 @@ public class ResultContext<T> implements IResult, Serializable {
     }
 
     public static <T> ResultContext<T> fail(ResultCodeEnum resultCode, String desc) {
+        return fail(resultCode, desc, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建标准失败响应。
+     */
+    public static <T> ResultContext<T> fail(ResultCodeEnum resultCode, Locale locale) {
+        return fail(resultCode, resultCode.getDesc(locale), locale);
+    }
+
+    /**
+     * 按显式请求语言解析 message key；未收录的文本原样保存。
+     */
+    public static <T> ResultContext<T> fail(ResultCodeEnum resultCode, String desc, Locale locale) {
         ResultContext<T> result = new ResultContext<>();
         result.code = resultCode.getCode();
         result.success = Boolean.FALSE;
-        result.setDesc(desc);
+        result.setDesc(MessageUtils.get(locale, desc));
         return result;
     }
 

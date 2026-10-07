@@ -3,6 +3,9 @@ package com.arte.core.utils;
 import cn.hutool.core.lang.Pair;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.CommonException;
+import org.springframework.context.i18n.LocaleContextHolder;
+
+import java.util.Locale;
 
 /**
  * 异常处理工具
@@ -39,6 +42,13 @@ public class ExceptionUtil {
      * @return 结果码及其国际化提示
      */
     public static Pair<ResultCodeEnum, String> desensitizePair(Throwable ex) {
+        return desensitizePair(ex, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言返回安全文案，不依赖异常产生或响应构建线程的语言。
+     */
+    public static Pair<ResultCodeEnum, String> desensitizePair(Throwable ex, Locale locale) {
         ResultCodeEnum resultCode = ResultCodeEnum.SYSTEM_EXCEPTION;
         if (ex instanceof CommonException commonException) {
             resultCode = commonException.getResultCode();
@@ -48,6 +58,6 @@ public class ExceptionUtil {
         if (resultCode == null) {
             resultCode = ResultCodeEnum.SYSTEM_EXCEPTION;
         }
-        return Pair.of(resultCode, resultCode.getDesc());
+        return Pair.of(resultCode, resultCode.getDesc(locale));
     }
 }

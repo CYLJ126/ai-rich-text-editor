@@ -14,12 +14,10 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.io.Serial;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -27,6 +25,10 @@ import java.util.stream.Stream;
 
 /**
  * 列表查询结果包装器
+ * <p>
+ * desc 保存最终展示文本，setter 不负责翻译。
+ * 未指定 Locale 的工厂方法使用调用线程语言；异步或响应式调用应在 HTTP 入口取得 Locale，
+ * 传入显式 Locale 工厂方法。copy 和 JSON 反序列化保留已有 desc，不再次翻译。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2025/6/13 20:39 ✾
@@ -46,9 +48,16 @@ public class PageView<T> extends Page<T> implements IResult {
     private Boolean success;
 
     public PageView() {
+        this(LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按指定语言初始化分页响应。
+     */
+    public PageView(Locale locale) {
         /* 默认为成功，直接获取列表，当查询失败，则设置为失败返回 */
         this.code = ResultCodeEnum.SUCCESS.getCode();
-        this.desc = ResultCodeEnum.SUCCESS.getDesc();
+        this.desc = ResultCodeEnum.SUCCESS.getDesc(locale);
         this.success = Boolean.TRUE;
     }
 
@@ -89,7 +98,14 @@ public class PageView<T> extends Page<T> implements IResult {
     }
 
     public static <T> PageView<T> success(IPage<T> page) {
-        PageView<T> result = new PageView<>();
+        return success(page, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言将查询分页转换为成功响应。
+     */
+    public static <T> PageView<T> success(IPage<T> page, Locale locale) {
+        PageView<T> result = new PageView<>(locale);
         result.setCurrent(page.getCurrent());
         result.setSize(page.getSize());
         result.setTotal(page.getTotal());
@@ -98,7 +114,14 @@ public class PageView<T> extends Page<T> implements IResult {
     }
 
     public static <T> PageView<T> empty() {
-        PageView<T> result = new PageView<>();
+        return empty(LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建空分页响应。
+     */
+    public static <T> PageView<T> empty(Locale locale) {
+        PageView<T> result = new PageView<>(locale);
         result.setCurrent(1);
         result.setSize(10);
         result.setTotal(0);
@@ -125,15 +148,36 @@ public class PageView<T> extends Page<T> implements IResult {
     }
 
     public static <T> PageView<T> fail(ResultCodeEnum resultCode, String desc) {
-        PageView<T> result = new PageView<>();
+        return fail(resultCode, desc, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建标准失败响应。
+     */
+    public static <T> PageView<T> fail(ResultCodeEnum resultCode, Locale locale) {
+        return fail(resultCode, resultCode.getDesc(locale), locale);
+    }
+
+    /**
+     * 按显式请求语言解析 message key；未收录的文本原样保存。
+     */
+    public static <T> PageView<T> fail(ResultCodeEnum resultCode, String desc, Locale locale) {
+        PageView<T> result = new PageView<>(locale);
         result.code = resultCode.getCode();
         result.success = Boolean.FALSE;
-        result.setDesc(MessageUtils.get(desc));
+        result.setDesc(MessageUtils.get(locale, desc));
         return result;
     }
 
     public static <T> PageView<T> success(Collection<T> records) {
-        PageView<T> result = new PageView<>();
+        return success(records, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建集合成功响应。
+     */
+    public static <T> PageView<T> success(Collection<T> records, Locale locale) {
+        PageView<T> result = new PageView<>(locale);
         result.setCurrent(1);
         result.setSize((records.size() / 100 + 1) * 100L);
         result.setTotal(records.size());
@@ -142,8 +186,15 @@ public class PageView<T> extends Page<T> implements IResult {
     }
 
     public static <T> PageView<T> exception(Throwable ex) {
-        Pair<ResultCodeEnum, String> errPair = ExceptionUtil.desensitizePair(ex);
-        return fail(errPair.getKey(), errPair.getValue());
+        return exception(ex, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * 按显式请求语言构建安全异常响应，不回传原始异常消息。
+     */
+    public static <T> PageView<T> exception(Throwable ex, Locale locale) {
+        Pair<ResultCodeEnum, String> errPair = ExceptionUtil.desensitizePair(ex, locale);
+        return fail(errPair.getKey(), errPair.getValue(), locale);
     }
 
     /**

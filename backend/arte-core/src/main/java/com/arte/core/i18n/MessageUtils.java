@@ -4,6 +4,8 @@ import cn.hutool.core.text.CharSequenceUtil;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 
+import java.util.Locale;
+
 /**
  * 国际化消息工具
  *
@@ -14,6 +16,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
  * <p>当前语言由 {@link LocaleContextHolder} 提供：Web 请求线程由 DispatcherServlet
  * 根据 LocaleResolver（Accept-Language）解析；非请求线程（定时任务、异步等）
  * 使用 {@link I18nConfig} 设置的默认 locale（简体中文）。
+ * 异步或响应式调用应在 HTTP 入口取得语言，再使用显式 Locale 重载，避免依赖工作线程的语言。
  *
  * @author haiqingd
  * @since 2026/8/30
@@ -37,6 +40,19 @@ public final class MessageUtils {
      * @return 翻译后的文案；MessageSource 未初始化（如单测环境）时返回原文
      */
     public static String get(String keyOrText, Object... args) {
+        return get(LocaleContextHolder.getLocale(), keyOrText, args);
+    }
+
+    /**
+     * 按指定语言翻译，不读取或修改当前线程的语言。
+     * Locale 放在首位，避免与现有消息占位参数的可变参数重载混淆。
+     *
+     * @param locale 请求语言；null 使用系统默认简体中文
+     * @param keyOrText message key，或未收录的原始文本
+     * @param args MessageFormat 占位参数
+     * @return 翻译后的文案；未收录或消息源未初始化时返回原文
+     */
+    public static String get(Locale locale, String keyOrText, Object... args) {
         if (CharSequenceUtil.isBlank(keyOrText)) {
             return keyOrText;
         }
@@ -45,7 +61,8 @@ public final class MessageUtils {
             return keyOrText;
         }
         try {
-            return source.getMessage(keyOrText, args, keyOrText, LocaleContextHolder.getLocale());
+            return source.getMessage(keyOrText, args, keyOrText,
+                    locale == null ? I18nConfig.DEFAULT_LOCALE : locale);
         } catch (Exception e) {
             return keyOrText;
         }

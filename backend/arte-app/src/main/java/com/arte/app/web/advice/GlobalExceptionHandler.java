@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Locale;
+
 /**
  * 全局异常处理：把未被 Controller 捕获的异常统一转换为 ResultContext 返回。
  *
@@ -23,17 +25,17 @@ public class GlobalExceptionHandler {
      * 业务异常：预期内的业务分支失败，warn 级别记录
      */
     @ExceptionHandler(CommonException.class)
-    public ResultContext<Void> handleCommonException(CommonException e) {
+    public ResultContext<Void> handleCommonException(CommonException e, Locale locale) {
         log.warn("业务异常: {}", e.getMessage(), e);
-        return ResultContext.exception(e);
+        return ResultContext.exception(e, locale);
     }
 
     /**
      * 兜底异常：未预期的系统错误，error 级别记录
      */
     @ExceptionHandler(Exception.class)
-    public ResultContext<Void> handleException(Exception e) {
+    public ResultContext<Void> handleException(Exception e, Locale locale) {
         log.error("系统异常: {}", e.getMessage(), e);
-        return ResultContext.exception(e);
+        return ResultContext.exception(e, locale);
     }
 }
