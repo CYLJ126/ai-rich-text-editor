@@ -109,7 +109,9 @@ ModelGateway 需覆盖 `supportsTextChat`；默认返回 false，不影响已有
 | 500  | 非预期服务错误，使用现有统一异常包装，不暴露底层配置文本 |
 
 功能默认关闭；控制器跟随 `arte.ai-new.enabled` 注册。 查询只读取受信配置及授权信息，不调用 generate、不保存上下文、不创建
-Invocation／Turn／Outbox、 不读取账本、不预留预算、不解析凭据、不初始化数据源或探测远端。 第 3 步的前端选择器尚未接入，本次现有聊天提交请求结构保持不变。
+Invocation／Turn／Outbox、 不读取账本、不预留预算、不解析凭据、不初始化数据源或探测远端。 前端 `/AI/Chat`
+已接入模型与兼容预算选择，现有聊天提交请求结构保持不变。使用流程见
+[前端聊天文档](../../frontend/src/pages/AI/Chat/README.md)。
 
 ## 验证
 

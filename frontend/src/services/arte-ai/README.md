@@ -1,6 +1,6 @@
-# 新 AI 前端接口（第一步）
+# 新 AI 前端接口
 
-本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 9 个 JSON POST 接口。页面位于
+本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 10 个 JSON POST 接口。页面位于
 `src/pages/AI/Chat`；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
 
 统一从 `@/services/arte-ai` 导入。成功返回 `{ httpStatus, body }`：普通接口使用 `body.data`，分页接口使用 `body.records`、
@@ -27,24 +27,26 @@ try {
 }
 ```
 
-| 功能     | 导出函数                                             | 响应位置                 |
-|----------|------------------------------------------------------|--------------------------|
-| 创建会话 | `createConversation(data, idempotencyKey, options?)` | `body.data`              |
-| 会话列表 | `listConversations(data, options?)`                  | `body.records`           |
-| 会话详情 | `getConversation(data, options?)`                    | `body.data`              |
-| 轮次历史 | `queryTurnsOfConversation(data, options?)`           | `body.records`           |
-| 发送文本 | `turnsForChat(data, idempotencyKey, options?)`       | `body.data`，HTTP 202    |
-| 执行状态 | `getInvocationStatus(data, options?)`                | `body.data`              |
-| 执行结果 | `getInvocationResult(data, options?)`                | `body.data.result.value` |
-| 事件重放 | `invocationEvent(data, options?)`                    | `body.data.events`       |
-| 预算快照 | `getBudget(data, options?)`                          | `body.data`              |
+| 功能         | 导出函数                                             | 响应位置                 |
+|--------------|------------------------------------------------------|--------------------------|
+| 发现聊天配置 | `discoverChatOptions({scope}, options?)`             | `body.data.options`      |
+| 创建会话     | `createConversation(data, idempotencyKey, options?)` | `body.data`              |
+| 会话列表     | `listConversations(data, options?)`                  | `body.records`           |
+| 会话详情     | `getConversation(data, options?)`                    | `body.data`              |
+| 轮次历史     | `queryTurnsOfConversation(data, options?)`           | `body.records`           |
+| 发送文本     | `turnsForChat(data, idempotencyKey, options?)`       | `body.data`，HTTP 202    |
+| 执行状态     | `getInvocationStatus(data, options?)`                | `body.data`              |
+| 执行结果     | `getInvocationResult(data, options?)`                | `body.data.result.value` |
+| 事件重放     | `invocationEvent(data, options?)`                    | `body.data.events`       |
+| 预算快照     | `getBudget(data, options?)`                          | `body.data`              |
 
 `options` 只接受 `{ signal?: AbortSignal }`，供页面切换会话/卸载时取消请求。封装不自动重试、不自动生成幂等键、不启动轮询、不弹窗。使用
 `skipErrorHandler` 交给页面处理错误，同时全局响应拦截器尊重此标记，避免重复提示。
 
 - 创建及发送使用必填 `Idempotency-Key`；读取接口不需要。范围 `scope` 由后端验证，不能自行声明用户或权限。
 - 历史查询及发送的 `expectedVersion` 从会话详情读取；409/`205030` 表示版本冲突，需要页面刷新详情后决定下一步。
-- 发送需要已发布的 capability/binding 固定版本、budgetRef 及 Token/超时限制；当前后端没有配置发现接口，后续页面需提供这些测试配置，不能假设默认值存在。
+- 发送需要已发布的 capability/binding 固定版本、budgetRef 及 Token/超时限制；固定引用、兼容预算、参数限制和推荐值从
+  discoverChatOptions 获取，不能假设默认值存在。
 - 结果 409/`205041` 表示尚未可用；事件 410/`205037` 表示游标过期。空事件页不表示结束，`UNKNOWN` 不表示成功，也不允许自动重发。
 - 文本结果先检查 `kind === 'GENERATION'`，再读取 `result.value.outputs[*].content`，通过 `'text' in part` 取文本。未知用量保持
   null，预算金额保持十进制字符串。

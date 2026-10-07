@@ -4,6 +4,35 @@ export interface AiScope {
   workspaceId: string;
 }
 
+export interface DiscoverChatOptionsRequest {
+  scope: AiScope;
+}
+
+/** 后端公开的配置选择白名单，金额由 getBudget 单独查询。 */
+export interface ChatModelOption {
+  displayName: string;
+  binding: DefinitionRef<'binding'>;
+  capability: DefinitionRef<'capability'>;
+  contextWindowTokens: number;
+  limits: {
+    maxInputTokens: number;
+    maxOutputTokens: number;
+    maxInputBytes: number;
+    maxOutputBytes: number;
+    maxTimeoutSeconds: number;
+  };
+  defaults: {
+    maxInputTokens: number;
+    maxOutputTokens: number;
+    timeoutSeconds: number;
+  };
+  budgetRefs: string[];
+}
+
+export interface ChatConfigurationResponse {
+  options: ChatModelOption[];
+}
+
 export interface DefinitionRef<T extends string = string> {
   type: T;
   id: string;

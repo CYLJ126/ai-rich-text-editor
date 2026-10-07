@@ -10,11 +10,13 @@ export default function ConversationWorkspace({
                                                 dirty,
                                                 config,
                                                 t,
+                                                maxInputBytes,
                                               }: {
   scope: AiScope | null;
   dirty: boolean;
   config: ChatTestConfig | null;
   t: (key: string) => string;
+  maxInputBytes?: number;
 }) {
   const conversations = useConversations(scope);
   const [open, setOpen] = useState(false);
@@ -199,6 +201,7 @@ export default function ConversationWorkspace({
             dirty={dirty}
             onUpdated={conversations.updateConversation}
             t={t}
+            maxInputBytes={maxInputBytes}
           />
         ) : (
           <>

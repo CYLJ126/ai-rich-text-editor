@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import type {ChatModelOption} from '@/services/arte-ai';
 
 const identifier = z
   .string('app.aiChat.validation.required')
@@ -15,6 +16,34 @@ const integer = (max: number) =>
     .int('app.aiChat.validation.integer')
     .min(1, 'app.aiChat.validation.positive')
     .max(max, 'app.aiChat.validation.range');
+
+export const chatScopeSchema = z.object({tenantId: identifier, workspaceId: identifier});
+
+export function modelOptionKey(option: Pick<ChatModelOption, 'binding'>): string {
+  return JSON.stringify([option.binding.id, option.binding.version]);
+}
+
+export function matchesModel(config: ChatConfigValues, option: ChatModelOption): boolean {
+  return config.bindingId === option.binding.id && config.bindingVersion === option.binding.version
+    && config.capabilityId === option.capability.id && config.capabilityVersion === option.capability.version;
+}
+
+/** 缓存及表单还需经过当前发现结果检查，前端检查不替代提交时的授权。 */
+export function selectedChatConfigSchema(option: ChatModelOption) {
+  return chatConfigSchema.superRefine((config, ctx) => {
+    const issue = (field: keyof ChatTestConfig, message: string) => ctx.addIssue({
+      code: 'custom',
+      path: [field],
+      message
+    });
+    if (!matchesModel(config, option)) issue('bindingId', 'app.aiChat.validation.modelUnavailable');
+    if (!option.budgetRefs.includes(config.budgetRef)) issue('budgetRef', 'app.aiChat.validation.budgetUnavailable');
+    if (config.maxInputTokens > option.limits.maxInputTokens) issue('maxInputTokens', 'app.aiChat.validation.serverLimit');
+    if (config.maxOutputTokens > option.limits.maxOutputTokens) issue('maxOutputTokens', 'app.aiChat.validation.serverLimit');
+    if (config.maxInputTokens + config.maxOutputTokens > option.contextWindowTokens) issue('maxInputTokens', 'app.aiChat.validation.contextWindow');
+    if (config.timeoutSeconds > option.limits.maxTimeoutSeconds) issue('timeoutSeconds', 'app.aiChat.validation.serverLimit');
+  });
+}
 
 export const chatConfigSchema = z.object({
   tenantId: identifier,

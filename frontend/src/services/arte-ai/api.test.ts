@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   AiApiError,
   createConversation,
+  discoverChatOptions,
   getBudget,
   getConversation,
   getInvocationResult,
@@ -91,6 +92,11 @@ describe('新 AI 接口封装', () => {
     page: {current: 1, size: 20},
   };
   const cases = [
+    {
+      path: 'configuration/discoverChatOptions',
+      data: {scope},
+      call: () => discoverChatOptions({scope}),
+    },
     {
       path: 'conversation/createConversation',
       data: createData,

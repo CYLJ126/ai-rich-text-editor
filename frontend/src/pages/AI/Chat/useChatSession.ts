@@ -52,6 +52,7 @@ export function useChatSession(
   config: ChatTestConfig,
   initial: ConversationResponse,
   onUpdated: (conversation: ConversationResponse) => void,
+  maxInputBytes?: number,
 ) {
   const settings = useRef(config);
   settings.current = config;
@@ -565,6 +566,8 @@ export function useChatSession(
 
   async function send() {
     if (requests.current.submit || !alive.current) return;
+    // 本轮 UTF-8 预检；服务端检查合并历史后的容量。原幂等重试不受新模型额度改写。
+    if (!pendingRef.current && maxInputBytes !== undefined && new TextEncoder().encode(draft.trim()).length > maxInputBytes) return;
     if (
       !pendingRef.current &&
       (historyLoading ||

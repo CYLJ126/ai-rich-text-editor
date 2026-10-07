@@ -1,4 +1,5 @@
 export {getBudget} from './budget';
+export {discoverChatOptions} from './configuration';
 export {turnsForChat} from './chat';
 export {
   createConversation,

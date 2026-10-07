@@ -1,5 +1,5 @@
 import {Alert, Button, Empty, Input, Pagination, Tag} from 'antd';
-import React from 'react';
+import React, {useMemo} from 'react';
 import {AiApiError, type ChatMessage, type ConversationResponse,} from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
 import {hasAvailableBudget, HISTORY_PAGE_SIZE, useChatSession,} from './useChatSession';
@@ -16,14 +16,18 @@ export default function ChatPanel({
                                     dirty,
                                     onUpdated,
                                     t,
+                                    maxInputBytes,
                                   }: {
   config: ChatTestConfig;
   conversation: ConversationResponse;
   dirty: boolean;
   onUpdated: (conversation: ConversationResponse) => void;
   t: (key: string) => string;
+  maxInputBytes?: number;
 }) {
-  const chat = useChatSession(config, conversation, onUpdated);
+  const chat = useChatSession(config, conversation, onUpdated, maxInputBytes);
+  const inputTooLarge = useMemo(() => maxInputBytes !== undefined
+    && new TextEncoder().encode(chat.draft.trim()).length > maxInputBytes, [chat.draft, maxInputBytes]);
   const available = chat.budget && hasAvailableBudget(chat.budget.available);
   const blocked =
     dirty ||
@@ -295,6 +299,7 @@ export default function ChatPanel({
       {error(chat.submitError)}
       {chat.pending && <Alert type="warning" title={t('retryMessageHint')}/>}
       {dirty && <p className="m-0 text-xs">{t('applyDraft')}</p>}
+      {!chat.pending && inputTooLarge && <Alert type="warning" title={t('inputTooLarge')}/>}
       <Input.TextArea
         value={chat.draft}
         onChange={(event) => chat.setDraft(event.target.value)}
@@ -311,7 +316,7 @@ export default function ChatPanel({
           disabled={
             chat.pending
               ? dirty || chat.submitting
-              : blocked || !chat.draft.trim()
+              : blocked || inputTooLarge || !chat.draft.trim()
           }
           onClick={() => void chat.send()}
         >

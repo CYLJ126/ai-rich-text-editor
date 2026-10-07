@@ -1,4 +1,23 @@
 export default {
+  'app.aiChat.loadOptions': 'Load available options',
+  'app.aiChat.loadingOptions': 'Loading available models…',
+  'app.aiChat.optionsEmpty': 'No model and budget combination is available in this workspace. Contact your administrator.',
+  'app.aiChat.savedSelectionUnavailable': 'The saved model, budget, or parameters are no longer available. Select and apply a configuration again.',
+  'app.aiChat.model': 'Model',
+  'app.aiChat.selectModel': 'Select an available model',
+  'app.aiChat.selectBudget': 'Select a compatible budget',
+  'app.aiChat.selectedBudget': 'Selected budget',
+  'app.aiChat.contextWindow': 'Context window',
+  'app.aiChat.inputByteLimit': 'Input byte limit',
+  'app.aiChat.contextWindowHint': 'The input and output limits together must fit the context window. Higher limits increase the budget reservation.',
+  'app.aiChat.advancedParameters': 'Advanced parameters',
+  'app.aiChat.useRecommendedLimits': 'Use recommended limits',
+  'app.aiChat.inputTooLarge': 'This message exceeds the input byte limit. Shorten it; the server checks capacity after adding history.',
+  'app.aiChat.validation.modelUnavailable': 'Select an available model.',
+  'app.aiChat.validation.budgetUnavailable': 'Select a budget compatible with this model.',
+  'app.aiChat.validation.serverLimit': 'This parameter exceeds the server limit for the selected model.',
+  'app.aiChat.validation.contextWindow': 'The input and output limits together exceed the context window.',
+
   'app.aiChat.useMultiTurnLimits': 'Use multi-turn test limits',
   'app.aiChat.multiTurnLimitsHint':
     'The input limit includes previous questions, replies, and the current question. Multi-turn testing uses 32768 input and 512 output tokens, requiring a binding window of at least 33280. A larger input limit increases the budget reservation. Apply the configuration after using this button.',
@@ -6,7 +25,7 @@ export default {
     'The invocation outcome is unknown. Reconcile it on the backend, then refresh history before continuing. Do not resubmit the message.',
   'app.aiChat.title': 'AI Chat Test',
   'app.aiChat.subtitle':
-    'Configure the test environment for conversations, messages, history, and budgets.',
+    'Select an available model and budget to chat and view history.',
   'app.aiChat.status.missing': 'Configuration required',
   'app.aiChat.status.applied': 'Configuration applied',
   'app.aiChat.status.draft': 'Unapplied changes',
@@ -30,10 +49,10 @@ export default {
   'app.aiChat.send': 'Send message',
   'app.aiChat.configuration': 'Test configuration',
   'app.aiChat.configHint':
-    'Enter published references available to your account. Requests reuse the existing login token and language.',
+    'Enter the tenant and workspace, then load models and budgets available to your account.',
   'app.aiChat.configApplied': 'Configuration applied locally',
   'app.aiChat.backendUnverified':
-    'Conversation requests use the applied tenant and workspace. The backend will validate Capability, Binding, and budget when sending messages.',
+    'Model references and parameters match the discovered configuration. The backend checks permissions and budget again when you send.',
   'app.aiChat.scope': 'Tenant and workspace',
   'app.aiChat.publishedReferences': 'Published references with fixed versions',
   'app.aiChat.versionPlaceholder': 'For example v1; latest is not allowed',

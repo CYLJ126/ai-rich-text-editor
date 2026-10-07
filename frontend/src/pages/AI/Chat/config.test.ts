@@ -6,6 +6,7 @@ import {
   DEFAULT_CHAT_CONFIG,
   loadChatConfig,
   saveChatConfig,
+  selectedChatConfigSchema,
 } from './config';
 
 const valid = {
@@ -22,6 +23,34 @@ const valid = {
 beforeEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
+});
+
+describe('当前模型约束', () => {
+  const option = {
+    displayName: 'test',
+    binding: {type: 'binding' as const, id: valid.bindingId, version: valid.bindingVersion},
+    capability: {type: 'capability' as const, id: valid.capabilityId, version: valid.capabilityVersion},
+    contextWindowTokens: 1024,
+    limits: {
+      maxInputTokens: 1023,
+      maxOutputTokens: 256,
+      maxTimeoutSeconds: 30,
+      maxInputBytes: 2048,
+      maxOutputBytes: 4096
+    },
+    defaults: {maxInputTokens: 768, maxOutputTokens: 256, timeoutSeconds: 30},
+    budgetRefs: ['budget-1'],
+  };
+  const selected = {...valid, ...option.defaults};
+  it('接受精确版本和合法的输入输出组合', () => {
+    expect(selectedChatConfigSchema(option).safeParse(selected).success).toBe(true);
+  });
+  it.each([
+    {bindingVersion: 'v3'}, {capabilityVersion: 'v2'}, {budgetRef: 'other'},
+    {maxInputTokens: 1024}, {maxOutputTokens: 257}, {timeoutSeconds: 31}, {maxInputTokens: 1023},
+  ])('拒绝不匹配的引用或动态额度 %j', changed => {
+    expect(selectedChatConfigSchema(option).safeParse({...selected, ...changed}).success).toBe(false);
+  });
 });
 
 describe('测试配置校验', () => {

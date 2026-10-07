@@ -174,6 +174,22 @@ function mount() {
   return renderHook(() => useChatSession(config, conversation, vi.fn()));
 }
 
+it('按 UTF-8 字节阻止新的超限消息，参数变化不改写尚未确认的重试', async () => {
+  vi.mocked(turnsForChat).mockRejectedValue(new TypeError('offline'));
+  const hook = renderHook(({limit}) => useChatSession(config, conversation, vi.fn(), limit), {initialProps: {limit: 5}});
+  await ready(hook);
+  act(() => hook.result.current.setDraft('你好'));
+  await act(async () => hook.result.current.send());
+  expect(turnsForChat).not.toHaveBeenCalled();
+  hook.rerender({limit: 6});
+  await act(async () => hook.result.current.send());
+  expect(turnsForChat).toHaveBeenCalledTimes(1);
+  const original = vi.mocked(turnsForChat).mock.calls[0];
+  hook.rerender({limit: 1});
+  await act(async () => hook.result.current.send());
+  expect(vi.mocked(turnsForChat).mock.calls[1].slice(0, 2)).toEqual(original.slice(0, 2));
+});
+
 async function ready(hook: {
   result: { current: ReturnType<typeof useChatSession> };
 }) {
