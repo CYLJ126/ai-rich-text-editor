@@ -40,6 +40,7 @@ public class NewAiConversationController {
     }
 
     @PostMapping("/createConversation")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResultContext<ConversationResponse>> createConversation(
             @Valid @RequestBody ConversationRequests.Create request,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
@@ -51,6 +52,7 @@ public class NewAiConversationController {
     }
 
     @PostMapping("/listConversations")
+    @PreAuthorize("isAuthenticated()")
     public Mono<PageView<ConversationResponse>> listConversations(
             @Valid @RequestBody ConversationRequests.ListQuery request,
             Locale locale) {
@@ -60,6 +62,7 @@ public class NewAiConversationController {
     }
 
     @PostMapping("/getConversation")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResultContext<ConversationResponse>> getConversation(
             @Valid @RequestBody ConversationRequests.Find request,
             Locale locale) {
@@ -69,6 +72,7 @@ public class NewAiConversationController {
     }
 
     @PostMapping("/queryTurnsOfConversation")
+    @PreAuthorize("isAuthenticated()")
     public Mono<PageView<ConversationTurnResponse>> queryTurnsOfConversation(
             @Valid @RequestBody ConversationRequests.TurnsQuery request,
             Locale locale) {

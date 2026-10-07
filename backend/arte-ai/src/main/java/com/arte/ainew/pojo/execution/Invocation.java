@@ -3,6 +3,7 @@ package com.arte.ainew.pojo.execution;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Objects;
@@ -23,25 +24,31 @@ import java.util.Objects;
  * @since 2026/10/4 22:01 ✾
  */
 public record Invocation(InvocationRequest<? extends CapabilityInput> request, String requestDigest,
-        ConversationLink conversation, String contextSnapshotId, String replacesInvocationId,
-        State state, long version, String activeAttemptId, ResultRef result, ExecutionError error,
-        Instant acceptedAt, Instant updatedAt) implements Serializable {
+                         ConversationLink conversation, String contextSnapshotId, String replacesInvocationId,
+                         State state, long version, String activeAttemptId, ResultRef result, ExecutionError error,
+                         Instant acceptedAt, Instant updatedAt) implements Serializable {
 
     public enum State {
         ACCEPTED, QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED, TIMED_OUT, INTERRUPTED, UNKNOWN;
+
         public boolean terminal() {
             return switch (this) {
                 case ACCEPTED, QUEUED, RUNNING -> false;
                 default -> true;
             };
         }
-        /** 状态图不替代 expectedVersion、租约和副作用校验；UNKNOWN 仅经远端核对收敛，禁止重开执行。 */
+
+        /**
+         * 状态图不替代 expectedVersion、租约和副作用校验；UNKNOWN 仅经远端核对收敛，禁止重开执行。
+         */
         public boolean canTransitionTo(State next) {
             Objects.requireNonNull(next, "next");
             if (this == UNKNOWN) {
                 return next == SUCCEEDED || next == FAILED || next == CANCELLED;
             }
-            if (terminal() || next == this || next == ACCEPTED) { return false; }
+            if (terminal() || next == this || next == ACCEPTED) {
+                return false;
+            }
             return switch (this) {
                 case ACCEPTED -> next == QUEUED || next == RUNNING || next == FAILED || next == CANCELLED
                         || next == TIMED_OUT || next == INTERRUPTED;
@@ -79,8 +86,11 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
         ContractChecks.ordered(acceptedAt, updatedAt, "updatedAt");
     }
 
-    /** 固定会话版本参与受理并发校验；动作与后台能力调用可以没有会话关联。 */
-    public record ConversationLink(String conversationId, long conversationVersion, String turnId) implements Serializable {
+    /**
+     * 固定会话版本参与受理并发校验；动作与后台能力调用可以没有会话关联。
+     */
+    public record ConversationLink(String conversationId, long conversationVersion,
+                                   String turnId) implements Serializable {
         public ConversationLink {
             ContractChecks.id(conversationId, "conversationId");
             ContractChecks.range(conversationVersion, "conversationVersion", 0, Long.MAX_VALUE);

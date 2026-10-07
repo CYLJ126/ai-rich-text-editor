@@ -23,7 +23,9 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * 首批固定文本能力控制面；仅解析受信固定版本，不提供管理 CRUD 或远端探测。
+ * 首批固定文本能力控制面
+ * <p>
+ * 从服务器固定配置（配置文件）中完成解析和校验。仅解析受信固定版本，不提供管理 CRUD 或远端探测。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
@@ -66,7 +68,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                     && rates.get(budget.rate()).inputPerMillion().currency().equals(budget.limit().currency()), "Unresolved budget rate/currency");
         }
         for (var grant : properties.grants()) {
-            ContractChecks.require(bindings.keySet().stream().map(DefinitionRef::id).toList().containsAll(grant.bindingIds())
+            ContractChecks.require(new HashSet<>(bindings.keySet().stream().map(DefinitionRef::id).toList()).containsAll(grant.bindingIds())
                     && budgets.keySet().containsAll(grant.budgetRefs()), "Grant refers to unregistered configuration");
             for (var budgetRef : grant.budgetRefs()) {
                 ContractChecks.require(budgets.get(budgetRef).owner().equals(new ExecutionOwner(grant.tenantId(), grant.workspaceId(), grant.subjectId())),

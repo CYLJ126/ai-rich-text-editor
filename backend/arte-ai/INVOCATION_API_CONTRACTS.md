@@ -1,6 +1,6 @@
 # AI 调用接口契约
 
-适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。第 5～6 步的 Worker、派发与终态协调、预算生命周期、状态／结果／事件重放及完整生成测试已实现，详见 [异步执行与测试入口](EXECUTION_IMPLEMENTATION.md)。HTTP API、实时 watch、耐久控制及远端核对尚未实现。
+适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。第 5～6 步的 Worker、派发与终态协调、预算生命周期、状态／结果／事件重放及完整生成测试已实现，详见 [异步执行与测试入口](EXECUTION_IMPLEMENTATION.md)。会话创建／列表／详情／轮次查询和单条用户文本提交 HTTP API 已接入；消息提交见 [HTTP 接口说明](CHAT_HTTP_API.md)。执行状态／结果及预算 HTTP API、实时 watch、耐久控制及远端核对尚未实现。
 
 ## 1. 最小生成链路
 

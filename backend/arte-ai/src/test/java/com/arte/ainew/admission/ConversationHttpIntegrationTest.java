@@ -6,6 +6,7 @@ import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
+import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiConversationController;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
@@ -60,7 +61,7 @@ public class ConversationHttpIntegrationTest {
         scheduler = Schedulers.newBoundedElastic(4, 128, "conversation-http-test");
         fixture = new AdmissionFixture(dataSource, scheduler);
         var controller = new NewAiConversationController(fixture.conversations,
-                new ConversationHttpContext(fixture.factory, fixture.properties));
+                new ConversationHttpContext(new NewAiHttpContext(fixture.factory, fixture.properties), fixture.properties));
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new ConversationExceptionHandler())

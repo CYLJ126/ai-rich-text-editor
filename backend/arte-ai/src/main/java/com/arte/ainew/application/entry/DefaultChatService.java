@@ -50,6 +50,7 @@ public final class DefaultChatService implements ChatService {
     @Override
     public Mono<AcceptedExecution> submit(EntryRequests.Chat request, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current ->
+                // 查找会话
                 conversations.find(request.conversationId(), current).flatMap(conversation -> {
                     if (conversation.state() != Conversation.State.ACTIVE) {
                         throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_ACTIVE);
@@ -58,16 +59,21 @@ public final class DefaultChatService implements ChatService {
                             || !conversation.resources().isEmpty()) {
                         throw new AdmissionException(ResultCodeEnum.AI_CHAT_SELECTION_NOT_SUPPORTED);
                     }
+                    // 解析绑定
                     return bindings.resolve(request.binding(), request.capability(), current)
+                            // 组装上下文
                             .flatMap(binding -> contexts.assemble(request.context(), binding, current))
+                            // 提交执行
                             .flatMap(snapshot -> {
                                 var generation = new GenerationRequest(snapshot.messages(), request.generationOptions(), List.of(), new GenerationRequest.TextOutput());
                                 var invocation = new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), generation, request.options(), current);
                                 var now = clock.instant();
+                                // 组装轮次
                                 var turn = new Turn(UUID.randomUUID().toString(), conversation.conversationId(),
                                         Math.addExact(request.expectedVersion(), 1), null, null, snapshot.messages().getFirst(),
                                         List.of(current.executionId()), null, 0, now, now);
                                 var link = new Invocation.ConversationLink(conversation.conversationId(), request.expectedVersion(), turn.turnId());
+                                // 委托给执行协调器
                                 return coordinator.submit(new InvocationSubmission<>(invocation, snapshot, link, turn, null));
                             });
                 }));

@@ -39,6 +39,7 @@ public record ExecutionContextRequest(
         String budgetRef,
         String releaseRef,
         String idempotencyKey) {
+
     public ExecutionContextRequest {
         if (tenantId == null || tenantId.isBlank() || workspaceId == null || workspaceId.isBlank()) {
             throw new IllegalArgumentException("Tenant and workspace must not be blank");

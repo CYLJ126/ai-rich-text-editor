@@ -1,6 +1,7 @@
 package com.arte.ainew.web;
 
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.web.controller.NewAiChatController;
 import com.arte.ainew.web.controller.NewAiConversationController;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.IResult;
@@ -28,10 +29,11 @@ import java.util.Locale;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/7 15:38 ✾
  */
-@RestControllerAdvice(assignableTypes = NewAiConversationController.class)
+@RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ConversationExceptionHandler {
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
         var status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -60,7 +62,7 @@ public class ConversationExceptionHandler {
                 : (code == null ? ResultContext.exception(exception, locale) : ResultContext.fail(code, locale));
         if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
             // 不记录请求正文、快照或底层异常文本，它们可能包含用户输入或数据库参数。
-            log.error("New AI conversation HTTP failure, type={}", exception.getClass().getName());
+            log.error("New AI HTTP failure, type={}", exception.getClass().getName());
         }
         return ResponseEntity.status(status).body(body);
     }

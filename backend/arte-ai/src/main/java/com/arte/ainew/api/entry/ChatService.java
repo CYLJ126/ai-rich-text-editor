@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
  * @since 2026/10/4 16:51 ✾
  **/
 public interface ChatService {
+
     /**
      * 新建轮次／追问／编辑重发；核对会话版本、历史与角色后组装上下文，通过 Coordinator 可靠受理。
      */

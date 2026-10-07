@@ -189,4 +189,4 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 
 本步新增 20 项测试（完整链路 14 项、装配 4 项、存储校验 2 项）；连同前 4 步、数据／上下文／持久化契约及拦截器回归，共 152 项通过；arte-app 编译通过。可参考 [完整链路测试](src/test/java/com/arte/ainew/admission/DispatchIntegrationTest.java) 中的实际组件装配、submit、pollOnce 和查询方式。
 
-本阶段提供 Service 层测试入口。对外 HTTP Controller、事件实时 watch／EVENT 发布者、耐久跨实例取消、UNKNOWN 的远端核对、动态路由、工具、历史上下文及多次安全重试仍待后续实现；watch／control／reconcile 明确返回未启用错误。现有手动 DDL 不变。
+本阶段提供 Service 层测试入口。后续已接入会话创建／列表／详情／轮次查询及单条用户文本提交 HTTP Controller，提交契约见 [HTTP 接口说明](CHAT_HTTP_API.md)。执行状态／结果及预算 HTTP Controller、事件实时 watch／EVENT 发布者、耐久跨实例取消、UNKNOWN 的远端核对、动态路由、工具、历史上下文及多次安全重试仍待后续实现；watch／control／reconcile 明确返回未启用错误。现有手动 DDL 不变。
