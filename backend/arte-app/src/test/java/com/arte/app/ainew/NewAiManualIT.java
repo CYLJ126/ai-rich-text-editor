@@ -111,6 +111,26 @@ public class NewAiManualIT {
                 .block(Duration.ofSeconds(10)));
     }
 
+    /**
+     * 按服务端固定配置初始化 {@value #BUDGET} 预算账户，要求当前测试身份具有 ai:budget:admin 权限。
+     * <p>
+     * 此方法只访问一张业务表：{@code arte_ai_account}（预算账户表）。具体操作如下：
+     * <ol>
+     *     <li>先按预算引用哈希查询账户快照，并校验租户、工作空间和主体归属。</li>
+     *     <li>账户不存在时插入一条记录：{@code id_key} 保存预算引用哈希，{@code owner_key} 保存归属哈希；
+     *         {@code snapshot} 保存预算引用、归属、配置限额及币种、固定费率引用，
+     *         初始占用金额 {@code held=0}、已计费金额 {@code charged=0}、账本版本 {@code version=0}。
+     *         插入后重新查询并返回实际持久化账户；并发插入冲突时也重新查询，不覆盖已有记录。</li>
+     *     <li>账户已存在时只读取并核对配置，不执行 UPDATE，不清零 held、charged 或版本，
+     *         也不按新配置调整限额；归属、限额或固定费率不匹配时直接报错。</li>
+     * </ol>
+     * 权限、预算定义及费率来自配置，不读写数据库中的用户、菜单或权限表。
+     * 此方法不访问 {@code arte_ai_reservation}（预算预留表）或 {@code arte_ai_settlement}（预算结算事实表），
+     * 不创建会话、轮次、调用、Attempt、事件、Outbox 或结果记录，也不调用模型。
+     * block 会订阅初始化操作并等待完成，最后仅打印账户当前版本、held 和 charged。
+     *
+     * @param context 已加载物理数据源及新 AI 固定配置的测试容器
+     */
     private void initializeBudget(AnnotationConfigApplicationContext context) {
         var admin = executionContext(context, Set.of("ai:budget:admin"), "budget-initialize");
         var account = context.getBean(BudgetAccountInitializer.class).initialize(BUDGET, admin).block(DB_WAIT);
