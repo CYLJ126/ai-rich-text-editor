@@ -1,11 +1,13 @@
 package com.arte.core.pojo;
 
+import com.arte.core.serialize.InstantStringDeserializer;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.AssertTrue;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -16,6 +18,8 @@ import java.time.Instant;
  * <p>
  * JSON 使用 ISO-8601 字符串，例如 {@code 2026-10-07T00:00:00+08:00} 或
  * {@code 2026-10-06T16:00:00Z}；表示同一时间点的偏移会统一为 UTC，保留小数秒精度。
+ * 只接受有效且带偏移的日期时间字符串，拒绝数字时间戳及无时区的本地时间；
+ * 边界缺省或为 null 表示不限制，空字符串不是有效时间点。
  * <p>
  * 业务查询显式应用 {@code >= from}、{@code < to}。数据库列若保存无时区的本地时间，
  * 持久化适配层须按明确配置的时区转换，不依赖 JVM 默认时区。
@@ -36,12 +40,14 @@ public class InstantRangeParam implements Serializable {
      * 包含起点；null 表示不限制起点。
      */
     @JsonFormat(shape = JsonFormat.Shape.STRING)
+    @JsonDeserialize(using = InstantStringDeserializer.class)
     private Instant from;
 
     /**
      * 不包含终点；null 表示不限制终点。
      */
     @JsonFormat(shape = JsonFormat.Shape.STRING)
+    @JsonDeserialize(using = InstantStringDeserializer.class)
     private Instant to;
 
     /**
