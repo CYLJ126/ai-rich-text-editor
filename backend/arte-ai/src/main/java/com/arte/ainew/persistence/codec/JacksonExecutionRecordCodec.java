@@ -44,7 +44,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
-            Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
+            Map.entry(ControlReceipt.class, "control-receipt"), Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
             Map.entry(Turn.class, "turn"), Map.entry(BudgetCommands.Account.class, "budget-account"),
             Map.entry(BudgetReservation.class, "budget-reservation"), Map.entry(BudgetSettlement.class, "budget-settlement"),

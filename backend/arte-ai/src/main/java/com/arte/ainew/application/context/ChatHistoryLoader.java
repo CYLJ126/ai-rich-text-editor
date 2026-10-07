@@ -90,7 +90,8 @@ public final class ChatHistoryLoader {
      *     版本为零时返回空历史；否则先选取最近 maxTurns 轮（最多十轮），再通过
      *     {@link #completed(Turn, ExecutionOwner)} 读取对应的权威执行状态及已提交结果。
      *     仅保留完整成功的纯文本回答，按轮次顺序组成 USER／ASSISTANT 消息对；跳过的轮次不向更早历史补足。
-     *     活动或 UNKNOWN 调用会拒绝加载，关联、存储或不支持的内容异常也会向调用方传播。</li>
+     *     活动或非用户停止的 UNKNOWN 调用会拒绝加载；耐久停止的生成轮次跳过，部分回复只保留展示。
+     *     关联、存储或不支持的内容异常也会向调用方传播。</li>
      * </ol>
      * 有历史时仍需校验 ai:read 权限。返回后由 {@link TextContextService} 追加本次请求的用户输入；
      * 受理协调器再核对完整请求语义，决定返回原回执、报告幂等冲突或受理新调用。
@@ -154,7 +155,7 @@ public final class ChatHistoryLoader {
                             var recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
                                     .skip(Math.max(0, turns.size() - selection.maxTurns())).toList();
                             // 按历史顺序逐轮读取权威执行状态和已提交结果；concatMap 保留顺序。
-                            // 不合格的已知终态返回 empty 后跳过，活动／未知状态或数据异常则终止加载。
+                            // 已知终态及耐久停止的生成轮次返回 empty 后跳过，其他活动／未知状态或数据异常终止加载。
                             return Flux.fromIterable(recent).concatMap(turn -> completed(turn, owner)).collectList();
                         }).map(completed -> {
                             var messages = new ArrayList<ChatMessage>();
@@ -179,7 +180,7 @@ public final class ChatHistoryLoader {
      * @param turn  待检查的历史轮次，候选关联来自已受理的会话记录。
      * @param owner 当前执行主体的租户、工作空间和主体归属，用于隔离执行及结果读取。
      * @return 合格轮次及合并后的助手回答；已知失败、部分或非生成结果返回 empty。
-     * 活动／UNKNOWN 状态、关联错误、结果字节缺失或不支持的内容通过 onError 拒绝加载。
+     * 活动／非用户停止的 UNKNOWN 状态、关联错误、结果字节缺失或不支持的内容通过 onError 拒绝加载。
      */
     private Mono<Completed> completed(Turn turn, ExecutionOwner owner) {
         var id = turn.selectedInvocationId() != null ? turn.selectedInvocationId() : turn.invocationIds().getLast();
@@ -190,7 +191,13 @@ public final class ChatHistoryLoader {
                             || !invocation.conversation().turnId().equals(turn.turnId())) {
                         return Mono.error(new IllegalStateException("History invocation does not match its turn"));
                     }
-                    // 活动调用尚未完成，UNKNOWN 尚未确认远端结果；两者均阻止继续组装下一轮上下文。
+                    if (invocation.userStoppedGeneration()) {
+                        // 停止不代表费用为零；只跳过这一轮的模型输入，原结果与预算仍由原 Invocation 管理。
+                        return executionStore.cancellationRequested(owner, id).flatMap(cancelled -> cancelled
+                                ? Mono.<Completed>empty()
+                                : Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY)));
+                    }
+                    // 普通 UNKNOWN 尚未确认远端结果，不能把断流或超时当作用户停止。
                     if (!invocation.state().terminal() || invocation.state() == Invocation.State.UNKNOWN) {
                         log.debug("AI history blocked by unresolved invocation, conversationId={}, turnId={}, historyInvocationId={}, state={}",
                                 turn.conversationId(), turn.turnId(), id, invocation.state());

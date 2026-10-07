@@ -217,6 +217,38 @@ public class InvocationHttpIntegrationTest {
         return json.readTree(result.getResponse().getContentAsString());
     }
 
+    private JsonNode cancelHttp(String id, String key, int status) throws Exception {
+        return finish(mvc.perform(post("/ai-new/invocation/cancelInvocation").contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", key).content(json.writeValueAsString(query(id)))).andReturn(), status);
+    }
+
+    @Test
+    public void cancelHttpPersistsCommandAndReplaysTheOriginalReceipt() throws Exception {
+        var id = submit();
+        var receipt = cancelHttp(id, "cancel-key", 202).path("data");
+        assertEquals("ACCEPTED", receipt.path("outcome").asString());
+        assertEquals("CANCEL", receipt.path("command").asString());
+        assertEquals(id, receipt.path("executionId").asString());
+        assertEquals(receipt, cancelHttp(id, "cancel-key", 202).path("data"));
+        assertEquals("CANCELLED", send(STATUS, query(id), 200).path("data").path("state").asString());
+        assertEquals("ALREADY_TERMINAL", cancelHttp(id, "new-key", 200).path("data").path("outcome").asString());
+        dispatch();
+        assertEquals(0, modelCalls.get());
+    }
+
+    @Test
+    public void cancelHttpChecksIdentityAndRequiresIdempotencyKey() throws Exception {
+        var id = submit();
+        login("bob");
+        cancelHttp(id, "foreign", 404);
+        cancelHttp("missing", "missing", 404);
+        login("alice");
+        finish(mvc.perform(post("/ai-new/invocation/cancelInvocation").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(query(id)))).andReturn(), 400);
+        cancelHttp(id, " ", 400);
+        assertEquals("ACCEPTED", send(STATUS, query(id), 200).path("data").path("state").asString());
+    }
+
     private String submit() throws Exception {
         var created = mvc.perform(post("/ai-new/conversation/createConversation").contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "create-" + UUID.randomUUID()).content(json.writeValueAsString(Map.of("scope", SCOPE, "title", "HTTP invocation")))).andReturn();
@@ -786,12 +818,14 @@ public class InvocationHttpIntegrationTest {
 
             @Override
             public Mono<StoreOutcome<Page>> replay(ExecutionOwner owner, ExecutionEvent.Cursor cursor, int limit) {
-                return fixture.executions.replay(owner, cursor, limit).doOnNext(ignored -> {
+                return fixture.executions.replay(owner, cursor, limit).flatMap(page -> {
                     if (reads.incrementAndGet() == 1) {
                         // 首次读取完成后、结果交给订阅者前提交新事件并发布，制造原有空窗。
-                        dispatch();
-                        publisher.pollOnce().block();
+                        // 不在 JDBC 回调线程 block，否则有界池可能将嵌套事务调度回被占用的线程。
+                        return worker.pollOnce().doOnNext(count -> assertEquals(Integer.valueOf(1), count))
+                                .then(publisher.pollOnce()).thenReturn(page);
                     }
+                    return Mono.just(page);
                 });
             }
 

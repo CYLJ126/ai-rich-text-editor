@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {
   AiApiError,
   type BudgetAccountResponse,
+  cancelInvocation,
   type ConversationResponse,
   type ConversationTurnResponse,
   getBudget,
@@ -27,7 +28,24 @@ export function isActive(status: InvocationStatusResponse) {
 }
 
 function needsObservation(status: InvocationStatusResponse) {
-  return isActive(status) || status.budgetState === 'RESERVED';
+  return isActive(status) || (status.budgetState === 'RESERVED' && !isUserStoppedGeneration(status));
+}
+
+export function isUserStoppedGeneration(status?: InvocationStatusResponse) {
+  return status?.kind === 'GENERATION' && status.state === 'UNKNOWN' &&
+    status.error?.code === 'INVOCATION_CANCELLED';
+}
+
+function blocksConversation(status?: InvocationStatusResponse) {
+  return status?.state === 'UNKNOWN' && !isUserStoppedGeneration(status);
+}
+
+function canReuseInvocation(view?: InvocationView) {
+  const status = view?.status;
+  return !!status && !view?.error && !isActive(status) &&
+    status.state !== 'UNKNOWN' &&
+    ['NOT_RESERVED', 'SETTLED', 'RELEASED'].includes(status.budgetState ?? '') &&
+    (!status.resultAvailable || !!view?.result);
 }
 
 export function hasAvailableBudget(amount: string) {
@@ -46,6 +64,18 @@ export interface InvocationView {
 interface PendingMessage {
   key: string;
   request: SubmitChatRequest;
+}
+
+interface InvocationRead {
+  controller: AbortController;
+  consumers: Set<symbol>;
+  promise: Promise<InvocationView>;
+}
+
+interface HistoryRead {
+  page?: number;
+  controller: AbortController;
+  promise: Promise<void>;
 }
 
 /** ChatPanel is keyed by conversation ID; the containing workspace is keyed by scope. */
@@ -77,8 +107,17 @@ export function useChatSession(
     Record<string, InvocationView>
   >({});
   const views = useRef<Record<string, InvocationView>>({});
+  const invocationRevisions = useRef(new Map<string, number>());
+  const invocationReads = useRef(new Map<string, InvocationRead>());
+  const historyRevision = useRef(0);
+  const historyRead = useRef<HistoryRead | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<unknown>(null);
+  const [stopping, setStopping] = useState(false);
+  const [stopRequested, setStopRequested] = useState<string | null>(null);
+  const [stopError, setStopError] = useState<unknown>(null);
+  const stopKeys = useRef(new Map<string, string>());
+  const stopTarget = useRef<string | null>(null);
   const [pending, setPending] = useState<PendingMessage | null>(null);
   const pendingRef = useRef<PendingMessage | null>(null);
   const [invocationId, setInvocationId] = useState<string | null>(null);
@@ -105,6 +144,7 @@ export function useChatSession(
     budget: null as AbortController | null,
     submit: null as AbortController | null,
     poll: null as AbortController | null,
+    stop: null as AbortController | null,
   });
   const alive = useRef(true);
 
@@ -223,26 +263,102 @@ export function useChatSession(
     setInvocations(views.current);
   }
 
-  async function readInvocation(
+  function invalidateInvocation(id: string) {
+    invocationRevisions.current.set(
+      id,
+      (invocationRevisions.current.get(id) ?? 0) + 1,
+    );
+  }
+
+  function readInvocation(
     id: string,
     signal: AbortSignal,
   ): Promise<InvocationView> {
-    const {body} = await getInvocationStatus(
-      {scope, invocationId: id},
-      {signal},
-    );
-    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-    let result = views.current[id]?.result;
-    if (
-      body.data.resultAvailable &&
-      !isActive(body.data) &&
-      (!result || views.current[id]?.status?.version !== body.data.version)
-    ) {
-      result = (
-        await getInvocationResult({scope, invocationId: id}, {signal})
-      ).body.data;
+    if (signal.aborted)
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    const cached = views.current[id];
+    if (canReuseInvocation(cached)) return Promise.resolve(cached);
+    let read = invocationReads.current.get(id);
+    if (!read || read.controller.signal.aborted) {
+      const controller = new AbortController();
+      const pending: InvocationRead = {
+        controller,
+        consumers: new Set<symbol>(),
+        promise: Promise.resolve().then(async () => {
+          let revision: number;
+          do {
+            revision = invocationRevisions.current.get(id) ?? 0;
+            const {body} = await getInvocationStatus(
+              {scope, invocationId: id},
+              {signal: controller.signal},
+            );
+            if (controller.signal.aborted)
+              throw new DOMException('Aborted', 'AbortError');
+            let result = views.current[id]?.result;
+            if (body.data.resultAvailable && !isActive(body.data) &&
+              (!result || views.current[id]?.status?.version !== body.data.version)) {
+              result = (await getInvocationResult(
+                {scope, invocationId: id},
+                {signal: controller.signal},
+              )).body.data;
+            }
+            if (controller.signal.aborted || !alive.current)
+              throw new DOMException('Aborted', 'AbortError');
+            const previous = views.current[id]?.status;
+            if (previous && !isActive(body.data) && body.data.version >= previous.version &&
+              (isActive(previous) || body.data.version > previous.version)) {
+              // 历史查询也可能先于 SSE 读到终态，不能把先前取得的会话版本当作最新版本。
+              historyRevision.current++;
+            }
+            publish({[id]: {status: body.data, result}});
+            // 查询开始后收到通知，补查一次；确定且已结算的终态不会再变化。
+          } while (!canReuseInvocation(views.current[id]) &&
+          revision !== (invocationRevisions.current.get(id) ?? 0));
+          return views.current[id];
+        }).finally(() => {
+          if (invocationReads.current.get(id) === pending)
+            invocationReads.current.delete(id);
+        }),
+      };
+      invocationReads.current.set(id, pending);
+      read = pending;
     }
-    return {status: body.data, result};
+    // 每个调用方单独取消；仅在没有使用者时才取消共享 HTTP 请求。
+    const pending = read;
+    return new Promise((resolve, reject) => {
+      const consumer = Symbol();
+      pending.consumers.add(consumer);
+      const detach = () => {
+        signal.removeEventListener('abort', abort);
+        pending.consumers.delete(consumer);
+        if (!pending.consumers.size && invocationReads.current.get(id) === pending) {
+          pending.controller.abort();
+          invocationReads.current.delete(id);
+        }
+      };
+      const abort = () => {
+        detach();
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
+      signal.addEventListener('abort', abort, {once: true});
+      pending.promise.then((view) => {
+        detach();
+        if (!signal.aborted) resolve(view);
+      }, (error) => {
+        detach();
+        reject(error);
+      });
+    });
+  }
+
+  async function refreshTerminal(id: string, status: InvocationStatusResponse) {
+    const history = refreshedTerminalVersions.current.get(id) !== status.version;
+    refreshedTerminalVersions.current.set(id, status.version);
+    if (history) historyRevision.current++;
+    await Promise.allSettled([
+      ...(history ? [loadHistory()] : []),
+      loadBudget(),
+    ]);
   }
 
   function stopWatching() {
@@ -314,40 +430,11 @@ export function useChatSession(
           created.current = null;
         }
         // 回答完成先展示历史；账本仍 RESERVED 时继续等待结算事件。相同执行版本只刷新一次历史。
-        const history =
-          refreshedTerminalVersions.current.get(id) !== view.status.version;
-        refreshedTerminalVersions.current.set(id, view.status.version);
-        await Promise.allSettled([
-          ...(history ? [loadHistory()] : []),
-          loadBudget(),
-        ]);
+        await refreshTerminal(id, view.status);
       }
     };
-    // STARTED／预留通知的 HTTP 查询不能阻塞文本消费。合并重叠查询，终态等待最后一次权威刷新。
-    const refreshing = new Map<string, Promise<void>>();
-    const refreshAgain = new Set<string>();
-    const refresh = (id: string): Promise<void> => {
-      const existing = refreshing.get(id);
-      if (existing) {
-        refreshAgain.add(id);
-        return existing;
-      }
-      const promise = (async () => {
-        do {
-          refreshAgain.delete(id);
-          await refreshOnce(id);
-        } while (
-          valid() &&
-          watched.current.includes(id) &&
-          refreshAgain.has(id)
-          );
-      })().finally(() => {
-        refreshing.delete(id);
-        refreshAgain.delete(id);
-      });
-      refreshing.set(id, promise);
-      return promise;
-    };
+    // 历史、停止和 SSE 共用同一个状态读取；事件期间的变化由读取循环补查。
+    const refresh = refreshOnce;
     const observe = async (id: string) => {
       while (valid() && watched.current.includes(id)) {
         try {
@@ -387,11 +474,14 @@ export function useChatSession(
                     offset + event.text.length,
                   );
                 } else if (event.kind === 'TERMINAL') {
+                  invalidateInvocation(id);
                   await refresh(id);
                 } else if (
+                  event.kind === 'CONTROL' ||
                   event.kind === 'STARTED' ||
                   event.kind === 'BUDGET_CHANGED'
                 ) {
+                  invalidateInvocation(id);
                   void refresh(id)
                     .then(async () => {
                       if (
@@ -474,93 +564,122 @@ export function useChatSession(
     }
   }
 
-  async function loadHistory(requestedPage?: number) {
+  function loadHistory(requestedPage?: number): Promise<void> {
+    const existing = historyRead.current;
+    if (existing && !existing.controller.signal.aborted && existing.page === requestedPage)
+      return existing.promise;
     requests.current.history?.abort();
     const controller = new AbortController();
     requests.current.history = controller;
+    const pending: HistoryRead = {
+      page: requestedPage,
+      controller,
+      promise: readHistory(requestedPage, controller).finally(() => {
+        if (historyRead.current === pending) historyRead.current = null;
+      }),
+    };
+    historyRead.current = pending;
     setHistoryLoading(true);
     setHistoryError(null);
+    return pending.promise;
+  }
+
+  async function readHistory(requestedPage: number | undefined, controller: AbortController) {
     try {
-      const conversation = (
-        await getConversation(
-          {scope, conversationId: initial.conversationId},
-          {signal: controller.signal},
-        )
-      ).body.data;
-      if (controller.signal.aborted || !alive.current) return;
-      const query = async (current: number) =>
-        (
-          await queryTurnsOfConversation(
-            {
-              scope,
-              conversationId: conversation.conversationId,
-              expectedVersion: conversation.version,
-              page: {current, size: HISTORY_PAGE_SIZE},
-            },
-            {signal: controller.signal},
-          )
-        ).body;
-      let history = await query(requestedPage ?? 1);
-      const lastPage = Math.max(
-        1,
-        Math.ceil(history.total / HISTORY_PAGE_SIZE),
-      );
-      if (requestedPage === undefined && lastPage > 1)
-        history = await query(lastPage);
-      if (controller.signal.aborted || !alive.current) return;
-      metadata.current = conversation;
-      updated.current(conversation);
-      setTurns(history.records);
-      setPage(history.current);
-      setTotal(history.total);
-      const ids = history.records.flatMap((turn) => {
-        const id = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
-        return id ? [id] : [];
-      });
-      if (requestedPage === undefined && ids.length)
-        setInvocationId(created.current ?? ids.at(-1) ?? null);
-      const entries = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            return [id, await readInvocation(id, controller.signal)] as const;
-          } catch (error) {
-            return [id, {error}] as const;
+      while (!controller.signal.aborted && alive.current) {
+        const revision = historyRevision.current;
+        try {
+          const conversation = (
+            await getConversation(
+              {scope, conversationId: initial.conversationId},
+              {signal: controller.signal},
+            )
+          ).body.data;
+          if (controller.signal.aborted || !alive.current) return;
+          if (revision !== historyRevision.current) continue;
+          const query = async (current: number) =>
+            (
+              await queryTurnsOfConversation(
+                {
+                  scope,
+                  conversationId: conversation.conversationId,
+                  expectedVersion: conversation.version,
+                  page: {current, size: HISTORY_PAGE_SIZE},
+                },
+                {signal: controller.signal},
+              )
+            ).body;
+          let history = await query(requestedPage ?? 1);
+          const lastPage = Math.max(
+            1,
+            Math.ceil(history.total / HISTORY_PAGE_SIZE),
+          );
+          if (requestedPage === undefined && lastPage > 1)
+            history = await query(lastPage);
+          if (controller.signal.aborted || !alive.current) return;
+          if (revision !== historyRevision.current) continue;
+          const ids = history.records.flatMap((turn) => {
+            const id = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
+            return id ? [id] : [];
+          });
+          const entries = await Promise.all(
+            ids.map(async (id) => {
+              try {
+                return [id, await readInvocation(id, controller.signal)] as const;
+              } catch (error) {
+                return [id, {error}] as const;
+              }
+            }),
+          );
+          if (controller.signal.aborted || !alive.current) return;
+          // 提交或终态发生在查询期间，旧会话版本不能用于下一轮；合并为一次后续刷新。
+          if (revision !== historyRevision.current) continue;
+          metadata.current = conversation;
+          updated.current(conversation);
+          setTurns(history.records);
+          setPage(history.current);
+          setTotal(history.total);
+          if (requestedPage === undefined && ids.length)
+            setInvocationId(created.current ?? ids.at(-1) ?? null);
+          publish(Object.fromEntries(entries));
+          for (const [id, view] of entries) {
+            if ('status' in view && view.status && !isActive(view.status))
+              refreshedTerminalVersions.current.set(id, view.status.version);
           }
-        }),
-      );
-      if (controller.signal.aborted || !alive.current) return;
-      publish(Object.fromEntries(entries));
-      for (const [id, view] of entries) {
-        if ('status' in view && view.status && !isActive(view.status))
-          refreshedTerminalVersions.current.set(id, view.status.version);
+          const active = entries
+            .filter(
+              ([id]) =>
+                views.current[id]?.status &&
+                needsObservation(views.current[id].status),
+            )
+            .map(([id]) => id);
+          // Browsing older pages must keep an invocation from the latest page under observation.
+          for (const id of watched.current) {
+            const status = views.current[id]?.status;
+            if ((!status || needsObservation(status)) && !active.includes(id))
+              active.push(id);
+          }
+          const createdStatus = created.current
+            ? views.current[created.current]?.status
+            : undefined;
+          if (
+            created.current &&
+            !active.includes(created.current) &&
+            (!createdStatus || needsObservation(createdStatus))
+          ) {
+            active.push(created.current);
+          }
+          // A failed history status lookup must be retried before submitting another turn.
+          if (entries.some(([, view]) => 'error' in view && view.error !== undefined))
+            setHistoryError(new Error('History invocation lookup failed'));
+          watch(active);
+          return;
+        } catch (error) {
+          if (!controller.signal.aborted && alive.current && revision !== historyRevision.current &&
+            !(error instanceof AiApiError && [401, 403].includes(error.httpStatus))) continue;
+          throw error;
+        }
       }
-      const active = entries
-        .filter(
-          ([id]) =>
-            views.current[id]?.status &&
-            needsObservation(views.current[id].status),
-        )
-        .map(([id]) => id);
-      // Browsing older pages must keep an invocation from the latest page under observation.
-      for (const id of watched.current) {
-        const status = views.current[id]?.status;
-        if ((!status || needsObservation(status)) && !active.includes(id))
-          active.push(id);
-      }
-      const createdStatus = created.current
-        ? views.current[created.current]?.status
-        : undefined;
-      if (
-        created.current &&
-        !active.includes(created.current) &&
-        (!createdStatus || needsObservation(createdStatus))
-      ) {
-        active.push(created.current);
-      }
-      // A failed history status lookup must be retried before submitting another turn.
-      if (entries.some(([, view]) => 'error' in view))
-        setHistoryError(new Error('History invocation lookup failed'));
-      watch(active);
     } catch (error) {
       if (!controller.signal.aborted && alive.current) setHistoryError(error);
     } finally {
@@ -578,7 +697,7 @@ export function useChatSession(
         historyError ||
         watched.current.length > 0 ||
         Object.values(views.current).some(
-          (view) => view.status?.state === 'UNKNOWN',
+          (view) => blocksConversation(view.status),
         ) ||
         !budget ||
         !hasAvailableBudget(budget.available) ||
@@ -637,6 +756,7 @@ export function useChatSession(
       created.current = body.data.invocationId;
       watch([body.data.invocationId]);
       void loadBudget();
+      historyRevision.current++;
       void loadHistory();
     } catch (error) {
       if (controller.signal.aborted || !alive.current) return;
@@ -653,7 +773,10 @@ export function useChatSession(
         if (invalidatesChatConfiguration(error)) {
           rejected.current?.(snapshot.request, error);
         } else {
-          if (error.httpStatus === 409) void loadHistory();
+          if (error.httpStatus === 409) {
+            historyRevision.current++;
+            void loadHistory();
+          }
           void loadBudget();
         }
       }
@@ -661,6 +784,46 @@ export function useChatSession(
       if (!controller.signal.aborted && alive.current) {
         requests.current.submit = null;
         setSubmitting(false);
+      }
+    }
+  }
+
+  async function stop(id: string) {
+    if (requests.current.stop || stopRequested === id) return;
+    const current = views.current[id]?.status;
+    if (current && !isActive(current)) return;
+    const controller = new AbortController();
+    requests.current.stop = controller;
+    setStopping(true);
+    setStopError(null);
+    stopTarget.current = id;
+    const key = stopKeys.current.get(id) ?? crypto.randomUUID();
+    stopKeys.current.set(id, key);
+    let received = false;
+    try {
+      const {body} = await cancelInvocation({scope, invocationId: id}, key, {signal: controller.signal});
+      if (controller.signal.aborted || !alive.current) return;
+      received = true;
+      if (body.data.outcome === 'ACCEPTED') setStopRequested(id);
+      invalidateInvocation(id);
+      // 保持现有 SSE；暂停观察时恢复查询，不通过断开订阅假装停止成功。
+      if (!requests.current.poll || requests.current.poll.signal.aborted || !watched.current.includes(id)) {
+        watch([...watched.current, id], true);
+      }
+      const view = await readInvocation(id, controller.signal);
+      if (controller.signal.aborted || !alive.current) return;
+      publish({[id]: view});
+      if (view.status && !isActive(view.status)) {
+        await refreshTerminal(id, view.status);
+      }
+    } catch (error) {
+      if (controller.signal.aborted || !alive.current) return;
+      if (received) setPollError(error);
+      else setStopError(error);
+    } finally {
+      if (!controller.signal.aborted && alive.current) {
+        requests.current.stop = null;
+        setStopping(false);
       }
     }
   }
@@ -673,6 +836,8 @@ export function useChatSession(
       stopWatching();
       pendingText.current.clear();
       for (const request of Object.values(requests.current)) request?.abort();
+      for (const read of invocationReads.current.values()) read.controller.abort();
+      invocationReads.current.clear();
     };
   }, []);
   useEffect(() => {
@@ -702,9 +867,16 @@ export function useChatSession(
     pollPaused,
     activeIds,
     unresolved: Object.values(invocations).some(
-      (view) => view.status?.state === 'UNKNOWN',
+      (view) => blocksConversation(view.status),
     ),
     resume: () => watch(watched.current, true),
     send,
+    stop,
+    stopping,
+    stopRequested,
+    stopError,
+    retryStop: () => {
+      if (stopTarget.current) void stop(stopTarget.current);
+    },
   };
 }

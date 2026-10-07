@@ -1,5 +1,6 @@
-import {type AiRequestOptions, postResult} from './request';
+import {type AiRequestOptions, postResult, requireIdempotencyKey} from './request';
 import type {
+  ControlReceipt,
   InvocationEventsRequest,
   InvocationEventsResponse,
   InvocationQuery,
@@ -39,4 +40,9 @@ export function invocationEvent(
     data,
     options,
   );
+}
+
+/** 耐久停止请求；HTTP 202 不表示执行或费用已确认，继续观察权威状态。 */
+export function cancelInvocation(data: InvocationQuery, idempotencyKey: string, options?: AiRequestOptions) {
+  return postResult<ControlReceipt>('invocation/cancelInvocation', data, options, requireIdempotencyKey(idempotencyKey));
 }

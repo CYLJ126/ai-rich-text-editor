@@ -3,12 +3,20 @@ package com.arte.ainew.web.controller;
 import com.arte.ainew.api.execution.ExecutionControl;
 import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.execution.GenerationDispatcher;
 import com.arte.ainew.application.execution.InvocationBudgetStatusResolver;
+import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionEvent;
+import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
+import com.arte.ainew.pojo.execution.ControlReceipt;
+import com.arte.ainew.pojo.execution.ExecutionControlRequest;
+import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.ainew.web.request.InvocationRequests;
@@ -26,10 +34,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -73,6 +78,26 @@ public class NewAiInvocationController {
                 ? properties.limits().maximumTimeout() : Duration.ofSeconds(60);
         this.queryTimeout = properties.limits().maximumTimeout().compareTo(Duration.ofSeconds(30)) < 0
                 ? properties.limits().maximumTimeout() : Duration.ofSeconds(30);
+    }
+
+    /**
+     * 受理耐久停止命令；回执不表示远端执行或费用已确认。
+     *
+     * <ol>
+     *     <li>保存耐久停止标记 {@link MybatisExecutionPersistence#requestControl(ExecutionOwner, ExecutionControlRequest)}；</li>
+     *     <li>Worker 检测标记并取消模型流：{@link GenerationDispatcher.Session#run()}，模型流监听 {@link DefaultModelGateway#generate(GatewayCall) 并停止（stopSignal）}。</li>
+     * </ol>
+     */
+    @PostMapping("/cancelInvocation")
+    public Mono<ResponseEntity<ResultContext<ControlReceipt>>> cancelInvocation(
+            @Valid @RequestBody InvocationRequests.Query request,
+            @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        ContractChecks.id(key, "Idempotency-Key");
+        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE), queryTimeout, null, key)
+                .flatMap(context -> executionControl.request(new ExecutionControlRequest(
+                        context.executionId(), request.invocationId(), key, ControlReceipt.Command.CANCEL), context))
+                .map(receipt -> ResponseEntity.status(receipt.outcome() == ControlReceipt.Outcome.ACCEPTED ? 202 : 200)
+                        .body(ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale)));
     }
 
     @PostMapping("/getInvocationStatus")

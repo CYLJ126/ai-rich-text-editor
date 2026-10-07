@@ -289,7 +289,25 @@ public final class GenerationDispatcher {
             var heartbeats = Flux.interval(newAiExecutionProperties.attemptLease().dividedBy(3)).concatMap(ignored ->
                     completed.get() ? Mono.empty() : load(message.owner(), message.invocationId()).flatMap(value ->
                             value.state().terminal() ? Mono.empty() : guarded(guard -> executionStore.renewLease(guard, newAiExecutionProperties.attemptLease()), 3).then()), 1).then();
-            return Mono.firstWithSignal(work, heartbeats);
+            // 每个执行实例直接读取同库取消事实；通知丢失、API 与 Worker 分处不同实例也可停止。
+            var interval = newAiExecutionProperties.pollInterval().compareTo(Duration.ofSeconds(1)) > 0
+                    ? Duration.ofSeconds(1) : newAiExecutionProperties.pollInterval();
+            var cancellations = Flux.interval(interval).concatMap(ignored ->
+                    completed.get() ? Mono.empty() : executionStore.cancellationRequested(message.owner(), message.invocationId())
+                            .doOnNext(requested -> {
+                                if (requested) prepared.runtime().cancellation().cancel("USER_CANCELLED");
+                            }).then(), 1).then();
+            return Mono.firstWithSignal(work, heartbeats, cancellations)
+                    .onErrorResume(AdmissionException.class, error -> {
+                        // 仅恢复未派发取消造成的版本／fencing 竞争；结算或租约故障仍交由 Outbox 重投。
+                        if (completed.get() || !java.util.Set.of(ResultCodeEnum.AI_VERSION_CONFLICT,
+                                ResultCodeEnum.AI_LEASE_LOST, ResultCodeEnum.AI_INVALID_STATE).contains(error.getResultCode())) {
+                            return Mono.error(error);
+                        }
+                        return executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
+                                .then(load(message.owner(), message.invocationId())).flatMap(current ->
+                                        current.state() == Invocation.State.CANCELLED ? settle(current) : Mono.error(error));
+                    });
         }
 
         Mono<Void> reserveAndSend() {
@@ -335,6 +353,7 @@ public final class GenerationDispatcher {
         }
 
         Mono<GenerationSignal> consume(GatewayCall<GenerationRequest> call) {
+            var gatewayTerminal = new AtomicBoolean();
             var signals = Flux.defer(() -> {
                         timing.mark("GATEWAY_SUBSCRIBED");
                         return modelGateway.generate(call);
@@ -344,12 +363,16 @@ public final class GenerationDispatcher {
                             preview(delta.text());
                         } else if (!(signal instanceof GenerationSignal.Delta)) {
                             liveTextEnded = true;
+                            gatewayTerminal.set(true);
                         }
-                    }).doOnComplete(() -> timing.mark("GATEWAY_COMPLETED"))
+                    }).takeUntilOther(call.runtime().cancellation().signal())
+                    .concatWith(Flux.defer(() -> call.runtime().cancellation().isCancelled() && !gatewayTerminal.get()
+                            ? Flux.just(failure("INVOCATION_CANCELLED")) : Flux.empty()))
+                    .doOnComplete(() -> timing.mark("GATEWAY_COMPLETED"))
                     .onErrorResume(error -> {
                         log.warn("AI gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
                                 message.invocationId(), timing.traceId(), claimed.attemptId(), error.getClass().getName());
-                        return Flux.just(failure("PROVIDER_FLOW_INTERRUPTED"));
+                        return Flux.just(failure(call.runtime().cancellation().isCancelled() ? "INVOCATION_CANCELLED" : "PROVIDER_FLOW_INTERRUPTED"));
                     });
             return GenerationOutputBatches.batch(signals)
                     .concatMap(this::saveBatch, 1)
@@ -362,7 +385,7 @@ public final class GenerationDispatcher {
         }
 
         void preview(String value) {
-            if (liveTextNotifier == null || liveTextEnded || completed.get()
+            if (liveTextNotifier == null || liveTextEnded || completed.get() || prepared.runtime().cancellation().isCancelled()
                     || !clock.instant().isBefore(prepared.runtime().execution().deadline())) return;
             if (liveTextOffset + value.length() > com.arte.ainew.common.validation.ContractChecks.MAX_TEXT_CHARS) {
                 liveTextEnded = true;
@@ -431,6 +454,17 @@ public final class GenerationDispatcher {
                         : ((GenerationSignal.Failure) ending).partialResult();
                 var finalUsage = ending instanceof GenerationSignal.Result(ModelResult result1) ? result1.usage()
                         : ((GenerationSignal.Failure) ending).usage();
+                // 取消可能在供应商聚合终态之前切断流；只保存已提交批次中的文字作为部分结果。
+                if (result == null && ending instanceof GenerationSignal.Failure failure
+                        && failure.error().code().equals("INVOCATION_CANCELLED") && !text.toString().isBlank()) {
+                    var provider = newAiProperties.connections().stream()
+                            .filter(connection -> connection.definition().equals(prepared.binding().connection())).findFirst().orElseThrow().providerId();
+                    result = new ModelResult(CanonicalJson.key(message.invocationId(), claimed.attemptId(), "cancelled-result"),
+                            new ModelResult.ModelIdentity(provider, prepared.binding().remoteOperation(), null),
+                            List.of(new ChatMessage(CanonicalJson.key(claimed.attemptId(), "cancelled-output"), ChatMessage.Role.ASSISTANT,
+                                    List.of(new ChatMessage.Text(text.toString())), List.of(), null)),
+                            ModelResult.FinishReason.OTHER, false, null, finalUsage, List.of());
+                }
                 if (result != null) {
                     String output = result.outputs().stream().flatMap(value -> value.content().stream())
                             .filter(ChatMessage.Text.class::isInstance).map(ChatMessage.Text.class::cast)

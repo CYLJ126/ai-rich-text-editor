@@ -360,7 +360,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
                 var row = admission.conversationGate(hash(link.conversationId()));
                 require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
-                require(row.activeInvocation() == null, CONVERSATION_BUSY);
+                if (row.activeInvocation() != null) {
+                    // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
+                    var stopped = snapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
+                    require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
+                            && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
+                            && userStoppedGeneration(stopped), CONVERSATION_BUSY);
+                    require(admission.releaseConversation(hash(link.conversationId()), row.activeInvocation()) == 1, CONVERSATION_BUSY);
+                }
                 var turn = command.turn();
                 lock(hash("turn-id", turn.turnId()));
                 var oldTurn = snapshot(admission.turnSnapshot(hash(turn.turnId()), true), com.arte.ainew.pojo.conversation.Turn.class);
@@ -501,6 +508,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return outcome(() -> {
             var invocation = invocation(command.guard().invocation());
             var attempt = guarded(invocation, command.guard());
+            require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
             require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
             require(purpose(attempt) == LeasePurpose.EXECUTE && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
                     && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
@@ -517,6 +525,65 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         });
     }
 
+    private static final String CANCEL_REQUEST_KEY = hash("control-cancel-requested", "v1");
+
+    private boolean userStoppedGeneration(Invocation invocation) {
+        return invocation.userStoppedGeneration() && operation(invocation, CANCEL_REQUEST_KEY) != null;
+    }
+
+    @Override
+    public Mono<Boolean> cancellationRequested(ExecutionOwner owner, String invocationId) {
+        return find(owner, invocationId).flatMap(value -> tx(() -> operation(value, CANCEL_REQUEST_KEY) != null))
+                .defaultIfEmpty(false);
+    }
+
+    @Override
+    public Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request) {
+        Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(request, "request");
+        return outcome(() -> {
+            var invocation = snapshot(execution.invocationSnapshot(hash(request.invocationId()), true), Invocation.class);
+            // 不存在和不属于当前主体均返回 NOT_FOUND，不泄露其他主体的执行记录。
+            require(invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner), NOT_FOUND);
+            var key = hash("control", request.command().name(), request.commandKey());
+            var digest = hash(ownerKey(owner), id(invocation), request.command().name());
+            var previous = operation(invocation, key);
+            if (previous != null) {
+                require(previous.digest().equals(digest), IDEMPOTENCY_CONFLICT);
+                return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), ControlReceipt.class));
+            }
+            var result = request.command() != ControlReceipt.Command.CANCEL ? ControlReceipt.Outcome.UNSUPPORTED
+                    : invocation.state().terminal() ? ControlReceipt.Outcome.ALREADY_TERMINAL : ControlReceipt.Outcome.ACCEPTED;
+            var receipt = new ControlReceipt(request.commandId(), id(invocation), request.command(), result, now());
+            var control = event(invocation, invocation.activeAttemptId(), new ExecutionPayload.Control(receipt));
+            execution.insertCompletion(hash(id(invocation)), key, digest, control.sequence(), 1, codec.encode(receipt));
+            if (result == ControlReceipt.Outcome.ACCEPTED && operation(invocation, CANCEL_REQUEST_KEY) == null) {
+                // 固定标记不随 CONTROL 事件裁剪消失；其他实例和重启后的 Worker 均可读取。
+                execution.insertCompletion(hash(id(invocation)), CANCEL_REQUEST_KEY, digest, control.sequence(), 1, codec.encode(receipt));
+                var attempt = invocation.activeAttemptId() == null ? null
+                        : snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                if (attempt == null || attempt.dispatch() == Attempt.Dispatch.NOT_STARTED) {
+                    var error = new ExecutionError("INVOCATION_CANCELLED", ExecutionError.Phase.INVOCATION, false,
+                            ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, invocation.request().context().traceId());
+                    if (attempt != null) {
+                        long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+                        save(changed(attempt, Attempt.State.CANCELLED, attempt.dispatch(), attempt.remoteRequestId(),
+                                attempt.budgetReservationId(), attempt.usage(), error, attempt.workerId(), fence, attempt.leaseExpiresAt()));
+                        execution.saveNextFence(fence, hash(id(invocation)));
+                    }
+                    var cancelled = state(invocation, Invocation.State.CANCELLED, invocation.activeAttemptId(), null, error);
+                    save(cancelled);
+                    event(cancelled, cancelled.activeAttemptId(), new ExecutionPayload.Terminal(cancelled.state(), null, error));
+                    if (cancelled.conversation() != null) {
+                        admission.releaseConversation(hash(cancelled.conversation().conversationId()), hash(id(cancelled)));
+                    }
+                    // 原 DISPATCH Outbox 负责恢复预算释放，不在控制事务中调用外部服务。
+                }
+            }
+            return StoreOutcome.applied(receipt);
+        });
+    }
+
     @Override
     public Mono<StoreOutcome<Invocation>> stopExpired(Version target) {
         return outcome(() -> {
@@ -526,11 +593,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
             boolean uncertain = attempt.dispatch() != Attempt.Dispatch.NOT_STARTED;
-            var error = new ExecutionError("WORKER_LEASE_EXPIRED", ExecutionError.Phase.DISPATCH, false,
+            var cancelled = operation(invocation, CANCEL_REQUEST_KEY) != null;
+            var error = new ExecutionError(cancelled ? "INVOCATION_CANCELLED" : "WORKER_LEASE_EXPIRED", ExecutionError.Phase.DISPATCH, false,
                     uncertain ? ExecutionError.SideEffect.POSSIBLE : ExecutionError.SideEffect.NONE,
                     uncertain ? ExecutionError.Certainty.UNKNOWN : ExecutionError.Certainty.KNOWN,
                     invocation.request().context().traceId());
-            var terminal = new ExecutionPayload.Terminal(uncertain ? Invocation.State.UNKNOWN : Invocation.State.INTERRUPTED, null, error);
+            var terminal = new ExecutionPayload.Terminal(uncertain ? Invocation.State.UNKNOWN : cancelled ? Invocation.State.CANCELLED : Invocation.State.INTERRUPTED, null, error);
             long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
             save(changed(attempt, Attempt.State.valueOf(terminal.state().name()), attempt.dispatch(), attempt.remoteRequestId(),
                     attempt.budgetReservationId(), attempt.usage(), error, attempt.workerId(), fence, attempt.leaseExpiresAt()));
@@ -538,7 +606,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var completed = state(invocation, terminal.state(), attempt.attemptId(), null, error);
             save(completed);
             event(completed, attempt.attemptId(), terminal);
-            if (!uncertain && completed.conversation() != null) {
+            if (completed.conversation() != null && (!uncertain || cancelled && completed.userStoppedGeneration())) {
                 admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
             }
             return StoreOutcome.applied(completed);
@@ -651,7 +719,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             save(completed);
             var terminal = event(completed, attempt.attemptId(), command.terminal());
             execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed), command.evidenceRef());
-            if (completed.conversation() != null && completed.state() != Invocation.State.UNKNOWN) {
+            if (completed.conversation() != null && (completed.state() != Invocation.State.UNKNOWN || userStoppedGeneration(completed))) {
                 admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
             }
             // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。

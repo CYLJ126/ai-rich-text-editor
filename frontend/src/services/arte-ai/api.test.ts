@@ -2,6 +2,7 @@ import {request} from '@umijs/max';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   AiApiError,
+  cancelInvocation,
   createConversation,
   discoverChatOptions,
   getBudget,
@@ -84,6 +85,25 @@ beforeEach(() => {
 });
 
 describe('新 AI 接口封装', () => {
+  it('停止请求携带幂等键和取消信号，保留受理回执', async () => {
+    const receipt = {
+      commandId: 'command',
+      executionId: 'invocation',
+      command: 'CANCEL',
+      outcome: 'ACCEPTED',
+      receivedAt: conversation.createdAt
+    };
+    vi.mocked(request).mockResolvedValue({status: 202, data: {...metadata, data: receipt}});
+    const controller = new AbortController();
+    expect(await cancelInvocation({
+      scope,
+      invocationId: 'invocation'
+    }, 'cancel-key', {signal: controller.signal})).toEqual({httpStatus: 202, body: {...metadata, data: receipt}});
+    expect(request).toHaveBeenCalledWith('/arte/ai-new/invocation/cancelInvocation', expect.objectContaining({
+      method: 'POST', data: {scope, invocationId: 'invocation'}, signal: controller.signal,
+      headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'cancel-key'},
+    }));
+  });
   const createData = {scope, title: '测试会话'};
   const listData = {scope, page: {current: 2, size: 20}};
   const turnsData = {
@@ -376,6 +396,7 @@ describe('失败处理', () => {
         TypeError,
       );
       expect(() => turnsForChat(submit, key)).toThrow(TypeError);
+      expect(() => cancelInvocation({scope, invocationId: "id"}, key)).toThrow(TypeError);
       expect(request).not.toHaveBeenCalled();
     },
   );

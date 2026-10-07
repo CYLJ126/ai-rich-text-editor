@@ -1,4 +1,10 @@
 export default {
+  'app.aiChat.stoppedPendingReconciliation': 'Generation stopped and partial output retained. You can send a new question; costs await reconciliation and funds remain reserved. This stopped turn is excluded from future answer context.',
+  'app.aiChat.stoppedGeneration': 'Stopped',
+  'app.aiChat.stopGeneration': 'Stop generating',
+  'app.aiChat.stopping': 'Stopping…',
+  'app.aiChat.stopRequested': 'Stop requested. Waiting for execution status; costs for dispatched requests may still need reconciliation.',
+
   'app.aiChat.configurationRejected': 'The configuration or access is no longer available. Restore your login or access, reload available configurations, then select and apply. Your message draft is preserved.',
   'app.aiChat.loadOptions': 'Load available options',
   'app.aiChat.loadingOptions': 'Loading available models…',

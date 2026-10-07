@@ -33,33 +33,33 @@ import java.util.List;
  */
 @Slf4j
 public final class AdmissionInvocationCoordinator implements InvocationCoordinator {
-    private final AdmissionAuthorization authorization;
-    private final CapabilityCatalog capabilities;
-    private final BindingManager bindings;
-    private final BudgetService budgets;
-    private final ContextSnapshotStore snapshots;
-    private final ExecutionStore executions;
+    private final AdmissionAuthorization admissionAuthorization;
+    private final CapabilityCatalog capabilityCatalog;
+    private final BindingManager bindingManager;
+    private final BudgetService budgetService;
+    private final ContextSnapshotStore contextSnapshotStore;
+    private final ExecutionStore executionStore;
     private final NewAiProperties properties;
     private final Clock clock;
 
-    public AdmissionInvocationCoordinator(AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings,
-                                          BudgetService budgets, ContextSnapshotStore snapshots, ExecutionStore executions,
+    public AdmissionInvocationCoordinator(AdmissionAuthorization admissionAuthorization, CapabilityCatalog capabilityCatalog, BindingManager bindingManager,
+                                          BudgetService budgetService, ContextSnapshotStore contextSnapshotStore, ExecutionStore executionStore,
                                           NewAiProperties properties, Clock clock) {
-        this.authorization = authorization;
-        this.capabilities = capabilities;
-        this.bindings = bindings;
-        this.budgets = budgets;
-        this.snapshots = snapshots;
-        this.executions = executions;
+        this.admissionAuthorization = admissionAuthorization;
+        this.capabilityCatalog = capabilityCatalog;
+        this.bindingManager = bindingManager;
+        this.budgetService = budgetService;
+        this.contextSnapshotStore = contextSnapshotStore;
+        this.executionStore = executionStore;
         this.properties = properties;
         this.clock = clock;
     }
 
     @Override
     public Mono<AcceptedExecution> submit(InvocationSubmission<?> submission) {
-        return Mono.defer(() -> authorization.require(submission.request().context(), AdmissionAuthorization.INVOKE)
+        return Mono.defer(() -> admissionAuthorization.require(submission.request().context(), AdmissionAuthorization.INVOKE)
                 .flatMap(current -> submission.conversation() == null ? Mono.just(current)
-                        : authorization.require(current, AdmissionAuthorization.CONVERSATION))
+                        : admissionAuthorization.require(current, AdmissionAuthorization.CONVERSATION))
                 .flatMap(current -> {
                     if (!(submission.request().input() instanceof GenerationRequest generation)) {
                         throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
@@ -68,7 +68,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                     var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(), generation, original.options(), current);
                     var refreshed = new InvocationSubmission<>(request, submission.snapshot(), submission.conversation(),
                             submission.newTurn(), submission.replacesInvocationId());
-                    return capabilities.validate(request).then(bindings.resolve(request.binding(), request.capability(), current))
+                    return capabilityCatalog.validate(request).then(bindingManager.resolve(request.binding(), request.capability(), current))
                             .flatMap(binding -> admit(refreshed, binding));
                 }))
                 .doOnError(error -> log.warn("AI admission failed, invocationId={}, traceId={}, capabilityId={}, code={}, type={}",
@@ -96,7 +96,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
         }
         var digest = AdmissionDigests.submission(submission);
         var owner = ExecutionOwner.from(request.context());
-        return executions.findAccepted(owner, request.capability().id(), request.context().idempotencyKey())
+        return executionStore.findAccepted(owner, request.capability().id(), request.context().idempotencyKey())
                 .flatMap(original -> {
                     if (!original.requestDigest().equals(digest)) {
                         log.warn("AI admission idempotency conflict, requestedInvocationId={}, originalInvocationId={}, traceId={}",
@@ -116,7 +116,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                             || snapshot.expiresAt().isAfter(snapshot.createdAt().plus(properties.limits().snapshotRetention()))) {
                         throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                     }
-                    return budgets.account(owner, request.context().budgetRef())
+                    return budgetService.account(owner, request.context().budgetRef())
                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
                             .flatMap(account -> {
                                 var definition = properties.budgets().stream().filter(b -> b.budgetRef().equals(request.context().budgetRef())).findFirst().orElseThrow();
@@ -124,7 +124,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                         || !account.limit().currency().equals(definition.limit().currency())) {
                                     throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
                                 }
-                                return snapshots.put(owner, snapshot);
+                                return contextSnapshotStore.put(owner, snapshot);
                             })
                             .flatMap(saved -> {
                                 if (!saved.successful()) {
@@ -132,7 +132,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                 }
                                 var candidate = new Invocation(request, digest, submission.conversation(), saved.value().snapshotId(), null,
                                         Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-                                return executions.accept(new ExecutionCommands.Accept(candidate, turn));
+                                return executionStore.accept(new ExecutionCommands.Accept(candidate, turn));
                             })
                             .map(accepted -> {
                                 if (!accepted.successful()) {
@@ -163,6 +163,9 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
 
     @Override
     public Mono<ControlReceipt> control(ExecutionControlRequest request, ExecutionContext context) {
-        return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTROL_NOT_ENABLED));
+        return admissionAuthorization.require(context, AdmissionAuthorization.INVOKE)
+                .flatMap(current -> executionStore.requestControl(ExecutionOwner.from(current), request))
+                .flatMap(outcome -> outcome.successful() ? Mono.just(outcome.value())
+                        : Mono.error(AdmissionException.fromStoreRejection(outcome.code())));
     }
 }

@@ -228,6 +228,106 @@ public class DispatchIntegrationTest {
     }
 
     @Test
+    public void cancelBeforeDispatchNeverCallsProviderAndWorkerCanRecover() throws Exception {
+        try (var rig = new Rig()) {
+            var accepted = rig.submit(rig.conversation(), "cancel-before-send");
+            var context = rig.fixture.context("alice", "cancel");
+            var receipt = rig.control.request(new ExecutionControlRequest("cancel", accepted.executionId(), "cancel-key", ControlReceipt.Command.CANCEL), context).block(WAIT);
+            assertEquals(ControlReceipt.Outcome.ACCEPTED, receipt.outcome());
+            assertEquals(Integer.valueOf(1), rig.worker.pollOnce().block(WAIT));
+            assertEquals(0, rig.requests.get());
+            assertEquals(Invocation.State.CANCELLED, rig.invocation(accepted).state());
+            assertEquals(0, rig.account().held().amount().signum());
+            assertEquals(0, rig.account().charged().amount().signum());
+        }
+    }
+
+    @Test
+    public void cancelReservedButUndispatchedAttemptRecoversBudgetRelease() throws Exception {
+        try (var rig = new Rig()) {
+            var accepted = rig.submit(rig.conversation(), "cancel-reserved");
+            var invocation = rig.invocation(accepted);
+            var owner = AdmissionFixture.owner("alice-id");
+            var attempt = rig.fixture.executions.createAttempt(new ExecutionCommands.CreateAttempt(
+                    new ExecutionCommands.Version(owner, accepted.executionId(), invocation.version()), "reserved-attempt", "crashed-worker", Duration.ofSeconds(3))).block(WAIT).value();
+            invocation = rig.invocation(accepted);
+            var reservation = rig.fixture.executions.reserve(new BudgetCommands.Reserve(
+                    ExecutionCommands.Guard.from(owner, invocation, attempt), "reserved-budget", AdmissionFixture.money("1"), AdmissionFixture.RATE, Duration.ofHours(1))).block(WAIT).value();
+            rig.control.request(new ExecutionControlRequest("cancel-reserved", accepted.executionId(), "cancel-reserved", ControlReceipt.Command.CANCEL),
+                    rig.fixture.context("alice", "cancel")).block(WAIT);
+            rig.failSettlement.set(true);
+            // 第一次释放失败保留 Outbox；重投可释放，不发出模型请求。
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(0, rig.jdbc.queryForObject("SELECT delivered FROM arte_ai_outbox WHERE kind='DISPATCH'", Integer.class).intValue());
+            assertEquals(BudgetReservation.State.RESERVED, rig.fixture.executions.reservation(owner, reservation.reservationId()).block(WAIT).state());
+            rig.expireOutbox();
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(BudgetReservation.State.RELEASED, rig.fixture.executions.reservation(owner, reservation.reservationId()).block(WAIT).state());
+            assertEquals(0, rig.account().held().amount().signum());
+            assertEquals(0, rig.requests.get());
+            assertEquals(Invocation.State.CANCELLED, rig.invocation(accepted).state());
+        }
+    }
+
+    @Test
+    public void cancelRunningHttpStreamAcrossInstancesPreservesPartialResultAndUnknownCost() throws Exception {
+        try (var rig = new Rig()) {
+            rig.body = chunk("已收到的部分回复", null, "null");
+            rig.pause = 10000;
+            rig.tail = chunk("迟到回复", "stop", USAGE) + "data: [DONE]\n\n";
+            var accepted = rig.submit(rig.conversation(), "cancel-stream");
+            var finished = rig.worker.pollOnce().toFuture();
+            // 等首批耐久输出，确保确实在停止远端流而不是取消尚未派发的调用。
+            for (int i = 0; i < 200; i++) {
+                var events = rig.fixture.executions.replay(AdmissionFixture.owner("alice-id"), new ExecutionEvent.Cursor(accepted.executionId(), 0), 100).block(WAIT).value().events();
+                if (events.stream().anyMatch(event -> event.kind() == ExecutionEvent.Kind.OUTPUT)) break;
+                Thread.sleep(25);
+            }
+            assertEquals(1, rig.requests.get());
+            var other = new com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence(rig.dataSource, rig.fixture.codec, rig.db);
+            var receipt = other.requestControl(AdmissionFixture.owner("alice-id"),
+                    new ExecutionControlRequest("other-instance", accepted.executionId(), "stop-stream", ControlReceipt.Command.CANCEL)).block(WAIT).value();
+            assertEquals(ControlReceipt.Outcome.ACCEPTED, receipt.outcome());
+            finished.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            var invocation = rig.invocation(accepted);
+            assertEquals(Invocation.State.UNKNOWN, invocation.state());
+            assertEquals("INVOCATION_CANCELLED", invocation.error().code());
+            assertNotNull(invocation.result());
+            assertTrue(invocation.result().partial());
+            var result = (InvocationResult.Generation) rig.reading.result(accepted.executionId(), rig.fixture.context("alice", "read-cancelled")).block(WAIT);
+            assertEquals("已收到的部分回复", ((ChatMessage.Text) result.value().outputs().getFirst().content().getFirst()).text());
+            var attempt = rig.attempt(invocation);
+            assertEquals(BudgetReservation.State.PENDING_RECONCILIATION, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"), attempt.budgetReservationId()).block(WAIT).state());
+            assertTrue(rig.account().held().amount().signum() > 0);
+            assertEquals(0, rig.account().charged().amount().signum());
+            // 原 Outbox 重投仅恢复结算，不再次派发供应商。
+            rig.expireOutbox();
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(1, rig.requests.get());
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(accepted).state());
+            // 用户主动停止只解除聊天占用：新问题是独立执行，不使用停止轮次的提问／部分回答。
+            var held = rig.account().held();
+            rig.pause = 0;
+            rig.tail = "";
+            rig.body = chunk("新问题的回答", "stop", USAGE) + "data: [DONE]\n\n";
+            var nextContext = rig.fixture.context("alice", "after-stop");
+            var next = rig.chat.submit(rig.fixture.chatRequest(invocation.conversation().conversationId(), 1,
+                    "停止后重新提问", nextContext), nextContext).block(WAIT);
+            assertNotEquals(accepted.executionId(), next.executionId());
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(2, rig.requests.get());
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(next).state());
+            var payload = GenerationJson.mapper(65536).readTree(rig.requestBodies.get(1)).get("messages");
+            assertEquals(1, payload.size());
+            assertEquals("停止后重新提问", payload.get(0).get("content").asText());
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(accepted).state());
+            assertEquals(held, rig.account().held());
+            assertEquals(BudgetReservation.State.PENDING_RECONCILIATION,
+                    rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"), attempt.budgetReservationId()).block(WAIT).state());
+        }
+    }
+
+    @Test
     public void nextRoundUsesOwnedCommittedHistoryAndReplayKeepsOriginalContext() throws Exception {
         try (var rig = new Rig()) {
             var conversation = rig.conversation();

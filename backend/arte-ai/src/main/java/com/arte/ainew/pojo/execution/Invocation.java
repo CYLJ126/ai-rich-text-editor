@@ -87,6 +87,14 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
     }
 
     /**
+     * 用户停止接收生成内容，但远端结果仍未知。释放会话前还须核对存储中的耐久取消标记；费用独立对账。
+     */
+    public boolean userStoppedGeneration() {
+        return request.kind() == CapabilityDescriptor.Kind.GENERATION && state == State.UNKNOWN
+                && error != null && "INVOCATION_CANCELLED".equals(error.code());
+    }
+
+    /**
      * 固定会话版本参与受理并发校验；动作与后台能力调用可以没有会话关联。
      */
     public record ConversationLink(String conversationId, long conversationVersion,

@@ -1,10 +1,7 @@
 package com.arte.ainew.spi.persistence;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.pojo.execution.Attempt;
-import com.arte.ainew.pojo.execution.ExecutionCommands;
-import com.arte.ainew.pojo.execution.Invocation;
-import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.pojo.execution.*;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -37,6 +34,16 @@ public interface ExecutionStore {
      * 按耐久受理作用域读取原调用，供应用在会话版本／时间检查之前核对幂等摘要；不授予访问权。
      */
     Mono<Invocation> findAccepted(ExecutionOwner owner, String capabilityId, String idempotencyKey);
+
+    /**
+     * 按归属＋目标＋命令＋键防重；控制事件、回执及取消事实同事务保存。
+     */
+    Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request);
+
+    /**
+     * 耐久取消事实，不依赖通知、进程内对象或事件保留窗口。
+     */
+    Mono<Boolean> cancellationRequested(ExecutionOwner owner, String invocationId);
 
     Mono<Attempt> findAttempt(ExecutionOwner owner, String invocationId, String attemptId);
 

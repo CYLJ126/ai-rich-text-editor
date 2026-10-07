@@ -1,4 +1,10 @@
 export default {
+  'app.aiChat.stoppedPendingReconciliation': '已停止生成，部分回复已保留。你可以继续发送新问题；本次费用仍待核对，预留金额暂时保留。停止的这一轮不会用于后续回答的上下文。',
+  'app.aiChat.stoppedGeneration': '已停止',
+  'app.aiChat.stopGeneration': '停止生成',
+  'app.aiChat.stopping': '正在停止…',
+  'app.aiChat.stopRequested': '停止请求已受理，正在确认执行状态；已发送请求的费用可能仍需核对。',
+
   'app.aiChat.configurationRejected': '当前配置或权限已失效。请恢复登录或权限后重新加载可用配置，确认选择并应用；消息草稿已保留。',
   'app.aiChat.loadOptions': '加载可用配置',
   'app.aiChat.loadingOptions': '正在加载可用模型…',

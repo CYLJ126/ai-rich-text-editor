@@ -3,7 +3,7 @@ import React, {useMemo} from 'react';
 import {AiApiError, type ChatMessage, type ConversationResponse,} from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
 import type {ConfigurationRejected} from './configurationInvalidation';
-import {hasAvailableBudget, HISTORY_PAGE_SIZE, useChatSession,} from './useChatSession';
+import {hasAvailableBudget, HISTORY_PAGE_SIZE, isUserStoppedGeneration, useChatSession,} from './useChatSession';
 
 function messageText(message: ChatMessage) {
   return message.content
@@ -124,7 +124,7 @@ export default function ChatPanel({
               <div>
                 <Tag color="blue">{t('role.ASSISTANT')}</Tag>
                 {invocation?.status && (
-                  <Tag>{t(`execution.${invocation.status.state}`)}</Tag>
+                  <Tag>{t(isUserStoppedGeneration(invocation.status) ? 'stoppedGeneration' : `execution.${invocation.status.state}`)}</Tag>
                 )}
                 {model && !model.complete && (
                   <Tag color="orange">{t('partialResult')}</Tag>
@@ -253,7 +253,7 @@ export default function ChatPanel({
       />
       <div className="flex flex-wrap gap-2" aria-live="polite">
         <span>
-          {t('invocationState')}：{state ? t(`execution.${state}`) : '—'}
+          {t('invocationState')}：{state ? t(isUserStoppedGeneration(current?.status) ? 'stoppedGeneration' : `execution.${state}`) : '—'}
         </span>
         <span>
           {t('budgetAvailable')}：
@@ -299,6 +299,13 @@ export default function ChatPanel({
           {t('polling')}
         </p>
       )}
+      {error(chat.stopError, chat.retryStop)}
+      {isUserStoppedGeneration(current?.status) && (
+        <Alert type="info" title={t('stoppedPendingReconciliation')}/>
+      )}
+      {chat.stopRequested === chat.invocationId && state && ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(state) && (
+        <p role="status">{t('stopRequested')}</p>
+      )}
       {error(chat.submitError)}
       {chat.pending && <Alert type="warning" title={t('retryMessageHint')}/>}
       {dirty && <p className="m-0 text-xs">{t('applyDraft')}</p>}
@@ -312,7 +319,19 @@ export default function ChatPanel({
         autoSize={{minRows: 3, maxRows: 8}}
         placeholder={t('messagePlaceholder')}
       />
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {chat.invocationId && state && ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(state) && (
+          <Button
+            loading={chat.stopping}
+            aria-label={t(chat.stopRequested === chat.invocationId ? 'stopping' : 'stopGeneration')}
+            disabled={chat.stopping || chat.stopRequested === chat.invocationId}
+            onClick={() => {
+              if (chat.invocationId) void chat.stop(chat.invocationId);
+            }}
+          >
+            {t(chat.stopRequested === chat.invocationId ? 'stopping' : 'stopGeneration')}
+          </Button>
+        )}
         <Button
           type="primary"
           loading={chat.submitting}

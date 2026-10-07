@@ -8,6 +8,7 @@ export {
   queryTurnsOfConversation,
 } from './conversation';
 export {
+  cancelInvocation,
   getInvocationResult,
   getInvocationStatus,
   invocationEvent,

@@ -22,7 +22,11 @@ ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契�
 
 幂等作用域固定为 tenant + workspace + subject + capability.id。定义版本、绑定版本和目标会话／动作身份进入服务端规范化 requestDigest，不通过改变定义版本绕开同键防重。字符串键采用 UTF-8 长度前缀 SHA-256，避免拼接歧义及 MySQL 排序规则造成大小写混淆。requestDigest 仍由可信准入层计算，存储不从客户端自报摘要推断输入正确。
 
-会话受理使用 AdmissionCatalogStore 的独立新表，不读取旧会话表。新 Turn 从 sequence=1 连续递增；已有 Turn 的重新生成仅追加 Invocation，并比较 Turn.version，保持用户输入、历史路径和已有选中候选。受理增加 Conversation.version；确定终态释放活跃调用门闩，UNKNOWN 继续占据门闩直至核对收敛。`findConversation` 和 `findTurn` 提供当前受理快照，不替代完整会话编辑／删除服务。
+会话受理使用 AdmissionCatalogStore 的独立新表，不读取旧会话表。新 Turn 从 sequence=1 连续递增；已有 Turn 的重新生成仅追加
+Invocation，并比较 Turn.version，保持用户输入、历史路径和已有选中候选。受理增加 Conversation.version；确定终态释放活跃调用门闩，普通
+UNKNOWN 继续占据门闩直至核对收敛。有耐久用户取消标记的 GENERATION／UNKNOWN／INVOCATION_CANCELLED
+只释放会话，结果及预算继续待对账；旧门闩由下一轮受理事务核对后清理。释放按原 activeInvocation 条件更新，旧调用的迟到完成不能解除新调用。
+`findConversation` 和 `findTurn` 提供当前受理快照，不替代完整会话编辑／删除服务。
 
 ## 2. Worker 与崩溃恢复
 

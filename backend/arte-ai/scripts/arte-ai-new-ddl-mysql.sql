@@ -59,7 +59,7 @@ create table arte_ai_operation
     digest          char(64) not null comment '首次提交的操作内容摘要',
     first_sequence  bigint not null comment '首次提交的首条事件序号',
     event_count     int not null comment '首次提交的事件数量',
-    result_snapshot longtext null comment '完成操作首次提交的调用快照，用于幂等重放',
+    result_snapshot longtext null comment '完成调用或控制回执快照，用于幂等重放',
     evidence_ref    varchar(256) null comment '可信远端核对证据引用',
     primary key (invocation_key, operation_key)
 ) engine = InnoDB comment '新 AI 追加及完成操作防重表';

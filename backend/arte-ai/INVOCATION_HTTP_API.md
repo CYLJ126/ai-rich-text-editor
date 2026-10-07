@@ -1,16 +1,52 @@
-# 新 AI 执行查询 HTTP 接口
+# 新 AI 执行查询与停止 HTTP 接口
 
-`NewAiInvocationController` 提供执行状态、结果、单页耐久事件重放和 SSE 通知，沿用已有新 AI Controller 的 POST、`@Valid`、
+`NewAiInvocationController` 提供停止生成、执行状态、结果、单页耐久事件重放和 SSE 通知，沿用已有新 AI Controller 的 POST、
+`@Valid`、
 `Mono<ResultContext<...>>` 和请求 Locale。只有 `arte.ai-new.enabled=true` 与 `arte.ai-new-execution.enabled=true`
 同时满足时才注册；生成、执行配置的前置依赖仍需完整启用。
 
-这些接口只读取，不启动 Worker、不调用模型，也不触发重新生成。SSE 订阅不重新执行调用；取消及远端核对尚未实现。
+状态、结果、重放与 SSE 接口只读取，不启动 Worker、不调用模型，也不触发重新生成。停止接口提交耐久取消命令；远端核对仍未实现。
 
 ## 认证与共同参数
 
 所有请求携带 `Authorization: Bearer <登录 Token>` 和 `Content-Type: application/json`，可通过 `Accept-Language` 指定响应语言。应用 context-path 若为 `/arte`，以下路径均加上 `/arte` 前缀。
 
 `scope` 是选择范围，不是授权凭据。服务器在 MVC 请求线程捕获当前 Authentication，申请 `ai:read`，服务层再次检查当前授权及主体／空间归属；不接收客户端声明的 owner、权限或原执行上下文。每次读取使用新查询期限（30 秒与服务器 maximumTimeout 中较小值），允许读取已经超过原模型执行期限的记录。读取不需要 `Idempotency-Key` 或预算参数。
+
+## 停止生成
+
+```http
+POST /ai-new/invocation/cancelInvocation
+Idempotency-Key: <本次停止请求的固定键>
+```
+
+请求正文复用状态查询的 `{scope, invocationId}`，不接受客户端身份、状态或费用证据。 使用当前可信上下文申请 `ai:invoke`
+，再检查目标调用的主体归属；不属于当前主体与不存在均返回 404。 缺少／空白／超过 256 字符的幂等键返回
+400。停止操作使用独立查询期限，不复用可能已经到期的生成期限。
+
+成功返回标准 `ResultContext`，data 为 `{commandId, executionId, command, outcome, receivedAt}`：
+
+- `ACCEPTED`：HTTP 202，仅表示命令已耐久受理，继续读取权威执行状态。
+- `ALREADY_TERMINAL`：HTTP 200，确定终态或 UNKNOWN 都不会被取消操作覆盖。
+- 相同主体＋调用＋命令＋幂等键重放原回执，包括原 commandId、时间和 HTTP 状态，不重复生成事件。
+- 暂停／继续只有内部契约，返回 `UNSUPPORTED`；HTTP 首版仅提供 CANCEL。
+
+取消回执、CONTROL 事件／发布 Outbox 和固定取消标记在同一事务保存，复用 `arte_ai_operation`，无需新增 DDL。
+标记独立于事件保留窗口，事件裁剪后仍可去重和恢复。未创建 Attempt 或确认 NOT_STARTED 时直接提交 CANCELLED／TERMINAL，释放会话门闩；有
+Attempt 时推进 fencing，拒绝旧 Worker 的派发和输出。 预算不在控制事务隐式释放：原 DISPATCH Outbox
+恢复结算，确认未派发的预留才释放，结算失败保持消息待重投。
+
+运行中的 Worker 按 `min(pollInterval, 1 秒)` 读取共享数据库取消标记，支持不同实例和进程重启， 不依赖 Redis
+通知送达。模型订阅被取消后保存已接收并成功提交的部分文字；供应商聚合未产生部分结果时，
+部分快照以绑定的模型标识记录，complete=false。已经可能派发的请求按现有确定性契约收敛为 UNKNOWN／INVOCATION_CANCELLED，费用未知时为
+PENDING_RECONCILIATION，保留预算预留。GENERATION 调用有耐久取消标记时， 终态提交／过期 Worker
+恢复释放会话门闩；用户可以提交新的独立问题。ChatHistoryLoader 跳过该停止轮次，原提问与部分回复只保留展示。
+旧版本留下的停止门闩在下一轮受理事务中验证同一主体、同一会话及耐久取消标记后清理，不修改原状态、结果或账本。 关闭本地
+HTTP/SSE 不证明供应商已停止执行或零费用。UNKNOWN 当前没有自动核对入口；普通断流／超时及非生成能力的 UNKNOWN
+仍阻止继续。停止后可以发送新问题，不自动重发原消息或创建原调用的第二次 Attempt。
+
+正常完成与停止竞争时，已经提交的终态优先；ACCEPTED 回执不保证最终为 CANCELLED。 浏览器断线／退出页面不提交停止请求。前端显示“正在停止”，持续观察原
+invocationId； 停止请求网络失败时重试同一个键和目标，不重新提交聊天。
 
 ## 状态
 
@@ -53,7 +89,8 @@ POST /ai-new/invocation/getInvocationStatus
 - `state` 读取耐久 Invocation 权威，不能根据 HTTP 200 或事件流结束判断生成成功。
 - `conversation` 可为 null；其中 `conversationVersion` 是受理时的会话版本，不是当前会话版本。
 - `resultAvailable` 表示已有耐久结果引用，不表示输出完整，也不代替读取结果时的字节完整性校验。没有引用时 `partial=null`。
-- `FAILED` 或 `UNKNOWN` 可能仍有可读的部分结果。`UNKNOWN` 表示远端结果尚不确定，不能据此自动重发或认为会话已经解除活跃限制。
+- `FAILED` 或 `UNKNOWN` 可能仍有可读的部分结果。`UNKNOWN` 表示远端结果尚不确定，禁止自动重发；仅有耐久用户停止标记的
+  GENERATION／INVOCATION_CANCELLED 解除聊天占用，费用仍独立待对账。
 - `error` 只包含平台安全错误码、阶段、可重试事实、副作用确定性及关联 ID；`retryable` 不授予自动重发权限。
 - 响应不返回原始 InvocationRequest、用户输入、授权快照、预算选择或存储摘要。
 
@@ -275,3 +312,20 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 Redis 集成测试仅在显式传入 `-Darte.ai-new.test.redis-address=redis://127.0.0.1:<临时端口>` 时运行；不读取应用 Redis
 连接或真实凭据。 使用可销毁的独立 Redis 实例，不接生产数据。覆盖双实例通知、订阅断开期间已 ACK 事件的恢复、归属隔离和
 HTTP-only 节点自动订阅。 本地预算测试覆盖终态先于结算、慢订阅者收到最后结算事件、广播失败未 ACK、账本／事件同事务回滚及幂等重放。
+
+### 停止功能回归验证
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dlog4j2.loggerContextFactory=org.apache.logging.log4j.core.impl.Log4jContextFactory \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.persistence.*Test,com.arte.ainew.admission.*Test,com.arte.ainew.execution.*Test,com.arte.ainew.context.*Test,com.arte.ainew.contract.*Test' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+npm --prefix frontend test -- src/pages/AI/Chat src/services/arte-ai
+```
+
+真实本机模拟 HTTP/SSE 与 H2 验证跨实例停止、部分回复保存、UNKNOWN／待对账、停止后同会话新问题实际派发、
+停止轮次不进入模型上下文、旧预留不变，以及未派发额度释放失败重投。存储验证旧停止门闩恢复、迟到输出防护、 无取消标记及非生成
+UNKNOWN 仍阻止继续，以及防重、裁剪、竞争、越权与事务回滚。前端验证停止及刷新后的输入恢复、
+新问题独立提交、原调用不重发、重复点击、同键重试、订阅与卸载取消。测试不访问真实模型或生产数据库。

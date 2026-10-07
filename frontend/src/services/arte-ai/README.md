@@ -1,6 +1,6 @@
 # 新 AI 前端接口
 
-本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 10 个 JSON POST 接口。页面位于
+本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 JSON POST 接口。页面位于
 `src/pages/AI/Chat`；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
 
 统一从 `@/services/arte-ai` 导入。成功返回 `{ httpStatus, body }`：普通接口使用 `body.data`，分页接口使用 `body.records`、
@@ -68,3 +68,7 @@ data、CR/LF、注释心跳、安全 error 帧；单帧最多 8 Mi 个解码字�
 getBudget 查询金额。 TERMINAL 不保证预算已结算；RESERVED 时继续观察，SETTLED/RELEASED/PENDING_RECONCILIATION 后读取账本快照。
 PENDING_RECONCILIATION 表示金额尚待核对，不能视为零费用。结算阶段可在 Invocation.version 不变时更新。 多实例广播由后端
 Redis 实现，前端继续使用相同 SSE/HTTP API 与 sequence 游标。
+
+停止请求正文使用 `{scope, invocationId}`，必须携带稳定 `Idempotency-Key`。202 的 `ACCEPTED` 表示命令已保存； 200 的
+`ALREADY_TERMINAL` 表示无需停止。封装不取消 SSE、不修改本地执行终态，不自动重试或重新发送聊天。 运行中的停止可能保留 UNKNOWN
+和待对账预算，继续以状态接口和终态结果为准。

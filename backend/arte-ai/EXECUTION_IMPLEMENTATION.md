@@ -166,7 +166,8 @@ ACK DISPATCH。
 - 已有失效 Attempt：`ExecutionStore.stopExpired` 原子递增版本和 fencing；NOT_STARTED 收敛为 INTERRUPTED，可能发送收敛为 UNKNOWN。本阶段不自动创建第二次尝试。
 - 未创建 Attempt 但权限、配置、快照或期限失效：耐久结束；队列中过期的调用成为 TIMED_OUT，不调用模型。
 
-该链路提供至少一次消息处理与耐久防重。数据库无法与外部 HTTP 形成原子事务；在发送标记之后发生崩溃，即使无法判断是否实际发送，也保留 UNKNOWN，等待同次远端操作核对。UNKNOWN 保留会话活跃门闩。
+该链路提供至少一次消息处理与耐久防重。数据库无法与外部 HTTP 形成原子事务；在发送标记之后发生崩溃，即使无法判断是否实际发送，也保留
+UNKNOWN，等待同次远端操作核对。普通 UNKNOWN 保留会话活跃门闩；有耐久用户停止标记的生成调用只解除聊天占用，原状态及费用仍待对账。
 
 完整且有效的生成结果提交 SUCCEEDED。供应商明确结束但输出不完整（如 length）保存部分结果，提交 FAILED／MODEL_OUTPUT_INCOMPLETE；存储检查实际结果字节的归属、类型、完整性标志、Schema、摘要和用量，非空证据字符串不能单独证明失败。断流、超时和不确定响应提交 UNKNOWN；供应商提供部分结果时仍可通过 result 读取，并检查 result 的 partial／complete。
 
@@ -199,8 +200,8 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 本阶段提供 Service 层测试入口。后续已接入会话创建／列表／详情／轮次查询及单条用户文本提交 HTTP
 Controller，提交契约见 [HTTP 接口说明](CHAT_HTTP_API.md)
 ；执行状态／结果及单页耐久事件重放已接入，见 [执行查询接口](INVOCATION_HTTP_API.md)
-；授权预算账户汇总已接入，见 [预算查询接口](BUDGET_HTTP_API.md)。预算管理 HTTP Controller、耐久跨实例取消、UNKNOWN
-的远端核对、动态路由、工具及多次安全重试仍待后续实现；control／reconcile
+；授权预算账户汇总已接入，见 [预算查询接口](BUDGET_HTTP_API.md)。耐久跨实例停止已接入，见本文末尾。 预算管理 HTTP
+Controller、UNKNOWN 的远端核对、动态路由、工具及多次安全重试仍待后续实现；reconcile
 明确返回未启用错误。现有手动 DDL 不变。
 
 ## 事件通知、预算结算与跨实例广播
@@ -212,3 +213,13 @@ EVENT Outbox 提交后唤醒、统一恢复扫描、耐久回放及 SSE 已接�
 广播可选 local/redis。Redis 复用已有 Redisson，所有节点订阅；EVENT 领取节点发布成功后 ACK，浏览器连接所在节点按耐久游标重读。
 订阅恢复也触发重读，恢复 Pub/Sub 断线期间丢失的提示。Redis 不存正文或账本权威。 自动发布沿用
 execution.worker-enabled；HTTP-only 节点仍订阅，订阅不会重新派发模型。 配置及迁移见接口文档；本步不新增表。
+
+## 耐久停止生成
+
+取消命令由 `AdmissionInvocationCoordinator.control` 授权后交给 `ExecutionStore.requestControl`。 复用操作防重表存回执与独立取消标记，和
+CONTROL 事件／Outbox 同事务；未派发直接提交 CANCELLED 并 fencing。
+`GenerationDispatcher` 每个活跃 Session 读取同库标记，取消模型订阅，保存部分结果，并沿用 UNKNOWN／待对账保证。 用户停止的
+GENERATION／UNKNOWN／INVOCATION_CANCELLED 在完成或过期恢复时释放会话；旧版本遗留的门闩在新问题受理事务中核对并清理。
+ChatHistoryLoader 验证耐久取消标记后跳过停止轮次；原部分回复保持可读，预算预留继续等待原调用的费用核对，新问题创建独立调用。
+停止与完成竞争以数据库终态为准，恢复仍使用原 DISPATCH Outbox，费用故障不吞掉、不立即假报释放。
+HTTP／客户端语义及当前远端核对限制见 [停止接口](INVOCATION_HTTP_API.md#停止生成)。不需要新增 DDL。

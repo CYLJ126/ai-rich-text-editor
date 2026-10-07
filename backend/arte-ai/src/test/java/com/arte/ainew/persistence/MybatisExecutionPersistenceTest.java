@@ -527,6 +527,205 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(2, count("arte_ai_event")); assertEquals(0, count("arte_ai_operation"));
     }
 
+    private ExecutionControlRequest cancel(String id, String key) {
+        return new ExecutionControlRequest("command-" + UUID.randomUUID(), id, key, ControlReceipt.Command.CANCEL);
+    }
+
+    @Test
+    public void cancellationBeforeAttemptIsDurableIdempotentAndPreventsDispatch() {
+        accept("inv", null);
+        var command = cancel("inv", "stop");
+        var receipt = first.requestControl(OWNER, command).block().value();
+        assertEquals(ControlReceipt.Outcome.ACCEPTED, receipt.outcome());
+        assertEquals(receipt, second.requestControl(OWNER, cancel("inv", "stop")).block().value());
+        assertEquals(Invocation.State.CANCELLED, second.find(OWNER, "inv").block().state());
+        assertTrue(second.cancellationRequested(OWNER, "inv").block());
+        assertEquals(INVALID_STATE, first.createAttempt(new CreateAttempt(new Version(OWNER, "inv", 1), "late", "worker", Duration.ofSeconds(30))).block().code());
+        assertEquals(3, count("arte_ai_event"));
+        assertEquals(ControlReceipt.Outcome.ALREADY_TERMINAL, second.requestControl(OWNER, cancel("inv", "new-key")).block().value().outcome());
+        // 事件被裁剪后，命令防重及停止事实仍保留。
+        first.discardThrough(OWNER, "inv", 3).block();
+        assertTrue(second.cancellationRequested(OWNER, "inv").block());
+        assertEquals(receipt, first.requestControl(OWNER, command).block().value());
+    }
+
+    @Test
+    public void cancellationBeforeSendingFencesWorkerWithoutReleasingMoneyImplicitly() {
+        account("100");
+        accept("inv", "budget");
+        create("inv");
+        var reservation = first.reserve(reserveCommand("inv", "10")).block().value();
+        var oldGuard = guard("inv");
+        first.requestControl(OWNER, cancel("inv", "stop")).block();
+        assertEquals(Invocation.State.CANCELLED, second.find(OWNER, "inv").block().state());
+        assertEquals(Attempt.State.CANCELLED, second.findAttempt(OWNER, "inv", "attempt-inv").block().state());
+        assertFalse(first.markDispatch(new Dispatch(oldGuard, "late")).block().successful());
+        assertFalse(first.appendBatch(new Append(oldGuard, "late", List.of(batch("late")))).block().successful());
+        assertEquals(BudgetReservation.State.RESERVED, second.reservation(OWNER, reservation.reservationId()).block().state());
+        assertEquals(0, second.account(OWNER, "budget").block().held().amount().compareTo(new BigDecimal("10")));
+    }
+
+    @Test
+    public void dispatchedCancellationDoesNotFabricateRemoteOutcomeAndSurvivesReconstruction() {
+        accept("inv", null);
+        create("inv");
+        dispatch("inv");
+        var receipt = first.requestControl(OWNER, cancel("inv", "stop")).block().value();
+        var recovered = new MybatisExecutionPersistence(dataSource, codec, scheduler);
+        assertTrue(recovered.cancellationRequested(OWNER, "inv").block());
+        assertEquals(Invocation.State.RUNNING, recovered.find(OWNER, "inv").block().state());
+        assertEquals(receipt, recovered.requestControl(OWNER, cancel("inv", "stop")).block().value());
+        // 正常完成先提交仍可胜出，取消回执从未承诺远端终态。
+        assertEquals(APPLIED, second.commitCompletion(success("inv", "completed")).block().code());
+        assertEquals(ControlReceipt.Outcome.ALREADY_TERMINAL, first.requestControl(OWNER, cancel("inv", "again")).block().value().outcome());
+        assertEquals(Invocation.State.SUCCEEDED, first.find(OWNER, "inv").block().state());
+    }
+
+    @Test
+    public void cancellationAndMarkDispatchCompeteUnderTheSameDatabaseLock() {
+        accept("inv", null);
+        create("inv");
+        var before = guard("inv");
+        var results = Flux.merge(first.requestControl(OWNER, cancel("inv", "stop")).map(value -> (Object) value),
+                second.markDispatch(new Dispatch(before, "remote")).map(value -> (Object) value)).collectList().block();
+        assertEquals(2, results.size());
+        var current = first.find(OWNER, "inv").block();
+        var attempt = first.findAttempt(OWNER, "inv", "attempt-inv").block();
+        assertTrue(second.cancellationRequested(OWNER, "inv").block());
+        assertTrue(current.state() == Invocation.State.CANCELLED && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
+                || current.state() == Invocation.State.RUNNING && attempt.dispatch() == Attempt.Dispatch.MAY_HAVE_EXECUTED);
+    }
+
+    @Test
+    public void cancelledInvocationReleasesConversationGate() {
+        var at = Instant.now();
+        first.createConversation(new Conversation("conversation", OWNER, "chat", 0, null, List.of(), Conversation.State.ACTIVE, at, at)).block();
+        var invocation = candidate("inv", "key", null, new Invocation.ConversationLink("conversation", 0, "turn"));
+        var turn = new Turn("turn", "conversation", 1, null, null,
+                new ChatMessage("message", ChatMessage.Role.USER, List.of(new ChatMessage.Text("hello")), List.of(), null),
+                List.of("inv"), null, 0, at, at);
+        first.accept(new Accept(invocation, turn)).block();
+        second.requestControl(OWNER, cancel("inv", "stop")).block();
+        var next = candidate("next", "next-key", null, new Invocation.ConversationLink("conversation", 1, "next-turn"));
+        var nextTurn = new Turn("next-turn", "conversation", 2, null, null, turn.userMessage(), List.of("next"), null, 0, at, at);
+        assertEquals(APPLIED, second.accept(new Accept(next, nextTurn)).block().code());
+    }
+
+    private Accept conversationInvocation(String id, long version, String budget, boolean generation) {
+        var at = Instant.now();
+        if (version == 0) first.createConversation(new Conversation("conversation", OWNER, "chat", 0, null,
+                List.of(), Conversation.State.ACTIVE, at, at)).block();
+        var message = new ChatMessage("message-" + id, ChatMessage.Role.USER, List.of(new ChatMessage.Text("hello")), List.of(), null);
+        var candidate = candidate(id, "key-" + id, budget, new Invocation.ConversationLink("conversation", version, "turn-" + id));
+        if (generation) {
+            var input = new GenerationRequest(List.of(message), new GenerationOptions(128, null, null, List.of()),
+                    List.of(), new GenerationRequest.TextOutput());
+            var request = new InvocationRequest<>(new DefinitionRef("capability", "generation", "v1"), candidate.request().binding(),
+                    input.kind(), input, candidate.request().options(), candidate.request().context());
+            candidate = new Invocation(request, DIGEST, candidate.conversation(), "snapshot-" + id, null,
+                    Invocation.State.ACCEPTED, 0, null, null, null, at, at);
+        }
+        var turn = new Turn("turn-" + id, "conversation", version + 1, null, null, message, List.of(id), null, 0, at, at);
+        return new Accept(candidate, turn);
+    }
+
+    private Complete stoppedCompletion(String id) {
+        var error = new ExecutionError("INVOCATION_CANCELLED", ExecutionError.Phase.INVOCATION, false,
+                ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "trace");
+        return new Complete(guard(id), "stopped", new ExecutionPayload.Terminal(Invocation.State.UNKNOWN, null, error), Usage.unknown(), null);
+    }
+
+    private void assertStoppedConversationCanContinue(boolean legacyGate) {
+        account("100");
+        first.accept(conversationInvocation("inv", 0, "budget", true)).block();
+        create("inv");
+        first.reserve(reserveCommand("inv", "10")).block();
+        dispatch("inv");
+        var oldGate = jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class);
+        first.requestControl(OWNER, cancel("inv", "stop")).block();
+        var completion = stoppedCompletion("inv");
+        assertEquals(APPLIED, first.commitCompletion(completion).block().code());
+        assertNull(jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
+        if (legacyGate) jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=?", oldGate);
+        var recovered = new MybatisExecutionPersistence(dataSource, codec, scheduler);
+        assertEquals(APPLIED, recovered.accept(conversationInvocation("next", 1, null, true)).block().code());
+        // 原完成重放／迟到输出不能解除或改写新调用。
+        assertEquals(REPLAYED, recovered.commitCompletion(completion).block().code());
+        assertEquals(VERSION_CONFLICT, first.appendBatch(new Append(completion.guard(), "late-output", List.of(batch("late")))).block().code());
+        assertEquals(CONVERSATION_BUSY, recovered.accept(conversationInvocation("third", 2, null, true)).block().code());
+        assertEquals(Invocation.State.UNKNOWN, recovered.find(OWNER, "inv").block().state());
+        assertEquals(money("10"), recovered.account(OWNER, "budget").block().held());
+        assertEquals(money("0"), recovered.account(OWNER, "budget").block().charged());
+    }
+
+    @Test
+    public void stoppedGenerationReleasesConversationWithoutSettlingUnknownCost() {
+        assertStoppedConversationCanContinue(false);
+    }
+
+    @Test
+    public void oldStoppedConversationGateIsRecoveredWhenAcceptingANewQuestion() {
+        assertStoppedConversationCanContinue(true);
+    }
+
+    @Test
+    public void cancellationErrorWithoutDurableUserCommandDoesNotUnlockConversation() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        assertEquals(APPLIED, first.commitCompletion(stoppedCompletion("inv")).block().code());
+        assertFalse(second.cancellationRequested(OWNER, "inv").block());
+        assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+    }
+
+    @Test
+    public void stoppedNonGenerationUnknownStillRequiresReconciliation() {
+        first.accept(conversationInvocation("inv", 0, null, false)).block();
+        create("inv");
+        dispatch("inv");
+        first.requestControl(OWNER, cancel("inv", "stop")).block();
+        assertEquals(APPLIED, first.commitCompletion(stoppedCompletion("inv")).block().code());
+        assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+    }
+
+    @Test
+    public void expiredStoppedGenerationReleasesConversationAfterWorkerRecovery() throws Exception {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        first.createAttempt(new CreateAttempt(new Version(OWNER, "inv", 0), "attempt-inv", "worker", Duration.ofSeconds(1))).block();
+        dispatch("inv");
+        first.requestControl(OWNER, cancel("inv", "stop")).block();
+        Thread.sleep(1100);
+        var completed = second.stopExpired(guard("inv").invocation()).block().value();
+        assertTrue(completed.userStoppedGeneration());
+        assertNull(jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
+        assertEquals(APPLIED, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+    }
+
+    @Test
+    public void controlRejectsForeignOwnersAndDoesNotCancelForUnsupportedCommands() {
+        accept("inv", null);
+        var foreign = new ExecutionOwner("tenant", "workspace", "foreign");
+        assertEquals(NOT_FOUND, second.requestControl(foreign, cancel("inv", "stop")).block().code());
+        assertEquals(NOT_FOUND, second.requestControl(OWNER, cancel("missing", "stop")).block().code());
+        assertFalse(second.cancellationRequested(foreign, "inv").block());
+        var pause = new ExecutionControlRequest("pause", "inv", "pause", ControlReceipt.Command.PAUSE);
+        assertEquals(ControlReceipt.Outcome.UNSUPPORTED, first.requestControl(OWNER, pause).block().value().outcome());
+        assertFalse(second.cancellationRequested(OWNER, "inv").block());
+        assertEquals(Invocation.State.ACCEPTED, second.find(OWNER, "inv").block().state());
+    }
+
+    @Test
+    public void controlReceiptEventAndCancellationRollBackTogether() {
+        accept("inv", null);
+        var failing = faulty(value -> value instanceof Invocation invocation && invocation.state() == Invocation.State.CANCELLED);
+        assertThrows(IllegalStateException.class, () -> failing.requestControl(OWNER, cancel("inv", "stop")).block());
+        assertEquals(Invocation.State.ACCEPTED, first.find(OWNER, "inv").block().state());
+        assertFalse(first.cancellationRequested(OWNER, "inv").block());
+        assertEquals(0, count("arte_ai_operation"));
+        assertEquals(1, count("arte_ai_event"));
+        assertEquals(2, count("arte_ai_outbox"));
+    }
+
     private MybatisExecutionPersistence faulty(java.util.function.Predicate<Object> when) {
         var armed = new AtomicBoolean(true);
         var faultyCodec = new ExecutionRecordCodec() {

@@ -214,6 +214,14 @@ export interface ExecutionError {
   correlationId: string;
 }
 
+export interface ControlReceipt {
+  commandId: string;
+  executionId: string;
+  command: 'CANCEL' | 'PAUSE' | 'RESUME';
+  outcome: 'ACCEPTED' | 'ALREADY_TERMINAL' | 'UNSUPPORTED';
+  receivedAt: string;
+}
+
 export interface InvocationQuery {
   scope: AiScope;
   invocationId: string;
