@@ -67,7 +67,20 @@ public class ResultContext<T> implements IResult, Serializable {
      */
     private Map<Serializable, Serializable> statistics;
 
+    /**
+     * 构建批量处理的统计响应，失败数为总数减去成功数。
+     * 响应的 success 表示调用正常完成，具体条目结果由 statistics 中的数量表达。
+     *
+     * @param total   总数，必须非负
+     * @param success 成功数，必须在 0 到 total 之间（包含边界）
+     * @param <T>     业务数据类型
+     * @return 包含 total、success、fail 数量的成功响应
+     * @throws IllegalArgumentException 总数或成功数为负，或者成功数超过总数
+     */
     public static <T> ResultContext<T> partialSuccess(long total, long success) {
+        if (success < 0 || success > total) { // 蕴含了 total < 0
+            throw new IllegalArgumentException("统计数量必须满足 0 <= success <= total");
+        }
         ResultContext<T> resultContext = success();
         resultContext.setStatistics(Map.of("total", total, "success", success, "fail", total - success));
         return resultContext;
