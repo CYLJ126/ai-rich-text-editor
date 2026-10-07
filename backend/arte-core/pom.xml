@@ -43,6 +43,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- 查询参数的 Bean Validation 及 MVC 校验实现 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>

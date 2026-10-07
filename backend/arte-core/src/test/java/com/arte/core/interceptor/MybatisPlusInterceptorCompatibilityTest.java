@@ -1,8 +1,11 @@
 package com.arte.core.interceptor;
 
 import com.arte.core.annotations.MybatisParams;
+import com.arte.core.pojo.BaseParam;
+import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.UserContext;
 import com.arte.core.pojo.UserOnlineInfo;
+import com.arte.core.utils.MybatisPages;
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
@@ -67,6 +70,25 @@ class MybatisPlusInterceptorCompatibilityTest {
             var page=session.getMapper(Mapper.class).selectPage(new Page<Row>(2,1),Wrappers.<Row>query().orderByAsc("id"));
             assertEquals(2,page.getTotal());
             assertEquals(List.of(3),page.getRecords().stream().map(Row::getId).toList());
+        }
+    }
+    @Test void independentQueryPageCanBeConvertedToExistingResponse() {
+        var request=new BaseParam();
+        request.getPage().setCurrent(2L);
+        request.getPage().setSize(1L);
+        try (var session=factory.openSession()) {
+            var queryPage=MybatisPages.<Row>from(request.getPage());
+            var result=session.getMapper(Mapper.class).selectPage(queryPage,Wrappers.<Row>query().orderByAsc("id"));
+            var response=PageView.success(result);
+            assertSame(queryPage,result);
+            assertNotSame(queryPage,response);
+            assertTrue(response.getSuccess());
+            assertEquals(2,response.getCurrent());
+            assertEquals(1,response.getSize());
+            assertEquals(2,response.getTotal());
+            assertEquals(List.of(3),response.getRecords().stream().map(Row::getId).toList());
+            assertEquals(2L,request.getPage().getCurrent());
+            assertEquals(1L,request.getPage().getSize());
         }
     }
     @Test void optimisticVersionAndOwnerGuardBothApplyToBaseMapperUpdates() {
