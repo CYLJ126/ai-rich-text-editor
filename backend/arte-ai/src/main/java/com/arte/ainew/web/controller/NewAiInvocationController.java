@@ -55,7 +55,6 @@ public class NewAiInvocationController {
     }
 
     @PostMapping("/getInvocationStatus")
-    @PreAuthorize("isAuthenticated()")
     public Mono<ResultContext<InvocationStatusResponse>> getInvocationStatus(
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
         return readContext(request.scope())
@@ -64,7 +63,6 @@ public class NewAiInvocationController {
     }
 
     @PostMapping("/getInvocationResult")
-    @PreAuthorize("isAuthenticated()")
     public Mono<ResultContext<InvocationResultResponse>> getInvocationResult(
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
         return readContext(request.scope())
@@ -77,7 +75,6 @@ public class NewAiInvocationController {
      * 单页读取已持久化事件；不是 SSE watch，不派发或重新执行调用。
      */
     @PostMapping("/invocationEvent")
-    @PreAuthorize("isAuthenticated()")
     public Mono<ResultContext<InvocationEventsResponse>> invocationEvent(
             @Valid @RequestBody InvocationRequests.Replay request, Locale locale) {
         return readContext(request.scope())

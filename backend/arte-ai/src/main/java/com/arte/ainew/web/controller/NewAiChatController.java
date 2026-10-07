@@ -55,7 +55,6 @@ public class NewAiChatController {
     }
 
     @PostMapping("/turnsForChat")
-    @PreAuthorize("isAuthenticated()")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Mono<ResultContext<ChatAcceptedResponse>> turnsForChat(
             @Valid @RequestBody ChatRequests.Submit request,
