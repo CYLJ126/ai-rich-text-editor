@@ -17,6 +17,7 @@ type Values = ChatConfigValues & { modelKey?: string };
 
 export default function ChatConfigurationForm({
                                                 restored,
+                                                invalidationRevision = 0,
                                                 onApply,
                                                 onRestore,
                                                 onDirty,
@@ -25,6 +26,7 @@ export default function ChatConfigurationForm({
                                                 translate,
                                               }: {
   restored: ChatTestConfig | null;
+  invalidationRevision?: number;
   onApply: (config: ChatTestConfig, option: ChatModelOption) => void;
   onRestore: (config: ChatTestConfig, option: ChatModelOption) => void;
   onDirty: () => void;
@@ -123,6 +125,14 @@ export default function ChatConfigurationForm({
   useEffect(() => {
     if (restored) void loadOptions(true);
   }, []);
+
+  useEffect(() => {
+    if (!invalidationRevision) return;
+    edited.current = true;
+    discovery.clear();
+    // Keep references and parameters for explicit reselection; never auto-apply a replacement.
+    form.setFieldsValue({modelKey: undefined});
+  }, [invalidationRevision]);
 
   function apply() {
     if (discovery.loading || !discovery.scope) return;

@@ -2,6 +2,7 @@ import {Alert, Button, Empty, Input, Pagination, Tag} from 'antd';
 import React, {useMemo} from 'react';
 import {AiApiError, type ChatMessage, type ConversationResponse,} from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
+import type {ConfigurationRejected} from './configurationInvalidation';
 import {hasAvailableBudget, HISTORY_PAGE_SIZE, useChatSession,} from './useChatSession';
 
 function messageText(message: ChatMessage) {
@@ -17,6 +18,7 @@ export default function ChatPanel({
                                     onUpdated,
                                     t,
                                     maxInputBytes,
+                                    onConfigurationRejected,
                                   }: {
   config: ChatTestConfig;
   conversation: ConversationResponse;
@@ -24,8 +26,9 @@ export default function ChatPanel({
   onUpdated: (conversation: ConversationResponse) => void;
   t: (key: string) => string;
   maxInputBytes?: number;
+  onConfigurationRejected?: ConfigurationRejected;
 }) {
-  const chat = useChatSession(config, conversation, onUpdated, maxInputBytes);
+  const chat = useChatSession(config, conversation, onUpdated, maxInputBytes, onConfigurationRejected);
   const inputTooLarge = useMemo(() => maxInputBytes !== undefined
     && new TextEncoder().encode(chat.draft.trim()).length > maxInputBytes, [chat.draft, maxInputBytes]);
   const available = chat.budget && hasAvailableBudget(chat.budget.available);

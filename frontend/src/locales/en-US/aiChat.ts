@@ -1,4 +1,5 @@
 export default {
+  'app.aiChat.configurationRejected': 'The configuration or access is no longer available. Restore your login or access, reload available configurations, then select and apply. Your message draft is preserved.',
   'app.aiChat.loadOptions': 'Load available options',
   'app.aiChat.loadingOptions': 'Loading available models…',
   'app.aiChat.optionsEmpty': 'No model and budget combination is available in this workspace. Contact your administrator.',

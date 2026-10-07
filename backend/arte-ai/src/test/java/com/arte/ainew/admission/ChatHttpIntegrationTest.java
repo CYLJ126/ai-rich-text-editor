@@ -1,15 +1,24 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
+import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.pojo.generation.GenerationSignal;
+import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiChatController;
+import com.arte.ainew.web.controller.NewAiConfigurationController;
 import com.arte.ainew.web.controller.NewAiConversationController;
 import com.arte.core.enums.ResultCodeEnum;
 import org.h2.jdbcx.JdbcDataSource;
@@ -30,11 +39,13 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -79,7 +90,22 @@ public class ChatHttpIntegrationTest {
 
     private void configureMvc() {
         var httpContext = new NewAiHttpContext(fixture.factory, fixture.properties);
+        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(fixture.properties), fixture.properties, Clock.systemUTC());
+        // A supported test gateway; discovery / admission must never call the provider.
+        ModelGateway gateway = new ModelGateway() {
+            @Override
+            public boolean supportsTextChat(ResolvedBinding binding, ConnectionDefinition connection) {
+                return true;
+            }
+
+            @Override
+            public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call) {
+                throw new AssertionError("Discovery and admission must not dispatch the model");
+            }
+        };
+        var discovery = new ChatConfigurationQueryService(fixture.properties, authorization, fixture.catalog, () -> gateway);
         mvc = MockMvcBuilders.standaloneSetup(
+                        new NewAiConfigurationController(discovery, httpContext, fixture.properties),
                         new NewAiConversationController(fixture.conversations, new ConversationHttpContext(httpContext, fixture.properties)),
                         new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
@@ -278,6 +304,61 @@ public class ChatHttpIntegrationTest {
         uninitialized.put("budgetRef", "bob-budget");
         assertEquals(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED.getCode(), submit(uninitialized, "uninitialized", 400).path("code").asString());
         assertEquals(0, count("arte_ai_invocation"));
+    }
+
+    @Test
+    public void discoveryIsNotAnAuthorizationSnapshotForLaterChatSubmission() throws Exception {
+        var id = create();
+        var discovered = body(send(post("/ai-new/configuration/discoverChatOptions")
+                .content(json.writeValueAsString(Map.of("scope", SCOPE))), 200));
+        var option = discovered.path("data").path("options").get(0);
+        assertEquals(json.valueToTree(AdmissionFixture.BINDING), option.path("binding"));
+        assertEquals(json.valueToTree(List.of("alice-budget")), option.path("budgetRefs"));
+        var request = request(id, 0, "hello");
+        request.put("binding", option.path("binding"));
+        request.put("capability", option.path("capability"));
+        var original = fixture.properties;
+        var codec = fixture.codec;
+        for (int change = 0; change < 4; change++) {
+            final int scenario = change;
+            var grants = original.grants().stream().map(grant -> {
+                var scopes = new HashSet<>(grant.scopes());
+                if (scenario == 0) scopes.remove(AdmissionAuthorization.INVOKE);
+                return new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
+                        grant.workspaceId(), grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(),
+                        scenario == 1 ? Set.of() : grant.budgetRefs());
+            }).toList();
+            var originalCapability = original.capabilities().getFirst();
+            var capability = scenario == 2 ? new CapabilityDescriptor(originalCapability.definition(), originalCapability.kind(),
+                    originalCapability.inputSchema(), originalCapability.outputSchema(), originalCapability.features(),
+                    originalCapability.sideEffect(), CapabilityDescriptor.Availability.DISABLED) : originalCapability;
+            var originalBinding = original.bindings().getFirst();
+            var binding = new ResolvedBinding(originalBinding.definition(), capability, originalBinding.connection(),
+                    originalBinding.remoteOperation(), originalBinding.contextWindowTokens(), originalBinding.rate());
+            var rate = new com.arte.ainew.common.reference.DefinitionRef("rate", "changed", "v2");
+            var rates = scenario == 3 ? List.of(original.rates().getFirst(),
+                    new NewAiProperties.Rate(rate, AdmissionFixture.money("1"), AdmissionFixture.money("2"))) : original.rates();
+            var budgets = original.budgets().stream().map(budget -> scenario == 3
+                    ? new NewAiProperties.Budget(budget.budgetRef(), budget.owner(), budget.limit(), rate) : budget).toList();
+            var changed = new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
+                    original.limits(), grants, List.of(capability), List.of(binding), original.connections(), rates, budgets);
+            fixture = new AdmissionFixture(dataSource, scheduler, codec, changed);
+            configureMvc();
+            var failure = submit(request, "stale-discovery-" + scenario, scenario == 0 ? 403 : 400);
+            if (scenario != 0) {
+                var expected = switch (scenario) {
+                    case 1 -> ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE;
+                    case 2 -> ResultCodeEnum.AI_CAPABILITY_DISABLED;
+                    default -> ResultCodeEnum.AI_RATE_MISMATCH;
+                };
+                assertEquals(expected.getCode(), failure.path("code").asString());
+            }
+            assertEquals(0, count("arte_ai_invocation"));
+            assertEquals(0, count("arte_ai_turn"));
+            assertEquals(0, count("arte_ai_context_snapshot"));
+            assertEquals(0, count("arte_ai_outbox"));
+            assertEquals(0, fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block().held().amount().signum());
+        }
     }
 
     @Test

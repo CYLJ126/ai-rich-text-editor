@@ -30,10 +30,12 @@ function reply<T>(data: T) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return {promise, resolve};
+  return {promise, resolve, reject};
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -59,6 +61,25 @@ describe('配置与预算请求隔离', () => {
     const next = vi.mocked(discoverChatOptions).mock.calls[1][1]?.signal;
     hook.unmount();
     expect(next?.aborted).toBe(true);
+  });
+
+  it('连续刷新同一空间时只采纳最后一次发现，迟到失败不覆盖空列表', async () => {
+    const first = deferred<Awaited<ReturnType<typeof discoverChatOptions>>>();
+    vi.mocked(discoverChatOptions).mockReturnValueOnce(first.promise).mockResolvedValueOnce(reply({options: []}));
+    const hook = renderHook(useConfigurationDiscovery);
+    act(() => {
+      void hook.result.current.load(scope);
+    });
+    const signal = vi.mocked(discoverChatOptions).mock.calls[0][1]?.signal;
+    await act(async () => {
+      await hook.result.current.load(scope);
+    });
+    expect(signal?.aborted).toBe(true);
+    await act(async () => first.reject(new Error('stale discovery failure')));
+    expect(hook.result.current.scope).toEqual(scope);
+    expect(hook.result.current.options).toEqual([]);
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.loading).toBe(false);
   });
 
   it('切换预算马上隐藏旧余额，迟到的旧结果不覆盖新账户', async () => {

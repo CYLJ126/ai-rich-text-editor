@@ -415,7 +415,7 @@ describe('配置发现与选择', () => {
     );
     expect(screen.getByLabelText('会话详情')).toBeInTheDocument();
     change('工作空间 ID', 'workspace-2');
-    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: /发送消息/})).toBeDisabled();
     fireEvent.click(screen.getByRole('button', {name: /加载可用配置/}));
     await screen.findByText('DeepSeek · default-binding@v1');
     apply();
@@ -423,18 +423,23 @@ describe('配置发现与选择', () => {
     expect(screen.queryByLabelText('会话详情')).not.toBeInTheDocument();
   });
 
-  it('发现的引用进入聊天请求，未知提交重试保持原模型与幂等键', async () => {
+  it.each([new TypeError('network'), new AiApiError(408, {desc: 'timeout'}), new AiApiError(503, {
+    code: '205001',
+    desc: 'unavailable'
+  })])('发现的引用进入聊天请求，未确认错误 %s 的重试保持原模型与幂等键', async (error) => {
     saveChatConfig(chatConfigSchema.parse(valid));
     vi.mocked(discoverChatOptions).mockResolvedValue(
       reply({options: [model, alternate]}),
     );
-    vi.mocked(turnsForChat).mockRejectedValue(new TypeError('network'));
+    vi.mocked(turnsForChat).mockRejectedValue(error);
     render(<AiChatPage/>);
     await applied();
     await selectConversation();
     change('消息内容', '你好');
-    fireEvent.click(screen.getByRole('button', {name: '发送消息'}));
+    fireEvent.click(screen.getByRole('button', {name: /发送消息/}));
     await screen.findByRole('button', {name: /重试提交/});
+    expect(screen.queryByText(messages['app.aiChat.configurationRejected'])).not.toBeInTheDocument();
+    expect(saved()).toEqual(valid);
     const original = vi.mocked(turnsForChat).mock.calls[0];
     expect(original[0]).toMatchObject({
       binding: model.binding,
@@ -460,6 +465,81 @@ describe('配置发现与选择', () => {
     );
   });
 
+  it.each([
+    [400, '205001'], [400, '205002'], [404, '205023'],
+    [409, '205025'], [400, '205026'], [401, 'unauthenticated'], [403, 'forbidden'],
+  ])('提交明确拒绝 HTTP %s / %s 时清除缓存并要求重新发现，保留消息草稿', async (status, code) => {
+    saveChatConfig(chatConfigSchema.parse(valid));
+    vi.mocked(turnsForChat).mockRejectedValueOnce(new AiApiError(status, {code, desc: '配置被撤回'}));
+    render(<AiChatPage/>);
+    await applied();
+    await selectConversation();
+    change('消息内容', '保留这条消息');
+    const budgetQueries = vi.mocked(getBudget).mock.calls.length;
+    fireEvent.click(screen.getByRole('button', {name: /发送消息/}));
+    await screen.findByText(messages['app.aiChat.configurationRejected']);
+    expect(screen.getByRole('button', {name: /发送消息/})).toBeDisabled();
+    expect(screen.getByRole('button', {name: '应用配置'})).toBeDisabled();
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('保留这条消息');
+    expect(screen.queryByRole('button', {name: /重试提交/})).not.toBeInTheDocument();
+    expect(localStorage.getItem(CHAT_CONFIG_STORAGE_KEY)).toBeNull();
+    expect(discoverChatOptions).toHaveBeenCalledTimes(1);
+    expect(getBudget).toHaveBeenCalledTimes(budgetQueries);
+    // Empty discovery cannot reactivate the revoked selection, even through programmatic submit.
+    vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({options: []}));
+    fireEvent.click(screen.getByRole('button', {name: /加载可用配置/}));
+    await screen.findByText('当前空间没有可用的模型与预算组合，请联系管理员配置。');
+    apply();
+    expect(screen.getByRole('button', {name: /发送消息/})).toBeDisabled();
+    // Explicit loading and applying after access is restored retains the conversation and draft.
+    fireEvent.click(screen.getByRole('button', {name: /加载可用配置/}));
+    await screen.findByText('DeepSeek · default-binding@v1');
+    apply();
+    await waitFor(() => expect(screen.getByRole('button', {name: /发送消息/})).toBeEnabled());
+    expect(screen.queryByText(messages['app.aiChat.configurationRejected'])).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: '消息内容'})).toHaveValue('保留这条消息');
+    expect(turnsForChat).toHaveBeenCalledTimes(1);
+    expect(saved()).toEqual(valid);
+  });
+
+  it('旧模型的未确认提交重试被拒绝，不使已应用的新模型失效', async () => {
+    saveChatConfig(chatConfigSchema.parse(valid));
+    vi.mocked(discoverChatOptions).mockResolvedValue(reply({options: [model, alternate]}));
+    vi.mocked(turnsForChat).mockRejectedValueOnce(new TypeError('network'))
+      .mockRejectedValueOnce(new AiApiError(400, {code: '205002', desc: '旧模型已停用'}));
+    render(<AiChatPage/>);
+    await applied();
+    await selectConversation();
+    change('消息内容', '你好');
+    fireEvent.click(screen.getByRole('button', {name: /发送消息/}));
+    await screen.findByRole('button', {name: /重试提交/});
+    const original = vi.mocked(turnsForChat).mock.calls[0];
+    await select('模型', 'Small model · small@v2');
+    apply();
+    await waitFor(() => expect(saved().bindingId).toBe('small'));
+    fireEvent.click(screen.getByRole('button', {name: /重试提交/}));
+    await screen.findByText(/旧模型已停用/);
+    expect(vi.mocked(turnsForChat).mock.calls[1].slice(0, 2)).toEqual(original.slice(0, 2));
+    expect(screen.queryByText(messages['app.aiChat.configurationRejected'])).not.toBeInTheDocument();
+    expect(saved().bindingId).toBe('small');
+    await waitFor(() => expect(screen.getByRole('button', {name: /发送消息/})).toBeEnabled());
+  });
+
+  it('缓存引用仍存在但额度超过新窗口时，必须修正并手动应用', async () => {
+    saveChatConfig(chatConfigSchema.parse(valid));
+    vi.mocked(discoverChatOptions).mockResolvedValue(reply({options: [{...model, contextWindowTokens: 1024}]}));
+    render(<AiChatPage/>);
+    await screen.findByText('保存的模型、预算或参数已不再可用，请重新选择并应用配置。');
+    expect(listConversations).not.toHaveBeenCalled();
+    apply();
+    await screen.findByText('输入与输出 Token 额度之和超过模型上下文窗口。');
+    expect(listConversations).not.toHaveBeenCalled();
+    change('最大输入 Token', '512');
+    apply();
+    await applied();
+    expect(saved().maxInputTokens).toBe(512);
+  });
+
   it('预算未初始化仍保留选择，余额查询失败不会启用发送', async () => {
     vi.mocked(getBudget).mockRejectedValue(
       new AiApiError(400, {desc: '预算未初始化'}),
@@ -470,7 +550,7 @@ describe('配置发现与选择', () => {
     apply();
     await applied();
     await selectConversation(false);
-    expect(screen.getByRole('button', {name: '发送消息'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: /发送消息/})).toBeDisabled();
   });
 
   it('清除配置取消查询，并保留其他浏览器存储', async () => {

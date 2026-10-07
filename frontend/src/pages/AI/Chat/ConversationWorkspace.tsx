@@ -3,6 +3,7 @@ import React, {useState} from 'react';
 import {AiApiError, type AiScope} from '@/services/arte-ai';
 import ChatPanel from './ChatPanel';
 import type {ChatTestConfig} from './config';
+import type {ConfigurationRejected} from './configurationInvalidation';
 import {CONVERSATION_PAGE_SIZE, useConversations} from './useConversations';
 
 export default function ConversationWorkspace({
@@ -11,12 +12,14 @@ export default function ConversationWorkspace({
                                                 config,
                                                 t,
                                                 maxInputBytes,
+                                                onConfigurationRejected,
                                               }: {
   scope: AiScope | null;
   dirty: boolean;
   config: ChatTestConfig | null;
   t: (key: string) => string;
   maxInputBytes?: number;
+  onConfigurationRejected?: ConfigurationRejected;
 }) {
   const conversations = useConversations(scope);
   const [open, setOpen] = useState(false);
@@ -202,6 +205,7 @@ export default function ConversationWorkspace({
             onUpdated={conversations.updateConversation}
             t={t}
             maxInputBytes={maxInputBytes}
+            onConfigurationRejected={onConfigurationRejected}
           />
         ) : (
           <>

@@ -1,4 +1,5 @@
 export default {
+  'app.aiChat.configurationRejected': '当前配置或权限已失效。请恢复登录或权限后重新加载可用配置，确认选择并应用；消息草稿已保留。',
   'app.aiChat.loadOptions': '加载可用配置',
   'app.aiChat.loadingOptions': '正在加载可用模型…',
   'app.aiChat.optionsEmpty': '当前空间没有可用的模型与预算组合，请联系管理员配置。',

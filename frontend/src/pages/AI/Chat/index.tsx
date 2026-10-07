@@ -6,6 +6,7 @@ import chatMessages from '@/locales/zh-CN/aiChat';
 import type {ChatModelOption} from '@/services/arte-ai';
 import ChatConfigurationForm from './ChatConfigurationForm';
 import ConversationWorkspace from './ConversationWorkspace';
+import type {ConfigurationRejected} from './configurationInvalidation';
 import {
   type ChatTestConfig,
   clearChatConfig,
@@ -30,6 +31,8 @@ export default function AiChatPage() {
     restored.warning,
   );
   const [dirty, setDirty] = useState(false);
+  const [configurationRejected, setConfigurationRejected] = useState(false);
+  const [invalidationRevision, setInvalidationRevision] = useState(0);
   const scope = useMemo(
     () =>
       config
@@ -41,6 +44,22 @@ export default function AiChatPage() {
     setConfig(value);
     setOption(model);
     setDirty(false);
+    setConfigurationRejected(false);
+  };
+  const rejectConfiguration: ConfigurationRejected = (request, error) => {
+    if (!config || request.scope.tenantId !== config.tenantId
+      || request.scope.workspaceId !== config.workspaceId) return;
+    // A retry may still refer to the previous model; its rejection must not invalidate a newer choice.
+    const sameSelection = request.binding.id === config.bindingId
+      && request.binding.version === config.bindingVersion
+      && request.capability.id === config.capabilityId
+      && request.capability.version === config.capabilityVersion
+      && request.budgetRef === config.budgetRef;
+    if (!sameSelection && error.httpStatus !== 401 && error.httpStatus !== 403) return;
+    setDirty(true);
+    setConfigurationRejected(true);
+    setInvalidationRevision((revision) => revision + 1);
+    setWarning(clearChatConfig() ? null : 'clearFailed');
   };
 
   return (
@@ -75,6 +94,7 @@ export default function AiChatPage() {
           config={config}
           dirty={dirty}
           maxInputBytes={option?.limits.maxInputBytes}
+          onConfigurationRejected={rejectConfiguration}
           t={t}
         />
         <Card
@@ -94,7 +114,10 @@ export default function AiChatPage() {
               <Alert type="warning" showIcon title={t(`storage.${warning}`)}/>
             </div>
           )}
-          {config && (
+          {configurationRejected && (
+            <Alert className="mb-4" type="warning" showIcon title={t('configurationRejected')}/>
+          )}
+          {config && !configurationRejected && (
             <div className="mb-4" aria-live="polite">
               <Alert
                 type="success"
@@ -110,6 +133,7 @@ export default function AiChatPage() {
           )}
           <ChatConfigurationForm
             restored={restored.config}
+            invalidationRevision={invalidationRevision}
             t={t}
             translate={translate}
             onDirty={() => setDirty(true)}
@@ -122,6 +146,7 @@ export default function AiChatPage() {
               setConfig(null);
               setOption(null);
               setDirty(false);
+              setConfigurationRejected(false);
               setWarning(clearChatConfig() ? null : 'clearFailed');
             }}
           />

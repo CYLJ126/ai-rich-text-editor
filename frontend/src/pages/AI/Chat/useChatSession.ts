@@ -16,6 +16,7 @@ import {
   watchInvocation,
 } from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
+import {type ConfigurationRejected, invalidatesChatConfiguration} from './configurationInvalidation';
 
 export const HISTORY_PAGE_SIZE = 10;
 /** SSE 不可用时的恢复查询间隔；正常连接不循环查询状态。 */
@@ -53,7 +54,10 @@ export function useChatSession(
   initial: ConversationResponse,
   onUpdated: (conversation: ConversationResponse) => void,
   maxInputBytes?: number,
+  onConfigurationRejected?: ConfigurationRejected,
 ) {
+  const rejected = useRef(onConfigurationRejected);
+  rejected.current = onConfigurationRejected;
   const settings = useRef(config);
   settings.current = config;
   const updated = useRef(onUpdated);
@@ -646,8 +650,12 @@ export function useChatSession(
       ) {
         pendingRef.current = null;
         setPending(null);
-        if (error.httpStatus === 409) void loadHistory();
-        void loadBudget();
+        if (invalidatesChatConfiguration(error)) {
+          rejected.current?.(snapshot.request, error);
+        } else {
+          if (error.httpStatus === 409) void loadHistory();
+          void loadBudget();
+        }
       }
     } finally {
       if (!controller.signal.aborted && alive.current) {
@@ -669,7 +677,7 @@ export function useChatSession(
   }, []);
   useEffect(() => {
     void loadBudget();
-  }, [config.budgetRef]);
+  }, [config]);
 
   return {
     draft,
