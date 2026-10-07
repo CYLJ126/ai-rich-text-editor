@@ -127,6 +127,19 @@ public class ResultContext<T> implements IResult, Serializable {
         return result;
     }
 
+    /**
+     * 执行单参数同步调用，将返回值包装为成功响应，异常包装为失败响应。
+     *
+     * @param req      请求参数
+     * @param function 同步业务函数
+     * @param <R>      请求参数类型
+     * @param <T>      业务返回值类型
+     * @return 包装后的成功或失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 如果函数返回 {@code Publisher}，它只会被当作 data 保存，不会被订阅，
+     * 也不会捕获其订阅阶段的异常。响应式调用应在链路中使用 {@code map} 包装成功结果、
+     * 使用 {@code onErrorResume} 包装失败结果；其他异步任务的异常也应在异步调用侧处理。
+     */
     public static <R, T> ResultContext<T> wrap(R req, Function<R, T> function) {
         try {
             T resp = function.apply(req);
@@ -137,6 +150,17 @@ public class ResultContext<T> implements IResult, Serializable {
         }
     }
 
+    /**
+     * 执行无参数同步调用，将返回值包装为成功响应，异常包装为失败响应。
+     *
+     * @param supplier 同步业务函数
+     * @param <T>      业务返回值类型
+     * @return 包装后的成功或失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 如果函数返回 {@code Publisher}，它只会被当作 data 保存，不会被订阅，
+     * 也不会捕获其订阅阶段的异常。响应式调用应在链路中使用 {@code map} 包装成功结果、
+     * 使用 {@code onErrorResume} 包装失败结果；其他异步任务的异常也应在异步调用侧处理。
+     */
     public static <T> ResultContext<T> wrap(Supplier<T> supplier) {
         try {
             T resp = supplier.get();
@@ -147,6 +171,18 @@ public class ResultContext<T> implements IResult, Serializable {
         }
     }
 
+    /**
+     * 执行无返回值的同步调用，正常完成时返回无 data 的成功响应，异常包装为失败响应。
+     *
+     * @param req      请求参数
+     * @param consumer 同步业务操作
+     * @param <R>      请求参数类型
+     * @return 无业务返回值的成功或失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 正常返回仅表示 consumer 已返回，不表示其启动的异步任务已完成。
+     * 本方法不会订阅 {@code Publisher}，也不会捕获订阅或其他异步执行阶段的异常；
+     * 响应式调用应在链路中包装完成结果，并使用 {@code onErrorResume} 包装失败结果。
+     */
     public static <R> ResultContext<Void> wrap(R req, Consumer<R> consumer) {
         try {
             consumer.accept(req);
@@ -157,6 +193,21 @@ public class ResultContext<T> implements IResult, Serializable {
         }
     }
 
+    /**
+     * 执行双参数同步调用，将返回值包装为成功响应，异常包装为失败响应。
+     *
+     * @param req1     第一个请求参数
+     * @param req2     第二个请求参数
+     * @param function 同步业务函数
+     * @param <T>      第一个请求参数类型
+     * @param <U>      第二个请求参数类型
+     * @param <R>      业务返回值类型
+     * @return 包装后的成功或失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 如果函数返回 {@code Publisher}，它只会被当作 data 保存，不会被订阅，
+     * 也不会捕获其订阅阶段的异常。响应式调用应在链路中使用 {@code map} 包装成功结果、
+     * 使用 {@code onErrorResume} 包装失败结果；其他异步任务的异常也应在异步调用侧处理。
+     */
     public static <T, U, R> ResultContext<R> wrap(T req1, U req2, BiFunction<T, U, R> function) {
         try {
             R resp = function.apply(req1, req2);

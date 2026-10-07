@@ -146,6 +146,19 @@ public class PageView<T> extends Page<T> implements IResult {
         return fail(errPair.getKey(), errPair.getValue());
     }
 
+    /**
+     * 执行单参数同步分页调用，直接返回业务分页结果，异常包装为分页失败响应。
+     *
+     * @param req      请求参数
+     * @param function 返回分页结果的同步业务函数
+     * @param <R>      请求参数类型
+     * @param <T>      分页记录类型
+     * @return 业务分页结果或分页失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 本方法不会订阅 {@code Publisher}，也不会捕获订阅或其他异步执行阶段的异常。
+     * 响应式分页调用应在链路中使用 {@code map} 将查询结果转换为 PageView、
+     * 使用 {@code onErrorResume} 包装失败结果；阻塞数据库调用的线程调度由调用侧负责。
+     */
     public static <R, T> PageView<T> wrap(R req, Function<R, PageView<T>> function) {
         try {
             return function.apply(req);
@@ -155,6 +168,21 @@ public class PageView<T> extends Page<T> implements IResult {
         }
     }
 
+    /**
+     * 执行双参数同步分页调用，直接返回业务分页结果，异常包装为分页失败响应。
+     *
+     * @param req1     第一个请求参数
+     * @param req2     第二个请求参数
+     * @param function 返回分页结果的同步业务函数
+     * @param <T>      第一个请求参数类型
+     * @param <U>      第二个请求参数类型
+     * @param <R>      分页记录类型
+     * @return 业务分页结果或分页失败响应
+     * @apiNote 仅捕获当前线程调用过程中同步抛出的 {@link Exception}。
+     * 本方法不会订阅 {@code Publisher}，也不会捕获订阅或其他异步执行阶段的异常。
+     * 响应式分页调用应在链路中使用 {@code map} 将查询结果转换为 PageView、
+     * 使用 {@code onErrorResume} 包装失败结果；阻塞数据库调用的线程调度由调用侧负责。
+     */
     public static <T, U, R> PageView<R> wrap(T req1, U req2, BiFunction<T, U, PageView<R>> function) {
         try {
             return function.apply(req1, req2);
