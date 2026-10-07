@@ -9,13 +9,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * AI 平台持久化事件负载；供应商增量先组成有界批次，由平台信封赋予耐久游标。类型名及版本由编码器白名单映射。
+ * AI 平台持久化事件负载
+ * <p>
+ * 供应商增量先组成有界批次，由平台信封赋予耐久游标。类型名及版本由编码器白名单映射。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */
 public sealed interface ExecutionPayload extends ExecutionEvent.Payload permits ExecutionPayload.OutputBatch,
-        ExecutionPayload.Status, ExecutionPayload.Control, ExecutionPayload.Terminal {
+        ExecutionPayload.Status, ExecutionPayload.Control, ExecutionPayload.Terminal, ExecutionPayload.BudgetChanged {
     @Override
     default ExecutionEvent.Kind eventKind() {
         return switch (this) {
@@ -27,6 +29,7 @@ public sealed interface ExecutionPayload extends ExecutionEvent.Payload permits 
             };
             case Control ignored -> ExecutionEvent.Kind.CONTROL;
             case Terminal ignored -> ExecutionEvent.Kind.TERMINAL;
+            case BudgetChanged ignored -> ExecutionEvent.Kind.BUDGET_CHANGED;
         };
     }
 
@@ -48,6 +51,19 @@ public sealed interface ExecutionPayload extends ExecutionEvent.Payload permits 
     record Control(ControlReceipt receipt) implements ExecutionPayload {
         public Control {
             Objects.requireNonNull(receipt, "receipt");
+        }
+    }
+
+    /**
+     * 预算账本与事件同事务提交；只提供状态及版本，不在通知中传金额或费用证据。
+     */
+    record BudgetChanged(InvocationBudgetState state, long reservationVersion,
+                         long accountVersion) implements ExecutionPayload {
+        public BudgetChanged {
+            Objects.requireNonNull(state, "state");
+            ContractChecks.require(state != InvocationBudgetState.NOT_RESERVED, "Budget change requires reservation");
+            ContractChecks.range(reservationVersion, "reservationVersion", 0, Long.MAX_VALUE);
+            ContractChecks.range(accountVersion, "accountVersion", 0, Long.MAX_VALUE);
         }
     }
 

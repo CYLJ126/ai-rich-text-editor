@@ -14,6 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.lang.reflect.InvocationHandler;
@@ -76,6 +80,26 @@ class WebSecurityAsyncAuthenticationTest {
         var completed = mvc.perform(asyncDispatch(pending)).andReturn();
         assertEquals(DispatcherType.ASYNC, completed.getRequest().getDispatcherType());
         assertEquals("authenticated-result", completed.getResponse().getContentAsString());
+        assertNull(completed.getRequest().getSession(false));
+        assertEquals(1, calls.verifications.get());
+        assertEquals(1, calls.renewals.get());
+        assertEquals(1, calls.controller.get());
+    }
+
+    @Test
+    void authenticatedSseRetainsIdentityAcrossBothAsyncDispatches() throws Exception {
+        var pending = mvc.perform(post("/secured-async/stream").accept(MediaType.TEXT_EVENT_STREAM)
+                .header("Authorization", "Bearer valid-token")).andReturn();
+        pending.getAsyncResult(5000);
+        pending.getRequest().removeHeader("Authorization");
+        SecurityContextHolder.clearContext();
+        var stream = mvc.perform(asyncDispatch(pending)).andReturn();
+        stream.getAsyncResult(5000);
+        SecurityContextHolder.clearContext();
+        var completed = mvc.perform(asyncDispatch(stream)).andReturn();
+        assertEquals(200, completed.getResponse().getStatus());
+        assertTrue(completed.getResponse().getContentType().startsWith("text/event-stream"));
+        assertTrue(completed.getResponse().getContentAsString().contains("data:completed"));
         assertNull(completed.getRequest().getSession(false));
         assertEquals(1, calls.verifications.get());
         assertEquals(1, calls.renewals.get());
@@ -212,6 +236,15 @@ class WebSecurityAsyncAuthenticationTest {
         public Mono<String> result() {
             calls.controller.incrementAndGet();
             return Mono.delay(Duration.ofMillis(10)).map(ignored -> "authenticated-result");
+        }
+
+        @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+        public Mono<ResponseEntity<Flux<ServerSentEvent<String>>>> stream() {
+            calls.controller.incrementAndGet();
+            var body = Flux.just(ServerSentEvent.builder("accepted").id("1").event("invocation").build(),
+                            ServerSentEvent.builder("completed").id("2").event("invocation").build())
+                    .delayElements(Duration.ofMillis(20));
+            return Mono.just(ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(body));
         }
 
         @PostMapping("/restricted")

@@ -13,14 +13,20 @@ import {
   queryTurnsOfConversation,
   type SubmitChatRequest,
   turnsForChat,
+  watchInvocation,
 } from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
 
 export const HISTORY_PAGE_SIZE = 10;
-export const POLL_INTERVAL_MS = 1000;
+/** SSE 不可用时的恢复查询间隔；正常连接不循环查询状态。 */
+export const POLL_INTERVAL_MS = 10_000;
 
 export function isActive(status: InvocationStatusResponse) {
   return ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state);
+}
+
+function needsObservation(status: InvocationStatusResponse) {
+  return isActive(status) || status.budgetState === 'RESERVED';
 }
 
 export function hasAvailableBudget(amount: string) {
@@ -74,7 +80,10 @@ export function useChatSession(
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const watched = useRef<string[]>([]);
   const created = useRef<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const cursors = useRef(new Map<string, number>());
+  const refreshedTerminalVersions = useRef(new Map<string, number>());
+  const expiredCursors = useRef(new Set<string>());
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requests = useRef({
     history: null as AbortController | null,
@@ -85,7 +94,8 @@ export function useChatSession(
   const alive = useRef(true);
 
   function publish(entries: Record<string, InvocationView>) {
-    for (const [id, view] of Object.entries(entries)) {
+    for (const [id, entry] of Object.entries(entries)) {
+      let view = entry;
       const previous = views.current[id];
       if (
         view.status &&
@@ -93,6 +103,30 @@ export function useChatSession(
         view.status.version < previous.status.version
       )
         continue;
+      if (
+        view.status &&
+        previous?.status?.budgetState &&
+        view.status.version === previous.status.version
+      ) {
+        const rank = {
+          NOT_RESERVED: 0,
+          RESERVED: 1,
+          PENDING_RECONCILIATION: 2,
+          SETTLED: 3,
+          RELEASED: 3,
+        };
+        if (
+          rank[view.status.budgetState ?? 'NOT_RESERVED'] <
+          rank[previous.status.budgetState]
+        )
+          view = {
+            ...view,
+            status: {
+              ...view.status,
+              budgetState: previous.status.budgetState,
+            },
+          };
+      }
       views.current[id] = view;
     }
     views.current = {...views.current};
@@ -122,14 +156,25 @@ export function useChatSession(
   }
 
   function stopWatching() {
-    if (timer.current) clearTimeout(timer.current);
+    for (const timer of timers.current) clearTimeout(timer);
+    timers.current.clear();
     if (expiry.current) clearTimeout(expiry.current);
-    timer.current = null;
     expiry.current = null;
     requests.current.poll?.abort();
   }
 
-  function watch(ids: string[]) {
+  function watch(ids: string[], force = false) {
+    const unique = [...new Set(ids)];
+    // 历史刷新不得打断正在等待预算结算的 SSE；只有观察集合变化时重新建连。
+    if (
+      !force &&
+      unique.length > 0 &&
+      !requests.current.poll?.signal.aborted &&
+      requests.current.poll &&
+      unique.length === watched.current.length &&
+      unique.every((id) => watched.current.includes(id))
+    )
+      return;
     stopWatching();
     watched.current = [...new Set(ids)];
     setActiveIds(watched.current);
@@ -139,54 +184,116 @@ export function useChatSession(
     if (!ids.length) return;
     const controller = new AbortController();
     requests.current.poll = controller;
-    const deadline = Date.now() + (settings.current.timeoutSeconds + 30) * 1000;
+    const valid = () => !controller.signal.aborted && alive.current;
     expiry.current = setTimeout(
       () => {
         controller.abort();
-        if (timer.current) clearTimeout(timer.current);
         if (alive.current) {
           setWatching(false);
           setPollPaused(true);
         }
       },
-      Math.max(0, deadline - Date.now()),
+      (settings.current.timeoutSeconds + 30) * 1000,
     );
-    const tick = async () => {
-      try {
-        const entries = await Promise.all(
-          watched.current.map(
-            async (id) =>
-              [id, await readInvocation(id, controller.signal)] as const,
-          ),
-        );
-        if (controller.signal.aborted || !alive.current) return;
-        publish(Object.fromEntries(entries));
-        const active = entries
-          .filter(([, view]) => view.status && isActive(view.status))
-          .map(([id]) => id);
-        watched.current = active;
-        setActiveIds(active);
-        if (!active.length) {
+
+    const delay = () =>
+      new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer);
+          timers.current.delete(timer);
+          controller.signal.removeEventListener('abort', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, POLL_INTERVAL_MS);
+        timers.current.add(timer);
+        controller.signal.addEventListener('abort', finish, {once: true});
+        if (controller.signal.aborted) finish();
+      });
+    const refresh = async (id: string) => {
+      const view = await readInvocation(id, controller.signal);
+      if (!valid()) return;
+      publish({[id]: view});
+      if (view.status && !isActive(view.status)) {
+        if (!needsObservation(view.status))
+          watched.current = watched.current.filter((item) => item !== id);
+        setActiveIds(watched.current);
+        if (!watched.current.length) {
           if (expiry.current) clearTimeout(expiry.current);
           setWatching(false);
+          setPollError(null);
           created.current = null;
-          // Read the authoritative conversation version after completion, including failed calls.
-          await Promise.allSettled([loadHistory(), loadBudget()]);
-        } else if (Date.now() >= deadline) {
-          setWatching(false);
-          setPollPaused(true);
-        } else {
-          timer.current = setTimeout(() => void tick(), POLL_INTERVAL_MS);
         }
-      } catch (error) {
-        if (!controller.signal.aborted && alive.current) {
-          if (expiry.current) clearTimeout(expiry.current);
-          setWatching(false);
-          setPollError(error);
-        }
+        // 回答完成先展示历史；账本仍 RESERVED 时继续等待结算事件。相同执行版本只刷新一次历史。
+        const history =
+          refreshedTerminalVersions.current.get(id) !== view.status.version;
+        refreshedTerminalVersions.current.set(id, view.status.version);
+        await Promise.allSettled([
+          ...(history ? [loadHistory()] : []),
+          loadBudget(),
+        ]);
       }
     };
-    void tick();
+    const observe = async (id: string) => {
+      while (valid() && watched.current.includes(id)) {
+        try {
+          // 首次建连或断线时确认权威状态，防止完成发生在 HTTP 202 与建连之间。
+          await refresh(id);
+          if (!valid() || !watched.current.includes(id)) return;
+          if (!expiredCursors.current.has(id)) {
+            await watchInvocation(
+              {
+                scope,
+                invocationId: id,
+                afterSequence: cursors.current.get(id) ?? 0,
+              },
+              async (event) => {
+                if (!valid()) return;
+                if (
+                  event.kind === 'STARTED' ||
+                  event.kind === 'TERMINAL' ||
+                  event.kind === 'BUDGET_CHANGED'
+                )
+                  await refresh(id);
+                if (
+                  event.kind === 'BUDGET_CHANGED' &&
+                  valid() &&
+                  views.current[id]?.status &&
+                  isActive(views.current[id].status)
+                )
+                  await loadBudget();
+                // 回调成功后才推进游标，结果读取失败可以重放终态通知。
+                if (valid()) cursors.current.set(id, event.sequence);
+              },
+              {
+                signal: controller.signal,
+                onConnected: () => {
+                  if (valid()) setPollError(null);
+                },
+              },
+            );
+          }
+        } catch (error) {
+          if (!valid()) return;
+          setPollError(error);
+          if (
+            error instanceof AiApiError &&
+            [401, 403].includes(error.httpStatus)
+          ) {
+            controller.abort();
+            if (expiry.current) clearTimeout(expiry.current);
+            setWatching(false);
+            return;
+          }
+          if (error instanceof AiApiError && error.httpStatus === 410) {
+            // 已裁剪游标不能静默跳过。恢复权威快照后采用低频 HTTP，避免不断重连同一过期游标。
+            expiredCursors.current.add(id);
+            await loadHistory();
+          }
+        }
+        if (valid() && watched.current.includes(id)) await delay();
+      }
+    };
+    for (const id of watched.current) void observe(id);
   }
 
   async function loadBudget() {
@@ -265,16 +372,21 @@ export function useChatSession(
       );
       if (controller.signal.aborted || !alive.current) return;
       publish(Object.fromEntries(entries));
+      for (const [id, view] of entries) {
+        if ('status' in view && view.status && !isActive(view.status))
+          refreshedTerminalVersions.current.set(id, view.status.version);
+      }
       const active = entries
         .filter(
           ([id]) =>
-            views.current[id]?.status && isActive(views.current[id].status),
+            views.current[id]?.status &&
+            needsObservation(views.current[id].status),
         )
         .map(([id]) => id);
       // Browsing older pages must keep an invocation from the latest page under observation.
       for (const id of watched.current) {
         const status = views.current[id]?.status;
-        if ((!status || isActive(status)) && !active.includes(id))
+        if ((!status || needsObservation(status)) && !active.includes(id))
           active.push(id);
       }
       const createdStatus = created.current
@@ -283,7 +395,7 @@ export function useChatSession(
       if (
         created.current &&
         !active.includes(created.current) &&
-        (!createdStatus || isActive(createdStatus))
+        (!createdStatus || needsObservation(createdStatus))
       ) {
         active.push(created.current);
       }
@@ -427,7 +539,7 @@ export function useChatSession(
     unresolved: Object.values(invocations).some(
       (view) => view.status?.state === 'UNKNOWN',
     ),
-    resume: () => watch(watched.current),
+    resume: () => watch(watched.current, true),
     send,
   };
 }

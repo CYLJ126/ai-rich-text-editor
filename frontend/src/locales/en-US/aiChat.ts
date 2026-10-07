@@ -120,7 +120,7 @@ export default {
     'Automatic polling paused. The invocation may still be running; resume querying the same invocation.',
   'app.aiChat.resumePolling': 'Resume polling',
   'app.aiChat.polling':
-    'Querying execution status. Wait for the current invocation to finish.',
+    'Waiting for execution updates; recovery queries run every 10 seconds while disconnected.',
   'app.aiChat.retryMessageHint':
     'The submission outcome is uncertain. Retrying reuses the same request and idempotency key. Check history before refreshing or switching conversations.',
   'app.aiChat.retryMessage': 'Retry submission',
@@ -133,4 +133,11 @@ export default {
   'app.aiChat.execution.TIMED_OUT': 'Timed out',
   'app.aiChat.execution.INTERRUPTED': 'Interrupted',
   'app.aiChat.execution.UNKNOWN': 'Unknown outcome',
+  'app.aiChat.invocationBudgetState': 'Invocation budget',
+  'app.aiChat.budgetState.NOT_RESERVED': 'Not reserved',
+  'app.aiChat.budgetState.RESERVED': 'Reserved, awaiting settlement',
+  'app.aiChat.budgetState.PENDING_RECONCILIATION':
+    'Pending reconciliation (hold retained)',
+  'app.aiChat.budgetState.SETTLED': 'Settled',
+  'app.aiChat.budgetState.RELEASED': 'Released',
 };

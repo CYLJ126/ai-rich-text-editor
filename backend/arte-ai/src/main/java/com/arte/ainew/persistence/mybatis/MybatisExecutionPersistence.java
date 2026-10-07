@@ -58,7 +58,15 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
 
+    private final Runnable eventWakeup;
+
     public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler) {
+        this(dataSource, codec, scheduler, () -> {
+        });
+    }
+
+    public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler, Runnable eventWakeup) {
+        this.eventWakeup = Objects.requireNonNull(eventWakeup, "eventWakeup");
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(Objects.requireNonNull(dataSource, "dataSource")));
         this.system = sessions.getMapper(SystemMapper.class);
         this.execution = sessions.getMapper(ExecutionMapper.class);
@@ -656,6 +664,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             case ExecutionPayload.Status ignored -> "status";
             case ExecutionPayload.Control ignored -> "control";
             case ExecutionPayload.Terminal ignored -> "terminal";
+            case ExecutionPayload.BudgetChanged ignored -> "budget-changed";
         };
         var event = new ExecutionEvent<>(1, id(invocation), attemptId, sequence, payload.eventKind(), now(), type, 1, payload);
         persistEvent(invocation, event, codec.encode(event));
@@ -672,6 +681,18 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var key = hash(id(invocation), kind.name(), Long.toString(sequence));
         var owner = ExecutionOwner.from(invocation.request().context());
         outbox.insertMessage(key, hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(), owner.subjectId(), kind.name(), sequence);
+        if (kind == OutboxMessage.Kind.EVENT) {
+            // 回滚不通知。唤醒失败不改变已提交的业务结果，由统一 Outbox 恢复扫描兜底。
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                eventWakeup.run();
+                            } catch (RuntimeException ignored) { /* durable recovery */ }
+                        }
+                    });
+        }
     }
 
     @Override
@@ -884,6 +905,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     account.charged(), account.rateVersion(), account.version() + 1));
             save(changed(attempt, attempt.state(), attempt.dispatch(), attempt.remoteRequestId(), reservation.reservationId(),
                     attempt.usage(), attempt.error()));
+            event(invocation, attempt.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.RESERVED,
+                    reservation.version(), account.version() + 1));
             return StoreOutcome.applied(reservation);
         });
     }
@@ -928,6 +951,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     reservation.reservedAt(), reservation.expiresAt());
             save(updated);
             budget.insertSettlement(hash(reservation.reservationId()), key, digest, codec.encode(settlement), codec.encode(updated), command.evidence().name(), command.evidenceRef());
+            // 只有首次应用结算才写事件；幂等重放在上面返回，不重复扣费、释放或发布。
+            event(invocation, updated.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.valueOf(updated.state().name()),
+                    updated.version(), account.version() + (finalSettlement ? 1 : 0)));
             return StoreOutcome.applied(updated);
         });
     }

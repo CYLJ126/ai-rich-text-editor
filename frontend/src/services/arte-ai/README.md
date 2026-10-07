@@ -1,7 +1,7 @@
 # 新 AI 前端接口（第一步）
 
-本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 9 个 POST 接口。页面后续放在
-`src/pages/AI/Chat`，本步只实现类型及接口封装。
+本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 9 个 JSON POST 接口。页面位于
+`src/pages/AI/Chat`；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
 
 统一从 `@/services/arte-ai` 导入。成功返回 `{ httpStatus, body }`：普通接口使用 `body.data`，分页接口使用 `body.records`、
 `body.current`、`body.size`、`body.total`；`body.code`、`body.desc` 同样保留。HTTP 202 仅表示消息已受理。
@@ -50,3 +50,15 @@ try {
   null，预算金额保持十进制字符串。
 
 验证命令：`npm test -- src/services/arte-ai`。测试使用模拟响应及现有全局拦截器，不调用真实模型或扣除预算。
+
+## 执行通知
+
+`watchInvocation({scope, invocationId, afterSequence}, onEvent, {signal, onConnected?})` 返回持续读取连接的 Promise。
+通知类型为 `{executionId, sequence, kind}`，成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。
+支持分块 UTF-8、多行 data、CR/LF、注释心跳、安全 error 帧；单帧上限 64 KiB，45 秒无数据中止旧连接。 页面负责低频 HTTP
+恢复、重连、401/403 停止与 410 权威快照恢复。
+
+预算变更通知 BUDGET_CHANGED 与其他 SSE 通知一样只携带指针。通过 getInvocationStatus.budgetState 查询本次预留处理状态，通过
+getBudget 查询金额。 TERMINAL 不保证预算已结算；RESERVED 时继续观察，SETTLED/RELEASED/PENDING_RECONCILIATION 后读取账本快照。
+PENDING_RECONCILIATION 表示金额尚待核对，不能视为零费用。结算阶段可在 Invocation.version 不变时更新。 多实例广播由后端
+Redis 实现，前端继续使用相同 SSE/HTTP API 与 sequence 游标。

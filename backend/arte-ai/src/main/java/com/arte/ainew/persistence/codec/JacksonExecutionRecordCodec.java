@@ -77,6 +77,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 new NamedType(ExecutionPayload.OutputBatch.class, "output-batch"),
                 new NamedType(ExecutionPayload.Status.class, "status"), new NamedType(ExecutionPayload.Control.class, "control"),
                 new NamedType(ExecutionPayload.Terminal.class, "terminal"),
+                new NamedType(ExecutionPayload.BudgetChanged.class, "budget-changed"),
                 new NamedType(StructuredValue.ObjectValue.class, "object"), new NamedType(StructuredValue.ArrayValue.class, "array"),
                 new NamedType(StructuredValue.StringValue.class, "string"), new NamedType(StructuredValue.NumberValue.class, "number"),
                 new NamedType(StructuredValue.BooleanValue.class, "boolean"), new NamedType(StructuredValue.NullValue.class, "null"));
@@ -129,6 +130,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 case ExecutionPayload.Status ignored -> "status";
                 case ExecutionPayload.Control ignored -> "control";
                 case ExecutionPayload.Terminal ignored -> "terminal";
+                case ExecutionPayload.BudgetChanged ignored -> "budget-changed";
                 default -> throw new IllegalArgumentException("Unregistered event payload");
             };
             if (event.schemaVersion() != 1 || event.payloadVersion() != 1 || !alias.equals(event.payloadType())) {

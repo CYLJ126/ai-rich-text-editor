@@ -4,16 +4,24 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.common.execution.ExecutionError;
+import com.arte.ainew.common.execution.ExecutionEvent;
+import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.config.NewAiEventProperties;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
-import com.arte.ainew.pojo.execution.ExecutionCommands;
-import com.arte.ainew.pojo.execution.InvocationResult;
-import com.arte.ainew.pojo.execution.Usage;
+import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
+import com.arte.ainew.pojo.budget.BudgetCommands;
+import com.arte.ainew.pojo.budget.BudgetReservation;
+import com.arte.ainew.pojo.budget.BudgetSettlement;
+import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationEvent;
 import com.arte.ainew.pojo.generation.GenerationSignal;
 import com.arte.ainew.pojo.generation.ModelResult;
+import com.arte.ainew.spi.persistence.ExecutionEventStore;
+import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.NewAiHttpContext;
@@ -24,8 +32,13 @@ import com.arte.ainew.web.request.InvocationRequests;
 import com.arte.core.enums.ResultCodeEnum;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.MapPropertySource;
@@ -33,6 +46,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,14 +54,21 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -77,6 +98,10 @@ public class InvocationHttpIntegrationTest {
     private LocalValidatorFactoryBean validator;
     private MockMvc mvc;
     private String mode = "success";
+    private LocalExecutionEventNotifier notifier;
+    private ExecutionEventPublisher publisher;
+    private DefaultExecutionEventService eventService;
+    private final AtomicInteger wakeups = new AtomicInteger();
 
     @Before
     public void setup() {
@@ -86,7 +111,12 @@ public class InvocationHttpIntegrationTest {
         jdbc = new JdbcTemplate(dataSource);
         database = Schedulers.newBoundedElastic(4, 128, "invocation-http-db");
         timer = Schedulers.newSingle("invocation-http-timer");
-        fixture = new AdmissionFixture(dataSource, database);
+        notifier = new LocalExecutionEventNotifier();
+        fixture = new AdmissionFixture(dataSource, database, new JacksonExecutionRecordCodec(), AdmissionFixture.properties(),
+                () -> {
+                    wakeups.incrementAndGet();
+                    notifier.wakePublisher();
+                });
         fixture.initializeBudget("alice");
         var authorization = authorization(fixture.properties, Clock.systemUTC());
         var settings = new NewAiExecutionProperties(true, false, 4, Duration.ofSeconds(1),
@@ -107,6 +137,7 @@ public class InvocationHttpIntegrationTest {
                     return Flux.just(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT)), terminal);
                 }), fixture.properties, settings, Clock.systemUTC());
         var coordinator = new DefaultInvocationCoordinator(fixture.coordinator, dispatcher);
+        publisher = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer);
         worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -122,11 +153,12 @@ public class InvocationHttpIntegrationTest {
         var factory = new ExecutionContextFactory(new FixedExecutionAuthorizationResolver(properties), clock);
         var http = new NewAiHttpContext(factory, properties);
         var authorization = authorization(properties, clock);
+        eventService = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads, notifier, clock);
         mvc = standaloneSetup(
                 new NewAiConversationController(fixture.conversations, new ConversationHttpContext(http, properties)),
                 new NewAiChatController(fixture.chat, fixture.catalog, http, properties),
                 new NewAiInvocationController(new DefaultExecutionControl(authorization, fixture.executions, fixture.coordinator),
-                        new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads), http, properties))
+                        eventService, http, properties, new InvocationBudgetStatusResolver(fixture.executions, fixture.executions)))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -134,6 +166,7 @@ public class InvocationHttpIntegrationTest {
     public void cleanup() {
         SecurityContextHolder.clearContext();
         worker.stop();
+        publisher.stop();
         validator.close();
         jdbc.execute("DROP ALL OBJECTS");
         database.dispose();
@@ -145,7 +178,8 @@ public class InvocationHttpIntegrationTest {
     }
 
     private JsonNode send(String path, Map<String, ?> request, int status) throws Exception {
-        var result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).header("Accept-Language", "en")
+        var result = mvc.perform(post(path).accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON).header("Accept-Language", "en")
                 .content(json.writeValueAsString(request))).andReturn();
         return finish(result, status);
     }
@@ -188,6 +222,445 @@ public class InvocationHttpIntegrationTest {
 
     private void dispatch() {
         assertEquals(1, worker.pollOnce().block(Duration.ofSeconds(10)).intValue());
+    }
+
+    @Test
+    public void idleWatchReauthorizesAndRevocationEndsItWithoutPeriodicEventQueries() throws Exception {
+        var id = submit();
+        var revoked = new AtomicBoolean();
+        var reads = new AtomicInteger();
+        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
+        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> Mono.defer(() ->
+                revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes)),
+                fixture.properties, Clock.systemUTC());
+        ExecutionEventStore tracked = new ExecutionEventStore() {
+            @Override
+            public Mono<StoreOutcome<List<ExecutionEvent<?>>>> appendBatch(ExecutionCommands.Append command) {
+                return fixture.executions.appendBatch(command);
+            }
+
+            @Override
+            public Mono<StoreOutcome<Page>> replay(ExecutionOwner owner, ExecutionEvent.Cursor cursor, int limit) {
+                reads.incrementAndGet();
+                return fixture.executions.replay(owner, cursor, limit);
+            }
+
+            @Override
+            public Mono<StoreOutcome<ExecutionEvent.Cursor>> discardThrough(ExecutionOwner owner, String invocationId, long through) {
+                return fixture.executions.discardThrough(owner, invocationId, through);
+            }
+        };
+        var service = new DefaultExecutionEventService(authorization, fixture.executions, tracked, fixture.payloads, notifier, Clock.systemUTC());
+        var first = new CountDownLatch(1);
+        var ended = new CountDownLatch(1);
+        var errors = new CopyOnWriteArrayList<Throwable>();
+        var subscription = service.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "revocable-watch"))
+                .subscribe(event -> first.countDown(), error -> {
+                    errors.add(error);
+                    ended.countDown();
+                });
+        try {
+            assertTrue(first.await(5, TimeUnit.SECONDS));
+            var message = fixture.executions.claim(com.arte.ainew.pojo.execution.OutboxMessage.Kind.EVENT,
+                    "duplicate-publisher", Duration.ofMinutes(1), 1).block().getFirst();
+            notifier.publish(message);
+            notifier.publish(message);
+            revoked.set(true);
+            assertTrue(ended.await(13, TimeUnit.SECONDS));
+            assertEquals(1, errors.size());
+            assertTrue(errors.getFirst() instanceof AccessDeniedException);
+            assertEquals(1, reads.get());
+        } finally {
+            subscription.dispose();
+        }
+    }
+
+    @Test
+    public void eventTransactionRollbackDoesNotWakePublisherOrExposeRunningState() throws Exception {
+        var id = submit();
+        jdbc.execute("ALTER TABLE arte_ai_outbox ADD CONSTRAINT reject_new_events CHECK (sequence_no < 2)");
+        var invocation = fixture.executions.find(AdmissionFixture.owner("alice-id"), id).block();
+        assertThrows(RuntimeException.class, () -> fixture.executions.createAttempt(new ExecutionCommands.CreateAttempt(
+                new ExecutionCommands.Version(AdmissionFixture.owner("alice-id"), id, invocation.version()),
+                "rollback-attempt", "worker", Duration.ofMinutes(1))).block());
+        assertEquals(1, wakeups.get());
+        assertEquals("ACCEPTED", fixture.executions.find(AdmissionFixture.owner("alice-id"), id).block().state().name());
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_attempt", Long.class).longValue());
+        assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_event", Long.class).longValue());
+    }
+
+    @Test
+    public void slowWatchReceivesBudgetSettlementBeforeStreamCompletes() throws Exception {
+        var id = submit();
+        dispatch();
+        var events = eventService.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "slow-budget"))
+                .delayElements(Duration.ofMillis(30)).collectList().block(Duration.ofSeconds(5));
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L, 6L), events.stream().map(ExecutionEvent::sequence).toList());
+        assertEquals(new ExecutionPayload.BudgetChanged(com.arte.ainew.pojo.execution.InvocationBudgetState.SETTLED, 1, 2), events.getLast().payload());
+    }
+
+    @Test
+    public void alreadyDeliveredTerminalCursorClosesWithoutWaitingForLease() throws Exception {
+        var id = submit();
+        dispatch();
+        assertTrue(eventService.watch(new ExecutionEvent.Cursor(id, 6), fixture.context("alice", "caught-up"))
+                .collectList().block(Duration.ofSeconds(2)).isEmpty());
+    }
+
+    @Test
+    public void sseReplaysCompletedInvocationAndKeepsOnlySmallNotifications() throws Exception {
+        var id = submit();
+        dispatch();
+        var request = query(id);
+        request.put("afterSequence", 0);
+        var first = mvc.perform(post("/ai-new/invocation/watchInvocation")
+                .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+        first.getAsyncResult(5000);
+        var stream = mvc.perform(asyncDispatch(first)).andReturn();
+        if (stream.getRequest().isAsyncStarted()) {
+            stream.getAsyncResult(5000);
+            stream = mvc.perform(asyncDispatch(stream)).andReturn();
+        }
+        assertEquals(200, stream.getResponse().getStatus());
+        assertTrue(stream.getResponse().getContentType().startsWith("text/event-stream"));
+        assertEquals("no", stream.getResponse().getHeader("X-Accel-Buffering"));
+        var body = stream.getResponse().getContentAsString();
+        assertTrue(body, body.contains("event:invocation"));
+        assertTrue(body, body.contains("TERMINAL"));
+        assertFalse(body.contains("private user input"));
+        assertFalse(body.contains(OUTPUT));
+        assertEquals(1, modelCalls.get());
+    }
+
+    @Test
+    public void activeSseFlushesAcceptedAndThenPushesLiveTerminal() throws Exception {
+        var id = submit();
+        var request = query(id);
+        request.put("afterSequence", 0);
+        var first = mvc.perform(post("/ai-new/invocation/watchInvocation")
+                .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+        first.getAsyncResult(5000);
+        var stream = mvc.perform(asyncDispatch(first)).andReturn();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (!stream.getResponse().getContentAsString().contains("ACCEPTED") && System.nanoTime() < end) {
+            Thread.sleep(10);
+        }
+        assertTrue(stream.getResponse().getContentAsString().contains("ACCEPTED"));
+        assertFalse(stream.getResponse().getContentAsString().contains("TERMINAL"));
+        dispatch();
+        publisher.pollOnce().block();
+        stream.getAsyncResult(5000);
+        stream = mvc.perform(asyncDispatch(stream)).andReturn();
+        assertEquals(200, stream.getResponse().getStatus());
+        assertTrue(stream.getResponse().getContentAsString().contains("TERMINAL"));
+        assertEquals(1, modelCalls.get());
+    }
+
+    @Test
+    public void ssePreflightReturnsHttpErrorsForForeignAndExpiredCursors() throws Exception {
+        var id = submit();
+        login("bob");
+        var request = query(id);
+        request.put("afterSequence", 0);
+        send("/ai-new/invocation/watchInvocation", request, 404);
+        login("alice");
+        dispatch();
+        publisher.pollOnce().block();
+        assertTrue(fixture.executions.discardThrough(AdmissionFixture.owner("alice-id"), id, 1).block().successful());
+        send("/ai-new/invocation/watchInvocation", request, 410);
+    }
+
+    private BudgetReservation terminalWithReservedBudget(String id) {
+        var owner = AdmissionFixture.owner("alice-id");
+        var invocation = fixture.executions.find(owner, id).block();
+        var attempt = fixture.executions.createAttempt(new ExecutionCommands.CreateAttempt(
+                new ExecutionCommands.Version(owner, id, invocation.version()), "budget-attempt", "budget-worker", Duration.ofMinutes(1))).block().value();
+        invocation = fixture.executions.find(owner, id).block();
+        var account = fixture.executions.account(owner, "alice-budget").block();
+        var reservation = fixture.executions.reserve(new BudgetCommands.Reserve(
+                ExecutionCommands.Guard.from(owner, invocation, attempt), "budget-reservation", new Money(BigDecimal.ONE, account.limit().currency()),
+                account.rateVersion(), Duration.ofHours(1))).block().value();
+        attempt = fixture.executions.findAttempt(owner, id, attempt.attemptId()).block();
+        assertTrue(fixture.executions.commitCompletion(new ExecutionCommands.Complete(
+                ExecutionCommands.Guard.from(owner, invocation, attempt), "cancel-before-dispatch",
+                new ExecutionPayload.Terminal(Invocation.State.CANCELLED, null, null), Usage.unknown(), null)).block().successful());
+        return reservation;
+    }
+
+    private void releaseBudget(BudgetReservation reservation) {
+        var command = new BudgetCommands.Settle(AdmissionFixture.owner("alice-id"), reservation.version(),
+                new BudgetSettlement("release", reservation.reservationId(), BudgetSettlement.State.RELEASED,
+                        Usage.unknown(), new Money(BigDecimal.ZERO, reservation.reserved().currency()), Instant.now()),
+                BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED, "not-dispatched");
+        assertTrue(fixture.executions.settle(command).block().successful());
+        assertEquals(StoreOutcome.Code.REPLAYED, fixture.executions.settle(command).block().code());
+    }
+
+    @Test
+    public void terminalDoesNotCloseWatchBeforeBudgetSettlementCommits() throws Exception {
+        var id = submit();
+        var reservation = terminalWithReservedBudget(id);
+        assertEquals("RESERVED", send(STATUS, query(id), 200).path("data").path("budgetState").asString());
+        var events = new CopyOnWriteArrayList<ExecutionEvent<?>>();
+        var terminal = new CountDownLatch(1);
+        var closed = new CountDownLatch(1);
+        var errors = new CopyOnWriteArrayList<Throwable>();
+        var watch = eventService.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "budget-watch"))
+                .subscribe(event -> {
+                            events.add(event);
+                            if (event.kind() == ExecutionEvent.Kind.TERMINAL) terminal.countDown();
+                        },
+                        error -> {
+                            errors.add(error);
+                            closed.countDown();
+                        }, closed::countDown);
+        try {
+            assertTrue(terminal.await(5, TimeUnit.SECONDS));
+            assertFalse(closed.await(150, TimeUnit.MILLISECONDS));
+            releaseBudget(reservation);
+            assertEquals(5, publisher.pollOnce().block().intValue());
+            assertTrue(closed.await(5, TimeUnit.SECONDS));
+            assertTrue(errors.toString(), errors.isEmpty());
+            assertEquals(List.of(1L, 2L, 3L, 4L, 5L), events.stream().map(ExecutionEvent::sequence).toList());
+            assertEquals("RELEASED", send(STATUS, query(id), 200).path("data").path("budgetState").asString());
+            assertEquals(0, fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block().held().amount().signum());
+            assertEquals(0, modelCalls.get());
+        } finally {
+            watch.dispose();
+        }
+    }
+
+    private RedissonClient isolatedRedis() {
+        String address = System.getProperty("arte.ai-new.test.redis-address");
+        Assume.assumeTrue("Run with an isolated Redis test endpoint", address != null && address.startsWith("redis://127.0.0.1:"));
+        var config = new Config();
+        config.useSingleServer().setAddress(address).setConnectionMinimumIdleSize(1).setConnectionPoolSize(2)
+                .setSubscriptionConnectionMinimumIdleSize(1).setSubscriptionConnectionPoolSize(2);
+        return Redisson.create(config);
+    }
+
+    private void awaitReady(RedisExecutionEventBroadcast bus) throws Exception {
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!bus.isReady() && System.nanoTime() < end) {
+            Thread.sleep(10);
+        }
+        assertTrue(bus.isReady());
+    }
+
+    @Test
+    public void redisBroadcastReachesAnotherInstanceAndReconnectReplaysAcknowledgedEvents() throws Exception {
+        var clientA = isolatedRedis();
+        var clientB = isolatedRedis();
+        var notifierB = new LocalExecutionEventNotifier();
+        var options = new NewAiEventProperties(NewAiEventProperties.Transport.REDIS, "arte-test:" + UUID.randomUUID(), Duration.ofSeconds(2));
+        var busA = new RedisExecutionEventBroadcast(clientA, notifier, options);
+        var busB = new RedisExecutionEventBroadcast(clientB, notifierB, options);
+        var remote = new DefaultExecutionEventService(authorization(fixture.properties, Clock.systemUTC()), fixture.executions,
+                fixture.executions, fixture.payloads, notifierB, Clock.systemUTC());
+        var settings = new NewAiExecutionProperties(true, false, 4, null, null, null, null);
+        var redisPublisher = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer, busA);
+        var observed = new CopyOnWriteArrayList<ExecutionEvent<?>>();
+        var errors = new CopyOnWriteArrayList<Throwable>();
+        var accepted = new CountDownLatch(1);
+        var terminal = new CountDownLatch(1);
+        var closed = new CountDownLatch(1);
+        reactor.core.Disposable watch = null;
+        try {
+            busA.start();
+            busB.start();
+            awaitReady(busA);
+            awaitReady(busB);
+            var id = submit();
+            watch = remote.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "remote"))
+                    .subscribe(event -> {
+                                observed.add(event);
+                                if (event.kind() == ExecutionEvent.Kind.ACCEPTED) accepted.countDown();
+                                if (event.kind() == ExecutionEvent.Kind.TERMINAL) terminal.countDown();
+                            },
+                            error -> {
+                                errors.add(error);
+                                closed.countDown();
+                            }, closed::countDown);
+            assertTrue(accepted.await(5, TimeUnit.SECONDS));
+            var reservation = terminalWithReservedBudget(id);
+            assertEquals(4, redisPublisher.pollOnce().block().intValue());
+            assertTrue(terminal.await(5, TimeUnit.SECONDS));
+            assertFalse(closed.await(100, TimeUnit.MILLISECONDS));
+            // 订阅端断开；发布端成功发布并 ACK。重新订阅必须重放已 ACK 的数据库事件。
+            busB.stop();
+            releaseBudget(reservation);
+            assertEquals(1, redisPublisher.pollOnce().block().intValue());
+            assertFalse(closed.await(100, TimeUnit.MILLISECONDS));
+            busB.start();
+            awaitReady(busB);
+            assertTrue(closed.await(5, TimeUnit.SECONDS));
+            assertTrue(errors.toString(), errors.isEmpty());
+            assertEquals(List.of(1L, 2L, 3L, 4L, 5L), observed.stream().map(ExecutionEvent::sequence).toList());
+            assertFalse(settings.workerEnabled()); // HTTP-only 节点也订阅。
+            assertEquals(0, modelCalls.get());
+        } finally {
+            if (watch != null) watch.dispose();
+            busA.stop();
+            busB.stop();
+            clientA.shutdown();
+            clientB.shutdown();
+        }
+    }
+
+    @Test
+    public void redisHintsAreOwnerIsolatedAndInvalidHintsAreSafe() throws Exception {
+        var client = isolatedRedis();
+        var options = new NewAiEventProperties(NewAiEventProperties.Transport.REDIS, "arte-test:" + UUID.randomUUID(), Duration.ofSeconds(2));
+        var bus = new RedisExecutionEventBroadcast(client, notifier, options);
+        var owner = AdmissionFixture.owner("alice-id");
+        var delivered = new CountDownLatch(1);
+        var other = new AtomicInteger();
+        var expected = notifier.watch(owner, "inv").filter(seq -> seq > 0).subscribe(seq -> delivered.countDown());
+        var foreign = notifier.watch(AdmissionFixture.owner("bob-id"), "inv").filter(seq -> seq > 0).subscribe(seq -> other.incrementAndGet());
+        try {
+            bus.start();
+            awaitReady(bus);
+            var topic = client.getTopic(options.channel(), StringCodec.INSTANCE);
+            topic.publish("{invalid-json}");
+            topic.publish(json.writeValueAsString(new RedisExecutionEventBroadcast.Signal(1, owner, "inv", 2)));
+            assertTrue(delivered.await(5, TimeUnit.SECONDS));
+            assertEquals(0, other.get());
+        } finally {
+            expected.dispose();
+            foreign.dispose();
+            bus.stop();
+            client.shutdown();
+        }
+    }
+
+    @Test
+    public void failedBroadcastDoesNotAcknowledgeAndLeaseRecoveryPublishesIt() throws Exception {
+        var id = submit();
+        var settings = new NewAiExecutionProperties(true, false, 4, null, null, null, null);
+        var failed = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer,
+                message -> Mono.error(new IllegalStateException("isolated transport failure")));
+        assertEquals(0, failed.pollOnce().block().intValue());
+        assertEquals(0, publisher.pollOnce().block().intValue());
+        jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='EVENT'");
+        assertEquals(1, publisher.pollOnce().block().intValue());
+        assertEquals(1, fixture.executions.replay(AdmissionFixture.owner("alice-id"), new ExecutionEvent.Cursor(id, 0), 256).block().value().events().size());
+    }
+
+    @Test
+    public void eventPublisherWakesAfterCommitAndLiveWatchHasNoReplaySubscriptionGap() throws Exception {
+        var id = submit();
+        assertEquals(1, wakeups.get());
+        var observed = new CopyOnWriteArrayList<ExecutionEvent<?>>();
+        var first = new CountDownLatch(1);
+        var complete = new CountDownLatch(1);
+        var errors = new CopyOnWriteArrayList<Throwable>();
+        eventService.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "watch"))
+                .subscribe(event -> {
+                    observed.add(event);
+                    first.countDown();
+                }, error -> {
+                    errors.add(error);
+                    complete.countDown();
+                }, complete::countDown);
+        assertTrue(first.await(5, TimeUnit.SECONDS));
+        dispatch();
+        assertEquals(6, wakeups.get());
+        assertEquals(6, publisher.pollOnce().block().intValue());
+        assertTrue(complete.await(5, TimeUnit.SECONDS));
+        assertTrue(errors.toString(), errors.isEmpty());
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L, 6L), observed.stream().map(ExecutionEvent::sequence).toList());
+        assertEquals(ExecutionEvent.Kind.BUDGET_CHANGED, observed.getLast().kind());
+        assertEquals(0, publisher.pollOnce().block().intValue());
+    }
+
+    @Test
+    public void commitAfterEmptyReplayBeforeStatusReadStillDeliversTerminal() throws Exception {
+        var id = submit();
+        var reads = new AtomicInteger();
+        ExecutionEventStore racing = new ExecutionEventStore() {
+            @Override
+            public Mono<StoreOutcome<List<ExecutionEvent<?>>>> appendBatch(ExecutionCommands.Append command) {
+                return fixture.executions.appendBatch(command);
+            }
+
+            @Override
+            public Mono<StoreOutcome<Page>> replay(ExecutionOwner owner, ExecutionEvent.Cursor cursor, int limit) {
+                return fixture.executions.replay(owner, cursor, limit).doOnNext(ignored -> {
+                    if (reads.incrementAndGet() == 1) {
+                        // 首次读取完成后、结果交给订阅者前提交新事件并发布，制造原有空窗。
+                        dispatch();
+                        publisher.pollOnce().block();
+                    }
+                });
+            }
+
+            @Override
+            public Mono<StoreOutcome<ExecutionEvent.Cursor>> discardThrough(ExecutionOwner owner, String invocationId, long through) {
+                return fixture.executions.discardThrough(owner, invocationId, through);
+            }
+        };
+        var service = new DefaultExecutionEventService(authorization(fixture.properties, Clock.systemUTC()), fixture.executions,
+                racing, fixture.payloads, notifier, Clock.systemUTC());
+        var events = service.watch(new ExecutionEvent.Cursor(id, 1), fixture.context("alice", "race"))
+                .collectList().block(Duration.ofSeconds(5));
+        assertEquals(List.of(2L, 3L, 4L, 5L, 6L), events.stream().map(ExecutionEvent::sequence).toList());
+        assertEquals(1, modelCalls.get());
+    }
+
+    @Test
+    public void fullEventBatchesDrainImmediatelyWithoutWaitingForRecoveryScan() throws Exception {
+        var acknowledged = new CountDownLatch(130);
+        var position = new AtomicInteger();
+        ExecutionOutboxStore batches = new ExecutionOutboxStore() {
+            @Override
+            public Mono<List<OutboxMessage>> claim(OutboxMessage.Kind kind, String worker, Duration lease, int limit) {
+                int start = position.getAndAdd(limit);
+                return Mono.just(java.util.stream.IntStream.range(start, Math.min(start + limit, 130))
+                        .mapToObj(index -> new OutboxMessage("message-" + index, "batch-invocation", AdmissionFixture.owner("alice-id"),
+                                kind, index + 1L, worker, 1, java.time.Instant.now().plus(lease))).toList());
+            }
+
+            @Override
+            public Mono<StoreOutcome<OutboxMessage>> validateClaim(OutboxMessage message) {
+                return Mono.just(StoreOutcome.applied(message));
+            }
+
+            @Override
+            public Mono<StoreOutcome<OutboxMessage>> renewClaim(OutboxMessage message, Duration lease) {
+                return Mono.just(StoreOutcome.applied(message));
+            }
+
+            @Override
+            public Mono<StoreOutcome<OutboxMessage>> acknowledge(OutboxMessage message) {
+                acknowledged.countDown();
+                return Mono.just(StoreOutcome.applied(message));
+            }
+        };
+        var settings = new NewAiExecutionProperties(true, false, 4, Duration.ofSeconds(1),
+                Duration.ofMinutes(1), Duration.ofMinutes(1), Duration.ofDays(1));
+        var eventPublisher = new ExecutionEventPublisher(batches, new LocalExecutionEventNotifier(), settings, timer);
+        try {
+            eventPublisher.start();
+            assertTrue("All three batches must finish before the 5 second recovery timer", acknowledged.await(2, TimeUnit.SECONDS));
+        } finally {
+            eventPublisher.stop();
+        }
+    }
+
+    @Test
+    public void publisherRunsFromCommitWakeupWithoutWaitingForRecoveryTimer() throws Exception {
+        publisher.start();
+        var id = submit();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox WHERE kind='EVENT' AND delivered=0", Integer.class) != 0
+                && System.nanoTime() < end) {
+            Thread.sleep(10);
+        }
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox WHERE kind='EVENT' AND delivered=0", Integer.class).intValue());
+        assertEquals("ACCEPTED", fixture.executions.find(AdmissionFixture.owner("alice-id"), id).block().state().name());
+        assertEquals(0, modelCalls.get());
     }
 
     @Test
@@ -265,6 +738,7 @@ public class InvocationHttpIntegrationTest {
         dispatch();
         var status = send(STATUS, query(id), 200).path("data");
         assertEquals("UNKNOWN", status.path("state").asString());
+        assertEquals("PENDING_RECONCILIATION", status.path("budgetState").asString());
         assertEquals("UNKNOWN", status.path("error").path("certainty").asString());
         assertTrue(status.path("partial").asBoolean());
         var result = send(RESULT, query(id), 200).path("data").path("result").path("value");
@@ -304,7 +778,7 @@ public class InvocationHttpIntegrationTest {
             }
             after = page.path("nextCursor").path("afterSequence").asLong();
         }
-        assertEquals(java.util.Set.of("STARTED", "OUTPUT", "TERMINAL"), kinds);
+        assertEquals(java.util.Set.of("STARTED", "OUTPUT", "TERMINAL", "BUDGET_CHANGED"), kinds);
         assertEquals(1, modelCalls.get());
     }
 

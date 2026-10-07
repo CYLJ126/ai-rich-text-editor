@@ -110,7 +110,7 @@ export default {
   'app.aiChat.pollPaused':
     '已暂停自动查询，调用仍可能继续执行；可继续查询原调用。',
   'app.aiChat.resumePolling': '继续查询',
-  'app.aiChat.polling': '正在查询执行状态，请等待当前调用结束。',
+  'app.aiChat.polling': '正在等待执行通知；连接不可用时每 10 秒恢复查询。',
   'app.aiChat.retryMessageHint':
     '本次提交结果尚不明确。重试会复用相同请求和幂等键；刷新页面或切换会话前，请先确认历史记录。',
   'app.aiChat.retryMessage': '重试提交',
@@ -123,4 +123,10 @@ export default {
   'app.aiChat.execution.TIMED_OUT': '超时',
   'app.aiChat.execution.INTERRUPTED': '已中断',
   'app.aiChat.execution.UNKNOWN': '结果未知',
+  'app.aiChat.invocationBudgetState': '本次预算',
+  'app.aiChat.budgetState.NOT_RESERVED': '未预留',
+  'app.aiChat.budgetState.RESERVED': '已预留，等待结算',
+  'app.aiChat.budgetState.PENDING_RECONCILIATION': '待对账（保留预留）',
+  'app.aiChat.budgetState.SETTLED': '已结算',
+  'app.aiChat.budgetState.RELEASED': '已释放',
 };

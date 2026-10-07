@@ -197,6 +197,13 @@ export interface InvocationEventsRequest extends InvocationQuery {
   limit: number;
 }
 
+export type InvocationBudgetState =
+  | 'NOT_RESERVED'
+  | 'RESERVED'
+  | 'PENDING_RECONCILIATION'
+  | 'SETTLED'
+  | 'RELEASED';
+
 export interface InvocationStatusResponse {
   invocationId: string;
   kind: CapabilityKind;
@@ -207,6 +214,8 @@ export interface InvocationStatusResponse {
   } | null;
   state: InvocationState;
   version: number;
+  /** 本次调用的预留状态；终态与账本结算可先后提交。 */
+  budgetState?: InvocationBudgetState;
   activeAttemptId: string | null;
   resultAvailable: boolean;
   partial: boolean | null;
@@ -290,6 +299,14 @@ export type ExecutionEvent = ExecutionEventMetadata &
     payload: { state: ActiveInvocationState };
   }
     | { kind: 'OUTPUT'; payload: { events: GenerationEvent[] } }
+    | {
+    kind: 'BUDGET_CHANGED';
+    payload: {
+      state: Exclude<InvocationBudgetState, 'NOT_RESERVED'>;
+      reservationVersion: number;
+      accountVersion: number;
+    };
+  }
     | {
     kind: 'CONTROL';
     payload: {

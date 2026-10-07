@@ -11,6 +11,8 @@ export {
   getInvocationStatus,
   invocationEvent,
 } from './invocation';
+export type {InvocationNotification} from './invocationStream';
+export {watchInvocation} from './invocationStream';
 export type {AiRequestOptions} from './request';
 export {AiApiError} from './request';
 export type * from './types';

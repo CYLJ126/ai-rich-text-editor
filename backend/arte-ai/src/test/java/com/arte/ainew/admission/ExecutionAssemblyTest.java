@@ -100,4 +100,49 @@ public class ExecutionAssemblyTest {
             assertThrows(org.springframework.beans.BeansException.class, () -> refresh(context));
         }
     }
+
+    @Test
+    public void redisTransportWithoutExistingClientFailsClearly() throws Exception {
+        try (var context = context(true)) {
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("events",
+                    Map.of("arte.ai-new-execution.enabled", "true", "arte.ai-new-events.transport", "redis")));
+            var error = assertThrows(org.springframework.beans.BeansException.class, () -> refresh(context));
+            assertTrue(error.getMessage(), error.getMessage().contains("RedissonClient"));
+        }
+    }
+
+    @Test
+    public void notificationOptionsRejectTyposAndUnboundedTimeouts() {
+        assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.config.NewAiEventProperties(null, " ", null));
+        assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.config.NewAiEventProperties(null, null, java.time.Duration.ofMinutes(1)));
+    }
+
+    @Test
+    public void redisHttpOnlyNodeAutomaticallySubscribesWithoutDatabaseAccess() throws Exception {
+        String address = System.getProperty("arte.ai-new.test.redis-address");
+        org.junit.Assume.assumeTrue("Use an isolated local test Redis", address != null && address.startsWith("redis://127.0.0.1:"));
+        var redisConfig = new org.redisson.config.Config();
+        redisConfig.useSingleServer().setAddress(address).setConnectionMinimumIdleSize(1).setConnectionPoolSize(2)
+                .setSubscriptionConnectionMinimumIdleSize(1).setSubscriptionConnectionPoolSize(2);
+        var client = org.redisson.Redisson.create(redisConfig);
+        try (var context = context(true)) {
+            context.registerBean(org.redisson.api.RedissonClient.class, () -> client);
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("events",
+                    Map.of("arte.ai-new-execution.enabled", "true", "arte.ai-new-execution.worker-enabled", "false",
+                            "arte.ai-new-events.transport", "redis", "arte.ai-new-events.channel", "arte-test:" + java.util.UUID.randomUUID())));
+            refresh(context);
+            var bus = context.getBean(com.arte.ainew.application.execution.RedisExecutionEventBroadcast.class);
+            long end = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (!bus.isReady() && System.nanoTime() < end) {
+                Thread.sleep(10);
+            }
+            assertTrue(bus.isRunning());
+            assertTrue(bus.isReady());
+            assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
+            assertFalse(context.getBean(com.arte.ainew.application.execution.ExecutionEventPublisher.class).isRunning());
+        } finally {
+            client.shutdown();
+        }
+    }
+
 }

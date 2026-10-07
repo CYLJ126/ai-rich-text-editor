@@ -214,3 +214,8 @@ arte.ai-new-execution.poll-interval=1s
 arte.ai-new-execution.outbox-lease=2m
 arte.ai-new-execution.attempt-lease=2m
 arte.ai-new-execution.reservation-retention=1d
+
+# AI SSE notification transport (reuse application RedissonClient).
+arte.ai-new-events.transport=local
+arte.ai-new-events.channel=arte:ai-new:events:v1
+arte.ai-new-events.publish-timeout=3s

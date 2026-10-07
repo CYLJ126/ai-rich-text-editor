@@ -192,6 +192,16 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 本阶段提供 Service 层测试入口。后续已接入会话创建／列表／详情／轮次查询及单条用户文本提交 HTTP
 Controller，提交契约见 [HTTP 接口说明](CHAT_HTTP_API.md)
 ；执行状态／结果及单页耐久事件重放已接入，见 [执行查询接口](INVOCATION_HTTP_API.md)
-；授权预算账户汇总已接入，见 [预算查询接口](BUDGET_HTTP_API.md)。预算管理 HTTP Controller、事件实时 watch／EVENT
-发布者、耐久跨实例取消、UNKNOWN 的远端核对、动态路由、工具、历史上下文及多次安全重试仍待后续实现；watch／control／reconcile
+；授权预算账户汇总已接入，见 [预算查询接口](BUDGET_HTTP_API.md)。预算管理 HTTP Controller、耐久跨实例取消、UNKNOWN
+的远端核对、动态路由、工具及多次安全重试仍待后续实现；control／reconcile
 明确返回未启用错误。现有手动 DDL 不变。
+
+## 事件通知、预算结算与跨实例广播
+
+EVENT Outbox 提交后唤醒、统一恢复扫描、耐久回放及 SSE 已接入，见 [执行 HTTP 与 SSE 接口](INVOCATION_HTTP_API.md#sse-通知)。
+预算预留与结算在各自事务中追加 BUDGET_CHANGED 和 EVENT Outbox；幂等重放不重复追加，事件失败会回滚账本。 Invocation
+终态可先于结算，状态接口增加本次预留的 budgetState；RESERVED 时继续等待，取得预算处理结果后排空事件再结束。 未知费用仍待对账并保留预留。
+
+广播可选 local/redis。Redis 复用已有 Redisson，所有节点订阅；EVENT 领取节点发布成功后 ACK，浏览器连接所在节点按耐久游标重读。
+订阅恢复也触发重读，恢复 Pub/Sub 断线期间丢失的提示。Redis 不存正文或账本权威。 自动发布沿用
+execution.worker-enabled；HTTP-only 节点仍订阅，订阅不会重新派发模型。 配置及迁移见接口文档；本步不新增表。

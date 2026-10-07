@@ -411,6 +411,38 @@ public class MybatisExecutionPersistenceTest {
         assertEquals(INSUFFICIENT_BUDGET, first.markDispatch(new Dispatch(guard("inv"), null)).block().code());
     }
 
+    @Test
+    public void budgetEventFailureRollsBackLedgerAndOutboxAndReplaysDoNotDuplicateEvents() {
+        account("100");
+        accept("inv", "budget");
+        create("inv");
+        var fail = faulty(value -> value instanceof ExecutionEvent<?> e && e.kind() == ExecutionEvent.Kind.BUDGET_CHANGED);
+        var command = reserveCommand("inv", "10");
+        assertThrows(IllegalStateException.class, () -> fail.reserve(command).block());
+        assertEquals(money("0"), first.account(OWNER, "budget").block().held());
+        assertEquals(0, count("arte_ai_reservation"));
+        assertEquals(2, count("arte_ai_event"));
+        var reservation = first.reserve(command).block().value();
+        assertEquals(REPLAYED, second.reserve(command).block().code());
+        assertEquals(3, count("arte_ai_event"));
+        var settlement = new BudgetCommands.Settle(OWNER, 0, new BudgetSettlement("release", reservation.reservationId(),
+                BudgetSettlement.State.RELEASED, Usage.unknown(), money("0"), Instant.now()),
+                BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED, "proof");
+        var failSettlement = faulty(value -> value instanceof ExecutionEvent<?> e && e.kind() == ExecutionEvent.Kind.BUDGET_CHANGED);
+        assertThrows(IllegalStateException.class, () -> failSettlement.settle(settlement).block());
+        assertEquals(money("10"), first.account(OWNER, "budget").block().held());
+        assertEquals(0, count("arte_ai_settlement"));
+        assertEquals(3, count("arte_ai_event"));
+        assertEquals(APPLIED, first.settle(settlement).block().code());
+        assertEquals(REPLAYED, second.settle(settlement).block().code());
+        var events = first.replay(OWNER, new ExecutionEvent.Cursor("inv", 0), 256).block().value().events();
+        assertEquals(4, events.size());
+        assertEquals(new ExecutionPayload.BudgetChanged(InvocationBudgetState.RESERVED, 0, 1), events.get(2).payload());
+        assertEquals(new ExecutionPayload.BudgetChanged(InvocationBudgetState.RELEASED, 1, 2), events.get(3).payload());
+        assertEquals(5, count("arte_ai_outbox"));
+        assertEquals(money("0"), first.account(OWNER, "budget").block().held());
+    }
+
     @Test public void snapshotCodecRoundTripsWhitelistedInputsAndRejectsForeignTypesAndVersions() {
         var invocation = candidate("inv", "key", null, null);
         assertEquals(invocation, codec.decode(codec.encode(invocation), Invocation.class));

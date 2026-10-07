@@ -192,6 +192,15 @@ export default function ChatPanel({
             ? `${chat.budget.available} ${chat.budget.currency}`
             : t(chat.budgetLoading ? 'loadingBudget' : 'notQueried')}
         </span>
+        {chat.invocationId &&
+          chat.invocations[chat.invocationId]?.status?.budgetState && (
+            <span>
+              {t('invocationBudgetState')}：
+              {t(
+                `budgetState.${chat.invocations[chat.invocationId].status?.budgetState}`,
+              )}
+            </span>
+          )}
       </div>
       {chat.budget && (
         <p className="m-0 text-xs text-[var(--ant-color-text-secondary)]">

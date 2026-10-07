@@ -103,7 +103,7 @@ class WebSecurityConfigTest {
                 }
             }
         }
-        assertEquals(9, handlers.size());
+        assertEquals(10, handlers.size());
         assertTrue(urls("getUnControlUrls", handlers).isEmpty());
         assertTrue(urls("getAnonymousUrls", handlers).isEmpty());
     }

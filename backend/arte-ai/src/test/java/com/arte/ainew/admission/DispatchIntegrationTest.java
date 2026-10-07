@@ -341,7 +341,8 @@ public class DispatchIntegrationTest {
             assertEquals(0, rig.worker.pollOnce().block(WAIT).intValue());
             var page = rig.reading.replay(new ExecutionEvent.Cursor(accepted.executionId(), 0), 256,
                     rig.fixture.context("alice", "events")).block(WAIT).value();
-            assertEquals(ExecutionEvent.Kind.TERMINAL, page.events().getLast().kind());
+            assertEquals(ExecutionEvent.Kind.BUDGET_CHANGED, page.events().getLast().kind());
+            assertTrue(page.events().stream().anyMatch(event -> event.kind() == ExecutionEvent.Kind.TERMINAL));
             assertTrue(page.events().stream().anyMatch(event -> event.kind() == ExecutionEvent.Kind.OUTPUT));
             for (int i = 0; i < page.events().size(); i++) {
                 assertEquals(i + 1, page.events().get(i).sequence());

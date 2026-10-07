@@ -41,7 +41,7 @@ public class ProfileConfigurationTest {
         try (var context = new AnnotationConfigApplicationContext()) {
             sources.forEach(source -> context.getEnvironment().getPropertySources().addLast(source));
             context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("manual-test",
-                    Map.of("arte.ai-new-execution.worker-enabled", "false")));
+                    Map.of("arte.ai-new-execution.worker-enabled", "false", "arte.ai-new-events.transport", "local")));
             context.registerBean("appDataSource", DataSource.class, () -> new AbstractDataSource() {
                 @Override
                 public Connection getConnection() {
