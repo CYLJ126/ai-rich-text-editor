@@ -5,17 +5,17 @@ export default {
   'app.aiChat.status.missing': 'Configuration required',
   'app.aiChat.status.applied': 'Configuration applied',
   'app.aiChat.status.draft': 'Unapplied changes',
-  'app.aiChat.stageTitle': 'Step 2: Page layout and test configuration',
+  'app.aiChat.stageTitle': 'Step 3: Create, list, and select conversations',
   'app.aiChat.stageDescription':
-    'Validate, apply, and save your configuration locally. Conversation and message actions will be connected in later steps.',
+    'Conversation creation, paginated lists, and details are connected. Apply configuration to manage conversations; messages, history, and budgets follow in later steps.',
   'app.aiChat.conversations': 'Conversations',
   'app.aiChat.createConversation': 'New conversation',
-  'app.aiChat.conversationsEmpty': 'Conversations are not connected yet',
+  'app.aiChat.conversationsEmpty': 'No conversations in this workspace',
   'app.aiChat.messages': 'Messages and history',
   'app.aiChat.noConversation': 'No conversation selected',
   'app.aiChat.messagesEmpty': 'Fill in and apply the test configuration first',
   'app.aiChat.messagesConfigured':
-    'Configuration ready. Conversation management is the next step.',
+    'Create a conversation or select one from the list',
   'app.aiChat.invocationState': 'Execution status',
   'app.aiChat.budgetAvailable': 'Budget available',
   'app.aiChat.notQueried': 'Not queried',
@@ -28,7 +28,7 @@ export default {
     'Enter published references available to your account. Requests reuse the existing login token and language.',
   'app.aiChat.configApplied': 'Configuration applied locally',
   'app.aiChat.backendUnverified':
-    'References, permissions, and budget have not been verified by the backend yet.',
+    'Conversation requests use the applied tenant and workspace. The backend will validate Capability, Binding, and budget when sending messages.',
   'app.aiChat.scope': 'Tenant and workspace',
   'app.aiChat.publishedReferences': 'Published references with fixed versions',
   'app.aiChat.versionPlaceholder': 'For example v1; latest is not allowed',
@@ -68,4 +68,29 @@ export default {
     'Applied on this page, but could not be saved. A refresh may lose the configuration.',
   'app.aiChat.storage.clearFailed':
     'Cleared on this page, but could not remove the saved configuration. A refresh may restore it.',
+  'app.aiChat.refresh': 'Refresh list',
+  'app.aiChat.retry': 'Retry',
+  'app.aiChat.loadingList': 'Loading conversations…',
+  'app.aiChat.loadingDetail': 'Loading conversation details…',
+  'app.aiChat.applyDraft': 'Apply your configuration changes first.',
+  'app.aiChat.conversationSelected': 'Conversation selected',
+  'app.aiChat.conversationDetail': 'Conversation details',
+  'app.aiChat.conversationId': 'Conversation ID',
+  'app.aiChat.conversationTitle': 'Conversation title',
+  'app.aiChat.conversationVersion': 'Conversation version',
+  'app.aiChat.conversationState': 'Conversation state',
+  'app.aiChat.createdAt': 'Created at',
+  'app.aiChat.updatedAt': 'Updated at',
+  'app.aiChat.messagesNextStep':
+    'Conversation ready. Sending messages and loading history will be connected in the next step.',
+  'app.aiChat.create': 'Create',
+  'app.aiChat.cancel': 'Close',
+  'app.aiChat.retryCreate': 'Retry creation',
+  'app.aiChat.createRetryHint':
+    'Retries reuse the same title and idempotency key, including after closing this dialog. Switching workspaces or refreshing the page loses this retry information.',
+  'app.aiChat.error.network':
+    'Request failed. Check your network or backend service, then retry.',
+  'app.aiChat.error.login': 'Your login has expired. Please sign in again.',
+  'app.aiChat.error.permission':
+    'Check conversation API permissions and access to this tenant and workspace.',
 };

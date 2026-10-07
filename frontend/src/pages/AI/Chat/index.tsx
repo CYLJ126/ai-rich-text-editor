@@ -1,8 +1,9 @@
 import {MessageOutlined, SettingOutlined} from '@ant-design/icons';
 import {useIntl} from '@umijs/max';
-import {Alert, Button, Card, Empty, Form, Input, InputNumber, Tag,} from 'antd';
-import React, {useState} from 'react';
+import {Alert, Button, Card, Form, Input, InputNumber, Tag} from 'antd';
+import React, {useMemo, useState} from 'react';
 import chatMessages from '@/locales/zh-CN/aiChat';
+import ConversationWorkspace from './ConversationWorkspace';
 import {
   chatConfigSchema,
   type ChatConfigValues,
@@ -29,6 +30,13 @@ export default function AiChatPage() {
   );
   const [dirty, setDirty] = useState(false);
   const [form] = Form.useForm<ChatConfigValues>();
+  const scope = useMemo(
+    () =>
+      config
+        ? {tenantId: config.tenantId, workspaceId: config.workspaceId}
+        : null,
+    [config?.tenantId, config?.workspaceId],
+  );
 
   const applyConfig = (values: ChatConfigValues) => {
     const parsed = chatConfigSchema.safeParse(values);
@@ -118,59 +126,12 @@ export default function AiChatPage() {
 
       <div
         className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_360px]">
-        <Card
-          title={t('conversations')}
-          size="small"
-          styles={{body: {minHeight: 450}}}
-        >
-          <Button block disabled>
-            {t('createConversation')}
-          </Button>
-          <div className="py-16">
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={t('conversationsEmpty')}
-            />
-          </div>
-        </Card>
-
-        <Card
-          title={t('messages')}
-          size="small"
-          className="min-w-0"
-          extra={<Tag>{t('noConversation')}</Tag>}
-          styles={{
-            body: {
-              minHeight: 450,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            },
-          }}
-        >
-          <div className="flex min-h-56 flex-1 items-center justify-center">
-            <Empty
-              description={t(config ? 'messagesConfigured' : 'messagesEmpty')}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 text-[var(--ant-color-text-secondary)]">
-            <span>{t('invocationState')}：—</span>
-            <span>
-              {t('budgetAvailable')}：{t('notQueried')}
-            </span>
-          </div>
-          <Input.TextArea
-            disabled
-            aria-label={t('messageInput')}
-            autoSize={{minRows: 3, maxRows: 6}}
-            placeholder={t('messagePlaceholder')}
-          />
-          <div className="flex justify-end">
-            <Button type="primary" disabled>
-              {t('send')}
-            </Button>
-          </div>
-        </Card>
+        <ConversationWorkspace
+          key={JSON.stringify(scope)}
+          scope={scope}
+          dirty={dirty}
+          t={t}
+        />
 
         <Card
           title={
