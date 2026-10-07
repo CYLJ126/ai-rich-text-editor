@@ -6,6 +6,7 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.List;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class TextInputs {
 
     public static final String TOKENIZER = "utf8-estimate-v1";
@@ -107,6 +109,7 @@ public final class TextInputs {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
         }
         if (snapshot.inputTokens() > snapshot.budget().maxInputTokens()) {
+            log.info("SnapshotId: {} - Context capacity exceeded: {} > {}", snapshot.snapshotId(), snapshot.inputTokens(), snapshot.budget().maxInputTokens());
             throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED);
         }
     }
