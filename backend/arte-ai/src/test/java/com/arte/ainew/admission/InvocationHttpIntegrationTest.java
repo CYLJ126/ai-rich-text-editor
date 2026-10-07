@@ -27,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
@@ -420,7 +421,7 @@ public class InvocationHttpIntegrationTest {
     }
 
     @Test
-    public void identityIsCapturedBeforeAsyncReadAndMethodsDeclareAuthentication() throws Exception {
+    public void identityIsCapturedBeforeAsyncReadAndControllerDeclaresAuthentication() throws Exception {
         var id = submit();
         var pending = mvc.perform(post(STATUS).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(query(id)))).andReturn();
         SecurityContextHolder.clearContext();
@@ -428,7 +429,12 @@ public class InvocationHttpIntegrationTest {
         for (var name : List.of("getInvocationStatus", "getInvocationResult", "invocationEvent")) {
             var requestClass = name.equals("invocationEvent") ? InvocationRequests.Replay.class : InvocationRequests.Query.class;
             var method = NewAiInvocationController.class.getMethod(name, requestClass, Locale.class);
-            assertEquals("isAuthenticated()", method.getAnnotation(PreAuthorize.class).value());
+            var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
+            if (authorization == null) {
+                authorization = AnnotatedElementUtils.findMergedAnnotation(NewAiInvocationController.class, PreAuthorize.class);
+            }
+            assertNotNull(authorization);
+            assertEquals("isAuthenticated()", authorization.value());
         }
     }
 

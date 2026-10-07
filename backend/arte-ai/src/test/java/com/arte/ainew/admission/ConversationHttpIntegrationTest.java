@@ -14,6 +14,7 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -110,14 +111,18 @@ public class ConversationHttpIntegrationTest {
     }
 
     @Test
-    public void allHttpMethodsDeclareAuthenticationForApplicationSecurityDiscovery() {
-        // arte-app 的 URL 收集器只检查方法级 @PreAuthorize，遗漏会将该路径加入 denyAll。
+    public void allHttpEndpointsDeclareAuthentication() {
+        // 授权可以声明在方法或 Controller 类上；URL 分类由 arte-app 的安全配置测试验证。
         var methods = Arrays.stream(NewAiConversationController.class.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(org.springframework.web.bind.annotation.PostMapping.class)).toList();
         assertEquals(4, methods.size());
         for (var method : methods) {
-            assertNotNull(method.getAnnotation(PreAuthorize.class));
-            assertEquals("isAuthenticated()", method.getAnnotation(PreAuthorize.class).value());
+            var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
+            if (authorization == null) {
+                authorization = AnnotatedElementUtils.findMergedAnnotation(NewAiConversationController.class, PreAuthorize.class);
+            }
+            assertNotNull(authorization);
+            assertEquals("isAuthenticated()", authorization.value());
         }
     }
 

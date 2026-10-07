@@ -24,6 +24,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
@@ -325,12 +326,17 @@ public class BudgetHttpIntegrationTest {
     }
 
     @Test
-    public void identityIsCapturedBeforeAsyncQueryAndMethodDeclaresAuthentication() throws Exception {
+    public void identityIsCapturedBeforeAsyncQueryAndControllerDeclaresAuthentication() throws Exception {
         var pending = mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(query("alice-budget")))).andReturn();
         SecurityContextHolder.clearContext();
         assertEquals("alice-budget", finish(pending, 200).path("data").path("budgetRef").asString());
-        assertEquals("isAuthenticated()", NewAiBudgetController.class.getMethod("getBudget", BudgetRequests.Query.class, Locale.class)
-                .getAnnotation(PreAuthorize.class).value());
+        var method = NewAiBudgetController.class.getMethod("getBudget", BudgetRequests.Query.class, Locale.class);
+        var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
+        if (authorization == null) {
+            authorization = AnnotatedElementUtils.findMergedAnnotation(NewAiBudgetController.class, PreAuthorize.class);
+        }
+        assertNotNull(authorization);
+        assertEquals("isAuthenticated()", authorization.value());
     }
 
     @Test

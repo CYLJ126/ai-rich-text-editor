@@ -17,6 +17,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -349,7 +350,12 @@ public class ChatHttpIntegrationTest {
         var id = body(result).path("data").path("invocationId").asString();
         assertNotNull(fixture.executions.find(new ExecutionOwner("tenant", "workspace", "alice-id"), id).block());
         var method = NewAiChatController.class.getMethod("turnsForChat", com.arte.ainew.web.request.ChatRequests.Submit.class, String.class, Locale.class);
-        assertEquals("isAuthenticated()", method.getAnnotation(PreAuthorize.class).value());
+        var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
+        if (authorization == null) {
+            authorization = AnnotatedElementUtils.findMergedAnnotation(NewAiChatController.class, PreAuthorize.class);
+        }
+        assertNotNull(authorization);
+        assertEquals("isAuthenticated()", authorization.value());
         var conditional = NewAiChatController.class.getAnnotation(ConditionalOnProperty.class);
         assertEquals("arte.ai-new", conditional.prefix());
         assertEquals("true", conditional.havingValue());
