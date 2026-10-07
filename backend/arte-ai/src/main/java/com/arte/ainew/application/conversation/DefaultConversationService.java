@@ -11,9 +11,12 @@ import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.PageParam;
+import com.arte.core.utils.MybatisPages;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
@@ -64,6 +67,33 @@ public final class DefaultConversationService implements ConversationService {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
                 .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwner.from(current), id))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
+    }
+
+    @Override
+    public Mono<ConversationPage<Conversation>> list(PageParam page, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+            var pagination = MybatisPages.from(page);
+            return admissionCatalogStore.listConversations(ExecutionOwner.from(current), pagination.getCurrent(), pagination.getSize());
+        });
+    }
+
+    @Override
+    public Mono<ConversationPage<Turn>> turns(String conversationId, long expectedVersion, PageParam page, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+            ContractChecks.id(conversationId, "conversationId");
+            ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
+            var pagination = MybatisPages.from(page);
+            return admissionCatalogStore.listTurns(ExecutionOwner.from(current), conversationId, expectedVersion,
+                    pagination.getCurrent(), pagination.getSize()).map(outcome -> {
+                if (!outcome.successful()) {
+                    if (outcome.code() == com.arte.ainew.pojo.execution.StoreOutcome.Code.NOT_FOUND) {
+                        throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND);
+                    }
+                    throw AdmissionException.fromStoreRejection(outcome.code());
+                }
+                return outcome.value();
+            });
+        });
     }
 
     @Override

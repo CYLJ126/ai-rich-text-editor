@@ -12,6 +12,8 @@ import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationPage;
+import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.spi.persistence.*;
 import org.mybatis.spring.SqlSessionTemplate;
@@ -256,6 +258,55 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var conversation = snapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
             return conversation != null && conversation.owner().equals(owner) ? conversation : null;
         });
+    }
+
+    @Override
+    public Mono<ConversationPage<Conversation>> listConversations(ExecutionOwner owner, long current, long size) {
+        Objects.requireNonNull(owner, "owner");
+        long offset = pageOffset(current, size);
+        return tx(() -> {
+            var key = ownerKey(owner);
+            long total = admission.countConversations(key);
+            var records = offset >= total ? List.<Conversation>of() : admission.conversationSnapshots(key, offset, size)
+                    .stream().map(json -> codec.decode(json, Conversation.class)).toList();
+            if (records.stream().anyMatch(record -> !record.owner().equals(owner))) {
+                throw new IllegalStateException("Conversation owner does not match query scope");
+            }
+            return new ConversationPage<>(current, size, total, records);
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<ConversationPage<Turn>>> listTurns(ExecutionOwner owner, String conversationId,
+                                                              long expectedVersion, long current, long size) {
+        Objects.requireNonNull(owner, "owner");
+        ContractChecks.id(conversationId, "conversationId");
+        ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
+        long offset = pageOffset(current, size);
+        return outcome(() -> {
+            var key = hash(conversationId);
+            // 与 accept 的会话锁一致；版本检查和本页轮次读取期间不能插入新轮次。
+            var conversation = snapshot(admission.conversationSnapshot(key, true), Conversation.class);
+            require(conversation != null && conversation.owner().equals(owner), NOT_FOUND);
+            require(conversation.version() == expectedVersion, VERSION_CONFLICT);
+            long total = admission.countTurns(key);
+            var records = offset >= total ? List.<Turn>of() : admission.turnSnapshots(key, offset, size)
+                    .stream().map(json -> codec.decode(json, Turn.class)).toList();
+            if (records.stream().anyMatch(record -> !record.conversationId().equals(conversationId))) {
+                throw new IllegalStateException("Turn does not match conversation");
+            }
+            return StoreOutcome.applied(new ConversationPage<>(current, size, total, records));
+        });
+    }
+
+    private static long pageOffset(long current, long size) {
+        ContractChecks.range(current, "current", 1, Long.MAX_VALUE);
+        ContractChecks.range(size, "size", 1, 100);
+        try {
+            return Math.multiplyExact(current - 1, size);
+        } catch (ArithmeticException overflow) {
+            throw new IllegalArgumentException("Pagination offset exceeds range", overflow);
+        }
     }
 
     @Override

@@ -5,7 +5,9 @@ import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.core.pojo.PageParam;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.List;
  * @since 2026/10/4 17:25 ✾
  **/
 public interface ConversationService {
+
     /**
      * 服务端分配会话 ID／归属；需幂等键，资料关联须校验但不授予后续读取权限，profile 可不选择。
      */
@@ -31,6 +34,16 @@ public interface ConversationService {
      * 当前授权下查询会话；不存在／不可见明确失败，不返回 null。
      */
     Mono<Conversation> find(String conversationId, ExecutionContext context);
+
+    /**
+     * 当前 owner 的会话，数据库分页并按会话键稳定排序；不修改请求分页对象。
+     */
+    Mono<ConversationPage<Conversation>> list(PageParam page, ExecutionContext context);
+
+    /**
+     * 展示历史轮次，按 sequence 升序；固定会话版本，和生成时的 history 选择独立。
+     */
+    Mono<ConversationPage<Turn>> turns(String conversationId, long expectedVersion, PageParam page, ExecutionContext context);
 
     /**
      * 校验 Turn 属于目标会话及当前主体；不复制 Invocation 执行状态。

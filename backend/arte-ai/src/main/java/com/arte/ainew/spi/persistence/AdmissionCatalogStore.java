@@ -3,6 +3,7 @@ package com.arte.ainew.spi.persistence;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import reactor.core.publisher.Mono;
@@ -26,6 +27,14 @@ public interface AdmissionCatalogStore {
     Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey, String requestDigest);
 
     Mono<Conversation> findConversation(ExecutionOwner owner, String conversationId);
+
+    Mono<ConversationPage<Conversation>> listConversations(ExecutionOwner owner, long current, long size);
+
+    /**
+     * 归属、版本、计数与分页读取在同一事务中检查，不存在或版本冲突使用明确结果码。
+     */
+    Mono<StoreOutcome<ConversationPage<Turn>>> listTurns(ExecutionOwner owner, String conversationId,
+                                                         long expectedVersion, long current, long size);
 
     Mono<Turn> findTurn(ExecutionOwner owner, String conversationId, String turnId);
 

@@ -3,6 +3,7 @@ package com.arte.ainew.persistence.mybatis.mapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationCreationRow;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationGateRow;
 import org.apache.ibatis.annotations.Param;
+import java.util.List;
 
 /**
  * 仅供独立的新 AI SqlSessionFactory 使用；SQL 定义在同名 XML 中。
@@ -47,4 +48,14 @@ public interface AdmissionMapper {
     String conversationSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);
 
     String turnSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);
+
+    long countConversations(@Param("ownerKey") String ownerKey);
+
+    List<String> conversationSnapshots(@Param("ownerKey") String ownerKey, @Param("offset") long offset,
+                                       @Param("limit") long limit);
+
+    long countTurns(@Param("conversationKey") String conversationKey);
+
+    List<String> turnSnapshots(@Param("conversationKey") String conversationKey, @Param("offset") long offset,
+                               @Param("limit") long limit);
 }

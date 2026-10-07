@@ -59,4 +59,18 @@
         SELECT snapshot FROM arte_ai_turn WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
+    <select id="countConversations" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*) FROM arte_ai_conversation_new WHERE owner_key=#{ownerKey}
+    </select>
+    <select id="conversationSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_conversation_new WHERE owner_key=#{ownerKey}
+        ORDER BY id_key ASC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countTurns" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*) FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
+    </select>
+    <select id="turnSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
+        ORDER BY sequence_no ASC LIMIT #{limit} OFFSET #{offset}
+    </select>
 </mapper>
