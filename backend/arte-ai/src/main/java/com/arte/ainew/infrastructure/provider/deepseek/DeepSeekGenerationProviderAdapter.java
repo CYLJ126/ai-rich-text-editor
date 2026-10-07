@@ -10,6 +10,7 @@ import com.arte.ainew.pojo.execution.Usage;
 import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.GenerationProviderAdapter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
@@ -30,6 +31,7 @@ import java.util.concurrent.TimeoutException;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
  */
+@Slf4j
 public final class DeepSeekGenerationProviderAdapter implements GenerationProviderAdapter<DeepSeekWire.Request, SseFrame> {
 
     private final List<CapabilityDescriptor> capabilities;
@@ -250,7 +252,11 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
         }
 
         GenerationSignal.Failure failure(Throwable error) {
-            return new GenerationSignal.Failure(mapError(error, call), usage, model == null || text.toString().isBlank() ? null : result(false));
+            var mapped = mapError(error, call);
+            log.warn("AI provider interaction failed, invocationId={}, traceId={}, attemptId={}, providerId={}, code={}, phase={}, certainty={}, sideEffect={}, outputBytes={}, usageBasis={}, type={}",
+                    call.request().context().executionId(), call.request().context().traceId(), call.attempt().attemptId(), providerId(),
+                    mapped.code(), mapped.phase(), mapped.certainty(), mapped.sideEffect(), bytes, usage.basis(), Exceptions.unwrap(error).getClass().getName());
+            return new GenerationSignal.Failure(mapped, usage, model == null || text.toString().isBlank() ? null : result(false));
         }
     }
 }

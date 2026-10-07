@@ -9,6 +9,7 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import reactor.core.publisher.Mono;
 
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class BudgetAccountInitializer {
     private final FixedControlCatalog configuration;
     private final AdmissionAuthorization authorization;
@@ -43,6 +45,8 @@ public final class BudgetAccountInitializer {
             var zero = new Money(BigDecimal.ZERO, definition.limit().currency());
             var candidate = new BudgetCommands.Account(ref, definition.owner(), definition.limit(), zero, zero, definition.rate(), 0);
             return budgets.account(definition.owner(), ref)
+                    .doOnNext(account -> log.debug("AI budget initialization reuses account, invocationId={}, traceId={}, budgetRef={}, version={}",
+                            current.executionId(), current.traceId(), ref, account.version()))
                     .switchIfEmpty(Mono.defer(() -> store.createAccount(candidate)
                             .onErrorResume(DuplicateKeyException.class, ignored -> Mono.empty())
                             .then(budgets.account(definition.owner(), ref))))
@@ -50,10 +54,13 @@ public final class BudgetAccountInitializer {
                     .map(account -> {
                         if (!account.owner().equals(candidate.owner()) || !account.limit().equals(candidate.limit())
                                 || !account.rateVersion().equals(candidate.rateVersion())) {
+                            log.warn("AI budget initialization configuration conflict, invocationId={}, traceId={}, budgetRef={}, version={}",
+                                    current.executionId(), current.traceId(), ref, account.version());
                             throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
                         }
                         return account;
                     });
-        });
+        }).doOnNext(account -> log.info("AI budget initialization verified, invocationId={}, traceId={}, budgetRef={}, version={}",
+                context.executionId(), context.traceId(), ref, account.version()));
     }
 }

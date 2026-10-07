@@ -1,8 +1,7 @@
 package com.arte.ainew.application.support;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.TimeUnit;
 
@@ -13,8 +12,8 @@ import java.util.concurrent.TimeUnit;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/8 05:00 ✾
  */
+@Slf4j
 public record InvocationTiming(String invocationId, String traceId, String attemptId, long startedNanos) {
-    private static final Logger LOG = LoggerFactory.getLogger(InvocationTiming.class);
 
     public static InvocationTiming start(ExecutionContext context, String attemptId) {
         return new InvocationTiming(context.executionId(), context.traceId(), attemptId, System.nanoTime());
@@ -30,13 +29,13 @@ public record InvocationTiming(String invocationId, String traceId, String attem
 
     public void mark(String stage, long phaseStart, long sequence) {
         long now = System.nanoTime();
-        LOG.info("AI_TIMING invocationId={} traceId={} attemptId={} stage={} elapsedMs={} phaseMs={} sequence={}",
+        log.info("AI_TIMING invocationId={} traceId={} attemptId={} stage={} elapsedMs={} phaseMs={} sequence={}",
                 invocationId, traceId, attemptId, stage, millis(now - startedNanos), millis(now - phaseStart), sequence);
     }
 
     public void batch(String stage, long phaseStart, long sequence) {
         long now = System.nanoTime();
-        LOG.debug("AI_TIMING invocationId={} traceId={} attemptId={} stage={} elapsedMs={} phaseMs={} sequence={}",
+        log.debug("AI_TIMING invocationId={} traceId={} attemptId={} stage={} elapsedMs={} phaseMs={} sequence={}",
                 invocationId, traceId, attemptId, stage, millis(now - startedNanos), millis(now - phaseStart), sequence);
     }
 

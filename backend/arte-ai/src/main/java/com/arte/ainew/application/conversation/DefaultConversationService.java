@@ -17,6 +17,7 @@ import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
 import com.arte.core.utils.MybatisPages;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
@@ -29,6 +30,7 @@ import java.util.UUID;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class DefaultConversationService implements ConversationService {
     private final AdmissionCatalogStore admissionCatalogStore;
     private final AdmissionAuthorization authorization;
@@ -55,8 +57,11 @@ public final class DefaultConversationService implements ConversationService {
             return admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), AdmissionDigests.conversation(title, profile, selections))
                     .map(outcome -> {
                         if (!outcome.successful()) {
+                            log.warn("AI conversation creation rejected, invocationId={}, traceId={}, code={}", current.executionId(), current.traceId(), outcome.code());
                             throw AdmissionException.fromStoreRejection(outcome.code());
                         }
+                        log.info("AI conversation creation committed, invocationId={}, traceId={}, conversationId={}, outcome={}",
+                                current.executionId(), current.traceId(), outcome.value().conversationId(), outcome.code());
                         return outcome.value();
                     });
         });

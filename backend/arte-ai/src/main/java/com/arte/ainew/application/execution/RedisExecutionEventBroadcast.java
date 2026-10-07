@@ -188,7 +188,7 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
             var signal = jsonMapper.readValue(encoded, Signal.class);
             localExecutionEventNotifier.publish(signal.owner(), signal.invocationId(), signal.sequence());
         } catch (RuntimeException error) {
-            log.warn("Ignored invalid AI Redis notification");
+            log.warn("Ignored invalid AI Redis notification, type={}", error.getClass().getName());
         }
     }
 
@@ -233,7 +233,7 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
         }
         redisTopic.removeListenerAsync(ids).whenComplete((ignored, error) -> {
             if (error != null) {
-                log.warn("AI Redis listener cleanup failed");
+                log.warn("AI Redis listener cleanup failed, listenerCount={}, type={}", ids.length, error.getClass().getName());
             }
         });
     }
@@ -256,6 +256,7 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
                         @Override
                         public void onSubscribe(String channel) {
                             if (running && generation == token) {
+                                log.info("AI Redis channel subscribed; replaying missed events");
                                 localExecutionEventNotifier.wakeSubscribers();
                             }
                         }
@@ -277,18 +278,21 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
                         });
                     });
                 }).retryWhen(Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(5))
-                        .doBeforeRetry(ignored -> log.warn("AI Redis subscription failed; retrying")))
+                        .doBeforeRetry(retry -> log.warn("AI Redis subscription failed; retrying, retryNumber={}, type={}",
+                                retry.totalRetries() + 1, retry.failure().getClass().getName())))
                 .subscribe(ignored -> {
                     if (running && generation == token) {
                         ready = true;
+                        log.info("AI Redis event and text notification listeners ready");
                         // 两个 Redis 监听器都注册成功后，让本节点现有的事件订阅者再检查一次数据库，补回注册期间可能遗漏的事件
                         localExecutionEventNotifier.wakeSubscribers();
                     }
-                }, error -> log.warn("AI Redis subscription stopped"));
+                }, error -> log.warn("AI Redis subscription stopped, type={}", error.getClass().getName()));
     }
 
     @Override
     public synchronized void stop() {
+        if (running) log.info("AI Redis notification listeners stopping, listenerCount={}", listenerIds.size());
         running = false;
         ready = false;
         generation = null;

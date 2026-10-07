@@ -16,6 +16,7 @@ import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.spi.persistence.*;
+import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -45,6 +46,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 23:30 ✾
  */
+@Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionEventStore,
         ExecutionOutboxStore, AdmissionCatalogStore, BudgetService {
     private final SystemMapper system;
@@ -689,7 +691,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                         public void afterCommit() {
                             try {
                                 eventWakeup.run();
-                            } catch (RuntimeException ignored) { /* durable recovery */ }
+                            } catch (RuntimeException error) {
+                                log.warn("AI event wakeup failed; outbox scan will recover, invocationId={}, sequence={}, type={}",
+                                        id(invocation), sequence, error.getClass().getName());
+                            }
                         }
                     });
         }

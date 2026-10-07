@@ -39,7 +39,8 @@ public final class LiveTextPublisher implements SmartLifecycle {
         queue = Sinks.many().unicast().onBackpressureBuffer(new ArrayBlockingQueue<>(CAPACITY));
         subscription = queue.asFlux().publishOn(Schedulers.parallel(), 1)
                 .concatMap(delta -> Mono.defer(() -> broadcast.publishText(delta)).onErrorResume(error -> {
-                    log.debug("AI live text broadcast unavailable, invocationId={}", delta.executionId());
+                    log.debug("AI live text broadcast unavailable, invocationId={}, attemptId={}, type={}",
+                            delta.executionId(), delta.attemptId(), error.getClass().getName());
                     return Mono.empty();
                 }), 1).subscribe();
         notifier.setBroadcaster(this::offer);

@@ -19,6 +19,7 @@ import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
@@ -30,6 +31,7 @@ import java.util.List;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class AdmissionInvocationCoordinator implements InvocationCoordinator {
     private final AdmissionAuthorization authorization;
     private final CapabilityCatalog capabilities;
@@ -68,7 +70,11 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                             submission.newTurn(), submission.replacesInvocationId());
                     return capabilities.validate(request).then(bindings.resolve(request.binding(), request.capability(), current))
                             .flatMap(binding -> admit(refreshed, binding));
-                }));
+                }))
+                .doOnError(error -> log.warn("AI admission failed, invocationId={}, traceId={}, capabilityId={}, code={}, type={}",
+                        submission.request().context().executionId(), submission.request().context().traceId(), submission.request().capability().id(),
+                        error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "ADMISSION_FAILED",
+                        error.getClass().getName()));
     }
 
     private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding) {
@@ -93,8 +99,12 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
         return executions.findAccepted(owner, request.capability().id(), request.context().idempotencyKey())
                 .flatMap(original -> {
                     if (!original.requestDigest().equals(digest)) {
+                        log.warn("AI admission idempotency conflict, requestedInvocationId={}, originalInvocationId={}, traceId={}",
+                                request.context().executionId(), original.request().context().executionId(), request.context().traceId());
                         throw new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
                     }
+                    log.info("AI admission replayed, requestedInvocationId={}, originalInvocationId={}, traceId={}, state={}",
+                            request.context().executionId(), original.request().context().executionId(), request.context().traceId(), original.state());
                     return Mono.just(receipt(original));
                 })
                 .switchIfEmpty(Mono.defer(() -> {
@@ -128,6 +138,10 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                 if (!accepted.successful()) {
                                     throw AdmissionException.fromStoreRejection(accepted.code());
                                 }
+                                var value = accepted.value();
+                                log.info("AI admission committed, invocationId={}, traceId={}, snapshotId={}, conversationId={}, outcome={}, state={}",
+                                        value.request().context().executionId(), request.context().traceId(), value.contextSnapshotId(),
+                                        value.conversation() == null ? null : value.conversation().conversationId(), accepted.code(), value.state());
                                 return receipt(accepted.value());
                             });
                 }));

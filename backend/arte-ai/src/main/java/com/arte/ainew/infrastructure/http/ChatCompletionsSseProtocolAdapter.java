@@ -7,6 +7,7 @@ import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.adapter.ProtocolAdapter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
  */
+@Slf4j
 public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapter<Q, SseFrame, HttpConnectionRuntime.Handle> {
 
     public static final DefinitionRef DEFINITION = new DefinitionRef("protocol", "chat-completions-sse", "v1");
@@ -74,7 +76,9 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
             byte[] body;
             try {
                 body = json.writeValueAsBytes(request);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException error) {
+                log.warn("AI provider request encoding failed, invocationId={}, traceId={}, attemptId={}, type={}",
+                        call.runtime().execution().executionId(), call.runtime().execution().traceId(), call.attempt().attemptId(), error.getClass().getName());
                 throw GenerationException.beforeSend("REQUEST_ENCODING_FAILED");
             }
             // 先编码并检查实际字节数，超限请求不进入 HTTP 发送。
@@ -88,6 +92,9 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
             return handle.client().post().uri(handle.uri()).accept(MediaType.TEXT_EVENT_STREAM)
                     .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchangeToFlux(response -> {
                         timing.mark("PROVIDER_HEADERS");
+                        log.debug("AI provider HTTP response received, invocationId={}, traceId={}, attemptId={}, connectionId={}, status={}",
+                                call.runtime().execution().executionId(), call.runtime().execution().traceId(), call.attempt().attemptId(),
+                                connection.connection().id(), response.statusCode().value());
                         long[] received = {0};
                         // 转换原正文流，避免替换正文时提前消费；累计上限包含 SSE 协议开销。
                         var bounded = response.mutate().body(original -> original

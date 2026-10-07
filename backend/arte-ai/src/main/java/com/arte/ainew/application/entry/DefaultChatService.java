@@ -19,6 +19,7 @@ import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.execution.InvocationSubmission;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
@@ -31,6 +32,7 @@ import java.util.UUID;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class DefaultChatService implements ChatService {
     private final AdmissionAuthorization authorization;
     private final ConversationService conversations;
@@ -82,7 +84,15 @@ public final class DefaultChatService implements ChatService {
                                 // 委托给执行协调器
                                 return coordinator.submit(new InvocationSubmission<>(invocation, snapshot, link, turn, null));
                             });
-                }));
+                }))
+                .doOnSubscribe(ignored -> log.info("AI chat submission started, invocationId={}, traceId={}, conversationId={}, expectedVersion={}, bindingId={}",
+                        context.executionId(), context.traceId(), request.conversationId(), request.expectedVersion(), request.binding().id()))
+                .doOnNext(accepted -> log.info("AI chat submission accepted, requestedInvocationId={}, acceptedInvocationId={}, traceId={}, conversationId={}",
+                        context.executionId(), accepted.executionId(), context.traceId(), request.conversationId()))
+                .doOnError(error -> log.warn("AI chat submission failed, invocationId={}, traceId={}, conversationId={}, code={}, type={}",
+                        context.executionId(), context.traceId(), request.conversationId(),
+                        error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "CHAT_SUBMISSION_FAILED",
+                        error.getClass().getName()));
     }
 
     @Override

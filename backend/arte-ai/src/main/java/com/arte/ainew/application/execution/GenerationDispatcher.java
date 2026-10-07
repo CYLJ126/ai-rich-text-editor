@@ -24,6 +24,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.*;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,6 +44,7 @@ import java.util.function.Function;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 16:14 ✾
  */
+@Slf4j
 public final class GenerationDispatcher {
 
     private final AdmissionAuthorization admissionAuthorization;
@@ -109,14 +111,25 @@ public final class GenerationDispatcher {
                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_OWNER_MISMATCH));
                         }
                         if (invocation.state().terminal()) {
+                            log.info("AI dispatch resumes settlement, invocationId={}, traceId={}, state={}, attemptId={}",
+                                    message.invocationId(), runtime.execution().traceId(), invocation.state(), invocation.activeAttemptId());
                             return settle(invocation);
                         }
                         if (invocation.activeAttemptId() != null) {
+                            log.info("AI dispatch checks existing attempt, invocationId={}, traceId={}, state={}, attemptId={}",
+                                    message.invocationId(), runtime.execution().traceId(), invocation.state(), invocation.activeAttemptId());
                             // 活跃租约不可接管；过期且可能发送的执行只收敛 UNKNOWN，绝不重发。
-                            return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied).flatMap(this::settle);
+                            return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied)
+                                    .doOnNext(stopped -> log.warn("AI expired attempt stopped, invocationId={}, traceId={}, attemptId={}, previousState={}, state={}, code={}",
+                                            message.invocationId(), runtime.execution().traceId(), stopped.activeAttemptId(), invocation.state(),
+                                            stopped.state(), stopped.error() == null ? null : stopped.error().code()))
+                                    .flatMap(this::settle);
                         }
                         return start(invocation, message, runtime, timing);
-                    }).doFinally(signal -> timing.mark("DISPATCH_END_" + signal.name()));
+                    }).doOnError(error -> log.warn("AI dispatch failed, invocationId={}, traceId={}, messageId={}, code={}, type={}",
+                            message.invocationId(), runtime.execution().traceId(), message.messageId(),
+                            error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "DISPATCH_FAILED", error.getClass().getName()))
+                    .doFinally(signal -> timing.mark("DISPATCH_END_" + signal.name()));
         });
     }
 
@@ -163,7 +176,9 @@ public final class GenerationDispatcher {
                 : ExecutionError.Phase.VALIDATION, false, ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN,
                 invocation.request().context().traceId());
         return executionStore.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(version(invocation), "dispatch-preflight",
-                new ExecutionPayload.Terminal(state, null, fact))).flatMap(GenerationDispatcher::applied).then();
+                        new ExecutionPayload.Terminal(state, null, fact))).flatMap(GenerationDispatcher::applied)
+                .doOnNext(value -> log.warn("AI preflight rejection committed, invocationId={}, traceId={}, state={}, code={}, phase={}",
+                        value.request().context().executionId(), value.request().context().traceId(), value.state(), code, fact.phase())).then();
     }
 
     private static boolean predictable(Throwable error) {
@@ -221,7 +236,18 @@ public final class GenerationDispatcher {
                             return budgetService.settle(new BudgetCommands.Settle(owner, reservation.version(), settlement, evidence,
                                             notSent ? "attempt:" + attempt.attemptId()
                                                     : reported ? "provider-usage:" + attempt.attemptId() : null))
-                                    .flatMap(GenerationDispatcher::applied).then();
+                                    .flatMap(GenerationDispatcher::applied)
+                                    .doOnNext(value -> {
+                                        if (value.state() == BudgetReservation.State.PENDING_RECONCILIATION) {
+                                            log.warn("AI budget requires reconciliation, invocationId={}, traceId={}, attemptId={}, reservationId={}, invocationState={}, dispatch={}, usageBasis={}",
+                                                    invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
+                                                    reservation.reservationId(), invocation.state(), attempt.dispatch(), attempt.usage().basis());
+                                        } else {
+                                            log.info("AI budget settlement committed, invocationId={}, traceId={}, attemptId={}, reservationId={}, state={}, evidence={}",
+                                                    invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
+                                                    reservation.reservationId(), value.state(), evidence);
+                                        }
+                                    }).then();
                         }));
     }
 
@@ -288,11 +314,23 @@ public final class GenerationDispatcher {
                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                             .flatMap(attempt -> {
                                 if (!attempt.workerId().equals(claimed.workerId()) || attempt.fencingToken() != claimed.fencingToken()) {
+                                    log.warn("AI attempt ownership lost, invocationId={}, attemptId={}, workerId={}, expectedFencingToken={}, currentFencingToken={}",
+                                            message.invocationId(), claimed.attemptId(), claimed.workerId(), claimed.fencingToken(), attempt.fencingToken());
                                     return Mono.error(new AdmissionException(ResultCodeEnum.AI_LEASE_LOST));
                                 }
                                 return operation.apply(ExecutionCommands.Guard.from(message.owner(), invocation, attempt))
-                                        .flatMap(outcome -> outcome.code() == StoreOutcome.Code.VERSION_CONFLICT && retries > 0
-                                                ? guarded(operation, retries - 1) : applied(outcome));
+                                        .flatMap(outcome -> {
+                                            if (outcome.code() == StoreOutcome.Code.VERSION_CONFLICT && retries > 0) {
+                                                log.debug("AI guarded write retries version conflict, invocationId={}, attemptId={}, retriesRemaining={}",
+                                                        message.invocationId(), claimed.attemptId(), retries);
+                                                return guarded(operation, retries - 1);
+                                            }
+                                            if (!outcome.successful()) {
+                                                log.warn("AI guarded write rejected, invocationId={}, traceId={}, attemptId={}, code={}",
+                                                        message.invocationId(), timing.traceId(), claimed.attemptId(), outcome.code());
+                                            }
+                                            return applied(outcome);
+                                        });
                             }));
         }
 
@@ -308,7 +346,11 @@ public final class GenerationDispatcher {
                             liveTextEnded = true;
                         }
                     }).doOnComplete(() -> timing.mark("GATEWAY_COMPLETED"))
-                    .onErrorResume(error -> Flux.just(failure("PROVIDER_FLOW_INTERRUPTED")));
+                    .onErrorResume(error -> {
+                        log.warn("AI gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
+                                message.invocationId(), timing.traceId(), claimed.attemptId(), error.getClass().getName());
+                        return Flux.just(failure("PROVIDER_FLOW_INTERRUPTED"));
+                    });
             return GenerationOutputBatches.batch(signals)
                     .concatMap(this::saveBatch, 1)
                     .then(Mono.defer(() -> Mono.just(terminal == null ? failure("MISSING_GENERATION_TERMINAL") : terminal)))
@@ -437,9 +479,20 @@ public final class GenerationDispatcher {
                     long terminalStart = System.nanoTime();
                     return guarded(guard -> executionStore.commitCompletion(new ExecutionCommands.Complete(guard,
                             "generation-completion", payload, finalUsage, proof)), 3)
-                            .doOnNext(ignored -> {
+                            .doOnNext(value -> {
                                 completed.set(true);
                                 timing.mark("TERMINAL_COMMITTED", terminalStart, 0);
+                                if (value.state() == Invocation.State.SUCCEEDED) {
+                                    log.info("AI generation completed, invocationId={}, traceId={}, attemptId={}, state={}, usageBasis={}, inputTokens={}, outputTokens={}",
+                                            message.invocationId(), timing.traceId(), claimed.attemptId(), value.state(),
+                                            finalUsage.basis(), finalUsage.inputTokens(), finalUsage.outputTokens());
+                                } else {
+                                    var fact = value.error();
+                                    log.warn("AI generation terminal committed, invocationId={}, traceId={}, attemptId={}, state={}, code={}, phase={}, certainty={}, sideEffect={}, partialResult={}",
+                                            message.invocationId(), timing.traceId(), claimed.attemptId(), value.state(), fact == null ? null : fact.code(),
+                                            fact == null ? null : fact.phase(), fact == null ? null : fact.certainty(),
+                                            fact == null ? null : fact.sideEffect(), ref != null && ref.partial());
+                                }
                             })
                             .flatMap(invocation -> {
                                 long budgetStart = System.nanoTime();

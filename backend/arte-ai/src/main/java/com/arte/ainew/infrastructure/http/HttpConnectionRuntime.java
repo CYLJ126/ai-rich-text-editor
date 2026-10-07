@@ -13,6 +13,7 @@ import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import io.netty.channel.ChannelOption;
 import io.netty.resolver.AddressResolverGroup;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.json.JacksonJsonEncoder;
 import org.springframework.web.reactive.function.client.ClientRequest;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
  */
+@Slf4j
 public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnectionRuntime.Handle>, AutoCloseable {
 
     private final ConnectionManager connections;
@@ -168,7 +170,11 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                         .subscribeOn(dns).timeout(properties.acquireTimeout())
                         .map(addresses -> borrow(definition, runtime, addresses));
             });
-        }).onErrorMap(error -> error instanceof GenerationException
+                }).doOnError(error -> log.warn("AI HTTP connection acquisition failed, invocationId={}, traceId={}, connectionId={}, code={}, type={}",
+                        runtime.execution().executionId(), runtime.execution().traceId(), definition.definition().id(),
+                        error instanceof GenerationException known ? known.error(runtime.execution().traceId()).code() : "CONNECTION_ACQUIRE_FAILED",
+                        error.getClass().getName()))
+                .onErrorMap(error -> error instanceof GenerationException
                 || error instanceof org.springframework.security.access.AccessDeniedException ? error
                 : GenerationException.beforeSend("CONNECTION_ACQUIRE_FAILED"));
     }
@@ -235,6 +241,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
             if (pools.size() >= properties.maxPools()) {
                 var idle = pools.entrySet().stream().filter(entry -> entry.getValue().borrowed == 0).findFirst()
                         .orElseThrow(() -> GenerationException.beforeSend("CONNECTION_CAPACITY_EXCEEDED"));
+                log.debug("AI HTTP idle pool evicted, connectionId={}, poolCount={}", idle.getKey().definition().definition().id(), pools.size());
                 dispose(idle.getValue());
                 pools.remove(idle.getKey());
             }
@@ -278,6 +285,8 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                         return false;
                     }
                     dispose(entry.getValue());
+                    log.info("AI HTTP pool invalidated, invocationId={}, traceId={}, connectionId={}, borrowed={}",
+                            current.executionId(), current.traceId(), connection.id(), entry.getValue().borrowed);
                     return true;
                 });
             }

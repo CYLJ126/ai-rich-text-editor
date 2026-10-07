@@ -78,7 +78,8 @@ public final class TextContextService implements ContextService {
                     // 历史消息与本轮用户输入共同占用输入额度；按 UTF-8 字节数加固定开销估算 Token。
                     // 超过 maxInputTokens 就明确拒绝，不静默截断历史或用户文本；估算值不用于冒充实际计费用量。
                     if (tokenCount > contextRequest.budget().maxInputTokens()) {
-                        log.info("{} - history message's token exceeded: {} > {}", loaded.selection(), tokenCount, contextRequest.budget().maxInputTokens());
+                        log.warn("AI context capacity exceeded, invocationId={}, traceId={}, inputTokens={}, maxInputTokens={}",
+                                executionContext.executionId(), executionContext.traceId(), tokenCount, contextRequest.budget().maxInputTokens());
                         throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED);
                     }
                     var now = clock.instant();
@@ -88,7 +89,9 @@ public final class TextContextService implements ContextService {
                     return new ContextSnapshot(UUID.randomUUID().toString(), loaded.selection(), resolvedBinding.definition(), messages, List.of(),
                             contextRequest.budget(), tokenCount, true, TextInputs.TOKENIZER, List.of(), TextInputs.contentDigest(messages),
                             now, now.plus(properties.limits().snapshotRetention()));
-                });
+                }).doOnNext(snapshot -> log.debug("AI context assembled, invocationId={}, traceId={}, snapshotId={}, messageCount={}, inputTokens={}, historyTurns={}",
+                        executionContext.executionId(), executionContext.traceId(), snapshot.snapshotId(), snapshot.messages().size(), snapshot.inputTokens(),
+                        snapshot.history() == null ? 0 : snapshot.history().turnIds().size()));
     }
 
     @Override

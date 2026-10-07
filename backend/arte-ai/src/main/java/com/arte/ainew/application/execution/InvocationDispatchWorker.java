@@ -8,8 +8,7 @@ import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -28,9 +27,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 16:14 ✾
  */
+@Slf4j
 public final class InvocationDispatchWorker implements SmartLifecycle {
 
-    private static final Logger LOG = LoggerFactory.getLogger(InvocationDispatchWorker.class);
     private final ExecutionOutboxStore executionOutboxStore;
     private final ExecutionStore executionStore;
     private final InvocationCoordinator invocationCoordinator;
@@ -59,6 +58,10 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                 return Mono.just(0);
             }
             return executionOutboxStore.claim(OutboxMessage.Kind.DISPATCH, workerId, newAiExecutionProperties.outboxLease(), newAiExecutionProperties.concurrency())
+                    .doOnNext(messages -> {
+                        if (!messages.isEmpty())
+                            log.debug("AI dispatch batch claimed, workerId={}, count={}", workerId, messages.size());
+                    })
                     .flatMapMany(Flux::fromIterable)
                     .flatMap(message -> process(message).thenReturn(1), newAiExecutionProperties.concurrency(), 1)
                     .reduce(0, Integer::sum)
@@ -70,6 +73,8 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
         return executionStore.find(message.owner(), message.invocationId())
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(invocation -> {
+                    log.info("AI dispatch message processing, invocationId={}, traceId={}, messageId={}, workerId={}, fencingToken={}, state={}",
+                            message.invocationId(), invocation.request().context().traceId(), message.messageId(), workerId, message.fencingToken(), invocation.state());
                     // 这里只读取可信记录；派发边界重新授权，过期／撤销也由协调器耐久结束。
                     var original = invocation.request().context();
                     var deadline = invocation.request().options().deadline();
@@ -91,7 +96,8 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                 .onErrorResume(error -> {
                     // 不 ACK，留待租约到期重领。只记录稳定错误分类，避免异常正文携带 SQL／凭据／用户输入。
                     String code = error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "WORKER_INFRASTRUCTURE_FAILURE";
-                    LOG.warn("AI dispatch message {} was not acknowledged: {}", message.messageId(), code);
+                    log.warn("AI dispatch message not acknowledged; reclaim after lease expiry, invocationId={}, messageId={}, workerId={}, code={}, type={}",
+                            message.invocationId(), message.messageId(), workerId, code, error.getClass().getName());
                     return Mono.empty();
                 });
     }
@@ -102,16 +108,22 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
             return;
         }
         running = true;
+        log.info("AI dispatch worker started, workerId={}, concurrency={}, pollInterval={}, outboxLease={}",
+                workerId, newAiExecutionProperties.concurrency(), newAiExecutionProperties.pollInterval(), newAiExecutionProperties.outboxLease());
         loop = Mono.defer(() -> pollOnce().onErrorResume(error -> {
-                    LOG.warn("AI outbox polling failed: WORKER_INFRASTRUCTURE_FAILURE");
+                    log.warn("AI dispatch outbox polling failed, workerId={}, type={}", workerId, error.getClass().getName());
                     return Mono.just(0);
                 })).then(Mono.delay(newAiExecutionProperties.pollInterval(), scheduler))
                 .repeat().subscribe(ignored -> {
-                }, error -> running = false);
+                }, error -> {
+                    running = false;
+                    log.error("AI dispatch worker loop stopped unexpectedly, workerId={}, type={}", workerId, error.getClass().getName());
+                });
     }
 
     @Override
     public synchronized void stop() {
+        if (running) log.info("AI dispatch worker stopping, workerId={}", workerId);
         running = false;
         if (loop != null) {
             loop.dispose();

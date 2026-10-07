@@ -142,7 +142,9 @@ public final class ExecutionEventPublisher implements SmartLifecycle {
                                 }));
                     }).onErrorResume(error -> {
                         // 单条失败不终止整批，也不在这里重新发布；保留未确认记录，租约到期后再领取。
-                        log.warn("AI EVENT message {} was not acknowledged", message.messageId());
+                        log.warn("AI event message not acknowledged; reclaim after lease expiry, invocationId={}, messageId={}, sequence={}, workerId={}, code={}, type={}",
+                                message.invocationId(), message.messageId(), message.eventSequence(), workerId,
+                                error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "EVENT_PUBLISH_FAILED", error.getClass().getName());
                         return Mono.just(0);
                     }), 1)
                     // 汇总每条的 1/0；空领取列表也返回 0，确保本批有明确的完成结果。
@@ -171,6 +173,7 @@ public final class ExecutionEventPublisher implements SmartLifecycle {
             return;
         }
         running = true;
+        log.info("AI event publisher started, workerId={}, recoveryInterval={}, outboxLease={}", workerId, RECOVERY_INTERVAL, properties.outboxLease());
         // wakeups 订阅后先发初始提示，之后接收提交后唤醒；interval 每 5 秒触发一次恢复检查。
         // 两个来源只提供检查时机，待发布记录仍通过 pollOnce 从数据库领取。
         loop = Flux.merge(localExecutionEventNotifier.wakeups(), Flux.interval(RECOVERY_INTERVAL, scheduler))
@@ -184,16 +187,20 @@ public final class ExecutionEventPublisher implements SmartLifecycle {
                     }
                 }).onErrorResume(error -> {
                     // 处理整批领取等基础设施错误，保持外层循环存活，后续唤醒或恢复扫描仍可继续检查。
-                    log.warn("AI EVENT recovery scan failed");
+                    log.warn("AI event recovery scan failed, workerId={}, type={}", workerId, error.getClass().getName());
                     return Mono.just(0);
                 }), 1)
                 // subscribe 激活冷流程并保存取消句柄；正常计数已在上面处理，未恢复的终止异常更新生命周期状态。
                 .subscribe(ignored -> {
-                }, error -> running = false);
+                }, error -> {
+                    running = false;
+                    log.error("AI event publisher loop stopped unexpectedly, workerId={}, type={}", workerId, error.getClass().getName());
+                });
     }
 
     @Override
     public synchronized void stop() {
+        if (running) log.info("AI event publisher stopping, workerId={}", workerId);
         running = false;
         if (loop != null) {
             loop.dispose();

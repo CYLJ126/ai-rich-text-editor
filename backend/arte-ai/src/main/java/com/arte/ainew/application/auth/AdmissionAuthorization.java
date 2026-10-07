@@ -7,6 +7,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiProperties.Grant;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 
@@ -29,6 +30,7 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Slf4j
 public final class AdmissionAuthorization {
     /**
      * AI 调用权限：允许发现／解析可用能力、绑定和连接，组装输入上下文并提交调用。
@@ -80,6 +82,7 @@ public final class AdmissionAuthorization {
             var original = Objects.requireNonNull(context).authorization();
             // 检查上下文是否包含所需权限，例如 ai:invoke
             if (!original.scopes().contains(scope)) {
+                log.warn("AI execution scope denied, invocationId={}, traceId={}, requiredScope={}", context.executionId(), context.traceId(), scope);
                 throw new AccessDeniedException("Execution scope denied");
             }
             // 检查执行期限是否已过期
@@ -95,6 +98,8 @@ public final class AdmissionAuthorization {
                         // 确认主体、租户、工作空间和权限集合与原上下文一致
                         if (!fresh.principal().equals(original.principal()) || !fresh.tenantId().equals(original.tenantId())
                                 || !fresh.workspaceId().equals(original.workspaceId()) || !fresh.scopes().equals(original.scopes())) {
+                            log.warn("AI execution authorization changed, invocationId={}, traceId={}, requiredScope={}",
+                                    context.executionId(), context.traceId(), scope);
                             throw new AccessDeniedException("Execution authorization changed");
                         }
                         if (!clock.instant().isBefore(context.deadline())) {
@@ -122,6 +127,9 @@ public final class AdmissionAuthorization {
                         && g.tenantId().equals(owner.tenantId()) && g.workspaceId().equals(owner.workspaceId())
                         && g.subjectName().equals(context.authorization().principal().subjectName())
                         && g.principalKind() == context.authorization().principal().kind()).findFirst()
-                .orElseThrow(() -> new AccessDeniedException("Configuration scope denied"));
+                .orElseThrow(() -> {
+                    log.warn("AI configuration grant unavailable, invocationId={}, traceId={}", context.executionId(), context.traceId());
+                    return new AccessDeniedException("Configuration scope denied");
+                });
     }
 }

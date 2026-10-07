@@ -16,6 +16,7 @@ import com.arte.ainew.spi.persistence.ExecutionEventStore;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 16:14 ✾
  */
+@Slf4j
 public final class DefaultExecutionEventService implements ExecutionEventService {
     /**
      * 当前权限检查入口；单次读取、订阅建连、每次唤醒及长连接定时检查均重新校验 READ 权限与期限。
@@ -131,7 +133,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                 .concatMap(ignored -> authorization.require(context, AdmissionAuthorization.READ), 1)
                 .thenMany(Flux.<LiveTextDelta>never());
         return Flux.merge(1, preview, reauthorize).takeUntilOther(Mono.delay(Duration.between(clock.instant(), context.deadline()).isNegative()
-                ? Duration.ZERO : Duration.between(clock.instant(), context.deadline())));
+                        ? Duration.ZERO : Duration.between(clock.instant(), context.deadline())))
+                .doOnError(error -> log.warn("AI text preview subscription failed, invocationId={}, traceId={}, type={}",
+                        invocationId, context.traceId(), error.getClass().getName()));
     }
 
     /**
@@ -152,7 +156,12 @@ public final class DefaultExecutionEventService implements ExecutionEventService
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current ->
                 executionStore.find(ExecutionOwner.from(current), cursor.executionId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                        .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)));
+                        .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)))
+                .doOnNext(outcome -> {
+                    if (!outcome.successful())
+                        log.warn("AI event replay rejected, invocationId={}, traceId={}, afterSequence={}, code={}",
+                                cursor.executionId(), context.traceId(), cursor.afterSequence(), outcome.code());
+                });
     }
 
     /**
@@ -181,6 +190,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
             // 在实际订阅时创建状态，同一个 Flux 被多次订阅也不会共享游标或互相结束。
             // after 是本服务已向下游发出的序号，不代表浏览器已经收到或确认；重连位置由客户端提供。
             var after = new AtomicLong(cursor.afterSequence());
+            log.debug("AI event subscription started, invocationId={}, traceId={}, afterSequence={}", cursor.executionId(), context.traceId(), after.get());
             // 单次完成信号，用于停止通知流和定时授权流，释放监听及调度资源。
             var done = Sinks.<Void>one();
             // 本次订阅是否发出过终态或预算事件；UNKNOWN 时据此决定空页后是否继续等待核对。
@@ -213,7 +223,12 @@ public final class DefaultExecutionEventService implements ExecutionEventService
             // 完成各生产流，再让 merge 排空已缓冲的最后一个结算事件；不能在 merge 外用 done 截断慢订阅者。
             return Flux.merge(1, live.takeUntilOther(done.asMono()), reauthorize.takeUntilOther(done.asMono()))
                     // 连接期限是硬性停止条件，可截断仍未消费的数据；客户端从自己的游标重连补读。
-                    .takeUntilOther(Mono.delay(remaining));
+                    .takeUntilOther(Mono.delay(remaining))
+                    .doOnError(error -> log.warn("AI event subscription failed, invocationId={}, traceId={}, afterSequence={}, code={}, type={}",
+                            cursor.executionId(), context.traceId(), after.get(),
+                            error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "EVENT_WATCH_FAILED", error.getClass().getName()))
+                    .doFinally(signal -> log.debug("AI event subscription ended, invocationId={}, traceId={}, afterSequence={}, signal={}",
+                            cursor.executionId(), context.traceId(), after.get(), signal));
         });
     }
 

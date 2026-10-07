@@ -17,6 +17,7 @@ import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -33,6 +34,7 @@ import java.util.List;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/7 20:57 ✾
  */
+@Slf4j
 public final class ChatHistoryLoader {
 
     /**
@@ -121,6 +123,9 @@ public final class ChatHistoryLoader {
                     return contextSnapshotStore.find(owner, originalInvocation.contextSnapshotId())
                             .switchIfEmpty(Mono.error(new IllegalStateException("Accepted executionContext bytes are missing")))
                             .flatMap(contextSnapshot -> {
+                                log.debug("AI history restored from accepted snapshot, invocationId={}, originalInvocationId={}, traceId={}, conversationId={}, snapshotId={}",
+                                        executionContext.executionId(), originalInvocation.request().context().executionId(), executionContext.traceId(),
+                                        selection.conversationId(), contextSnapshot.snapshotId());
                                 var loaded = new Loaded(contextSnapshot.messages().subList(0, contextSnapshot.messages().size() - 1), contextSnapshot.history());
                                 // 无历史时不需要额外的历史读取权限；有历史时，即使是幂等重放也重新校验 ai:read。
                                 return loaded.messages().isEmpty() ? Mono.just(loaded)
@@ -128,6 +133,8 @@ public final class ChatHistoryLoader {
                             });
                 }).switchIfEmpty(Mono.defer(() -> {
                     if (selection.conversationVersion() != conversation.version()) {
+                        log.warn("AI history version conflict, invocationId={}, traceId={}, conversationId={}, expectedVersion={}, actualVersion={}",
+                                executionContext.executionId(), executionContext.traceId(), conversation.conversationId(), selection.conversationVersion(), conversation.version());
                         // 仅新提交要求选择版本与当前会话版本一致，防止把新追加轮次混入旧版本请求。
                         return Mono.error(new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT));
                     }
@@ -185,11 +192,17 @@ public final class ChatHistoryLoader {
                     }
                     // 活动调用尚未完成，UNKNOWN 尚未确认远端结果；两者均阻止继续组装下一轮上下文。
                     if (!invocation.state().terminal() || invocation.state() == Invocation.State.UNKNOWN) {
+                        log.debug("AI history blocked by unresolved invocation, conversationId={}, turnId={}, historyInvocationId={}, state={}",
+                                turn.conversationId(), turn.turnId(), id, invocation.state());
                         return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY));
                     }
                     // 仅保留成功且具有完整结果引用的调用；失败、取消等已知终态及部分结果不进入模型历史。
-                    if (invocation.state() != Invocation.State.SUCCEEDED || invocation.result() == null || invocation.result().partial())
+                    if (invocation.state() != Invocation.State.SUCCEEDED || invocation.result() == null || invocation.result().partial()) {
+                        log.debug("AI history turn skipped, conversationId={}, turnId={}, historyInvocationId={}, state={}, resultAvailable={}, partialResult={}",
+                                turn.conversationId(), turn.turnId(), id, invocation.state(), invocation.result() != null,
+                                invocation.result() != null && invocation.result().partial());
                         return Mono.empty();
+                    }
                     return executionResultStore.find(owner, id, invocation.result())
                             .switchIfEmpty(Mono.error(new IllegalStateException("Committed history result bytes are missing")))
                             .flatMap(result -> {
