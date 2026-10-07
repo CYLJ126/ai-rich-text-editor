@@ -1,22 +1,18 @@
 package com.arte.core.pojo;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
  * 返回结果包装器接口
+ * <p>
+ * 类型信息由序列化器配置决定，HTTP 响应不携带 Java 类名；
+ * 需要恢复运行时类型的缓存使用启用类型信息的序列化器。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/2/7 10:18 ✾
  */
-@JsonTypeInfo(
-        use = JsonTypeInfo.Id.CLASS,  // 使用完全限定类名
-        include = JsonTypeInfo.As.PROPERTY,  // 作为属性嵌入 JSON
-        property = "@class"  // 字段名固定为 @class
-)
 public interface IResult<T> {
 
     String BUSINESS_SUCCESS_LABEL = "操作成功";
