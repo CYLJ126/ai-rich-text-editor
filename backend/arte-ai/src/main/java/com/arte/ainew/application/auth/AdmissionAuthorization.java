@@ -43,8 +43,8 @@ public final class AdmissionAuthorization {
     public static final String CONVERSATION = "ai:conversation";
 
     /**
-     * 执行数据读取权限：当前用于读取所属上下文快照，不触发模型调用。
-     * 会话／Turn 读取使用 CONVERSATION 权限；执行状态和结果查询服务后续接入。
+     * 执行数据读取权限：读取所属上下文快照、执行状态、结果、事件及授权预算账户，不触发模型调用。
+     * 会话／Turn 读取使用 CONVERSATION 权限；预算初始化另需 BUDGET_ADMIN。
      */
     public static final String READ = "ai:read";
 

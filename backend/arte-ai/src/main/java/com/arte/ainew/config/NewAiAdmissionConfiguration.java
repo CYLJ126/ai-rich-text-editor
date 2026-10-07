@@ -9,6 +9,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
+import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.entry.DefaultChatService;
@@ -149,6 +150,14 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiBudgetInitializer")
     BudgetAccountInitializer budgetInitializer(FixedControlCatalog catalog, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
         return new BudgetAccountInitializer(catalog, authorization, store, store);
+    }
+
+    /**
+     * 授权预算账户查询门面；注册 Bean 不读账本、不初始化账户。
+     */
+    @Bean("newAiBudgetAccountQueryService")
+    BudgetAccountQueryService budgetQueryService(FixedControlCatalog catalog, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
+        return new BudgetAccountQueryService(catalog, authorization, store);
     }
 
     /**

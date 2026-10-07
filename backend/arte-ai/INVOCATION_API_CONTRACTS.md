@@ -1,6 +1,12 @@
 # AI 调用接口契约
 
-适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)。第 5～6 步的 Worker、派发与终态协调、预算生命周期、状态／结果／事件重放及完整生成测试已实现，详见 [异步执行与测试入口](EXECUTION_IMPLEMENTATION.md)。会话创建／列表／详情／轮次查询和单条用户文本提交 HTTP API 已接入；消息提交见 [HTTP 接口说明](CHAT_HTTP_API.md)，执行状态／结果及单页事件重放见 [执行查询接口](INVOCATION_HTTP_API.md)。预算 HTTP API、实时 watch、耐久控制及远端核对尚未实现。
+适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)
+。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)
+。第 5～6 步的
+Worker、派发与终态协调、预算生命周期、状态／结果／事件重放及完整生成测试已实现，详见 [异步执行与测试入口](EXECUTION_IMPLEMENTATION.md)
+。会话创建／列表／详情／轮次查询和单条用户文本提交 HTTP API 已接入；消息提交见 [HTTP 接口说明](CHAT_HTTP_API.md)
+，执行状态／结果及单页事件重放见 [执行查询接口](INVOCATION_HTTP_API.md)，账户汇总见 [预算查询接口](BUDGET_HTTP_API.md)。实时
+watch、耐久控制及远端核对尚未实现。
 
 ## 1. 最小生成链路
 
@@ -121,4 +127,5 @@ ConnectionDefinition 首批覆盖 HTTP(S) 配置，使用 SecretRef。结构合�
 
 AssistantManager、SkillRegistry、DefinitionRegistry、ReleaseManager、MemoryService、ResourceRetrievalProvider、EvaluationService、WorkflowRuntime、AgentRuntime，以及控制面完整 CRUD、会话改名／删除／资料修改、动作转追问，保留后续阶段。它们需要专有版本定义、补丁、分页或 Run 契约，不用 Object／任意 Map 提前填满接口。动作执行入口先固定方法；动作定义、发布解析及运行仍需后续契约。
 
-最小文本生成现已形成 Service 层闭环，并接入会话、消息提交及执行查询 HTTP API，开启配置并完成账户初始化后可测试。动态路由、独立限流、自动安全重试、实时观看及预算 HTTP API 按后续阶段实现；建表本身仍不等于功能启用。
+最小文本生成现已形成 Service 层闭环，并接入会话、消息提交、执行及预算账户查询 HTTP
+API，开启配置并完成账户初始化后可测试。动态路由、独立限流、自动安全重试、实时观看及预算管理 HTTP API 按后续阶段实现；建表本身仍不等于功能启用。

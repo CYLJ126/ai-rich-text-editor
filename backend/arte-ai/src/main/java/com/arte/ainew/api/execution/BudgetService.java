@@ -30,6 +30,13 @@ public interface BudgetService {
      */
     Mono<StoreOutcome<BudgetReservation>> settle(BudgetCommands.Settle command);
 
+    /**
+     * 查询账户信息
+     *
+     * @param owner     执行所有者
+     * @param budgetRef 预算引用
+     * @return 账户信息
+     */
     Mono<BudgetCommands.Account> account(ExecutionOwner owner, String budgetRef);
 
     /**

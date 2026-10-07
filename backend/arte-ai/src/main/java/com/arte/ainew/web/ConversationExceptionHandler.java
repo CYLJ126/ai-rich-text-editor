@@ -1,6 +1,7 @@
 package com.arte.ainew.web;
 
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.web.controller.NewAiBudgetController;
 import com.arte.ainew.web.controller.NewAiChatController;
 import com.arte.ainew.web.controller.NewAiConversationController;
 import com.arte.ainew.web.controller.NewAiInvocationController;
@@ -30,7 +31,8 @@ import java.util.Locale;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/7 15:38 ✾
  */
-@RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class, NewAiInvocationController.class})
+@RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class,
+        NewAiInvocationController.class, NewAiBudgetController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ConversationExceptionHandler {
@@ -52,8 +54,10 @@ public class ConversationExceptionHandler {
         } else if (exception instanceof AdmissionException admission) {
             code = admission.getResultCode();
             status = switch (code) {
-                case AI_CONVERSATION_NOT_FOUND, AI_TURN_NOT_FOUND, AI_NOT_FOUND -> HttpStatus.NOT_FOUND;
-                case AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY, AI_RESULT_NOT_AVAILABLE -> HttpStatus.CONFLICT;
+                case AI_CONVERSATION_NOT_FOUND, AI_TURN_NOT_FOUND, AI_NOT_FOUND, AI_BUDGET_NOT_AVAILABLE ->
+                        HttpStatus.NOT_FOUND;
+                case AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY, AI_RESULT_NOT_AVAILABLE ->
+                        HttpStatus.CONFLICT;
                 case AI_CURSOR_EXPIRED -> HttpStatus.GONE;
                 default -> HttpStatus.BAD_REQUEST;
             };

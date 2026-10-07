@@ -6,12 +6,15 @@ import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
+import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.web.NewAiHttpContext;
+import com.arte.ainew.web.controller.NewAiBudgetController;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -51,10 +54,12 @@ public class ConfigurationAssemblyTest {
     @Test
     public void disabledConfigurationRequiresNoDataSourceOrGrantsAndAddsNoRuntimeBeans() {
         try (var context = new AnnotationConfigApplicationContext()) {
-            context.register(NewAiAdmissionConfiguration.class);
+            context.register(NewAiAdmissionConfiguration.class, NewAiHttpContext.class, NewAiBudgetController.class);
             context.refresh();
             assertTrue(context.getBeansOfType(ChatService.class).isEmpty());
             assertTrue(context.getBeansOfType(MybatisExecutionPersistence.class).isEmpty());
+            assertTrue(context.getBeansOfType(BudgetAccountQueryService.class).isEmpty());
+            assertTrue(context.getBeansOfType(NewAiBudgetController.class).isEmpty());
             assertFalse(context.containsBean("newAiPersistenceScheduler"));
         }
     }
@@ -68,7 +73,7 @@ public class ConfigurationAssemblyTest {
             context.registerBean("appDataSource", DataSource.class, () -> forbidden("physical app datasource"));
             context.registerBean("multipleDataSource", DataSource.class, () -> forbidden("primary routing datasource"), bd -> bd.setPrimary(true));
             context.registerBean("chatService", String.class, () -> "existing-bean");
-            context.register(NewAiAdmissionConfiguration.class);
+            context.register(NewAiAdmissionConfiguration.class, NewAiHttpContext.class, NewAiBudgetController.class);
             context.refresh();
             assertEquals(AdmissionFixture.properties(), context.getBean(NewAiProperties.class));
             assertEquals("existing-bean", context.getBean("chatService"));
@@ -77,6 +82,8 @@ public class ConfigurationAssemblyTest {
             assertNotNull(context.getBean(BindingManager.class));
             assertNotNull(context.getBean(ConnectionManager.class));
             assertNotNull(context.getBean(InvocationCoordinator.class));
+            assertNotNull(context.getBean(BudgetAccountQueryService.class));
+            assertNotNull(context.getBean(NewAiBudgetController.class));
             assertTrue(context.getBeansOfType(ModelGateway.class).isEmpty());
         }
     }
