@@ -67,8 +67,7 @@ public class PageView<T> extends Page<T> implements IResult {
     @Override
     public List<T> getRecords() {
         if (CollUtil.isEmpty(super.getRecords())) {
-            // 不能返回空列表，否则响应前端时，jackson 序列化时异常
-            return null;
+            return Collections.emptyList();
         }
         return super.getRecords();
     }
