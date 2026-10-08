@@ -15,6 +15,7 @@ import {
   type InvocationResultResponse,
   type InvocationStatusResponse,
   queryTurnsOfConversation,
+  regenerateChat,
   turnsForChat,
   watchInvocation,
 } from '@/services/arte-ai';
@@ -32,6 +33,7 @@ vi.mock('@/services/arte-ai', async (original) => ({
   getInvocationStatus: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   turnsForChat: vi.fn(),
+  regenerateChat: vi.fn(),
   watchInvocation: vi.fn(),
 }));
 const config = chatConfigSchema.parse({
@@ -1687,5 +1689,89 @@ describe('停止生成', () => {
     await ready(hook);
     await act(async () => hook.result.current.stop('invocation-1'));
     expect(cancelInvocation).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('重新生成及核对后的恢复', () => {
+  it('固定原调用和版本创建新调用，保留草稿并观察新回复', async () => {
+    vi.mocked(getConversation).mockResolvedValue(reply({...conversation, version: 7}));
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(regenerateChat).mockImplementation(async () => {
+      vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([{
+        ...turn(),
+        invocationIds: ['invocation-1', 'regenerated'],
+        selectedInvocationId: 'invocation-1'
+      }]));
+      vi.mocked(getConversation).mockResolvedValue(reply({...conversation, version: 8}));
+      return reply({executionId: 'regenerated', kind: 'INVOCATION', acceptedAt: conversation.createdAt}, 202);
+    });
+    vi.mocked(getInvocationStatus).mockImplementation(async ({invocationId}) => reply(status(invocationId, invocationId === 'regenerated' ? 'RUNNING' : 'SUCCEEDED', 3)));
+    const hook = mount();
+    await ready(hook);
+    act(() => hook.result.current.setDraft('保留草稿'));
+    await act(async () => hook.result.current.regenerate('invocation-1'));
+    expect(vi.mocked(regenerateChat).mock.calls[0][0]).toEqual({
+      scope: {tenantId: 'tenant', workspaceId: 'workspace'},
+      originalInvocationId: 'invocation-1', expectedConversationVersion: 7, timeoutSeconds: config.timeoutSeconds
+    });
+    await waitFor(() => expect(hook.result.current.invocationId).toBe('regenerated'));
+    expect(hook.result.current.draft).toBe('保留草稿');
+    expect(turnsForChat).not.toHaveBeenCalled();
+    expect(vi.mocked(watchInvocation).mock.calls.some(([request]) => request.invocationId === 'regenerated')).toBe(true);
+  });
+
+  it('网络不确定时冻结重新生成请求，配置和历史刷新不会改变重试键或参数', async () => {
+    vi.mocked(getConversation).mockResolvedValue(reply({...conversation, version: 1}));
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(regenerateChat).mockRejectedValue(new TypeError('offline'));
+    const hook = mount();
+    await ready(hook);
+    await act(async () => hook.result.current.regenerate('invocation-1'));
+    const original = vi.mocked(regenerateChat).mock.calls[0];
+    expect(hook.result.current.pendingRegeneration).not.toBeNull();
+    act(() => hook.result.current.setDraft('不可重发成新问题'));
+    await act(async () => hook.result.current.send());
+    expect(turnsForChat).not.toHaveBeenCalled();
+    await act(async () => hook.result.current.regenerate('different-id'));
+    expect(vi.mocked(regenerateChat).mock.calls[1].slice(0, 2)).toEqual(original.slice(0, 2));
+  });
+
+  it('只在最新一轮提供入口，并保留旧候选和新候选的结果', async () => {
+    const t = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
+    vi.mocked(getConversation).mockResolvedValue(reply({...conversation, version: 4}));
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn(1), {
+      ...turn(2),
+      invocationIds: ['invocation-2', 'new-answer'],
+      selectedInvocationId: 'new-answer'
+    }]));
+    render(<ChatPanel config={config} conversation={conversation} dirty={false} onUpdated={vi.fn()} t={t}/>);
+    await waitFor(() => expect(screen.getAllByRole('button', {name: t('regenerate')})).toHaveLength(1));
+    expect(screen.getByRole('combobox', {name: `${t('viewReply')} #2`})).toBeInTheDocument();
+    expect(vi.mocked(getInvocationStatus).mock.calls.map(([request]) => request.invocationId)).toContain('new-answer');
+    expect(turnsForChat).not.toHaveBeenCalled();
+    expect(regenerateChat).not.toHaveBeenCalled();
+  });
+
+  it('核对旧页上的 UNKNOWN 后更新已缓存状态，恢复发送新问题', async () => {
+    const unresolved = {
+      ...status('invocation-1', 'UNKNOWN', 4), error: {
+        code: 'CONNECTION_LOST', phase: 'INVOCATION' as const,
+        retryable: false, sideEffect: 'POSSIBLE' as const, certainty: 'UNKNOWN' as const, correlationId: 'trace'
+      }, budgetState: 'PENDING_RECONCILIATION' as const
+    };
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(reply(unresolved));
+    const hook = mount();
+    await ready(hook);
+    expect(hook.result.current.unresolved).toBe(true);
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn(2)]));
+    vi.mocked(getInvocationStatus).mockImplementation(async ({invocationId}) => reply({
+      ...status(invocationId, 'FAILED', 5),
+      budgetState: 'SETTLED'
+    }));
+    await act(async () => hook.result.current.refreshAfterReconciliation('invocation-1'));
+    expect(hook.result.current.unresolved).toBe(false);
+    expect(hook.result.current.invocations['invocation-1'].status?.budgetState).toBe('SETTLED');
   });
 });

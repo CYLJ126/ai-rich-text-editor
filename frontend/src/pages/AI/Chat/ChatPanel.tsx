@@ -1,6 +1,7 @@
-import {Alert, Button, Empty, Input, Pagination, Tag} from 'antd';
-import React, {useMemo} from 'react';
+import {Alert, Button, Empty, Input, Pagination, Select, Tag} from 'antd';
+import React, {useMemo, useState} from 'react';
 import {AiApiError, type ChatMessage, type ConversationResponse,} from '@/services/arte-ai';
+import ReconciliationPanel from './ReconciliationPanel';
 import type {ChatTestConfig} from './config';
 import type {ConfigurationRejected} from './configurationInvalidation';
 import {hasAvailableBudget, HISTORY_PAGE_SIZE, isUserStoppedGeneration, useChatSession,} from './useChatSession';
@@ -29,6 +30,7 @@ export default function ChatPanel({
   onConfigurationRejected?: ConfigurationRejected;
 }) {
   const chat = useChatSession(config, conversation, onUpdated, maxInputBytes, onConfigurationRejected);
+  const [viewedCandidates, setViewedCandidates] = useState<Record<string, string>>({});
   const inputTooLarge = useMemo(() => maxInputBytes !== undefined
     && new TextEncoder().encode(chat.draft.trim()).length > maxInputBytes, [chat.draft, maxInputBytes]);
   const available = chat.budget && hasAvailableBudget(chat.budget.available);
@@ -38,6 +40,7 @@ export default function ChatPanel({
     chat.historyLoading ||
     !!chat.historyError ||
     chat.submitting ||
+    !!chat.pendingRegeneration ||
     chat.activeIds.length > 0 ||
     chat.unresolved ||
     !available;
@@ -80,7 +83,7 @@ export default function ChatPanel({
         <Button
           size="small"
           loading={chat.historyLoading}
-          disabled={dirty || chat.submitting || !!chat.pending}
+          disabled={dirty || chat.submitting || !!chat.pending || !!chat.pendingRegeneration}
           onClick={() => void chat.loadHistory()}
         >
           {t('refreshHistory')}
@@ -93,6 +96,7 @@ export default function ChatPanel({
         >
           {t('refreshBudget')}
         </Button>
+        <ReconciliationPanel config={config} t={t} onConfirmed={chat.refreshAfterReconciliation}/>
       </div>
       {error(chat.historyError, () => void chat.loadHistory())}
       {chat.historyLoading && <p role="status">{t('loadingHistory')}</p>}
@@ -104,7 +108,13 @@ export default function ChatPanel({
         aria-label={t('history')}
       >
         {chat.turns.map((turn) => {
-          const id = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
+          const chosen = viewedCandidates[turn.turnId];
+          const id = chosen && turn.invocationIds.includes(chosen) ? chosen : turn.invocationIds.at(-1);
+          const latestId = turn.invocationIds.at(-1);
+          const latestStatus = latestId ? chat.invocations[latestId]?.status : undefined;
+          const latestTurn = chat.page === Math.max(1, Math.ceil(chat.total / HISTORY_PAGE_SIZE)) && turn.sequence === chat.total;
+          const regeneratable = latestStatus && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(latestStatus.state) &&
+            (latestStatus.state !== 'UNKNOWN' || isUserStoppedGeneration(latestStatus));
           const invocation = id ? chat.invocations[id] : undefined;
           const result = invocation?.result;
           const model =
@@ -121,6 +131,18 @@ export default function ChatPanel({
               <p className="m-0 whitespace-pre-wrap break-words">
                 {messageText(turn.userMessage)}
               </p>
+              {turn.invocationIds.length > 1 && <div className="flex flex-wrap gap-2">
+                <span>{t('viewReply')}：</span>
+                <Select aria-label={`${t('viewReply')} #${turn.sequence}`} value={id} style={{minWidth: 160}}
+                        options={turn.invocationIds.map((candidate, index) => ({
+                          value: candidate,
+                          label: `${t('replyCandidate')} ${index + 1}${candidate === turn.selectedInvocationId ? ` · ${t('usedInContext')}` : ''}`
+                        }))}
+                        onChange={candidate => {
+                          setViewedCandidates(previous => ({...previous, [turn.turnId]: candidate}));
+                          void chat.inspectCandidate(candidate);
+                        }}/>
+              </div>}
               <div>
                 <Tag color="blue">{t('role.ASSISTANT')}</Tag>
                 {invocation?.status && (
@@ -202,6 +224,19 @@ export default function ChatPanel({
                 />
               )}
               {error(invocation?.error, () => void chat.loadHistory(chat.page))}
+              {latestTurn && latestId && regeneratable && <Button size="small"
+                                                                  disabled={blocked || !!chat.pending || !!chat.pendingRegeneration}
+                                                                  title={t('regenerateHint')}
+                                                                  onClick={() => {
+                                                                    setViewedCandidates(previous => {
+                                                                      const next = {...previous};
+                                                                      delete next[turn.turnId];
+                                                                      return next;
+                                                                    });
+                                                                    void chat.regenerate(latestId);
+                                                                  }}>
+                {t('regenerate')}
+              </Button>}
               {id && (
                 <p className="m-0 break-all text-xs text-[var(--ant-color-text-secondary)]">
                   {t('invocationId')}：{id}
@@ -215,8 +250,7 @@ export default function ChatPanel({
         !current.result &&
         !chat.turns.some(
           (turn) =>
-            (turn.selectedInvocationId ?? turn.invocationIds.at(-1)) ===
-            chat.invocationId,
+            !!chat.invocationId && turn.invocationIds.includes(chat.invocationId),
         ) && (
           <div className="space-y-2 rounded border border-solid border-[var(--ant-color-border)] p-3">
             <span>{t('role.ASSISTANT')}</span>
@@ -247,7 +281,7 @@ export default function ChatPanel({
         hideOnSinglePage
         showSizeChanger={false}
         disabled={
-          dirty || chat.historyLoading || chat.submitting || !!chat.pending
+          dirty || chat.historyLoading || chat.submitting || !!chat.pending || !!chat.pendingRegeneration
         }
         onChange={(page) => void chat.loadHistory(page)}
       />
@@ -307,19 +341,22 @@ export default function ChatPanel({
         <p role="status">{t('stopRequested')}</p>
       )}
       {error(chat.submitError)}
+      {chat.pendingRegeneration && <Alert type="warning" title={t('retryRegenerationHint')}/>}
       {chat.pending && <Alert type="warning" title={t('retryMessageHint')}/>}
       {dirty && <p className="m-0 text-xs">{t('applyDraft')}</p>}
       {!chat.pending && inputTooLarge && <Alert type="warning" title={t('inputTooLarge')}/>}
       <Input.TextArea
         value={chat.draft}
         onChange={(event) => chat.setDraft(event.target.value)}
-        disabled={blocked || !!chat.pending}
+        disabled={blocked || !!chat.pending || !!chat.pendingRegeneration}
         maxLength={1_000_000}
         aria-label={t('messageInput')}
         autoSize={{minRows: 3, maxRows: 8}}
         placeholder={t('messagePlaceholder')}
       />
       <div className="flex justify-end gap-2">
+        {chat.pendingRegeneration && <Button loading={chat.submitting} disabled={dirty || chat.submitting}
+                                             onClick={() => void chat.regenerate()}>{t('retryRegeneration')}</Button>}
         {chat.invocationId && state && ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(state) && (
           <Button
             loading={chat.stopping}

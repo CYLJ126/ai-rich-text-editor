@@ -34,4 +34,24 @@
     <select id="reservationSnapshot" resultType="java.lang.String" useCache="false">
         SELECT snapshot FROM arte_ai_reservation WHERE id_key=#{idKey} <if test="forUpdate">FOR UPDATE</if>
     </select>
+    <!-- v1 snapshots are compact JSON. Enum patterns match structural fields, never escaped user text. -->
+    <sql id="pendingFrom">
+        FROM arte_ai_reservation r JOIN arte_ai_account a ON a.id_key=r.account_key
+        JOIN arte_ai_invocation i ON i.id_key=r.invocation_key
+        WHERE r.account_key=#{accountKey} AND a.owner_key=#{ownerKey} AND i.owner_key=#{ownerKey}
+        AND (r.snapshot LIKE '%"state":"RESERVED"%' OR r.snapshot LIKE '%"state":"PENDING_RECONCILIATION"%')
+        AND i.snapshot LIKE '%"kind":"GENERATION"%'
+        AND (i.snapshot LIKE '%"state":"UNKNOWN"%' OR i.snapshot LIKE '%"state":"SUCCEEDED"%'
+        OR i.snapshot LIKE '%"state":"FAILED"%' OR i.snapshot LIKE '%"state":"CANCELLED"%'
+        OR i.snapshot LIKE '%"state":"TIMED_OUT"%' OR i.snapshot LIKE '%"state":"INTERRUPTED"%')
+    </sql>
+    <select id="countPending" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*)
+        <include refid="pendingFrom"/>
+    </select>
+    <select id="pendingSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT r.snapshot
+        <include refid="pendingFrom"/>
+        ORDER BY r.id_key ASC LIMIT #{limit} OFFSET #{offset}
+    </select>
 </mapper>

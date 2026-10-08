@@ -51,10 +51,11 @@ public final class BudgetCommands {
         }
     }
 
-    public enum Evidence {UNKNOWN_COST, PROVIDER_BILL, PROVEN_NOT_DISPATCHED}
+    public enum Evidence {UNKNOWN_COST, PROVIDER_BILL, MANUAL_PROVIDER_BILL, PROVEN_NOT_DISPATCHED}
 
     /**
-     * 预留版本作 CAS；最终结算不可覆盖。证据由可信账单／核对服务解析，不能接受客户端自报。
+     * 预留版本作 CAS；最终结算不可覆盖。普通客户端不能自报费用；
+     * 自动证据由可信服务解析，人工账单输入须经预算管理员核实并保存凭据与审计。
      */
     public record Settle(ExecutionOwner owner, long expectedReservationVersion, BudgetSettlement settlement,
                          Evidence evidence, String evidenceRef) {

@@ -1,6 +1,6 @@
-export {getBudget} from './budget';
+export {getBudget, pendingReconciliations, confirmReconciliation} from './budget';
 export {discoverChatOptions} from './configuration';
-export {turnsForChat} from './chat';
+export {turnsForChat, regenerateChat} from './chat';
 export {
   createConversation,
   getConversation,

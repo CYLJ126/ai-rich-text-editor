@@ -38,6 +38,11 @@ public interface BudgetMapper {
             @Param("evidenceKind") String evidenceKind,
             @Param("evidenceRef") String evidenceRef);
 
+    long countPending(@Param("accountKey") String accountKey, @Param("ownerKey") String ownerKey);
+
+    List<String> pendingSnapshots(@Param("accountKey") String accountKey, @Param("ownerKey") String ownerKey,
+                                  @Param("limit") long limit, @Param("offset") long offset);
+
     String accountSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);
 
     String reservationSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);

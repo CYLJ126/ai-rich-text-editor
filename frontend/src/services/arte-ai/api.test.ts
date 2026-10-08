@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   AiApiError,
   cancelInvocation,
+  confirmReconciliation,
   createConversation,
   discoverChatOptions,
   getBudget,
@@ -11,7 +12,9 @@ import {
   getInvocationStatus,
   invocationEvent,
   listConversations,
+  pendingReconciliations,
   queryTurnsOfConversation,
+  regenerateChat,
   turnsForChat,
 } from './index';
 import type {SubmitChatRequest} from './types';
@@ -400,4 +403,42 @@ describe('失败处理', () => {
       expect(request).not.toHaveBeenCalled();
     },
   );
+});
+
+
+describe('重新生成和费用核对请求契约', () => {
+  it('重新生成携带新操作键和固定来源，不转发角色或历史', async () => {
+    requestMock.mockResolvedValue({
+      status: 202,
+      data: {...metadata, data: {executionId: 'new-invocation', kind: 'INVOCATION', acceptedAt: accepted.acceptedAt}}
+    });
+    const data = {scope, originalInvocationId: 'invocation-1', expectedConversationVersion: 3, timeoutSeconds: 60};
+    await regenerateChat(data, 'regen-key');
+    expect(requestMock).toHaveBeenCalledWith('/arte/ai-new/chat/regenerate', expect.objectContaining({
+      data,
+      headers: expect.objectContaining({'Idempotency-Key': 'regen-key'})
+    }));
+  });
+  it('核对金额保持十进制字符串，要求幂等键且列表读取不需要键', async () => {
+    requestMock.mockResolvedValue({status: 200, data: {...metadata, data: {}}});
+    const data = {
+      scope, budgetRef: 'budget-1', invocationId: 'invocation-1', invocationVersion: 4,
+      reservationId: 'reservation-1', reservationVersion: 1, actualCharge: '0.123456789012345678', currency: 'CNY',
+      evidenceRef: 'bill', note: 'verified', executionEnded: true
+    };
+    await confirmReconciliation(data, 'bill-key');
+    expect(requestMock).toHaveBeenLastCalledWith('/arte/ai-new/budget/confirmReconciliation', expect.objectContaining({
+      data,
+      headers: expect.objectContaining({'Idempotency-Key': 'bill-key'})
+    }));
+    await pendingReconciliations({...budgetQuery, current: 1, size: 10});
+    expect(requestMock).toHaveBeenLastCalledWith('/arte/ai-new/budget/pendingReconciliations', expect.objectContaining({
+      data: {
+        ...budgetQuery,
+        current: 1,
+        size: 10
+      }
+    }));
+    expect(() => confirmReconciliation(data, '')).toThrow();
+  });
 });

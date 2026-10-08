@@ -2,10 +2,7 @@ package com.arte.ainew.persistence.codec;
 
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.value.StructuredValue;
-import com.arte.ainew.pojo.budget.BudgetCommands;
-import com.arte.ainew.pojo.budget.BudgetReservation;
-import com.arte.ainew.pojo.budget.BudgetSettlement;
-import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -44,6 +41,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(Reconciliation.Receipt.class, "reconciliation-receipt"),
             Map.entry(ControlReceipt.class, "control-receipt"), Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
             Map.entry(Turn.class, "turn"), Map.entry(BudgetCommands.Account.class, "budget-account"),

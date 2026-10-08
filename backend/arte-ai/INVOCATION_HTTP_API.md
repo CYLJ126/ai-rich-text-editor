@@ -5,7 +5,9 @@
 `Mono<ResultContext<...>>` 和请求 Locale。只有 `arte.ai-new.enabled=true` 与 `arte.ai-new-execution.enabled=true`
 同时满足时才注册；生成、执行配置的前置依赖仍需完整启用。
 
-状态、结果、重放与 SSE 接口只读取，不启动 Worker、不调用模型，也不触发重新生成。停止接口提交耐久取消命令；远端核对仍未实现。
+状态、结果、重放与 SSE 接口只读取，不启动
+Worker、不调用模型，也不触发重新生成。停止接口提交耐久取消命令；生成调用可通过 [预算管理员人工核对](BUDGET_HTTP_API.md)
+收敛执行与费用。供应商自动查询适配器尚未接入。
 
 ## 认证与共同参数
 

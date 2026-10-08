@@ -7,10 +7,7 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OperationRow;
-import com.arte.ainew.pojo.budget.BudgetCommands;
-import com.arte.ainew.pojo.budget.BudgetReservation;
-import com.arte.ainew.pojo.budget.BudgetSettlement;
-import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -48,7 +45,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  */
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionEventStore,
-        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService {
+        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore {
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
@@ -109,6 +106,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         if (!valid) {
             throw new Rejected(code);
         }
+    }
+
+    public static void main(String[] args) {
+        System.out.println(hash("7dfc865b-a0f3-4125-b4aa-0ed50e4a6037"));
     }
 
     private static String hash(String... parts) {
@@ -320,6 +321,15 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     @Override
+    public Mono<Long> nextTurnSequence(ExecutionOwner owner, String conversationId) {
+        return tx(() -> {
+            var conversation = snapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
+            if (conversation == null || !conversation.owner().equals(owner)) return null;
+            return Math.addExact(admission.maximumTurnSequence(hash(conversationId)), 1);
+        });
+    }
+
+    @Override
     public Mono<com.arte.ainew.pojo.conversation.Turn> findTurn(ExecutionOwner owner, String conversationId, String turnId) {
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(conversationId, "conversationId");
@@ -372,6 +382,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 lock(hash("turn-id", turn.turnId()));
                 var oldTurn = snapshot(admission.turnSnapshot(hash(turn.turnId()), true), com.arte.ainew.pojo.conversation.Turn.class);
                 if (oldTurn == null) {
+                    require(candidate.replacesInvocationId() == null, INVALID_STATE);
                     require(turn.version() == 0 && turn.selectedInvocationId() == null
                             && turn.invocationIds().equals(List.of(id(candidate))), VERSION_CONFLICT);
                     long maximum = admission.maximumTurnSequence(hash(link.conversationId()));
@@ -379,6 +390,20 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     require(admission.countTurnSequence(hash(link.conversationId()), turn.sequence()) == 0, VERSION_CONFLICT);
                     admission.insertTurn(hash(turn.turnId()), hash(link.conversationId()), turn.sequence(), codec.encode(turn));
                 } else {
+                    require(candidate.replacesInvocationId() != null
+                            && oldTurn.invocationIds().contains(candidate.replacesInvocationId())
+                            && oldTurn.sequence() == admission.maximumTurnSequence(hash(link.conversationId())), INVALID_STATE);
+                    var source = snapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
+                    require(source != null && ExecutionOwner.from(source.request().context()).equals(owner)
+                                    && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
+                                    && source.conversation().conversationId().equals(link.conversationId())
+                                    && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN || userStoppedGeneration(source)),
+                            RECONCILIATION_REQUIRED);
+                    require(source.request().kind() == candidate.request().kind()
+                            && source.request().capability().equals(candidate.request().capability())
+                            && source.request().binding().equals(candidate.request().binding())
+                            && source.request().input().equals(candidate.request().input())
+                            && Objects.equals(source.request().context().budgetRef(), candidate.request().context().budgetRef()), INVALID_STATE);
                     require(oldTurn.conversationId().equals(turn.conversationId()) && oldTurn.sequence() == turn.sequence()
                             && turn.version() == oldTurn.version() + 1 && oldTurn.userMessage().equals(turn.userMessage())
                             && Objects.equals(oldTurn.parentTurnId(), turn.parentTurnId())
@@ -387,7 +412,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                             && turn.invocationIds().subList(0, oldTurn.invocationIds().size()).equals(oldTurn.invocationIds())
                             && turn.invocationIds().getLast().equals(id(candidate))
                             && turn.createdAt().equals(oldTurn.createdAt())
-                            && Objects.equals(turn.selectedInvocationId(), oldTurn.selectedInvocationId()), VERSION_CONFLICT);
+                            && Objects.equals(turn.selectedInvocationId(), oldTurn.selectedInvocationId() != null
+                            ? oldTurn.selectedInvocationId() : oldTurn.invocationIds().getLast()), VERSION_CONFLICT);
                     admission.saveTurn(codec.encode(turn), hash(turn.turnId()));
                 }
                 var updatedConversation = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
@@ -722,9 +748,28 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             if (completed.conversation() != null && (completed.state() != Invocation.State.UNKNOWN || userStoppedGeneration(completed))) {
                 admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
             }
+            if (completed.state() == Invocation.State.SUCCEEDED && completed.replacesInvocationId() != null) {
+                selectCompletedCandidate(completed);
+            }
             // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。
             return StoreOutcome.applied(completed);
         });
+    }
+
+    private void selectCompletedCandidate(Invocation completed) {
+        var link = completed.conversation();
+        // 与 accept 相同顺序：先会话，再轮次；完整成功后才替换历史中采用的答案。
+        var conversation = snapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
+        var turn = snapshot(admission.turnSnapshot(hash(link.turnId()), true), Turn.class);
+        require(turn != null && turn.invocationIds().getLast().equals(id(completed)), INVALID_STATE);
+        admission.saveTurn(codec.encode(new Turn(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
+                turn.supersedesTurnId(), turn.userMessage(), turn.invocationIds(), id(completed), turn.version() + 1,
+                turn.createdAt(), now())), hash(turn.turnId()));
+        var updated = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
+                conversation.version() + 1, conversation.chatProfile(), conversation.resources(), conversation.state(),
+                conversation.createdAt(), now());
+        admission.advanceConversation(updated.version(), admission.conversationGate(hash(link.conversationId())).activeInvocation(),
+                codec.encode(updated), hash(link.conversationId()));
     }
 
     private ExecutionEvent<?> event(Invocation invocation, String attemptId, ExecutionPayload payload) {
@@ -986,48 +1031,135 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<BudgetReservation>> settle(BudgetCommands.Settle command) {
+        return outcome(() -> settleLocked(command));
+    }
+
+    private StoreOutcome<BudgetReservation> settleLocked(BudgetCommands.Settle command) {
+        var settlement = command.settlement();
+        // 先只读定位，再按统一顺序锁 Invocation -> Account -> Reservation，避免与预留／发送互锁。
+        var pointer = snapshot(budget.reservationSnapshot(hash(settlement.reservationId()), false), BudgetReservation.class);
+        require(pointer != null, NOT_FOUND);
+        var invocation = invocation(new Version(command.owner(), pointer.invocationId(), 0));
+        var account = snapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
+        require(account != null && account.owner().equals(command.owner()), OWNER_MISMATCH);
+        var reservation = snapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
+        var key = hash(settlement.settlementKey());
+        var digest = hash(codec.encode(settlement), command.evidence().name(), Objects.toString(command.evidenceRef(), ""));
+        var previous = budget.settlement(hash(reservation.reservationId()), key);
+        if (!previous.isEmpty()) {
+            require(digest.equals(previous.getFirst().digest()), IDEMPOTENCY_CONFLICT);
+            return StoreOutcome.replayed(codec.decode(previous.getFirst().resultSnapshot(), BudgetReservation.class));
+        }
+        require(reservation.version() == command.expectedReservationVersion(), VERSION_CONFLICT);
+        require(reservation.state() == BudgetReservation.State.RESERVED
+                || reservation.state() == BudgetReservation.State.PENDING_RECONCILIATION, INVALID_STATE);
+        require(settlement.charge() == null || settlement.charge().currency().equals(reservation.reserved().currency()), CURRENCY_MISMATCH);
+        if (command.evidence() == BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED) {
+            var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
+            require(attempt != null && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED, RECONCILIATION_REQUIRED);
+        }
+        boolean finalSettlement = settlement.state() != BudgetSettlement.State.PENDING_RECONCILIATION;
+        if (finalSettlement) {
+            require(account.held().amount().compareTo(reservation.reserved().amount()) >= 0, INVALID_STATE);
+            save(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(),
+                    new Money(account.held().amount().subtract(reservation.reserved().amount()), account.held().currency()),
+                    new Money(account.charged().amount().add(settlement.charge().amount()), account.charged().currency()),
+                    account.rateVersion(), account.version() + 1));
+        }
+        var updated = new BudgetReservation(reservation.reservationId(), reservation.budgetRef(), reservation.invocationId(),
+                reservation.attemptId(), reservation.reserved(), reservation.rateVersion(),
+                BudgetReservation.State.valueOf(settlement.state().name()), reservation.version() + 1,
+                reservation.reservedAt(), reservation.expiresAt());
+        save(updated);
+        budget.insertSettlement(hash(reservation.reservationId()), key, digest, codec.encode(settlement), codec.encode(updated), command.evidence().name(), command.evidenceRef());
+        // 只有首次应用结算才写事件；幂等重放在上面返回，不重复扣费、释放或发布。
+        event(invocation, updated.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.valueOf(updated.state().name()),
+                updated.version(), account.version() + (finalSettlement ? 1 : 0)));
+        return StoreOutcome.applied(updated);
+    }
+
+    @Override
+    public Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(ExecutionOwner owner, String budgetRef, long current, long size) {
+        long offset = pageOffset(current, size);
+        return tx(() -> {
+            var account = snapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
+            require(account != null && account.owner().equals(owner), OWNER_MISMATCH);
+            var records = budget.pendingSnapshots(hash(budgetRef), ownerKey(owner), size, offset).stream().map(encoded -> {
+                var reservation = codec.decode(encoded, BudgetReservation.class);
+                var invocation = snapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
+                var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), false), Attempt.class);
+                return new Reconciliation.Pending(id(invocation), invocation.conversation() == null ? null : invocation.conversation().conversationId(),
+                        invocation.state(), invocation.version(), reservation.reservationId(), reservation.version(), reservation.budgetRef(),
+                        reservation.reserved(), attempt == null ? null : attempt.remoteRequestId(), invocation.acceptedAt());
+            }).toList();
+            return new ConversationPage<>(current, size, budget.countPending(hash(budgetRef), ownerKey(owner)), records);
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command) {
         return outcome(() -> {
-            var settlement = command.settlement();
-            // 先只读定位，再按统一顺序锁 Invocation -> Account -> Reservation，避免与预留／发送互锁。
-            var pointer = snapshot(budget.reservationSnapshot(hash(settlement.reservationId()), false), BudgetReservation.class);
-            require(pointer != null, NOT_FOUND);
-            var invocation = invocation(new Version(command.owner(), pointer.invocationId(), 0));
-            var account = snapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
-            require(account != null && account.owner().equals(command.owner()), OWNER_MISMATCH);
-            var reservation = snapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
-            var key = hash(settlement.settlementKey());
-            var digest = hash(codec.encode(settlement), command.evidence().name(), Objects.toString(command.evidenceRef(), ""));
-            var previous = budget.settlement(hash(reservation.reservationId()), key);
-            if (!previous.isEmpty()) {
-                require(digest.equals(previous.getFirst().digest()), IDEMPOTENCY_CONFLICT);
-                return StoreOutcome.replayed(codec.decode(previous.getFirst().resultSnapshot(), BudgetReservation.class));
+            var invocation = invocation(new Version(command.owner(), command.invocationId(), command.invocationVersion()));
+            var key = operationKey("manual-bill", command.key());
+            var digest = hash(command.budgetRef(), command.invocationId(), Long.toString(command.invocationVersion()), command.reservationId(),
+                    Long.toString(command.reservationVersion()), command.charge().toString(), command.evidenceRef(), command.note(),
+                    command.reviewer().toString(), Boolean.toString(command.executionEnded()));
+            var previous = operation(invocation, key);
+            if (previous != null) {
+                require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
+                return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Reconciliation.Receipt.class));
             }
-            require(reservation.version() == command.expectedReservationVersion(), VERSION_CONFLICT);
-            require(reservation.state() == BudgetReservation.State.RESERVED
-                    || reservation.state() == BudgetReservation.State.PENDING_RECONCILIATION, INVALID_STATE);
-            require(settlement.charge() == null || settlement.charge().currency().equals(reservation.reserved().currency()), CURRENCY_MISMATCH);
-            if (command.evidence() == BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED) {
-                var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
-                require(attempt != null && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED, RECONCILIATION_REQUIRED);
+            version(invocation, new Version(command.owner(), command.invocationId(), command.invocationVersion()));
+            require(invocation.request().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION
+                    && invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
+            var reservation = snapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class);
+            require(reservation != null && reservation.invocationId().equals(id(invocation))
+                    && reservation.attemptId().equals(invocation.activeAttemptId())
+                    && reservation.budgetRef().equals(command.budgetRef())
+                    && reservation.budgetRef().equals(invocation.request().context().budgetRef()), OWNER_MISMATCH);
+            var recordedAttempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(recordedAttempt != null && command.reservationId().equals(recordedAttempt.budgetReservationId()), INVALID_STATE);
+            long firstSequence = event.nextSequence(hash(id(invocation))) + 1;
+            // 实际账单可以高于预留：保留真实费用，余额不足时后续请求由预留入口拒绝。
+            var settled = settleLocked(new BudgetCommands.Settle(command.owner(), command.reservationVersion(),
+                    new BudgetSettlement("manual-" + hash(command.key()), reservation.reservationId(), BudgetSettlement.State.SETTLED,
+                            recordedAttempt.usage(), command.charge(), now()), BudgetCommands.Evidence.MANUAL_PROVIDER_BILL, command.evidenceRef()));
+            if (invocation.state() == Invocation.State.UNKNOWN) {
+                var oldError = invocation.error();
+                var stopped = userStoppedGeneration(invocation);
+                var knownError = new ExecutionError(stopped ? "INVOCATION_CANCELLED" : "GENERATION_RECONCILED",
+                        oldError.phase(), false, command.charge().amount().signum() > 0
+                        ? ExecutionError.SideEffect.CONFIRMED : oldError.sideEffect(), ExecutionError.Certainty.KNOWN, command.traceId());
+                var completed = state(invocation, stopped ? Invocation.State.CANCELLED : Invocation.State.FAILED,
+                        invocation.activeAttemptId(), invocation.result(), knownError);
+                var attempt = recordedAttempt;
+                long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+                save(new Attempt(attempt.attemptId(), attempt.invocationId(), attempt.attemptNumber(), attempt.workerId(), fence,
+                        attempt.leaseExpiresAt(), attempt.version() + 1, Attempt.State.valueOf(completed.state().name()), attempt.dispatch(),
+                        attempt.remoteRequestId(), attempt.budgetReservationId(), attempt.usage(), knownError, attempt.createdAt(), now()));
+                execution.saveNextFence(fence, hash(id(invocation)));
+                save(completed);
+                event(completed, completed.activeAttemptId(), new ExecutionPayload.Terminal(completed.state(), completed.result(), completed.error()));
+                if (completed.conversation() != null)
+                    admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+                invocation = completed;
             }
-            boolean finalSettlement = settlement.state() != BudgetSettlement.State.PENDING_RECONCILIATION;
-            if (finalSettlement) {
-                require(account.held().amount().compareTo(reservation.reserved().amount()) >= 0, INVALID_STATE);
-                save(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(),
-                        new Money(account.held().amount().subtract(reservation.reserved().amount()), account.held().currency()),
-                        new Money(account.charged().amount().add(settlement.charge().amount()), account.charged().currency()),
-                        account.rateVersion(), account.version() + 1));
-            }
-            var updated = new BudgetReservation(reservation.reservationId(), reservation.budgetRef(), reservation.invocationId(),
-                    reservation.attemptId(), reservation.reserved(), reservation.rateVersion(),
-                    BudgetReservation.State.valueOf(settlement.state().name()), reservation.version() + 1,
-                    reservation.reservedAt(), reservation.expiresAt());
-            save(updated);
-            budget.insertSettlement(hash(reservation.reservationId()), key, digest, codec.encode(settlement), codec.encode(updated), command.evidence().name(), command.evidenceRef());
-            // 只有首次应用结算才写事件；幂等重放在上面返回，不重复扣费、释放或发布。
-            event(invocation, updated.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.valueOf(updated.state().name()),
-                    updated.version(), account.version() + (finalSettlement ? 1 : 0)));
-            return StoreOutcome.applied(updated);
+            var receipt = new Reconciliation.Receipt(command.key(), id(invocation), reservation.reservationId(), reservation.budgetRef(), command.charge(),
+                    command.evidenceRef(), command.note(), command.reviewer(), command.traceId(), invocation.state(), invocation.version(),
+                    settled.value().version(), now());
+            execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, firstSequence,
+                    Math.toIntExact(event.nextSequence(hash(id(invocation))) - firstSequence + 1), codec.encode(receipt), command.evidenceRef());
+            return StoreOutcome.applied(receipt);
+        });
+    }
+
+    @Override
+    public Mono<Reconciliation.Receipt> reconciliationReceipt(ExecutionOwner owner, String invocationId, String key) {
+        return tx(() -> {
+            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
+            var saved = operation(invocation, operationKey("manual-bill", key));
+            return saved == null ? null : codec.decode(saved.resultSnapshot(), Reconciliation.Receipt.class);
         });
     }
 

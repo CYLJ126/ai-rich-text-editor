@@ -216,12 +216,20 @@ public class NewAiAdmissionConfiguration {
     }
 
     /**
-     * 聊天应用入口，串联会话校验、绑定解析、上下文组装及新 Turn 构造，再交给协调器可靠受理。
-     * 当前支持单条用户文本提交，返回 AcceptedExecution；重新生成尚未支持。
+     * 预算管理员的人工账单核对；授权、账本及审计回执使用现有持久化组件。
+     */
+    @Bean("newAiManualReconciliationService")
+    com.arte.ainew.application.budget.ManualReconciliationService manualReconciliationService(
+            AdmissionAuthorization authorization, BudgetAccountQueryService accounts, MybatisExecutionPersistence executions) {
+        return new com.arte.ainew.application.budget.ManualReconciliationService(authorization, accounts, executions);
+    }
+
+    /**
+     * 普通消息创建新 Turn，重新生成追加最新 Turn 的候选；均通过可靠受理事务创建独立 Invocation。
      */
     @Bean("newAiChatService")
     ChatService chatService(AdmissionAuthorization authorization, ConversationService conversations, FixedControlCatalog bindings,
-                            ContextService contexts, InvocationCoordinator coordinator, @Qualifier("newAiClock") Clock clock) {
-        return new DefaultChatService(authorization, conversations, bindings, contexts, coordinator, clock);
+                            ContextService contexts, InvocationCoordinator coordinator, @Qualifier("newAiClock") Clock clock, MybatisExecutionPersistence executions, NewAiProperties properties) {
+        return new DefaultChatService(authorization, conversations, bindings, contexts, coordinator, clock, executions, executions, properties);
     }
 }

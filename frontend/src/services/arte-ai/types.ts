@@ -390,3 +390,64 @@ export interface BudgetAccountResponse {
   rateVersion: DefinitionRef<'rate'>;
   version: number;
 }
+
+export interface RegenerateChatRequest {
+  scope: AiScope;
+  originalInvocationId: string;
+  expectedConversationVersion: number;
+  timeoutSeconds: number;
+}
+
+export interface RegenerateAcceptedResponse {
+  executionId: string;
+  kind: 'INVOCATION';
+  acceptedAt: string;
+}
+
+export interface PendingReconciliation {
+  invocationId: string;
+  conversationId: string | null;
+  state: InvocationStatusResponse['state'];
+  invocationVersion: number;
+  reservationId: string;
+  reservationVersion: number;
+  budgetRef: string;
+  reserved: { amount: string; currency: string };
+  remoteRequestId: string | null;
+  acceptedAt: string;
+}
+
+export interface PendingReconciliationResponse {
+  page: { current: number; size: number; total: number; records: PendingReconciliation[] };
+  canReconcile: boolean;
+}
+
+export interface ConfirmReconciliationRequest {
+  scope: AiScope;
+  budgetRef: string;
+  invocationId: string;
+  invocationVersion: number;
+  reservationId: string;
+  reservationVersion: number;
+  actualCharge: string;
+  currency: string;
+  evidenceRef: string;
+  note: string;
+  executionEnded: boolean;
+}
+
+export interface ReconciliationReceipt {
+  key: string;
+  invocationId: string;
+  reservationId: string;
+  budgetRef: string;
+  charge: { amount: string; currency: string };
+  evidenceRef: string;
+  note: string;
+  reviewer: { subjectId: string; subjectName: string; kind: 'USER' | 'SERVICE' };
+  traceId: string;
+  state: InvocationStatusResponse['state'];
+  invocationVersion: number;
+  reservationVersion: number;
+  confirmedAt: string;
+}

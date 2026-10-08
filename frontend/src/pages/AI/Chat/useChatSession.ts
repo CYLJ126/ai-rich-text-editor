@@ -12,6 +12,8 @@ import {
   type InvocationResultResponse,
   type InvocationStatusResponse,
   queryTurnsOfConversation,
+  regenerateChat,
+  type RegenerateChatRequest,
   type SubmitChatRequest,
   turnsForChat,
   watchInvocation,
@@ -119,6 +121,11 @@ export function useChatSession(
   const stopKeys = useRef(new Map<string, string>());
   const stopTarget = useRef<string | null>(null);
   const [pending, setPending] = useState<PendingMessage | null>(null);
+  const [pendingRegeneration, setPendingRegeneration] = useState<{
+    key: string;
+    request: RegenerateChatRequest
+  } | null>(null);
+  const regenerationRef = useRef<{ key: string; request: RegenerateChatRequest } | null>(null);
   const pendingRef = useRef<PendingMessage | null>(null);
   const [invocationId, setInvocationId] = useState<string | null>(null);
   const [watching, setWatching] = useState(false);
@@ -145,6 +152,7 @@ export function useChatSession(
     submit: null as AbortController | null,
     poll: null as AbortController | null,
     stop: null as AbortController | null,
+    candidate: null as AbortController | null,
   });
   const alive = useRef(true);
 
@@ -618,10 +626,11 @@ export function useChatSession(
             history = await query(lastPage);
           if (controller.signal.aborted || !alive.current) return;
           if (revision !== historyRevision.current) continue;
-          const ids = history.records.flatMap((turn) => {
-            const id = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
-            return id ? [id] : [];
-          });
+          const ids = [...new Set([...history.records.flatMap((turn) => {
+            const selected = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
+            const latest = turn.invocationIds.at(-1);
+            return [selected, latest].filter((id): id is string => !!id);
+          }), ...Object.entries(views.current).filter(([, view]) => blocksConversation(view.status)).map(([id]) => id)])];
           const entries = await Promise.all(
             ids.map(async (id) => {
               try {
@@ -640,7 +649,7 @@ export function useChatSession(
           setPage(history.current);
           setTotal(history.total);
           if (requestedPage === undefined && ids.length)
-            setInvocationId(created.current ?? ids.at(-1) ?? null);
+            setInvocationId(created.current ?? history.records.at(-1)?.invocationIds.at(-1) ?? null);
           publish(Object.fromEntries(entries));
           for (const [id, view] of entries) {
             if ('status' in view && view.status && !isActive(view.status))
@@ -688,7 +697,7 @@ export function useChatSession(
   }
 
   async function send() {
-    if (requests.current.submit || !alive.current) return;
+    if (requests.current.submit || regenerationRef.current || !alive.current) return;
     // 本轮 UTF-8 预检；服务端检查合并历史后的容量。原幂等重试不受新模型额度改写。
     if (!pendingRef.current && maxInputBytes !== undefined && new TextEncoder().encode(draft.trim()).length > maxInputBytes) return;
     if (
@@ -788,6 +797,75 @@ export function useChatSession(
     }
   }
 
+  async function regenerate(originalInvocationId?: string) {
+    if (requests.current.submit || pendingRef.current || !alive.current) return;
+    let snapshot = regenerationRef.current;
+    if (!snapshot) {
+      if (historyLoading || historyError || watched.current.length > 0 ||
+        Object.values(views.current).some(view => blocksConversation(view.status)) || !originalInvocationId ||
+        metadata.current.state !== 'ACTIVE') return;
+      snapshot = {
+        key: crypto.randomUUID(),
+        request: {
+          scope, originalInvocationId, expectedConversationVersion: metadata.current.version,
+          timeoutSeconds: settings.current.timeoutSeconds
+        },
+      };
+    }
+    regenerationRef.current = snapshot;
+    setPendingRegeneration(snapshot);
+    setSubmitting(true);
+    setSubmitError(null);
+    const controller = new AbortController();
+    requests.current.submit = controller;
+    try {
+      const {body} = await regenerateChat(snapshot.request, snapshot.key, {signal: controller.signal});
+      if (controller.signal.aborted || !alive.current) return;
+      regenerationRef.current = null;
+      setPendingRegeneration(null);
+      setInvocationId(body.data.executionId);
+      created.current = body.data.executionId;
+      watch([body.data.executionId]);
+      historyRevision.current++;
+      void loadBudget();
+      void loadHistory();
+    } catch (error) {
+      if (controller.signal.aborted || !alive.current) return;
+      setSubmitError(error);
+      if (error instanceof AiApiError && error.httpStatus >= 400 && error.httpStatus < 500 && error.httpStatus !== 408) {
+        regenerationRef.current = null;
+        setPendingRegeneration(null);
+        // 原参数固定；拒绝后重新读取会话和预算，不能自动改为新问题或新配置重发。
+        historyRevision.current++;
+        void loadHistory();
+        void loadBudget();
+      }
+    } finally {
+      if (!controller.signal.aborted && alive.current) {
+        requests.current.submit = null;
+        setSubmitting(false);
+      }
+    }
+  }
+
+  async function inspectCandidate(id: string) {
+    const controller = new AbortController();
+    requests.current.candidate?.abort();
+    requests.current.candidate = controller;
+    try {
+      const view = await readInvocation(id, controller.signal);
+      if (!controller.signal.aborted && alive.current) publish({[id]: view});
+    } catch (error) {
+      if (!controller.signal.aborted && alive.current) publish({[id]: {...views.current[id], error}});
+    }
+  }
+
+  async function refreshAfterReconciliation(id: string) {
+    invalidateInvocation(id);
+    historyRevision.current++;
+    await Promise.all([loadHistory(), loadBudget(), views.current[id] ? inspectCandidate(id) : Promise.resolve()]);
+  }
+
   async function stop(id: string) {
     if (requests.current.stop || stopRequested === id) return;
     const current = views.current[id]?.status;
@@ -861,6 +939,10 @@ export function useChatSession(
     submitting,
     submitError,
     pending,
+    pendingRegeneration,
+    regenerate,
+    inspectCandidate,
+    refreshAfterReconciliation,
     invocationId,
     watching,
     pollError,

@@ -67,7 +67,8 @@ public interface ExecutionStore {
     Mono<StoreOutcome<Attempt>> updateConditionally(ExecutionCommands.FailAttempt command);
 
     /**
-     * 不提供 save(finalSnapshot)：只有此边界可提交终态、结果引用、事件及 Outbox。
+     * 不提供 save(finalSnapshot)：普通 Worker 经此边界提交终态、结果引用、事件及 Outbox。
+     * 带证据的人工核对另经 ReconciliationStore 原子提交执行收敛、费用及审计。
      */
     Mono<StoreOutcome<Invocation>> commitCompletion(ExecutionCommands.Complete command);
 
