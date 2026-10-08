@@ -35,6 +35,7 @@
         <result column="daily_request_limit" property="dailyRequestLimit" jdbcType="INTEGER"/>
         <result column="concurrency_limit" property="concurrencyLimit" jdbcType="INTEGER"/>
         <result column="sort_order" property="sortOrder" jdbcType="INTEGER"/>
+        <result column="public_flag" property="publicFlag" jdbcType="BOOLEAN"/>
         <result column="default_flag" property="defaultFlag" jdbcType="BOOLEAN"/>
         <result column="status" property="status" jdbcType="VARCHAR"/>
         <result column="pin_flag" property="pinFlag" jdbcType="BOOLEAN"/>
@@ -56,7 +57,7 @@
     timeout_seconds, max_retries,
     requests_per_minute, tokens_per_minute,
     daily_request_limit, concurrency_limit,
-    sort_order, status, pin_flag, default_flag,
+    sort_order, status, pin_flag, default_flag, public_flag,
     create_by, update_by, create_time, update_time
     </sql>
 

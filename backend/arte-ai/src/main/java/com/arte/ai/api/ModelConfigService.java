@@ -65,6 +65,10 @@ public interface ModelConfigService extends IService<ModelConfigDto> {
     /**
      * 判断启用中的模型是否可供当前用户使用。
      */
+    ModelConfigDto getAccessibleModel(Integer id, String userName);
+
+    Boolean deleteModelConfig(Integer id);
+
     boolean isAccessibleModel(Integer id, String userName);
 
 }

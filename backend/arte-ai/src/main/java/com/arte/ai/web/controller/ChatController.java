@@ -61,6 +61,7 @@ public class ChatController extends AbstractStreamController {
     @PostMapping(value = "/streamChat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@RequestBody ChatRequestParam request, HttpServletResponse response) {
         log.debug("收到流式聊天请求, convId={}, model={}", request.getConvId(), request.getModelId());
+        request.setUserName(UserContext.getUserName());
         request.setGenerateType(GenerateTypeEnum.CHAT);
         return executeSseStream(backEndChatService.streamChat(request), response);
     }
@@ -75,6 +76,7 @@ public class ChatController extends AbstractStreamController {
     @AnonymousAccess
     @PostMapping(value = "/streamGenerate", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamGenerate(@RequestBody ChatRequestParam request, HttpServletResponse response) {
+        request.setUserName(UserContext.getUserName());
         Assert.notNull(request.getGenerateType(), MessageUtils.get("error.field.generateTypeRequired"));
         log.debug("收到流式生成请求, 类型={}", request.getGenerateType());
         return executeSseStream(backEndChatService.streamGenerate(request), response);
@@ -87,10 +89,7 @@ public class ChatController extends AbstractStreamController {
     @PostMapping(value = "/regenerate", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter regenerate(@RequestBody RegenerateRequestDto request, HttpServletResponse response) {
         log.debug("重新生成请求, messageId={}", request.getMessageId());
-        String userName = UserContext.getUserName();
-        if (!userName.isBlank()) {
-            request.setUserName(userName);
-        }
+        request.setUserName(UserContext.getUserName());
         return executeSseStream(backEndChatService.regenerate(request), response);
     }
 

@@ -87,6 +87,11 @@
             <artifactId>spring-ai-openai</artifactId>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Test 说明：test scope 是不会传递的，依赖模块应自行引入 -->
         <dependency>
             <groupId>junit</groupId>

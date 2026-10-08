@@ -12,8 +12,8 @@ import com.arte.ai.mapper.ModelConfigMapper;
 import com.arte.ai.pojo.model.ModelConfigDto;
 import com.arte.ai.pojo.model.ModelConfigParam;
 import com.arte.ai.pojo.model.ModelConfigPo;
+import com.arte.ai.pojo.model.ModelAccessGrant;
 import com.arte.core.cache.Cache;
-import com.arte.core.cache.CacheableDataSource;
 import com.arte.core.enums.StatusEnum;
 import com.arte.core.exception.BusinessException;
 import com.arte.core.pojo.PageView;
@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
+import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * AI 模型配置 Service 实现
@@ -45,15 +47,15 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
 
     @Resource(name = "defaultModelConfigCache")
     @Lazy
-    private CacheableDataSource<String, ModelConfigDto> defaultModelConfigDataSource;
-
-    @Resource(name = "defaultModelConfigCache")
-    @Lazy
     private Cache<String, ModelConfigDto> defaultModelConfigCache;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ModelConfigDto addModelConfig(ModelConfigDto dto) {
+        String userName = requireUserName();
+        dto.setCreateBy(userName);
+        dto.setCreateTime(LocalDateTime.now());
+        dto.setPublicFlag(Boolean.TRUE.equals(dto.getPublicFlag()));
         // 校验同 provider + modelId 是否已存在
         boolean exists = lambdaQuery()
                 .eq(ModelConfigDto::getProvider, dto.getProvider())
@@ -65,6 +67,7 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
         }
         dto.setIcon(dto.getProvider().getIcon());
         if (save(dto)) {
+            saveAccessGrants(dto);
             if (Boolean.TRUE.equals(dto.getDefaultFlag())) {
                 evictDefaultModelConfig(resolveUserName(dto.getCreateBy()));
             }
@@ -100,8 +103,17 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
             dto.setApiKey(existing.getApiKey());
         }
         dto.setCreateBy(existing.getCreateBy());
-        boolean updated = updateById(dto);
+        dto.setCreateTime(existing.getCreateTime());
+        dto.setUpdateBy(UserContext.getUserName());
+        dto.setUpdateTime(LocalDateTime.now());
+        boolean updated = update(dto, new QueryWrapper<ModelConfigDto>()
+                .eq("id", dto.getId()).eq("create_by", existing.getCreateBy()));
         if (updated) {
+            if (dto.getAllowedUsers() != null || dto.getAllowedRoles() != null) {
+                if (dto.getAllowedUsers() == null) dto.setAllowedUsers(existing.getAllowedUsers());
+                if (dto.getAllowedRoles() == null) dto.setAllowedRoles(existing.getAllowedRoles());
+                saveAccessGrants(dto);
+            }
             evictDefaultModelConfig(resolveUserName(existing.getCreateBy()));
         }
         return updated;
@@ -117,36 +129,77 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
         if (id == null || StrUtil.isBlank(userName)) {
             return null;
         }
-        return lambdaQuery()
+        ModelConfigDto model = lambdaQuery()
                 .eq(ModelConfigDto::getId, id)
                 .eq(ModelConfigDto::getCreateBy, userName)
                 .one();
+        if (model != null) loadAccessGrants(model);
+        return model;
     }
 
     @Override
     public boolean isAccessibleModel(Integer id, String userName) {
-        return id != null && StrUtil.isNotBlank(userName) && lambdaQuery()
-                .eq(ModelConfigDto::getId, id)
-                .eq(ModelConfigDto::getCreateBy, userName)
-                .eq(ModelConfigDto::getStatus, StatusEnum.DOING)
-                .exists();
+        return getAccessibleModel(id, userName) != null;
+    }
+
+    @Override
+    public ModelConfigDto getAccessibleModel(Integer id, String userName) {
+        if (id == null || StrUtil.isBlank(userName)) return null;
+        return getOne(ModelAccessQuery.accessible(userName, false).eq("id", id));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean deleteModelConfig(Integer id) {
+        String userName = requireUserName();
+        if (getOwnedModel(id, userName) == null) {
+            throw new BusinessException("error.ai.modelConfigNotAccessible");
+        }
+        boolean removed = remove(new QueryWrapper<ModelConfigDto>().eq("id", id).eq("create_by", userName));
+        if (removed) {
+            baseMapper.deleteAccessGrants(id);
+            evictDefaultModelConfig(userName);
+        }
+        return removed;
     }
 
     @Override
     public ModelConfigDto getDefaultModelConfig(String userName) {
-        if (StrUtil.isBlank(userName)) {
-            return null;
-        }
-        return defaultModelConfigDataSource.get(userName, this::loadDefaultModelConfig);
+        if (StrUtil.isBlank(userName)) return null;
+        // 每次实时解析，避免公共模型撤回、禁用或角色权限变化后继续使用缓存中的密钥。
+        ModelConfigDto owned = getOne(new QueryWrapper<ModelConfigDto>()
+                .eq("create_by", userName).eq("status", StatusEnum.DOING)
+                .orderByDesc("default_flag").orderByAsc("sort_order", "id").last("limit 1"));
+        if (owned != null) return owned;
+        if (count(new QueryWrapper<ModelConfigDto>().eq("create_by", userName)) > 0) return null;
+        return getOne(ModelAccessQuery.accessible(userName, false)
+                .eq("public_flag", true).orderByAsc("sort_order", "id").last("limit 1"));
     }
 
-    private ModelConfigDto loadDefaultModelConfig(String userName) {
-        // 查找当前登录用户默认模型
-        QueryWrapper<ModelConfigDto> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("create_by", userName)
-                .eq("default_flag", true)
-                .eq("status", StatusEnum.DOING);
-        return getOne(queryWrapper);
+    private String requireUserName() {
+        String userName = UserContext.getUserName();
+        if (StrUtil.isBlank(userName)) throw new BusinessException("error.ai.modelConfigNotAccessible");
+        return userName;
+    }
+
+    private void loadAccessGrants(ModelConfigDto model) {
+        var grants = baseMapper.selectAccessGrants(model.getId());
+        model.setAllowedUsers(grants.stream().filter(g -> "user".equals(g.getSubjectType()))
+                .map(ModelAccessGrant::getSubject).toList());
+        model.setAllowedRoles(grants.stream().filter(g -> "role".equals(g.getSubjectType()))
+                .map(ModelAccessGrant::getSubject).toList());
+    }
+
+    private void saveAccessGrants(ModelConfigDto model) {
+        baseMapper.deleteAccessGrants(model.getId());
+        insertAccessGrants(model.getId(), "user", model.getAllowedUsers());
+        insertAccessGrants(model.getId(), "role", model.getAllowedRoles());
+    }
+
+    private void insertAccessGrants(Integer id, String type, List<String> subjects) {
+        if (subjects == null) return;
+        subjects.stream().filter(StrUtil::isNotBlank).map(String::trim).distinct()
+                .forEach(subject -> baseMapper.insertAccessGrant(id, type, subject));
     }
 
     @Override
@@ -182,18 +235,18 @@ public class ModelConfigServiceImpl extends ServiceImpl<ModelConfigMapper, Model
     }
 
     private QueryWrapper<ModelConfigDto> buildQueryWrapper(ModelConfigParam param) {
-        QueryWrapper<ModelConfigDto> wrapper = new QueryWrapper<>();
+        QueryWrapper<ModelConfigDto> wrapper = ModelAccessQuery.accessible(UserContext.getUserName(), true);
         wrapper.eq(Objects.nonNull(param.getProvider()), ModelConfigPo.COL_PROVIDER, param.getProvider())
                 .eq(StrUtil.isNotBlank(param.getModelId()), ModelConfigPo.COL_MODEL_ID, param.getModelId())
                 .eq(StrUtil.isNotBlank(param.getModelType()), ModelConfigPo.COL_MODEL_TYPE, param.getModelType())
                 .eq(Objects.nonNull(param.getStatus()), ModelConfigPo.COL_STATUS, param.getStatus())
-                .eq(StrUtil.isNotBlank(param.getCreateBy()), ModelConfigPo.COL_CREATE_BY, param.getCreateBy().trim())
                 .like(StrUtil.isNotBlank(param.getModelName()), ModelConfigPo.COL_MODEL_NAME, "%" + param.getModelName() + "%")
                 .between(param.getStartDateTimeFloor() != null, ModelConfigPo.COL_UPDATE_TIME, param.getStartDateTimeFloor(), param.getStartDateTimeCeil())
                 .between(param.getEndDateTimeFloor() != null, ModelConfigPo.COL_UPDATE_TIME, param.getEndDateTimeFloor(), param.getEndDateTimeCeil());
         if (CollUtil.isNotEmpty(param.orders())) {
             param.orders().forEach(order -> wrapper.orderBy(true, order.isAsc(), order.getColumn()));
         }
+        wrapper.orderByAsc("sort_order", "id");
         return wrapper;
     }
 

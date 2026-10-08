@@ -115,7 +115,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
      * 只保存模型 ID，避免 Store 刷新后 activeModel
      * 仍然引用旧的 ModelConfig 对象。
      */
-    const [activeModelId, setActiveModelId] = useState<string>();
+    const [activeModelId, setActiveModelId] = useState<number>();
 
     /**
      * 保存最新的 onSelect，避免父组件每次渲染创建新函数时，
@@ -126,7 +126,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
     /**
      * 用于避免 React Strict Mode 下默认选择回调重复执行。
      */
-    const lastAutoSelectedModelIdRef = useRef<string | undefined>(undefined);
+    const lastAutoSelectedModelIdRef = useRef<number | undefined>(undefined);
 
     useEffect(() => {
       onSelectRef.current = onSelect;
@@ -161,7 +161,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
       }
 
       const currentModel = models.find(
-        (model) => model.modelId === activeModelId,
+        (model) => model.id === activeModelId,
       );
 
       if (currentModel && currentModel.status !== 3) {
@@ -169,36 +169,37 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
       }
 
       const defaultModel = models.find(
-        (model) => model.id === defaultModelId && model.status !== 3,
-      ) ?? models.find((model) => model.status !== 3);
+        (model) => model.id === defaultModelId && model.status === 1,
+      ) ?? models.find((model) => model.defaultFlag && model.status === 1)
+        ?? models.find((model) => model.status === 1);
 
       if (!defaultModel) {
         setActiveModelId(undefined);
         return;
       }
 
-      setActiveModelId(defaultModel.modelId);
+      setActiveModelId(defaultModel.id);
 
       if (
-        lastAutoSelectedModelIdRef.current !== defaultModel.modelId
+        lastAutoSelectedModelIdRef.current !== defaultModel.id
       ) {
-        lastAutoSelectedModelIdRef.current = defaultModel.modelId;
+        lastAutoSelectedModelIdRef.current = defaultModel.id;
         onSelectRef.current?.(defaultModel);
       }
     }, [activeModelId, defaultModelId, models]);
 
     const handleSelect = useCallback(
-      (modelId: string) => {
+      (modelId: number) => {
         const selectedModel = models.find(
-          (model) => model.modelId === modelId,
+          (model) => model.id === modelId,
         );
 
         if (!selectedModel) {
           return;
         }
 
-        setActiveModelId(selectedModel.modelId);
-        lastAutoSelectedModelIdRef.current = selectedModel.modelId;
+        setActiveModelId(selectedModel.id);
+        lastAutoSelectedModelIdRef.current = selectedModel.id;
         onSelectRef.current?.(selectedModel);
       },
       [models],
@@ -207,7 +208,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
     const options = useMemo(
       () =>
         models.map((model) => ({
-          value: model.modelId,
+          value: model.id,
           disabled: model.status === 3,
           label: (
             <div className={styles.optionRow}>
@@ -215,6 +216,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
                 <MyDynamicIcon iconName={model.icon || 'openai'} />
                 <span className={styles.optionName}>
                   {model.modelName}
+                  {model.publicFlag && ` · ${i18nText('app.ai.modelsharing.badge')} (${model.createBy})`}
                 </span>
               </div>
 
@@ -262,7 +264,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = memo(
 
     return (
       <Tooltip title={i18nText("app.ai.modelselector.2152358c")}>
-        <Select<string>
+        <Select<number>
           className={styles.selector}
           style={{ width }}
           loading={loading}

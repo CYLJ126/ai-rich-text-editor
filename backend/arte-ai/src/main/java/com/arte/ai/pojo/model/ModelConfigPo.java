@@ -162,6 +162,8 @@ public class ModelConfigPo extends BaseDto implements Serializable {
      * 是否默认模型
      */
     private Boolean defaultFlag;
+    /** 是否作为服务端公共模型提供给授权用户。 */
+    private Boolean publicFlag;
     /**
      * 描述
      */
@@ -198,6 +200,7 @@ public class ModelConfigPo extends BaseDto implements Serializable {
     public static final String COL_DAILY_REQUEST_LIMIT = "daily_request_limit";
     public static final String COL_CONCURRENCY_LIMIT = "concurrency_limit";
     public static final String COL_SORT_ORDER = "sort_order";
+    public static final String COL_PUBLIC_FLAG = "public_flag";
     public static final String COL_DEFAULT_FLAG = "default_flag";
     public static final String COL_DESCRIPTION = "description";
 }

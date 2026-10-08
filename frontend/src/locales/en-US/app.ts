@@ -1,4 +1,12 @@
 export default {
+  'app.ai.modelsharing.visibility': 'Visibility',
+  'app.ai.modelsharing.private': 'Private',
+  'app.ai.modelsharing.public': 'Public server model',
+  'app.ai.modelsharing.users': 'Allowed users',
+  'app.ai.modelsharing.roles': 'Allowed roles',
+  'app.ai.modelsharing.unrestricted': 'Leave both empty for all signed-in users; otherwise match any user or role',
+  'app.ai.modelsharing.badge': 'Public model',
+
   'app.common.search.placeholder': 'Search...',
   'app.common.noResults': 'No results',
   'app.common.create': 'Create',

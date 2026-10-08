@@ -4,7 +4,6 @@ import com.arte.core.i18n.MessageUtils;
 
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.arte.ai.api.ModelAdapter;
 import com.arte.ai.api.ModelConfigService;
@@ -25,6 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import org.springframework.beans.BeanUtils;
+import com.arte.ai.mapper.ModelConfigMapper;
 
 /**
  * AI 模型配置 Controller
@@ -44,6 +47,19 @@ public class ModelConfigController {
 
     @Resource
     private ModelCatalogService modelCatalogService;
+
+    @Resource
+    private ModelConfigMapper modelConfigMapper;
+
+    @PostMapping("/listAccessOptions")
+    @AnonymousAccess
+    public ResultContext<Map<String, List<Map<String, String>>>> listAccessOptions() {
+        if (StrUtil.isBlank(UserContext.getUserName())) {
+            throw new BusinessException("error.ai.modelConfigNotAccessible");
+        }
+        return ResultContext.success(Map.of("users", modelConfigMapper.selectAccessUsers(),
+                "roles", modelConfigMapper.selectAccessRoles()));
+    }
 
     /**
      * 新增模型配置
@@ -79,12 +95,7 @@ public class ModelConfigController {
     @AnonymousAccess
     public ResultContext<Boolean> deleteModelConfig(@RequestBody ModelConfigParam param) {
         Assert.notNull(param.getId(), MessageUtils.get("error.field.deleteModelConfigIdRequired"));
-        ModelConfigDto existing = getOwnedModel(param.getId());
-        boolean removed = modelConfigService.removeById(param.getId());
-        if (removed && existing != null) {
-            modelConfigService.evictDefaultModelConfig(existing.getCreateBy());
-        }
-        return ResultContext.success(removed);
+        return ResultContext.success(modelConfigService.deleteModelConfig(param.getId()));
     }
 
     /**
@@ -97,7 +108,7 @@ public class ModelConfigController {
         Assert.notNull(param.getId(), MessageUtils.get("error.field.defaultModelConfigIdRequired"));
         ModelConfigDto existing = getOwnedModel(param.getId());
         UpdateWrapper<ModelConfigDto> updateWrapper = new UpdateWrapper<>();
-        updateWrapper.eq("id", param.getId()).set(ModelConfigPo.COL_DEFAULT_FLAG, true);
+        updateWrapper.eq("id", param.getId()).eq(ModelConfigPo.COL_CREATE_BY, existing.getCreateBy()).set(ModelConfigPo.COL_DEFAULT_FLAG, true);
         boolean update = modelConfigService.update(updateWrapper);
         if (!update) {
             throw new BusinessException(MessageUtils.get("error.ai.modelSetDefaultFailed", param.getId()));
@@ -118,13 +129,15 @@ public class ModelConfigController {
     @AnonymousAccess
     public ResultContext<ModelConfigDto> getModelConfig(@RequestBody ModelConfigParam param) {
         if (Boolean.TRUE.equals(param.getDefaultFlag())) {
-            QueryWrapper<ModelConfigDto> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq(ModelConfigPo.COL_DEFAULT_FLAG, true);
-            queryWrapper.eq(ModelConfigPo.COL_CREATE_BY, UserContext.getUserName());
-            return ResultContext.success(maskApiKey(modelConfigService.getOne(queryWrapper)));
+            ModelConfigDto model = maskApiKey(modelConfigService.getDefaultModelConfig(UserContext.getUserName()));
+            if (model != null) model.setDefaultFlag(true);
+            return ResultContext.success(model);
         }
         Assert.notNull(param.getId(), MessageUtils.get("error.field.getModelConfigIdRequired"));
-        return ResultContext.success(maskApiKey(getOwnedModel(param.getId())));
+        ModelConfigDto model = modelConfigService.getOwnedModel(param.getId(), UserContext.getUserName());
+        if (model == null) model = modelConfigService.getAccessibleModel(param.getId(), UserContext.getUserName());
+        if (model == null) throw new BusinessException("error.ai.modelConfigNotAccessible");
+        return ResultContext.success(maskApiKey(model));
     }
 
     /**
@@ -133,10 +146,14 @@ public class ModelConfigController {
     @PostMapping("/listModelConfigs")
     @AnonymousAccess
     public PageView<ModelConfigDto> listModelConfigs(@RequestBody ModelConfigParam query) {
-        query.setCreateBy(UserContext.getUserName());
         PageView<ModelConfigDto> result = modelConfigService.listModelConfigs(query);
+        ModelConfigDto defaultModel = modelConfigService.getDefaultModelConfig(UserContext.getUserName());
         if (result.getRecords() != null) {
-            result.getRecords().forEach(this::maskApiKey);
+            result.setRecords(result.getRecords().stream().map(model -> {
+                ModelConfigDto view = maskApiKey(model);
+                view.setDefaultFlag(defaultModel != null && Objects.equals(defaultModel.getId(), model.getId()));
+                return view;
+            }).toList());
         }
         return result;
     }
@@ -209,10 +226,17 @@ public class ModelConfigController {
     }
 
     private ModelConfigDto maskApiKey(ModelConfigDto model) {
-        if (model != null) {
-            model.setMaskedApiKey(StrUtil.isBlank(model.getApiKey()) ? null : ModelConfigService.MASKED_API_KEY);
-            model.setApiKey(model.getMaskedApiKey());
+        if (model == null) return null;
+        ModelConfigDto view = new ModelConfigDto();
+        BeanUtils.copyProperties(model, view);
+        view.setManageable(StrUtil.isNotBlank(UserContext.getUserName())
+                && Objects.equals(model.getCreateBy(), UserContext.getUserName()));
+        if (!Boolean.TRUE.equals(view.getManageable())) {
+            view.setAllowedUsers(null);
+            view.setAllowedRoles(null);
         }
-        return model;
+        view.setMaskedApiKey(StrUtil.isBlank(model.getApiKey()) ? null : ModelConfigService.MASKED_API_KEY);
+        view.setApiKey(view.getMaskedApiKey());
+        return view;
     }
 }
