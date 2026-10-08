@@ -10,6 +10,7 @@ import lombok.experimental.Accessors;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * AI 模型配置实体 DTO
@@ -30,4 +31,14 @@ public class ModelConfigDto extends ModelConfigPo implements Serializable {
      */
     @TableField(exist = false)
     private String maskedApiKey;
+
+    @TableField(exist = false)
+    private List<String> allowedUsers;
+
+    @TableField(exist = false)
+    private List<String> allowedRoles;
+
+    /** 当前用户是否为创建者（只有创建者可管理配置）。 */
+    @TableField(exist = false)
+    private Boolean manageable;
 }

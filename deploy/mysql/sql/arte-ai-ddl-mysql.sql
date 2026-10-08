@@ -267,6 +267,7 @@ create table arte_ai_model_config
     pin_flag            tinyint(1) default 0  not null comment '是否置顶',
     sort_order          int     default 0 not null comment '排序权重',
     default_flag        tinyint(1) default 0  not null comment '是否默认模型：0-否；1-是；',
+    public_flag         tinyint(1) default 0 not null comment '是否服务端公共模型',
     description         varchar(512) null comment '描述',
     create_by           varchar(64) null comment '创建人',
     update_by           varchar(64) null comment '更新人',
@@ -286,6 +287,16 @@ create index idx_model_type
 create index idx_provider_type_status
     on arte_ai_model_config (provider, model_type, status);
 
+
+create table arte_ai_model_access
+(
+    model_config_id int not null,
+    subject_type varchar(8) not null comment 'user 或 role',
+    subject varchar(64) not null comment '用户名或角色编码',
+    primary key (model_config_id, subject_type, subject),
+    constraint fk_model_access_config foreign key (model_config_id)
+        references arte_ai_model_config (id) on delete cascade
+) comment '公共模型授权；无授权记录时所有登录用户可用';
 
 create table arte_ai_prompt_template
 (

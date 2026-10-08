@@ -13,6 +13,8 @@ import {GMCrypto} from "@/utils/crypto/gmCrypto";
 import {
   type AvailableModel,
   listAvailableModels,
+  listModelAccessOptions,
+  type ModelAccessOptions,
 } from '@/components/AI/ModelSider/modelService';
 
 const MASKED_API_KEY = '********';
@@ -41,6 +43,13 @@ const ModelEditForm = ({
 
   const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [accessOptions, setAccessOptions] = useState<ModelAccessOptions>({users: [], roles: []});
+
+  useEffect(() => {
+    listModelAccessOptions().then((options) => {
+      if (options) setAccessOptions(options);
+    }).catch((error) => console.error('加载模型授权选项失败：', error));
+  }, []);
 
   // 加载下拉选项数据
   useEffect(() => {
@@ -77,6 +86,39 @@ const ModelEditForm = ({
   }, [id, isEdit]);
 
   const fields: FormFieldConfig[] = [
+    {
+      fieldName: 'publicFlag',
+      fieldType: 'select',
+      label: i18nText('app.ai.modelsharing.visibility'),
+      defaultValue: false,
+      options: [
+        {label: i18nText('app.ai.modelsharing.private'), value: false},
+        {label: i18nText('app.ai.modelsharing.public'), value: true},
+      ],
+      fullWidth: true,
+    },
+    {
+      fieldName: 'allowedUsers',
+      fieldType: 'select',
+      label: i18nText('app.ai.modelsharing.users'),
+      placeholder: i18nText('app.ai.modelsharing.unrestricted'),
+      defaultValue: [],
+      options: accessOptions.users,
+      visibleFunction: (values) => values.publicFlag === true,
+      span: 12,
+      extraProps: {mode: 'multiple', showSearch: true, optionFilterProp: 'label'},
+    },
+    {
+      fieldName: 'allowedRoles',
+      fieldType: 'select',
+      label: i18nText('app.ai.modelsharing.roles'),
+      placeholder: i18nText('app.ai.modelsharing.unrestricted'),
+      defaultValue: [],
+      options: accessOptions.roles,
+      visibleFunction: (values) => values.publicFlag === true,
+      span: 12,
+      extraProps: {mode: 'multiple', showSearch: true, optionFilterProp: 'label'},
+    },
     {
       fieldName: 'provider',
       fieldType: 'select',
@@ -388,6 +430,8 @@ const ModelEditForm = ({
       );
       const submitData = {
         ...values,
+        allowedUsers: values.allowedUsers ?? initialValues.allowedUsers ?? [],
+        allowedRoles: values.allowedRoles ?? initialValues.allowedRoles ?? [],
         modelName:
           selectedModel?.modelName ||
           (values.modelId === initialValues.modelId

@@ -14,7 +14,6 @@ import com.arte.ai.pojo.chat.ChatRequestParam;
 import com.arte.ai.pojo.conversation.ConversationDto;
 import com.arte.ai.pojo.message.MessageDto;
 import com.arte.ai.pojo.model.ModelConfigDto;
-import com.arte.core.constant.CoreConstant;
 import com.arte.core.exception.ChatException;
 import com.arte.core.i18n.MessageUtils;
 import jakarta.annotation.Resource;
@@ -69,10 +68,7 @@ public class RequestParamHandler {
         }
         ModelConfigDto modelConfig = getModelConfig(chatRequestParam, conversation, assistant);
         ModelConfigDto defaultModelConfig = modelConfigService.getDefaultModelConfig(chatRequestParam.getUserName());
-        if (defaultModelConfig == null) {
-            // 当前用户未配置默认模型时，使用后台 system 用户的默认模型
-            defaultModelConfig = modelConfigService.getDefaultModelConfig(CoreConstant.SYSTEM_USER_NAME);
-        }
+        if (defaultModelConfig == null) defaultModelConfig = modelConfig;
         if (defaultModelConfig == null) {
             throw new ChatException(MessageUtils.get("error.ai.userDefaultModelNotSet", chatRequestParam.getUserName()));
         }
@@ -101,15 +97,11 @@ public class RequestParamHandler {
             throw new ChatException("error.ai.paramRequired");
         }
         validateMessageIds(chatRequestParam);
-        ModelConfigDto modelConfig = modelConfigService.getById(chatRequestParam.getModelId());
+        ModelConfigDto modelConfig = resolveModel(chatRequestParam.getModelId(), chatRequestParam.getUserName());
         if (modelConfig == null) {
             modelConfig = modelConfigService.getDefaultModelConfig(chatRequestParam.getUserName());
             if (modelConfig == null) {
-                // 当前用户未配置默认模型时，使用后台 system 用户的默认模型
-                modelConfig = modelConfigService.getDefaultModelConfig(CoreConstant.SYSTEM_USER_NAME);
-            }
-            if (modelConfig == null) {
-                // 后台 system 用户未配置默认模型时，抛出异常
+                // 当前用户没有可用的默认模型时，抛出异常
                 throw new ChatException("error.ai.defaultModelNotSet");
             }
         }
@@ -185,18 +177,24 @@ public class RequestParamHandler {
         }
     }
 
+    private ModelConfigDto resolveModel(Integer id, String userName) {
+        if (id == null) return null;
+        ModelConfigDto model = modelConfigService.getAccessibleModel(id, userName);
+        if (model == null) throw new ChatException("error.ai.modelConfigNotAccessible");
+        return model;
+    }
+
     private ModelConfigDto getModelConfig(ChatRequestParam chatRequestParam, ConversationDto conversation, AssistantDto assistant) {
         if (Objects.nonNull(chatRequestParam.getModelId())) {
-            return modelConfigService.getById(chatRequestParam.getModelId());
+            return resolveModel(chatRequestParam.getModelId(), chatRequestParam.getUserName());
         }
         if (Objects.nonNull(conversation.getModelId())) {
-            return modelConfigService.getById(conversation.getModelId());
+            return resolveModel(conversation.getModelId(), chatRequestParam.getUserName());
         }
         if (assistant != null && assistant.getModelId() != null) {
-            return modelConfigService.getById(assistant.getModelId());
+            return resolveModel(assistant.getModelId(), chatRequestParam.getUserName());
         }
 
-        // TODO 判断是否有权调用此模型（如是否挂在对应组织下）
         // TODO 判断是否超限，如 RPM、TPM 等
         // TODO 判断是否支持对应能力，如 supportVision、supportSearch 等
         return null;

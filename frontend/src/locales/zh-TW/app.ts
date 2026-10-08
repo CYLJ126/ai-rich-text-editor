@@ -1,4 +1,12 @@
 export default {
+  'app.ai.modelsharing.visibility': '可見範圍',
+  'app.ai.modelsharing.private': '僅自己可用',
+  'app.ai.modelsharing.public': '伺服器公共模型',
+  'app.ai.modelsharing.users': '授權使用者',
+  'app.ai.modelsharing.roles': '授權角色',
+  'app.ai.modelsharing.unrestricted': '均留空時所有登入使用者可用；否則符合任一使用者或角色',
+  'app.ai.modelsharing.badge': '公共模型',
+
   'app.common.search.placeholder': '搜尋...',
   'app.common.noResults': '暫無結果',
   'app.common.create': '建立',

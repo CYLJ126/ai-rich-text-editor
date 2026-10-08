@@ -23,3 +23,12 @@ export async function listAvailableModels(query: AvailableModelQuery) {
     AvailableModel[] | undefined
   >;
 }
+
+export interface ModelAccessOptions {
+  users: {label: string; value: string}[];
+  roles: {label: string; value: string}[];
+}
+
+export async function listModelAccessOptions() {
+  return jsonPost('/ai/modelConfig/listAccessOptions', {}) as Promise<ModelAccessOptions | undefined>;
+}

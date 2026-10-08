@@ -76,9 +76,21 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
 
     set({ loading: true, error: null });
 
-    pendingLoadPromise = listModelConfigs({})
-      .then((response) => {
-        const models = response?.records ?? [];
+    pendingLoadPromise = (async () => {
+      const models: ModelConfig[] = [];
+      let current = 1;
+      let total = 0;
+      do {
+        const response = await listModelConfigs({current, size: 100});
+        const records = response?.records ?? [];
+        models.push(...records);
+        total = response?.total ?? models.length;
+        if (records.length === 0) break;
+        current += 1;
+      } while (models.length < total);
+      return models;
+    })()
+      .then((models) => {
         set({ models, initialized: true, error: null });
         return models;
       })

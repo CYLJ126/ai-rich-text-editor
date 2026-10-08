@@ -41,6 +41,10 @@ export interface ModelConfig {
   dailyRequestLimit?: number; // 每日最大请求数
   concurrencyLimit?: number; // 并发请求数限制
   sortOrder?: number; // 排序
+  publicFlag?: boolean; // 是否服务端公共模型
+  allowedUsers?: string[]; // 授权用户名
+  allowedRoles?: string[]; // 授权角色编码
+  manageable?: boolean; // 当前用户是否为创建者
   defaultFlag?: boolean; // 是否默认模型
   description?: string; // 描述
   createBy?: string; // 创建人 ID

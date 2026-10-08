@@ -1,7 +1,7 @@
 import {i18nText} from '@/utils/i18n';
 import React, {useCallback, useState} from 'react';
 import {ModelConfig} from "@/types/ai.type";
-import {Button, message, Modal} from "antd";
+import {Button, Modal} from "antd";
 import {
   CheckOutlined,
   CloseOutlined,
@@ -54,7 +54,7 @@ function transferModelConfig(model: ModelConfig) {
 
 // ─── 模型侧边栏组件：编辑模型 ───
 const ModelSider: React.FC<ModelSiderProps> = () => {
-  const setModels = useModelsStore((state) => state.setModels);
+  const refreshModels = useModelsStore((state) => state.refreshModels);
   const [activeKey, setActiveKey] = useState<number | undefined>();
   const [formModalVisible, setFormModalVisible] = useState<boolean>(false);
   const formModalTitleRef = React.useRef<string>('');
@@ -63,6 +63,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
 
   // 模型操作按钮
   const getOperations = useCallback((model: ModelConfig) => {
+    if (!model.manageable) return [];
     const disabled = model.status === 3;
     const defaultOperation = [];
     if(!model.defaultFlag) {
@@ -73,7 +74,7 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         icon: <StarOutlined/>,
         onClick: (current: RightSiderItem) => setAsDefaultModelConfig(current.key as number).then(() => {
         rightSiderPanelRef.current?.refresh();
-        setDefaultModelConfig({...current, origin: {...current.origin, defaultFlag: true, id: current.key}});
+        void refreshModels();
       }),
       })
     }
@@ -99,14 +100,8 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         order: 3,
         icon: disabled ? <CheckOutlined/> : <CloseOutlined/>,
         onClick: (current: RightSiderItem) => toggleModelConfigStatus(current.key as number, disabled ? 1 : 3).then(() => {
-          rightSiderPanelRef.current?.setList((prev: RightSiderItem[]) => prev?.map((item) => {
-            if (item.key === current.key) {
-              const status = current.disabled ? 1 : 3;
-              item.origin.status = status;
-              return {...item, disabled: status === 3, operations: getOperations(item.origin)};
-            }
-            return item;
-          }));
+          rightSiderPanelRef.current?.refresh();
+          void refreshModels();
         }),
       },
       {
@@ -114,7 +109,8 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         label: i18nText("app.ai.modelsider.cc8fb513"),
         order: 4,
         icon: <EditOutlined/>,
-        onClick: () => {
+        onClick: (current: RightSiderItem) => {
+          setActiveKey(Number(current.key));
           formModalTitleRef.current = i18nText("app.ai.modelsider.0d4f4305");
           setFormModalVisible(true);
         },
@@ -128,23 +124,21 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
         icon: <DeleteOutlined/>,
         onClick: (current: RightSiderItem) => {
           deleteModelConfig(current.key as number).then(() => {
-            rightSiderPanelRef.current?.setList((prev: RightSiderItem[]) => {
-              const newList = prev?.filter((item) => item.key !== current.key);
-              setModels(newList.map((item) => item.origin));
-              return newList;
-            });
+            rightSiderPanelRef.current?.refresh();
+            void refreshModels();
           })
         },
       },
     ]
     return [...defaultOperation, ...restOperations];
-  }, [setModels, setFormModalVisible]);
+  }, [refreshModels, setFormModalVisible]);
 
   // 模型额外渲染内容
   const extraRender = (item: RightSiderItem) => (
     <span
       className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
       {(item as any).origin.provider || i18nText("app.ai.modelsider.896ba845")}
+      {(item as any).origin.publicFlag && ` · ${i18nText('app.ai.modelsharing.badge')} (${item.origin.createBy})`}
     </span>
   );
 
@@ -155,41 +149,30 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
       orders: [{column: 'sort_order', asc: true}, {column: 'update_time', asc: false}]
     });
     const records = res?.records || [];
-    if (records.length === 0) {
-      return {total: 0, current: res.current, size: res.size, records: []} satisfies LoadFuncResult;
-    }
+    const resolvedDefault = await getModelConfig(null, true);
     setActiveKey(undefined);
-    const models: RightSiderItem[] = [];
-    for (const model of records) {
-      let item: RightSiderItem = transferModelConfig(model);
-      item.extraRender = extraRender;
-      item.operations = getOperations(model) as RightSiderItemOption[];
-
-      if (!model.defaultFlag) {
-        models.push(item);
-      } else {
-        setDefaultModelConfig(item);
-      }
+    let defaultItem: RightSiderItem | undefined;
+    if (resolvedDefault) {
+      defaultItem = transferModelConfig(resolvedDefault);
+      defaultItem.extraRender = extraRender;
+      defaultItem.operations = getOperations(resolvedDefault) as RightSiderItemOption[];
     }
-    if (!defaultModelConfig) {
-      getModelConfig(null, true).then(res => {
-        if(res) {
-          let item = transferModelConfig(res);
-          item.extraRender = extraRender;
-          item.operations = getOperations(res) as RightSiderItemOption[];
-          setDefaultModelConfig(item);
-        } else {
-          message.warning(i18nText("app.ai.modelsider.d91788c0"));
-        }
-      })
-    }
+    setDefaultModelConfig(defaultItem);
+    const models: RightSiderItem[] = records
+      .filter((model: ModelConfig) => model.id !== resolvedDefault?.id)
+      .map((model: ModelConfig) => {
+        const item = transferModelConfig(model);
+        item.extraRender = extraRender;
+        item.operations = getOperations(model) as RightSiderItemOption[];
+        return item;
+      });
     return {
       total: res.total,
       current: res.current,
       size: res.size,
       records: models,
     } satisfies LoadFuncResult;
-  }, [defaultModelConfig, getOperations, setDefaultModelConfig]);
+  }, [getOperations]);
 
   // 添加模型
   const addModel = useCallback(() => {
@@ -240,9 +223,8 @@ const ModelSider: React.FC<ModelSiderProps> = () => {
             id={activeKey}
             onSuccess={() => {
               setFormModalVisible(false);
-              rightSiderPanelRef.current?.refresh().then(() => {
-                setModels([...rightSiderPanelRef.current?.getList()]);
-              });
+              rightSiderPanelRef.current?.refresh();
+              void refreshModels();
             }}
             onCancel={() => setFormModalVisible(false)}
           />
