@@ -193,7 +193,7 @@ public class AdmissionIntegrationTest {
         var elevated = new EntryRequests.Chat(original.conversationId(), 0, null, null, selection, original.capability(), original.binding(),
                 original.generationOptions(), original.options());
         code(ResultCodeEnum.AI_ONLY_SINGLE_USER_TEXT_SUPPORTED, () -> first.chat.submit(elevated, current).block());
-        code(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED, () -> first.chat.regenerate(new EntryRequests.Regenerate("id", 0, original.options()), current).block());
+        code(ResultCodeEnum.AI_NOT_FOUND, () -> first.chat.regenerate(new EntryRequests.Regenerate("id", 0, original.options()), current).block());
         assertEquals(0, count("arte_ai_invocation"));
     }
 

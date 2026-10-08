@@ -140,7 +140,7 @@ final class AdmissionFixture {
         contexts = new TextContextService(authorization, catalog, payloads, properties, clock,
                 new ChatHistoryLoader(conversations, authorization, executions, payloads, payloads));
         coordinator = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
-        chat = new DefaultChatService(authorization, conversations, catalog, contexts, coordinator, clock);
+        chat = new DefaultChatService(authorization, conversations, catalog, contexts, coordinator, clock, executions, executions, properties);
     }
 
     ExecutionContext context(String name, String key) {

@@ -25,6 +25,11 @@ public interface ChatService {
 
     /**
      * 校验原调用及会话归属，复用固定 Turn；重建／重新授权上下文，新建 Invocation 并关联原调用。
+     * <p>
+     * 同一个 Turn
+     * ├─ 原 Invocation A → Attempt 1 → 原回答
+     * └─ 新 Invocation B → Attempt 1 → 新回答
+     *                      B.replacesInvocationId = A
      */
     Mono<AcceptedExecution> regenerate(EntryRequests.Regenerate request, ExecutionContext context);
 }

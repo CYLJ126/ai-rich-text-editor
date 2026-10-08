@@ -75,6 +75,20 @@ public class NewAiChatController {
                         ResultCodeEnum.SUCCESS, locale));
     }
 
+    @PostMapping("/regenerate")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public Mono<ResultContext<com.arte.ainew.common.execution.AcceptedExecution>> regenerate(
+            @Valid @RequestBody ChatRequests.Regenerate request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey, Locale locale) {
+        var timeout = Duration.ofSeconds(request.timeoutSeconds());
+        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE,
+                        AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), timeout, null, idempotencyKey)
+                .flatMap(context -> chatService.regenerate(new EntryRequests.Regenerate(request.originalInvocationId(),
+                        request.expectedConversationVersion(), new ExecutionOptions(context.deadline(), 1,
+                        properties.limits().maxOutputBytes(), 0, 0, timeout)), context))
+                .map(accepted -> ResultContext.success(accepted, ResultCodeEnum.SUCCESS, locale));
+    }
+
     /**
      * 组装聊天请求，各参数的职责及所在对象如下：
      * <ul>

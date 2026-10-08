@@ -492,7 +492,7 @@ public class MybatisExecutionPersistenceTest {
         var replacement = new Invocation(another.request(), another.requestDigest(), another.conversation(), null, "original", another.state(),
                 0, null, null, null, another.acceptedAt(), another.updatedAt());
         var regenerated = new Turn(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(), turn.supersedesTurnId(),
-                turn.userMessage(), List.of("original", "replacement"), null, 1, turn.createdAt(), Instant.now());
+                turn.userMessage(), List.of("original", "replacement"), "original", 1, turn.createdAt(), Instant.now());
         assertEquals(APPLIED, second.accept(new Accept(replacement, regenerated)).block().code());
         assertEquals(2, first.findConversation(OWNER, "conversation").block().version());
         assertEquals(regenerated, first.findTurn(OWNER, "conversation", "turn").block());

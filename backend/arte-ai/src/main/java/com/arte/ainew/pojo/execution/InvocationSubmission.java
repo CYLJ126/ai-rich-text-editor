@@ -18,13 +18,13 @@ import java.util.Objects;
  *                             受理服务进一步校验快照容量、摘要和有效期，并保存快照字节；传入快照不代表已经持久化。
  * @param conversation         可选的会话关联，包含会话 ID、期望会话版本和轮次 ID；独立调用不关联会话时传 null。
  *                             会话归属、版本及活跃调用由服务和存储校验，传入引用本身不授予会话访问权限。
- *                             newTurn 或 replacesInvocationId 非 null 时必须提供此关联；当前受理实现关联会话时要求提供 newTurn。
- * @param newTurn              可选的待创建轮次；普通聊天提交通过它保存用户输入及本次调用关联，独立调用可传 null。
- *                             非 null 时，其会话 ID 和轮次 ID 必须与 conversation 一致，且 replacesInvocationId 必须为 null。
- *                             当前受理实现还校验输入、调用关联及初始版本等事实，轮次与调用在受理事务中一并提交。
+ *                             newTurn 或 replacesInvocationId 非 null 时必须提供此关联；关联会话时要求提供待保存的 newTurn。
+ * @param newTurn              可选的待保存轮次；普通提交为新轮次，重新生成为原轮次追加候选后的快照；独立调用可传 null。
+ *                             非 null 时，其会话 ID 和轮次 ID 必须与 conversation 一致，原调用归属及候选追加由存储检查。
+ *                             当前受理实现还校验输入、调用关联及初始版本等事实，新轮次或候选追加与调用在受理事务中一并提交。
  * @param replacesInvocationId 可选的重新生成来源调用 ID，普通提交传 null；非 null 值须符合 ID 约束，不能等于本次 executionId。
- *                             重新生成关联原会话轮次，不通过 newTurn 创建新轮次；原调用归属及可重新生成条件仍须由服务校验。
- *                             当前受理实现尚不支持重新生成，非 null 会被明确拒绝，不会覆盖原调用或自动重试模型请求。
+ *                             重新生成关联原会话轮次，newTurn 携带追加候选后的同一轮次；原调用归属及可重新生成条件仍须由服务校验。
+ *                             重新生成保持原调用及输入不变，由存储检查最新轮次和原调用的归属、终态。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 13:09 ✾
  */
@@ -48,7 +48,6 @@ public record InvocationSubmission<I extends CapabilityInput>(InvocationRequest<
             Objects.requireNonNull(conversation, "conversation");
             ContractChecks.require(newTurn.turnId().equals(conversation.turnId())
                     && newTurn.conversationId().equals(conversation.conversationId()), "Turn link mismatch");
-            ContractChecks.require(replacesInvocationId == null, "Regeneration must reuse existing turn");
         }
         ContractChecks.require(replacesInvocationId == null || conversation != null,
                 "Regeneration requires existing conversation turn");

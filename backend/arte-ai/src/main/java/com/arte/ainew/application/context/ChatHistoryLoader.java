@@ -142,15 +142,20 @@ public final class ChatHistoryLoader {
                     // 新会话版本为零，尚未受理任何轮次，直接返回空历史且不创建历史选择记录。
                     if (conversation.version() == 0) return Mono.just(new Loaded(List.of(), null));
                     return admissionAuthorization.require(executionContext, AdmissionAuthorization.READ).flatMap(currentContext -> {
-                        // sequence 等于受理后的会话版本；至多读取两页以覆盖最近 maxTurns 轮。
-                        long last = (conversation.version() - 1) / selection.maxTurns() + 1;
-                        var pages = last == 1 ? List.of(last) : List.of(last - 1, last);
-                        return Flux.fromIterable(pages).concatMap(page -> {
-                            var pagination = new PageParam();
-                            pagination.setCurrent(page);
-                            pagination.setSize((long) selection.maxTurns());
-                            // 每页读取都校验当前主体的会话权限、归属和固定版本；读取期间版本变化会明确冲突。
-                            return conversationService.turns(conversation.conversationId(), conversation.version(), pagination, currentContext);
+                        var firstPage = new PageParam();
+                        firstPage.setCurrent(1L);
+                        firstPage.setSize((long) selection.maxTurns());
+                        return conversationService.turns(conversation.conversationId(), conversation.version(), firstPage, currentContext)
+                                .flatMapMany(first -> {
+                                    long last = Math.max(1, (first.total() + selection.maxTurns() - 1) / selection.maxTurns());
+                                    var pages = last == 1 ? List.of(1L) : List.of(last - 1, last);
+                                    return Flux.fromIterable(pages).concatMap(page -> {
+                                        if (page == 1) return Mono.just(first);
+                                        var pagination = new PageParam();
+                                        pagination.setCurrent(page);
+                                        pagination.setSize((long) selection.maxTurns());
+                                        return conversationService.turns(conversation.conversationId(), conversation.version(), pagination, currentContext);
+                                    });
                         }).flatMapIterable(ConversationPage::records).collectList().flatMap(turns -> {
                             var recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
                                     .skip(Math.max(0, turns.size() - selection.maxTurns())).toList();

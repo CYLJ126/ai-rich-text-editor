@@ -98,3 +98,38 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
   '-Dtest=ChatHttpIntegrationTest,ConversationHttpIntegrationTest' \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
+
+## 重新生成最新一轮
+
+```http
+POST /ai-new/chat/regenerate
+Idempotency-Key: <本次重新生成的新键>
+Content-Type: application/json
+```
+
+```json
+{
+  "scope": {"tenantId": "example-tenant", "workspaceId": "example-workspace"},
+  "originalInvocationId": "<最新一轮的来源调用 ID>",
+  "expectedConversationVersion": 3,
+  "timeoutSeconds": 60
+}
+```
+
+返回 HTTP 202／ResultContext，data 为 `{"executionId":"<新调用 ID>","kind":"INVOCATION","acceptedAt":"..."}`。
+源调用须归属当前主体及最新 Turn，并已进入已知终态，或是具有耐久取消标记的用户停止生成 UNKNOWN。 普通 UNKNOWN
+先通过 [费用及执行人工核对](BUDGET_HTTP_API.md) 收敛。活跃调用、旧轮次、旧会话版本、跨主体请求会明确拒绝。
+受理事务在会话锁下再次验证条件，不能靠先查后写绕过门闩。
+
+新调用复用来源调用保存的实际输入快照、模型及能力固定版本、生成参数、预算账户和发布引用；仍重新校验当前权限、配置、容量及预算资格。
+不向原上下文追加来源回复，不重读最新历史替代原输入，不覆盖原 Invocation，也不自动重发原调用。 输入快照分配新 ID
+和有效期；新的截止时间属于新的独立执行。每次主动重新生成使用新键，网络重试必须保持原来源、版本、超时及键。
+同键重放在会话版本及门闩检查之前返回原回执，后续消息不会改变重放语义。
+
+同一个 Turn 的 invocationIds 追加新候选（最多 256 个，达到上限仍可重放已有操作），不新增或重写用户问题。受理时保留原答案选择；新候选完整成功后才选择它，失败／停止时保留此前完整答案。
+选择成功候选同时推进会话版本，防止并发提交使用切换答案前的历史。会话版本、Turn.sequence 和 Turn.version 各自独立： 新问题才增加
+sequence；重新生成受理与成功答案选择会推进会话版本。历史分页及最近十轮选择以实际 Turn 数量为准。
+
+新调用通过相同 Dispatcher/SSE/取消链路运行，独立预留与结算费用；旧调用待对账金额不会转移或清零。
+页面只在最新轮次显示“重新生成”，可查看各候选回复，标出用于后续聊天的完整答案。
+`RegenerationReconciliationIntegrationTest` 验证独立调用、双实例重放、来源隔离、上下文固定、停止后的原答案保留、费用隔离及超过十轮的序号／分页。

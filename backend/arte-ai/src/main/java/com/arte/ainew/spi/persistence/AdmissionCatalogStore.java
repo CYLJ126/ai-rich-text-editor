@@ -36,6 +36,11 @@ public interface AdmissionCatalogStore {
     Mono<StoreOutcome<ConversationPage<Turn>>> listTurns(ExecutionOwner owner, String conversationId,
                                                          long expectedVersion, long current, long size);
 
+    /**
+     * 只读最大序号，不作会话版本 CAS；受理事务重新验证版本和序号，不能提前破坏幂等重放。
+     */
+    Mono<Long> nextTurnSequence(ExecutionOwner owner, String conversationId);
+
     Mono<Turn> findTurn(ExecutionOwner owner, String conversationId, String turnId);
 
     /**

@@ -16,6 +16,12 @@ public final class ChatRequests {
     private ChatRequests() {
     }
 
+    public record Regenerate(@NotNull @Valid ConversationRequests.Scope scope,
+                             @NotBlank @Size(max = 256) String originalInvocationId,
+                             @NotNull @Min(0) @Max(Long.MAX_VALUE - 1) Long expectedConversationVersion,
+                             @NotNull @Min(1) @Max(3600) Long timeoutSeconds) {
+    }
+
     public record Submit(@NotNull @Valid ConversationRequests.Scope scope,
                          @NotBlank @Size(max = 256) String conversationId,
                          @NotNull @Min(0) @Max(Long.MAX_VALUE - 1) Long expectedVersion,

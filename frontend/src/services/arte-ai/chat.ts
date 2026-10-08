@@ -14,3 +14,8 @@ export function turnsForChat(
     requireIdempotencyKey(idempotencyKey),
   );
 }
+
+/** 独立的新调用；固定原问题、模型参数、预算和原上下文。 */
+export function regenerateChat(data: import('./types').RegenerateChatRequest, idempotencyKey: string, options?: AiRequestOptions) {
+  return postResult<import('./types').RegenerateAcceptedResponse>('chat/regenerate', data, options, requireIdempotencyKey(idempotencyKey));
+}

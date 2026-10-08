@@ -147,7 +147,7 @@ public class DispatchIntegrationTest {
                     new DeepSeekGenerationProviderAdapter(properties.capabilities(), GenerationJson.mapper(65536)),
                     new ChatCompletionsSseProtocolAdapter<>(GenerationJson.mapper(65536), generation), clock);
             coordinator = coordinator(budgetFault());
-            chat = new DefaultChatService(authorization, fixture.conversations, fixture.catalog, fixture.contexts, coordinator, clock);
+            chat = new DefaultChatService(authorization, fixture.conversations, fixture.catalog, fixture.contexts, coordinator, clock, fixture.executions, fixture.executions, fixture.properties);
             control = new DefaultExecutionControl(authorization, fixture.executions, coordinator);
             reading = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads);
             worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
@@ -678,4 +678,41 @@ public class DispatchIntegrationTest {
             assertEquals(1, rig.jdbc.queryForObject("SELECT delivered FROM arte_ai_outbox WHERE kind='DISPATCH'", Integer.class).intValue());
         }
     }
+
+    @Test
+    public void regenerationStreamsAsAnIndependentCallAndBillsBothReplies() throws Exception {
+        try (var rig = new Rig()) {
+            var conversation = rig.conversation();
+            var original = rig.submit(conversation, "original");
+            rig.worker.pollOnce().block(WAIT);
+            var originalSnapshot = rig.invocation(original);
+            var context = rig.fixture.context("alice", "regenerate");
+            var regenerate = new com.arte.ainew.pojo.entry.EntryRequests.Regenerate(original.executionId(), 1,
+                    rig.fixture.chatRequest(conversation.conversationId(), 1, "unused", context).options());
+            var accepted = rig.chat.regenerate(regenerate, context).block(WAIT);
+            rig.body = chunk("new complete reply", "stop", USAGE) + "data: [DONE]\n\n";
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+            assertEquals(originalSnapshot, rig.invocation(original));
+            assertEquals(2, rig.requests.get());
+            var json = GenerationJson.mapper(65536);
+            assertEquals(json.readTree(rig.requestBodies.get(0)).path("messages"), json.readTree(rig.requestBodies.get(1)).path("messages"));
+            assertEquals(0, rig.account().held().amount().signum());
+            assertEquals(0, rig.account().charged().amount().compareTo(new BigDecimal("0.000014")));
+            var owner = AdmissionFixture.owner("alice-id");
+            var turn = rig.fixture.executions.findTurn(owner, conversation.conversationId(), originalSnapshot.conversation().turnId()).block(WAIT);
+            assertEquals(List.of(original.executionId(), accepted.executionId()), turn.invocationIds());
+            assertEquals(accepted.executionId(), turn.selectedInvocationId());
+            var current = rig.fixture.conversations.find(conversation.conversationId(), rig.fixture.context("alice", "read")).block(WAIT);
+            var nextContext = rig.fixture.context("alice", "next");
+            var next = rig.chat.submit(rig.fixture.chatRequest(current.conversationId(), current.version(), "next question", nextContext), nextContext).block(WAIT);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(next).state());
+            var messages = json.readTree(rig.requestBodies.get(2)).path("messages");
+            assertEquals(3, messages.size());
+            assertEquals("new complete reply", messages.get(1).path("content").asString());
+            assertEquals(2, rig.fixture.executions.findTurn(owner, current.conversationId(), rig.invocation(next).conversation().turnId()).block(WAIT).sequence());
+        }
+    }
+
 }

@@ -84,11 +84,11 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
         if (request.input().options().maxOutputTokens() > snapshot.budget().reservedOutputTokens()) {
             throw new AdmissionException(ResultCodeEnum.AI_OUTPUT_RESERVATION_EXCEEDED);
         }
-        if (submission.replacesInvocationId() != null || (submission.conversation() != null && submission.newTurn() == null)) {
+        if (submission.conversation() != null && submission.newTurn() == null) {
             throw new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED);
         }
         var turn = submission.newTurn();
-        if (turn != null && (turn.parentTurnId() != null || turn.supersedesTurnId() != null
+        if (turn != null && submission.replacesInvocationId() == null && (turn.parentTurnId() != null || turn.supersedesTurnId() != null
                 || turn.version() != 0 || turn.selectedInvocationId() != null
                 || !turn.invocationIds().equals(List.of(request.context().executionId()))
                 || !TextInputs.contentDigest(List.of(turn.userMessage())).equals(TextInputs.contentDigest(List.of(snapshot.messages().getLast()))))) {
@@ -130,7 +130,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                 if (!saved.successful()) {
                                     throw AdmissionException.fromStoreRejection(saved.code());
                                 }
-                                var candidate = new Invocation(request, digest, submission.conversation(), saved.value().snapshotId(), null,
+                                var candidate = new Invocation(request, digest, submission.conversation(), saved.value().snapshotId(), submission.replacesInvocationId(),
                                         Invocation.State.ACCEPTED, 0, null, null, null, now, now);
                                 return executionStore.accept(new ExecutionCommands.Accept(candidate, turn));
                             })
