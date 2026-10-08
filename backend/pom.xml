@@ -65,6 +65,18 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- 各模块统一使用 Log4j2，防止其他 starter 传递引入 Logback 和 log4j-to-slf4j。 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>${spring-boot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter-logging</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
             <dependency>
                 <groupId>tools.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
