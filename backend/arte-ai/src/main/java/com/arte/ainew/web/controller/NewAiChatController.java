@@ -6,6 +6,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
@@ -19,6 +20,8 @@ import com.arte.ainew.web.response.ChatAcceptedResponse;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -43,13 +46,27 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
 public class NewAiChatController {
 
+    private final NewAiExecutionProperties executionProperties;
     private final ChatService chatService;
     private final BindingManager bindingManager;
     private final NewAiHttpContext httpContext;
     private final NewAiProperties properties;
 
+    private int maxAttempts() {
+        return executionProperties == null ? 1 : executionProperties.retry().maxAttempts();
+    }
+
+
     public NewAiChatController(ChatService chatService, BindingManager bindingManager,
                                NewAiHttpContext httpContext, NewAiProperties properties) {
+        this(chatService, bindingManager, httpContext, properties, null);
+    }
+
+    @Autowired
+    public NewAiChatController(ChatService chatService, BindingManager bindingManager, NewAiHttpContext httpContext,
+                               NewAiProperties properties,
+                               ObjectProvider<NewAiExecutionProperties> executionProperties) {
+        this.executionProperties = executionProperties == null ? null : executionProperties.getIfAvailable();
         this.chatService = chatService;
         this.bindingManager = bindingManager;
         this.httpContext = httpContext;
@@ -84,7 +101,7 @@ public class NewAiChatController {
         return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE,
                         AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), timeout, null, idempotencyKey)
                 .flatMap(context -> chatService.regenerate(new EntryRequests.Regenerate(request.originalInvocationId(),
-                        request.expectedConversationVersion(), new ExecutionOptions(context.deadline(), 1,
+                        request.expectedConversationVersion(), new ExecutionOptions(context.deadline(), maxAttempts(),
                         properties.limits().maxOutputBytes(), 0, 0, timeout)), context))
                 .map(accepted -> ResultContext.success(accepted, ResultCodeEnum.SUCCESS, locale));
     }
@@ -122,6 +139,6 @@ public class NewAiChatController {
         // 聊天请求
         return new EntryRequests.Chat(request.conversationId(), request.expectedVersion(), null, null, selection,
                 request.capability(), request.binding(), request.generationOptions(),
-                new ExecutionOptions(context.deadline(), 1, properties.limits().maxOutputBytes(), 0, 0, timeout));
+                new ExecutionOptions(context.deadline(), maxAttempts(), properties.limits().maxOutputBytes(), 0, 0, timeout));
     }
 }

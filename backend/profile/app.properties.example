@@ -220,3 +220,18 @@ arte.ai-new-execution.reservation-retention=1d
 arte.ai-new-events.transport=local
 arte.ai-new-events.channel=arte:ai-new:events:v1
 arte.ai-new-events.publish-timeout=3s
+
+# Shared dispatch limits and safe retry (max-attempts includes the first attempt).
+arte.ai-new-execution.dispatch-limits.enabled=true
+arte.ai-new-execution.dispatch-limits.global-concurrency=16
+arte.ai-new-execution.dispatch-limits.tenant-concurrency=8
+arte.ai-new-execution.dispatch-limits.user-concurrency=2
+arte.ai-new-execution.dispatch-limits.model-concurrency=8
+arte.ai-new-execution.dispatch-limits.global-requests=120
+arte.ai-new-execution.dispatch-limits.tenant-requests=60
+arte.ai-new-execution.dispatch-limits.user-requests=20
+arte.ai-new-execution.dispatch-limits.model-requests=60
+arte.ai-new-execution.dispatch-limits.window=1m
+arte.ai-new-execution.retry.max-attempts=3
+arte.ai-new-execution.retry.initial-backoff=1s
+arte.ai-new-execution.retry.max-backoff=10s

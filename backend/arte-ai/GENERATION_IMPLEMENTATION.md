@@ -39,7 +39,8 @@
 - `stop` 且有有效文本时 `complete=true`；`length`、`content_filter` 或未识别的结束原因返回 `complete=false` 的结果，后续由 Coordinator 决定 Invocation 终态。
 - 缺少供应商用量时保留 `Usage.UNKNOWN`；不通过文本估算或补零冒充计费用量。部分用量字段保持 null，已报告零值保持零；校验总数和一致性。
 - 断流、超时、显式本地取消及非法后续响应返回安全 Failure，保留已经聚合的部分文本与已知用量。远端可能执行时使用 `POSSIBLE／UNKNOWN`，不因连接关闭推断零费用或允许重发。
-- HTTP 明确拒绝和其他供应商故障分别分类；`retryable` 只是事实描述，本实现不重试。错误对象不包含请求、响应正文、API Key 或底层异常消息。
+- HTTP 明确拒绝和其他供应商故障分别分类；`retryable` 只是事实描述，Gateway 自身不重试；GenerationDispatcher
+  只对已知无副作用且没有输出的瞬时失败创建新 Attempt。错误对象不包含请求、响应正文、API Key 或底层异常消息。
 
 绝对期限不会因增量到达而重置。运行取消、超时和下游取消都会取消 HTTP 订阅并释放实例内借用；取消订阅本身不修改耐久取消记录，也不保证供应商停止计费。
 

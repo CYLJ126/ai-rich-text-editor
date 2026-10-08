@@ -848,6 +848,11 @@ public class InvocationHttpIntegrationTest {
         var position = new AtomicInteger();
         ExecutionOutboxStore batches = new ExecutionOutboxStore() {
             @Override
+            public Mono<StoreOutcome<OutboxMessage>> defer(OutboxMessage message, Duration delay) {
+                return Mono.error(new UnsupportedOperationException("Event batches do not defer dispatch"));
+            }
+
+            @Override
             public Mono<List<OutboxMessage>> claim(OutboxMessage.Kind kind, String worker, Duration lease, int limit) {
                 int start = position.getAndAdd(limit);
                 return Mono.just(java.util.stream.IntStream.range(start, Math.min(start + limit, 130))

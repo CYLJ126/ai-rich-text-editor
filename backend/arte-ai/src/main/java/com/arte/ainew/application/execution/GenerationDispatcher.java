@@ -38,7 +38,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * 一次 Attempt 的耐久生成处理。只重试数据库 CAS，不重试模型交互。
+ * 一次 Attempt 的耐久生成处理
+ * <p>
+ * 只对已证明未执行的瞬时失败创建新的 Attempt；结果未知时禁止重发。
  * 长交互续租与输出提交均读取新 Guard；失去归属即停止，过期执行由数据库原子停止。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -116,14 +118,40 @@ public final class GenerationDispatcher {
                             return settle(invocation);
                         }
                         if (invocation.activeAttemptId() != null) {
-                            log.info("AI dispatch checks existing attempt, invocationId={}, traceId={}, state={}, attemptId={}",
-                                    message.invocationId(), runtime.execution().traceId(), invocation.state(), invocation.activeAttemptId());
-                            // 活跃租约不可接管；过期且可能发送的执行只收敛 UNKNOWN，绝不重发。
-                            return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied)
-                                    .doOnNext(stopped -> log.warn("AI expired attempt stopped, invocationId={}, traceId={}, attemptId={}, previousState={}, state={}, code={}",
-                                            message.invocationId(), runtime.execution().traceId(), stopped.activeAttemptId(), invocation.state(),
-                                            stopped.state(), stopped.error() == null ? null : stopped.error().code()))
-                                    .flatMap(this::settle);
+                            return executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
+                                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                                    .flatMap(attempt -> {
+                                        if (invocation.state() == Invocation.State.QUEUED) {
+                                            return settle(invocation).then(Mono.defer(() -> {
+                                                if (!clock.instant().isBefore(invocation.request().options().deadline())) {
+                                                    return rejectBeforeAttempt(invocation, new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+                                                }
+
+                                                if (attempt.attemptNumber() >= newAiExecutionProperties.retry().maxAttempts()) {
+                                                    return rejectBeforeAttempt(invocation, new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED));
+                                                }
+                                                return executionStore.retryNotBefore(message.owner(), message.invocationId(), attempt.attemptId())
+                                                        .defaultIfEmpty(attempt.updatedAt().plus(newAiExecutionProperties.retry().delay(attempt.attemptId(), attempt.attemptNumber())))
+                                                        .flatMap(due -> clock.instant().isBefore(due)
+                                                                ? deferred(invocation, Duration.between(clock.instant(), due))
+                                                                : start(invocation, message, runtime, timing));
+                                            }));
+                                        }
+                                        if (attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
+                                                && attempt.attemptNumber() < Math.min(invocation.request().options().maxAttempts(), newAiExecutionProperties.retry().maxAttempts())
+                                                && clock.instant().isBefore(invocation.request().options().deadline())) {
+                                            return executionStore.queueExpiredRetry(version(invocation), newAiExecutionProperties.retry().delay(attempt.attemptId(), attempt.attemptNumber())).flatMap(outcome -> {
+                                                if (outcome.successful())
+                                                    return settle(outcome.value()).then(deferred(outcome.value(),
+                                                            newAiExecutionProperties.retry().delay(attempt.attemptId(), attempt.attemptNumber())));
+                                                if (outcome.code() == StoreOutcome.Code.INVALID_STATE || outcome.code() == StoreOutcome.Code.RECONCILIATION_REQUIRED)
+                                                    return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied).flatMap(this::settle);
+                                                return applied(outcome).then();
+                                            });
+                                        }
+                                        // 可能已发送的过期执行收敛 UNKNOWN，绝不重新请求模型。
+                                        return executionStore.stopExpired(version(invocation)).flatMap(GenerationDispatcher::applied).flatMap(this::settle);
+                                    });
                         }
                         return start(invocation, message, runtime, timing);
                     }).doOnError(error -> log.warn("AI dispatch failed, invocationId={}, traceId={}, messageId={}, code={}, type={}",
@@ -157,11 +185,34 @@ public final class GenerationDispatcher {
                 .onErrorResume(error -> predictable(error)
                         ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
                 .doOnNext(prepared -> timing.mark("PREFLIGHT_READY"))
-                .flatMap(prepared -> executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
-                        .then(executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
-                                CanonicalJson.key(message.invocationId(), "attempt-1"), message.workerId(), newAiExecutionProperties.attemptLease())))
-                        .flatMap(GenerationDispatcher::applied)
-                        .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run()));
+                .flatMap(prepared -> withPermit(invocation, message, prepared, () ->
+                        executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
+                                .then(invocation.activeAttemptId() == null ? Mono.just(1)
+                                        : executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
+                                        .map(previous -> previous.attemptNumber() + 1))
+                                .flatMap(number -> executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
+                                        CanonicalJson.key(message.invocationId(), "attempt-" + number), message.workerId(), newAiExecutionProperties.attemptLease())))
+                                .flatMap(GenerationDispatcher::applied)
+                                .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run())));
+    }
+
+    private Mono<Void> deferred(Invocation invocation, Duration delay) {
+        var remaining = Duration.between(clock.instant(), invocation.request().options().deadline());
+        return Mono.error(new DispatchDeferredException(delay.compareTo(remaining) > 0 ? remaining : delay));
+    }
+
+    private Mono<Void> withPermit(Invocation invocation, OutboxMessage message, Prepared prepared,
+                                  java.util.function.Supplier<Mono<Void>> work) {
+        if (!newAiExecutionProperties.dispatchLimits().enabled()) return Mono.defer(work);
+        if (!(executionOutboxStore instanceof DispatchLimitStore limits))
+            return Mono.error(new IllegalStateException("Dispatch limit store required"));
+        // 同一连接的不同绑定版本共享模型额度；不包含 URL 或凭据。
+        String modelKey = CanonicalJson.key(prepared.binding().connection().id(), prepared.binding().remoteOperation());
+        return Mono.usingWhen(Mono.just(message), ignored -> limits.acquireDispatchPermit(message, modelKey,
+                        newAiExecutionProperties.dispatchLimits()).flatMap(decision -> decision.granted() ? Mono.defer(work)
+                        : executionStore.queue(version(invocation)).flatMap(GenerationDispatcher::applied)
+                        .flatMap(queued -> deferred(queued, decision.retryAfter()))),
+                limits::releaseDispatchPermit, (ignored, error) -> limits.releaseDispatchPermit(message), limits::releaseDispatchPermit);
     }
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
@@ -175,8 +226,11 @@ public final class GenerationDispatcher {
         var fact = new ExecutionError(code, error instanceof AccessDeniedException ? ExecutionError.Phase.AUTHORIZATION
                 : ExecutionError.Phase.VALIDATION, false, ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN,
                 invocation.request().context().traceId());
-        return executionStore.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(version(invocation), "dispatch-preflight",
-                        new ExecutionPayload.Terminal(state, null, fact))).flatMap(GenerationDispatcher::applied)
+        var terminal = new ExecutionPayload.Terminal(state, null, fact);
+        var completion = invocation.activeAttemptId() == null
+                ? executionStore.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(version(invocation), "dispatch-preflight", terminal))
+                : executionStore.stopQueued(version(invocation), terminal);
+        return completion.flatMap(GenerationDispatcher::applied)
                 .doOnNext(value -> log.warn("AI preflight rejection committed, invocationId={}, traceId={}, state={}, code={}, phase={}",
                         value.request().context().executionId(), value.request().context().traceId(), value.state(), code, fact.phase())).then();
     }
@@ -221,20 +275,23 @@ public final class GenerationDispatcher {
                                 return Mono.empty();
                             }
                             boolean notSent = attempt.dispatch() == Attempt.Dispatch.NOT_STARTED;
+                            boolean noExecution = attempt.error() != null && attempt.error().certainty() == ExecutionError.Certainty.KNOWN
+                                    && attempt.error().sideEffect() == ExecutionError.SideEffect.NONE;
+                            boolean release = notSent || noExecution;
                             boolean reported = (invocation.state() == Invocation.State.SUCCEEDED
                                     || invocation.error() != null && invocation.error().code().equals("MODEL_OUTPUT_INCOMPLETE"))
                                     && GenerationPricing.known(attempt.usage());
                             var price = rate(reservation.rateVersion());
-                            var charge = notSent ? GenerationPricing.amount(price, 0, 0)
+                            var charge = release ? GenerationPricing.amount(price, 0, 0)
                                     : reported ? GenerationPricing.amount(price, attempt.usage().inputTokens(), attempt.usage().outputTokens()) : null;
-                            var state = notSent ? BudgetSettlement.State.RELEASED
+                            var state = release ? BudgetSettlement.State.RELEASED
                                     : reported ? BudgetSettlement.State.SETTLED : BudgetSettlement.State.PENDING_RECONCILIATION;
                             var settlement = new BudgetSettlement(CanonicalJson.key(attempt.attemptId(), "dispatch-settlement"),
-                                    reservation.reservationId(), state, attempt.usage(), charge, invocation.updatedAt());
+                                    reservation.reservationId(), state, attempt.usage(), charge, attempt.updatedAt());
                             var evidence = notSent ? BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED
-                                    : reported ? BudgetCommands.Evidence.PROVIDER_BILL : BudgetCommands.Evidence.UNKNOWN_COST;
+                                    : noExecution ? BudgetCommands.Evidence.PROVEN_NO_EXECUTION : reported ? BudgetCommands.Evidence.PROVIDER_BILL : BudgetCommands.Evidence.UNKNOWN_COST;
                             return budgetService.settle(new BudgetCommands.Settle(owner, reservation.version(), settlement, evidence,
-                                            notSent ? "attempt:" + attempt.attemptId()
+                                            release ? "attempt:" + attempt.attemptId()
                                                     : reported ? "provider-usage:" + attempt.attemptId() : null))
                                     .flatMap(GenerationDispatcher::applied)
                                     .doOnNext(value -> {
@@ -372,6 +429,9 @@ public final class GenerationDispatcher {
                     .onErrorResume(error -> {
                         log.warn("AI gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
                                 message.invocationId(), timing.traceId(), claimed.attemptId(), error.getClass().getName());
+                        if (!call.runtime().cancellation().isCancelled() && error instanceof GenerationException known) {
+                            return Flux.just(new GenerationSignal.Failure(known.error(prepared.request().context().traceId()), usage, null));
+                        }
                         return Flux.just(failure(call.runtime().cancellation().isCancelled() ? "INVOCATION_CANCELLED" : "PROVIDER_FLOW_INTERRUPTED"));
                     });
             return GenerationOutputBatches.batch(signals)
@@ -454,9 +514,27 @@ public final class GenerationDispatcher {
                         : ((GenerationSignal.Failure) ending).partialResult();
                 var finalUsage = ending instanceof GenerationSignal.Result(ModelResult result1) ? result1.usage()
                         : ((GenerationSignal.Failure) ending).usage();
+                if (ending instanceof GenerationSignal.Failure failure && failure.error().sideEffect() == ExecutionError.SideEffect.NONE
+                        && (result != null || batchNumber > 0 || liveTextOffset > 0)) {
+                    return finish(new GenerationSignal.Failure(new ExecutionError(failure.error().code(), failure.error().phase(), false,
+                            ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, failure.error().correlationId()), finalUsage, result));
+                }
+                if (ending instanceof GenerationSignal.Failure failure && failure.partialResult() == null
+                        && failure.error().retryable() && failure.error().certainty() == ExecutionError.Certainty.KNOWN
+                        && failure.error().sideEffect() == ExecutionError.SideEffect.NONE
+                        && claimed.attemptNumber() < Math.min(prepared.request().options().maxAttempts(), newAiExecutionProperties.retry().maxAttempts())
+                        && !prepared.runtime().cancellation().isCancelled()
+                        && clock.instant().plus(newAiExecutionProperties.retry().delay(claimed.attemptId(), claimed.attemptNumber()))
+                        .isBefore(prepared.request().options().deadline())) {
+                    return guarded(guard -> executionStore.queueRetry(new ExecutionCommands.FailAttempt(guard,
+                                    Attempt.State.FAILED, failure.error(), finalUsage),
+                            newAiExecutionProperties.retry().delay(claimed.attemptId(), claimed.attemptNumber())), 3)
+                            .doOnNext(ignored -> completed.set(true))
+                            .flatMap(queued -> settle(queued).then(deferred(queued,
+                                    newAiExecutionProperties.retry().delay(claimed.attemptId(), claimed.attemptNumber()))));
+                }
                 // 取消可能在供应商聚合终态之前切断流；只保存已提交批次中的文字作为部分结果。
-                if (result == null && ending instanceof GenerationSignal.Failure failure
-                        && failure.error().code().equals("INVOCATION_CANCELLED") && !text.toString().isBlank()) {
+                if (result == null && ending instanceof GenerationSignal.Failure failure && failure.error().code().equals("INVOCATION_CANCELLED") && !text.toString().isBlank()) {
                     var provider = newAiProperties.connections().stream()
                             .filter(connection -> connection.definition().equals(prepared.binding().connection())).findFirst().orElseThrow().providerId();
                     result = new ModelResult(CanonicalJson.key(message.invocationId(), claimed.attemptId(), "cancelled-result"),
@@ -512,7 +590,7 @@ public final class GenerationDispatcher {
                     var proof = evidence;
                     long terminalStart = System.nanoTime();
                     return guarded(guard -> executionStore.commitCompletion(new ExecutionCommands.Complete(guard,
-                            "generation-completion", payload, finalUsage, proof)), 3)
+                            CanonicalJson.key(claimed.attemptId(), "generation-completion"), payload, finalUsage, proof)), 3)
                             .doOnNext(value -> {
                                 completed.set(true);
                                 timing.mark("TERMINAL_COMMITTED", terminalStart, 0);

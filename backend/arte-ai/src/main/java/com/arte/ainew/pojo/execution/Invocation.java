@@ -54,7 +54,7 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
                         || next == TIMED_OUT || next == INTERRUPTED;
                 case QUEUED -> next == RUNNING || next == FAILED || next == CANCELLED || next == TIMED_OUT
                         || next == INTERRUPTED;
-                case RUNNING -> next.terminal();
+                case RUNNING -> next == QUEUED || next.terminal();
                 default -> false;
             };
         }

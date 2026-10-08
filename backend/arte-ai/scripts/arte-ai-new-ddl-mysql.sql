@@ -16,7 +16,7 @@ create table arte_ai_invocation
         primary key,
     owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
     snapshot       longtext not null comment '逻辑调用权威快照，包含状态、版本及执行上下文',
-    next_attempt   int not null comment '最近已分配的尝试序号，初始为 0',
+    next_attempt   int    not null comment '最近已分配的尝试序号，初始为 0',
     next_fence     bigint not null comment '最近已分配的 fencing token，初始为 0',
     next_sequence  bigint not null comment '最近已提交的事件序号，初始为 0',
     retained_after bigint not null comment '已裁剪事件的最大序号，初始为 0',
@@ -37,7 +37,7 @@ create table arte_ai_attempt
     id_key         char(64) not null comment '执行尝试 ID 哈希'
         primary key,
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
-    attempt_number int not null comment '该调用内的尝试序号，从 1 开始递增',
+    attempt_number int      not null comment '该调用内的尝试序号，从 1 开始递增',
     purpose        varchar(16) not null comment '租约用途：EXECUTE-执行；RECONCILE-核对',
     snapshot       longtext not null comment '执行尝试快照，包含版本、Worker、租约及 fencing token',
     constraint uk_arte_ai_attempt_number
@@ -47,7 +47,7 @@ create table arte_ai_attempt
 create table arte_ai_event
 (
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
-    sequence_no    bigint not null comment '调用内连续递增的事件序号，从 1 开始',
+    sequence_no bigint not null comment '调用内连续递增的事件序号，从 1 开始',
     snapshot       longtext not null comment '已提交事件快照，包含有界输出批次、状态或终态',
     primary key (invocation_key, sequence_no)
 ) engine = InnoDB comment '新 AI 耐久执行事件表';
@@ -57,8 +57,8 @@ create table arte_ai_operation
     invocation_key  char(64) not null comment '所属逻辑调用 ID 哈希',
     operation_key   char(64) not null comment '操作类型及业务防重键组成的哈希',
     digest          char(64) not null comment '首次提交的操作内容摘要',
-    first_sequence  bigint not null comment '首次提交的首条事件序号',
-    event_count     int not null comment '首次提交的事件数量',
+    first_sequence bigint not null comment '首次提交的首条事件序号',
+    event_count    int    not null comment '首次提交的事件数量',
     result_snapshot longtext null comment '完成调用或控制回执快照，用于幂等重放',
     evidence_ref    varchar(256) null comment '可信远端核对证据引用',
     primary key (invocation_key, operation_key)
@@ -66,19 +66,19 @@ create table arte_ai_operation
 
 create table arte_ai_outbox
 (
-    message_key     char(64) not null comment '调用 ID、消息类型及事件序号组成的消息哈希'
+    message_key    char(64)    not null comment '调用 ID、消息类型及事件序号组成的消息哈希'
         primary key,
-    invocation_key  char(64) not null comment '所属逻辑调用 ID 哈希',
+    invocation_key char(64)    not null comment '所属逻辑调用 ID 哈希',
     invocation_id   varchar(256) not null comment '逻辑调用原始业务 ID',
     owner_tenant    varchar(256) not null comment '受理时的租户 ID',
     owner_workspace varchar(256) not null comment '受理时的工作空间 ID',
     owner_subject   varchar(256) not null comment '受理时的主体 ID',
-    kind            varchar(16) not null comment '消息类型：DISPATCH-派发；EVENT-事件通知',
-    sequence_no     bigint not null comment '事件序号；派发消息为 0',
+    kind           varchar(16) not null comment '消息类型：DISPATCH-派发；EVENT-事件通知',
+    sequence_no    bigint      not null comment '事件序号；派发消息为 0',
     worker_id       varchar(256) null comment '当前领取消息的 Worker ID',
-    token           bigint not null comment '消息租约 fencing token，初始为 0',
-    lease_until     bigint not null comment '租约截止时间，UTC Unix 毫秒，初始为 0',
-    delivered       int not null comment '是否已确认投递：0-否；1-是',
+    token          bigint      not null comment '消息租约 fencing token，初始为 0',
+    lease_until    bigint      not null comment '租约截止时间，UTC Unix 毫秒，初始为 0',
+    delivered      int         not null comment '是否已确认投递：0-否；1-是',
     constraint uk_arte_ai_outbox_event
         unique (invocation_key, kind, sequence_no)
 ) engine = InnoDB comment '新 AI 耐久派发及事件 Outbox 表';
@@ -91,7 +91,7 @@ create table arte_ai_conversation_new
     id_key            char(64) not null comment '会话 ID 哈希'
         primary key,
     owner_key         char(64) not null comment '租户、工作空间、主体组成的归属哈希',
-    version_no        bigint not null comment '会话版本，受理新调用时递增',
+    version_no bigint not null comment '会话版本，受理新调用时递增',
     active_invocation char(64) null comment '当前活跃调用 ID 哈希；已知终态释放，UNKNOWN 保留',
     snapshot          longtext not null comment '会话权威快照'
 ) engine = InnoDB comment '新 AI 独立会话表';
@@ -101,7 +101,7 @@ create table arte_ai_turn
     id_key           char(64) not null comment '交流轮次 ID 哈希'
         primary key,
     conversation_key char(64) not null comment '所属会话 ID 哈希',
-    sequence_no      bigint not null comment '会话内连续递增的轮次序号，从 1 开始',
+    sequence_no bigint not null comment '会话内连续递增的轮次序号，从 1 开始',
     snapshot         longtext not null comment '轮次快照，包含固定用户输入、历史路径及调用候选',
     constraint uk_arte_ai_turn_sequence
         unique (conversation_key, sequence_no)
@@ -166,10 +166,46 @@ create table arte_ai_result
     attempt_key    char(64) not null comment '结果所属尝试 ID 哈希',
     result_key     char(64) not null comment '同一尝试内的结果防重键哈希',
     result_type    varchar(64) not null comment '受信结果类型别名，不使用 Java 类名',
-    schema_version int not null comment '结果字节编码版本',
-    partial        int not null comment '是否部分结果：0-完整；1-部分或失败结果',
+    schema_version int      not null comment '结果字节编码版本',
+    partial        int      not null comment '是否部分结果：0-完整；1-部分或失败结果',
     payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
     snapshot       longtext not null comment '不可变的专有结果类型信封',
     constraint uk_arte_ai_result_operation
         unique (owner_key, invocation_key, attempt_key, result_key)
 ) engine = InnoDB comment '新 AI 专有结果字节表';
+
+-- 派发限流：并发 Permit 跟随 Outbox 租约，频率窗口使用数据库时钟；同数据库的所有实例共享。
+create table arte_ai_dispatch_permit
+(
+    message_key char(64) not null comment '所属派发 Outbox 的消息哈希'
+        primary key,
+    token       bigint   not null comment '所属 Outbox 当前领取的 fencing token，用于续租及释放时防重',
+    tenant_key  char(64) not null comment '租户 ID 哈希，跨工作空间及主体共享并发额度',
+    user_key    char(64) not null comment '租户 ID 与主体 ID 组成的哈希，跨工作空间共享并发额度',
+    model_key   char(64) not null comment '连接定义 ID 与远端模型标识组成的限流作用域哈希',
+    lease_until bigint   not null comment '并发许可租约截止时间，UTC Unix 毫秒，与 Outbox 同事务续租'
+) engine = InnoDB comment '新 AI 派发并发许可表';
+
+-- 按租户统计尚未过期的并发许可。
+create index idx_dispatch_tenant
+    on arte_ai_dispatch_permit (tenant_key, lease_until);
+
+-- 按租户及主体统计尚未过期的并发许可。
+create index idx_dispatch_user
+    on arte_ai_dispatch_permit (user_key, lease_until);
+
+-- 按连接及模型统计尚未过期的并发许可。
+create index idx_dispatch_model
+    on arte_ai_dispatch_permit (model_key, lease_until);
+
+-- 按租约截止时间回收过期并发许可，并统计全局有效许可。
+create index idx_dispatch_expiry
+    on arte_ai_dispatch_permit (lease_until);
+
+create table arte_ai_dispatch_rate
+(
+    bucket_key char(64) not null comment '限流维度与作用域组成的频率桶哈希：global；tenant；user；model'
+        primary key,
+    starts_at  bigint   not null comment '当前固定频率窗口的起始时间，UTC Unix 毫秒，使用数据库时钟',
+    requests   int      not null comment '当前固定窗口内已获派发许可的尝试数，限流拒绝不计数'
+) engine = InnoDB comment '新 AI 派发请求频率窗口表';

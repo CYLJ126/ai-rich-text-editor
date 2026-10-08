@@ -104,10 +104,13 @@ public class ChatHttpIntegrationTest {
             }
         };
         var discovery = new ChatConfigurationQueryService(fixture.properties, authorization, fixture.catalog, () -> gateway);
+        var executionBeans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        executionBeans.addBean("executionSettings", new com.arte.ainew.config.NewAiExecutionProperties(true, false, 4, null, null, null, null));
         mvc = MockMvcBuilders.standaloneSetup(
                         new NewAiConfigurationController(discovery, httpContext, fixture.properties),
                         new NewAiConversationController(fixture.conversations, new ConversationHttpContext(httpContext, fixture.properties)),
-                        new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties))
+                        new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties,
+                                executionBeans.getBeanProvider(com.arte.ainew.config.NewAiExecutionProperties.class)))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -189,7 +192,7 @@ public class ChatHttpIntegrationTest {
         assertEquals(Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), stored.request().context().authorization().scopes());
         assertEquals("release-v1", stored.request().context().releaseRef());
         assertEquals(Duration.ofSeconds(60), stored.request().options().requestedTimeout());
-        assertEquals(1, stored.request().options().maxAttempts());
+        assertEquals(3, stored.request().options().maxAttempts());
         assertEquals(4096, stored.request().options().maxOutputBytes());
         var turn = fixture.conversations.turn(id, stored.conversation().turnId(), fixture.context("alice", "read-turn")).block();
         assertEquals(List.of(data.path("invocationId").asString()), turn.invocationIds());

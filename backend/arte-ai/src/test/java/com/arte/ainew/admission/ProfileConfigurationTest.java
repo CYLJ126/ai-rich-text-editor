@@ -66,6 +66,10 @@ public class ProfileConfigurationTest {
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class)
                     .secrets().getFirst().environmentVariable());
             assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
+            var execution = context.getBean(NewAiExecutionProperties.class);
+            assertTrue(execution.dispatchLimits().enabled());
+            assertEquals(16, execution.dispatchLimits().globalConcurrency());
+            assertEquals(3, execution.retry().maxAttempts());
         }
     }
 

@@ -41,7 +41,10 @@ Guard 同时包含 Invocation.version、Attempt.version、activeAttemptId、Work
 
 过期且 NOT_STARTED 的 Attempt 可以通过 EXECUTE 租约接管。已经 MAY_HAVE_EXECUTED／CONFIRMED 的尝试只允许 RECONCILE 租约，markDispatch 对此租约拒绝；核对提交必须提供受信 evidenceRef。UNKNOWN 不能创建新 Attempt，只能核对为 SUCCEEDED／FAILED／CANCELLED。完成核对的 evidenceRef 和结算的证据类型／引用随事务耐久保存。证据引用的真实性和远端状态由可信协调器／账单服务验证；非空字符串本身不是证明。
 
-只有已知、允许重试的失败，且没有发送或已排除副作用，才能新增 Attempt，仍受 maxAttempts 与绝对 deadline 限制。存储不能保证外部系统 exactly-once；供应商幂等请求键可提供额外保证，未知结果始终先核对。当前 Worker 仅派发一次生成，不自动重试；失效 Attempt 使用 stopExpired 收敛，已结束调用只恢复结算。自动消费由独立 worker-enabled 显式开启。
+只有已知、允许重试的失败，且没有发送或已排除副作用，才能新增 Attempt，仍受 maxAttempts 与绝对 deadline 限制。存储不能保证外部系统
+exactly-once；供应商幂等请求键可提供额外保证，未知结果始终先核对。Worker 对已知无副作用的瞬时失败原子排队并创建新
+Attempt，先释放上一尝试预算；失效且可能发送的 Attempt 使用 stopExpired 收敛 UNKNOWN，已结束调用只恢复结算。共享并发
+Permit／频率窗口及 Outbox 延迟基于数据库时钟和 fencing，见 EXECUTION_IMPLEMENTATION.md。自动消费由独立 worker-enabled 显式开启。
 
 已保存且校验的模型结束结果可以证明输出不完整：FAILED／MODEL_OUTPUT_INCOMPLETE 使用部分 model-result 引用和对应证据，存储核对结果行的 owner、Invocation、Attempt、类型、Schema、摘要、partial／complete 和用量。缺失字节或仅提供证据字符串仍返回 RECONCILIATION_REQUIRED；其他可能发送的已知失败继续要求排除副作用或远端核对。
 

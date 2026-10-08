@@ -240,7 +240,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
         if (pool == null) {
             if (pools.size() >= properties.maxPools()) {
                 var idle = pools.entrySet().stream().filter(entry -> entry.getValue().borrowed == 0).findFirst()
-                        .orElseThrow(() -> GenerationException.beforeSend("CONNECTION_CAPACITY_EXCEEDED"));
+                        .orElseThrow(() -> GenerationException.transientBeforeSend("CONNECTION_CAPACITY_EXCEEDED"));
                 log.debug("AI HTTP idle pool evicted, connectionId={}, poolCount={}", idle.getKey().definition().definition().id(), pools.size());
                 dispose(idle.getValue());
                 pools.remove(idle.getKey());
@@ -253,7 +253,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
             pools.put(key, pool);
         }
         if (pool.borrowed >= properties.connectionsPerPool() + properties.pendingAcquires()) {
-            throw GenerationException.beforeSend("CONNECTION_CAPACITY_EXCEEDED");
+            throw GenerationException.transientBeforeSend("CONNECTION_CAPACITY_EXCEEDED");
         }
         pool.borrowed++;
         return pool;

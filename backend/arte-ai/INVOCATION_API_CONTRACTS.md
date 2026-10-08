@@ -89,7 +89,9 @@ flowchart TB
 - InvocationSubmission 是内部参数。Coordinator 计算规范化请求摘要、构造初始 Invocation，不接收客户端自报状态。生成消息必须与实际 ContextSnapshot 一致。
 - 快照字节先可靠保存，再提交其引用；摘要覆盖实际内容，不以新分配 snapshotId 代替内容。未受理的孤立快照按保留策略回收。授权、来源、容量及快照有效期由应用边界核对。
 - newTurn 表示本次新建轮次；重新生成时 Coordinator 加载原 Turn、追加候选引用，再按现有 Accept 契约提交，不改变原轮次身份、路径和输入。
-- dispatch 只供内部 Worker 消费已领取的派发 Outbox，核验消息及 Attempt 租约／fencing，内部协调准入、预留、续租、发送、输出和结算。当前 maxAttempts=1，不重试模型交互；失效且可能发送的 Attempt 收敛 UNKNOWN。不把每个内部步骤公开成入口可乱序调用的方法。
+- dispatch 只供内部 Worker 消费已领取的派发 Outbox，核验消息及 Attempt
+  租约／fencing，内部协调准入、预留、续租、发送、输出和结算。派发在共享限流额度内执行；仅未执行且可重试的失败排队创建新
+  Attempt，受原 maxAttempts／deadline 限制；失效且可能发送的 Attempt 收敛 UNKNOWN。不把每个内部步骤公开成入口可乱序调用的方法。
 - GatewayCall 固定请求、绑定、已标记发送的 Attempt 和 runtime；允许刷新授权，不能更换 owner、扩大原授权范围或延长期限。构造对象不是数据库提交或有效租约的证明。
 - reconcile 只核对 UNKNOWN 的同一次远端操作及费用，有证据才更新，不重发原请求。不支持核对时明确报告无法确认，保留未知结果及待对账预算。
 - control 必须耐久保存命令及幂等事实，再返回回执；跨实例取消不能只依赖本地 cancellation。当前存储尚无控制命令持久化实现，受理协调器明确拒绝 control；方法声明不代表该保证已落地。

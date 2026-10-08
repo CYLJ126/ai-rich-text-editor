@@ -45,13 +45,14 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  */
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionEventStore,
-        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore {
+        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore {
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
     private final BudgetMapper budget;
     private final EventMapper event;
     private final OutboxMapper outbox;
+    private final DispatchLimitMapper dispatchLimits;
     private final PayloadMapper payload;
     private final TransactionTemplate transaction;
     private final ExecutionRecordCodec codec;
@@ -73,6 +74,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.budget = sessions.getMapper(BudgetMapper.class);
         this.event = sessions.getMapper(EventMapper.class);
         this.outbox = sessions.getMapper(OutboxMapper.class);
+        this.dispatchLimits = sessions.getMapper(DispatchLimitMapper.class);
         this.payload = sessions.getMapper(PayloadMapper.class);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
@@ -462,6 +464,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return outcome(() -> {
             var invocation = invocation(command.invocation());
             version(invocation, command.invocation());
+            require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
             require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
             if (invocation.activeAttemptId() != null) {
                 var previous = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
@@ -470,6 +473,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 require(previous.error().retryable() && previous.error().certainty() == ExecutionError.Certainty.KNOWN
                         && (previous.dispatch() == Attempt.Dispatch.NOT_STARTED
                         || previous.error().sideEffect() == ExecutionError.SideEffect.NONE), RECONCILIATION_REQUIRED);
+            }
+            if (invocation.state() == Invocation.State.QUEUED && invocation.activeAttemptId() != null) {
+                var previous = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                require(safelyRejected(previous) && event.writtenBytes(hash(id(invocation))) == 0, RECONCILIATION_REQUIRED);
+                if (previous.budgetReservationId() != null) {
+                    var reservation = snapshot(budget.reservationSnapshot(hash(previous.budgetReservationId()), true), BudgetReservation.class);
+                    require(reservation != null && reservation.state() == BudgetReservation.State.RELEASED, RECONCILIATION_REQUIRED);
+                }
             }
             lock(hash("attempt-id", command.attemptId()));
             require(snapshot(execution.attemptSnapshot(hash(command.attemptId()), false), Attempt.class) == null, IDEMPOTENCY_CONFLICT);
@@ -588,7 +599,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 execution.insertCompletion(hash(id(invocation)), CANCEL_REQUEST_KEY, digest, control.sequence(), 1, codec.encode(receipt));
                 var attempt = invocation.activeAttemptId() == null ? null
                         : snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
-                if (attempt == null || attempt.dispatch() == Attempt.Dispatch.NOT_STARTED) {
+                if (attempt == null || attempt.dispatch() == Attempt.Dispatch.NOT_STARTED || safelyRejected(attempt)) {
                     var error = new ExecutionError("INVOCATION_CANCELLED", ExecutionError.Phase.INVOCATION, false,
                             ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, invocation.request().context().traceId());
                     if (attempt != null) {
@@ -652,6 +663,118 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     command.usage(), command.error());
             save(failed);
             return StoreOutcome.applied(failed);
+        });
+    }
+
+    private static boolean safelyRejected(Attempt attempt) {
+        return (attempt.state() == Attempt.State.FAILED || attempt.state() == Attempt.State.INTERRUPTED
+                || attempt.state() == Attempt.State.CANCELLED || attempt.state() == Attempt.State.TIMED_OUT)
+                && attempt.error() != null && attempt.error().certainty() == ExecutionError.Certainty.KNOWN
+                && attempt.error().sideEffect() == ExecutionError.SideEffect.NONE;
+    }
+
+    @Override
+    public Mono<StoreOutcome<Invocation>> queue(Version target) {
+        return outcome(() -> {
+            var invocation = invocation(target);
+            version(invocation, target);
+            require(!invocation.state().terminal(), INVALID_STATE);
+            if (invocation.state() == Invocation.State.QUEUED) return StoreOutcome.replayed(invocation);
+            require(invocation.activeAttemptId() == null, INVALID_STATE);
+            return StoreOutcome.applied(saveQueued(invocation));
+        });
+    }
+
+    private Invocation saveQueued(Invocation invocation) {
+        var queued = state(invocation, Invocation.State.QUEUED, invocation.activeAttemptId(), null, null);
+        save(queued);
+        event(queued, queued.activeAttemptId(), new ExecutionPayload.Status(Invocation.State.QUEUED));
+        return queued;
+    }
+
+    private Invocation saveRetry(Invocation invocation, String attemptId, Duration backoff) {
+        ContractChecks.require(backoff != null && !backoff.isNegative()
+                && backoff.compareTo(Duration.ofMinutes(1)) <= 0, "Invalid retry backoff");
+        var queued = saveQueued(invocation);
+        var schedule = new RetrySchedule(attemptId, now().plus(backoff));
+        String encoded = codec.encode(schedule);
+        execution.insertCompletion(hash(id(invocation)), operationKey("retry-schedule", attemptId), hash(encoded),
+                event.nextSequence(hash(id(invocation))), 0, encoded);
+        return queued;
+    }
+
+    @Override
+    public Mono<Instant> retryNotBefore(ExecutionOwner owner, String invocationId, String attemptId) {
+        return tx(() -> {
+            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
+            var schedule = operation(invocation, operationKey("retry-schedule", attemptId));
+            return schedule == null ? null : codec.decode(schedule.resultSnapshot(), RetrySchedule.class).notBefore();
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Invocation>> queueRetry(FailAttempt command, Duration backoff) {
+        return outcome(() -> {
+            var invocation = invocation(command.guard().invocation());
+            var attempt = guarded(invocation, command.guard());
+            require(!invocation.state().terminal() && purpose(attempt) == LeasePurpose.EXECUTE
+                    && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
+            require(command.error().retryable() && command.error().certainty() == ExecutionError.Certainty.KNOWN
+                    && command.error().sideEffect() == ExecutionError.SideEffect.NONE, RECONCILIATION_REQUIRED);
+            require(attempt.attemptNumber() < invocation.request().options().maxAttempts()
+                    && invocation.request().options().deadline().isAfter(now())
+                    && operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
+            require(event.writtenBytes(hash(id(invocation))) == 0, RECONCILIATION_REQUIRED);
+            save(changed(attempt, command.state(), attempt.dispatch(), attempt.remoteRequestId(),
+                    attempt.budgetReservationId(), command.usage(), command.error()));
+            return StoreOutcome.applied(saveRetry(invocation, attempt.attemptId(), backoff));
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Invocation>> queueExpiredRetry(Version target, Duration backoff) {
+        return outcome(() -> {
+            var invocation = invocation(target);
+            version(invocation, target);
+            require(!invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
+            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+            require(attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
+                    && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), RECONCILIATION_REQUIRED);
+            require(attempt.attemptNumber() < invocation.request().options().maxAttempts()
+                    && invocation.request().options().deadline().isAfter(now())
+                    && operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
+            var error = new ExecutionError("WORKER_LEASE_EXPIRED", ExecutionError.Phase.DISPATCH, true,
+                    ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, invocation.request().context().traceId());
+            long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+            save(changed(attempt, Attempt.State.INTERRUPTED, attempt.dispatch(), attempt.remoteRequestId(),
+                    attempt.budgetReservationId(), attempt.usage(), error, attempt.workerId(), fence, attempt.leaseExpiresAt()));
+            execution.saveNextFence(fence, hash(id(invocation)));
+            return StoreOutcome.applied(saveRetry(invocation, attempt.attemptId(), backoff));
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Invocation>> stopQueued(Version target, ExecutionPayload.Terminal terminal) {
+        return outcome(() -> {
+            var invocation = invocation(target);
+            version(invocation, target);
+            require(invocation.state() == Invocation.State.QUEUED && invocation.activeAttemptId() != null
+                    && terminal.result() == null && terminal.error() != null
+                    && terminal.error().certainty() == ExecutionError.Certainty.KNOWN
+                    && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
+                    && (terminal.state() == Invocation.State.FAILED || terminal.state() == Invocation.State.TIMED_OUT
+                    || terminal.state() == Invocation.State.CANCELLED), INVALID_STATE);
+            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(safelyRejected(attempt), RECONCILIATION_REQUIRED);
+            // 保留已失败 Attempt 的原证据，不能把供应商拒绝改写成未知取消。
+            var completed = state(invocation, terminal.state(), attempt.attemptId(), null, terminal.error());
+            save(completed);
+            event(completed, attempt.attemptId(), terminal);
+            if (completed.conversation() != null)
+                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+            return StoreOutcome.applied(completed);
         });
     }
 
@@ -948,9 +1071,80 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             claimed(message, rows.getFirst());
             var expiry = now().plus(lease);
             outbox.claimMessage(message.workerId(), message.fencingToken(), expiry.toEpochMilli(), message.messageId());
+            // 限流表随 DDL 一起部署；不存在 Permit 时 UPDATE 不产生行。
+            if (message.kind() == OutboxMessage.Kind.DISPATCH) {
+                dispatchLimits.renew(message.messageId(), message.fencingToken(), expiry.toEpochMilli());
+            }
             return StoreOutcome.applied(new OutboxMessage(message.messageId(), message.invocationId(), message.owner(), message.kind(),
                     message.eventSequence(), message.workerId(), message.fencingToken(), expiry));
         });
+    }
+
+    @Override
+    public Mono<StoreOutcome<OutboxMessage>> defer(OutboxMessage message, Duration delay) {
+        Objects.requireNonNull(delay, "delay");
+        ContractChecks.require(!delay.isNegative() && delay.compareTo(Duration.ofHours(1)) <= 0, "Invalid dispatch delay");
+        return outcome(() -> {
+            var rows = outbox.lockMessage(message.messageId());
+            require(!rows.isEmpty(), NOT_FOUND);
+            claimed(message, rows.getFirst());
+            outbox.claimMessage(null, message.fencingToken(), now().plus(delay).toEpochMilli(), message.messageId());
+            return StoreOutcome.applied(message);
+        });
+    }
+
+    @Override
+    public Mono<DispatchLimitStore.Decision> acquireDispatchPermit(OutboxMessage message, String modelKey,
+                                                                   com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits limits) {
+        return tx(() -> {
+            require(message.kind() == OutboxMessage.Kind.DISPATCH, INVALID_STATE);
+            lock(hash("dispatch-limits", "global"));
+            var rows = outbox.lockMessage(message.messageId());
+            require(!rows.isEmpty(), NOT_FOUND);
+            var row = rows.getFirst();
+            claimed(message, row);
+            long current = now().toEpochMilli();
+            dispatchLimits.expire(current);
+            var existing = dispatchLimits.permit(message.messageId());
+            if (!existing.isEmpty()) {
+                require(existing.getFirst().token() == message.fencingToken(), LEASE_LOST);
+                return new DispatchLimitStore.Decision(true, Duration.ZERO);
+            }
+            String tenant = hash(message.owner().tenantId());
+            String user = hash(message.owner().tenantId(), message.owner().subjectId());
+            String model = hash(modelKey);
+            String[] dimensions = {"global", "tenant", "user", "model"};
+            String[] scopes = {"global", tenant, user, model};
+            int[] concurrency = {limits.globalConcurrency(), limits.tenantConcurrency(), limits.userConcurrency(), limits.modelConcurrency()};
+            int[] rates = {limits.globalRequests(), limits.tenantRequests(), limits.userRequests(), limits.modelRequests()};
+            long delay = 0;
+            var windows = new ArrayList<DispatchLimitMapper.Window>();
+            for (int i = 0; i < dimensions.length; i++) {
+                if (dispatchLimits.active(dimensions[i], scopes[i], current) >= concurrency[i])
+                    delay = Math.max(delay, 250);
+                String bucket = hash("dispatch-rate", dimensions[i], scopes[i]);
+                var stored = dispatchLimits.window(bucket);
+                var window = stored.isEmpty() || stored.getFirst().startsAt() + limits.window().toMillis() <= current
+                        ? new DispatchLimitMapper.Window(current, 0) : stored.getFirst();
+                windows.add(window);
+                if (window.requests() >= rates[i])
+                    delay = Math.max(delay, window.startsAt() + limits.window().toMillis() - current);
+            }
+            if (delay > 0) return new DispatchLimitStore.Decision(false, Duration.ofMillis(delay));
+            for (int i = 0; i < dimensions.length; i++) {
+                String bucket = hash("dispatch-rate", dimensions[i], scopes[i]);
+                if (dispatchLimits.window(bucket).isEmpty()) dispatchLimits.insertWindow(bucket, current);
+                var window = windows.get(i);
+                dispatchLimits.saveWindow(bucket, window.startsAt(), window.requests() + 1);
+            }
+            dispatchLimits.insertPermit(message.messageId(), message.fencingToken(), tenant, user, model, row.leaseUntil());
+            return new DispatchLimitStore.Decision(true, Duration.ZERO);
+        }).onErrorMap(Rejected.class, error -> com.arte.ainew.application.support.AdmissionException.fromStoreRejection(error.code));
+    }
+
+    @Override
+    public Mono<Void> releaseDispatchPermit(OutboxMessage message) {
+        return tx(() -> dispatchLimits.release(message.messageId(), message.fencingToken())).then();
     }
 
     @Override
@@ -1057,6 +1251,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         if (command.evidence() == BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED) {
             var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
             require(attempt != null && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED, RECONCILIATION_REQUIRED);
+        }
+        if (command.evidence() == BudgetCommands.Evidence.PROVEN_NO_EXECUTION) {
+            var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
+            require(attempt != null && safelyRejected(attempt) && event.writtenBytes(hash(id(invocation))) == 0
+                    && settlement.state() == BudgetSettlement.State.RELEASED
+                    && settlement.charge().amount().signum() == 0, RECONCILIATION_REQUIRED);
         }
         boolean finalSettlement = settlement.state() != BudgetSettlement.State.PENDING_RECONCILIATION;
         if (finalSettlement) {

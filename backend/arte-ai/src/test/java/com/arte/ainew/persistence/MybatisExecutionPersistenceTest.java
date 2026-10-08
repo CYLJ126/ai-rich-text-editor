@@ -737,4 +737,136 @@ public class MybatisExecutionPersistenceTest {
         };
         return new MybatisExecutionPersistence(dataSource, faultyCodec, scheduler);
     }
+
+    private Invocation acceptScoped(String id, String tenant, String workspace, String subject) {
+        var original = candidate(id, "key-" + id, null, null);
+        var context = original.request().context();
+        var auth = new ExecutionAuthorization(new ExecutionPrincipal(subject, "test", ExecutionPrincipal.Kind.USER),
+                tenant, workspace, Set.of("ai:invoke"), "grant");
+        var scoped = new ExecutionContext(id, context.traceId(), auth, context.deadline(), null, null, "release", context.idempotencyKey());
+        var request = new InvocationRequest<>(original.request().capability(), original.request().binding(), original.request().kind(),
+                original.request().input(), original.request().options(), scoped);
+        return first.accept(new Accept(new Invocation(request, DIGEST, null, null, null, Invocation.State.ACCEPTED,
+                0, null, null, null, original.acceptedAt(), original.updatedAt()), null)).block().value();
+    }
+
+    private com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits limits(int global, int tenant, int user, int model,
+                                                                                 int globalRate, int tenantRate, int userRate, int modelRate) {
+        return new com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits(true, global, tenant, user, model,
+                globalRate, tenantRate, userRate, modelRate, Duration.ofSeconds(1));
+    }
+
+    @Test
+    public void eachDispatchConcurrencyScopeIsSharedAcrossAdapters() {
+        for (int dimension = 0; dimension < 4; dimension++) {
+            int[] concurrency = {100, 100, 100, 100};
+            concurrency[dimension] = 1;
+            String a = "scope-first-" + dimension, b = "scope-second-" + dimension;
+            acceptScoped(a, "scope-tenant-" + dimension, "workspace-a", "alice");
+            // tenant 跨主体；user 跨工作空间；model 跨租户；global 跨所有维度。
+            acceptScoped(b, dimension == 1 || dimension == 2 ? "scope-tenant-" + dimension : "other-tenant-" + dimension,
+                    "workspace-b", dimension == 2 ? "alice" : "bob");
+            var messages = first.claim(OutboxMessage.Kind.DISPATCH, "scope-worker", Duration.ofSeconds(30), 10).block();
+            var firstMessage = messages.stream().filter(m -> m.invocationId().equals(a)).findFirst().orElseThrow();
+            var secondMessage = messages.stream().filter(m -> m.invocationId().equals(b)).findFirst().orElseThrow();
+            var settings = limits(concurrency[0], concurrency[1], concurrency[2], concurrency[3], 100, 100, 100, 100);
+            assertTrue(first.acquireDispatchPermit(firstMessage, "scope-model-" + dimension, settings).block().granted());
+            assertFalse(second.acquireDispatchPermit(secondMessage, dimension == 3 ? "scope-model-" + dimension : "different-model-" + dimension, settings).block().granted());
+            first.releaseDispatchPermit(firstMessage).block();
+            assertTrue(second.acquireDispatchPermit(secondMessage, "scope-model-" + dimension, settings).block().granted());
+            second.releaseDispatchPermit(secondMessage).block();
+            first.acknowledge(firstMessage).block();
+            second.acknowledge(secondMessage).block();
+        }
+    }
+
+    @Test
+    public void concurrentWorkersCannotExceedSharedGlobalDispatchLimit() {
+        for (int i = 0; i < 8; i++) acceptScoped("parallel-" + i, "tenant-" + i, "workspace", "user-" + i);
+        var messages = first.claim(OutboxMessage.Kind.DISPATCH, "parallel-worker", Duration.ofSeconds(30), 10).block();
+        var settings = limits(2, 100, 100, 100, 100, 100, 100, 100);
+        var decisions = Flux.fromIterable(messages).flatMap(message -> second.acquireDispatchPermit(message, "model", settings), 8).collectList().block();
+        assertEquals(2, decisions.stream().filter(com.arte.ainew.spi.persistence.DispatchLimitStore.Decision::granted).count());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_dispatch_permit", Integer.class).intValue());
+        assertEquals(8, jdbc.queryForObject("SELECT SUM(requests) FROM arte_ai_dispatch_rate", Integer.class).intValue());
+    }
+
+    @Test
+    public void eachDispatchRateScopeIsSharedAndDeniedRequestsConsumeNoQuota() {
+        for (int dimension = 0; dimension < 4; dimension++) {
+            jdbc.update("DELETE FROM arte_ai_dispatch_rate");
+            int[] rates = {100, 100, 100, 100};
+            rates[dimension] = 1;
+            String a = "rate-first-" + dimension, b = "rate-second-" + dimension;
+            acceptScoped(a, "rate-tenant-" + dimension, "workspace-a", "alice");
+            acceptScoped(b, dimension == 1 || dimension == 2 ? "rate-tenant-" + dimension : "rate-other-" + dimension,
+                    "workspace-b", dimension == 2 ? "alice" : "bob");
+            var messages = first.claim(OutboxMessage.Kind.DISPATCH, "rate-worker", Duration.ofSeconds(30), 10).block();
+            var firstMessage = messages.stream().filter(m -> m.invocationId().equals(a)).findFirst().orElseThrow();
+            var secondMessage = messages.stream().filter(m -> m.invocationId().equals(b)).findFirst().orElseThrow();
+            var settings = limits(100, 100, 100, 100, rates[0], rates[1], rates[2], rates[3]);
+            assertTrue(first.acquireDispatchPermit(firstMessage, "rate-model-" + dimension, settings).block().granted());
+            first.releaseDispatchPermit(firstMessage).block();
+            var rejected = second.acquireDispatchPermit(secondMessage, dimension == 3 ? "rate-model-" + dimension : "other-model-" + dimension, settings).block();
+            assertFalse(rejected.granted());
+            assertTrue(rejected.retryAfter().toMillis() > 0);
+            assertEquals(4, jdbc.queryForObject("SELECT SUM(requests) FROM arte_ai_dispatch_rate", Integer.class).intValue());
+            jdbc.update("UPDATE arte_ai_dispatch_rate SET starts_at=0");
+            assertTrue(second.acquireDispatchPermit(secondMessage, "rate-model-" + dimension, settings).block().granted());
+            second.releaseDispatchPermit(secondMessage).block();
+            first.acknowledge(firstMessage).block();
+            second.acknowledge(secondMessage).block();
+        }
+    }
+
+    @Test
+    public void deferredOutboxFencesOldHeartbeatAndAcknowledgement() {
+        accept("deferred", null);
+        var message = first.claim(OutboxMessage.Kind.DISPATCH, "old-worker", Duration.ofSeconds(30), 1).block().getFirst();
+        assertEquals(APPLIED, first.defer(message, Duration.ofSeconds(1)).block().code());
+        assertTrue(second.claim(OutboxMessage.Kind.DISPATCH, "new-worker", Duration.ofSeconds(30), 1).block().isEmpty());
+        assertEquals(LEASE_LOST, first.acknowledge(message).block().code());
+        assertEquals(LEASE_LOST, first.renewClaim(message, Duration.ofSeconds(30)).block().code());
+        jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
+        var reclaimed = second.claim(OutboxMessage.Kind.DISPATCH, "new-worker", Duration.ofSeconds(30), 1).block().getFirst();
+        assertTrue(reclaimed.fencingToken() > message.fencingToken());
+        assertEquals(LEASE_LOST, first.defer(message, Duration.ofSeconds(1)).block().code());
+        assertEquals(APPLIED, second.acknowledge(reclaimed).block().code());
+    }
+
+    @Test
+    public void expiredPermitsRecoverAndStaleWorkerCannotReleaseNewPermit() {
+        accept("permit-fencing", null);
+        var message = first.claim(OutboxMessage.Kind.DISPATCH, "old-worker", Duration.ofSeconds(30), 1).block().getFirst();
+        var settings = limits(1, 1, 1, 1, 100, 100, 100, 100);
+        assertTrue(first.acquireDispatchPermit(message, "model", settings).block().granted());
+        assertTrue(first.acquireDispatchPermit(message, "model", settings).block().granted());
+        assertEquals(4, jdbc.queryForObject("SELECT SUM(requests) FROM arte_ai_dispatch_rate", Integer.class).intValue());
+        var renewed = first.renewClaim(message, Duration.ofSeconds(60)).block().value();
+        assertEquals(renewed.leaseExpiresAt().toEpochMilli(), jdbc.queryForObject("SELECT lease_until FROM arte_ai_dispatch_permit", Long.class).longValue());
+        jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
+        jdbc.update("UPDATE arte_ai_dispatch_permit SET lease_until=0");
+        var current = second.claim(OutboxMessage.Kind.DISPATCH, "new-worker", Duration.ofSeconds(30), 1).block().getFirst();
+        assertTrue(second.acquireDispatchPermit(current, "model", settings).block().granted());
+        first.releaseDispatchPermit(message).block();
+        assertEquals(current.fencingToken(), jdbc.queryForObject("SELECT token FROM arte_ai_dispatch_permit", Long.class).longValue());
+        second.releaseDispatchPermit(current).block();
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_dispatch_permit", Integer.class).intValue());
+    }
+
+    @Test
+    public void retryQueueRejectsUnknownFactsAndCommittedOutput() {
+        accept("retry-proof", null);
+        create("retry-proof");
+        dispatch("retry-proof");
+        var uncertain = new ExecutionError("bad-proof", ExecutionError.Phase.DISPATCH, true,
+                ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.KNOWN, "trace");
+        assertEquals(RECONCILIATION_REQUIRED, first.queueRetry(new FailAttempt(guard("retry-proof"), Attempt.State.FAILED, uncertain, Usage.unknown()), Duration.ofMillis(100)).block().code());
+        first.appendBatch(new Append(guard("retry-proof"), "output-before-failure", List.of(batch("already output")))).block();
+        var rejection = new ExecutionError("PROVIDER_HTTP_429", ExecutionError.Phase.DISPATCH, true,
+                ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, "trace");
+        assertEquals(RECONCILIATION_REQUIRED, first.queueRetry(new FailAttempt(guard("retry-proof"), Attempt.State.FAILED, rejection, Usage.unknown()), Duration.ofMillis(100)).block().code());
+        assertEquals(Invocation.State.RUNNING, first.find(OWNER, "retry-proof").block().state());
+    }
+
 }

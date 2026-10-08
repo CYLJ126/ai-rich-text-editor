@@ -51,7 +51,7 @@ public final class BudgetCommands {
         }
     }
 
-    public enum Evidence {UNKNOWN_COST, PROVIDER_BILL, MANUAL_PROVIDER_BILL, PROVEN_NOT_DISPATCHED}
+    public enum Evidence {UNKNOWN_COST, PROVIDER_BILL, MANUAL_PROVIDER_BILL, PROVEN_NOT_DISPATCHED, PROVEN_NO_EXECUTION}
 
     /**
      * 预留版本作 CAS；最终结算不可覆盖。普通客户端不能自报费用；
@@ -68,7 +68,7 @@ public final class BudgetCommands {
             ContractChecks.require(settlement.state() == BudgetSettlement.State.PENDING_RECONCILIATION
                     ? evidence == Evidence.UNKNOWN_COST
                     : evidence != Evidence.UNKNOWN_COST && evidenceRef != null, "Settlement requires matching evidence");
-            ContractChecks.require(evidence != Evidence.PROVEN_NOT_DISPATCHED
+            ContractChecks.require((evidence != Evidence.PROVEN_NOT_DISPATCHED && evidence != Evidence.PROVEN_NO_EXECUTION)
                     || settlement.state() == BudgetSettlement.State.RELEASED, "No-dispatch evidence is only for release");
         }
     }

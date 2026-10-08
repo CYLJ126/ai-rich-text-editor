@@ -65,6 +65,17 @@ public class DispatchIntegrationTest {
     private static final Duration WAIT = Duration.ofSeconds(20);
     private static final String USAGE = "{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}";
 
+    private static NewAiExecutionProperties retrySettings(NewAiExecutionProperties.DispatchLimits limits) {
+        return new NewAiExecutionProperties(true, false, 4, Duration.ofMillis(100), Duration.ofSeconds(3),
+                Duration.ofSeconds(3), Duration.ofDays(1), limits,
+                new NewAiExecutionProperties.Retry(3, Duration.ofMillis(100), Duration.ofMillis(200)));
+    }
+
+    private static void pollAfterBackoff(Rig rig) throws Exception {
+        Thread.sleep(230);
+        rig.worker.pollOnce().block(WAIT);
+    }
+
     private static String chunk(String text, String finish, String usage) {
         return "data: {\"id\":\"response\",\"model\":\"deepseek-actual\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\""
                 + text + "\"},\"finish_reason\":" + (finish == null ? "null" : "\"" + finish + "\"")
@@ -83,13 +94,14 @@ public class DispatchIntegrationTest {
         volatile String body = chunk("你好", "stop", USAGE) + "data: [DONE]\n\n";
         volatile String tail = "";
         volatile long pause;
+        volatile int firstHttpStatus = 200;
+        volatile int subsequentHttpStatus = 200;
         final JdbcTemplate jdbc;
         final AdmissionFixture fixture;
         final HttpConnectionRuntime transport;
         final DefaultModelGateway<?, ?, ?> gateway;
         final AdmissionAuthorization authorization;
-        final NewAiExecutionProperties settings = new NewAiExecutionProperties(true, false, 4, Duration.ofMillis(100),
-                Duration.ofSeconds(3), Duration.ofSeconds(3), Duration.ofDays(1));
+        final NewAiExecutionProperties settings;
         final DefaultInvocationCoordinator coordinator;
         final DefaultChatService chat;
         final DefaultExecutionControl control;
@@ -101,13 +113,23 @@ public class DispatchIntegrationTest {
         }
 
         Rig(boolean insufficientBudget) throws Exception {
+            this(insufficientBudget, retrySettings(null));
+        }
+
+        Rig(boolean insufficientBudget, NewAiExecutionProperties settings) throws Exception {
+            this.settings = settings;
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(httpThreads);
             server.createContext("/", exchange -> {
-                requests.incrementAndGet();
+                int requestNumber = requests.incrementAndGet();
                 requestBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
-                exchange.sendResponseHeaders(200, 0);
+                int status = requestNumber == 1 ? firstHttpStatus : subsequentHttpStatus;
+                exchange.sendResponseHeaders(status, 0);
+                if (status != 200) {
+                    exchange.close();
+                    return;
+                }
                 try (var output = exchange.getResponseBody()) {
                     output.write(body.getBytes(StandardCharsets.UTF_8));
                     output.flush();
@@ -188,6 +210,18 @@ public class DispatchIntegrationTest {
         AcceptedExecution submit(Conversation conversation, String key) {
             var context = fixture.context("alice", key);
             return chat.submit(fixture.chatRequest(conversation.conversationId(), 0, "hello", context), context).block(WAIT);
+        }
+
+        AcceptedExecution submitWithAttempts(Conversation conversation, String key, int attempts, Duration timeout) {
+            var original = fixture.context("alice", key);
+            var context = new com.arte.ainew.common.execution.ExecutionContext(original.executionId(), original.traceId(),
+                    original.authorization(), Clock.systemUTC().instant().plus(timeout), original.parentExecutionId(),
+                    original.budgetRef(), original.releaseRef(), original.idempotencyKey());
+            var input = fixture.chatRequest(conversation.conversationId(), 0, "hello", context);
+            var options = new ExecutionOptions(context.deadline(), attempts, input.options().maxOutputBytes(), 0, 0, timeout);
+            return chat.submit(new com.arte.ainew.pojo.entry.EntryRequests.Chat(input.conversationId(), input.expectedVersion(),
+                    input.parentTurnId(), input.supersedesTurnId(), input.context(), input.capability(), input.binding(),
+                    input.generationOptions(), options), context).block(WAIT);
         }
 
         Invocation invocation(AcceptedExecution value) {
@@ -712,6 +746,207 @@ public class DispatchIntegrationTest {
             assertEquals(3, messages.size());
             assertEquals("new complete reply", messages.get(1).path("content").asString());
             assertEquals(2, rig.fixture.executions.findTurn(owner, current.conversationId(), rig.invocation(next).conversation().turnId()).block(WAIT).sequence());
+        }
+    }
+
+    @Test
+    public void rejected429RetriesWithIndependentAttemptsAndReleasedBudget() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "safe-retry", 3, AdmissionFixture.TIMEOUT);
+            var deadline = rig.invocation(accepted).request().options().deadline();
+            rig.worker.pollOnce().block(WAIT);
+            var queued = rig.invocation(accepted);
+            assertEquals(Invocation.State.QUEUED, queued.state());
+            var previous = rig.attempt(rig.invocation(accepted));
+            assertEquals("PROVIDER_HTTP_429", previous.error().code());
+            assertEquals(BudgetReservation.State.RELEASED, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    previous.budgetReservationId()).block(WAIT).state());
+            assertEquals(0, rig.fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block(WAIT).held().amount().signum());
+            assertEquals(1, rig.requests.get());
+            pollAfterBackoff(rig);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+            assertEquals(2, rig.requests.get());
+            var current = rig.attempt(rig.invocation(accepted));
+            assertEquals(2, current.attemptNumber());
+            assertNotEquals(previous.attemptId(), current.attemptId());
+            assertNotEquals(previous.budgetReservationId(), current.budgetReservationId());
+            assertNotEquals(previous.remoteRequestId(), current.remoteRequestId());
+            assertEquals(deadline, rig.invocation(accepted).request().options().deadline());
+            assertEquals(2, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_attempt", Integer.class).intValue());
+            assertEquals(0, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_dispatch_permit", Integer.class).intValue());
+        }
+    }
+
+    @Test
+    public void retryExhaustionEndsOnceAndDoesNotHoldBudget() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = rig.subsequentHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "exhaust", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            pollAfterBackoff(rig);
+            pollAfterBackoff(rig);
+            assertEquals(Invocation.State.FAILED, rig.invocation(accepted).state());
+            assertEquals(3, rig.requests.get());
+            assertEquals(3, rig.attempt(rig.invocation(accepted)).attemptNumber());
+            assertEquals(0, rig.fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block(WAIT).held().amount().signum());
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(3, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void uncertainServerFailureNeverRetriesEvenWithAttemptsAvailable() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 503;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "unsafe", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(accepted).state());
+            assertEquals(BudgetReservation.State.PENDING_RECONCILIATION, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    rig.attempt(rig.invocation(accepted)).budgetReservationId()).block(WAIT).state());
+            pollAfterBackoff(rig);
+            assertEquals(1, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void permanentRejectionNeverRetriesAndReleasesReservation() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 401;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "permanent", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.FAILED, rig.invocation(accepted).state());
+            assertEquals(BudgetReservation.State.RELEASED, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    rig.attempt(rig.invocation(accepted)).budgetReservationId()).block(WAIT).state());
+            pollAfterBackoff(rig);
+            assertEquals(1, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void cancellationDuringRetryBackoffPreventsAnotherRequest() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "cancel-backoff", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            rig.control.request(new ExecutionControlRequest("cancel-backoff", accepted.executionId(), "cancel", ControlReceipt.Command.CANCEL),
+                    rig.fixture.context("alice", "cancel-reader")).block(WAIT);
+            assertEquals(Invocation.State.CANCELLED, rig.invocation(accepted).state());
+            pollAfterBackoff(rig);
+            assertEquals(1, rig.requests.get());
+            assertEquals(0, rig.fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block(WAIT).held().amount().signum());
+        }
+    }
+
+    @Test
+    public void rateLimitedInvocationStaysQueuedWithoutAttemptOrReservation() throws Exception {
+        var limits = new NewAiExecutionProperties.DispatchLimits(true, 16, 8, 2, 8, 120, 60, 1, 60, Duration.ofSeconds(1));
+        try (var rig = new Rig(false, retrySettings(limits))) {
+            var first = rig.submit(rig.conversation(), "rate-first");
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(first).state());
+            var secondConversation = rig.fixture.conversations.create("test", null, List.of(), rig.fixture.context("alice", "create-rate-second")).block(WAIT);
+            var queued = rig.submit(secondConversation, "rate-second");
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.QUEUED, rig.invocation(queued).state());
+            assertNull(rig.invocation(queued).activeAttemptId());
+            assertEquals(1, rig.requests.get());
+            assertEquals(1, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_reservation", Integer.class).intValue());
+            Thread.sleep(1100);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(queued).state());
+            assertEquals(2, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void expiredUndispatchedAttemptRetriesWithoutResendingUnknownExecution() throws Exception {
+        try (var rig = new Rig()) {
+            var accepted = rig.submitWithAttempts(rig.conversation(), "crash-before-send", 3, AdmissionFixture.TIMEOUT);
+            var invocation = rig.invocation(accepted);
+            var attempt = rig.fixture.executions.createAttempt(new ExecutionCommands.CreateAttempt(new ExecutionCommands.Version(
+                    AdmissionFixture.owner("alice-id"), accepted.executionId(), invocation.version()), "crashed", "dead-worker", Duration.ofSeconds(1))).block(WAIT).value();
+            Thread.sleep(1100);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
+            assertEquals(0, rig.requests.get());
+            pollAfterBackoff(rig);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+            assertEquals(2, rig.attempt(rig.invocation(accepted)).attemptNumber());
+            assertEquals(1, rig.requests.get());
+            assertEquals(Attempt.Dispatch.NOT_STARTED, attempt.dispatch());
+        }
+    }
+
+    @Test
+    public void queuedRetryRecoversBudgetReleaseFailureOnAnotherWorker() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "retry-release-crash", 3, AdmissionFixture.TIMEOUT);
+            rig.failSettlement.set(true);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
+            var oldAttempt = rig.attempt(rig.invocation(accepted));
+            assertEquals(BudgetReservation.State.RESERVED, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    oldAttempt.budgetReservationId()).block(WAIT).state());
+            rig.jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
+            Thread.sleep(230);
+            var replacement = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions, rig.coordinator, rig.settings, rig.timer);
+            replacement.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+            assertEquals(2, rig.requests.get());
+            assertEquals(BudgetReservation.State.RELEASED, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    oldAttempt.budgetReservationId()).block(WAIT).state());
+        }
+    }
+
+    @Test
+    public void outboxReclaimCannotSkipDurableRetryBackoff() throws Exception {
+        var settings = new NewAiExecutionProperties(true, false, 4, Duration.ofMillis(100), Duration.ofSeconds(3),
+                Duration.ofSeconds(3), Duration.ofDays(1), null,
+                new NewAiExecutionProperties.Retry(3, Duration.ofSeconds(5), Duration.ofSeconds(5)));
+        try (var rig = new Rig(false, settings)) {
+            rig.firstHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "persisted-backoff", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            rig.jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
+            var reduced = retrySettings(null);
+            var replacement = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
+                    new DefaultInvocationCoordinator(rig.fixture.coordinator, new GenerationDispatcher(rig.authorization, rig.fixture.catalog,
+                            rig.fixture.executions, rig.fixture.executions, rig.fixture.executions, rig.fixture.payloads, rig.fixture.payloads,
+                            rig.fixture.executions, rig.gateway, rig.fixture.properties, reduced, Clock.systemUTC())), reduced, rig.timer);
+            replacement.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
+            assertEquals(1, rig.requests.get());
+            assertEquals(1, rig.attempt(rig.invocation(accepted)).attemptNumber());
+        }
+    }
+
+    @Test
+    public void queuedRetryDeadlineExpiresWithoutAnotherProviderRequest() throws Exception {
+        try (var rig = new Rig()) {
+            rig.firstHttpStatus = 429;
+            var accepted = rig.submitWithAttempts(rig.conversation(), "retry-deadline", 3, Duration.ofSeconds(2));
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
+            Thread.sleep(2200);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.TIMED_OUT, rig.invocation(accepted).state());
+            assertEquals(1, rig.requests.get());
+            assertEquals(0, rig.fixture.executions.account(AdmissionFixture.owner("alice-id"), "alice-budget").block(WAIT).held().amount().signum());
+        }
+    }
+
+    @Test
+    public void partialOutputFailureNeverRetriesWithAttemptsAvailable() throws Exception {
+        try (var rig = new Rig()) {
+            rig.body = chunk("partial text", null, "null") + "data: not-json\n\n";
+            var accepted = rig.submitWithAttempts(rig.conversation(), "partial-no-retry", 3, AdmissionFixture.TIMEOUT);
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(accepted).state());
+            pollAfterBackoff(rig);
+            assertEquals(1, rig.requests.get());
+            assertEquals(1, rig.attempt(rig.invocation(accepted)).attemptNumber());
         }
     }
 

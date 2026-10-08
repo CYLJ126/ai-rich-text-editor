@@ -33,6 +33,11 @@ public final class GenerationException extends RuntimeException {
         return new ExecutionError(getMessage(), phase, retryable, sideEffect, certainty, correlationId);
     }
 
+    public static GenerationException transientBeforeSend(String code) {
+        return new GenerationException(code, ExecutionError.Phase.DISPATCH, true,
+                ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN);
+    }
+
     public static GenerationException beforeSend(String code) {
         return new GenerationException(code, ExecutionError.Phase.DISPATCH, false,
                 ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN);

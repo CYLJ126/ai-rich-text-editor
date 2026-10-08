@@ -64,6 +64,19 @@ public interface ExecutionStore {
 
     Mono<StoreOutcome<Attempt>> markDispatch(ExecutionCommands.Dispatch command);
 
+    Mono<StoreOutcome<Invocation>> queue(ExecutionCommands.Version version);
+
+    /**
+     * 失败 Attempt 和 QUEUED 同事务，禁止不确定、已有输出或已取消的尝试重发。
+     */
+    Mono<StoreOutcome<Invocation>> queueRetry(ExecutionCommands.FailAttempt command, Duration backoff);
+
+    Mono<StoreOutcome<Invocation>> queueExpiredRetry(ExecutionCommands.Version version, Duration backoff);
+
+    Mono<java.time.Instant> retryNotBefore(ExecutionOwner owner, String invocationId, String attemptId);
+
+    Mono<StoreOutcome<Invocation>> stopQueued(ExecutionCommands.Version version, ExecutionPayload.Terminal terminal);
+
     Mono<StoreOutcome<Attempt>> updateConditionally(ExecutionCommands.FailAttempt command);
 
     /**

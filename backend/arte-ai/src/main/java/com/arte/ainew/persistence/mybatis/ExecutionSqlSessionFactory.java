@@ -19,6 +19,7 @@ import java.util.Objects;
  * @since 2026/10/4 23:30 ✾
  */
 public final class ExecutionSqlSessionFactory {
+
     private ExecutionSqlSessionFactory() { }
 
     public static SqlSessionFactory create(DataSource dataSource) {
@@ -32,7 +33,7 @@ public final class ExecutionSqlSessionFactory {
         configuration.setDefaultStatementTimeout(30);
         // 明确列举，防止扩大包扫描时把旧业务插件或 Mapper 引入本存储。
         for (var mapper : new Class<?>[]{SystemMapper.class, ExecutionMapper.class, AdmissionMapper.class,
-                BudgetMapper.class, EventMapper.class, OutboxMapper.class, PayloadMapper.class}) {
+                BudgetMapper.class, EventMapper.class, OutboxMapper.class, PayloadMapper.class, DispatchLimitMapper.class}) {
             String path = "ainew/persistence/" + mapper.getSimpleName() + ".xml";
             try (var input = new ClassPathResource(path).getInputStream()) {
                 new XMLMapperBuilder(input, configuration, path, configuration.getSqlFragments()).parse();

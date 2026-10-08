@@ -63,7 +63,7 @@ public class ExecutionSqlSessionFactoryTest {
         assertEquals(LocalCacheScope.STATEMENT,config.getLocalCacheScope());
         assertEquals(ExecutorType.SIMPLE,config.getDefaultExecutorType());
         assertEquals(Integer.valueOf(30),config.getDefaultStatementTimeout());
-        assertEquals(7,config.getMapperRegistry().getMappers().size());
+        assertEquals(8, config.getMapperRegistry().getMappers().size());
         assertTrue(config.getMapperRegistry().getMappers().stream().allMatch(type -> type.getPackageName().equals("com.arte.ainew.persistence.mybatis.mapper")));
         assertTrue(config.getMappedStatements().stream().allMatch(statement -> statement.getCache()==null));
     }

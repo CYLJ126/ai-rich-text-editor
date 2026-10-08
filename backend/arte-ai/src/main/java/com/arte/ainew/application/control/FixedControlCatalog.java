@@ -179,7 +179,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                 throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);
             }
             var options = request.options();
-            if (options.maxAttempts() != 1 || options.maxToolSteps() != 0 || options.maxConcurrentTools() != 0
+            if (options.maxToolSteps() != 0 || options.maxConcurrentTools() != 0
                     || options.maxOutputBytes() > properties.limits().maxOutputBytes()
                     || generation.options().maxOutputTokens() > properties.limits().maxOutputTokens()) {
                 throw new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED);

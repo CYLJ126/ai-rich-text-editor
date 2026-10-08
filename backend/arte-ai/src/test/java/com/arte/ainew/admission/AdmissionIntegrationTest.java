@@ -186,7 +186,7 @@ public class AdmissionIntegrationTest {
         var current = first.context("alice", "retry");
         var original = first.chatRequest(conversation.conversationId(), 0, "hello", current);
         var retried = new EntryRequests.Chat(original.conversationId(), 0, null, null, original.context(), original.capability(), original.binding(),
-                original.generationOptions(), new ExecutionOptions(current.deadline(), 2, 4096, 0, 0, AdmissionFixture.TIMEOUT));
+                original.generationOptions(), new ExecutionOptions(current.deadline(), 2, 4096, 1, 1, AdmissionFixture.TIMEOUT));
         code(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED, () -> first.chat.submit(retried, current).block());
         var system = new ChatMessage("system", ChatMessage.Role.SYSTEM, List.of(new ChatMessage.Text("system")), List.of(), null);
         var selection = new com.arte.ainew.pojo.context.ContextRequest(List.of(system), null, List.of(), List.of(), null, original.context().budget());

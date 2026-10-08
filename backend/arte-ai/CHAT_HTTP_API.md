@@ -50,7 +50,8 @@ Accept-Language: zh-CN
   （AI_EXECUTION_LIMIT_EXCEEDED）。 本地 profile 的窗口为 65536、输出上限为 4096，可使用输入 32768／输出
   512。不能把输入、输出都填成窗口值；这表示需要两倍容量。 拒绝发生在受理前，不创建 Invocation、Turn、快照或派发消息，不调用模型、不预留预算。
 - `timeoutSeconds` 是整数秒，范围为 1 秒到服务器配置 `maximumTimeout`，不静默截断。相对超时也写入 `ExecutionOptions.requestedTimeout`，同键重放不会因重新分配绝对期限而冲突，也不能延长原调用。
-- 尝试次数固定为 1、工具步骤和并发固定为 0、输出字节上限来自服务端配置。
+- 尝试次数由服务端 `arte.ai-new-execution.retry.max-attempts` 固定（默认 3，包含首次），工具步骤和并发固定为
+  0，输出字节上限来自服务端配置；仅已证明未执行的瞬时失败自动重试。
 
 ## 响应及执行
 

@@ -93,6 +93,9 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                             .then(executionOutboxStore.acknowledge(message).flatMap(value -> value.successful() ? Mono.empty()
                                     : Mono.error(AdmissionException.fromStoreRejection(value.code())))).then();
                 })
+                .onErrorResume(DispatchDeferredException.class, deferred ->
+                        executionOutboxStore.defer(message, deferred.delay()).flatMap(value -> value.successful() ? Mono.empty()
+                                : Mono.error(AdmissionException.fromStoreRejection(value.code()))).then())
                 .onErrorResume(error -> {
                     // 不 ACK，留待租约到期重领。只记录稳定错误分类，避免异常正文携带 SQL／凭据／用户输入。
                     String code = error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "WORKER_INFRASTRUCTURE_FAILURE";

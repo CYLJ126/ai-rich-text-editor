@@ -148,7 +148,9 @@ mvn -o -f backend/pom.xml -pl arte-app -am \
 
 ## 派发与恢复保证
 
-Outbox 和 Attempt 使用不同的租约及 fencing token。新增 `ExecutionOutboxStore.validateClaim／renewClaim` 以数据库时钟检查完整身份，不允许已经失效的领取复活；Attempt 所有写入使用新读取的 Guard。只在存储明确返回 VERSION_CONFLICT 时有限次重新读取，模型交互不 retry。
+Outbox 和 Attempt 使用不同的租约及 fencing token。新增 `ExecutionOutboxStore.validateClaim／renewClaim`
+以数据库时钟检查完整身份，不允许已经失效的领取复活；Attempt 所有写入使用新读取的 Guard。只在存储明确返回 VERSION_CONFLICT
+时有限次重新读取，模型交互不使用 Reactor retry；新的安全尝试由耐久队列分配。
 
 每次创建 Worker 的身份唯一，不读取旧 ThreadLocal 用户或连接路由。多实例归属由数据库锁与版本仲裁；单实例也限制重复 pollOnce
 重叠。生成信号只订阅一次，首个文本增量立即关闭当前窗口，后续按最多 128 条信号或 500
@@ -163,7 +165,8 @@ ACK DISPATCH。
 
 - 已结束：只恢复未完成的结算，不再次调用模型。
 - 已有有效 Attempt：拒绝接管发送，保留消息供后续重领。
-- 已有失效 Attempt：`ExecutionStore.stopExpired` 原子递增版本和 fencing；NOT_STARTED 收敛为 INTERRUPTED，可能发送收敛为 UNKNOWN。本阶段不自动创建第二次尝试。
+- 已有失效 Attempt：未发送且还有尝试次数、未到截止时间、未取消时，`queueExpiredRetry` 保存 INTERRUPTED 证据并排队创建新
+  Attempt；否则 `stopExpired` 收敛。可能发送的失效尝试始终 UNKNOWN。
 - 未创建 Attempt 但权限、配置、快照或期限失效：耐久结束；队列中过期的调用成为 TIMED_OUT，不调用模型。
 
 该链路提供至少一次消息处理与耐久防重。数据库无法与外部 HTTP 形成原子事务；在发送标记之后发生崩溃，即使无法判断是否实际发送，也保留
@@ -201,8 +204,7 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 Controller，提交契约见 [HTTP 接口说明](CHAT_HTTP_API.md)
 ；执行状态／结果及单页耐久事件重放已接入，见 [执行查询接口](INVOCATION_HTTP_API.md)
 ；授权预算账户汇总已接入，见 [预算查询接口](BUDGET_HTTP_API.md)。耐久跨实例停止已接入，见本文末尾。 预算管理 HTTP
-Controller、UNKNOWN 的远端核对、动态路由、工具及多次安全重试仍待后续实现；reconcile
-明确返回未启用错误。现有手动 DDL 不变。
+Controller、UNKNOWN 的远端核对、动态路由、工具仍待后续实现；reconcile 明确返回未启用错误。派发限流需要本文末尾的增量 DDL。
 
 ## 事件通知、预算结算与跨实例广播
 
@@ -223,3 +225,41 @@ GENERATION／UNKNOWN／INVOCATION_CANCELLED 在完成或过期恢复时释放会
 ChatHistoryLoader 验证耐久取消标记后跳过停止轮次；原部分回复保持可读，预算预留继续等待原调用的费用核对，新问题创建独立调用。
 停止与完成竞争以数据库终态为准，恢复仍使用原 DISPATCH Outbox，费用故障不吞掉、不立即假报释放。
 HTTP／客户端语义及当前远端核对限制见 [停止接口](INVOCATION_HTTP_API.md#停止生成)。不需要新增 DDL。
+
+## 派发限流与安全重试
+
+升级已有新 AI 存储时，先显式执行 [限流增量脚本](scripts/arte-ai-new-dispatch-limits-migration.sql)
+，再部署／重启应用。首次部署使用 [完整 DDL](scripts/arte-ai-new-ddl-mysql.sql)，不要同时执行两个脚本。应用及测试装配不会自动修改业务数据库。
+
+`arte.ai-new-execution.dispatch-limits` 默认启用，所有连接同一数据库的 API／Worker 实例共享并发和频率额度；`concurrency`
+仍是单实例批量执行上限。修改 `backend/profile/app.properties` 中同名 Maven 参数后重新生成资源；公共默认值位于
+`profile/common.properties`，示例见 `profile/app.properties.example`，也可使用 Spring 环境属性覆盖。
+
+| 维度 | 并发上限 | 每窗口请求数 | 作用域 |
+|---|---:|---:|---|
+| global | 16 | 120 | 同数据库的新 AI 派发 |
+| tenant | 8 | 60 | tenantId，跨工作空间及主体 |
+| user | 2 | 20 | tenantId + subjectId，跨工作空间 |
+| model | 8 | 60 | connection.id + remoteOperation，跨绑定版本与租户 |
+
+窗口默认为 `1m`；这是按数据库时钟记录起点的固定窗口，窗口边界可有突发。并发 Permit 在预留预算和 `markDispatch` 前获得，跟随
+Outbox 同事务续租，结束／失败／取消释放；崩溃后过期回收。过期 Worker 无法释放新 token 的 Permit。排队不占并发和预算，拒绝不消耗频率额度，成功获
+Permit 的每个 Attempt 计入频率。
+
+超限时 Invocation 为 QUEUED，Outbox 清除当前 Worker 并设置下次可领取时间，不 ACK、不启动
+Attempt。延迟不超过原截止时间；后续仍重新校验授权、绑定、输入快照及预算。当前前端已支持 QUEUED 状态和停止按钮。
+
+重试参数位于 `arte.ai-new-execution.retry`：`max-attempts=3`（包含首次）、`initial-backoff=1s`、`max-backoff=10s`
+。最大尝试次数取受理记录与当前服务配置的较小值；HTTP 聊天入口从服务端配置写入，不接受客户端自报。指数退避使用稳定的 80%～100%
+jitter，以数据库时钟将 notBefore 和失败 Attempt／QUEUED 同事务保存在耐久 RetrySchedule 中；配置缩短退避、重启或消息重投不会提前旧重试，不延长原截止时间。
+
+只有 `retryable=true + certainty=KNOWN + sideEffect=NONE` 且没有任何输出／部分结果、未取消、有剩余次数与时间的失败才重试。目前包括
+HTTP 429 明确拒绝、本地连接容量不足，以及崩溃后能证明 NOT_STARTED 的尝试。401 等永久拒绝结束 FAILED 并释放预算；HTTP
+5xx、发送后超时／断流、未知结果保留 UNKNOWN 及待核对预算，不自动重发。
+
+同一个 Invocation 和 Turn 保持原身份，每次重试有独立 Attempt、fencing、remoteRequestId、预算预留及完成键。失败 Attempt 和
+QUEUED 原子写入，预算以 `PROVEN_NO_EXECUTION`（存储再次检查持久失败证据）释放后才允许下一次
+Attempt。崩溃发生在排队与释放之间时，重领先恢复释放再重试；有耐久取消标记的排队调用不会继续发送。
+
+用隔离 H2 和本地 HTTP 服务测试：429→成功、耗尽、401／503、排队停止、限流恢复、发送前崩溃重试，及两个存储实例的四维限流竞争、拒绝不计数、Permit
+续租与 fencing、旧 Outbox ACK 拒绝。测试不访问真实模型或业务数据库。

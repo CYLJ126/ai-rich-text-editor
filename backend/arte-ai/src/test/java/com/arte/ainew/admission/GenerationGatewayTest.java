@@ -474,7 +474,7 @@ public class GenerationGatewayTest {
         try (var rig = new Rig()) {
             var valid = rig.call();
             var request = new InvocationRequest<>(valid.request().capability(), valid.request().binding(), valid.request().kind(),
-                    valid.request().input(), new ExecutionOptions(valid.request().options().deadline(), 2, 4096, 0, 0, Duration.ofSeconds(8)),
+                    valid.request().input(), new ExecutionOptions(valid.request().options().deadline(), 2, 4096, 1, 1, Duration.ofSeconds(8)),
                     valid.request().context());
             var call = new GatewayCall<>(request, valid.binding(), valid.attempt(), valid.runtime());
             var failure = failed(rig.gateway.generate(call).collectList().block(WAIT), "GENERATION_PREFLIGHT_REJECTED");

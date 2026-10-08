@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.DispatchLimitMapper">
+    <resultMap id="Permit" type="com.arte.ainew.persistence.mybatis.mapper.DispatchLimitMapper$Permit">
+        <constructor>
+            <arg column="token" javaType="_long"/>
+            <arg column="tenant_key" javaType="java.lang.String"/>
+            <arg column="user_key" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="lease_until" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Window" type="com.arte.ainew.persistence.mybatis.mapper.DispatchLimitMapper$Window">
+        <constructor>
+            <arg column="starts_at" javaType="_long"/>
+            <arg column="requests" javaType="_int"/>
+        </constructor>
+    </resultMap>
+    <select id="permit" resultMap="Permit">SELECT * FROM arte_ai_dispatch_permit WHERE message_key=#{key}</select>
+    <select id="active" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM arte_ai_dispatch_permit WHERE lease_until &gt; #{now}
+        <choose>
+            <when test="dimension == 'tenant'">AND tenant_key=#{scope}</when>
+            <when test="dimension == 'user'">AND user_key=#{scope}</when>
+            <when test="dimension == 'model'">AND model_key=#{scope}</when>
+        </choose>
+    </select>
+    <select id="window" resultMap="Window">SELECT * FROM arte_ai_dispatch_rate WHERE bucket_key=#{key}</select>
+    <insert id="insertWindow">INSERT INTO arte_ai_dispatch_rate(bucket_key,starts_at,requests)
+        VALUES(#{key},#{startsAt},0)
+    </insert>
+    <update id="saveWindow">UPDATE arte_ai_dispatch_rate SET starts_at=#{startsAt},requests=#{requests} WHERE
+        bucket_key=#{key}
+    </update>
+    <insert id="insertPermit">
+        INSERT INTO arte_ai_dispatch_permit(message_key,token,tenant_key,user_key,model_key,lease_until)
+        VALUES(#{key},#{token},#{tenant},#{user},#{model},#{expiry})
+    </insert>
+    <update id="renew">UPDATE arte_ai_dispatch_permit SET lease_until=#{expiry} WHERE message_key=#{key} AND
+        token=#{token}
+    </update>
+    <delete id="release">DELETE FROM arte_ai_dispatch_permit WHERE message_key=#{key} AND token=#{token}</delete>
+    <delete id="expire">DELETE FROM arte_ai_dispatch_permit WHERE lease_until &lt;= #{now}</delete>
+</mapper>
