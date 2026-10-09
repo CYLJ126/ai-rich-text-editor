@@ -71,6 +71,12 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         return WorkspaceViewMapper.workspace(access.snapshot(actor, scope));
     }
 
+    private WorkspaceViews.WorkspaceView getCurrent(TrustedActor actor, Scope scope) {
+        authorization.requireInCurrentTransaction(actor,
+                DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_READ, "workspace-read"));
+        return WorkspaceViewMapper.workspace(access.snapshotCurrent(actor, scope));
+    }
+
     @Override
     public PageResult<WorkspaceViews.WorkspaceSummary> listAccessible(TrustedActor actor, PageQuery query) {
         String subjectId = principals.requireUser(actor).subjectId();
@@ -121,9 +127,9 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                 WorkspaceViews.WorkspaceView.class, List.of(command.name(), command.description()),
                 () -> locks.tenant(subjectId, command.tenantId()), value -> {
                     if (!value.scope().tenantId().equals(command.tenantId())) throw unavailable();
-                    get(actor, value.scope());
+                    getCurrent(actor, value.scope());
                 }, operationId -> {
-                    var tenant = authorization.requireWorkspaceCreation(actor, command.tenantId());
+                    var tenant = authorization.requireWorkspaceCreationCurrent(actor, command.tenantId());
                     var now = clock.instant();
                     Scope newScope = new Scope(command.tenantId(), ids.nextId());
                     Workspace workspace = new Workspace(newScope, command.name(), command.description(), WorkspaceStateEnum.ACTIVE,
@@ -138,7 +144,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     check(tenants.replace(updated, old.version()), command.meta());
                     effects.append(actor, new CommandScope(newScope.tenantId(), newScope.workspaceId()), "workspace:created", operationId, 0,
                             Map.of("tenantEpoch", Long.toString(updated.authEpoch()), "workspaceEpoch", "0"));
-                    return new DefaultCommandExecutor.Result<>(get(actor, newScope), 0);
+                    return new DefaultCommandExecutor.Result<>(getCurrent(actor, newScope), 0);
                 });
     }
 
@@ -150,10 +156,10 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                 List.of(Long.toString(command.expectedVersion()), command.name(), command.description()),
                 () -> locks.scopes(actor.principal().subjectId(), List.of(scope)), value -> {
                     if (!value.scope().equals(scope)) throw unavailable();
-                    get(actor, value.scope());
+                    getCurrent(actor, value.scope());
                 }, operationId -> {
-                    authorization.require(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_UPDATE, "workspace-rename"));
-                    Workspace old = access.snapshot(actor, scope).workspace();
+                    authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_UPDATE, "workspace-rename"));
+                    Workspace old = access.snapshotCurrent(actor, scope).workspace();
                     if (old.version() != command.expectedVersion())
                         throw new PlatformException(PlatformErrorCodeEnum.VERSION_CONFLICT, command.meta().traceId());
                     Workspace updated = new Workspace(scope, command.name(), command.description(), old.state(), old.createdBy(),
@@ -161,7 +167,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     check(workspaces.replace(updated, old.version()), command.meta());
                     effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:renamed", operationId,
                             updated.version(), Map.of("workspaceEpoch", Long.toString(updated.authEpoch())));
-                    return new DefaultCommandExecutor.Result<>(get(actor, scope), updated.version());
+                    return new DefaultCommandExecutor.Result<>(getCurrent(actor, scope), updated.version());
                 });
     }
 

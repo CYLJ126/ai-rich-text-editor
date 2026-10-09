@@ -6,6 +6,9 @@ import java.util.Optional;
 
 /**
  * 租户存储，个人主体关联唯一；insert 冲突返回 false，replace 使用版本条件。lock 只在当前事务内持有治理门控。
+ * <p>
+ * lock 返回取得锁后的最新事实（包括原事务自己的写入），不能使用旧快照、缓存或只读副本。
+ * 锁持续到外层事务结束；不得通过另开事务取得。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
@@ -22,7 +25,13 @@ public interface TenantStore {
     Optional<Tenant> findPersonal(String subjectId);
 
     /**
-     * 在当前事务内锁定并读取租户治理记录。
+     * 在已持有主体门控的原事务中当前读取个人租户关联，包含原事务自己的写入。
+     * 不使用旧快照、缓存或只读副本，不另开事务；不存在时不能回退到旧查询。
+     */
+    Optional<Tenant> findCurrentPersonal(String subjectId);
+
+    /**
+     * 在当前事务内以当前读取锁定并读取租户治理记录。
      */
     Optional<Tenant> lock(String tenantId);
 

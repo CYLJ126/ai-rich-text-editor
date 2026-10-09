@@ -54,7 +54,7 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
                 throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "write-guard");
         }
         locks.scopes(actor.principal().subjectId(), inputs.stream().map(AccessRequest::scope).toList());
-        for (AccessRequest request : inputs) authorization.require(actor, request);
+        for (AccessRequest request : inputs) authorization.requireInCurrentTransaction(actor, request);
         return Objects.requireNonNull(work).get();
     }
 }

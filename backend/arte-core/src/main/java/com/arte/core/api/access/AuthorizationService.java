@@ -39,6 +39,14 @@ public interface AuthorizationService {
     VerifiedAccess require(TrustedActor actor, AccessRequest request);
 
     /**
+     * 在调用方原事务内按当前事实强制授权，不使用旧快照、缓存或只读副本。
+     * 调用方须先按完整目标范围取得治理门控；实现不得另开事务或默认回退到 require。
+     * 返回值仍是检查快照，领域写入及版本校验须在原持锁事务内完成。
+     */
+    VerifiedAccess requireInCurrentTransaction(TrustedActor actor, AccessRequest request);
+
+
+    /**
      * 批量检查访问权限。最多 100 项，顺序与输入一致，单项与批量采用同一规则。
      *
      * @param actor    经可信认证适配确认的当前操作者

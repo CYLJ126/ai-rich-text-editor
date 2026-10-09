@@ -41,7 +41,15 @@ public final class DefaultAuthorizationService implements AuthorizationService {
      * 尚不存在的空间不能先验证空间成员，创建资格只验证当前租户与结构化政策。
      */
     public WorkspaceAccessSupport.TenantSnapshot requireWorkspaceCreation(TrustedActor actor, String tenantId) {
-        var tenant = workspaceAccessSupport.tenant(actor, tenantId);
+        return requireWorkspaceCreation(actor, tenantId, false);
+    }
+
+    public WorkspaceAccessSupport.TenantSnapshot requireWorkspaceCreationCurrent(TrustedActor actor, String tenantId) {
+        return requireWorkspaceCreation(actor, tenantId, true);
+    }
+
+    private WorkspaceAccessSupport.TenantSnapshot requireWorkspaceCreation(TrustedActor actor, String tenantId, boolean currentRead) {
+        var tenant = currentRead ? workspaceAccessSupport.tenantCurrent(actor, tenantId) : workspaceAccessSupport.tenant(actor, tenantId);
         var definition = actionRegistry.find(TENANT_WORKSPACE_CREATE).orElseThrow(() -> error(PlatformErrorCodeEnum.UNKNOWN_ACTION));
         if (!definition.resourceTypes().contains(TENANT) || !DefaultRolePermissions.mayCreateWorkspace(tenant)) {
             throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
@@ -55,10 +63,20 @@ public final class DefaultAuthorizationService implements AuthorizationService {
 
     @Override
     public AccessDecision check(TrustedActor actor, AccessRequest request) {
+        return check(actor, request, false);
+    }
+
+    public AccessDecision checkCurrent(TrustedActor actor, AccessRequest request) {
+        workspaceAccessSupport.requireTransaction();
+        return check(actor, request, true);
+    }
+
+    private AccessDecision check(TrustedActor actor, AccessRequest request, boolean currentRead) {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(request);
         try {
-            var scope = workspaceAccessSupport.snapshot(actor, request.scope());
+            var scope = currentRead ? workspaceAccessSupport.snapshotCurrent(actor, request.scope())
+                    : workspaceAccessSupport.snapshot(actor, request.scope());
             var definition = actionRegistry.find(request.action());
             if (definition.isEmpty()) return denied(AccessReasonEnum.UNKNOWN_ACTION);
             if (!definition.get().resourceTypes().contains(request.resource().type()))
@@ -67,7 +85,8 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             if (request.resource().type().equals(WORKSPACE)
                     && request.resource().resourceId().equals(request.scope().workspaceId())) {
                 if (Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action())
-                        && workspaceAccessSupport.isDefaultSpace(scope)) return denied(AccessReasonEnum.POLICY_DENIED);
+                        && (currentRead ? workspaceAccessSupport.isDefaultSpaceCurrent(scope) : workspaceAccessSupport.isDefaultSpace(scope)))
+                    return denied(AccessReasonEnum.POLICY_DENIED);
                 reason = DefaultRolePermissions.workspace(request.action(), scope);
             } else if (request.resource().type().equals(TENANT)
                     && request.resource().resourceId().equals(request.scope().tenantId())) {
@@ -92,7 +111,18 @@ public final class DefaultAuthorizationService implements AuthorizationService {
 
     @Override
     public VerifiedAccess require(TrustedActor actor, AccessRequest request) {
-        AccessDecision decision = check(actor, request);
+        return require(actor, request, false);
+    }
+
+    @Override
+    public VerifiedAccess requireInCurrentTransaction(TrustedActor actor, AccessRequest request) {
+        return require(actor, request, true);
+    }
+
+    private VerifiedAccess require(TrustedActor actor, AccessRequest request, boolean currentRead) {
+        // 在 try/catch 外强制验证事务边界，不能将事务外误用当成普通授权拒绝。
+        if (currentRead) workspaceAccessSupport.requireTransaction();
+        AccessDecision decision = check(actor, request, currentRead);
         if (!decision.allowed()) {
             PlatformErrorCodeEnum code = switch (decision.reason()) {
                 case NOT_FOUND -> PlatformErrorCodeEnum.NOT_FOUND;

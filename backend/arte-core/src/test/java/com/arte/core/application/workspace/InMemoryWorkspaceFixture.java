@@ -36,6 +36,17 @@ final class InMemoryWorkspaceFixture {
     final List<PublicEvent> events = new ArrayList<>();
     final List<AuditEntry> audits = new ArrayList<>();
     final List<String> lockOrder = new ArrayList<>();
+    private Snapshot oldReads;
+    private Map<String, Principal> oldIdentities;
+
+    /**
+     * 模拟外层事务已建立旧快照；lock／findCurrent 仍读取实时存储。
+     */
+    void captureOldReadSnapshot() {
+        oldReads = snapshot();
+        oldIdentities = Map.copyOf(identities);
+    }
+
     boolean failEvents;
     boolean failReceipt;
     boolean failIdentity;
@@ -52,6 +63,12 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<Principal> findBySubjectId(String id) {
+            if (failIdentity) throw new IllegalStateException("Identity store unavailable");
+            return Optional.ofNullable((oldIdentities == null ? identities : oldIdentities).get(id));
+        }
+
+        public Optional<Principal> findCurrentBySubjectId(String id) {
+            transactions.requireActive();
             if (failIdentity) throw new IllegalStateException("Identity store unavailable");
             return Optional.ofNullable(identities.get(id));
         }
@@ -88,17 +105,23 @@ final class InMemoryWorkspaceFixture {
 
     final TenantStore tenantStore = new TenantStore() {
         public Optional<Tenant> find(String id) {
-            return Optional.ofNullable(tenants.get(id));
+            return Optional.ofNullable((oldReads == null ? tenants : oldReads.tenants()).get(id));
         }
 
         public Optional<Tenant> findPersonal(String subject) {
+            return (oldReads == null ? tenants : oldReads.tenants()).values().stream()
+                    .filter(t -> subject.equals(t.personalSubjectId())).findFirst();
+        }
+
+        public Optional<Tenant> findCurrentPersonal(String subject) {
+            transactions.requireActive();
             return tenants.values().stream().filter(t -> subject.equals(t.personalSubjectId())).findFirst();
         }
 
         public Optional<Tenant> lock(String id) {
             transactions.requireActive();
             lockOrder.add("tenant:" + id);
-            return find(id);
+            return Optional.ofNullable(tenants.get(id));
         }
 
         public boolean insert(Tenant tenant) {
@@ -120,13 +143,13 @@ final class InMemoryWorkspaceFixture {
 
     final WorkspaceStore workspaceStore = new WorkspaceStore() {
         public Optional<Workspace> find(Scope scope) {
-            return Optional.ofNullable(workspaces.get(scope));
+            return Optional.ofNullable((oldReads == null ? workspaces : oldReads.workspaces()).get(scope));
         }
 
         public Optional<Workspace> lock(Scope scope) {
             transactions.requireActive();
             lockOrder.add("workspace:" + scope.workspaceId());
-            return find(scope);
+            return Optional.ofNullable(workspaces.get(scope));
         }
 
         public boolean insert(Workspace workspace) {
@@ -158,7 +181,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<TenantMembership> find(String tenant, String subject) {
-            return Optional.ofNullable(tenantMembers.get(List.of(tenant, subject)));
+            return Optional.ofNullable((oldReads == null ? tenantMembers : oldReads.tenantMembers()).get(List.of(tenant, subject)));
         }
 
         public Optional<TenantMembership> findById(String tenant, String id) {
@@ -168,7 +191,7 @@ final class InMemoryWorkspaceFixture {
         public Optional<TenantMembership> lock(String tenant, String subject) {
             transactions.requireActive();
             lockOrder.add("tenant-member:" + tenant);
-            return find(tenant, subject);
+            return Optional.ofNullable(tenantMembers.get(List.of(tenant, subject)));
         }
 
         public boolean insert(TenantMembership member) {
@@ -192,7 +215,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<WorkspaceMembership> find(Scope scope, String subject) {
-            return Optional.ofNullable(workspaceMembers.get(workspaceKey(scope, subject)));
+            return Optional.ofNullable((oldReads == null ? workspaceMembers : oldReads.workspaceMembers()).get(workspaceKey(scope, subject)));
         }
 
         public Optional<WorkspaceMembership> findById(Scope scope, String id) {
@@ -202,7 +225,7 @@ final class InMemoryWorkspaceFixture {
         public Optional<WorkspaceMembership> lock(Scope scope, String subject) {
             transactions.requireActive();
             lockOrder.add("workspace-member:" + scope.workspaceId());
-            return find(scope, subject);
+            return Optional.ofNullable(workspaceMembers.get(workspaceKey(scope, subject)));
         }
 
         public boolean insert(WorkspaceMembership member) {
@@ -222,10 +245,20 @@ final class InMemoryWorkspaceFixture {
 
     final PolicyStore policyStore = new PolicyStore() {
         public Optional<TenantPolicy> findTenantPolicy(String id) {
-            return Optional.ofNullable(tenantPolicies.get(id));
+            return Optional.ofNullable((oldReads == null ? tenantPolicies : oldReads.tenantPolicies()).get(id));
         }
 
         public Optional<WorkspacePolicy> findWorkspacePolicy(Scope scope) {
+            return Optional.ofNullable((oldReads == null ? workspacePolicies : oldReads.workspacePolicies()).get(scope));
+        }
+
+        public Optional<TenantPolicy> findCurrentTenantPolicy(String id) {
+            transactions.requireActive();
+            return Optional.ofNullable(tenantPolicies.get(id));
+        }
+
+        public Optional<WorkspacePolicy> findCurrentWorkspacePolicy(Scope scope) {
+            transactions.requireActive();
             return Optional.ofNullable(workspacePolicies.get(scope));
         }
 
@@ -263,6 +296,11 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<WorkspacePreference> find(String subject) {
+            return Optional.ofNullable((oldReads == null ? preferences : oldReads.preferences()).get(subject));
+        }
+
+        public Optional<WorkspacePreference> findCurrent(String subject) {
+            transactions.requireActive();
             return Optional.ofNullable(preferences.get(subject));
         }
 
@@ -285,6 +323,11 @@ final class InMemoryWorkspaceFixture {
 
     final CommandReceiptStore receiptStore = new CommandReceiptStore() {
         public Optional<StoredCommandReceipt> find(CommandIdentity identity) {
+            return Optional.ofNullable((oldReads == null ? receipts : oldReads.receipts()).get(identity));
+        }
+
+        public Optional<StoredCommandReceipt> findCurrent(CommandIdentity identity) {
+            transactions.requireActive();
             return Optional.ofNullable(receipts.get(identity));
         }
 

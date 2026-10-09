@@ -1,7 +1,6 @@
 package com.arte.core.application.workspace;
 
 import com.arte.core.api.workspace.PersonalWorkspaceService;
-import com.arte.core.api.workspace.WorkspacePreferenceService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
@@ -38,13 +37,13 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
     private final PlatformIdGenerator ids;
     private final Clock clock;
     private final WorkspaceMutationEffects effects;
-    private final WorkspacePreferenceService preferenceViews;
+    private final DefaultWorkspacePreferenceService preferenceViews;
 
     public DefaultPersonalWorkspaceService(CurrentPrincipalResolver principals, DefaultCommandExecutor commands,
                                            WorkspaceAccessSupport access, WorkspaceGovernanceLocks locks, TenantStore tenants, WorkspaceStore workspaces,
                                            TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PreferenceStore preferences,
                                            PolicyStore policies, DefaultWorkspacePolicies defaults, PlatformIdGenerator ids, Clock clock,
-                                           WorkspaceMutationEffects effects, WorkspacePreferenceService preferenceViews) {
+                                           WorkspaceMutationEffects effects, DefaultWorkspacePreferenceService preferenceViews) {
         this.principals = Objects.requireNonNull(principals);
         this.commands = Objects.requireNonNull(commands);
         this.access = Objects.requireNonNull(access);
@@ -68,8 +67,8 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
         return commands.execute(actor, meta, new CommandScope(null, null), "personal:initialize", "personal:view:v1",
                 WorkspaceViews.PersonalWorkspaceView.class, List.of(), () -> {
                     preferences.lockSubject(subjectId);
-                    tenants.findPersonal(subjectId).ifPresent(tenant -> {
-                        var preference = preferences.find(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
+                    tenants.findCurrentPersonal(subjectId).ifPresent(tenant -> {
+                        var preference = preferences.findCurrent(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
                         if (!preference.defaultScope().tenantId().equals(tenant.id())) throw error();
                         locks.scopes(subjectId, List.of(preference.defaultScope()));
                     });
@@ -78,15 +77,15 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
                     if (!value.tenant().id().equals(current.tenant().id())
                             || !value.workspace().scope().equals(current.workspace().scope())) throw error();
                     var preference = value.preference();
-                    if (preference.startupScope() != null) access.snapshot(actor, preference.startupScope());
-                    if (preference.lastScope() != null) access.snapshot(actor, preference.lastScope());
-                    for (Scope favorite : preference.favorites()) access.snapshot(actor, favorite);
+                    if (preference.startupScope() != null) access.snapshotCurrent(actor, preference.startupScope());
+                    if (preference.lastScope() != null) access.snapshotCurrent(actor, preference.lastScope());
+                    for (Scope favorite : preference.favorites()) access.snapshotCurrent(actor, favorite);
                 }, operationId -> {
-                    principals.requireUser(actor);
-                    Optional<Tenant> existing = tenants.findPersonal(subjectId);
+                    principals.requireUserCurrent(actor);
+                    Optional<Tenant> existing = tenants.findCurrentPersonal(subjectId);
                     if (existing.isPresent()) return new DefaultCommandExecutor.Result<>(existing(actor, subjectId),
-                            preferences.find(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error).version());
-                    if (preferences.find(subjectId).isPresent()) throw error();
+                            preferences.findCurrent(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error).version());
+                    if (preferences.findCurrent(subjectId).isPresent()) throw error();
                     var now = clock.instant();
                     String tenantId = ids.nextId();
                     Scope scope = new Scope(tenantId, ids.nextId());
@@ -110,16 +109,16 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
     }
 
     private WorkspaceViews.PersonalWorkspaceView existing(TrustedActor actor, String subjectId) {
-        Tenant tenant = tenants.findPersonal(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
-        WorkspacePreference preference = preferences.find(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
+        Tenant tenant = tenants.findCurrentPersonal(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
+        WorkspacePreference preference = preferences.findCurrent(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
         if (tenant.type() != TenantTypeEnum.PERSONAL || !subjectId.equals(tenant.personalSubjectId())
                 || !preference.subjectId().equals(subjectId) || !preference.defaultScope().tenantId().equals(tenant.id()))
             throw error();
-        var snapshot = access.snapshot(actor, preference.defaultScope());
+        var snapshot = access.snapshotCurrent(actor, preference.defaultScope());
         if (snapshot.tenant().member().role() != TenantRoleEnum.OWNER || snapshot.member().role() != WorkspaceRoleEnum.OWNER)
             throw error();
         return new WorkspaceViews.PersonalWorkspaceView(WorkspaceViewMapper.tenant(snapshot.tenant()),
-                WorkspaceViewMapper.workspace(snapshot), preferenceViews.get(actor));
+                WorkspaceViewMapper.workspace(snapshot), preferenceViews.getCurrent(actor));
     }
 
     private static void requireInsert(boolean inserted, CommandMeta meta) {

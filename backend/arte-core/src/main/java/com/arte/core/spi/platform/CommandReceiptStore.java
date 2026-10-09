@@ -21,6 +21,13 @@ public interface CommandReceiptStore {
     Optional<StoredCommandReceipt> find(CommandIdentity identity);
 
     /**
+     * 在当前治理事务中按完整命令身份读取最新已提交回执，包含原事务自己的写入。
+     * 不读取旧快照、缓存或只读副本，不另开事务；普通查询不能作为默认回退。
+     * 即使此前建立过读快照，也须能看到取得门控前已提交的胜出回执。
+     */
+    Optional<StoredCommandReceipt> findCurrent(CommandIdentity identity);
+
+    /**
      * 按操作 ID 查询已保存的回执，不存在时返回空。
      */
     Optional<StoredCommandReceipt> findByOperationId(String operationId);

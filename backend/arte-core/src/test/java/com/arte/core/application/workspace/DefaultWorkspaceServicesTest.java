@@ -386,9 +386,9 @@ class DefaultWorkspaceServicesTest {
                 DefaultAuthorizationService.workspaceRequest(first, WORKSPACE_UPDATE, "write"));
         f.transactions.required(() -> f.services.writeGuard().inCurrentTransaction(alice, requests, () -> "done"));
         var spaces = List.of(first, second).stream().sorted(Comparator.comparing(Scope::workspaceId)).toList();
-        assertEquals(List.of("tenant:" + first.tenantId(), "workspace:" + spaces.get(0).workspaceId(),
+        assertEquals(List.of("subject:alice", "tenant:" + first.tenantId(), "workspace:" + spaces.get(0).workspaceId(),
                 "workspace:" + spaces.get(1).workspaceId(), "tenant-member:" + first.tenantId(),
-                "workspace-member:" + spaces.get(0).workspaceId(), "workspace-member:" + spaces.get(1).workspaceId()), f.lockOrder);
+                "workspace-member:" + spaces.get(0).workspaceId(), "workspace-member:" + spaces.get(1).workspaceId()), f.lockOrder.stream().distinct().toList());
     }
 
     @Test

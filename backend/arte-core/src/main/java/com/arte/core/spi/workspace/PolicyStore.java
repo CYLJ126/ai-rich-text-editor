@@ -24,6 +24,17 @@ public interface PolicyStore {
     Optional<WorkspacePolicy> findWorkspacePolicy(Scope scope);
 
     /**
+     * 在已持有租户门控的原事务中当前读取政策，包含已提交变更及原事务自己的写入。
+     * 不使用旧快照、缓存或只读副本，不另开事务；不可默认委托普通查询。
+     */
+    Optional<TenantPolicy> findCurrentTenantPolicy(String tenantId);
+
+    /**
+     * 在已持有租户／空间门控的原事务中当前读取空间政策，读取约束同租户政策。
+     */
+    Optional<WorkspacePolicy> findCurrentWorkspacePolicy(Scope scope);
+
+    /**
      * 新增租户政策，唯一条件冲突时返回 false。
      */
     boolean insertTenantPolicy(TenantPolicy policy);

@@ -13,6 +13,9 @@ import java.util.Optional;
  * OWNER 交接及唯一性由公共应用层在治理门控事务内保证。
  * 空间成员记录由 {@link WorkspaceMembershipStore} 管理；涉及两类成员的操作仍须参与同一事务。
  *
+ * lock 返回取得锁后的最新事实（包括原事务自己的写入），不能使用旧快照、缓存或只读副本。
+ * 锁持续到外层事务结束；不得通过另开事务取得。
+ *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
@@ -46,7 +49,7 @@ public interface TenantMembershipStore {
     Optional<TenantMembership> findById(String tenantId, String memberId);
 
     /**
-     * 在当前事务内锁定并读取指定主体的租户成员关联。
+     * 在当前事务内以当前读取锁定并读取指定主体的租户成员关联。
      *
      * @param tenantId  目标租户 ID
      * @param subjectId 稳定主体 ID

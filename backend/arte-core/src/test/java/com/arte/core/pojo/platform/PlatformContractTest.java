@@ -1,5 +1,6 @@
 package com.arte.core.pojo.platform;
 
+import com.arte.core.enums.MyEnum;
 import com.arte.core.enums.access.*;
 import com.arte.core.enums.platform.CommandDeliveryEnum;
 import com.arte.core.enums.platform.CommandStatusEnum;
@@ -30,7 +31,7 @@ class PlatformContractTest {
 
     @Test
     void ownershipCannotRepresentPersonalOwnerOrContradictItsRange() {
-        assertThrows(IllegalArgumentException.class, () -> ResourceOwnershipTypeEnum.fromValue(2));
+        assertThrows(IllegalArgumentException.class, () -> MyEnum.fromValue(ResourceOwnershipTypeEnum.class, 2));
         assertThrows(IllegalArgumentException.class,
                 () -> new ResourceOwnership(ResourceOwnershipTypeEnum.TENANT, "tenant-a", "workspace-a"));
         assertThrows(IllegalArgumentException.class,

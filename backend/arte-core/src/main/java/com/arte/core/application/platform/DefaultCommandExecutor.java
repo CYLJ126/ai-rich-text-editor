@@ -56,7 +56,7 @@ public final class DefaultCommandExecutor {
      * 摘要不一致时拒绝请求。首次执行的领域写入（store）与回执（receipt）保存必须同事务提交，回执保存冲突时回滚本次写入。
      * <p>
      * 调用方负责提供服务端确定的作用域、命令类型和结果类型；领域回调须在持锁后完成
-     * 当前写权限及预期版本校验，相关事件、审计与领域写入保持在当前线程和事务中。
+     * 当前写权限及预期版本校验（使用事务内当前读取，不能使用普通查询的旧快照），相关事件、审计与领域写入保持在当前线程和事务中。
      *
      * @param actor           已验证身份的操作者
      * @param meta            命令元信息，包含幂等操作键和追踪标识
@@ -65,7 +65,7 @@ public final class DefaultCommandExecutor {
      * @param schema          服务端认可的结果结构版本标识
      * @param resultType      服务端认可的结果视图类型，用于校验已保存回执
      * @param fields          按确定顺序规范化的业务字段，包含预期版本，不包含追踪标识等非业务数据
-     * @param lock            获取本命令所需治理锁的回调，锁须持续到外层事务结束
+     * @param lock            先锁主体、再按完整范围顺序取得治理锁的回调，锁须持续到外层事务结束
      * @param authorizeReplay 按当前权限校验原结果是否可见的回调
      * @param work            执行领域校验和写入的回调，接收操作 ID，返回结果及结果版本
      * @param <T>             命令结果视图类型
@@ -86,8 +86,9 @@ public final class DefaultCommandExecutor {
             transactions.requireActive();
             // 获取治理锁；等待锁后再次检查身份，避免使用过期状态。
             lock.run();
-            principals.requireActive(actor);
-            Optional<StoredCommandReceipt> saved = receipts.find(identity);
+            principals.requireActiveCurrent(actor);
+            // 回执也用当前读取，避免外层旧快照看不到已提交的胜出操作。
+            Optional<StoredCommandReceipt> saved = receipts.findCurrent(identity);
             if (saved.isPresent()) {
                 StoredCommandReceipt stored = saved.get();
                 // 同一操作键只能对应同一命令身份和请求内容。

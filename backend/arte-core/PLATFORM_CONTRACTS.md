@@ -34,7 +34,8 @@
 - `MembershipService`、`TenantService`：空间邀请／成员治理及租户治理。组织创建另受 `TenantProvisioningPolicy` 限制。
 - `WorkspacePreferenceService`、`WorkspacePolicyService`：本人偏好及获授权治理政策。默认空间关联不能通过偏好更新修改；完整政策只供相应治理资格使用，不混入普通空间查询
   View。
-- `AuthorizationService`：唯一通用动作判定入口；`check`、`require`、`batchCheck` 使用同一规则，最多 100 项批量输入。领域必要条件通过
+- `AuthorizationService`：唯一通用动作判定入口；`check`、`require`、`batchCheck`、`requireInCurrentTransaction` 使用同一规则，最多
+  100 项批量输入。领域必要条件通过
   `DomainAccessConditionProvider` 收紧，不能覆盖公共拒绝。
 - `ResourceAccessService`：授权列表、授予、撤销及可见模式更新，内部仍调用统一判定器。
 - `ResourceRegistrationService`：受信领域创建事务登记 ACL 及初始授权，不能开放为客户端自报归属的初始化 HTTP。
@@ -103,6 +104,32 @@ app 适配器的实现约束；第二步基础授权不会为未接入的正文�
   AI 保留，公共端口不引用 AI 类型。
 - 关闭工作项 WAITING_EVIDENCE／FAILED 或缺少必要参与者时，不能进入删除完成状态；不得把空实现当作 DONE。
 
+## 最终授权的当前读取
+
+普通 `find` 和 `snapshot` 用于展示查询，不能证明外层事务中的当前写入资格。
+`AuthorizationService.requireInCurrentTransaction` 和默认服务的 `snapshotCurrent`／`tenantCurrent`
+在调用方原事务中取得或重入治理门控，直接使用 `lock` 返回的租户、空间、成员事实验证；不再通过普通 `find` 重读这些事实。
+多范围提交须先由 `WorkspaceGovernanceLocks` 按完整范围排序取得全部门控，再逐项判定。
+
+以下新增 SPI 是必需实现的方法，没有委托普通查询的默认回退：
+
+| SPI                 | 当前读取方法                                        | 使用边界                                             |
+|---------------------|-----------------------------------------------------|------------------------------------------------------|
+| IdentityProvider    | findCurrentBySubjectId                              | 持主体门控后重检身份状态与类型                       |
+| TenantStore         | findCurrentPersonal                                 | 主体门控下核对个人初始化关联                         |
+| PolicyStore         | findCurrentTenantPolicy／findCurrentWorkspacePolicy | 对应范围门控下读取当前政策                           |
+| PreferenceStore     | findCurrent                                         | 初始化、偏好版本校验、默认空间保护及命令结果引用校验 |
+| CommandReceiptStore | findCurrent                                         | 取得门控后核对已提交的胜出回执，不能因旧快照重复执行 |
+
+`lock`／`findCurrent*` 必须参与原连接、原事务，看到取得治理门控前已提交的变更及本事务自己的写入；
+即使外层事务此前建立过普通读快照，也不能返回该旧快照、MyBatis 会话缓存、应用缓存或只读副本的数据。
+数据库适配可以使用对应的锁定当前读取，但不能另开事务模拟新鲜结果，也不能在失败时回退普通查询或伪装未找到。 政策／成员变更继续与父范围门控及
+epoch 同事务协作。取得锁不自动证明授权，未知政策版本、撤权、停用及权威读取失败仍拒绝。
+
+个人初始化、空间创建／改名、偏好更新及命令重放均已切换到当前读取；普通展示查询 API 保留原签名。
+当前规则测试通过分离旧普通读取与实时锁定读取，覆盖旧快照仍允许而当前事实已撤权／降级／归档／关闭／收紧政策的拒绝，
+以及最新身份、个人关联、偏好版本、回执和授权版本的使用。真实数据库隔离级别、行锁及跨实例验证仍由 app 存储适配阶段完成。
+
 ## 第二步默认服务
 
 | 实现                                | 已提供能力                                                                                                       |
@@ -135,7 +162,10 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 
 ## 验证及下一步
 
-新增规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
+新增 `CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；空间规则、公共契约、枚举序列化及包边界共 58
+项相关测试通过。归属未知码断言改用已有 `MyEnum.fromValue`，不再引用不存在的枚举工厂方法。
+
+原规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
 total、多批候选扫描、默认空间保护、失效偏好、门控及权威查询失败。边界测试也扫描新 application 包。
 
 测试存储只位于 src/test，通过串行事务和快照回滚验证规则；它不证明真实数据库行锁、隔离级别或跨实例并发已落地。这些必须在第三步
@@ -145,7 +175,7 @@ app 适配中用数据库集成测试验证。
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=DefaultWorkspaceServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

@@ -20,4 +20,11 @@ public interface IdentityProvider {
      * Worker／重检按稳定主体读取当前状态，不按保存的旧用户名查同名账户。
      */
     Optional<Principal> findBySubjectId(String subjectId);
+
+    /**
+     * 在当前事务中读取稳定主体的最新状态，不使用旧事务快照、缓存或只读副本。
+     * 必须参与调用方原事务，不另开事务或等待远端身份服务；不能默认委托普通查询。
+     * 调用方先取得主体门控，再取得租户／空间门控。
+     */
+    Optional<Principal> findCurrentBySubjectId(String subjectId);
 }

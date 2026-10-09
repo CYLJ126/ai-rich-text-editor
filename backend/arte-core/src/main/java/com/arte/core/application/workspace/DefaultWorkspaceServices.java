@@ -34,8 +34,8 @@ public final class DefaultWorkspaceServices {
                                     Clock clock, DefaultWorkspacePolicies defaults) {
         var principals = new CurrentPrincipalResolver(identity);
         var access = new WorkspaceAccessSupport(principals, tenantStore, workspaceStore, tenantMembers,
-                workspaceMembers, policyStore, preferenceStore, clock);
-        var locks = new WorkspaceGovernanceLocks(transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers);
+                workspaceMembers, policyStore, preferenceStore, clock, transactions);
+        var locks = new WorkspaceGovernanceLocks(transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, preferenceStore);
         var commands = new DefaultCommandExecutor(transactions, principals, receipts, ids, clock);
         var effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
         scopes = new DefaultScopeResolver(access);
