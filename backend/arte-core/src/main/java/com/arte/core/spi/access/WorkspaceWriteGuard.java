@@ -1,0 +1,23 @@
+package com.arte.core.spi.access;
+
+import com.arte.core.pojo.access.AccessRequest;
+import com.arte.core.pojo.platform.TrustedActor;
+
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * 最终提交门控
+ * <p>
+ * 只在调用方实际事务内执行，同序锁租户、空间、成员／ACL，重查资格后执行 work，不等待网络。
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/10/09 14:25 ✾
+ */
+public interface WorkspaceWriteGuard {
+
+    /**
+     * 在调用方当前事务内锁定并重新校验权限，通过后执行 work 并返回其结果。
+     */
+    <T> T inCurrentTransaction(TrustedActor actor, List<AccessRequest> requests, Supplier<T> work);
+}

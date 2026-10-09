@@ -1,6 +1,6 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.8
+版本：v0.9
 
 日期：2026-10-09
 
@@ -10,7 +10,8 @@ AI 平台与业务资源系统顶层架构草案
 USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core` 公共领域／API／规则／SPI、`arte-ai` 消费、`arte-app`
 持久化适配的职责。本版在“详细设计”第 2～5 节补充权限、API／SPI、事务及存储、撤权与收尾、AI
 动态接入的首版方案。本文定义跨页面共用规则；[AI 聊天界面需求及设计](ARTE%20AI%20聊天界面需求及设计.md)
-定义聊天交互，不另行定义平台实体。本轮仅修改文档，详细设计确定后编码；涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+定义聊天交互，不另行定义平台实体。公共基础契约已按实施第 1 步添加，实际包位置和阶段边界见设计第 3.3 节；默认规则、数据库与
+HTTP 适配、AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
 
 ## TODO
 
@@ -568,20 +569,23 @@ API。需要在公共身份／空间层增量实现这些能力，各领域通�
 
 #### 3.3 公共空间与访问体系的代码职责
 
-本节确定目标模块边界，不表示已经创建类、接口或数据库表。租户、工作空间、成员、邀请、通用归属及访问规则属于平台公共领域，初期在
+本节确定目标模块边界。实施第 1 步已添加领域值对象、枚举、命令／View、公共 API 与
+SPI，包位置见下表及 [公共基础契约说明](backend/arte-core/PLATFORM_CONTRACTS.md)；默认规则实现、数据库与 HTTP 适配、AI
+接入仍按后续步骤实施。租户、工作空间、成员、邀请、通用归属及访问规则属于平台公共领域，初期在
 `arte-core` 的独立包形成“领域模型 + 公共 API + 规则实现 + SPI”。SPI 表达外部依赖与扩展点，仅一组接口不能代替完整领域体系；AI
 和文章使用公共 API，`arte-app` 实现存储及环境 SPI 并装配服务。
 
-| 层次               | 初期位置与职责                                                                                                  | 边界                                                                         |
-|--------------------|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| 公共领域模型       | `com.arte.core.workspace.domain`、`com.arte.core.access.domain`：空间、成员、邀请、归属、授权、状态及规则值对象 | 不依赖 AI 类型、Controller DTO、MyBatis 实体或供应商 SDK                     |
-| 公共 API           | 对应 `api` 包：空间／成员应用服务、可信范围解析、通用授权判断                                                   | 给 AI、文章、HTTP 适配调用；请求来自可信主体上下文，不接受客户端自报授权     |
-| 公共规则与应用实现 | 对应 `application` 包：初始化、邀请接受、成员管理、授权计算、状态转换及收尾协调                                 | 规则统一实现，调用 SPI；领域状态转换和原子操作要求不得下放为各适配器自选规则 |
-| 公共 SPI           | 对应 `spi` 包：存储、身份映射、事务边界、可靠事件、审计及领域关闭参与者                                         | 给环境和领域适配实现；明确原子性、版本、错误及异步语义，不暴露 SQL／Mapper   |
-| AI 领域            | `arte-ai` 的 `com.arte.ainew`：模型／连接／绑定／发布、凭据使用、会话、执行和预算                               | 消费公共空间与权限；AI 状态、能力、预算与历史仍由 AI 校验和保存              |
-| 应用与持久化适配   | `arte-app`：数据库实体／Mapper／Store 实现、登录适配、事务、HTTP、缓存及组合配置                                | 依赖公共和 AI 模块，实现 SPI；不复制权限算法或在 Controller 中补一套成员规则 |
+| 层次               | 初期位置与职责                                                                                                        | 边界                                                                               |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| 公共领域模型       | `com.arte.core.pojo.platform`、`pojo.workspace`、`pojo.access`；枚举在 `com.arte.core.enums` 的对应子包               | 不依赖 AI 类型、Controller DTO、MyBatis 实体或供应商 SDK；枚举沿用 StatusEnum 风格 |
+| 公共 API           | `com.arte.core.api.platform`、`api.workspace`、`api.access`：空间／成员应用服务、可信范围解析、通用授权判断           | 给 AI、文章、HTTP 适配调用；请求来自可信主体上下文，不接受客户端自报授权           |
+| 公共规则与应用实现 | 后续在 `com.arte.core.application.workspace`、`application.access` 实现初始化、成员治理、授权计算、状态转换及收尾协调 | 规则统一实现，调用 SPI；领域状态转换和原子操作要求不得下放为各适配器自选规则       |
+| 公共 SPI           | `com.arte.core.spi.platform`、`spi.workspace`、`spi.access`：存储、身份映射、事务边界、可靠事件、审计及领域关闭参与者 | 给环境和领域适配实现；明确原子性、版本、错误及同步语义，不暴露 SQL／Mapper         |
+| AI 领域            | `arte-ai` 的 `com.arte.ainew`：模型／连接／绑定／发布、凭据使用、会话、执行和预算                                     | 消费公共空间与权限；AI 状态、能力、预算与历史仍由 AI 校验和保存                    |
+| 应用与持久化适配   | `arte-app`：数据库实体／Mapper／Store 实现、登录适配、事务、HTTP、缓存及组合配置                                      | 依赖公共和 AI 模块，实现 SPI；不复制权限算法或在 Controller 中补一套成员规则       |
 
-包名为组织建议，公共接口语义及存储职责见“详细设计”第 3 节，实体及包的具体分拆在编码时遵循该边界。当前 `arte-core`
+公共枚举、领域对象、API 与 SPI 的上述包位置已按现有结构落实；后续默认实现继续遵循该边界，公共接口语义及存储职责见“详细设计”第
+3 节。当前 `arte-core`
 已包含基础设施依赖，新领域包仍保持上述边界；本次不要求先清理整个 core。以后可整体提取为 `arte-workspace`／`arte-platform`
 ，保持业务消费契约稳定，不把“core”发展为承载全部业务的包。
 
@@ -1021,7 +1025,8 @@ Worker、数据库事务与 Outbox、Redis 非权威缓存／通知、可恢复�
 
 **本轮需求／设计评审及编码前置条件**
 
-本轮停留在文档阶段。“详细设计”第 2～5 节已列出公共 API／SPI、权限预设、事务／唯一约束、撤权与收尾及 AI 迁移的首版方案；与第
+当前已完成公共基础契约阶段，默认规则及环境适配尚待后续步骤实现。“详细设计”第 2～5 节已列出公共 API／SPI、权限预设、事务／唯一约束、撤权与收尾及
+AI 迁移的首版方案；与第
 3.1～3.3 节的创建归属、个人托管、生命周期、标签上下文和模块职责一起评审，再按独立批次编码。待评审的参数、迁移和 HTTP Schema
 不按“已完成能力”开放页面。
 
@@ -1420,7 +1425,8 @@ AI 知识回流，不建立另一套 AI 专用文章写入路径。
 ## 详细设计
 
 本章对应独立评审的第 2～5 点，确定公共空间与访问体系的首版详细设计；归属以前文设计第 3.1 节为准：空间资源归 WORKSPACE，租户级配置归
-TENANT，创建者、凭据责任及 ExecutionOwner 分别记录。下列接口、字段、表名及 HTTP 路径是待评审的目标契约，不表示现有代码或可调用端点。本轮仅编写文档。
+TENANT，创建者、凭据责任及 ExecutionOwner 分别记录。下列内容描述整体目标契约；第 1 步已添加基础类型、API 和 SPI，默认规则、数据库与
+HTTP 适配及 AI 接入仍分步实施，不表示所有功能已完成或管理端点已可调用。
 
 首版使用现有登录系统及关系数据库，同一 DataSource 内以本地事务提交公共数据；core 的公共 API／存储 SPI 采用同步语义，app
 将阻塞调用适配到 MVC 或受控数据库线程。AI 继续使用 Mono／Flux，由 app 的适配器连接公共 API，不把 Reactor
@@ -1522,6 +1528,116 @@ share 资格；治理者可撤销异常授权，但不能给自己补私有正�
 由资源领域实现，按引用返回原始可信归属、状态及版本，不调用对外“读取资源”API，避免授权服务与领域读取互相递归。领域正式查询／命令先调用统一判定，再执行业务校验；搜索、批量列表先筛选再统计可见
 total，不暴露未授权标题、数量明细或片段。
 
+##### access 接口覆盖与管理关系
+
+按本文首版范围，`com.arte.core.spi.access` 的五个接口已覆盖动作定义、资源事实、领域附加条件、ACL
+存储和最终写入门控，暂不需要补充接口方法。这里的“覆盖”指契约职责齐备，不代表权限计算、事务、数据库和管理端点已经实现；以下图示为后续实现应遵循的调用关系。
+
+| 接口                            | 现有方法                                                                                                                      | 管理职责                                                                |
+|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| `ActionRegistry`                | `find`                                                                                                                        | 查受信动作定义；未知动作拒绝，存在定义不等于获得权限                    |
+| `ResourceDescriptorProvider`    | `supports`、`find`                                                                                                            | 由领域返回可信归属、状态和版本；正文及业务数据仍由领域管理              |
+| `DomainAccessConditionProvider` | `supports`、`evaluate`                                                                                                        | 收紧领域状态、发布、资料外发等条件；不能覆盖公共拒绝                    |
+| `ResourceGrantStore`            | `findAccess`、`lockAccess`、`insertAccess`、`replaceAccess`、`findGrants`、`findGrant`、`insertGrantIfAbsent`、`replaceGrant` | 存储 ACL 根、独立来源的授权及撤销历史；提供锁和版本条件写入，不计算权限 |
+| `WorkspaceWriteGuard`           | `inCurrentTransaction`                                                                                                        | 在调用方真实事务内，同序锁定并重查资格，通过统一判定后执行写入回调      |
+
+主体、成员、政策、epoch 和事务／回执／审计／Outbox 分别由 `spi.workspace`、`spi.platform` 的端口协作提供，不在 `spi.access`
+重复定义。授权列表分页、授予、撤销、模式更新由 `ResourceAccessService` 对外提供；统一判断由 `AuthorizationService`
+提供，业务模块不直接以 Store 查询结果代替授权。
+
+```mermaid
+flowchart TB
+    Client["app 管理端点／业务模块<br/>认证适配提供 TrustedActor"]
+    subgraph PublicAPI["core 公共 API：后续实现应用服务"]
+        Manage["ResourceAccessService<br/>listGrants／grant／revoke／changeVisibility"]
+        Authorize["AuthorizationService<br/>check／require／batchCheck"]
+        Register["ResourceRegistrationService<br/>受信领域创建时登记初始 ACL"]
+    end
+    subgraph AccessSPI["core.spi.access：协作契约"]
+        Actions["ActionRegistry<br/>受信动作定义"]
+        Descriptor["ResourceDescriptorProvider<br/>原始归属／状态／版本"]
+        Conditions["DomainAccessConditionProvider<br/>领域附加限制"]
+        Grants["ResourceGrantStore<br/>ACL 根／授权记录／版本"]
+        Guard["WorkspaceWriteGuard<br/>同事务锁定与最终重查"]
+    end
+    Facts["workspace／platform SPI<br/>主体、租户、空间、成员与政策"]
+    Atomic["platform SPI<br/>事务、幂等回执、审计、Outbox"]
+    Domain["资源领域适配<br/>AI 模型、会话、文章等业务事实"]
+    Database["app 数据库适配<br/>公共 ACL 权威存储"]
+    Client --> Manage
+    Client --> Authorize
+    Domain -->|受信创建事务| Register
+    Manage -->|查询及管理资格| Authorize
+    Manage -->|写命令在当前事务内| Guard
+    Manage -->|事务与可靠记录| Atomic
+    Guard -->|锁后重查当前资格| Authorize
+    Guard -->|同序锁定| Facts
+    Guard -->|锁定已有 ACL| Grants
+    Authorize --> Actions
+    Authorize --> Descriptor
+    Authorize -->|读取 ACL 事实| Grants
+    Authorize --> Facts
+    Authorize -->|公共检查通过后| Conditions
+    Descriptor --> Domain
+    Conditions --> Domain
+    Manage -->|门控通过后条件写入| Grants
+    Register -->|验证创建资格| Authorize
+    Register -->|同事务初始登记| Grants
+    Grants --> Database
+```
+
+图中的领域适配直接读取原始业务事实，不反向调用已经受保护的公开资源查询。必要提供者缺失、资源类型匹配冲突或权威查询失败时拒绝；附加条件必须按受信动作定义和领域规则装配，不能因没有匹配实现而跳过必要检查。提供者装配与失败行为在下一步应用服务实现中验证。
+
+初始登记与资源正文同事务：领域服务先针对既有租户／空间治理对象检查创建资格并经过提交门控，保存业务资源后，调用
+`registerCreated` 核对真实描述并登记初始 ACL。不能要求新资源先具备尚未创建的 ACL，也不能允许客户端声明创建者来领取初始权限。
+
+##### 授权变更的事务时序
+
+下图描述首次新命令的授予、撤销或模式更新。幂等重放分支按第 3 节处理：相同操作键及相同内容在当前结果读取资格允许时返回原回执，不重复修改授权；不能用重放恢复已失效权限。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Caller as app／业务调用方
+    participant Service as ResourceAccessService
+    participant Tx as PublicTransactionRunner
+    participant Guard as WorkspaceWriteGuard
+    participant Auth as AuthorizationService
+    participant ACL as ResourceGrantStore
+    participant State as 租户／空间／成员／政策 Store
+    participant Records as 回执／审计／Outbox Store
+    Caller ->> Service: TrustedActor + 命令 + expectedVersion
+    Service ->> Tx: required（加入或开启本地事务）
+    Note over Service, Records: 确认是首次新命令；唯一操作键参与并发保护
+    Service ->> Guard: inCurrentTransaction(actor, requests, work)
+    Guard ->> State: 同序锁定租户、排序后的空间及成员
+    Guard ->> ACL: lockAccess（已有资源 ACL）
+    Guard ->> Auth: require（锁后读取当前权威事实）
+    Note over Auth, State: 核对主体、成员、政策、资源归属、有效授权及领域条件
+    Auth -->> Guard: 允许或抛出拒绝
+    Guard ->> Service: 执行同事务 work 回调
+    Service ->> State: 核对授权目标当前资格与成员代次
+    Note over Service, ACL: 按命令核对可委派动作、来源、期限和客户端期望版本
+    Service ->> ACL: insertGrantIfAbsent／replaceGrant（如需）
+    Service ->> ACL: replaceAccess（expectedAclVersion，递增 ACL 版本）
+    Service ->> State: 条件更新归属范围的权限 epoch
+    Service ->> Records: 同事务保存回执、审计及 Outbox
+    Service -->> Guard: 写入结果
+    Guard -->> Service: 回调结果
+    Service -->> Tx: 完成事务工作
+    Tx -->> Service: 提交成功
+    Service -->> Caller: 原子提交后的 CommandReceipt
+    Note over Tx, Records: 任一步拒绝、唯一条件冲突、CAS 失败或存储故障均整体回滚
+    Note over Caller, Records: 提交后由 Outbox 派发器发送失效通知；事务内不等待外部网络
+```
+
+门控后的判断不能复用事务开始前的 `VerifiedAccess`、旧事务快照或允许缓存。授权变更必须使 ACL 与对应权限 epoch
+一起提交：空间归属资源增加该空间的 `workspaceEpoch`，租户级资源增加 `tenantEpoch`；不依据操作者当前页面所选空间更新错误的
+epoch。撤销通过记录状态及版本变更保留历史，首版不提供任意硬删除授权的方法。
+
+接口数量无需为批量或便捷操作提前扩张；首版的有界查询、逐项授权写入和同事务 CAS 已能支撑现有管理命令。跨租户、任意 DENY 规则、多级
+ACL 继承及物理清理均不在当前接口完备性结论的范围内。
+
 #### 2.5 首版权限验收
 
 - 同空间内 OWNER、ADMIN、MEMBER 创建同类资源，其空间归属相同；只有初始动作授权和创建审计不同。
@@ -1559,8 +1675,13 @@ core 的 `TrustedActor` 由可信身份适配创建，HTTP 不接受其字段。
 | AccessRequest／Decision | 前节定义；资源描述由领域提供，版本包括 tenantEpoch、workspaceEpoch、membershipGeneration／version、aclVersion 和适用资源版本        |
 | CommandError            | code、traceId、可否按原键查询／重试、适度说明；不携带明文凭据、完整策略或隐藏资源信息                                               |
 
-以下为同步 Java 语义签名，相关 Command／View 按后续字段表实现；它们是目标接口，不是已存在类。数据 DTO 与领域对象分别定义，公开
+以下为同步 Java 语义签名的设计简写，相关 Command／View 按后续字段表及公共基础契约实现；存在基础类型不表示相应功能已完成。数据
+DTO 与领域对象分别定义，公开
 View 不包含完整策略或内部 token。
+
+第 1 步已按这些语义添加基础接口。代码中的命令／View 分别以 `WorkspaceCommands`、`TenantCommands`、`ResourceAccessCommands` 及
+`WorkspaceViews`、`ResourceAccessViews` 的嵌套 record 组织；下列伪代码保留简写，实际包名、输入与返回差异见公共基础契约说明。API
+尚无默认实现或可调用 HTTP 端点，值对象结构校验不代表已经完成授权判定。
 
 ```java
 interface PersonalWorkspaceService {
@@ -1600,9 +1721,9 @@ interface AuthorizationService {
 }
 
 interface ResourceAccessService {
-    Page<GrantView> listGrants(TrustedActor actor, ResourceRef resource, PageQuery query);
+    Page<GrantView> listGrants(TrustedActor actor, Scope scope, ResourceRef resource, PageQuery query);
 
-    CommandReceipt<GrantView> grant(TrustedActor actor, GrantResource command);
+    CommandReceipt<GrantResult> grant(TrustedActor actor, GrantResource command);
 
     CommandReceipt<Void> revoke(TrustedActor actor, RevokeGrant command);
 
@@ -1768,7 +1889,8 @@ UNKNOWN 收敛规则；新增门控记录不能把外发变成 exactly-once，�
 
 #### 4.3 授权版本、缓存与失效通知
 
-租户政策／成员及租户状态变化增加 tenantEpoch；空间成员、政策、ACL 和空间状态变化增加 workspaceEpoch，ACL 另增加
+租户政策／成员、租户级资源 ACL 及租户状态变化增加 tenantEpoch；空间成员、政策、空间归属资源 ACL 和空间状态变化增加
+workspaceEpoch，ACL 另增加
 aclVersion。初版每次最终写入与输出读取主库权威值，避免读副本延迟放行。关键路径不使用带 TTL
 的“允许缓存”；可缓存不可变发布定义及非敏感展示，返回前仍验证权限。
 
