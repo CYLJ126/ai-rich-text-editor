@@ -150,6 +150,17 @@ tenantId。article:create 等创建动作在父空间根上判断，不对尚不
 等需要后续可信描述、ACL 和领域条件，当前默认拒绝；治理角色或 createdBy 不提供内容读取资格。基础 invite／member:manage
 判断也不替代后续成员命令对目标角色的检查。
 
+`AccessRequest.scope` 使用 `AccessScope`：租户必填，空间可选；租户治理使用 `AccessScope.tenant(tenantId)`， 或
+`DefaultAuthorizationService.tenantRequest`。完整空间请求仍可通过原 `AccessRequest(Scope, ...)` 构造； JSON 的 scope
+字段结构不变，租户请求可省略 workspaceId。公共业务 `Scope` 仍要求租户和空间双 ID，未放宽 AI 的执行范围。 Java
+调用方需要完整空间范围时显式调用 `request.scope().requireWorkspace()`，不能将仅租户授权用作空间执行许可。
+
+租户根治理独立读取主体、租户、租户成员、租户政策及生命周期；即使旧请求附带空间，该空间的成员资格或状态也不参与租户治理。 租户
+OWNER／ADMIN 没加入任何空间时仍可按租户预设治理，但不会因此取得空间或私有资源访问资格。
+最终门控对混合请求统一按主体、排序租户、排序空间、租户成员、空间成员取锁；仅租户请求不锁空间。 仅租户授权的
+`AuthorizationVersions.workspaceEpoch`、`workspaceMembershipGeneration`、`workspaceMembershipVersion`
+为可空 Long 且全部为空，resourceVersion 为租户版本；空间授权保留实际空间版本值，适配器不得把空值当成有效空间资格。
+
 当前范围读取支持 ACTIVE 和 ARCHIVED；ARCHIVED 只允许空间读取／发现及符合角色的恢复资格，基础业务写入拒绝。CLOSING／DELETED
 不进入日常目录；未来关闭进度通过独立受限入口读取。系统默认空间可以改名，基础预设禁止归档、关闭及负责人转交；个人租户保持本人托管，租户
 OWNER 转交预设仅针对组织租户。未实现的成员、组织、授权管理和生命周期 API 不装配为空服务。
@@ -162,8 +173,9 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 
 ## 验证及下一步
 
-新增 `CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；空间规则、公共契约、枚举序列化及包边界共 58
-项相关测试通过。归属未知码断言改用已有 `MyEnum.fromValue`，不再引用不存在的枚举工厂方法。
+`CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；`TenantAuthorizationServicesTest`
+覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。 空间规则、公共契约、JSON／枚举序列化及包边界共
+82 项相关测试通过。 归属未知码断言改用已有 `MyEnum.fromValue`，不再引用不存在的枚举工厂方法。
 
 原规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
 total、多批候选扫描、默认空间保护、失效偏好、门控及权威查询失败。边界测试也扫描新 application 包。
@@ -175,7 +187,7 @@ app 适配中用数据库集成测试验证。
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

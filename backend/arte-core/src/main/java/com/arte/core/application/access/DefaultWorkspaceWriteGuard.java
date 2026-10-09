@@ -53,7 +53,10 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
             if (!workspace && !tenant)
                 throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "write-guard");
         }
-        locks.scopes(actor.principal().subjectId(), inputs.stream().map(AccessRequest::scope).toList());
+        // 租户治理无需空间资格；混合请求仍统一先锁全部租户，再锁目标空间及成员。
+        locks.ranges(actor.principal().subjectId(), inputs.stream().map(request -> request.scope().tenantId()).toList(),
+                inputs.stream().filter(request -> request.resource().type().equals(WORKSPACE))
+                        .map(request -> request.scope().requireWorkspace()).toList());
         for (AccessRequest request : inputs) authorization.requireInCurrentTransaction(actor, request);
         return Objects.requireNonNull(work).get();
     }

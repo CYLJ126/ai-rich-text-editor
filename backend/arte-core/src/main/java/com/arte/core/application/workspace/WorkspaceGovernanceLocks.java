@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * 实际事务内的治理锁顺序
@@ -48,11 +49,19 @@ public final class WorkspaceGovernanceLocks {
     }
 
     public void scopes(String subjectId, Collection<Scope> scopes) {
+        ranges(subjectId, scopes.stream().map(Scope::tenantId).toList(), scopes);
+    }
+
+    /**
+     * 混合租户／空间请求一次排序取锁；仅租户目标不取得空间及空间成员锁。
+     */
+    public void ranges(String subjectId, Collection<String> tenantTargets, Collection<Scope> scopes) {
         transactions.requireActive();
         preferences.lockSubject(subjectId);
         List<Scope> ordered = scopes.stream().distinct().sorted(Comparator.comparing(Scope::tenantId)
                 .thenComparing(Scope::workspaceId)).toList();
-        List<String> tenantIds = ordered.stream().map(Scope::tenantId).distinct().toList();
+        List<String> tenantIds = Stream.concat(tenantTargets.stream(), ordered.stream().map(Scope::tenantId))
+                .distinct().sorted().toList();
         for (String tenantId : tenantIds) {
             if (tenants.lock(tenantId).isEmpty())
                 throw new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "governance-lock");

@@ -6,6 +6,7 @@ import com.arte.core.enums.access.AccessReasonEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.access.*;
+import com.arte.core.pojo.platform.AuthorizationVersions;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.spi.access.ActionRegistry;
@@ -61,6 +62,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
         return new AccessRequest(scope, new ResourceRef(scope.tenantId(), WORKSPACE, scope.workspaceId()), action, purpose);
     }
 
+    public static AccessRequest tenantRequest(String tenantId, Action action, String purpose) {
+        return new AccessRequest(AccessScope.tenant(tenantId), new ResourceRef(tenantId, TENANT, tenantId), action, purpose);
+    }
+
     @Override
     public AccessDecision check(TrustedActor actor, AccessRequest request) {
         return check(actor, request, false);
@@ -75,28 +80,36 @@ public final class DefaultAuthorizationService implements AuthorizationService {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(request);
         try {
-            var scope = currentRead ? workspaceAccessSupport.snapshotCurrent(actor, request.scope())
-                    : workspaceAccessSupport.snapshot(actor, request.scope());
-            var definition = actionRegistry.find(request.action());
-            if (definition.isEmpty()) return denied(AccessReasonEnum.UNKNOWN_ACTION);
-            if (!definition.get().resourceTypes().contains(request.resource().type()))
-                return denied(AccessReasonEnum.ACTION_NOT_GRANTED);
             AccessReasonEnum reason;
-            if (request.resource().type().equals(WORKSPACE)
+            AuthorizationVersions versions;
+            if (request.resource().type().equals(TENANT)
+                    && request.resource().resourceId().equals(request.scope().tenantId())) {
+                // 租户治理只验证租户身份、成员、生命周期及政策，不读取附带空间。
+                var tenant = currentRead ? workspaceAccessSupport.tenantCurrent(actor, request.scope().tenantId())
+                        : workspaceAccessSupport.tenant(actor, request.scope().tenantId());
+                var invalidAction = invalidAction(request);
+                if (invalidAction != null) return denied(invalidAction);
+                reason = DefaultRolePermissions.tenant(request.action(), tenant);
+                versions = new AuthorizationVersions(tenant.tenant().authEpoch(), null,
+                        tenant.member().generation(), tenant.member().version(), null, null, null, tenant.tenant().version());
+            } else if (request.resource().type().equals(WORKSPACE)
                     && request.resource().resourceId().equals(request.scope().workspaceId())) {
+                Scope workspaceScope = request.scope().requireWorkspace();
+                var scope = currentRead ? workspaceAccessSupport.snapshotCurrent(actor, workspaceScope)
+                        : workspaceAccessSupport.snapshot(actor, workspaceScope);
+                var invalidAction = invalidAction(request);
+                if (invalidAction != null) return denied(invalidAction);
                 if (Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action())
                         && (currentRead ? workspaceAccessSupport.isDefaultSpaceCurrent(scope) : workspaceAccessSupport.isDefaultSpace(scope)))
                     return denied(AccessReasonEnum.POLICY_DENIED);
                 reason = DefaultRolePermissions.workspace(request.action(), scope);
-            } else if (request.resource().type().equals(TENANT)
-                    && request.resource().resourceId().equals(request.scope().tenantId())) {
-                reason = DefaultRolePermissions.tenant(request.action(), scope.tenant());
+                versions = scope.verified().versions();
             } else {
                 // 不能根据角色或 createdBy 为未接入可信描述与 ACL 的资源放行。
                 return denied(AccessReasonEnum.ACTION_NOT_GRANTED);
             }
             return reason == AccessReasonEnum.ALLOWED
-                    ? new AccessDecision(true, reason, scope.verified().versions(), clock.instant()) : denied(reason);
+                    ? new AccessDecision(true, reason, versions, clock.instant()) : denied(reason);
         } catch (PlatformException e) {
             return denied(switch (e.getCode()) {
                 case UNAUTHENTICATED, ACCESS_DENIED -> AccessReasonEnum.SUBJECT_INACTIVE;
@@ -107,6 +120,12 @@ public final class DefaultAuthorizationService implements AuthorizationService {
         } catch (RuntimeException e) {
             return denied(AccessReasonEnum.AUTHORITY_UNAVAILABLE);
         }
+    }
+
+    private AccessReasonEnum invalidAction(AccessRequest request) {
+        var definition = actionRegistry.find(request.action());
+        if (definition.isEmpty()) return AccessReasonEnum.UNKNOWN_ACTION;
+        return definition.get().resourceTypes().contains(request.resource().type()) ? null : AccessReasonEnum.ACTION_NOT_GRANTED;
     }
 
     @Override

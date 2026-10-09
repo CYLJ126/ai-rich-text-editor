@@ -18,6 +18,7 @@ public interface WorkspaceWriteGuard {
 
     /**
      * 在调用方当前事务内锁定并重新校验权限，通过后执行 work 并返回其结果。
+     * 租户治理仅锁主体、租户及租户成员，不要求空间成员资格；混合请求先锁全部租户，再锁目标空间及成员。
      */
     <T> T inCurrentTransaction(TrustedActor actor, List<AccessRequest> requests, Supplier<T> work);
 }

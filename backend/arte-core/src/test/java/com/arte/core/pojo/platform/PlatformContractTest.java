@@ -53,6 +53,28 @@ class PlatformContractTest {
     }
 
     @Test
+    void accessScopeAllowsTenantOnlyButBusinessScopeStillRequiresWorkspace() {
+        var tenant = AccessScope.tenant("tenant-a");
+        assertNull(tenant.workspaceId());
+        assertEquals("tenant-a", tenant.tenantId());
+        assertEquals(SCOPE, AccessScope.workspace(SCOPE).requireWorkspace());
+        assertThrows(IllegalArgumentException.class, tenant::requireWorkspace);
+        assertThrows(IllegalArgumentException.class, () -> new Scope("tenant-a", null));
+        assertThrows(IllegalArgumentException.class, () -> AccessScope.tenant(null));
+        assertThrows(IllegalArgumentException.class, () -> new AccessScope("tenant-a", ""));
+    }
+
+    @Test
+    void tenantAuthorizationVersionsDoNotInventWorkspaceVersions() {
+        var tenantVersions = new AuthorizationVersions(1, null, 2, 3, null, null, null, 4L);
+        assertNull(tenantVersions.workspaceEpoch());
+        assertThrows(IllegalArgumentException.class,
+                () -> new AuthorizationVersions(1, null, 2, 3, 0L, 0L, null, 4L));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AuthorizationVersions(1, -1L, 2, 3, 0L, 0L, null, 4L));
+    }
+
+    @Test
     void persistedSubjectGrantsIncludeMembershipGenerationButWriteRecipientDoesNot() {
         var first = new GrantTarget.Subject("user-a", new CommandScope("tenant-a", "workspace-a"), 0);
         var rejoined = new GrantTarget.Subject("user-a", new CommandScope("tenant-a", "workspace-a"), 1);

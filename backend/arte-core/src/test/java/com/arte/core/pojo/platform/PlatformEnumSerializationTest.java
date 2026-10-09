@@ -80,6 +80,26 @@ class PlatformEnumSerializationTest {
     }
 
     @Test
+    void tenantOnlyAndExistingWorkspaceAccessRequestsKeepTheirWireShape() {
+        var tenantRequest = com.arte.core.application.access.DefaultAuthorizationService.tenantRequest(
+                "tenant-a", com.arte.core.constant.platform.PlatformActions.TENANT_POLICY_WRITE, "manage");
+        var tenantJson = mapper.writeValueAsString(tenantRequest);
+        assertEquals(tenantRequest, mapper.readValue(tenantJson, com.arte.core.pojo.access.AccessRequest.class));
+        assertNull(mapper.readValue("""
+                {"scope":{"tenantId":"tenant-a"},"resource":{"tenantId":"tenant-a","type":"tenant","resourceId":"tenant-a"},
+                 "action":"tenant:policy:write","purpose":"manage"}
+                """, com.arte.core.pojo.access.AccessRequest.class).scope().workspaceId());
+        var workspaceRequest = com.arte.core.application.access.DefaultAuthorizationService.workspaceRequest(
+                new Scope("tenant-a", "space-a"), com.arte.core.constant.platform.PlatformActions.WORKSPACE_READ, "read");
+        var workspaceJson = mapper.writeValueAsString(workspaceRequest);
+        assertEquals(workspaceRequest, mapper.readValue(workspaceJson, com.arte.core.pojo.access.AccessRequest.class));
+        var wireScope = (Map<?, ?>) mapper.readValue(workspaceJson, Map.class).get("scope");
+        assertEquals(Map.of("tenantId", "tenant-a", "workspaceId", "space-a"), wireScope);
+        var versions = new AuthorizationVersions(1, null, 2, 3, null, null, null, 4L);
+        assertEquals(versions, mapper.readValue(mapper.writeValueAsString(versions), AuthorizationVersions.class));
+    }
+
+    @Test
     void actionAndResourceTypeUseStringNamesAndPolicyMapKeysRoundTrip() {
         var action = new Action("article:read");
         var resourceType = new ResourceType("article");
