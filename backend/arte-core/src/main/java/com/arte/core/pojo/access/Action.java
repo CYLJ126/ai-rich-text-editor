@@ -5,13 +5,15 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * 服务器登记的域:动作名称；不支持通配符，构造成功不等于获授权。
+ * 服务器登记的域:动作名称
+ * <p>
+ * 不支持通配符，构造成功不等于获授权。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
-public record Action(
-        String value) {
+public record Action(String value) {
+
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public Action {
         PlatformChecks.token(value, "value");

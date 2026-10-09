@@ -23,7 +23,7 @@ public enum AccessReasonEnum implements IEnum<Integer>, MyEnum<Integer> {
     DOMAIN_DENIED(8, "领域条件不满足"),
     AUTHORITY_UNAVAILABLE(9, "无法确认当前授权");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     AccessReasonEnum(int value, String description) {

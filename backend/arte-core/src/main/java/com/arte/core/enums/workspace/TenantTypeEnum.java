@@ -15,7 +15,7 @@ public enum TenantTypeEnum implements IEnum<Integer>, MyEnum<Integer> {
     PERSONAL(0, "个人托管"),
     ORGANIZATION(1, "组织");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     TenantTypeEnum(int value, String description) {

@@ -15,7 +15,7 @@ public enum GrantStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     ACTIVE(0, "有效"),
     REVOKED(1, "已撤销");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     GrantStateEnum(int value, String description) {

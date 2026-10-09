@@ -15,7 +15,7 @@ public enum CommandDeliveryEnum implements IEnum<Integer>, MyEnum<Integer> {
     APPLIED(0, "首次提交"),
     REPLAYED(1, "返回原回执");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     CommandDeliveryEnum(int value, String description) {

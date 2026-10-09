@@ -16,7 +16,7 @@ public enum PrincipalStatusEnum implements IEnum<Integer>, MyEnum<Integer> {
     SUSPENDED(1, "停用"),
     DELETED(2, "注销");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     PrincipalStatusEnum(int value, String description) {

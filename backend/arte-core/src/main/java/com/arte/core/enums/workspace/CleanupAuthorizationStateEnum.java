@@ -15,7 +15,7 @@ public enum CleanupAuthorizationStateEnum implements IEnum<Integer>, MyEnum<Inte
     ACTIVE(0, "有效"),
     REVOKED(1, "已撤销");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     CleanupAuthorizationStateEnum(int value, String description) {

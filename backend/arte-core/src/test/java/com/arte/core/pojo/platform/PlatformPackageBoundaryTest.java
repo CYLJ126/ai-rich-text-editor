@@ -14,7 +14,8 @@ class PlatformPackageBoundaryTest {
     @Test
     void newDomainAndContractsHaveNoReverseDependenciesOrReactiveOrPersistenceTypes() throws Exception {
         for (String area : List.of("pojo/platform", "pojo/workspace", "pojo/access",
-                "api/platform", "api/workspace", "api/access", "spi/platform", "spi/workspace", "spi/access")) {
+                "api/platform", "api/workspace", "api/access", "spi/platform", "spi/workspace", "spi/access",
+                "application/platform", "application/workspace", "application/access")) {
             try (var paths = Files.walk(SOURCE.resolve(area))) {
                 for (Path path : paths.filter(p -> p.toString().endsWith(".java")).toList()) {
                     for (String line : Files.readAllLines(path)) {

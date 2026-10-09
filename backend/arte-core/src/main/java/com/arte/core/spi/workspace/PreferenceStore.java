@@ -11,6 +11,14 @@ import java.util.Optional;
  * @since 2026/10/09 14:25 ✾
  */
 public interface PreferenceStore {
+
+    /**
+     * 在当前事务内锁定主体的初始化／偏好门控，即使偏好尚不存在也必须串行化。
+     * 适配器可锁稳定身份行；不能以查询不存在的偏好行或 JVM 锁代替数据库门控。
+     * 同一主体的初始化与偏好更新均先取得此锁，再取得租户及空间门控。
+     */
+    void lockSubject(String subjectId);
+
     /**
      * 按主体 ID 查询本人的空间偏好，不存在时返回空。
      */

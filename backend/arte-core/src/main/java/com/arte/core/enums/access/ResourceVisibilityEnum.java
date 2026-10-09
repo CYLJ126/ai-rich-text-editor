@@ -15,7 +15,7 @@ public enum ResourceVisibilityEnum implements IEnum<Integer>, MyEnum<Integer> {
     EXPLICIT(0, "按具体授权"),
     SPACE_SHARED(1, "按明确空间共享授权");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     ResourceVisibilityEnum(int value, String description) {

@@ -19,7 +19,7 @@ public enum TenantRoleEnum implements IEnum<Integer>, MyEnum<Integer> {
     MEMBER(2, "成员"),
     GUEST(3, "访客");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     TenantRoleEnum(int value, String description) {

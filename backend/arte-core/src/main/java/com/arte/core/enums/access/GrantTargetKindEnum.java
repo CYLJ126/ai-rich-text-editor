@@ -16,7 +16,7 @@ public enum GrantTargetKindEnum implements IEnum<Integer>, MyEnum<Integer> {
     SPACE_ROLE(1, "空间角色"),
     WORKSPACE(2, "目标空间");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     GrantTargetKindEnum(int value, String description) {

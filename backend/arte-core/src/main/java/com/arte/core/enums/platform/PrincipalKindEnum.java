@@ -15,7 +15,7 @@ public enum PrincipalKindEnum implements IEnum<Integer>, MyEnum<Integer> {
     USER(0, "用户"),
     SERVICE(1, "系统服务");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     PrincipalKindEnum(int value, String description) {

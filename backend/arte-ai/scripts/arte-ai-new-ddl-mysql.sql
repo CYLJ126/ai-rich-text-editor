@@ -2,7 +2,7 @@
 -- 表名统一使用 arte_ai_ 前缀；连接及数据库时区统一 UTC，所有表使用 InnoDB。
 -- 不添加 @MybatisParams 注解，因为 ExecutionSqlSessionFactory 中并未添加拦截器。
 -- 新存储会话表使用 arte_ai_conversation_new，与旧 arte_ai_conversation 表隔离。TODO：改造完后去掉 _new 后缀。
--- *_key 为 UTF-8 长度前缀编码的 SHA-256；snapshot 为 schemaVersion=1 的内部 JSON 快照。
+-- *_key 为 UTF-8 长度前缀编码的 SHA-256；workspaceSnapshot 为 schemaVersion=1 的内部 JSON 快照。
 
 create table arte_ai_lock
 (
@@ -15,7 +15,7 @@ create table arte_ai_invocation
     id_key         char(64) not null comment '逻辑调用 ID 哈希'
         primary key,
     owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
-    snapshot       longtext not null comment '逻辑调用权威快照，包含状态、版本及执行上下文',
+    workspaceSnapshot longtext not null comment '逻辑调用权威快照，包含状态、版本及执行上下文',
     next_attempt   int    not null comment '最近已分配的尝试序号，初始为 0',
     next_fence     bigint not null comment '最近已分配的 fencing token，初始为 0',
     next_sequence  bigint not null comment '最近已提交的事件序号，初始为 0',
@@ -39,7 +39,7 @@ create table arte_ai_attempt
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
     attempt_number int      not null comment '该调用内的尝试序号，从 1 开始递增',
     purpose        varchar(16) not null comment '租约用途：EXECUTE-执行；RECONCILE-核对',
-    snapshot       longtext not null comment '执行尝试快照，包含版本、Worker、租约及 fencing token',
+    workspaceSnapshot longtext not null comment '执行尝试快照，包含版本、Worker、租约及 fencing token',
     constraint uk_arte_ai_attempt_number
         unique (invocation_key, attempt_number)
 ) engine = InnoDB comment '新 AI 执行尝试表';
@@ -48,7 +48,7 @@ create table arte_ai_event
 (
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
     sequence_no bigint not null comment '调用内连续递增的事件序号，从 1 开始',
-    snapshot       longtext not null comment '已提交事件快照，包含有界输出批次、状态或终态',
+    workspaceSnapshot longtext not null comment '已提交事件快照，包含有界输出批次、状态或终态',
     primary key (invocation_key, sequence_no)
 ) engine = InnoDB comment '新 AI 耐久执行事件表';
 
@@ -93,7 +93,7 @@ create table arte_ai_conversation_new
     owner_key         char(64) not null comment '租户、工作空间、主体组成的归属哈希',
     version_no bigint not null comment '会话版本，受理新调用时递增',
     active_invocation char(64) null comment '当前活跃调用 ID 哈希；已知终态释放，UNKNOWN 保留',
-    snapshot          longtext not null comment '会话权威快照'
+    workspaceSnapshot longtext not null comment '会话权威快照'
 ) engine = InnoDB comment '新 AI 独立会话表';
 
 create table arte_ai_turn
@@ -102,7 +102,7 @@ create table arte_ai_turn
         primary key,
     conversation_key char(64) not null comment '所属会话 ID 哈希',
     sequence_no bigint not null comment '会话内连续递增的轮次序号，从 1 开始',
-    snapshot         longtext not null comment '轮次快照，包含固定用户输入、历史路径及调用候选',
+    workspaceSnapshot longtext not null comment '轮次快照，包含固定用户输入、历史路径及调用候选',
     constraint uk_arte_ai_turn_sequence
         unique (conversation_key, sequence_no)
 ) engine = InnoDB comment '新 AI 交流轮次表';
@@ -112,7 +112,7 @@ create table arte_ai_account
     id_key    char(64) not null comment '预算账户引用哈希'
         primary key,
     owner_key char(64) not null comment '租户、工作空间、主体组成的归属哈希',
-    snapshot  longtext not null comment '预算账户快照，包含币种、固定费率、限额、held、charged 及版本'
+    workspaceSnapshot longtext not null comment '预算账户快照，包含币种、固定费率、限额、held、charged 及版本'
 ) engine = InnoDB comment '新 AI 预算账户表';
 
 create table arte_ai_reservation
@@ -122,7 +122,7 @@ create table arte_ai_reservation
     account_key    char(64) not null comment '所属预算账户引用哈希',
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
     attempt_key    char(64) not null comment '所属执行尝试 ID 哈希，每次尝试最多一个预留',
-    snapshot       longtext not null comment '预算预留快照，包含金额、费率、状态、版本及有效期',
+    workspaceSnapshot longtext not null comment '预算预留快照，包含金额、费率、状态、版本及有效期',
     constraint uk_arte_ai_reservation_attempt
         unique (attempt_key)
 ) engine = InnoDB comment '新 AI 预算预留表';
@@ -132,7 +132,7 @@ create table arte_ai_settlement
     reservation_key char(64) not null comment '所属预算预留 ID 哈希',
     settlement_key  char(64) not null comment '结算业务防重键哈希',
     digest          char(64) not null comment '结算内容及证据组成的摘要',
-    snapshot        longtext not null comment '首次提交的结算事实快照',
+    workspaceSnapshot longtext not null comment '首次提交的结算事实快照',
     result_snapshot longtext not null comment '该次结算首次提交的预留快照，用于幂等重放',
     evidence_kind   varchar(32) not null comment '证据类型：UNKNOWN_COST；PROVIDER_BILL；PROVEN_NOT_DISPATCHED',
     evidence_ref    varchar(256) null comment '可信账单或未发送证据引用',
@@ -154,7 +154,7 @@ create table arte_ai_context_snapshot
         primary key,
     owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
     payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
-    snapshot       longtext not null comment 'schemaVersion=1 的不可变上下文快照'
+    workspaceSnapshot longtext not null comment 'schemaVersion=1 的不可变上下文快照'
 ) engine = InnoDB comment '新 AI 实际输入快照表';
 
 create table arte_ai_result
@@ -169,7 +169,7 @@ create table arte_ai_result
     schema_version int      not null comment '结果字节编码版本',
     partial        int      not null comment '是否部分结果：0-完整；1-部分或失败结果',
     payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
-    snapshot       longtext not null comment '不可变的专有结果类型信封',
+    workspaceSnapshot longtext not null comment '不可变的专有结果类型信封',
     constraint uk_arte_ai_result_operation
         unique (owner_key, invocation_key, attempt_key, result_key)
 ) engine = InnoDB comment '新 AI 专有结果字节表';

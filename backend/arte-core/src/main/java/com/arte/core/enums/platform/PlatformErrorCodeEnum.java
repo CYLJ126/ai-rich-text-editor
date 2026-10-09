@@ -30,7 +30,7 @@ public enum PlatformErrorCodeEnum implements IEnum<Integer>, MyEnum<Integer> {
     AUTHORITY_UNAVAILABLE(113, "无法确认当前授权"),
     IDENTITY_CONFLICT(114, "稳定身份关联冲突");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     PlatformErrorCodeEnum(int value, String description) {

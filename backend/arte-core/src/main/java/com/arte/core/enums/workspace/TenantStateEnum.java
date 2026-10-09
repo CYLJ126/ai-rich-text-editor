@@ -16,7 +16,7 @@ public enum TenantStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     SUSPENDED(1, "停用"),
     CLOSING(2, "关闭处理中");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     TenantStateEnum(int value, String description) {

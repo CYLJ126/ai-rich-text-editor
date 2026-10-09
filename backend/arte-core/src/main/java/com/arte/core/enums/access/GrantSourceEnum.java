@@ -20,7 +20,7 @@ public enum GrantSourceEnum implements IEnum<Integer>, MyEnum<Integer> {
     GOVERNANCE(3, "治理委派"),
     COLLECTION(4, "集合批量授权");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     GrantSourceEnum(int value, String description) {

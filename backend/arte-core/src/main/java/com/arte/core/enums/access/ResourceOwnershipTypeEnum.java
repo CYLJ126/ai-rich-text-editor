@@ -15,7 +15,7 @@ public enum ResourceOwnershipTypeEnum implements IEnum<Integer>, MyEnum<Integer>
     TENANT(0, "租户"),
     WORKSPACE(1, "工作空间");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     ResourceOwnershipTypeEnum(int value, String description) {

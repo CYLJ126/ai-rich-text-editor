@@ -14,6 +14,7 @@ import com.arte.core.serialize.SerializerFactory;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,6 +22,39 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PlatformEnumSerializationTest {
     private final JsonMapper mapper = SerializerFactory.buildJsonMapperWithoutTypeProperty();
+
+    @Test
+    void allPublicEnumCodesRoundTripWithoutUsingOrdinal() {
+        List<Class<?>> types = List.of(
+                com.arte.core.enums.platform.PrincipalKindEnum.class,
+                com.arte.core.enums.platform.PrincipalStatusEnum.class,
+                com.arte.core.enums.platform.CommandStatusEnum.class,
+                com.arte.core.enums.platform.CommandDeliveryEnum.class,
+                com.arte.core.enums.platform.PlatformErrorCodeEnum.class,
+                com.arte.core.enums.workspace.TenantTypeEnum.class,
+                com.arte.core.enums.workspace.TenantStateEnum.class,
+                com.arte.core.enums.workspace.TenantRoleEnum.class,
+                com.arte.core.enums.workspace.WorkspaceStateEnum.class,
+                com.arte.core.enums.workspace.WorkspaceRoleEnum.class,
+                com.arte.core.enums.workspace.MembershipStateEnum.class,
+                com.arte.core.enums.workspace.InvitationStateEnum.class,
+                com.arte.core.enums.workspace.JoinOutcomeEnum.class,
+                com.arte.core.enums.workspace.ClosureWorkStateEnum.class,
+                com.arte.core.enums.workspace.CleanupAuthorizationStateEnum.class,
+                com.arte.core.enums.access.AccessReasonEnum.class,
+                com.arte.core.enums.access.ResourceOwnershipTypeEnum.class,
+                com.arte.core.enums.access.ResourceVisibilityEnum.class,
+                com.arte.core.enums.access.GrantTargetKindEnum.class,
+                com.arte.core.enums.access.GrantStateEnum.class,
+                com.arte.core.enums.access.GrantSourceEnum.class);
+        for (Class<?> type : types) {
+            for (Object value : type.getEnumConstants()) {
+                assertEquals(((MyEnum<?>) value).getValue().toString(), mapper.writeValueAsString(value));
+                assertEquals(value, mapper.readValue(mapper.writeValueAsString(value), type));
+            }
+            assertThrows(Exception.class, () -> mapper.readValue("99999", type));
+        }
+    }
 
     @Test
     void enumValuesFollowExistingNumericWireStyleAndRoundTrip() {

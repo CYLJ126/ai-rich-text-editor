@@ -107,7 +107,7 @@ arte.ai-new.limits.max-input-bytes=65536
 arte.ai-new.limits.max-output-tokens=4096
 arte.ai-new.limits.max-output-bytes=1048576
 arte.ai-new.limits.maximum-timeout=2m
-arte.ai-new.limits.snapshot-retention=15m
+arte.ai-new.limits.workspaceSnapshot-retention=15m
 
 # Trusted authorization: subject-name must equal Authentication.getName().
 # For a real login, replace the example identity and keep the budget owner in sync.

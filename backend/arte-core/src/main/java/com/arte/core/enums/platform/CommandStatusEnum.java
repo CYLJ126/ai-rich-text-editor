@@ -15,7 +15,7 @@ public enum CommandStatusEnum implements IEnum<Integer>, MyEnum<Integer> {
     PENDING(0, "已受理，待完成"),
     APPLIED(1, "已提交");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     CommandStatusEnum(int value, String description) {

@@ -17,7 +17,7 @@ public enum WorkspaceStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     CLOSING(2, "关闭处理中"),
     DELETED(3, "已软删除");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     WorkspaceStateEnum(int value, String description) {

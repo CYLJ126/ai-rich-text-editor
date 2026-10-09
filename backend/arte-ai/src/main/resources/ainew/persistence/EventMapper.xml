@@ -5,7 +5,8 @@
         SELECT next_sequence FROM arte_ai_invocation WHERE id_key=#{idKey}
     </select>
     <insert id="insertEvent">
-        INSERT INTO arte_ai_event(invocation_key,sequence_no,snapshot) VALUES (#{invocationKey},#{sequenceNo},#{snapshot})
+        INSERT INTO arte_ai_event(invocation_key,sequence_no,workspaceSnapshot) VALUES
+        (#{invocationKey},#{sequenceNo},#{workspaceSnapshot})
     </insert>
     <update id="saveNextSequence">
         UPDATE arte_ai_invocation SET next_sequence=#{nextSequence} WHERE id_key=#{idKey}
@@ -17,7 +18,8 @@
         UPDATE arte_ai_invocation SET written_bytes=written_bytes+#{bytes} WHERE id_key=#{idKey}
     </update>
     <select id="events" resultType="java.lang.String" useCache="false">
-        SELECT snapshot FROM arte_ai_event WHERE invocation_key=#{invocationKey} AND sequence_no&gt;#{afterSequence} ORDER BY sequence_no LIMIT #{limit}
+        SELECT workspaceSnapshot FROM arte_ai_event WHERE invocation_key=#{invocationKey} AND sequence_no&gt;#{afterSequence}
+        ORDER BY sequence_no LIMIT #{limit}
     </select>
     <select id="retainedAfter" resultType="java.lang.Long" useCache="false">
         SELECT retained_after FROM arte_ai_invocation WHERE id_key=#{idKey}

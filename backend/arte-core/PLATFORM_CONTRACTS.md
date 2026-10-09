@@ -1,23 +1,24 @@
 # 平台公共基础契约
 
-本轮完成实施第 1 步：领域值对象、枚举、命令／View、公共 API 和环境 SPI。这里只提供基础契约及结构校验，默认应用服务、权限计算、数据库、HTTP
-与 `ainew` 接入在后续阶段实现。接口没有空服务实现，也没有注册可用管理端点。
+已完成实施第 1～2 步：基础契约，以及个人初始化、基础空间管理、本人偏好、范围验证和基础动作授权的默认实现。默认服务通过 SPI
+执行，不注册生产内存存储或管理 HTTP 端点。数据库、登录身份适配、资源 ACL 管理、成员治理、生命周期及 `ainew` 接入继续分步实施。
 
 ## 包位置
 
-| 内容                                     | 包                                                  |
-|------------------------------------------|-----------------------------------------------------|
-| 主体、命令、错误等枚举                   | `com.arte.core.enums.platform`                      |
-| 租户、空间、成员、邀请等枚举             | `com.arte.core.enums.workspace`                     |
-| 归属、访问模式、授权与判断枚举           | `com.arte.core.enums.access`                        |
-| 稳定身份、范围、回执、分页、事件等值对象 | `com.arte.core.pojo.platform`                       |
-| 租户、空间、成员、政策、偏好、关闭等对象 | `com.arte.core.pojo.workspace`                      |
-| 资源事实、ACL、授权及判断对象            | `com.arte.core.pojo.access`                         |
-| 业务消费者调用的接口                     | `com.arte.core.api.platform`、`workspace`、`access` |
-| 环境与领域实现的端口                     | `com.arte.core.spi.platform`、`workspace`、`access` |
-| 类型化应用错误                           | `com.arte.core.exception.platform`                  |
-| 资源类型及动作名称                       | `com.arte.core.constant.platform`                   |
-| 结构校验辅助                             | `com.arte.core.utils.platform`                      |
+| 内容                                     | 包                                                          |
+|------------------------------------------|-------------------------------------------------------------|
+| 主体、命令、错误等枚举                   | `com.arte.core.enums.platform`                              |
+| 租户、空间、成员、邀请等枚举             | `com.arte.core.enums.workspace`                             |
+| 归属、访问模式、授权与判断枚举           | `com.arte.core.enums.access`                                |
+| 稳定身份、范围、回执、分页、事件等值对象 | `com.arte.core.pojo.platform`                               |
+| 租户、空间、成员、政策、偏好、关闭等对象 | `com.arte.core.pojo.workspace`                              |
+| 资源事实、ACL、授权及判断对象            | `com.arte.core.pojo.access`                                 |
+| 业务消费者调用的接口                     | `com.arte.core.api.platform`、`workspace`、`access`         |
+| 环境与领域实现的端口                     | `com.arte.core.spi.platform`、`workspace`、`access`         |
+| 类型化应用错误                           | `com.arte.core.exception.platform`                          |
+| 资源类型及动作名称                       | `com.arte.core.constant.platform`                           |
+| 默认应用服务、基础授权及事务协作         | `com.arte.core.application.platform`、`workspace`、`access` |
+| 结构校验辅助                             | `com.arte.core.utils.platform`                              |
 
 枚举沿用 `StatusEnum` 的数值码、中文描述、`IEnum<Integer>`／`MyEnum<Integer>` 及读取／写入转换器，并提供
 `@JsonCreator fromValue`。数值码固定，不能按枚举顺序推算或升级时重排。错误对外如需文档中的字符串代码，由 app 映射枚举
@@ -28,7 +29,7 @@
 
 ## API 使用边界
 
-- `PersonalWorkspaceService`、`WorkspaceService`、`ScopeResolver`：个人初始化、空间管理及当前范围验证。个人初始化后续实现只接受有效
+- `PersonalWorkspaceService`、`WorkspaceService`、`ScopeResolver`：个人初始化、空间管理及当前范围验证。个人初始化默认实现只接受有效
   USER，不给 SERVICE 建默认个人空间。
 - `MembershipService`、`TenantService`：空间邀请／成员治理及租户治理。组织创建另受 `TenantProvisioningPolicy` 限制。
 - `WorkspacePreferenceService`、`WorkspacePolicyService`：本人偏好及获授权治理政策。默认空间关联不能通过偏好更新修改；完整政策只供相应治理资格使用，不混入普通空间查询
@@ -47,7 +48,8 @@
 ## access 管理关系与接口覆盖
 
 `com.arte.core.spi.access`
-的五个接口已覆盖顶层设计首版所需的协作职责；当前只是契约，权限规则、事务门控和持久化实现仍待完成。接口关系图及首次授权变更时序图见[顶层需求及设计](../../ARTE%20顶层需求及设计.md)
+的五个接口已覆盖顶层设计首版所需的协作职责；第二步已实现基础角色判定及租户／空间事务门控，业务资源 ACL
+判定、领域条件和持久化仍在后续阶段接入。接口关系图及首次授权变更时序图见[顶层需求及设计](../../ARTE%20顶层需求及设计.md)
 的“详细设计 → 2.4 授权管理与统一判断入口”。
 
 | SPI                             | 现有方法                                                                                                                      | 职责                                                             |
@@ -62,8 +64,8 @@
 `spi.platform` 协作；事务、回执、审计与 Outbox 不另放一套在 access 包中。公共 ACL 管访问规则，领域管理业务数据及真实归属。
 
 新资源登记先在既有范围验证创建资格，再与正文同事务登记初始 ACL；已有资源的授权变更在门控内重查资格并条件写入 ACL 与对应范围
-epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基础设施故障都不能静默放行。详细流程是下一步默认应用服务与 app
-适配器的实现约束，不是本轮已经提供的运行功能。
+epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基础设施故障都不能静默放行。业务资源 ACL 的详细流程仍是后续授权管理及
+app 适配器的实现约束；第二步基础授权不会为未接入的正文、模型配置或凭据放行。
 
 ## 必须保留的规则
 
@@ -91,6 +93,8 @@ epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基�
   `PublicTransactionRunner.requireActive` 可供实现拒绝事务外协作。
 - Store 的 `insert`／`insertIfAbsent` 为唯一条件写入；`replace` 为 expectedVersion 条件更新，成功时按规则递增版本。false
   表示唯一／版本条件未满足，不能静默覆盖。基础设施不可用必须报告失败，不伪装成未找到或允许。
+- `PreferenceStore.lockSubject` 在实际事务中锁定主体门控，即使偏好尚不存在也须覆盖初始化竞争；app
+  可锁稳定身份行。初始化和偏好更新先锁主体，再按租户、空间、成员顺序锁治理范围，不使用 JVM 锁代替数据库并发约束。
 - `WorkspaceStore` 提供有界成员候选扫描，候选不是最终授权。公共服务通过统一判断计算可见分页及 total；`ResourceGrantStore`
   也使用有界分页扫描。
 - 幂等范围由可信 actor、CommandScope、commandType、operationKey 组成。初始化／租户命令的空空间在数据库唯一键中编码明确范围；摘要保存原始身份并核对碰撞。
@@ -99,17 +103,51 @@ epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基�
   AI 保留，公共端口不引用 AI 类型。
 - 关闭工作项 WAITING_EVIDENCE／FAILED 或缺少必要参与者时，不能进入删除完成状态；不得把空实现当作 DONE。
 
+## 第二步默认服务
+
+| 实现                                | 已提供能力                                                                                                       |
+|-------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `DefaultPersonalWorkspaceService`   | 有效 USER 初始化；同事务保存租户、默认空间、两级 OWNER、政策、偏好、回执、审计及事件；同键重放及不同键复用关联   |
+| `DefaultWorkspaceService`           | 创建、读取、改名及可访问目录；版本条件更新；逐项过滤后分页和计数，不暴露候选 total                               |
+| `DefaultWorkspacePreferenceService` | 本人启动／最近／收藏偏好，保留默认关联；更新只接受当前可访问目标；读取时将失效启动偏好回退默认空间并过滤失效引用 |
+| `DefaultScopeResolver`              | 稳定主体重检、两级成员资格、范围匹配、政策版本及生命周期验证                                                     |
+| `DefaultAuthorizationService`       | 租户／空间基础治理、资源创建资格及 AI 入口资格；check／require／batchCheck 共用规则，未知动作及政策版本拒绝      |
+| `DefaultWorkspaceWriteGuard`        | 调用方实际事务内按确定顺序锁租户、空间及成员，再要求当前动作资格；未接入 ACL 的业务资源拒绝                      |
+| `DefaultCommandExecutor`            | 规范化长度编码摘要、完整操作身份、同事务回执及重放授权验证；回执冲突回滚领域写入                                 |
+
+`DefaultWorkspaceServices` 是无框架装配入口。app 传入 IdentityProvider、事务、各 Store、审计、Outbox、ID 生成器、Clock
+和政策模板，分别取得上述服务。所有依赖必须真实实现，不能将测试用内存存储注册为生产适配。
+
+基础动作针对服务端确认的租户／空间根引用：workspace 类型的 resourceId 必须等于当前 workspaceId，tenant 类型必须等于当前
+tenantId。article:create 等创建动作在父空间根上判断，不对尚不存在的文章构造已授权资源。已有文章／模型的 read、edit、use
+等需要后续可信描述、ACL 和领域条件，当前默认拒绝；治理角色或 createdBy 不提供内容读取资格。基础 invite／member:manage
+判断也不替代后续成员命令对目标角色的检查。
+
+当前范围读取支持 ACTIVE 和 ARCHIVED；ARCHIVED 只允许空间读取／发现及符合角色的恢复资格，基础业务写入拒绝。CLOSING／DELETED
+不进入日常目录；未来关闭进度通过独立受限入口读取。系统默认空间可以改名，基础预设禁止归档、关闭及负责人转交；个人租户保持本人托管，租户
+OWNER 转交预设仅针对组织租户。未实现的成员、组织、授权管理和生命周期 API 不装配为空服务。
+
+政策模板可由 app 显式传入受支持的连接白名单。`conservativePersonalDefaults()` 的协议／供应商／目的地列表为空，个人凭据许可不等于允许任意连接；不会为尚未接入的
+AI 模型生成可执行资格。Schema 和 rolePreset 当前只支持版本 1，未知版本拒绝，不静默按旧预设放行。
+
+偏好收藏最多 100 个；批量权限最多 100 项。偏好查询不偷偷保存过滤结果或覆盖其他标签的
+scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理，不随机跳入别人的空间。关键写命令在持有治理门控的同一事务内检查资格，重放只验证原结果的当前可见资格，不重复执行或恢复旧权限。
+
 ## 验证及下一步
 
-新增测试覆盖归属范围、命令边界、共享明确动作、成员代次结构、不可变集合、有效收尾快照、回执状态、分页边界、枚举 JSON／转换器及模块依赖。
+新增规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
+total、多批候选扫描、默认空间保护、失效偏好、门控及权威查询失败。边界测试也扫描新 application 包。
 
-在 `backend` 下执行：
+测试存储只位于 src/test，通过串行事务和快照回滚验证规则；它不证明真实数据库行锁、隔离级别或跨实例并发已落地。这些必须在第三步
+app 适配中用数据库集成测试验证。
+
+使用 JDK 21，在 `backend` 下执行：
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=DefaultWorkspaceServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-下一步在 `com.arte.core.application.workspace`／`com.arte.core.application.access` 实现个人初始化、基础空间管理及统一授权规则，并使用测试
-Store 验证。随后再由 app 实现 `arte_platform_` 表及相关身份、事务、HTTP 适配；本轮不切换既有 `ainew` 的固定授权路径。
+下一步由 app 实现 `arte_platform_` 表、稳定身份映射、主体与范围行锁、同库事务、事件投递及首批 HTTP；身份迁移仍核对原 AI
+subjectId，不修改历史 scope 或账本。资源授权、邀请／组织与关闭分别按后续阶段实施；本轮不切换 `ainew` 固定授权路径。

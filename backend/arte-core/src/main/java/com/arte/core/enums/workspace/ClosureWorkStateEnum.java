@@ -18,7 +18,7 @@ public enum ClosureWorkStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     DONE(3, "已完成"),
     FAILED(4, "处理失败");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     ClosureWorkStateEnum(int value, String description) {

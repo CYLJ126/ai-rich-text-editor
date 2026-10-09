@@ -17,7 +17,7 @@ public enum InvitationStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     REVOKED(2, "已撤销"),
     EXPIRED(3, "已过期");
 
-    private final int value;
+    private final Integer value;
     private final String description;
 
     InvitationStateEnum(int value, String description) {
