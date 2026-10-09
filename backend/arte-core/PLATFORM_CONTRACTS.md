@@ -100,6 +100,9 @@ app 适配器的实现约束；第二步基础授权不会为未接入的正文�
   也使用有界分页扫描。
 - 幂等范围由可信 actor、CommandScope、commandType、operationKey 组成。初始化／租户命令的空空间在数据库唯一键中编码明确范围；摘要保存原始身份并核对碰撞。
 - `StoredCommandReceipt` 的 resultSchema 由受信注册表解析。摘要、回执、事件和审计不存凭据明文或未授权正文，适配器不得按客户端类名创建对象。
+- `DefaultCommandExecutor` 首次执行与重放采用同一结果类型规则：`Void.class` 仅接受 `value=null`，其他结果类型要求非空且可赋值。
+  Void 重放仍校验命令身份、摘要、resultSchema、APPLIED 状态及当前权限；`authorizeReplay` 接收 null，须按命令中确定的目标重检权限。
+  首次结果不符合类型契约时拒绝保存回执并回滚领域写入；重放保留原操作 ID、结果版本及时间，不重复执行领域回调。
 - `CleanupAuthorizationVerifier` 在实际领域收尾事务验证 SERVICE、工作项、固定目标、动作、版本及有效期；AI 的原执行 owner／账本仍由
   AI 保留，公共端口不引用 AI 类型。
 - 关闭工作项 WAITING_EVIDENCE／FAILED 或缺少必要参与者时，不能进入删除完成状态；不得把空实现当作 DONE。
@@ -174,8 +177,10 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 ## 验证及下一步
 
 `CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；`TenantAuthorizationServicesTest`
-覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。 空间规则、公共契约、JSON／枚举序列化及包边界共
-82 项相关测试通过。 归属未知码断言改用已有 `MyEnum.fromValue`，不再引用不存在的枚举工厂方法。
+覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。
+`DefaultCommandExecutorReceiptTest` 另覆盖 Void 首次执行／幂等重放、当前权限与身份重检、损坏回执拒绝及结果／回执失败回滚。
+执行器、空间规则、公共契约、JSON／枚举序列化及包边界共 94 项相关测试通过。 归属未知码断言改用已有 `MyEnum.fromValue`
+，不再引用不存在的枚举工厂方法。
 
 原规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
 total、多批候选扫描、默认空间保护、失效偏好、门控及权威查询失败。边界测试也扫描新 application 包。
@@ -187,7 +192,7 @@ app 适配中用数据库集成测试验证。
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=DefaultCommandExecutorReceiptTest,DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

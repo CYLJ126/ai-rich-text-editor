@@ -63,10 +63,10 @@ public final class DefaultCommandExecutor {
      * @param scope           服务端确定的命令作用域
      * @param type            服务端确定的命令类型
      * @param schema          服务端认可的结果结构版本标识
-     * @param resultType      服务端认可的结果视图类型，用于校验已保存回执
+     * @param resultType      服务端认可的结果视图类型，用于校验首次结果和已保存回执；Void.class 只接受 null，其他类型须有匹配的非空结果
      * @param fields          按确定顺序规范化的业务字段，包含预期版本，不包含追踪标识等非业务数据
      * @param lock            先锁主体、再按完整范围顺序取得治理锁的回调，锁须持续到外层事务结束
-     * @param authorizeReplay 按当前权限校验原结果是否可见的回调
+     * @param authorizeReplay 按当前权限校验原结果是否可见的回调；Void 命令接收 null，须按命令目标重检当前权限
      * @param work            执行领域校验和写入的回调，接收操作 ID，返回结果及结果版本
      * @param <T>             命令结果视图类型
      * @return 首次执行或幂等重放的回执；重放保留原操作 ID、结果版本和执行时间
@@ -76,6 +76,7 @@ public final class DefaultCommandExecutor {
                                          String type, String schema, Class<T> resultType, List<String> fields, Runnable lock,
                                          Consumer<T> authorizeReplay, Function<String, Result<T>> work) {
         Objects.requireNonNull(meta);
+        Objects.requireNonNull(resultType);
         // 在进入事务前检查操作者当前是否有效。
         principals.requireActive(actor);
         // 完整命令身份定位回执，业务字段摘要用于识别同键不同请求。
@@ -97,7 +98,7 @@ public final class DefaultCommandExecutor {
                 }
                 var receipt = stored.receipt();
                 // 仅允许重放结构、类型和状态均可识别的成功回执。
-                if (!stored.resultSchema().equals(schema) || !resultType.isInstance(receipt.value())
+                if (!stored.resultSchema().equals(schema) || !matchesResultType(resultType, receipt.value())
                         || receipt.status() != CommandStatusEnum.APPLIED) {
                     throw new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, meta.traceId());
                 }
@@ -112,6 +113,10 @@ public final class DefaultCommandExecutor {
             String operationId = ids.nextId();
             // 持锁执行领域回调，由回调完成写权限与版本校验。
             Result<T> result = work.apply(operationId);
+            // 首次结果与重放使用同一类型规则，避免保存以后无法重放的回执。
+            if (!matchesResultType(resultType, result.value())) {
+                throw new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, meta.traceId());
+            }
             var receipt = new CommandReceipt<>(operationId, CommandStatusEnum.APPLIED, CommandDeliveryEnum.APPLIED,
                     result.value(), result.version(), acceptedAt, clock.instant());
             // 原子保存回执，防止并发请求重复提交同一命令。
@@ -121,6 +126,11 @@ public final class DefaultCommandExecutor {
             }
             return receipt;
         });
+    }
+
+    private static boolean matchesResultType(Class<?> resultType, Object value) {
+        // Class.isInstance(null) 恒为 false；Void 命令明确以 null 表示无结果。
+        return resultType == Void.class ? value == null : resultType.isInstance(value);
     }
 
     /**
