@@ -24,7 +24,7 @@
         </constructor>
     </resultMap>
     <insert id="insertConversation">
-        INSERT INTO arte_ai_conversation_new(id_key,owner_key,version_no,active_invocation,workspaceSnapshot) VALUES
+        INSERT INTO arte_ai_conversation_new(id_key,owner_key,version_no,active_invocation,workspace_snapshot) VALUES
         (#{idKey},#{ownerKey},#{versionNo},NULL,#{workspaceSnapshot})
     </insert>
     <select id="conversationGate" resultMap="ConversationGateRow" useCache="false">
@@ -37,15 +37,15 @@
         SELECT COUNT(*) FROM arte_ai_turn WHERE conversation_key=#{conversationKey} AND sequence_no=#{sequenceNo}
     </select>
     <insert id="insertTurn">
-        INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,workspaceSnapshot) VALUES
+        INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,workspace_snapshot) VALUES
         (#{idKey},#{conversationKey},#{sequenceNo},#{workspaceSnapshot})
     </insert>
     <update id="saveTurn">
-        UPDATE arte_ai_turn SET workspaceSnapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_turn SET workspace_snapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
     </update>
     <update id="advanceConversation">
         UPDATE arte_ai_conversation_new SET
-        version_no=#{versionNo},active_invocation=#{activeInvocation},workspaceSnapshot=#{workspaceSnapshot} WHERE
+        version_no=#{versionNo},active_invocation=#{activeInvocation},workspace_snapshot=#{workspaceSnapshot} WHERE
         id_key=#{idKey}
     </update>
     <update id="releaseConversation">
@@ -53,25 +53,25 @@
         active_invocation=#{activeInvocation}
     </update>
     <select id="conversationSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_conversation_new WHERE id_key=#{idKey}
+        SELECT workspace_snapshot FROM arte_ai_conversation_new WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
     <select id="turnSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_turn WHERE id_key=#{idKey}
+        SELECT workspace_snapshot FROM arte_ai_turn WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
     <select id="countConversations" resultType="java.lang.Long" useCache="false">
         SELECT COUNT(*) FROM arte_ai_conversation_new WHERE owner_key=#{ownerKey}
     </select>
     <select id="conversationSnapshots" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_conversation_new WHERE owner_key=#{ownerKey}
+        SELECT workspace_snapshot FROM arte_ai_conversation_new WHERE owner_key=#{ownerKey}
         ORDER BY id_key ASC LIMIT #{limit} OFFSET #{offset}
     </select>
     <select id="countTurns" resultType="java.lang.Long" useCache="false">
         SELECT COUNT(*) FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
     </select>
     <select id="turnSnapshots" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
+        SELECT workspace_snapshot FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
         ORDER BY sequence_no ASC LIMIT #{limit} OFFSET #{offset}
     </select>
 </mapper>

@@ -69,22 +69,23 @@ public final class DefaultConversationService implements ConversationService {
 
     @Override
     public Mono<Conversation> find(String id, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.CONVERSATION)
+        return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION)
                 .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwner.from(current), id))
-                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
+                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND))),
+                context, "getConversation", id, null, null);
     }
 
     @Override
     public Mono<ConversationPage<Conversation>> list(PageParam page, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+        return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             var pagination = MybatisPages.from(page);
             return admissionCatalogStore.listConversations(ExecutionOwner.from(current), pagination.getCurrent(), pagination.getSize());
-        });
+        }), context, "listConversations", null, page, null);
     }
 
     @Override
     public Mono<ConversationPage<Turn>> turns(String conversationId, long expectedVersion, PageParam page, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+        return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.id(conversationId, "conversationId");
             ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
             var pagination = MybatisPages.from(page);
@@ -98,6 +99,26 @@ public final class DefaultConversationService implements ConversationService {
                 }
                 return outcome.value();
             });
+        }), context, "queryTurnsOfConversation", conversationId, page, expectedVersion);
+    }
+
+    private <T> Mono<T> observe(Mono<T> source, ExecutionContext context, String operation,
+                                String conversationId, PageParam page, Long expectedVersion) {
+        return Mono.defer(() -> {
+            var started = System.nanoTime();
+            var owner = ExecutionOwner.from(context);
+            var target = conversationId == null ? null : conversationId.replaceAll("\\p{Cntrl}", "_");
+            log.debug("AI conversation query started, operation={}, traceId={}, executionId={}, tenantId={}, workspaceId={}, subjectId={}, conversationId={}, current={}, size={}, expectedVersion={}",
+                    operation, context.traceId(), context.executionId(), owner.tenantId(), owner.workspaceId(), owner.subjectId(),
+                    target, page == null ? null : page.getCurrent(), page == null ? null : page.getSize(), expectedVersion);
+            return source.doOnSuccess(result -> log.debug("AI conversation query completed, operation={}, traceId={}, executionId={}, elapsedMs={}, total={}, records={}",
+                            operation, context.traceId(), context.executionId(), (System.nanoTime() - started) / 1_000_000,
+                            result instanceof ConversationPage<?> value ? value.total() : null,
+                            result instanceof ConversationPage<?> value ? value.records().size() : null))
+                    .doOnError(error -> log.warn("AI conversation query failed, operation={}, traceId={}, executionId={}, tenantId={}, workspaceId={}, subjectId={}, conversationId={}, current={}, size={}, expectedVersion={}, elapsedMs={}, type={}",
+                            operation, context.traceId(), context.executionId(), owner.tenantId(), owner.workspaceId(), owner.subjectId(),
+                            target, page == null ? null : page.getCurrent(), page == null ? null : page.getSize(), expectedVersion,
+                            (System.nanoTime() - started) / 1_000_000, error.getClass().getName()));
         });
     }
 

@@ -100,6 +100,44 @@ invocationIds 和 selectedInvocationId。回答文本、执行状态与用量需
 
 ## 错误与验证
 
+### 调试日志
+
+会话创建、列表、详情和历史入口记录只含范围／目标／分页／版本的诊断上下文，并在授权解析后补充 `traceId`、`executionId` 和稳定主体
+ID。信息放在请求属性中，MVC 异步派发后的异常处理器仍可读取，不依赖后台线程的 SecurityContext 或 MDC。
+
+- `AI conversation query started/completed`（DEBUG）：操作、范围、分页、版本、耗时、总数及本页记录数；失败摘要
+  `AI conversation query failed` 为 WARN，含与 HTTP 一致的 trace ID。
+- `New AI SQL started/completed`（DEBUG）：完整 Mapper statement ID、SQL 类型、参数化 SQL、耗时和返回行数。新 AI
+  独立工厂注册专用诊断拦截器，仍禁用 MyBatis 默认参数／结果日志。
+- `New AI SQL failed`（ERROR）：失败 statement、参数化 SQL、SQLState、数据库错误码和根因类型，可区分 `countConversations` 与
+  `conversationSnapshots` 等不同阶段。
+- `New AI HTTP failure`（ERROR）：HTTP 路径、请求诊断上下文、根因类型和 SQL 错误码，并输出原异常的完整堆栈及 `Caused by`。预期
+  4xx 仅记录 WARN 摘要。
+
+重新构建并重启后复现问题，先查 `New AI SQL failed`，再查同一次会话查询的 trace ID 和 `New AI HTTP failure` 下的数据库根因。正常成功日志需
+DEBUG；现有 `arte-app` 的 Log4j2 root 为 DEBUG，若运行环境调高了级别，可对
+`com.arte.ainew.application.conversation.DefaultConversationService` 和
+`com.arte.ainew.persistence.mybatis.ExecutionSqlDiagnostics` 单独启用 DEBUG。失败诊断在 ERROR 级别可见。
+
+日志不额外序列化认证头、幂等键、聊天正文、内部 JSON 快照、绑定参数或结果正文。完整异常堆栈保留数据库自身的错误描述；不要为查询问题开启全局
+SQL 参数打印。
+
+新增 H2 故障测试分别移除会话表和 `owner_key` 列，验证实际 SQL 异常、SQLState、完整堆栈、跨 MVC
+异步派发的请求标识，以及日志未输出认证头和操作键；另验证正常空列表的分页响应。只修改各测试自己的临时数据库：
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  '-Dtest=ConversationHttpIntegrationTest#diagnostics*' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+2026-10-10：上述 3 项诊断测试与模块编译通过。会话／持久化完整回归另发现已有 XML 占位符 `workspaceSnapshot` 与 Java
+`@Param("snapshot")` 不一致，52 项中 47 项失败；本次日志改动未修改 Mapper SQL、DDL 或实际数据库。该绑定问题与生产列表查询的
+SQL 语法异常应分别按新日志定位。
+
+### 响应与契约验证
+
 - 400：请求格式、字段、分页、幂等键或当前不支持的会话配置。
 - 401：没有有效登录身份。
 - 403：当前登录身份无权使用请求空间或 ai:conversation。

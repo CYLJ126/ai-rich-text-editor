@@ -27,6 +27,7 @@ public final class ExecutionSqlSessionFactory {
                 new SpringManagedTransactionFactory(), Objects.requireNonNull(dataSource, "dataSource")));
         // 内部快照包含输入及授权信息，避免全局 SQL debug 将参数写入日志。
         configuration.setLogImpl(org.apache.ibatis.logging.nologging.NoLoggingImpl.class);
+        configuration.addInterceptor(new ExecutionSqlDiagnostics());
         configuration.setCacheEnabled(false);
         configuration.setLocalCacheScope(LocalCacheScope.STATEMENT);
         configuration.setDefaultExecutorType(ExecutorType.SIMPLE);

@@ -3,12 +3,14 @@ package com.arte.ainew.web.controller;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.web.ConversationHttpContext;
+import com.arte.ainew.web.ConversationRequestDiagnostics;
 import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.ainew.web.response.ConversationResponse;
 import com.arte.ainew.web.response.ConversationTurnResponse;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,39 +42,36 @@ public class NewAiConversationController {
     }
 
     @PostMapping("/createConversation")
-    public Mono<ResultContext<ConversationResponse>> createConversation(
-            @Valid @RequestBody ConversationRequests.Create request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            Locale locale) {
-        return conversationHttpContext.create(request.scope(), idempotencyKey)
+    public Mono<ResultContext<ConversationResponse>> createConversation(@Valid @RequestBody ConversationRequests.Create request,
+                                                                        @RequestHeader("Idempotency-Key") String idempotencyKey,
+                                                                        Locale locale, HttpServletRequest http) {
+        return ConversationRequestDiagnostics.capture(http, "createConversation", request.scope(), null, null, null,
+                        () -> conversationHttpContext.create(request.scope(), idempotencyKey))
                 .flatMap(context -> conversationService.create(request.title(), request.chatProfile(),
                         request.resources() == null ? List.of() : request.resources(), context))
                 .map(conversation -> ResultContext.success(ConversationResponse.from(conversation), ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/listConversations")
-    public Mono<PageView<ConversationResponse>> listConversations(
-            @Valid @RequestBody ConversationRequests.ListQuery request,
-            Locale locale) {
-        return conversationHttpContext.create(request.getScope(), null)
+    public Mono<PageView<ConversationResponse>> listConversations(@Valid @RequestBody ConversationRequests.ListQuery request, Locale locale, HttpServletRequest http) {
+        return ConversationRequestDiagnostics.capture(http, "listConversations", request.getScope(), null, request.getPage(), null,
+                        () -> conversationHttpContext.create(request.getScope(), null))
                 .flatMap(context -> conversationService.list(request.getPage(), context))
                 .map(page -> pageView(page, ConversationResponse::from, locale));
     }
 
     @PostMapping("/getConversation")
-    public Mono<ResultContext<ConversationResponse>> getConversation(
-            @Valid @RequestBody ConversationRequests.Find request,
-            Locale locale) {
-        return conversationHttpContext.create(request.scope(), null)
+    public Mono<ResultContext<ConversationResponse>> getConversation(@Valid @RequestBody ConversationRequests.Find request, Locale locale, HttpServletRequest http) {
+        return ConversationRequestDiagnostics.capture(http, "getConversation", request.scope(), request.conversationId(), null, null,
+                        () -> conversationHttpContext.create(request.scope(), null))
                 .flatMap(context -> conversationService.find(request.conversationId(), context))
                 .map(conversation -> ResultContext.success(ConversationResponse.from(conversation), ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/queryTurnsOfConversation")
-    public Mono<PageView<ConversationTurnResponse>> queryTurnsOfConversation(
-            @Valid @RequestBody ConversationRequests.TurnsQuery request,
-            Locale locale) {
-        return conversationHttpContext.create(request.getScope(), null)
+    public Mono<PageView<ConversationTurnResponse>> queryTurnsOfConversation(@Valid @RequestBody ConversationRequests.TurnsQuery request, Locale locale, HttpServletRequest http) {
+        return ConversationRequestDiagnostics.capture(http, "queryTurnsOfConversation", request.getScope(), request.getConversationId(), request.getPage(), request.getExpectedVersion(),
+                        () -> conversationHttpContext.create(request.getScope(), null))
                 .flatMap(context -> conversationService.turns(request.getConversationId(), request.getExpectedVersion(), request.getPage(), context))
                 .map(page -> pageView(page, ConversationTurnResponse::from, locale));
     }

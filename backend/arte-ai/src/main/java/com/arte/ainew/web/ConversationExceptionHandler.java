@@ -8,6 +8,7 @@ import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.sql.SQLException;
 import java.util.Locale;
 
 /**
@@ -64,13 +66,17 @@ public class ConversationExceptionHandler {
         IResult body = paged ? (code == null ? PageView.exception(exception, locale) : PageView.fail(code, locale))
                 : (code == null ? ResultContext.exception(exception, locale) : ResultContext.fail(code, locale));
         if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
-            // 不记录请求正文、快照或底层异常文本，它们可能包含用户输入或数据库参数。
-            log.error("New AI HTTP failure, method={}, path={}, status={}, type={}",
-                    request.getMethod(), path, status.value(), exception.getClass().getName());
+            var root = NestedExceptionUtils.getMostSpecificCause(exception);
+            var sql = root instanceof SQLException failure ? failure : null;
+            // 异常作为最后一个参数输出完整 cause/堆栈；不额外序列化请求或绑定参数。
+            log.error("New AI HTTP failure, method={}, path={}, status={}, context={}, type={}, rootType={}, sqlState={}, vendorCode={}",
+                    request.getMethod(), path, status.value(), request.getAttribute(ConversationRequestDiagnostics.ATTRIBUTE),
+                    exception.getClass().getName(), root.getClass().getName(), sql == null ? null : sql.getSQLState(),
+                    sql == null ? null : sql.getErrorCode(), exception);
         } else {
-            // 可预期拒绝也留诊断线索；不写请求参数、异常原文、认证头或用户／模型正文。
-            log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, type={}",
-                    request.getMethod(), path, status.value(), code.getCode(), exception.getClass().getName());
+            // 可预期拒绝保留标识／分页诊断，不写请求正文、异常原文或认证头。
+            log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, context={}, type={}",
+                    request.getMethod(), path, status.value(), code.getCode(), request.getAttribute(ConversationRequestDiagnostics.ATTRIBUTE), exception.getClass().getName());
         }
         return ResponseEntity.status(status).body(body);
     }

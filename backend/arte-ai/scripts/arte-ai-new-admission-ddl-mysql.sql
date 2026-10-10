@@ -16,7 +16,7 @@ create table arte_ai_context_snapshot
         primary key,
     owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
     payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
-    workspaceSnapshot longtext not null comment 'schemaVersion=1 的不可变上下文快照'
+    workspace_snapshot longtext not null comment 'schemaVersion=1 的不可变上下文快照'
 ) engine = InnoDB comment '新 AI 实际输入快照表';
 
 create table arte_ai_result
@@ -31,7 +31,7 @@ create table arte_ai_result
     schema_version int not null comment '结果字节编码版本',
     partial        int not null comment '是否部分结果：0-完整；1-部分或失败结果',
     payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
-    workspaceSnapshot longtext not null comment '不可变的专有结果类型信封',
+    workspace_snapshot longtext not null comment '不可变的专有结果类型信封',
     constraint uk_arte_ai_result_operation
         unique (owner_key, invocation_key, attempt_key, result_key)
 ) engine = InnoDB comment '新 AI 专有结果字节表';

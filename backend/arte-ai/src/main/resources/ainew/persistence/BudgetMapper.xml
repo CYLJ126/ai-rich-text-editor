@@ -8,38 +8,38 @@
         </constructor>
     </resultMap>
     <insert id="insertAccount">
-        INSERT INTO arte_ai_account(id_key,owner_key,workspaceSnapshot) VALUES
-        (#{idKey},#{ownerKey},#{workspaceSnapshot})
+        INSERT INTO arte_ai_account(id_key,owner_key,workspace_snapshot) VALUES
+        (#{idKey},#{ownerKey},#{workspace_snapshot})
     </insert>
     <update id="saveAccount">
-        UPDATE arte_ai_account SET workspaceSnapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_account SET workspace_snapshot=#{workspace_snapshot} WHERE id_key=#{idKey}
     </update>
     <update id="saveReservation">
-        UPDATE arte_ai_reservation SET workspaceSnapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_reservation SET workspace_snapshot=#{workspace_snapshot} WHERE id_key=#{idKey}
     </update>
     <select id="reservationForAttempt" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_reservation WHERE attempt_key=#{attemptKey} AND
+        SELECT workspace_snapshot FROM arte_ai_reservation WHERE attempt_key=#{attemptKey} AND
         invocation_key=#{invocationKey}
     </select>
     <insert id="insertReservation">
-        INSERT INTO arte_ai_reservation(id_key,account_key,invocation_key,attempt_key,workspaceSnapshot) VALUES
-        (#{idKey},#{accountKey},#{invocationKey},#{attemptKey},#{workspaceSnapshot})
+        INSERT INTO arte_ai_reservation(id_key,account_key,invocation_key,attempt_key,workspace_snapshot) VALUES
+        (#{idKey},#{accountKey},#{invocationKey},#{attemptKey},#{workspace_snapshot})
     </insert>
     <select id="settlement" resultMap="SettlementRow" useCache="false">
         SELECT digest,result_snapshot FROM arte_ai_settlement WHERE reservation_key=#{reservationKey} AND settlement_key=#{settlementKey}
     </select>
     <insert id="insertSettlement">
         INSERT INTO
-        arte_ai_settlement(reservation_key,settlement_key,digest,workspaceSnapshot,result_snapshot,evidence_kind,evidence_ref)
+        arte_ai_settlement(reservation_key,settlement_key,digest,workspace_snapshot,result_snapshot,evidence_kind,evidence_ref)
         VALUES
-        (#{reservationKey},#{settlementKey},#{digest},#{workspaceSnapshot},#{resultSnapshot},#{evidenceKind},#{evidenceRef})
+        (#{reservationKey},#{settlementKey},#{digest},#{workspace_snapshot},#{resultSnapshot},#{evidenceKind},#{evidenceRef})
     </insert>
     <select id="accountSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_account WHERE id_key=#{idKey}
+        SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
     <select id="reservationSnapshot" resultType="java.lang.String" useCache="false">
-        SELECT workspaceSnapshot FROM arte_ai_reservation WHERE id_key=#{idKey}
+        SELECT workspace_snapshot FROM arte_ai_reservation WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
     <!-- v1 snapshots are compact JSON. Enum patterns match structural fields, never escaped user text. -->
@@ -47,19 +47,19 @@
         FROM arte_ai_reservation r JOIN arte_ai_account a ON a.id_key=r.account_key
         JOIN arte_ai_invocation i ON i.id_key=r.invocation_key
         WHERE r.account_key=#{accountKey} AND a.owner_key=#{ownerKey} AND i.owner_key=#{ownerKey}
-        AND (r.workspaceSnapshot LIKE '%"state":"RESERVED"%' OR r.workspaceSnapshot LIKE
+        AND (r.workspace_snapshot LIKE '%"state":"RESERVED"%' OR r.workspace_snapshot LIKE
         '%"state":"PENDING_RECONCILIATION"%')
-        AND i.workspaceSnapshot LIKE '%"kind":"GENERATION"%'
-        AND (i.workspaceSnapshot LIKE '%"state":"UNKNOWN"%' OR i.workspaceSnapshot LIKE '%"state":"SUCCEEDED"%'
-        OR i.workspaceSnapshot LIKE '%"state":"FAILED"%' OR i.workspaceSnapshot LIKE '%"state":"CANCELLED"%'
-        OR i.workspaceSnapshot LIKE '%"state":"TIMED_OUT"%' OR i.workspaceSnapshot LIKE '%"state":"INTERRUPTED"%')
+        AND i.workspace_snapshot LIKE '%"kind":"GENERATION"%'
+        AND (i.workspace_snapshot LIKE '%"state":"UNKNOWN"%' OR i.workspace_snapshot LIKE '%"state":"SUCCEEDED"%'
+        OR i.workspace_snapshot LIKE '%"state":"FAILED"%' OR i.workspace_snapshot LIKE '%"state":"CANCELLED"%'
+        OR i.workspace_snapshot LIKE '%"state":"TIMED_OUT"%' OR i.workspace_snapshot LIKE '%"state":"INTERRUPTED"%')
     </sql>
     <select id="countPending" resultType="java.lang.Long" useCache="false">
         SELECT COUNT(*)
         <include refid="pendingFrom"/>
     </select>
     <select id="pendingSnapshots" resultType="java.lang.String" useCache="false">
-        SELECT r.workspaceSnapshot
+        SELECT r.workspace_snapshot
         <include refid="pendingFrom"/>
         ORDER BY r.id_key ASC LIMIT #{limit} OFFSET #{offset}
     </select>

@@ -1,11 +1,13 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.persistence.mybatis.ExecutionSqlDiagnostics;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
+import com.arte.ainew.web.ConversationRequestDiagnostics;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiConversationController;
 import com.arte.core.enums.ResultCodeEnum;
@@ -94,6 +96,84 @@ public class ConversationHttpIntegrationTest {
 
     private JsonNode body(MvcResult result) throws Exception {
         return json.readTree(result.getResponse().getContentAsString());
+    }
+
+    @Test
+    public void diagnosticsPreserveSuccessfulEmptyListPagination() throws Exception {
+        var response = body(send(post(ROOT + "listConversations")
+                .content("{" + SCOPE + ",\"page\":{\"current\":2,\"size\":5}}"), 200));
+        assertEquals(2, response.path("current").asLong());
+        assertEquals(5, response.path("size").asLong());
+        assertEquals(0, response.path("total").asLong());
+        assertEquals(0, response.path("records").size());
+    }
+
+    @Test
+    public void diagnosticsIncludeMissingTableCauseSqlAndAsyncRequestContext() throws Exception {
+        assertDatabaseFailureDiagnostics("DROP TABLE arte_ai_conversation_new", "42S02");
+    }
+
+    @Test
+    public void diagnosticsIncludeMissingColumnCauseWithoutLoggingBoundValues() throws Exception {
+        assertDatabaseFailureDiagnostics("ALTER TABLE arte_ai_conversation_new DROP COLUMN owner_key", "42S22");
+    }
+
+    private void assertDatabaseFailureDiagnostics(String faultSql, String expectedSqlState) throws Exception {
+        var events = new java.util.concurrent.CopyOnWriteArrayList<org.apache.logging.log4j.core.LogEvent>();
+        var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("conversation-diagnostics", null, null, false,
+                org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override
+            public void append(org.apache.logging.log4j.core.LogEvent event) {
+                events.add(event.toImmutable());
+            }
+        };
+        var loggers = List.of(
+                (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(ConversationExceptionHandler.class),
+                (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(ExecutionSqlDiagnostics.class),
+                (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(com.arte.ainew.application.conversation.DefaultConversationService.class));
+        var levels = loggers.stream().map(org.apache.logging.log4j.core.Logger::getLevel).toList();
+        appender.start();
+        loggers.forEach(logger -> {
+            logger.addAppender(appender);
+            logger.setLevel(org.apache.logging.log4j.Level.DEBUG);
+        });
+        try {
+            jdbc.execute(faultSql);
+            var result = send(post(ROOT + "listConversations")
+                    .header("Authorization", "Bearer debug-test-secret").header("Idempotency-Key", "private-debug-key")
+                    .content("{" + SCOPE + ",\"page\":{\"current\":2,\"size\":5}}"), 500);
+            var context = (ConversationRequestDiagnostics) result.getRequest().getAttribute(ConversationRequestDiagnostics.ATTRIBUTE);
+            assertNotNull(context);
+            assertEquals("listConversations", context.operation());
+            assertEquals("tenant", context.tenantId());
+            assertEquals("workspace", context.workspaceId());
+            assertEquals("alice-id", context.subjectId());
+            assertEquals(Long.valueOf(2), context.current());
+            assertEquals(Long.valueOf(5), context.size());
+            assertNotNull(context.traceId());
+            assertNotNull(context.executionId());
+            var failure = events.stream().filter(event -> event.getMessage().getFormattedMessage().startsWith("New AI HTTP failure")).findFirst().orElseThrow();
+            assertNotNull(failure.getThrown());
+            assertTrue(failure.getThrown().getStackTrace().length > 0);
+            assertTrue(failure.getMessage().getFormattedMessage().contains("traceId=" + context.traceId()));
+            assertTrue(failure.getMessage().getFormattedMessage().contains("sqlState=" + expectedSqlState));
+            var sqlFailure = events.stream().map(event -> event.getMessage().getFormattedMessage())
+                    .filter(message -> message.startsWith("New AI SQL failed")).findFirst().orElseThrow();
+            assertTrue(sqlFailure, sqlFailure.contains("AdmissionMapper.countConversations"));
+            assertTrue(sqlFailure, sqlFailure.contains("owner_key=?"));
+            assertTrue(sqlFailure, sqlFailure.contains("sqlState=" + expectedSqlState));
+            assertTrue(events.stream().anyMatch(event -> event.getMessage().getFormattedMessage().contains("AI conversation query failed, operation=listConversations, traceId=" + context.traceId())));
+            var messages = events.stream().map(event -> event.getMessage().getFormattedMessage()).toList().toString();
+            assertFalse(messages.contains("debug-test-secret"));
+            assertFalse(messages.contains("private-debug-key"));
+            assertFalse(sqlFailure.contains("alice-id"));
+        } finally {
+            for (int index = 0; index < loggers.size(); index++) {
+                loggers.get(index).removeAppender(appender);
+                loggers.get(index).setLevel(levels.get(index));
+            }
+            appender.stop();
+        }
     }
 
     private JsonNode create(String title, String key, int status) throws Exception {
