@@ -65,7 +65,7 @@ public final class DefaultCommandExecutor {
      * @param schema          服务端认可的结果结构版本标识
      * @param resultType      服务端认可的结果视图类型，用于校验首次结果和已保存回执；Void.class 只接受 null，其他类型须有匹配的非空结果
      * @param fields          按确定顺序规范化的业务字段，包含预期版本，不包含追踪标识等非业务数据
-     * @param lock            先锁主体、再按完整范围顺序取得治理锁的回调，锁须持续到外层事务结束
+     * @param lock            通过 WorkspaceGovernanceLocks 先锁主体、再按事务共享顺序取得治理锁的回调，锁须持续到外层事务结束
      * @param authorizeReplay 按当前权限校验原结果是否可见的回调；Void 命令接收 null，须按命令目标重检当前权限
      * @param work            执行领域校验和写入的回调，接收操作 ID，返回结果及结果版本
      * @param <T>             命令结果视图类型

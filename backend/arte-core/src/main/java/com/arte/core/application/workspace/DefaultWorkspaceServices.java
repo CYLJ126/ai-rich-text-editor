@@ -43,7 +43,7 @@ public final class DefaultWorkspaceServices {
         writeGuard = new DefaultWorkspaceWriteGuard(transactions, principals, locks, authorization);
         preferences = new DefaultWorkspacePreferenceService(principals, preferenceStore, authorization, commands, locks, effects);
         personal = new DefaultPersonalWorkspaceService(principals, commands, access, locks, tenantStore, workspaceStore,
-                tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences);
+                tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences, receipts);
         workspaces = new DefaultWorkspaceService(principals, access, authorization, locks, commands, tenantStore,
                 workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects);
     }

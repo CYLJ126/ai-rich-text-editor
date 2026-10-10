@@ -8,6 +8,7 @@ import com.arte.core.enums.workspace.*;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.workspace.*;
+import com.arte.core.spi.platform.CommandReceiptStore;
 import com.arte.core.spi.platform.PlatformIdGenerator;
 import com.arte.core.spi.workspace.*;
 
@@ -38,12 +39,13 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
     private final Clock clock;
     private final WorkspaceMutationEffects effects;
     private final DefaultWorkspacePreferenceService preferenceViews;
+    private final CommandReceiptStore receipts;
 
     public DefaultPersonalWorkspaceService(CurrentPrincipalResolver principals, DefaultCommandExecutor commands,
                                            WorkspaceAccessSupport access, WorkspaceGovernanceLocks locks, TenantStore tenants, WorkspaceStore workspaces,
                                            TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PreferenceStore preferences,
                                            PolicyStore policies, DefaultWorkspacePolicies defaults, PlatformIdGenerator ids, Clock clock,
-                                           WorkspaceMutationEffects effects, DefaultWorkspacePreferenceService preferenceViews) {
+                                           WorkspaceMutationEffects effects, DefaultWorkspacePreferenceService preferenceViews, CommandReceiptStore receipts) {
         this.principals = Objects.requireNonNull(principals);
         this.commands = Objects.requireNonNull(commands);
         this.access = Objects.requireNonNull(access);
@@ -59,6 +61,7 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
         this.clock = Objects.requireNonNull(clock);
         this.effects = Objects.requireNonNull(effects);
         this.preferenceViews = Objects.requireNonNull(preferenceViews);
+        this.receipts = Objects.requireNonNull(receipts);
     }
 
     @Override
@@ -66,10 +69,21 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
         String subjectId = principals.requireUser(actor).subjectId();
         return commands.execute(actor, meta, new CommandScope(null, null), "personal:initialize", "personal:view:v1",
                 WorkspaceViews.PersonalWorkspaceView.class, List.of(), () -> {
-                    preferences.lockSubject(subjectId);
+                    locks.subject(subjectId);
                     tenants.findCurrentPersonal(subjectId).ifPresent(tenant -> {
                         var preference = preferences.findCurrent(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error);
                         if (!preference.defaultScope().tenantId().equals(tenant.id())) throw error();
+                        // 结果视图还会检查启动／最近／收藏，先一次锁定全部候选父租户。
+                        Set<Scope> references = references(WorkspaceViewMapper.preference(preference));
+                        // 主体门控已串行化此主体的回执写入；重放原视图的引用也必须纳入完整父范围。
+                        // 这里只规划锁，不判断回执有效性或授予权限，正式校验仍由执行器及重放回调完成。
+                        receipts.findCurrent(new CommandIdentity(subjectId, new CommandScope(null, null), "personal:initialize", meta.operationKey()))
+                                .filter(saved -> saved.resultSchema().equals("personal:view:v1"))
+                                .map(saved -> saved.receipt().value())
+                                .filter(WorkspaceViews.PersonalWorkspaceView.class::isInstance)
+                                .map(WorkspaceViews.PersonalWorkspaceView.class::cast)
+                                .ifPresent(saved -> references.addAll(references(saved.preference())));
+                        locks.parents(subjectId, references.stream().map(Scope::tenantId).toList());
                         locks.scopes(subjectId, List.of(preference.defaultScope()));
                     });
                 }, value -> {
@@ -106,6 +120,14 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
                             Map.of("tenantEpoch", "0", "workspaceEpoch", "0"));
                     return new DefaultCommandExecutor.Result<>(existing(actor, subjectId), 0);
                 });
+    }
+
+    private static Set<Scope> references(WorkspaceViews.PreferenceView preference) {
+        Set<Scope> references = new HashSet<>(preference.favorites());
+        references.add(preference.defaultScope());
+        if (preference.startupScope() != null) references.add(preference.startupScope());
+        if (preference.lastScope() != null) references.add(preference.lastScope());
+        return references;
     }
 
     private WorkspaceViews.PersonalWorkspaceView existing(TrustedActor actor, String subjectId) {

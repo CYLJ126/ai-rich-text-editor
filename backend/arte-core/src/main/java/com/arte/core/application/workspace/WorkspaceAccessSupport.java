@@ -16,6 +16,7 @@ import com.arte.core.spi.platform.PublicTransactionRunner;
 import com.arte.core.spi.workspace.*;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -43,6 +44,7 @@ public final class WorkspaceAccessSupport {
     private final PreferenceStore preferences;
     private final Clock clock;
     private final PublicTransactionRunner transactions;
+    private final WorkspaceGovernanceLocks locks;
 
     public WorkspaceAccessSupport(CurrentPrincipalResolver principals, TenantStore tenants, WorkspaceStore workspaces,
                                   TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PolicyStore policies,
@@ -56,6 +58,7 @@ public final class WorkspaceAccessSupport {
         this.preferences = Objects.requireNonNull(preferences);
         this.clock = Objects.requireNonNull(clock);
         this.transactions = Objects.requireNonNull(transactions);
+        this.locks = new WorkspaceGovernanceLocks(transactions, tenants, workspaces, tenantMembers, workspaceMembers, preferences);
     }
 
     public void requireTransaction() {
@@ -76,9 +79,10 @@ public final class WorkspaceAccessSupport {
     public TenantSnapshot tenantCurrent(TrustedActor actor, String tenantId) {
         transactions.requireActive();
         String subjectId = actor.principal().subjectId();
-        preferences.lockSubject(subjectId);
-        Tenant tenant = tenants.lock(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        TenantMembership member = tenantMembers.lock(tenantId, subjectId)
+        locks.preflight(subjectId, List.of(tenantId));
+        locks.subject(subjectId);
+        Tenant tenant = locks.lockTenant(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        TenantMembership member = locks.lockTenantMember(tenantId, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         return tenantSnapshot(principals.requireActiveCurrent(actor), tenantId, tenant, member,
                 () -> policies.findCurrentTenantPolicy(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
@@ -115,12 +119,13 @@ public final class WorkspaceAccessSupport {
         transactions.requireActive();
         Objects.requireNonNull(scope);
         String subjectId = actor.principal().subjectId();
-        preferences.lockSubject(subjectId);
-        Tenant tenant = tenants.lock(scope.tenantId()).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        Workspace workspace = workspaces.lock(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        TenantMembership tenantMember = tenantMembers.lock(scope.tenantId(), subjectId)
+        locks.preflight(subjectId, List.of(scope.tenantId()));
+        locks.subject(subjectId);
+        Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        Workspace workspace = locks.lockWorkspace(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        TenantMembership tenantMember = locks.lockTenantMember(scope.tenantId(), subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        WorkspaceMembership member = workspaceMembers.lock(scope, subjectId)
+        WorkspaceMembership member = locks.lockWorkspaceMember(scope, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         Principal principal = principals.requireActiveCurrent(actor);
         TenantSnapshot tenantSnapshot = tenantSnapshot(principal, scope.tenantId(), tenant, tenantMember,

@@ -49,7 +49,7 @@ public interface TenantMembershipStore {
     Optional<TenantMembership> findById(String tenantId, String memberId);
 
     /**
-     * 在当前事务内以当前读取锁定并读取指定主体的租户成员关联。
+     * 在当前事务内以当前读取锁定并读取指定主体的租户成员关联，须先持有对应排他租户父锁及目标主体门控。
      *
      * @param tenantId  目标租户 ID
      * @param subjectId 稳定主体 ID

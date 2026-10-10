@@ -59,7 +59,15 @@ public final class DefaultWorkspacePreferenceService implements WorkspacePrefere
     }
 
     private WorkspaceViews.PreferenceView get(TrustedActor actor, boolean currentRead) {
+        if (currentRead) locks.subject(actor.principal().subjectId());
         var preference = own(actor, currentRead);
+        if (currentRead) {
+            Set<Scope> references = new HashSet<>(preference.favorites());
+            references.add(preference.defaultScope());
+            if (preference.startupScope() != null) references.add(preference.startupScope());
+            if (preference.lastScope() != null) references.add(preference.lastScope());
+            locks.parents(actor.principal().subjectId(), references.stream().map(Scope::tenantId).toList());
+        }
         requireRead(actor, preference.defaultScope(), currentRead);
         Scope startup = preference.startupScope();
         if (startup != null && !canRead(actor, startup, currentRead)) startup = preference.defaultScope();
@@ -77,7 +85,7 @@ public final class DefaultWorkspacePreferenceService implements WorkspacePrefere
             throw new PlatformException(PlatformErrorCodeEnum.INVALID_ARGUMENT, command.meta().traceId());
         return commands.execute(actor, command.meta(), new CommandScope(null, null), "preference:update", "preference:view:v1",
                 WorkspaceViews.PreferenceView.class, fields(command), () -> {
-                    preferences.lockSubject(subjectId);
+                    locks.subject(subjectId);
                     WorkspacePreference current = own(actor, true);
                     Set<Scope> targets = targets(command);
                     targets.add(current.defaultScope());

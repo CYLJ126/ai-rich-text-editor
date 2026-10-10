@@ -16,6 +16,7 @@ public interface PreferenceStore {
      * 在当前事务内锁定主体的初始化／偏好门控，即使偏好尚不存在也必须串行化。
      * 适配器可锁稳定身份行；不能以查询不存在的偏好行或 JVM 锁代替数据库门控。
      * 默认治理写入与最终授权均先取得操作者的此锁，再取得租户及空间门控。
+     * 默认应用服务通过 WorkspaceGovernanceLocks.subject 纳入事务共享顺序，组合调用不能直接绕过此记录取锁。
      */
     void lockSubject(String subjectId);
 

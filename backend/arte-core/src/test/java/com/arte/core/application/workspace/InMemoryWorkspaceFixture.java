@@ -50,12 +50,14 @@ final class InMemoryWorkspaceFixture {
     boolean failEvents;
     boolean failReceipt;
     boolean failIdentity;
+    boolean failTenantLock;
     boolean scanAll;
     boolean loopCursor;
     private final AtomicLong sequence = new AtomicLong();
     private final ReentrantLock transactionLock = new ReentrantLock();
     private final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
     private final ThreadLocal<Boolean> rollbackOnly = ThreadLocal.withInitial(() -> false);
+    private final ThreadLocal<Map<Object, Object>> transactionResources = new ThreadLocal<>();
 
     final IdentityProvider identity = new IdentityProvider() {
         public Optional<Principal> resolveAuthenticatedName(String name) {
@@ -79,10 +81,22 @@ final class InMemoryWorkspaceFixture {
             return depth.get() > 0;
         }
 
+        @SuppressWarnings("unchecked")
+        public <T> T resource(Object key, Supplier<T> factory) {
+            requireActive();
+            return (T) transactionResources.get().computeIfAbsent(key, ignored -> Objects.requireNonNull(factory.get()));
+        }
+
+        public void markRollbackOnly() {
+            requireActive();
+            rollbackOnly.set(true);
+        }
+
         public <T> T required(Supplier<T> work) {
             transactionLock.lock();
             boolean root = depth.get() == 0;
             Snapshot before = root ? snapshot() : null;
+            if (root) transactionResources.set(new HashMap<>());
             depth.set(depth.get() + 1);
             try {
                 T value = work.get();
@@ -97,6 +111,7 @@ final class InMemoryWorkspaceFixture {
                 if (root) {
                     depth.remove();
                     rollbackOnly.remove();
+                    transactionResources.remove();
                 }
                 transactionLock.unlock();
             }
@@ -121,6 +136,7 @@ final class InMemoryWorkspaceFixture {
         public Optional<Tenant> lock(String id) {
             transactions.requireActive();
             lockOrder.add("tenant:" + id);
+            if (failTenantLock) throw new IllegalStateException("Tenant lock unavailable");
             return Optional.ofNullable(tenants.get(id));
         }
 

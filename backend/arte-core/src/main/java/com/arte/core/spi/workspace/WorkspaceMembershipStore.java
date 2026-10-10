@@ -50,7 +50,7 @@ public interface WorkspaceMembershipStore {
     Optional<WorkspaceMembership> findById(Scope scope, String memberId);
 
     /**
-     * 在当前事务内按完整范围锁定并读取指定主体的空间成员关联。
+     * 在当前事务内按完整范围锁定并读取指定主体的空间成员关联，须先持有对应排他租户父锁及目标主体门控。
      *
      * @param scope     目标租户与工作空间范围
      * @param subjectId 稳定主体 ID

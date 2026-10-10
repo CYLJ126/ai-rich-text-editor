@@ -88,6 +88,9 @@ app 适配器的实现约束；第二步基础授权不会为未接入的正文�
 
 - 所有公共 API／存储 SPI 为同步调用，公共模型不含 Reactor。阻塞调用的 MVC／响应式线程适配由 app 负责。
 - `PublicTransactionRunner.required` 加入同线程同 DataSource 当前事务；事务内不切线程，不等待供应商或远端服务。
+- `PublicTransactionRunner.resource(key, factory)` 将协作状态绑定到实际外层事务；嵌套 required 和不同服务实例共享，
+  事务挂起／恢复时跟随原事务，提交／回滚后清理。`markRollbackOnly()` 必须标记原事务，异常被捕获也不能提交。 两个方法均需由 app
+  真实实现，没有每次新建状态或仅按线程缓存的默认回退。
 - 个人初始化、邀请接受、资源与初始 ACL、负责人交接、授权与 epoch、回执／审计／Outbox 必须按对应操作原子提交。唯一约束及 CAS
   的数据库实现由 app 负责。
 - `WorkspaceWriteGuard` 只在调用方实际提交事务内执行。治理门控按租户、排序后的空间、成员／ACL 同序锁定；不能先在另一个事务取永久许可再保存。
@@ -132,6 +135,28 @@ epoch 同事务协作。取得锁不自动证明授权，未知政策版本、�
 个人初始化、空间创建／改名、偏好更新及命令重放均已切换到当前读取；普通展示查询 API 保留原签名。
 当前规则测试通过分离旧普通读取与实时锁定读取，覆盖旧快照仍允许而当前事实已撤权／降级／归档／关闭／收紧政策的拒绝，
 以及最新身份、个人关联、偏好版本、回执和授权版本的使用。真实数据库隔离级别、行锁及跨实例验证仍由 app 存储适配阶段完成。
+
+## 外层事务中的组合取锁
+
+`WorkspaceGovernanceLocks` 在事务资源中保存主体及租户父锁的取得记录，所有默认写入、当前授权读取、初始化和偏好路径共享它。
+记录仅用于顺序检查，每次重入仍从 Store 当前读取事实，不缓存授权或跳过身份重检。资源按实际事务隔离，不用 JVM 锁代替数据库锁。
+
+- 新主体门控按稳定 subjectId 的 String.compareTo 顺序递增，必须在任何租户父锁前取得；已持有主体可重入。
+- 新租户父锁按 tenantId 的 String.compareTo 顺序递增；已持有父锁可重入，不受当前最大 ID 限制。
+- 租户父锁必须是排他锁，并覆盖该租户下全部空间、成员、政策及后续 ACL 的治理锁和写入。
+  在已持有的父锁下可组合不同空间操作，不要求每次新增子锁都排在此前成员锁之后；相同租户的竞争事务已由父锁串行。
+  首建同事务插入的父记录也由插入锁保护；默认结果读取仍会登记并重入该父范围。
+- 多范围调用先检查完整新增父范围，再申请存储锁。逆序时抛出 GovernanceLockOrderException 并标记原事务必须回滚； Store
+  取锁失败同样使锁状态失效。捕获异常后不能继续取锁或提交，授权入口不会将顺序错误转成普通拒绝结果。
+
+组合命令可先通过 `WorkspaceWriteGuard.inCurrentTransaction(actor, allRequests, work)` 锁定并授权完整目标集合， 然后在
+work 内按业务需要调用多个公共命令；也可按递增父范围调用。同一租户内的组合、重新读取及新建空间仍支持。
+涉及多个主体的受信内部流程须在第一个租户锁之前，通过 WorkspaceGovernanceLocks.subject 按序取得全部主体门控。 自定义执行器
+lock 回调、当前事实读取及治理命令均不能直接取 Store 锁绕过共享记录。
+
+个人初始化及偏好结果会预先锁定全部候选父租户；个人回执重放还包括原结果中的偏好引用。
+缺失偏好目标仍由后续授权过滤，不因为预先取父锁而获得访问资格。真实数据库集成需验证相同父锁协议、事务资源生命周期、
+回滚标记和两实例相反业务顺序的行为；本轮仅在 core 默认服务和测试适配中完成规则实现。
 
 ## 第二步默认服务
 
@@ -179,7 +204,8 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 `CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；`TenantAuthorizationServicesTest`
 覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。
 `DefaultCommandExecutorReceiptTest` 另覆盖 Void 首次执行／幂等重放、当前权限与身份重检、损坏回执拒绝及结果／回执失败回滚。
-执行器、空间规则、公共契约、JSON／枚举序列化及包边界共 94 项相关测试通过。 归属未知码断言改用已有 `MyEnum.fromValue`
+`TransactionGovernanceLocksTest` 覆盖外层组合调用、父锁与主体顺序、完整范围预检、跨实例共享状态、异常捕获后强制回滚及状态清理。
+执行器、空间规则、公共契约、JSON／枚举序列化及包边界共 112 项相关测试通过。归属未知码断言改用已有 `MyEnum.fromValue`
 ，不再引用不存在的枚举工厂方法。
 
 原规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
@@ -192,7 +218,7 @@ app 适配中用数据库集成测试验证。
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=DefaultCommandExecutorReceiptTest,DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=TransactionGovernanceLocksTest,DefaultCommandExecutorReceiptTest,DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

@@ -218,6 +218,15 @@ class PlatformContractTest {
             public boolean isTransactionActive() {
                 return false;
             }
+
+            public <T> T resource(Object key, Supplier<T> factory) {
+                requireActive();
+                return factory.get();
+            }
+
+            public void markRollbackOnly() {
+                requireActive();
+            }
         };
         assertThrows(IllegalStateException.class, runner::requireActive);
     }

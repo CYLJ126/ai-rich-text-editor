@@ -1,6 +1,7 @@
 package com.arte.core.application.access;
 
 import com.arte.core.api.access.AuthorizationService;
+import com.arte.core.application.workspace.GovernanceLockOrderException;
 import com.arte.core.application.workspace.WorkspaceAccessSupport;
 import com.arte.core.enums.access.AccessReasonEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
@@ -10,6 +11,7 @@ import com.arte.core.pojo.platform.AuthorizationVersions;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.spi.access.ActionRegistry;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
 import java.util.List;
@@ -26,6 +28,7 @@ import static com.arte.core.constant.platform.PlatformResourceTypes.WORKSPACE;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
  */
+@Slf4j
 public final class DefaultAuthorizationService implements AuthorizationService {
 
     private final WorkspaceAccessSupport workspaceAccessSupport;
@@ -110,6 +113,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             }
             return reason == AccessReasonEnum.ALLOWED
                     ? new AccessDecision(true, reason, versions, clock.instant()) : denied(reason);
+        } catch (GovernanceLockOrderException e) {
+            // 事务组合方式错误不能被展示型拒绝结果吞掉。
+            log.error("Authorization check violated transaction governance lock order, action={}, currentRead={}", request.action().value(), currentRead, e);
+            throw e;
         } catch (PlatformException e) {
             return denied(switch (e.getCode()) {
                 case UNAUTHENTICATED, ACCESS_DENIED -> AccessReasonEnum.SUBJECT_INACTIVE;

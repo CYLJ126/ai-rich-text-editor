@@ -23,7 +23,7 @@ public interface WorkspaceStore {
     Optional<Workspace> find(Scope scope);
 
     /**
-     * 在当前事务内按完整范围锁定并读取空间治理记录。
+     * 在当前事务内按完整范围锁定并读取空间治理记录，须先持有对应排他租户父锁。
      */
     Optional<Workspace> lock(Scope scope);
 
