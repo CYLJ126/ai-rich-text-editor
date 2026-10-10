@@ -26,6 +26,7 @@ public final class DefaultWorkspaceServices {
     private final DefaultScopeResolver scopes;
     private final DefaultAuthorizationService authorization;
     private final DefaultWorkspaceWriteGuard writeGuard;
+    private final DefaultCommandReceiptQueryService receiptQueries;
 
     public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
                                     TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
@@ -46,6 +47,8 @@ public final class DefaultWorkspaceServices {
                 tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences, receipts);
         workspaces = new DefaultWorkspaceService(principals, access, authorization, locks, commands, tenantStore,
                 workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects);
+        receiptQueries = new DefaultCommandReceiptQueryService(principals, receipts, preferenceStore, tenantStore,
+                access, authorization, locks, transactions);
     }
 
     public DefaultPersonalWorkspaceService personal() {
@@ -70,5 +73,9 @@ public final class DefaultWorkspaceServices {
 
     public DefaultWorkspaceWriteGuard writeGuard() {
         return writeGuard;
+    }
+
+    public DefaultCommandReceiptQueryService receiptQueries() {
+        return receiptQueries;
     }
 }

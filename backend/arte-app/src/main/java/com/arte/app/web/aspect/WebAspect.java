@@ -54,7 +54,19 @@ public class WebAspect {
 
     @Around(value = "(execution(public * com.arte.app.web.controller..*.*(..))" +
             "&& !execution(* com.arte.app.web.interceptor..*.*(..)))")
-    public Object deal(ProceedingJoinPoint pjp) {
+    public Object deal(ProceedingJoinPoint pjp) throws Throwable {
+        // 公共 HTTP 有独立错误契约。保留同步异常，不序列化认证对象或命令正文；旧接口处理不变。
+        String packageName = pjp.getTarget().getClass().getPackageName();
+        if (packageName.equals("com.arte.app.web.controller.platform")
+                || packageName.startsWith("com.arte.app.web.controller.platform.")) {
+            try {
+                log.info("公共接口：{}#{}", pjp.getSignature().getDeclaringType().getSimpleName(), pjp.getSignature().getName());
+                return pjp.proceed();
+            } finally {
+                UserContext.clear();
+                MDC.clear();
+            }
+        }
         IResult result = null;
         Logger logger = LoggerFactory.getLogger(pjp.getTarget().getClass());
         String methodName = pjp.getTarget().getClass().getSimpleName() + "#" + pjp.getSignature().getName();

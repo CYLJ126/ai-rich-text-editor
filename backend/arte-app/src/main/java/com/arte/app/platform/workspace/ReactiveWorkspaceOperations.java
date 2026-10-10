@@ -4,6 +4,7 @@ import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.api.access.AuthorizationService;
+import com.arte.core.api.platform.CommandReceiptQueryService;
 import com.arte.core.api.workspace.PersonalWorkspaceService;
 import com.arte.core.api.workspace.ScopeResolver;
 import com.arte.core.api.workspace.WorkspacePreferenceService;
@@ -47,10 +48,12 @@ public final class ReactiveWorkspaceOperations {
     private final ScopeResolver scopes;
     private final AuthorizationService authorization;
     private final WorkspaceWriteGuard guard;
+    private final CommandReceiptQueryService receipts;
 
     public ReactiveWorkspaceOperations(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
                                        PersonalWorkspaceService personal, WorkspaceService workspaces, WorkspacePreferenceService preferences,
-                                       ScopeResolver scopes, AuthorizationService authorization, WorkspaceWriteGuard guard) {
+                                       ScopeResolver scopes, AuthorizationService authorization, WorkspaceWriteGuard guard,
+                                       CommandReceiptQueryService receipts) {
         this.identities = identities;
         this.executor = executor;
         this.personal = personal;
@@ -59,6 +62,7 @@ public final class ReactiveWorkspaceOperations {
         this.scopes = scopes;
         this.authorization = authorization;
         this.guard = guard;
+        this.receipts = receipts;
     }
 
     public Mono<CommandReceipt<WorkspaceViews.PersonalWorkspaceView>> initializePersonal(Authentication authentication, CommandMeta meta) {
@@ -83,6 +87,10 @@ public final class ReactiveWorkspaceOperations {
 
     public Mono<WorkspaceViews.PreferenceView> getPreference(Authentication authentication) {
         return call(authentication, preferences::get);
+    }
+
+    public Mono<CommandReceipt<?>> getCommandReceipt(Authentication authentication, String operationId) {
+        return call(authentication, actor -> receipts.get(actor, operationId));
     }
 
     public Mono<CommandReceipt<WorkspaceViews.PreferenceView>> updatePreference(Authentication authentication, WorkspaceCommands.UpdatePreference command) {

@@ -54,6 +54,7 @@ class PlatformWorkspaceConfigurationTest {
                     assertSame(services.scopes(), context.getBean(ScopeResolver.class));
                     assertSame(services.authorization(), context.getBean(AuthorizationService.class));
                     assertSame(services.writeGuard(), context.getBean(WorkspaceWriteGuard.class));
+                    assertSame(services.receiptQueries(), context.getBean(com.arte.core.api.platform.CommandReceiptQueryService.class));
                     assertEquals(1, context.getBeansOfType(ReactiveWorkspaceOperations.class).size());
                     assertEquals(java.time.ZoneOffset.UTC, context.getBean("platformWorkspaceClock", Clock.class).getZone());
                     assertEquals(1, context.getBeansOfType(com.arte.app.api.rbac.AuthorizationService.class).size());

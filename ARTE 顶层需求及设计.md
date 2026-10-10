@@ -1,6 +1,6 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.13
+版本：v0.14
 
 日期：2026-10-10
 
@@ -16,8 +16,10 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 批已增加空间数据库、同库事务、回执、审计、Outbox、Redis
 游标与投递协调，以及有界响应式执行边界，见 [公共持久化说明](backend/arte-app/docs/PLATFORM_PERSISTENCE.md)。第 3
 批已增加独立应用服务装配、
-默认政策配置和响应式会话适配，见 [公共应用服务说明](backend/arte-app/docs/PLATFORM_WORKSPACE.md)。HTTP 适配、资源 ACL、成员治理及
-AI 接入仍分步实施。 涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+默认政策配置和响应式会话适配，见 [公共应用服务说明](backend/arte-app/docs/PLATFORM_WORKSPACE.md)。第 4 批已开放首批 10 个
+HTTP
+接口，包含空间／偏好、权限检查及成功命令回执查询、参数／分页／错误适配，见 [公共空间 HTTP 说明](backend/arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)
+。资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
 
 ## TODO
 
@@ -577,7 +579,7 @@ API。需要在公共身份／空间层增量实现这些能力，各领域通�
 
 本节确定目标模块边界。实施第 1 步已添加领域值对象、枚举、命令／View、公共 API 与 SPI；第 2
 步已实现个人初始化、基础空间管理、本人偏好、范围及基础授权。包位置见下表及 [公共基础契约说明](backend/arte-core/PLATFORM_CONTRACTS.md)
-；第 3 步第 1～2 批已在 app 增加身份与公共持久化适配。生产默认服务装配、HTTP、资源 ACL、成员治理、生命周期及 AI
+；第 3 步第 1～4 批已在 app 增加身份、公共持久化、默认服务装配与首批 HTTP 适配。资源 ACL、成员治理、生命周期及 AI
 接入仍按后续步骤实施。租户、工作空间、成员、邀请、通用归属及访问规则属于平台公共领域，初期在
 `arte-core` 的独立包形成“领域模型 + 公共 API + 规则实现 + SPI”。SPI 表达外部依赖与扩展点，仅一组接口不能代替完整领域体系；AI
 和文章使用公共 API，`arte-app` 实现存储及环境 SPI 并装配服务。
@@ -1433,8 +1435,7 @@ AI 知识回流，不建立另一套 AI 专用文章写入路径。
 
 本章对应独立评审的第 2～5 点，确定公共空间与访问体系的首版详细设计；归属以前文设计第 3.1 节为准：空间资源归 WORKSPACE，租户级配置归
 TENANT，创建者、凭据责任及 ExecutionOwner 分别记录。下列内容描述整体目标契约；第 1～2 步已添加基础契约、个人空间及基础授权默认实现，资源
-ACL、成员治理、生命周期、数据库与
-HTTP 适配及 AI 接入仍分步实施，不表示所有功能已完成或管理端点已可调用。
+ACL、成员治理、生命周期及 AI 接入仍分步实施；app 已完成身份、数据库、服务装配及首批 10 个 HTTP 接口，不表示后续管理端点均已可调用。
 
 首版使用现有登录系统及关系数据库，同一 DataSource 内以本地事务提交公共数据；core 的公共 API／存储 SPI 采用同步语义，app
 将阻塞调用适配到 MVC 或受控数据库线程。AI 继续使用 Mono／Flux，由 app 的适配器连接公共 API，不把 Reactor
@@ -1910,8 +1911,15 @@ ALREADY_MEMBER 和原角色，不按邀请降级或升级；角色调整另行�
 初始化以主体唯一关联兜底，并发失败方读取胜出记录；初始化、租户 OWNER、默认空间 OWNER 及默认关联在同事务完成。改名、改角色、授权和状态变更使用
 expectedVersion；错误不得静默覆盖。授权与私有模式变更同事务更新 ACL 版本及门控 epoch。
 
-公共 HTTP 建议前缀为 `/arte/workspace`，操作入口映射
-initializePersonal、listAccessible、get、create、rename、invite、acceptInvitation、changeMemberRole、removeMember、leave、transferOwner、listResourceGrants、grantResource、revokeGrant、changeVisibility、archive、unarchive、close、closureProgress、getCommandReceipt；保持项目现有
+公共 HTTP 前缀为 `/arte/workspace`。首批共 10 个接口：`WorkspaceController` 提供
+initializePersonalWorkspace、listAccessibleWorkspaces、getWorkspace、createWorkspace、renameWorkspace、getWorkspacePreference、updateWorkspacePreference、getWorkspaceCommandReceipt；同包的
+`WorkspaceAccessController` 提供 checkWorkspaceAccess、batchCheckWorkspaceAccess。全部采用 POST 和明确主体／操作命名，偏好及权限检查无额外路径段。
+权限检查首批只接受 tenant／workspace 根目标；resourceId 与 purpose 由服务端构建。普通拒绝返回 200 和 allowed=false，权威故障为
+503；批量最多 100 项且保留输入顺序，结果不含内部授权版本或执行凭据。展示判断不能替代命令最终授权，动作允许也不代表对应管理功能已交付。
+getWorkspaceCommandReceipt 复用 core 默认查询服务，仅按 operationId 查询已实现的初始化、创建、改名、偏好更新成功回执，不接收
+Idempotency-Key，不重新执行命令；若尚未知 operationId，按原键与原业务字段重试原命令。查询在事务门控后核验当前主体及全部历史结果范围的读取资格，偏好中任一旧引用已不可见时整份结果为
+404；保留原结果、版本和时间，delivery 为 REPLAYED。未知 Schema、损坏结果及非成功状态拒绝为 503，后续异步命令随功能扩展结果契约。
+后续批次补邀请、成员、资源授权、归档、关闭及租户治理，URL 仍采用明确主体／操作命名。保持项目现有
 POST 及结果封装习惯，具体 URL 为新增契约，不挂在 `/arte/ai-new` 或借旧模型 Controller 实现。同步成功返回 200，可靠关闭受理返回
 202。回执查询仅允许原操作主体且仍须验证结果当前可见资格；找不到或不可见统一 404，不借 operationId 读取他人结果。授权管理列表需
 resource:access:manage；batchCheck 首版一次最多 100 项。

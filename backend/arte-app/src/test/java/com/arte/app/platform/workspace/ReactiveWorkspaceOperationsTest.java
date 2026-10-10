@@ -58,7 +58,8 @@ class ReactiveWorkspaceOperationsTest {
         return new ReactiveWorkspaceOperations(identities,
                 new PlatformPersistenceExecutor(scheduler, interfaceMock(PublicTransactionRunner.class)), personal,
                 interfaceMock(WorkspaceService.class), preferences, interfaceMock(ScopeResolver.class),
-                interfaceMock(AuthorizationService.class), interfaceMock(WorkspaceWriteGuard.class));
+                interfaceMock(AuthorizationService.class), interfaceMock(WorkspaceWriteGuard.class),
+                interfaceMock(com.arte.core.api.platform.CommandReceiptQueryService.class));
     }
 
     @Test

@@ -22,7 +22,8 @@
 
 枚举沿用 `StatusEnum` 的数值码、中文描述、`IEnum<Integer>`／`MyEnum<Integer>` 及读取／写入转换器，并提供
 `@JsonCreator fromValue`。数值码固定，不能按枚举顺序推算或升级时重排。错误对外如需文档中的字符串代码，由 app 映射枚举
-`name()`，HTTP Schema 尚未发布。
+`name()`；首批 HTTP 的字段与错误封装见 [公共空间 HTTP](../arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)
+。权限检查展示响应单独返回稳定字符串原因，不直接序列化内部 AccessDecision。
 
 领域和命令使用不可变 record；集合防御复制，政策中嵌套的角色集合也深复制。领域对象不带 ORM 注解，不继承依赖 MyBatis 的
 `PageView`；HTTP 分页适配可从现有 `PageParam` 转为 `PageQuery`，结果由 app 包装。主体、归属和权限不是同一个对象。
@@ -217,6 +218,7 @@ lock 回调、当前事实读取及治理命令均不能直接取 Store 锁绕�
 | `DefaultAuthorizationService`       | 租户／空间基础治理、资源创建资格及 AI 入口资格；check／require／batchCheck 共用规则，未知动作及政策版本拒绝      |
 | `DefaultWorkspaceWriteGuard`        | 调用方实际事务内按确定顺序锁租户、空间及成员，再要求当前动作资格；未接入 ACL 的业务资源拒绝                      |
 | `DefaultCommandExecutor`            | 规范化长度编码摘要、完整操作身份、同事务回执及重放授权验证；回执冲突回滚领域写入                                 |
+| `DefaultCommandReceiptQueryService` | 首批成功回执只读查询；原主体、当前身份与历史结果范围读取资格重检，不执行原命令或泄露存储信封                     |
 
 `DefaultWorkspaceServices` 是无框架装配入口。app 传入 IdentityProvider、事务、各 Store（包括必填的
 WorkspaceAccessFactsStore）、审计、Outbox、ID 生成器、Clock
@@ -247,6 +249,11 @@ AI 模型生成可执行资格。Schema 和 rolePreset 当前只支持版本 1�
 
 偏好收藏最多 100 个；批量权限最多 100 项。偏好查询不偷偷保存过滤结果或覆盖其他标签的
 scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理，不随机跳入别人的空间。关键写命令在持有治理门控的同一事务内检查资格，重放只验证原结果的当前可见资格，不重复执行或恢复旧权限。
+
+回执查询实现随 app 首批 HTTP 补齐。`receiptQueries()` 只支持 personal:initialize、workspace:create、workspace:
+rename、preference:update 的 APPLIED 结果及已注册 v1 Schema。先核对原主体，再在同一事务取得主体及结果范围门控、重检当前身份／空间读取资格；原版本和结果保留，delivery
+为 REPLAYED。 偏好历史引用全部检查，即使当前偏好已移除引用；个人结果另核验默认关联和受保护 OWNER。不存在／他人／已不可读统一
+NOT_FOUND， 未知 Schema、损坏结果或非 APPLIED 状态拒绝为 AUTHORITY_UNAVAILABLE。查询不新增审计／事件或重新执行，后续命令随其结果契约扩展。
 
 ## 验证及下一步
 
@@ -279,6 +286,8 @@ app 第 3 步第 1～2 批已增加稳定身份适配及首批空间 JDBC Store�
 次查询，不跨请求缓存；数据库与 Redis 的取舍、迁移和验证见 [公共持久化说明](../arte-app/docs/PLATFORM_PERSISTENCE.md)。
 
 空间初始化的真实同库事务、独立实例并发、版本 CAS、当前读和事件投递已在隔离 MySQL／Redis 上验证。第 3
-批已独立装配生产默认服务和响应式会话适配，见 [公共应用服务说明](../arte-app/docs/PLATFORM_WORKSPACE.md)。HTTP
-尚未开放，不代表完成压测或端到端事件消费；下一批开放首批 HTTP。身份迁移仍核对原 AI subjectId，不修改历史
+批已独立装配生产默认服务和响应式会话适配，见 [公共应用服务说明](../arte-app/docs/PLATFORM_WORKSPACE.md)。第 4 批已开放首批
+10 个 HTTP，见
+[公共空间 HTTP](../arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)，不代表完成压测或端到端事件消费。身份迁移仍核对原 AI
+subjectId，不修改历史
 scope 或账本，资源授权、邀请／组织与关闭分别实施，本批不切换 ainew 授权路径。

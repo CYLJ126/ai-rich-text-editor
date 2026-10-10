@@ -1,22 +1,24 @@
 # 公共应用服务：第 3 步第 3 批
 
 本批把已完成的身份、MyBatis 存储和事务 SPI 装配到 core 默认服务；新增响应式会话适配。默认关闭，不执行 DDL、不在启动时初始化用户空间，不注册
-HTTP，不迁移旧文章、标签、模型或账本，不切换 ainew 的固定授权路径。
+HTTP；后续第 4 批已经增加首批接口，见 [公共空间 HTTP](PLATFORM_WORKSPACE_HTTP.md)。不迁移旧文章、标签、模型或账本，不切换
+ainew 的固定授权路径。
 
 ## 服务与装配
 
-`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，六个公共 Bean
+`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，七个公共 Bean
 直接返回该实例的服务，组合取锁、当前授权、幂等和政策规则仍由 core 实现。
 
-| Bean                         | 接口／职责                                                          |
-|------------------------------|---------------------------------------------------------------------|
-| personalWorkspaceService     | PersonalWorkspaceService：本人个人租户与默认空间初始化              |
-| workspaceService             | WorkspaceService：目录、读取、创建、改名                            |
-| workspacePreferenceService   | WorkspacePreferenceService：本人启动、最近访问和收藏偏好            |
-| workspaceScopeResolver       | ScopeResolver：真实身份、两级成员与政策校验                         |
-| platformAuthorizationService | core AuthorizationService：公共基础动作判断，不替代原 RBAC 功能权限 |
-| workspaceWriteGuard          | WorkspaceWriteGuard：原事务内门控、当前授权与业务写入               |
-| reactiveWorkspaceOperations  | ReactiveWorkspaceOperations：已认证会话到公共 API 的 Mono 适配      |
+| Bean                                | 接口／职责                                                             |
+|-------------------------------------|------------------------------------------------------------------------|
+| personalWorkspaceService            | PersonalWorkspaceService：本人个人租户与默认空间初始化                 |
+| workspaceService                    | WorkspaceService：目录、读取、创建、改名                               |
+| workspacePreferenceService          | WorkspacePreferenceService：本人启动、最近访问和收藏偏好               |
+| workspaceScopeResolver              | ScopeResolver：真实身份、两级成员与政策校验                            |
+| platformAuthorizationService        | core AuthorizationService：公共基础动作判断，不替代原 RBAC 功能权限    |
+| workspaceWriteGuard                 | WorkspaceWriteGuard：原事务内门控、当前授权与业务写入                  |
+| workspaceCommandReceiptQueryService | CommandReceiptQueryService：原主体按当前读取资格查询已交付命令成功回执 |
+| reactiveWorkspaceOperations         | ReactiveWorkspaceOperations：已认证会话到公共 API 的 Mono 适配         |
 
 各 Store 通过 core SPI 注入；事务使用限定 `platformTransactionRunner`，时钟使用限定 `platformWorkspaceClock`
 （UTC，非默认候选，不干扰原时钟注入）。不增加默认事务管理器，不改旧 Mapper 扫描或 RBAC Bean。未实现的成员、邀请、资源
@@ -74,7 +76,8 @@ create(authentication,
         new WorkspaceCommands.CreateWorkspace(meta, tenantId, name, description));
 ```
 
-该适配支持初始化、目录、读取、创建、改名、偏好读写、Scope 验证、单项／批量授权。调用时复制账户 ID、名称和账户创建时间，拒绝未认证或不完整会话；不保留
+该适配支持初始化、目录、读取、创建、改名、偏好读写、Scope 验证、单项／批量授权及命令回执查询。调用时复制账户
+ID、名称和账户创建时间，拒绝未认证或不完整会话；不保留
 Token、密码、原可变在线用户对象或菜单角色。订阅后在已有 `platformPersistenceScheduler` 上进行身份数据库核验和完整公共调用；不在入口线程访问
 JDBC，不读取切线程后的 UserContext。
 
@@ -82,8 +85,8 @@ Mono 惰性执行，每次订阅重新核验当前数据库身份与授权，不
 core 控制事务。队列饱和返回 AUTHORITY_UNAVAILABLE，后续 HTTP 适配为 503。线程和队列上限、查询和事务超时沿用持久化配置，并按连接池余量设置；响应式调度不把
 JDBC 变成非阻塞驱动。
 
-订阅取消不能证明 JDBC 命令已经回滚，也不能替代业务取消。提交结果不确定时使用原 operationKey 进行幂等重试／查询。当前批次不新增
-HTTP 回执查询。
+订阅取消不能证明 JDBC 命令已经回滚，也不能替代业务取消。提交结果不确定时使用原 operationKey 和原字段幂等重试；已知
+operationId 时可查询回执。 第 4 批已增加 HTTP 回执查询，只支持首批 4 种命令的成功结果，且重检原主体及历史结果范围的当前读取资格；不重复执行命令。
 
 ## 组合写入与分布式边界
 
@@ -123,7 +126,9 @@ WriteGuard 当前仅支持已实现的租户／空间目标，不能借此宣称
 H2 快速验证可将上述三项加入已有公共身份与持久化回归。真实 MySQL／Redis 沿用 PLATFORM_PERSISTENCE.md 的隔离测试参数；不得传业务数据库。测试中的
 H2 DDL 预处理支持格式化后的多行 SET，不修改生产 DDL。
 
-下一批开放首批 HTTP、请求 DTO、分页／错误适配和接口级兼容验证。用户默认空间通过显式幂等初始化获取；注册事务联动、历史数据迁移、资源分享和组织治理分别交付。
+第 4 批已开放首批 10 个 HTTP（空间／偏好 7 个、权限检查 2 个、回执查询 1 个）、请求
+DTO、分页／错误适配和接口级兼容验证，部署与请求示例见 [公共空间 HTTP](PLATFORM_WORKSPACE_HTTP.md)
+。用户默认空间通过显式幂等初始化获取；注册事务联动、历史数据迁移、资源分享和组织治理分别交付。
 
 2026-10-10 验证记录（JDK 21）：
 

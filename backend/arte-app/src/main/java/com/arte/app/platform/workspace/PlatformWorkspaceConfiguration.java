@@ -3,6 +3,7 @@ package com.arte.app.platform.workspace;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.core.api.access.AuthorizationService;
+import com.arte.core.api.platform.CommandReceiptQueryService;
 import com.arte.core.api.workspace.PersonalWorkspaceService;
 import com.arte.core.api.workspace.ScopeResolver;
 import com.arte.core.api.workspace.WorkspacePreferenceService;
@@ -93,10 +94,16 @@ public class PlatformWorkspaceConfiguration {
     }
 
     @Bean
+    CommandReceiptQueryService workspaceCommandReceiptQueryService(DefaultWorkspaceServices services) {
+        return services.receiptQueries();
+    }
+
+    @Bean
     ReactiveWorkspaceOperations reactiveWorkspaceOperations(RbacIdentityProvider identities,
                                                             PlatformPersistenceExecutor executor, PersonalWorkspaceService personal, WorkspaceService workspaces,
                                                             WorkspacePreferenceService preferences, ScopeResolver scopes,
-                                                            @Qualifier("platformAuthorizationService") AuthorizationService authorization, WorkspaceWriteGuard guard) {
-        return new ReactiveWorkspaceOperations(identities, executor, personal, workspaces, preferences, scopes, authorization, guard);
+                                                            @Qualifier("platformAuthorizationService") AuthorizationService authorization, WorkspaceWriteGuard guard,
+                                                            CommandReceiptQueryService receipts) {
+        return new ReactiveWorkspaceOperations(identities, executor, personal, workspaces, preferences, scopes, authorization, guard, receipts);
     }
 }
