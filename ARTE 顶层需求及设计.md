@@ -1,6 +1,6 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.12
+版本：v0.13
 
 日期：2026-10-10
 
@@ -14,8 +14,10 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 3.3 节；第 3 步第 1 批已增加 app
 身份映射适配与现有账号／会话核验，部署及阶段边界见 [公共身份适配说明](backend/arte-app/docs/PLATFORM_IDENTITY.md)。第 2
 批已增加空间数据库、同库事务、回执、审计、Outbox、Redis
-游标与投递协调，以及有界响应式执行边界，见 [公共持久化说明](backend/arte-app/docs/PLATFORM_PERSISTENCE.md)。应用服务装配、
-HTTP 适配、资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+游标与投递协调，以及有界响应式执行边界，见 [公共持久化说明](backend/arte-app/docs/PLATFORM_PERSISTENCE.md)。第 3
+批已增加独立应用服务装配、
+默认政策配置和响应式会话适配，见 [公共应用服务说明](backend/arte-app/docs/PLATFORM_WORKSPACE.md)。HTTP 适配、资源 ACL、成员治理及
+AI 接入仍分步实施。 涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
 
 ## TODO
 

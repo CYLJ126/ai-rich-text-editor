@@ -14,6 +14,7 @@ import java.util.function.Supplier;
  * @since 2026/10/10 16:03 ✾
  */
 public final class PlatformPersistenceExecutor {
+
     private final Scheduler scheduler;
     private final PublicTransactionRunner transactions;
 

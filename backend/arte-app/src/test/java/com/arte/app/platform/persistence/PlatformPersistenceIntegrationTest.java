@@ -103,7 +103,7 @@ class PlatformPersistenceIntegrationTest {
                 sql =
                         sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
                                 .replaceAll("(?i)ENGINE=InnoDB", "")
-                                .replaceAll("(?m)^SET .*;", "");
+                                .replaceAll("(?im)^SET\\s+[^;]*;", "");
             try (var connection = source.getConnection()) {
                 ScriptUtils.executeSqlScript(
                         connection,

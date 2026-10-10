@@ -244,7 +244,7 @@ class PlatformMybatisConfigurationTest {
                 var sql = Files.readString(Path.of("scripts", file))
                         .replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
                         .replaceAll("(?i)ENGINE=InnoDB", "")
-                        .replaceAll("(?m)^SET .*;", "");
+                        .replaceAll("(?im)^SET\\s+[^;]*;", "");
                 try (var connection = source.getConnection()) {
                     ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
                 }

@@ -100,8 +100,12 @@ elasticsearch:
     chunk-shards: @elasticsearch.index.chunk-shards@
     chunk-replicas: @elasticsearch.index.chunk-replicas@
 
-# 首页资讯网站配置
+# 公共应用与首页资讯配置
 arte:
+  platform:
+    workspace:
+      # 第三批公共应用服务；启用前必须完成身份核对、DDL 并启用 identity/persistence。
+      enabled: false
   homepage:
     website:
       # 是否在启动时加载网站资讯

@@ -1,8 +1,9 @@
 # 公共持久化：第 3 步第 2 批
 
 本批在 `com.arte.app.service.platform` 实现公共空间数据库 SPI，在 `com.arte.app.platform.persistence`
-装配事务、Mapper、响应式执行边界、Redis 游标和 Outbox 投递基础设施。默认关闭；不执行 DDL、不回填旧资源、不注册空间 HTTP，也不在生产装配
-core 默认应用服务。测试中装配默认服务是为了验证真实事务闭环；第 3 批负责应用装配，第 4 批开放 HTTP。
+装配事务、Mapper、响应式执行边界、Redis 游标和 Outbox 投递基础设施。默认关闭；不执行 DDL、不回填旧资源、不注册空间
+HTTP。本持久化配置自身不装配 core 默认应用服务。第 3
+批已在独立配置中完成应用装配，见 [公共应用服务说明](PLATFORM_WORKSPACE.md)；第 4 批开放 HTTP。
 
 ## 实现与职责
 
@@ -146,10 +147,10 @@ arte:
       retry-delay: 5s
 ```
 
-`PlatformPersistenceConfiguration` 装配基础设施，`service.platform` 通过组件扫描提供真实 SPI Bean；第 3 批通过这些 Bean 构建
-DefaultWorkspaceServices，不在 Controller 或 Store 重复公共规则。响应式调用时先捕获受信 actor，再以
-`PlatformPersistenceExecutor.inTransaction(() -> service.command(actor, command))` 包住完整调用，不读取线程切换后的旧
-UserContext。
+`PlatformPersistenceConfiguration` 装配基础设施，`service.platform` 通过组件扫描提供真实 SPI Bean；第 3 批的
+PlatformWorkspaceConfiguration 通过这些 Bean 构建 DefaultWorkspaceServices；ReactiveWorkspaceOperations
+捕获最小会话身份后，在有界线程核验并调用公共 API，不读取切线程后的 UserContext。普通命令由 core 控制事务；组合写入由响应式适配的
+inWorkspaceTransaction 包住门控与完整业务回调。
 
 ## 验证
 
