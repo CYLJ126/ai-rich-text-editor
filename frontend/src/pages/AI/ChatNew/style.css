@@ -1,0 +1,284 @@
+.ainew-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 100px);
+  min-height: 540px;
+  gap: 12px;
+  color: var(--ant-color-text);
+}
+
+.ainew-page-header, .ainew-conversation-header, .ainew-chat-tools, .ainew-compose-actions, .ainew-answer-heading, .ainew-answer-actions, .ainew-conversation-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ainew-page-header {
+  padding: 8px 16px;
+}
+
+.ainew-layout {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--ant-color-border);
+  border-radius: 12px;
+}
+
+.ainew-compact {
+  display: none;
+  min-height: 0;
+  flex: 1;
+}
+
+.ainew-sidebar {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: auto;
+}
+
+.ainew-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.ainew-conversation-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--ant-color-border);
+  justify-content: space-between;
+}
+
+.ainew-conversation-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.ainew-conversations {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.ainew-conversations li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ant-color-border);
+}
+
+.ainew-conversations .ant-btn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-content: flex-start;
+}
+
+.ainew-conversation-row {
+  font-size: 11px;
+  color: var(--ant-color-text-secondary);
+  justify-content: space-between;
+}
+
+.ainew-settings {
+  padding: 16px;
+  overflow: auto;
+  height: 100%;
+}
+
+.ainew-model-card {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.ainew-chat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.ainew-chat-tools {
+  padding: 8px 20px;
+  font-size: 12px;
+}
+
+.ainew-messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 24px;
+  scroll-behavior: auto;
+}
+
+.ainew-turn {
+  max-width: 960px;
+  margin: 0 auto 28px;
+}
+
+.ainew-user {
+  margin: 0 0 20px auto;
+  padding: 12px 18px;
+  border-radius: 16px;
+  max-width: 85%;
+  background: var(--ant-color-fill-secondary);
+}
+
+.ainew-user p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+
+.ainew-answer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ainew-answer-heading {
+  margin-bottom: 10px;
+}
+
+.ainew-answer-actions {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-answer-actions details {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.ainew-composer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--ant-color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ainew-compose-actions .ant-select {
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.ainew-compose-actions > .ainew-muted {
+  flex: 1;
+}
+
+.ainew-muted {
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+}
+
+.ainew-follow {
+  position: absolute;
+  bottom: 180px;
+  align-self: center;
+}
+
+.ainew-markdown {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.ainew-markdown > :first-child {
+  margin-top: 0;
+}
+
+.ainew-markdown pre {
+  overflow-x: auto;
+  padding: 12px;
+  background: var(--ant-color-fill-secondary);
+  border-radius: 8px;
+}
+
+.ainew-markdown code {
+  font-family: ui-monospace, monospace;
+}
+
+.ainew-markdown table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  max-width: 100%;
+}
+
+.ainew-markdown th, .ainew-markdown td {
+  border: 1px solid var(--ant-color-border);
+  padding: 6px 12px;
+}
+
+.ainew-markdown blockquote {
+  margin-left: 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--ant-color-border);
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-code {
+  min-width: 0;
+}
+
+.ainew-list-toggle {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .ainew-list-toggle {
+    display: inline-flex;
+  }
+
+  .ainew-page {
+    min-height: 460px;
+  }
+}
+
+@media (max-width: 767px) {
+  .ainew-page {
+    height: calc(100dvh - 80px);
+  }
+
+  .ainew-messages {
+    padding: 12px;
+  }
+
+  .ainew-composer {
+    padding: 12px;
+  }
+
+  .ainew-page-header {
+    padding: 4px;
+  }
+
+  .ainew-compose-actions .ant-select {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .ainew-compose-actions > .ainew-muted {
+    order: 3;
+    flex-basis: 100%;
+  }
+}

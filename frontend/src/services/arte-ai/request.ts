@@ -33,8 +33,9 @@ async function post<T extends AiResultMetadata>(
   data: unknown,
   options: AiRequestOptions | undefined,
   idempotencyKey?: string,
+  basePath = '/arte/ai-new',
 ): Promise<AiHttpResponse<T>> {
-  const response = await request<unknown>(`/arte/ai-new/${path}`, {
+  const response = await request<unknown>(`${basePath}/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -77,8 +78,9 @@ export async function postResult<T>(
   data: unknown,
   options?: AiRequestOptions,
   idempotencyKey?: string,
+  basePath = '/arte/ai-new',
 ): Promise<AiHttpResponse<AiResult<T>>> {
-  const response = await post<AiResult<T>>(path, data, options, idempotencyKey);
+  const response = await post<AiResult<T>>(path, data, options, idempotencyKey, basePath);
   if (response.body.data === undefined || response.body.data === null) {
     throw new AiApiError(
       response.httpStatus,
@@ -93,8 +95,9 @@ export async function postPage<T>(
   path: string,
   data: unknown,
   options?: AiRequestOptions,
+  basePath = '/arte/ai-new',
 ): Promise<AiHttpResponse<AiPage<T>>> {
-  const response = await post<AiPage<T>>(path, data, options);
+  const response = await post<AiPage<T>>(path, data, options, undefined, basePath);
   const {records, current, size, total} = response.body;
   if (
     !Array.isArray(records) ||

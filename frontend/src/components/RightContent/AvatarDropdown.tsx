@@ -5,6 +5,7 @@ import type {MenuProps} from 'antd';
 import {Spin} from 'antd';
 import React, {startTransition, useState} from 'react';
 import {logout} from '@/services/ant-design-pro/base';
+import {clearAccountSession} from '@/features/ainew/storage';
 import HeaderDropdown from '../HeaderDropdown';
 import ChangePasswordModal from "@/pages/account/settings/components/ChangePasswordModal";
 
@@ -38,6 +39,8 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const {key} = event;
     if (key === 'logout') {
+      const accountId = initialState?.currentUser?.id ?? initialState?.currentUser?.userid;
+      if (accountId) clearAccountSession(String(accountId));
       startTransition(() => {
         setInitialState((s) => ({...s, currentUser: undefined}));
       });

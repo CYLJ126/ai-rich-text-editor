@@ -15,3 +15,10 @@ export function pendingReconciliations(data: BudgetQuery & {
 export function confirmReconciliation(data: import('./types').ConfirmReconciliationRequest, idempotencyKey: string, options?: AiRequestOptions) {
   return postResult<import('./types').ReconciliationReceipt>('budget/confirmReconciliation', data, options, requireIdempotencyKey(idempotencyKey));
 }
+
+export function reconciliationReceipt(data: BudgetQuery & {
+  invocationId: string;
+  key: string
+}, options?: AiRequestOptions) {
+  return postResult<import('./types').ReconciliationReceipt>('budget/reconciliationReceipt', data, options);
+}

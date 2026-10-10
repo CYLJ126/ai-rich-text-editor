@@ -85,6 +85,7 @@ export default function AiChatPage() {
                 : 'status.missing',
           )}
         </Tag>
+        <a href="/AI/ChatNew">打开新版聊天</a>
       </header>
       <div
         className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_360px]">

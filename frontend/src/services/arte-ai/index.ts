@@ -1,4 +1,4 @@
-export {getBudget, pendingReconciliations, confirmReconciliation} from './budget';
+export {getBudget, pendingReconciliations, confirmReconciliation, reconciliationReceipt} from './budget';
 export {discoverChatOptions} from './configuration';
 export {turnsForChat, regenerateChat} from './chat';
 export {
