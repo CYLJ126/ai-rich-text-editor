@@ -9,6 +9,7 @@ import java.util.Objects;
 
 /**
  * 资源管理范围。负责人取有效 OWNER 成员，不重复保存 owner 字段，createdBy 仅为审计。
+ * scope 与 createdAt 创建后不可变，作为候选扫描的稳定定位键。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾

@@ -33,12 +33,17 @@ public interface WorkspaceStore {
     boolean insert(Workspace workspace);
 
     /**
-     * 按预期版本更新空间，版本条件不满足时返回 false。
+     * 按预期版本更新空间，版本条件不满足时返回 false。创建时间与完整范围必须保留，不允许更新扫描稳定键。
      */
     boolean replace(Workspace workspace, long expectedVersion);
 
     /**
-     * 按 updatedAt 降序、id 排序的受信不透明游标；limit 为 1..100，不能暴露候选总数。
+     * 按 WorkspaceCandidateKey 顺序扫描：createdAt 降序、tenantId 和 workspaceId 升序，limit 为 1..100。
+     * cursor 为绑定 subjectId 的受信不透明续扫键，null 表示首批；必须按上一批最后一个完整键严格向后查询，不能使用 offset。
+     * 下一批不能按 updatedAt 等可变字段重新定位，也不能依赖边界记录仍存在；未知或跨主体游标须拒绝，返回的续扫游标不能循环。
+     * 示例后继条件：created_at &lt; lastCreatedAt，或时间相等且完整范围字典序大于 lastScope。
+     * 不暴露候选总数；持续存在的候选不能因更新、改名或先前记录删除而漏扫。
+     * 本接口不是成员目录快照：扫描期间新增／撤销关系仍逐项按当前资格过滤，新加入且位于边界前的候选可在下次查询出现。
      */
     WorkspaceCandidatePage scanMembershipCandidates(String subjectId, String cursor, int limit);
 }

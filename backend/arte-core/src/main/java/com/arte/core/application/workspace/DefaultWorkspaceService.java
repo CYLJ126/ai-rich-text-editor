@@ -86,10 +86,17 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         List<WorkspaceViews.WorkspaceSummary> records = new ArrayList<>();
         Set<String> cursors = new HashSet<>();
         Set<Scope> seen = new HashSet<>();
+        WorkspaceCandidateKey lastKey = null;
         String cursor = null;
         do {
             var candidates = workspaces.scanMembershipCandidates(subjectId, cursor, 100);
             for (Workspace candidate : candidates.records()) {
+                // 校验跨批进度，适配器不能退回可变排序或重复扫描已过边界
+                WorkspaceCandidateKey key = WorkspaceCandidateKey.from(candidate);
+                // 检查当前候选是否排在上一个候选之后，扫描有没有向前推进
+                if (lastKey != null && key.compareTo(lastKey) <= 0) throw unavailable();
+                // 上一个处理过的 candidate 的排序键，每次 for 都更新，进入下一批 while 时继续保留
+                lastKey = key;
                 if (!seen.add(candidate.scope())) throw unavailable();
                 var decision = authorization.check(actor, DefaultAuthorizationService.workspaceRequest(candidate.scope(), WORKSPACE_READ, "workspace-list"));
                 if (!decision.allowed()) {

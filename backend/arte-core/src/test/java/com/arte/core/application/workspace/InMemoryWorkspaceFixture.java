@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -53,6 +54,15 @@ final class InMemoryWorkspaceFixture {
     boolean failTenantLock;
     boolean scanAll;
     boolean loopCursor;
+    boolean reverseCandidateOrder;
+    int candidateScans;
+    IntConsumer beforeCandidateScan = ignored -> {
+    };
+
+    private record CandidateCursor(String subjectId, WorkspaceCandidateKey lastKey) {
+    }
+
+    private final Map<String, CandidateCursor> candidateCursors = new HashMap<>();
     private final AtomicLong sequence = new AtomicLong();
     private final ReentrantLock transactionLock = new ReentrantLock();
     private final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
@@ -176,18 +186,31 @@ final class InMemoryWorkspaceFixture {
         public boolean replace(Workspace workspace, long version) {
             transactions.requireActive();
             Workspace old = workspaces.get(workspace.scope());
-            if (old == null || old.version() != version || workspace.version() != version + 1) return false;
+            if (old == null || old.version() != version || workspace.version() != version + 1
+                    || !old.createdAt().equals(workspace.createdAt())) return false;
             workspaces.put(workspace.scope(), workspace);
             return true;
         }
 
         public WorkspaceCandidatePage scanMembershipCandidates(String subject, String cursor, int limit) {
+            com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
+            com.arte.core.utils.platform.PlatformChecks.require(limit >= 1 && limit <= 100, "candidate limit must be 1..100");
+            CandidateCursor anchor = cursor == null ? null : candidateCursors.get(cursor);
+            if (cursor != null && (anchor == null || !anchor.subjectId().equals(subject)))
+                throw new IllegalArgumentException("Unknown or foreign candidate cursor");
+            beforeCandidateScan.accept(++candidateScans);
+            Comparator<Workspace> order = Comparator.comparing(WorkspaceCandidateKey::from);
             var candidates = workspaces.values().stream().filter(w -> scanAll || workspaceMembers.containsKey(workspaceKey(w.scope(), subject)))
-                    .sorted(Comparator.comparing(Workspace::updatedAt).reversed().thenComparing(w -> w.scope().workspaceId())).toList();
-            int offset = cursor == null ? 0 : Integer.parseInt(cursor);
-            int end = Math.min(candidates.size(), offset + limit);
-            return new WorkspaceCandidatePage(candidates.subList(Math.min(offset, candidates.size()), end),
-                    loopCursor ? "0" : end < candidates.size() ? Integer.toString(end) : null);
+                    .filter(w -> anchor == null || WorkspaceCandidateKey.from(w).compareTo(anchor.lastKey()) > 0)
+                    .sorted(reverseCandidateOrder ? order.reversed() : order).limit(limit + 1L).toList();
+            List<Workspace> records = candidates.subList(0, Math.min(candidates.size(), limit));
+            String next = null;
+            if (candidates.size() > limit || loopCursor) {
+                next = loopCursor ? "loop" : UUID.randomUUID().toString();
+                if (!records.isEmpty())
+                    candidateCursors.put(next, new CandidateCursor(subject, WorkspaceCandidateKey.from(records.getLast())));
+            }
+            return new WorkspaceCandidatePage(records, next);
         }
     };
 

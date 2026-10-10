@@ -101,6 +101,8 @@ app 适配器的实现约束；第二步基础授权不会为未接入的正文�
   可锁稳定身份行。初始化和偏好更新先锁主体，再按租户、空间、成员顺序锁治理范围，不使用 JVM 锁代替数据库并发约束。
 - `WorkspaceStore` 提供有界成员候选扫描，候选不是最终授权。公共服务通过统一判断计算可见分页及 total；`ResourceGrantStore`
   也使用有界分页扫描。
+- 空间候选使用不可变的 `WorkspaceCandidateKey(createdAt, scope)`：createdAt 降序，再按 tenantId、workspaceId 升序。 Store
+  续扫必须采用完整键的 keyset 查询，不能使用 offset 或 updatedAt；改名等更新不得改变 createdAt 或 scope。
 - 幂等范围由可信 actor、CommandScope、commandType、operationKey 组成。初始化／租户命令的空空间在数据库唯一键中编码明确范围；摘要保存原始身份并核对碰撞。
 - `StoredCommandReceipt` 的 resultSchema 由受信注册表解析。摘要、回执、事件和审计不存凭据明文或未授权正文，适配器不得按客户端类名创建对象。
 - `DefaultCommandExecutor` 首次执行与重放采用同一结果类型规则：`Void.class` 仅接受 `value=null`，其他结果类型要求非空且可赋值。
@@ -135,6 +137,21 @@ epoch 同事务协作。取得锁不自动证明授权，未知政策版本、�
 个人初始化、空间创建／改名、偏好更新及命令重放均已切换到当前读取；普通展示查询 API 保留原签名。
 当前规则测试通过分离旧普通读取与实时锁定读取，覆盖旧快照仍允许而当前事实已撤权／降级／归档／关闭／收紧政策的拒绝，
 以及最新身份、个人关联、偏好版本、回执和授权版本的使用。真实数据库隔离级别、行锁及跨实例验证仍由 app 存储适配阶段完成。
+
+## 空间候选游标与分页一致性
+
+`WorkspaceStore.scanMembershipCandidates` 的方法签名不变，游标仍只在服务与存储适配间传递；空间目录改为按创建时间及完整范围的稳定顺序展示。
+每批最多 100 条，nextCursor 保存本批最后一个完整键并绑定查询主体。下一批查询 `created_at < lastCreatedAt`， 或创建时间相等且
+`(tenant_id, workspace_id)` 字典序大于上一键；SQL 只使用绑定参数，边界记录删除后也直接使用游标中保存的键继续。 app
+可自行编码并校验不透明游标，但不得依赖 OFFSET、查询边界行或把 updatedAt 等可变字段作为定位依据。
+
+`DefaultWorkspaceService` 验证批内及跨批键严格递增，并保留重复空间、空批继续及游标循环检查；适配器返回逆序或重复候选时拒绝整个查询。
+排序键相同时间下仍包含 tenantId 和 workspaceId，避免不同租户的相同空间 ID 或创建时间冲突导致漏项。
+候选记录与授权事实分开，结果按当前成员、政策和生命周期过滤后计数；不承诺多批查询为同一个时间点的成员目录快照。
+持续存在的候选不会因改名、updatedAt 变化或先前记录删除而偏移；扫描期间新加入且位于边界前的候选在下一次查询出现，撤权按逐项检查生效。
+
+测试适配使用主体绑定的不透明 token 保存最后一个稳定键，模拟真实 keyset 续扫；它仅位于 src/test，不作为生产游标存储。 app
+落地时须按相同顺序建立查询和索引，并验证真实数据库的键精度、排序一致性和并发更新／删除；本轮未新增数据库适配。
 
 ## 外层事务中的组合取锁
 
@@ -205,7 +222,8 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。
 `DefaultCommandExecutorReceiptTest` 另覆盖 Void 首次执行／幂等重放、当前权限与身份重检、损坏回执拒绝及结果／回执失败回滚。
 `TransactionGovernanceLocksTest` 覆盖外层组合调用、父锁与主体顺序、完整范围预检、跨实例共享状态、异常捕获后强制回滚及状态清理。
-执行器、空间规则、公共契约、JSON／枚举序列化及包边界共 112 项相关测试通过。归属未知码断言改用已有 `MyEnum.fromValue`
+`WorkspaceCandidateScanTest` 覆盖多批改名、边界删除、成员候选移除、同时间同空间 ID 的完整范围排序、新增候选及异常顺序拒绝。
+执行器、空间规则、公共契约、JSON／枚举序列化及包边界共 121 项相关测试通过。归属未知码断言改用已有 `MyEnum.fromValue`
 ，不再引用不存在的枚举工厂方法。
 
 原规则测试覆盖并发初始化、同键重放／冲突、不同键复用、失败回滚、版本冲突、角色与政策上限、租户／空间隔离、可见
@@ -218,7 +236,7 @@ app 适配中用数据库集成测试验证。
 
 ```shell
 mvn -o -pl arte-core -am \
-  -Dtest=TransactionGovernanceLocksTest,DefaultCommandExecutorReceiptTest,DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
+  -Dtest=WorkspaceCandidateScanTest,TransactionGovernanceLocksTest,DefaultCommandExecutorReceiptTest,DefaultWorkspaceServicesTest,CurrentReadWorkspaceServicesTest,TenantAuthorizationServicesTest,PlatformContractTest,PlatformEnumSerializationTest,PlatformPackageBoundaryTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 

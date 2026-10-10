@@ -1672,17 +1672,22 @@ opaque subjectId，保存唯一 `(identityProvider, externalUserId)` 关联；�
 core 的 `TrustedActor` 由可信身份适配创建，HTTP 不接受其字段。`Scope(tenantId, workspaceId)` 是选择，服务端解析成
 `VerifiedScope`；初始化和创建空间使用已验证主体／租户资格，不要求加入尚不存在的空间。
 
-| 契约                    | 字段及固定语义                                                                                                                      |
-|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| CommandMeta             | operationKey、traceId；服务端补 actorSubjectId、commandType 与范围；所有写命令必填操作键                                            |
-| CommandReceipt<T>       | operationId、status、applied／replayed、value、resultVersion、acceptedAt／completedAt；关闭受理可为 PENDING，普通本地命令为 APPLIED |
-| PageQuery／Page<T>      | current≥1，size 为 1～100，默认 20；total 仅当前主体可见数据，排序 updatedAt 降序再按 id，过滤条件服务端白名单                      |
-| AccessRequest／Decision | 前节定义；资源描述由领域提供，版本包括 tenantEpoch、workspaceEpoch、membershipGeneration／version、aclVersion 和适用资源版本        |
-| CommandError            | code、traceId、可否按原键查询／重试、适度说明；不携带明文凭据、完整策略或隐藏资源信息                                               |
+| 契约                    | 字段及固定语义                                                                                                                                                    |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CommandMeta             | operationKey、traceId；服务端补 actorSubjectId、commandType 与范围；所有写命令必填操作键                                                                          |
+| CommandReceipt<T>       | operationId、status、applied／replayed、value、resultVersion、acceptedAt／completedAt；关闭受理可为 PENDING，普通本地命令为 APPLIED                               |
+| PageQuery／Page<T>      | current≥1，size 为 1～100，默认 20；total 仅当前主体可见数据；空间目录按 createdAt 降序、tenantId／workspaceId 升序，其余目录按领域约定排序；过滤条件服务端白名单 |
+| AccessRequest／Decision | 前节定义；资源描述由领域提供，版本包括 tenantEpoch、workspaceEpoch、membershipGeneration／version、aclVersion 和适用资源版本                                      |
+| CommandError            | code、traceId、可否按原键查询／重试、适度说明；不携带明文凭据、完整策略或隐藏资源信息                                                                             |
 
 以下为同步 Java 语义签名的设计简写，相关 Command／View 按后续字段表及公共基础契约实现；存在基础类型不表示相应功能已完成。数据
 DTO 与领域对象分别定义，公开
 View 不包含完整策略或内部 token。
+
+空间候选多批扫描使用不可变的 `WorkspaceCandidateKey(createdAt, scope)`，后续游标按创建时间和完整范围严格向后查询， 不使用
+offset、updatedAt 或其他可变排序字段。scope 和 createdAt 创建后不得修改，游标保存边界键而不依赖边界行仍存在。 内部扫描每批最多
+100 条，最终结果按当前资格过滤后分页计数；扫描期间改名、更新或此前记录删除不应导致持续存在的候选漏项。
+这不是成员目录的固定快照：新增且位于游标之前的候选可在下次查询出现，撤权按逐项校验生效。
 
 第 1 步已按这些语义添加基础接口。代码中的命令／View 分别以 `WorkspaceCommands`、`TenantCommands`、`ResourceAccessCommands` 及
 `WorkspaceViews`、`ResourceAccessViews` 的嵌套 record 组织；下列伪代码保留简写，实际包名、输入与返回差异见公共基础契约说明。API
