@@ -274,5 +274,10 @@ mvn -o -pl arte-core -am \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-下一步由 app 实现 `arte_platform_` 表、稳定身份映射、主体与范围行锁、同库事务、事件投递及首批 HTTP；身份迁移仍核对原 AI
-subjectId，不修改历史 scope 或账本。资源授权、邀请／组织与关闭分别按后续阶段实施；本轮不切换 `ainew` 固定授权路径。
+app 第 3 步第 1～2 批已增加稳定身份适配及首批空间 JDBC Store、实际事务资源、主体／范围数据库门控、回执、Outbox 和治理审计；Redis
+承担短期游标、分布式发布协调及 Streams 传输，完整 JDBC 事务通过有界响应式调度器执行。固定授权事实集合读取最多 7
+次查询，不跨请求缓存；数据库与 Redis 的取舍、迁移和验证见 [公共持久化说明](../arte-app/docs/PLATFORM_PERSISTENCE.md)。
+
+空间初始化的真实同库事务、独立实例并发、版本 CAS、当前读和事件投递已在隔离 MySQL／Redis 上验证。此结论不代表生产服务或 HTTP
+已装配，不代表完成压测或端到端事件消费；下一批装配默认应用服务，再开放首批 HTTP。身份迁移仍核对原 AI subjectId，不修改历史
+scope 或账本，资源授权、邀请／组织与关闭分别实施，本批不切换 ainew 授权路径。

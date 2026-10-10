@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformCommandMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformCommandDto" autoMapping="false">
+        <id column="operation_id" property="operationId"/>
+        <result column="identity_digest" property="identityDigest"/>
+        <result column="actor_id" property="actorId"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="workspace_id" property="workspaceId"/>
+        <result column="command_type" property="commandType"/>
+        <result column="operation_key" property="operationKey"/>
+        <result column="request_digest" property="requestDigest"/>
+        <result column="result_schema" property="resultSchema"/>
+        <result column="receipt" property="receipt"/>
+        <result column="version" property="version"/>
+    </resultMap>
+
+    <select id="selectIdentity" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_command WHERE identity_digest=#{digest}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_command SET receipt=#{row.receipt},version=#{row.version} WHERE
+        operation_id=#{row.operationId} AND identity_digest=#{row.identityDigest} AND version=#{expected}
+    </update>
+</mapper>

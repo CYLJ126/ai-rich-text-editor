@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformWorkspacePreferenceMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformWorkspacePreferenceDto" autoMapping="false">
+        <id column="subject_id" property="subjectId"/>
+        <result column="default_tenant_id" property="defaultTenantId"/>
+        <result column="default_workspace_id" property="defaultWorkspaceId"/>
+        <result column="startup_tenant_id" property="startupTenantId"/>
+        <result column="startup_workspace_id" property="startupWorkspaceId"/>
+        <result column="last_tenant_id" property="lastTenantId"/>
+        <result column="last_workspace_id" property="lastWorkspaceId"/>
+        <result column="favorites" property="favorites"/>
+        <result column="version" property="version"/>
+    </resultMap>
+
+    <select id="selectCurrent" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_preference WHERE subject_id=#{subject} FOR UPDATE
+    </select>
+
+    <select id="selectExternalId" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT external_user_id FROM arte_platform_principal_identity WHERE subject_id=#{subject} AND
+        provider='arte-rbac'
+    </select>
+
+    <select id="lockAccount" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM arte_rbac_user WHERE id=#{id} FOR UPDATE
+    </select>
+
+    <select id="lockIdentity" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT subject_id FROM arte_platform_principal_identity WHERE subject_id=#{subject} AND provider='arte-rbac' AND
+        external_user_id=#{externalId} FOR UPDATE
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_workspace_preference SET
+        startup_tenant_id=#{row.startupTenantId,jdbcType=VARCHAR},startup_workspace_id=#{row.startupWorkspaceId,jdbcType=VARCHAR},last_tenant_id=#{row.lastTenantId,jdbcType=VARCHAR},last_workspace_id=#{row.lastWorkspaceId,jdbcType=VARCHAR},favorites=#{row.favorites},version=#{row.version}
+        WHERE subject_id=#{row.subjectId} AND version=#{expected} AND default_tenant_id=#{row.defaultTenantId} AND
+        default_workspace_id=#{row.defaultWorkspaceId}
+    </update>
+</mapper>

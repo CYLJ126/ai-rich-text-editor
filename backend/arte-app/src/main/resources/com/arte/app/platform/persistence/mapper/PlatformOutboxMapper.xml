@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformOutboxMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformOutboxDto" autoMapping="false">
+        <id column="id" property="id"/>
+        <result column="event_type" property="eventType"/>
+        <result column="event" property="event"/>
+        <result column="occurred_sec" property="occurredSec"/>
+        <result column="occurred_nano" property="occurredNano"/>
+        <result column="state" property="state"/>
+        <result column="attempts" property="attempts"/>
+        <result column="available_at" property="availableAt"/>
+        <result column="lease_token" property="leaseToken"/>
+        <result column="published_at" property="publishedAt"/>
+    </resultMap>
+
+    <insert id="insertEvent">
+        INSERT INTO arte_platform_outbox(id,event_type,event,occurred_sec,occurred_nano,state,attempts,available_at)
+        VALUES(#{row.id},#{row.eventType},#{row.event},#{row.occurredSec},#{row.occurredNano},0,0,CURRENT_TIMESTAMP)
+    </insert>
+
+    <select id="selectCurrent" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_outbox WHERE id=#{id} FOR UPDATE
+    </select>
+
+    <select id="databaseTime" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP
+    </select>
+
+    <select id="claimReady" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_outbox WHERE available_at&lt;=CURRENT_TIMESTAMP ORDER BY available_at,id LIMIT
+        #{limit} FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="lease">
+        UPDATE arte_platform_outbox SET state=1,lease_token=#{token},available_at=#{until},attempts=attempts+1 WHERE
+        id=#{id}
+    </update>
+
+    <update id="acknowledge">
+        UPDATE arte_platform_outbox SET state=2,lease_token=NULL,available_at=NULL,published_at=CURRENT_TIMESTAMP WHERE
+        id=#{id} AND state=1 AND lease_token=#{token}
+    </update>
+
+    <update id="retry">
+        UPDATE arte_platform_outbox SET state=0,lease_token=NULL,available_at=#{availableAt} WHERE id=#{id} AND state=1
+        AND lease_token=#{token}
+    </update>
+</mapper>

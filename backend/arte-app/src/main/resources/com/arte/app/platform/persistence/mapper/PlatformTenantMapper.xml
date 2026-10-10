@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformTenantMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformTenantDto" autoMapping="false">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="type" property="type" javaType="com.arte.core.enums.workspace.TenantTypeEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="personal_subject_id" property="personalSubjectId"/>
+        <result column="state" property="state" javaType="com.arte.core.enums.workspace.TenantStateEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="version" property="version"/>
+        <result column="auth_epoch" property="authEpoch"/>
+        <result column="created_sec" property="createdSec"/>
+        <result column="created_nano" property="createdNano"/>
+        <result column="updated_sec" property="updatedSec"/>
+        <result column="updated_nano" property="updatedNano"/>
+    </resultMap>
+
+    <select id="selectPersonal" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant WHERE personal_subject_id=#{subject}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <select id="selectCurrent" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant WHERE id=#{id} FOR UPDATE
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_tenant SET
+        name=#{row.name},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_sec=#{row.updatedSec},updated_nano=#{row.updatedNano}
+        WHERE id=#{row.id} AND version=#{expected} AND type=#{row.type}
+        AND (personal_subject_id=#{row.personalSubjectId} OR (personal_subject_id IS NULL AND
+        #{row.personalSubjectId,jdbcType=VARCHAR} IS NULL))
+        AND created_by=#{row.createdBy} AND created_sec=#{row.createdSec} AND created_nano=#{row.createdNano} AND
+        auth_epoch&lt;=#{row.authEpoch}
+    </update>
+</mapper>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformWorkspacePolicyMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformWorkspacePolicyDto" autoMapping="false">
+        <id column="tenant_id" property="tenantId"/>
+        <id column="workspace_id" property="workspaceId"/>
+        <result column="rules" property="rules"/>
+        <result column="policy_schema_version" property="policySchemaVersion"/>
+        <result column="role_preset_version" property="rolePresetVersion"/>
+        <result column="version" property="version"/>
+    </resultMap>
+
+    <select id="selectByScope" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_policy WHERE tenant_id=#{tenantId} AND workspace_id=#{workspaceId}
+    </select>
+
+    <select id="selectCurrent" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_policy WHERE tenant_id=#{scope.tenantId} AND
+        workspace_id=#{scope.workspaceId} FOR UPDATE
+    </select>
+
+    <select id="selectScopes" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_policy WHERE
+        <foreach collection="scopes" item="scope" open="(" separator=" OR " close=")">
+            (tenant_id=#{scope.tenantId} AND workspace_id=#{scope.workspaceId})
+        </foreach>
+    </select>
+
+    <insert id="insertPolicy">
+        INSERT INTO
+        arte_platform_workspace_policy(tenant_id,workspace_id,rules,policy_schema_version,role_preset_version,version)
+        VALUES(#{row.tenantId},#{row.workspaceId},#{row.rules},#{row.policySchemaVersion},#{row.rolePresetVersion},#{row.version})
+    </insert>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_workspace_policy SET
+        rules=#{row.rules},policy_schema_version=#{row.policySchemaVersion},role_preset_version=#{row.rolePresetVersion},version=#{row.version}
+        WHERE tenant_id=#{row.tenantId} AND workspace_id=#{row.workspaceId} AND version=#{expected}
+    </update>
+</mapper>

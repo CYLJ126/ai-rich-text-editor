@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformTenantMemberMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformTenantMemberDto" autoMapping="false">
+        <id column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="subject_id" property="subjectId"/>
+        <result column="role" property="role" javaType="com.arte.core.enums.workspace.TenantRoleEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="state" property="state" javaType="com.arte.core.enums.workspace.MembershipStateEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="generation" property="generation"/>
+        <result column="version" property="version"/>
+    </resultMap>
+
+    <select id="selectMember" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant_member WHERE tenant_id=#{tenantId} AND subject_id=#{subject}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <select id="selectScopedId" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant_member WHERE tenant_id=#{tenantId} AND id=#{id}
+    </select>
+
+    <select id="countMembers" resultType="long" useCache="false" flushCache="true">
+        SELECT COUNT(*) FROM arte_platform_tenant_member WHERE tenant_id=#{tenantId}
+    </select>
+
+    <select id="pageMembers" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant_member WHERE tenant_id=#{tenantId} ORDER BY id LIMIT #{limit} OFFSET
+        #{offset}
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_tenant_member SET
+        role=#{row.role},state=#{row.state},generation=#{row.generation},version=#{row.version} WHERE
+        tenant_id=#{row.tenantId} AND subject_id=#{row.subjectId} AND id=#{row.id} AND version=#{expected} AND
+        generation&lt;=#{row.generation}
+    </update>
+
+    <select id="selectTenants" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_tenant_member WHERE tenant_id IN <foreach collection="tenantIds" item="id" open="("
+                                                                              separator="," close=")">#{id}
+    </foreach> AND subject_id=#{subject}
+    </select>
+</mapper>

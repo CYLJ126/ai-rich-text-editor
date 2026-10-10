@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformWorkspaceMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformWorkspaceDto" autoMapping="false">
+        <id column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="state" property="state" javaType="com.arte.core.enums.workspace.WorkspaceStateEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="version" property="version"/>
+        <result column="auth_epoch" property="authEpoch"/>
+        <result column="created_sec" property="createdSec"/>
+        <result column="created_nano" property="createdNano"/>
+        <result column="updated_sec" property="updatedSec"/>
+        <result column="updated_nano" property="updatedNano"/>
+    </resultMap>
+
+    <select id="selectScoped" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace WHERE tenant_id=#{scope.tenantId} AND id=#{scope.workspaceId}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_workspace SET
+        name=#{row.name},description=#{row.description},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_sec=#{row.updatedSec},updated_nano=#{row.updatedNano}
+        WHERE tenant_id=#{row.tenantId} AND id=#{row.id} AND version=#{expected} AND created_by=#{row.createdBy} AND
+        created_sec=#{row.createdSec} AND created_nano=#{row.createdNano} AND auth_epoch&lt;=#{row.authEpoch}
+    </update>
+
+    <select id="selectScopes" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace WHERE
+        <foreach collection="scopes" item="scope" open="(" separator=" OR " close=")">
+            (tenant_id=#{scope.tenantId} AND id=#{scope.workspaceId})
+        </foreach>
+    </select>
+
+    <select id="scanCandidates" resultMap="row" useCache="false" flushCache="true">
+        SELECT w.* FROM arte_platform_workspace_member m JOIN arte_platform_workspace w ON w.tenant_id=m.tenant_id AND
+        w.id=m.workspace_id
+        WHERE m.subject_digest=#{digest} AND m.subject_id=#{subject}
+        <if test="key != null">
+            AND (m.workspace_created_sec&lt;#{key.createdSec} OR (m.workspace_created_sec=#{key.createdSec} AND
+            m.workspace_created_nano&lt;#{key.createdNano})
+            OR (m.workspace_created_sec=#{key.createdSec} AND m.workspace_created_nano=#{key.createdNano} AND
+            (m.tenant_id&gt;#{key.tenantId} OR (m.tenant_id=#{key.tenantId} AND m.workspace_id&gt;#{key.id}))))
+        </if>
+        ORDER BY m.workspace_created_sec DESC,m.workspace_created_nano DESC,m.tenant_id,m.workspace_id LIMIT #{limit}
+    </select>
+</mapper>

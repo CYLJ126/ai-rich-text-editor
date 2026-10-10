@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformWorkspaceMemberMapper">
+    <resultMap id="row" type="com.arte.app.pojo.platform.PlatformWorkspaceMemberDto" autoMapping="false">
+        <id column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="workspace_id" property="workspaceId"/>
+        <result column="subject_id" property="subjectId"/>
+        <result column="subject_digest" property="subjectDigest"/>
+        <result column="workspace_created_sec" property="workspaceCreatedSec"/>
+        <result column="workspace_created_nano" property="workspaceCreatedNano"/>
+        <result column="role" property="role" javaType="com.arte.core.enums.workspace.WorkspaceRoleEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="state" property="state" javaType="com.arte.core.enums.workspace.MembershipStateEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="generation" property="generation"/>
+        <result column="version" property="version"/>
+    </resultMap>
+
+    <select id="selectMember" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_member WHERE tenant_id=#{scope.tenantId} AND
+        workspace_id=#{scope.workspaceId} AND subject_id=#{subject}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <select id="selectScopedId" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_member WHERE tenant_id=#{scope.tenantId} AND
+        workspace_id=#{scope.workspaceId} AND id=#{id}
+    </select>
+
+    <select id="countMembers" resultType="long" useCache="false" flushCache="true">
+        SELECT COUNT(*) FROM arte_platform_workspace_member WHERE tenant_id=#{scope.tenantId} AND
+        workspace_id=#{scope.workspaceId}
+    </select>
+
+    <select id="pageMembers" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_member WHERE tenant_id=#{scope.tenantId} AND
+        workspace_id=#{scope.workspaceId} ORDER BY id LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <update id="replaceCas">
+        UPDATE arte_platform_workspace_member SET
+        role=#{row.role},state=#{row.state},generation=#{row.generation},version=#{row.version} WHERE
+        tenant_id=#{row.tenantId} AND workspace_id=#{row.workspaceId} AND subject_id=#{row.subjectId} AND id=#{row.id}
+        AND version=#{expected} AND generation&lt;=#{row.generation}
+    </update>
+
+    <insert id="insertFromWorkspace">
+        INSERT INTO
+        arte_platform_workspace_member(id,tenant_id,workspace_id,subject_id,subject_digest,workspace_created_sec,workspace_created_nano,role,state,generation,version)
+        SELECT
+        #{row.id},tenant_id,id,#{row.subjectId},#{row.subjectDigest},created_sec,created_nano,#{row.role},#{row.state},#{row.generation},#{row.version}
+        FROM arte_platform_workspace WHERE tenant_id=#{row.tenantId} AND id=#{row.workspaceId}
+    </insert>
+
+    <select id="selectScopes" resultMap="row" useCache="false" flushCache="true">
+        SELECT * FROM arte_platform_workspace_member WHERE <foreach collection="scopes" item="scope" open="("
+                                                                    separator=" OR " close=")">
+        (tenant_id=#{scope.tenantId} AND workspace_id=#{scope.workspaceId})
+    </foreach> AND subject_id=#{subject}
+    </select>
+</mapper>
