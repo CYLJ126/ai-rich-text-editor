@@ -164,7 +164,8 @@ public final class WorkspaceAccessSupport {
                 || !member.subjectId().equals(principal.subjectId()))
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
         if (member.state() != MembershipStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.NOT_FOUND);
-        if (tenant.state() != TenantStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
+        // 租户生命周期独立于主体身份，不能将租户不可用报告为主体停用。
+        if (tenant.state() != TenantStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.TENANT_INACTIVE);
         TenantPolicy policy = policyRead.get();
         if (!policy.tenantId().equals(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
         requirePolicyVersion(policy.policySchemaVersion(), policy.rolePresetVersion());

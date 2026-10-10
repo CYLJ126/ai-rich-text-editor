@@ -155,6 +155,7 @@ public final class DefaultAuthorizationService implements AuthorizationService {
                 case UNKNOWN_ACTION -> PlatformErrorCodeEnum.UNKNOWN_ACTION;
                 case POLICY_DENIED -> PlatformErrorCodeEnum.POLICY_DENIED;
                 case LIFECYCLE_DENIED -> PlatformErrorCodeEnum.SPACE_READ_ONLY;
+                case TENANT_INACTIVE -> PlatformErrorCodeEnum.TENANT_INACTIVE;
                 case AUTHORITY_UNAVAILABLE -> PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE;
                 default -> PlatformErrorCodeEnum.ACCESS_DENIED;
             };
@@ -232,6 +233,7 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     private static AccessReasonEnum reason(PlatformException e) {
         return switch (e.getCode()) {
             case UNAUTHENTICATED, ACCESS_DENIED -> AccessReasonEnum.SUBJECT_INACTIVE;
+            case TENANT_INACTIVE -> AccessReasonEnum.TENANT_INACTIVE;
             case NOT_FOUND -> AccessReasonEnum.NOT_FOUND;
             case SPACE_CLOSING, SPACE_READ_ONLY -> AccessReasonEnum.LIFECYCLE_DENIED;
             default -> AccessReasonEnum.AUTHORITY_UNAVAILABLE;

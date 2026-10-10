@@ -118,7 +118,7 @@ class WorkspaceBatchAuthorizationTest {
         assertTrue(page.records().isEmpty());
         assertEquals(3, f.factBatches);
         assertEquals(0, f.singleFactReads);
-        assertEquals(8, f.identityReads); // 每批最多额外重检一次，不按候选数增长。
+        assertEquals(5, f.identityReads); // 租户不可用不触发额外身份重检。
     }
 
     @Test

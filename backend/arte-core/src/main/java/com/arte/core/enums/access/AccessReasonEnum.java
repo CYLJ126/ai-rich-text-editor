@@ -21,7 +21,8 @@ public enum AccessReasonEnum implements IEnum<Integer>, MyEnum<Integer> {
     ACTION_NOT_GRANTED(6, "动作未授权"),
     UNKNOWN_ACTION(7, "动作未登记"),
     DOMAIN_DENIED(8, "领域条件不满足"),
-    AUTHORITY_UNAVAILABLE(9, "无法确认当前授权");
+    AUTHORITY_UNAVAILABLE(9, "无法确认当前授权"),
+    TENANT_INACTIVE(10, "租户已停用或关闭中");
 
     private final Integer value;
     private final String description;

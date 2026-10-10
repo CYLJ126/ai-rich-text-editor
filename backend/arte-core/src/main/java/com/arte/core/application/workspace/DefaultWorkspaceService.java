@@ -101,7 +101,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
             }
             // 每批只装载一次事实；计数和摘要共用授权时验证过的快照，不再逐项重读。
             var checks = authorization.checkWorkspaceReads(actor, candidates.records().stream().map(Workspace::scope).toList());
-            // 身份失效只需本批重检一次，避免同一失效租户下每个候选重复查身份。
+            // 主体失效才需本批重检身份；租户不可用只过滤该租户，不触发身份重检。
             if (checks.stream().anyMatch(check -> check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE))
                 principals.requireActive(actor);
             for (var check : checks) {

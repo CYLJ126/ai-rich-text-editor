@@ -1701,6 +1701,10 @@ offset、updatedAt 或其他可变排序字段。scope 和 createdAt 创建后�
 仍需完整候选扫描，优化将数据库调用由逐项放大变为按批增长；不以候选计数替代可见计数。 大规模目录的计数投影或公开游标 API
 属于后续单独设计，不在本次修改中改变公开分页契约。
 
+租户生命周期与主体身份错误须区分：租户 SUSPENDED／CLOSING 返回 `TENANT_INACTIVE`， 授权拒绝原因编码为 10，公共错误码为
+115；单项、批量及事务内最终授权采用同一分类。 主体停用／注销仍为 `SUBJECT_INACTIVE`，租户不可用不能解释成用户需要重新登录或空间只读。
+租户成员缺失／失效时先按不可见处理，不能泄露该租户状态；空间列表过滤不可用租户，其他有效租户仍可访问。
+
 第 1 步已按这些语义添加基础接口。代码中的命令／View 分别以 `WorkspaceCommands`、`TenantCommands`、`ResourceAccessCommands` 及
 `WorkspaceViews`、`ResourceAccessViews` 的嵌套 record 组织；下列伪代码保留简写，实际包名、输入与返回差异见公共基础契约说明。API
 尚无默认实现或可调用 HTTP 端点，值对象结构校验不代表已经完成授权判定。
@@ -1872,6 +1876,7 @@ resource:access:manage；batchCheck 首版一次最多 100 项。
 | NOT_FOUND                                                       | 404       | 不泄露其他租户／空间资源存在性                     |
 | VERSION_CONFLICT／MEMBER_ROLE_CONFLICT／OWNER_TRANSFER_REQUIRED | 409       | 读取当前版本，用户确认新意图后新键提交             |
 | IDEMPOTENCY_CONFLICT                                            | 409       | 查询原操作，不能用新键盲目重发不确定请求           |
+| TENANT_INACTIVE                                                 | 409       | 切换有效租户／联系租户治理人员；不要求重新登录     |
 | SPACE_READ_ONLY／SPACE_CLOSING                                  | 409       | 原草稿可备份；不在失效空间发起新业务               |
 | CAPABILITY_NOT_ENABLED                                          | 409       | 相应批次未开放，隐藏管理入口                       |
 | AUTHORITY_UNAVAILABLE                                           | 503       | 权威状态无法确认则拒绝新操作；原键查询／有限重试   |
