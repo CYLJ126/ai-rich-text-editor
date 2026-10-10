@@ -16,8 +16,7 @@ import com.arte.core.spi.platform.PublicTransactionRunner;
 import com.arte.core.spi.workspace.*;
 
 import java.time.Clock;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -45,10 +44,12 @@ public final class WorkspaceAccessSupport {
     private final Clock clock;
     private final PublicTransactionRunner transactions;
     private final WorkspaceGovernanceLocks locks;
+    private final WorkspaceAccessFactsStore batchFacts;
 
     public WorkspaceAccessSupport(CurrentPrincipalResolver principals, TenantStore tenants, WorkspaceStore workspaces,
                                   TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PolicyStore policies,
-                                  PreferenceStore preferences, Clock clock, PublicTransactionRunner transactions) {
+                                  PreferenceStore preferences, Clock clock, PublicTransactionRunner transactions,
+                                  WorkspaceAccessFactsStore batchFacts) {
         this.principals = Objects.requireNonNull(principals);
         this.tenants = Objects.requireNonNull(tenants);
         this.workspaces = Objects.requireNonNull(workspaces);
@@ -58,11 +59,80 @@ public final class WorkspaceAccessSupport {
         this.preferences = Objects.requireNonNull(preferences);
         this.clock = Objects.requireNonNull(clock);
         this.transactions = Objects.requireNonNull(transactions);
+        this.batchFacts = Objects.requireNonNull(batchFacts);
         this.locks = new WorkspaceGovernanceLocks(transactions, tenants, workspaces, tenantMembers, workspaceMembers, preferences);
     }
 
     public void requireTransaction() {
         transactions.requireActive();
+    }
+
+    /**
+     * 身份每批重检一次；原始事实及验证快照仅限本批复用，不跨请求或候选批次缓存。
+     */
+    public Batch readBatch(TrustedActor actor, Set<String> tenantIds, Set<Scope> scopes, boolean includeDefaultPreferences) {
+        Set<String> tenantKeys = Set.copyOf(tenantIds);
+        Set<Scope> scopeKeys = Set.copyOf(scopes);
+        if (tenantKeys.size() > 100 || scopeKeys.size() > 100
+                || scopeKeys.stream().anyMatch(scope -> !tenantKeys.contains(scope.tenantId())))
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        Principal principal = principals.requireActive(actor);
+        WorkspaceAccessFacts facts = Objects.requireNonNull(batchFacts.read(principal.subjectId(), tenantKeys, scopeKeys, includeDefaultPreferences));
+        // 不接受适配器混入其他范围的事实；值与键、主体的对应关系仍由共用校验逐项确认。
+        if (!tenantKeys.containsAll(facts.tenants().keySet()) || !tenantKeys.containsAll(facts.tenantMembers().keySet())
+                || !tenantKeys.containsAll(facts.tenantPolicies().keySet()) || !tenantKeys.containsAll(facts.defaultPreferences().keySet())
+                || !scopeKeys.containsAll(facts.workspaces().keySet()) || !scopeKeys.containsAll(facts.workspaceMembers().keySet())
+                || !scopeKeys.containsAll(facts.workspacePolicies().keySet())
+                || (!includeDefaultPreferences && !facts.defaultPreferences().isEmpty()))
+            throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        return new Batch(principal, facts, tenantKeys, scopeKeys);
+    }
+
+    /**
+     * 本批可信读取上下文；只复用原始事实，不保存允许决定。
+     */
+    public final class Batch {
+        private final Principal principal;
+        private final WorkspaceAccessFacts facts;
+        private final Set<String> tenantKeys;
+        private final Set<Scope> scopeKeys;
+        private final Map<String, TenantSnapshot> tenantSnapshots = new HashMap<>();
+        private final Map<Scope, WorkspaceSnapshot> workspaceSnapshots = new HashMap<>();
+
+        private Batch(Principal principal, WorkspaceAccessFacts facts, Set<String> tenantKeys, Set<Scope> scopeKeys) {
+            this.principal = principal;
+            this.facts = facts;
+            this.tenantKeys = tenantKeys;
+            this.scopeKeys = scopeKeys;
+        }
+
+        public TenantSnapshot tenant(String tenantId) {
+            if (!tenantKeys.contains(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            return tenantSnapshots.computeIfAbsent(tenantId, key -> tenantSnapshot(principal, key,
+                    required(facts.tenants(), key, PlatformErrorCodeEnum.NOT_FOUND),
+                    required(facts.tenantMembers(), key, PlatformErrorCodeEnum.NOT_FOUND),
+                    () -> required(facts.tenantPolicies(), key, PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+        }
+
+        public WorkspaceSnapshot snapshot(Scope scope) {
+            if (!scopeKeys.contains(scope)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            return workspaceSnapshots.computeIfAbsent(scope, key -> workspaceSnapshot(tenant(key.tenantId()), key,
+                    required(facts.workspaces(), key, PlatformErrorCodeEnum.NOT_FOUND),
+                    required(facts.workspaceMembers(), key, PlatformErrorCodeEnum.NOT_FOUND),
+                    () -> required(facts.workspacePolicies(), key, PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+        }
+
+        public boolean isDefaultSpace(WorkspaceSnapshot snapshot) {
+            Tenant tenant = snapshot.tenant().tenant();
+            if (tenant.type() != TenantTypeEnum.PERSONAL) return false;
+            return matchesDefault(snapshot, required(facts.defaultPreferences(), tenant.id(), PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
+        }
+    }
+
+    private static <K, V> V required(Map<K, V> facts, K key, PlatformErrorCodeEnum missing) {
+        V value = facts.get(key);
+        if (value == null) throw error(missing);
+        return value;
     }
 
     public TenantSnapshot tenant(TrustedActor actor, String tenantId) {
@@ -165,6 +235,11 @@ public final class WorkspaceAccessSupport {
         if (tenant.type() != TenantTypeEnum.PERSONAL) return false;
         WorkspacePreference preference = (currentRead ? preferences.findCurrent(tenant.personalSubjectId())
                 : preferences.find(tenant.personalSubjectId())).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
+        return matchesDefault(snapshot, preference);
+    }
+
+    private boolean matchesDefault(WorkspaceSnapshot snapshot, WorkspacePreference preference) {
+        Tenant tenant = snapshot.tenant().tenant();
         if (!preference.subjectId().equals(tenant.personalSubjectId())
                 || !preference.defaultScope().tenantId().equals(tenant.id()))
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);

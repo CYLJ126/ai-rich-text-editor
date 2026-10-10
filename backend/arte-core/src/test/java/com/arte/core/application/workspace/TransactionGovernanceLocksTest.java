@@ -156,7 +156,7 @@ class TransactionGovernanceLocksTest {
         var one = locks();
         var two = locks();
         var access = new WorkspaceAccessSupport(new CurrentPrincipalResolver(f.identity), f.tenantStore, f.workspaceStore,
-                f.tenantMemberStore, f.workspaceMemberStore, f.policyStore, f.preferenceStore, f.clock, f.transactions);
+                f.tenantMemberStore, f.workspaceMemberStore, f.policyStore, f.preferenceStore, f.clock, f.transactions, f.batchFactsStore);
         assertThrows(IllegalStateException.class, () -> f.transactions.required(() -> {
             one.tenant("alice", "z-tenant");
             int before = f.lockOrder.size();

@@ -49,6 +49,8 @@ public interface AuthorizationService {
 
     /**
      * 批量检查访问权限。最多 100 项，顺序与输入一致，单项与批量采用同一规则。
+     * 展示检查按本批去重后的范围批量读取事实并复用身份；不逐项查询，不跨批缓存允许结论。
+     * 批内读取不承诺同一时点的全库快照，最终写入仍须 requireInCurrentTransaction。
      *
      * @param actor    经可信认证适配确认的当前操作者
      * @param requests 权限检查请求列表，最多 100 项

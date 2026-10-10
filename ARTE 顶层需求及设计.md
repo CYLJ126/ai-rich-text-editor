@@ -1640,7 +1640,8 @@ sequenceDiagram
 一起提交：空间归属资源增加该空间的 `workspaceEpoch`，租户级资源增加 `tenantEpoch`；不依据操作者当前页面所选空间更新错误的
 epoch。撤销通过记录状态及版本变更保留历史，首版不提供任意硬删除授权的方法。
 
-接口数量无需为批量或便捷操作提前扩张；首版的有界查询、逐项授权写入和同事务 CAS 已能支撑现有管理命令。跨租户、任意 DENY 规则、多级
+展示型批量授权须通过有界集合事实读取避免逐项数据库查询；授权写入仍逐项验证并使用同事务 CAS，不为便捷写操作提前扩张接口。跨租户、任意
+DENY 规则、多级
 ACL 继承及物理清理均不在当前接口完备性结论的范围内。
 
 #### 2.5 首版权限验收
@@ -1687,7 +1688,18 @@ View 不包含完整策略或内部 token。
 空间候选多批扫描使用不可变的 `WorkspaceCandidateKey(createdAt, scope)`，后续游标按创建时间和完整范围严格向后查询， 不使用
 offset、updatedAt 或其他可变排序字段。scope 和 createdAt 创建后不得修改，游标保存边界键而不依赖边界行仍存在。 内部扫描每批最多
 100 条，最终结果按当前资格过滤后分页计数；扫描期间改名、更新或此前记录删除不应导致持续存在的候选漏项。
-这不是成员目录的固定快照：新增且位于游标之前的候选可在下次查询出现，撤权按逐项校验生效。
+这不是成员目录的固定快照：新增且位于游标之前的候选可在下次查询出现，撤权按每批读取的事实逐项校验生效。
+
+展示型 `batchCheck` 对本批范围去重后，通过 `WorkspaceAccessFactsStore` 真正批量读取租户、空间、成员与政策， 以
+`WorkspaceAccessFacts` 返回原始事实，公共层仍使用单项共用规则决定是否允许，最多 100 项并保持输入顺序。
+身份每批重检一次，事实和验证快照只在本批复用；下一批及下一次请求重新读取，最终写入仍使用治理门控下的当前事实。
+关闭／归档／负责人转交所需的默认空间偏好按个人租户关联主体批量取得，普通目录读取不逐项查询偏好。
+
+`listAccessible` 每批授权后直接使用同一验证快照构造摘要，不再先逐项授权、再逐项重读整套事实。
+适配器必须使用绑定参数的集合／连接查询，往返数受固定表数约束，不得循环调用单项 find 充当批量；
+成员、政策按完整范围关联，缺失成员不可见，缺失／未知政策及基础设施故障拒绝，不能把故障变成空目录。 现有精确可见 total
+仍需完整候选扫描，优化将数据库调用由逐项放大变为按批增长；不以候选计数替代可见计数。 大规模目录的计数投影或公开游标 API
+属于后续单独设计，不在本次修改中改变公开分页契约。
 
 第 1 步已按这些语义添加基础接口。代码中的命令／View 分别以 `WorkspaceCommands`、`TenantCommands`、`ResourceAccessCommands` 及
 `WorkspaceViews`、`ResourceAccessViews` 的嵌套 record 组织；下列伪代码保留简写，实际包名、输入与返回差异见公共基础契约说明。API
@@ -1777,17 +1789,18 @@ subjectId、expectedPreferenceVersion 和可访问目标为键，不能更新他
 
 #### 3.3 存储 SPI 与执行边界
 
-| SPI                                        | 必须提供的语义                                                                                    |
-|--------------------------------------------|---------------------------------------------------------------------------------------------------|
-| IdentityProvider                           | 已认证名称解析稳定主体、按主体查当前状态；不读取请求体 owner 或线程切换后的旧 ThreadLocal         |
-| TenantStore／WorkspaceStore                | 按范围读取、插入、版本条件更新、治理门控行锁；跨租户 ID 视为不可见                                |
-| MembershipStore／InvitationStore           | 按主体及范围查询、锁定、条件变更；唯一成员关联、邀请接受资格与状态原子保存                        |
-| ResourceGrantStore                         | 按 ResourceKey 查询 ACL 根及有效授权，追加／撤销来源授权，ACL 版本 CAS；批量查询有上限            |
-| ResourceDescriptorProvider                 | 同事务可信读取资源归属／状态／版本；由领域实现，不使用用户输入替代事实                            |
-| PublicTransactionRunner                    | 同线程、同 DataSource 执行同步 work，公共命令嵌套加入现有事务；异常整体回滚，不在事务内等外部网络 |
-| CommandReceiptStore／PublicOutboxStore     | 同事务保存请求摘要、结果及可靠事件；唯一操作范围，提交后再发送通知                                |
-| WorkspaceWriteGuard                        | 在领域受理事务内锁定授权门控、读取当前资格并执行最终判定；不能在另一个事务返回永久 permit         |
-| ClosureWorkStore／DomainClosureParticipant | 登记关闭操作与领域进度，预检／处理固定操作，版本与租约条件更新；参与者不可用时保留阻塞            |
+| SPI                                        | 必须提供的语义                                                                                       |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------|
+| IdentityProvider                           | 已认证名称解析稳定主体、按主体查当前状态；不读取请求体 owner 或线程切换后的旧 ThreadLocal            |
+| TenantStore／WorkspaceStore                | 按范围读取、插入、版本条件更新、治理门控行锁；跨租户 ID 视为不可见                                   |
+| WorkspaceAccessFactsStore                  | 每批最多 100 个租户及完整空间范围的展示授权原始事实；固定表数的集合查询，不逐项 find，不替代最终授权 |
+| MembershipStore／InvitationStore           | 按主体及范围查询、锁定、条件变更；唯一成员关联、邀请接受资格与状态原子保存                           |
+| ResourceGrantStore                         | 按 ResourceKey 查询 ACL 根及有效授权，追加／撤销来源授权，ACL 版本 CAS；批量查询有上限               |
+| ResourceDescriptorProvider                 | 同事务可信读取资源归属／状态／版本；由领域实现，不使用用户输入替代事实                               |
+| PublicTransactionRunner                    | 同线程、同 DataSource 执行同步 work，公共命令嵌套加入现有事务；异常整体回滚，不在事务内等外部网络    |
+| CommandReceiptStore／PublicOutboxStore     | 同事务保存请求摘要、结果及可靠事件；唯一操作范围，提交后再发送通知                                   |
+| WorkspaceWriteGuard                        | 在领域受理事务内锁定授权门控、读取当前资格并执行最终判定；不能在另一个事务返回永久 permit            |
+| ClosureWorkStore／DomainClosureParticipant | 登记关闭操作与领域进度，预检／处理固定操作，版本与租约条件更新；参与者不可用时保留阻塞               |
 
 领域创建资源与初始授权在一个本地事务提交，app 装配相同 DataSource 和事务管理器；公共命令发现已有事务时加入，不另开事务或切换线程。AI
 的现有 MybatisExecutionPersistence 自建事务并使用调度线程，不能通过在 Controller 外包一个事务让它自动加入；需要在其受理／派发事务回调内部调用同步

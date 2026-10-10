@@ -14,9 +14,7 @@ import com.arte.core.spi.access.ActionRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 import static com.arte.core.constant.platform.PlatformActions.*;
 import static com.arte.core.constant.platform.PlatformResourceTypes.TENANT;
@@ -80,6 +78,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     }
 
     private AccessDecision check(TrustedActor actor, AccessRequest request, boolean currentRead) {
+        return check(actor, request, currentRead, null);
+    }
+
+    private AccessDecision check(TrustedActor actor, AccessRequest request, boolean currentRead, WorkspaceAccessSupport.Batch batch) {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(request);
         try {
@@ -88,7 +90,8 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             if (request.resource().type().equals(TENANT)
                     && request.resource().resourceId().equals(request.scope().tenantId())) {
                 // 租户治理只验证租户身份、成员、生命周期及政策，不读取附带空间。
-                var tenant = currentRead ? workspaceAccessSupport.tenantCurrent(actor, request.scope().tenantId())
+                var tenant = batch != null ? batch.tenant(request.scope().tenantId())
+                        : currentRead ? workspaceAccessSupport.tenantCurrent(actor, request.scope().tenantId())
                         : workspaceAccessSupport.tenant(actor, request.scope().tenantId());
                 var invalidAction = invalidAction(request);
                 if (invalidAction != null) return denied(invalidAction);
@@ -98,12 +101,14 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             } else if (request.resource().type().equals(WORKSPACE)
                     && request.resource().resourceId().equals(request.scope().workspaceId())) {
                 Scope workspaceScope = request.scope().requireWorkspace();
-                var scope = currentRead ? workspaceAccessSupport.snapshotCurrent(actor, workspaceScope)
+                var scope = batch != null ? batch.snapshot(workspaceScope)
+                        : currentRead ? workspaceAccessSupport.snapshotCurrent(actor, workspaceScope)
                         : workspaceAccessSupport.snapshot(actor, workspaceScope);
                 var invalidAction = invalidAction(request);
                 if (invalidAction != null) return denied(invalidAction);
                 if (Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action())
-                        && (currentRead ? workspaceAccessSupport.isDefaultSpaceCurrent(scope) : workspaceAccessSupport.isDefaultSpace(scope)))
+                        && (batch != null ? batch.isDefaultSpace(scope)
+                        : currentRead ? workspaceAccessSupport.isDefaultSpaceCurrent(scope) : workspaceAccessSupport.isDefaultSpace(scope)))
                     return denied(AccessReasonEnum.POLICY_DENIED);
                 reason = DefaultRolePermissions.workspace(request.action(), scope);
                 versions = scope.verified().versions();
@@ -118,12 +123,7 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             log.error("Authorization check violated transaction governance lock order, action={}, currentRead={}", request.action().value(), currentRead, e);
             throw e;
         } catch (PlatformException e) {
-            return denied(switch (e.getCode()) {
-                case UNAUTHENTICATED, ACCESS_DENIED -> AccessReasonEnum.SUBJECT_INACTIVE;
-                case NOT_FOUND -> AccessReasonEnum.NOT_FOUND;
-                case SPACE_CLOSING, SPACE_READ_ONLY -> AccessReasonEnum.LIFECYCLE_DENIED;
-                default -> AccessReasonEnum.AUTHORITY_UNAVAILABLE;
-            });
+            return denied(reason(e));
         } catch (RuntimeException e) {
             return denied(AccessReasonEnum.AUTHORITY_UNAVAILABLE);
         }
@@ -167,7 +167,75 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     public List<AccessDecision> batchCheck(TrustedActor actor, List<AccessRequest> requests) {
         List<AccessRequest> inputs = List.copyOf(requests);
         if (inputs.size() > 100) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
-        return inputs.stream().map(request -> check(actor, request)).toList();
+        return batch(actor, inputs).decisions();
+    }
+
+    /**
+     * 列表复用同一次授权的事实，避免允许后再次逐项读取、验证整套范围。
+     */
+    public record WorkspaceReadCheck(Scope scope, AccessDecision decision,
+                                     WorkspaceAccessSupport.WorkspaceSnapshot snapshot) {
+    }
+
+    public List<WorkspaceReadCheck> checkWorkspaceReads(TrustedActor actor, List<Scope> scopes) {
+        List<Scope> inputs = List.copyOf(scopes);
+        if (inputs.size() > 100) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        var checks = batch(actor, inputs.stream().map(scope -> workspaceRequest(scope, WORKSPACE_READ, "workspace-list")).toList());
+        List<WorkspaceReadCheck> results = new ArrayList<>(inputs.size());
+        for (int i = 0; i < inputs.size(); i++) {
+            AccessDecision decision = checks.decisions().get(i);
+            results.add(new WorkspaceReadCheck(inputs.get(i), decision,
+                    decision.allowed() ? checks.facts().snapshot(inputs.get(i)) : null));
+        }
+        return List.copyOf(results);
+    }
+
+    private record BatchChecks(List<AccessDecision> decisions, WorkspaceAccessSupport.Batch facts) {
+    }
+
+    private BatchChecks batch(TrustedActor actor, List<AccessRequest> inputs) {
+        Objects.requireNonNull(actor);
+        Set<String> tenantIds = new HashSet<>();
+        Set<Scope> scopes = new HashSet<>();
+        boolean includeDefaults = false;
+        for (AccessRequest request : inputs) {
+            if (!isRootRequest(request)) continue;
+            tenantIds.add(request.scope().tenantId());
+            if (request.resource().type().equals(WORKSPACE)) {
+                scopes.add(request.scope().requireWorkspace());
+                includeDefaults |= Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action());
+            }
+        }
+        if (tenantIds.isEmpty())
+            return new BatchChecks(inputs.stream().map(request -> check(actor, request, false)).toList(), null);
+        WorkspaceAccessSupport.Batch facts;
+        try {
+            facts = workspaceAccessSupport.readBatch(actor, tenantIds, scopes, includeDefaults);
+        } catch (PlatformException e) {
+            return failedBatch(inputs, reason(e));
+        } catch (RuntimeException e) {
+            return failedBatch(inputs, AccessReasonEnum.AUTHORITY_UNAVAILABLE);
+        }
+        return new BatchChecks(inputs.stream().map(request -> check(actor, request, false, facts)).toList(), facts);
+    }
+
+    private BatchChecks failedBatch(List<AccessRequest> inputs, AccessReasonEnum failure) {
+        return new BatchChecks(inputs.stream().map(request -> denied(isRootRequest(request)
+                ? failure : AccessReasonEnum.ACTION_NOT_GRANTED)).toList(), null);
+    }
+
+    private static boolean isRootRequest(AccessRequest request) {
+        return request.resource().type().equals(TENANT) && request.resource().resourceId().equals(request.scope().tenantId())
+                || request.resource().type().equals(WORKSPACE) && request.resource().resourceId().equals(request.scope().workspaceId());
+    }
+
+    private static AccessReasonEnum reason(PlatformException e) {
+        return switch (e.getCode()) {
+            case UNAUTHENTICATED, ACCESS_DENIED -> AccessReasonEnum.SUBJECT_INACTIVE;
+            case NOT_FOUND -> AccessReasonEnum.NOT_FOUND;
+            case SPACE_CLOSING, SPACE_READ_ONLY -> AccessReasonEnum.LIFECYCLE_DENIED;
+            default -> AccessReasonEnum.AUTHORITY_UNAVAILABLE;
+        };
     }
 
     private AccessDecision denied(AccessReasonEnum reason) {

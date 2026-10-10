@@ -31,10 +31,10 @@ public final class DefaultWorkspaceServices {
                                     TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
                                     WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
                                     CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
-                                    Clock clock, DefaultWorkspacePolicies defaults) {
+                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts) {
         var principals = new CurrentPrincipalResolver(identity);
         var access = new WorkspaceAccessSupport(principals, tenantStore, workspaceStore, tenantMembers,
-                workspaceMembers, policyStore, preferenceStore, clock, transactions);
+                workspaceMembers, policyStore, preferenceStore, clock, transactions, batchFacts);
         var locks = new WorkspaceGovernanceLocks(transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, preferenceStore);
         var commands = new DefaultCommandExecutor(transactions, principals, receipts, ids, clock);
         var effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);

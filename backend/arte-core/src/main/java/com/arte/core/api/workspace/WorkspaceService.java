@@ -17,6 +17,7 @@ public interface WorkspaceService {
     /**
      * 分页查询当前操作者可访问的空间，total 只统计可见范围。
      * 按 createdAt 降序、tenantId 和 workspaceId 升序稳定排列；逐项检查当前资格，不提供扫描期间成员变化的目录快照。
+     * 每批最多 100 项，授权事实批量读取，摘要复用同一次验证的事实；为精确可见 total 仍扫描全部候选。
      *
      * @param actor 经可信认证适配确认的当前操作者
      * @param query 分页查询条件

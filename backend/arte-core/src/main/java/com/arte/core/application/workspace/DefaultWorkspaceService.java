@@ -22,7 +22,7 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_READ;
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE;
 
 /**
- * 基础空间管理；创建只检查租户资格，列表逐项授权后计算可见 total。
+ * 基础空间管理；创建只检查租户资格，列表批量读取事实并逐项授权后计算可见 total。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
@@ -98,20 +98,19 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                 // 上一个处理过的 candidate 的排序键，每次 for 都更新，进入下一批 while 时继续保留
                 lastKey = key;
                 if (!seen.add(candidate.scope())) throw unavailable();
-                var decision = authorization.check(actor, DefaultAuthorizationService.workspaceRequest(candidate.scope(), WORKSPACE_READ, "workspace-list"));
+            }
+            // 每批只装载一次事实；计数和摘要共用授权时验证过的快照，不再逐项重读。
+            var checks = authorization.checkWorkspaceReads(actor, candidates.records().stream().map(Workspace::scope).toList());
+            // 身份失效只需本批重检一次，避免同一失效租户下每个候选重复查身份。
+            if (checks.stream().anyMatch(check -> check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE))
+                principals.requireActive(actor);
+            for (var check : checks) {
+                var decision = check.decision();
                 if (!decision.allowed()) {
                     if (decision.reason() == AccessReasonEnum.AUTHORITY_UNAVAILABLE) throw unavailable();
-                    if (decision.reason() == AccessReasonEnum.SUBJECT_INACTIVE) principals.requireActive(actor);
                     continue;
                 }
-                WorkspaceAccessSupport.WorkspaceSnapshot workspaceSnapshot;
-                try {
-                    workspaceSnapshot = access.snapshot(actor, candidate.scope());
-                } catch (PlatformException e) {
-                    if (e.getCode() == PlatformErrorCodeEnum.NOT_FOUND || e.getCode() == PlatformErrorCodeEnum.SPACE_CLOSING)
-                        continue;
-                    throw e;
-                }
+                var workspaceSnapshot = check.snapshot();
                 if (total >= offset && records.size() < query.size()) {
                     Workspace workspace = workspaceSnapshot.workspace();
                     records.add(new WorkspaceViews.WorkspaceSummary(workspace.scope(), workspace.name(), workspace.state(),

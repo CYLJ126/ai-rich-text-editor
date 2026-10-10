@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * 仅测试：串行本地事务、状态回滚及唯一／版本条件模拟；不注册生产内存适配器。
@@ -56,6 +57,17 @@ final class InMemoryWorkspaceFixture {
     boolean loopCursor;
     boolean reverseCandidateOrder;
     int candidateScans;
+    int identityReads;
+    int singleFactReads;
+    int preferenceReads;
+    int factBatches;
+    boolean failBatchFacts;
+    final List<Integer> factBatchSizes = new ArrayList<>();
+    final List<Integer> tenantBatchSizes = new ArrayList<>();
+    final List<Boolean> defaultPreferenceBatches = new ArrayList<>();
+    IntConsumer beforeFactBatch = ignored -> {
+    };
+    UnaryOperator<WorkspaceAccessFacts> transformBatchFacts = facts -> facts;
     IntConsumer beforeCandidateScan = ignored -> {
     };
 
@@ -75,6 +87,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<Principal> findBySubjectId(String id) {
+            identityReads++;
             if (failIdentity) throw new IllegalStateException("Identity store unavailable");
             return Optional.ofNullable((oldIdentities == null ? identities : oldIdentities).get(id));
         }
@@ -130,6 +143,7 @@ final class InMemoryWorkspaceFixture {
 
     final TenantStore tenantStore = new TenantStore() {
         public Optional<Tenant> find(String id) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? tenants : oldReads.tenants()).get(id));
         }
 
@@ -169,6 +183,7 @@ final class InMemoryWorkspaceFixture {
 
     final WorkspaceStore workspaceStore = new WorkspaceStore() {
         public Optional<Workspace> find(Scope scope) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? workspaces : oldReads.workspaces()).get(scope));
         }
 
@@ -220,6 +235,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<TenantMembership> find(String tenant, String subject) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? tenantMembers : oldReads.tenantMembers()).get(List.of(tenant, subject)));
         }
 
@@ -254,6 +270,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<WorkspaceMembership> find(Scope scope, String subject) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? workspaceMembers : oldReads.workspaceMembers()).get(workspaceKey(scope, subject)));
         }
 
@@ -284,10 +301,12 @@ final class InMemoryWorkspaceFixture {
 
     final PolicyStore policyStore = new PolicyStore() {
         public Optional<TenantPolicy> findTenantPolicy(String id) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? tenantPolicies : oldReads.tenantPolicies()).get(id));
         }
 
         public Optional<WorkspacePolicy> findWorkspacePolicy(Scope scope) {
+            singleFactReads++;
             return Optional.ofNullable((oldReads == null ? workspacePolicies : oldReads.workspacePolicies()).get(scope));
         }
 
@@ -335,6 +354,7 @@ final class InMemoryWorkspaceFixture {
         }
 
         public Optional<WorkspacePreference> find(String subject) {
+            preferenceReads++;
             return Optional.ofNullable((oldReads == null ? preferences : oldReads.preferences()).get(subject));
         }
 
@@ -358,6 +378,44 @@ final class InMemoryWorkspaceFixture {
             preferences.put(preference.subjectId(), preference);
             return true;
         }
+    };
+
+    final WorkspaceAccessFactsStore batchFactsStore = (subject, tenantIds, scopes, includeDefaults) -> {
+        com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
+        if (tenantIds.size() > 100 || scopes.size() > 100
+                || scopes.stream().anyMatch(scope -> !tenantIds.contains(scope.tenantId())))
+            throw new IllegalArgumentException("Invalid batch bounds");
+        beforeFactBatch.accept(++factBatches);
+        factBatchSizes.add(scopes.size());
+        tenantBatchSizes.add(tenantIds.size());
+        defaultPreferenceBatches.add(includeDefaults);
+        if (failBatchFacts) throw new IllegalStateException("Batch facts unavailable");
+        Snapshot reads = oldReads == null ? snapshot() : oldReads;
+        Map<String, Tenant> ts = new HashMap<>();
+        Map<String, TenantMembership> tms = new HashMap<>();
+        Map<String, TenantPolicy> tps = new HashMap<>();
+        Map<Scope, Workspace> ws = new HashMap<>();
+        Map<Scope, WorkspaceMembership> wms = new HashMap<>();
+        Map<Scope, WorkspacePolicy> wps = new HashMap<>();
+        Map<String, WorkspacePreference> defaults = new HashMap<>();
+        for (String id : tenantIds) {
+            if (reads.tenants().containsKey(id)) ts.put(id, reads.tenants().get(id));
+            var member = reads.tenantMembers().get(List.of(id, subject));
+            if (member != null) tms.put(id, member);
+            if (reads.tenantPolicies().containsKey(id)) tps.put(id, reads.tenantPolicies().get(id));
+            var tenant = ts.get(id);
+            if (includeDefaults && tenant != null && tenant.personalSubjectId() != null) {
+                var preference = reads.preferences().get(tenant.personalSubjectId());
+                if (preference != null) defaults.put(id, preference);
+            }
+        }
+        for (Scope scope : scopes) {
+            if (reads.workspaces().containsKey(scope)) ws.put(scope, reads.workspaces().get(scope));
+            var member = reads.workspaceMembers().get(workspaceKey(scope, subject));
+            if (member != null) wms.put(scope, member);
+            if (reads.workspacePolicies().containsKey(scope)) wps.put(scope, reads.workspacePolicies().get(scope));
+        }
+        return transformBatchFacts.apply(new WorkspaceAccessFacts(ts, tms, tps, ws, wms, wps, defaults));
     };
 
     final CommandReceiptStore receiptStore = new CommandReceiptStore() {
@@ -400,7 +458,7 @@ final class InMemoryWorkspaceFixture {
     };
     final DefaultWorkspaceServices services = new DefaultWorkspaceServices(identity, transactions, tenantStore, workspaceStore,
             tenantMemberStore, workspaceMemberStore, policyStore, preferenceStore, receiptStore, outbox, audit,
-            () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults());
+            () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults(), batchFactsStore);
 
     TrustedActor user(String id) {
         Principal principal = new Principal(id, PrincipalKindEnum.USER, PrincipalStatusEnum.ACTIVE);

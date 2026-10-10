@@ -101,6 +101,8 @@ app 适配器的实现约束；第二步基础授权不会为未接入的正文�
   可锁稳定身份行。初始化和偏好更新先锁主体，再按租户、空间、成员顺序锁治理范围，不使用 JVM 锁代替数据库并发约束。
 - `WorkspaceStore` 提供有界成员候选扫描，候选不是最终授权。公共服务通过统一判断计算可见分页及 total；`ResourceGrantStore`
   也使用有界分页扫描。
+- `WorkspaceAccessFactsStore` 为展示授权提供真正的有界集合读取，返回 `WorkspaceAccessFacts` 原始事实而非允许结果。 每次最多
+  100 个租户、100 个完整空间范围；数据库往返受固定表数约束，不得循环调用单项 find 或默认回退。
 - 空间候选使用不可变的 `WorkspaceCandidateKey(createdAt, scope)`：createdAt 降序，再按 tenantId、workspaceId 升序。 Store
   续扫必须采用完整键的 keyset 查询，不能使用 offset 或 updatedAt；改名等更新不得改变 createdAt 或 scope。
 - 幂等范围由可信 actor、CommandScope、commandType、operationKey 组成。初始化／租户命令的空空间在数据库唯一键中编码明确范围；摘要保存原始身份并核对碰撞。
@@ -147,11 +149,33 @@ epoch 同事务协作。取得锁不自动证明授权，未知政策版本、�
 
 `DefaultWorkspaceService` 验证批内及跨批键严格递增，并保留重复空间、空批继续及游标循环检查；适配器返回逆序或重复候选时拒绝整个查询。
 排序键相同时间下仍包含 tenantId 和 workspaceId，避免不同租户的相同空间 ID 或创建时间冲突导致漏项。
-候选记录与授权事实分开，结果按当前成员、政策和生命周期过滤后计数；不承诺多批查询为同一个时间点的成员目录快照。
+候选记录与授权事实分开，结果按每批读取的成员、政策和生命周期逐项过滤后计数；不承诺多批查询为同一个时间点的成员目录快照。
 持续存在的候选不会因改名、updatedAt 变化或先前记录删除而偏移；扫描期间新加入且位于边界前的候选在下一次查询出现，撤权按逐项检查生效。
 
 测试适配使用主体绑定的不透明 token 保存最后一个稳定键，模拟真实 keyset 续扫；它仅位于 src/test，不作为生产游标存储。 app
 落地时须按相同顺序建立查询和索引，并验证真实数据库的键精度、排序一致性和并发更新／删除；本轮未新增数据库适配。
+
+## 展示授权的批量读取与调用上限
+
+`DefaultAuthorizationService.batchCheck` 将租户及完整空间范围去重，通过 `WorkspaceAccessFactsStore.read` 装载一次原始事实。
+`WorkspaceAccessSupport.Batch` 复用同一批的已验证身份与范围事实，继续调用单项授权共用的成员、范围、生命周期、政策版本和动作规则；
+不接受客户端传入的允许结果，不使用 createdBy 推断权限。空批与未接入的业务资源拒绝不发起事实查询。
+允许结论的版本与返回摘要来自同一份已验证事实，保持输入顺序；重复动作不重复访问数据库。
+
+事实映射只包含请求范围，成员只包含指定主体，映射键与记录范围必须匹配；越界事实导致整批拒绝。
+缺失成员按不可见处理，缺失／未知政策按权威不可用处理；缺失单个范围不影响其他有效范围，基础设施故障不能伪装为空映射。
+关闭／归档／负责人转交判断才要求装载个人租户的默认偏好，普通读取无需逐空间查偏好。 适配器须按 `(tenant_id, subject_id)`、
+`(tenant_id, workspace_id, subject_id)` 及政策完整键使用绑定参数集合查询／连接查询， 默认偏好可按个人租户关联主体批量连接；即使工作空间
+ID 相同也不能跨租户拼接。
+
+`listAccessible` 每 100 个候选使用一次上述批量授权，并直接复用允许项的 `WorkspaceSnapshot`；不再先逐项 check 再逐项
+snapshot。 N 个候选对应 B=ceil (N/100) 批时，非空目录为 B 次候选扫描、B 次事实装载、B+2 次身份读取和 1 次本人偏好读取；
+同批出现主体失效拒绝时最多额外重检身份 1 次；每次事实装载由 app 实现固定表数的数据库查询，不能将一次 SPI 调用宣称为必然一次
+SQL。 身份及共享租户事实在下一批重新读取，不跨批／请求缓存；返回前再次验证用户身份。事务内最终授权及治理门控不使用该批量读上下文。
+
+当前 `PageResult` 要求精确可见 total，服务仍扫描所有候选并累计计数，本次消除的是逐项数据库往返及重复读取，
+不是把目录变为只查询当前页。若后续大规模目录需要固定查询量，应另行约定可见计数投影或不含精确 total 的公开游标 API，
+不能直接公开候选数或截断扫描。内存测试只验证 SPI 调用上限；真实 SQL 条数、索引、执行计划及延迟需在 app 适配阶段集成验证。
 
 ## 外层事务中的组合取锁
 
@@ -187,7 +211,8 @@ lock 回调、当前事实读取及治理命令均不能直接取 Store 锁绕�
 | `DefaultWorkspaceWriteGuard`        | 调用方实际事务内按确定顺序锁租户、空间及成员，再要求当前动作资格；未接入 ACL 的业务资源拒绝                      |
 | `DefaultCommandExecutor`            | 规范化长度编码摘要、完整操作身份、同事务回执及重放授权验证；回执冲突回滚领域写入                                 |
 
-`DefaultWorkspaceServices` 是无框架装配入口。app 传入 IdentityProvider、事务、各 Store、审计、Outbox、ID 生成器、Clock
+`DefaultWorkspaceServices` 是无框架装配入口。app 传入 IdentityProvider、事务、各 Store（包括必填的
+WorkspaceAccessFactsStore）、审计、Outbox、ID 生成器、Clock
 和政策模板，分别取得上述服务。所有依赖必须真实实现，不能将测试用内存存储注册为生产适配。
 
 基础动作针对服务端确认的租户／空间根引用：workspace 类型的 resourceId 必须等于当前 workspaceId，tenant 类型必须等于当前
@@ -220,6 +245,8 @@ scope。默认空间本身不可访问时明确拒绝并交由恢复流程处理
 
 `CurrentReadWorkspaceServicesTest` 覆盖外层旧快照与实时锁定读取分离；`TenantAuthorizationServicesTest`
 覆盖无空间成员的租户角色矩阵、租户与空间资格隔离、租户治理当前读取及混合范围取锁。
+`WorkspaceBatchAuthorizationTest` 覆盖按批调用上限、重复动作共享事实、单项／批量规则一致、完整范围隔离、
+批间撤权重读、默认空间保护、事实错配及身份／存储故障；真实数据库的固定查询数及索引需由 app 集成验证。
 `DefaultCommandExecutorReceiptTest` 另覆盖 Void 首次执行／幂等重放、当前权限与身份重检、损坏回执拒绝及结果／回执失败回滚。
 `TransactionGovernanceLocksTest` 覆盖外层组合调用、父锁与主体顺序、完整范围预检、跨实例共享状态、异常捕获后强制回滚及状态清理。
 `WorkspaceCandidateScanTest` 覆盖多批改名、边界删除、成员候选移除、同时间同空间 ID 的完整范围排序、新增候选及异常顺序拒绝。
