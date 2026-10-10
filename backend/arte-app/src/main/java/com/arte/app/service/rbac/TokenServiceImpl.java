@@ -4,6 +4,7 @@ import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.jwt.JWT;
 import cn.hutool.jwt.JWTUtil;
 import com.arte.app.api.rbac.AbstractSecurityService;
+import com.arte.app.api.rbac.OnlineService;
 import com.arte.app.api.rbac.TokenService;
 import com.arte.app.common.constant.RbacConstant;
 import com.arte.app.pojo.rbac.JwtUserDto;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Base64;
+import java.util.UUID;
 
 /**
  * @author CYLJ126 ≧◔◡◔≦
@@ -32,19 +34,34 @@ public class TokenServiceImpl extends AbstractSecurityService implements TokenSe
     @Resource
     protected RedissonClient redissonClient;
 
+    @Resource
+    private OnlineService onlineService;
+
     private byte[] key;
 
     @Override
     public String createToken(Authentication authentication) {
+        if (!authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof JwtUserDto session)
+                || session.userOnlineInfo().getId() == null || session.userOnlineInfo().getAccountCreatedAt() == null) {
+            throw new IllegalArgumentException("Verified account session required");
+        }
         return JWT.create()
                 .setPayload(RbacConstant.ARTE_USER_NAME, authentication.getName())
+                .setPayload("accountId", session.userOnlineInfo().getId().toString())
+                .setPayload("accountCreatedAt", session.userOnlineInfo().getAccountCreatedAt().toString())
+                // 同名重注册或重新登录不能复用旧 token／Redis key。
+                .setPayload("jti", UUID.randomUUID().toString())
                 .setKey(key)
                 .sign();
     }
 
     @Override
     public boolean verifyToken(String token) {
-        return JWTUtil.verify(token, key);
+        try {
+            return JWTUtil.verify(token, key);
+        } catch (RuntimeException malformed) {
+            return false;
+        }
     }
 
     @Override
@@ -58,8 +75,9 @@ public class TokenServiceImpl extends AbstractSecurityService implements TokenSe
 
     @Override
     public UserDetails getUserDetailsByToken(String token) {
-        RBucket<UserOnlineInfo> bucket = redissonClient.getBucket(webSecurityProperties.getOnlineKey() + token);
-        return bucket.isExists() ? new JwtUserDto(bucket.get()) : null;
+        UserOnlineInfo online = onlineService.getOnlineInfo(token);
+        if (online != null) online.setPassword(null);
+        return online == null ? null : new JwtUserDto(online);
     }
 
     @Override

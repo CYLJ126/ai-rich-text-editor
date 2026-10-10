@@ -1,9 +1,10 @@
 package com.arte.app.pojo.rbac;
 
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
 import com.arte.app.pojo.BaseDto;
 import com.arte.core.enums.StatusEnum;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -24,8 +25,10 @@ import java.io.Serializable;
 public class UserPo extends BaseDto implements Serializable {
     @Serial
     private static final long serialVersionUID = -6862902259526783030L;
+
     @TableId
-    private Integer id;
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long id;
 
     /**
      * 用户名

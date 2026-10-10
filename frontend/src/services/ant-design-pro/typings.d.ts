@@ -3,6 +3,8 @@
 
 declare namespace API {
   type CurrentUser = {
+    /** 账号主键，后端以十进制字符串返回，避免 64 位整数精度丢失。 */
+    id?: string;
     name?: string;
     avatar?: string;
     userid?: string;

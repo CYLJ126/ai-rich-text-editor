@@ -1,7 +1,5 @@
 package com.arte.app.web.controller.rbac;
 
-import com.arte.core.i18n.MessageUtils;
-
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.text.CharSequenceUtil;
 import com.arte.app.api.rbac.OnlineService;
@@ -13,6 +11,7 @@ import com.arte.app.pojo.rbac.UserPo;
 import com.arte.app.pojo.rbac.param.UserParam;
 import com.arte.core.annotations.AnonymousAccess;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.UserOnlineInfo;
 import jakarta.annotation.Resource;
@@ -95,6 +94,9 @@ public class AuthorizationController {
     @AnonymousAccess
     public ResultContext<UserOnlineInfo> getOnlineInfo(HttpServletRequest request) {
         UserOnlineInfo userOnlineInfo = onlineService.getOnlineInfo(tokenService.getToken(request));
+        if (userOnlineInfo == null) {
+            return ResultContext.fail(ResultCodeEnum.FAIL_AUTH);
+        }
         userOnlineInfo.setPassword(CharSequenceUtil.EMPTY);
         userOnlineInfo.setAvatar("https://gw.alipayobjects.com/zos/antfincdn/XAosXuNZyF/BiazfanxmamNRoxxVxka.png");
         return ResultContext.success(userOnlineInfo);

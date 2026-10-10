@@ -31,11 +31,11 @@ public final class LegacyUserContextScope implements AutoCloseable {
         if (principal.kind() != ExecutionPrincipal.Kind.USER) {
             throw new IllegalArgumentException("Service identity cannot impersonate a legacy user");
         }
-        int userId;
+        long userId;
         try {
-            userId = Integer.parseInt(principal.subjectId());
+            userId = Long.parseLong(principal.subjectId());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Legacy user requires an integer subject ID", e);
+            throw new IllegalArgumentException("Legacy user requires a numeric account ID", e);
         }
         if (userId <= 0) {
             throw new IllegalArgumentException("Legacy user ID must be positive");

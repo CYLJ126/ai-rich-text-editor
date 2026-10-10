@@ -1,11 +1,13 @@
 package com.arte.core.pojo;
 
 import com.arte.core.enums.StatusEnum;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -22,7 +24,16 @@ public class UserOnlineInfo implements Serializable {
     @Serial
     private static final long serialVersionUID = 5138452000055087262L;
 
-    private Integer id;
+    /**
+     * 账号主键；JSON 使用字符串以保留完整的 64 位整数精度。
+     */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long id;
+
+    /**
+     * 登录时核验的账户创建时间；用于拒绝主键被复用后的旧会话，不表示资源归属。
+     */
+    private LocalDateTime accountCreatedAt;
     private String token;
     private String userName;
     private String password;

@@ -6,8 +6,15 @@ import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.execution.DefaultInvocationCoordinator;
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.config.*;
+import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
+import com.arte.app.platform.identity.PlatformIdentityConfiguration;
+import com.arte.app.platform.identity.RbacAccountMapperConfiguration;
+import com.arte.app.platform.identity.RbacAccountReader;
+import com.arte.app.platform.identity.RbacFixedExecutionAuthorizationResolver;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
@@ -25,8 +32,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class NewAiManualConfigurationTest {
 
-    @Test
-    void assemblesAndBindsPhysicalPoolWithoutBootDataSourceAutoConfiguration() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void assemblesAndBindsPhysicalPoolWithoutBootDataSourceAutoConfiguration(boolean identityEnabled) throws Exception {
         try (var context = new AnnotationConfigApplicationContext()) {
             // 示例 profile 同样只有 bindings 的构建参数，没有运行资源中的嵌套 capability。
             NewAiManualIT.loadConfiguration(context, new FileSystemResource("../profile/app.properties.example"));
@@ -40,9 +48,13 @@ class NewAiManualConfigurationTest {
                     "spring.datasource.druid.app.password", "test-password",
                     "spring.datasource.druid.app.initial-size", "0",
                     "spring.datasource.druid.app.max-active", "3")));
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("identity-test",
+                    Map.of("arte.platform.identity.enabled", identityEnabled, "arte.platform.identity.legacy-user-id-ceiling", "0",
+                            "arte.ai-new-events.transport", "LOCAL")));
             context.registerBean("testCredentialResolver", ConnectionCredentialResolver.class,
                     () -> (secret, execution) -> Mono.error(new AssertionError("Assembly must not read credentials")));
             context.register(NewAiManualIT.PhysicalDataSourceConfiguration.class,
+                    PlatformIdentityConfiguration.class, RbacAccountReader.class, RbacAccountMapperConfiguration.class,
                     NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class, NewAiExecutionConfiguration.class);
             context.refresh();
 
@@ -56,6 +68,8 @@ class NewAiManualConfigurationTest {
             assertFalse(pool.isInited(), "Assembly must not initialize database connections");
             assertEquals(0, pool.getCreateCount());
             assertNotNull(context.getBean(ChatService.class));
+            if (identityEnabled)
+                assertInstanceOf(RbacFixedExecutionAuthorizationResolver.class, context.getBean(ExecutionAuthorizationResolver.class));
             assertInstanceOf(DefaultInvocationCoordinator.class, context.getBean(InvocationCoordinator.class));
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class)
                     .secrets().getFirst().environmentVariable());

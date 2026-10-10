@@ -36,6 +36,12 @@ public interface TokenService extends SecurityService {
      */
     String getToken(HttpServletRequest request);
 
+    /**
+     * 根据 Token 获取用户信息
+     *
+     * @param token Token
+     * @return 用户信息
+     */
     UserDetails getUserDetailsByToken(String token);
 
     /**

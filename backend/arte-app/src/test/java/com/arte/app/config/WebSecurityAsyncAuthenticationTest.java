@@ -3,7 +3,9 @@ package com.arte.app.config;
 import com.arte.app.api.rbac.OnlineService;
 import com.arte.app.api.rbac.TokenService;
 import com.arte.app.config.bean.WebSecurityProperties;
+import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.web.filter.AuthenticationTokenFilter;
+import com.arte.core.enums.StatusEnum;
 import com.arte.core.pojo.UserContext;
 import com.arte.core.pojo.UserOnlineInfo;
 import jakarta.servlet.DispatcherType;
@@ -20,7 +22,6 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -151,6 +152,7 @@ class WebSecurityAsyncAuthenticationTest {
     }
 
     static final class Calls {
+        StatusEnum status = StatusEnum.DOING;
         final AtomicInteger verifications = new AtomicInteger();
         final AtomicInteger renewals = new AtomicInteger();
         final AtomicInteger controller = new AtomicInteger();
@@ -185,7 +187,8 @@ class WebSecurityAsyncAuthenticationTest {
                     calls.verifications.incrementAndGet();
                     yield "valid-token".equals(arguments[0]);
                 }
-                case "getUserDetailsByToken" -> User.withUsername("tester").password("unused").roles("USER").build();
+                case "getUserDetailsByToken" -> new JwtUserDto(new UserOnlineInfo().setId(1L).setUserName("tester")
+                        .setStatus(calls.status).setMenuOperations(java.util.List.of("ROLE_USER")));
                 case "renewal" -> {
                     calls.renewals.incrementAndGet();
                     yield null;
@@ -220,6 +223,23 @@ class WebSecurityAsyncAuthenticationTest {
                 return handler.invoke(proxy, method, arguments);
             }));
         }
+    }
+
+    @Test
+    void disabledIdentityCannotReachControllerOrRenewToken() throws Exception {
+        calls.status = StatusEnum.CLOSED;
+        var result = mvc.perform(post("/secured-async/result").header("Authorization", "Bearer valid-token")).andReturn();
+        assertTrue(result.getResponse().getContentAsString().contains("ARTE Authentication failed"));
+        assertEquals(0, calls.renewals.get());
+        assertEquals(0, calls.controller.get());
+        assertFalse(UserContext.hasUserOnlineInfo());
+    }
+
+    @Test
+    void malformedBearerHeaderDoesNotFailWithServerError() throws Exception {
+        var result = mvc.perform(post("/secured-async/result").header("Authorization", "Bearer ")).andReturn();
+        assertTrue(result.getResponse().getContentAsString().contains("ARTE Authentication failed"));
+        assertEquals(0, calls.verifications.get());
     }
 
     @RestController

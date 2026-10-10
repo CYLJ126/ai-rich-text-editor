@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.10
+版本：v0.11
 
-日期：2026-10-09
+日期：2026-10-10
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，不限定现有代码结构，不包含具体实现。
 
@@ -11,7 +11,9 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 持久化适配的职责。本版在“详细设计”第 2～5 节补充权限、API／SPI、事务及存储、撤权与收尾、AI
 动态接入的首版方案。本文定义跨页面共用规则；[AI 聊天界面需求及设计](ARTE%20AI%20聊天界面需求及设计.md)
 定义聊天交互，不另行定义平台实体。公共基础契约和个人空间／基础授权默认逻辑已按实施第 1～2 步添加，实际包位置和阶段边界见设计第
-3.3 节；数据库与 HTTP 适配、资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+3.3 节；第 3 步第 1 批已增加 app
+身份映射适配与现有账号／会话核验，部署及阶段边界见 [公共身份适配说明](backend/arte-app/docs/PLATFORM_IDENTITY.md)。空间数据库与
+HTTP 适配、资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
 
 ## TODO
 
@@ -1668,6 +1670,28 @@ opaque subjectId，保存唯一 `(identityProvider, externalUserId)` 关联；�
 
 已注销主体的身份映射保留且不可重绑；重新注册使用新的用户主键及新主体，即使用户名相同也不继承旧身份。外部用户主键被复用或与旧映射冲突时拒绝自动绑定并要求治理核对，不靠当前用户名消除冲突。
 
+**第 3 步第 1 批实施基线（2026-10-10）**
+
+app 已添加 RbacAccountReader、JdbcPrincipalIdentityStore 与 RbacIdentityProvider，复用既有账户；公共身份映射以显式开关启用，应用不自动执行
+DDL。切换前记录既有账户主键上限，旧账户通过受信部署 bindings 核对关联；未经核对不生成新主体，以保护已存在的 AI 历史。映射额外保存
+external_created_at 账户创建记录指纹，账户主键及创建记录不可复用或改写来冒充原账户。
+
+账号查询统一复用既有 UserMapper，登录由 UserServiceImpl 直接调用 XML
+中的专用查询，一次读取当前账号和密码并核对权限缓存主键；登录暂停外层路由事务，避免使用其他库的已绑定连接。在线会话及公共身份通过
+RbacAccountReader 保留身份核验与事务检查。身份专用 Mapper 固定绑定物理 appDataSource，与身份映射写入共用事务连接，禁止查询缓存并支持
+FOR UPDATE；原用户管理 Mapper、路由事务和业务拦截器继续按既有配置运行。身份 Mapper 不参与线程路由切换，不建立第二套账户数据或查询定义。
+
+账号主键统一使用 Long／long 与数据库 BIGINT；用户请求参数单独使用 Long，其他资源主键保持原类型。账号 HTTP JSON id 与新 JWT
+accountId 使用十进制字符串，公共 subjectId 与身份映射的 external_user_id 保持既有字符串值。旧 JSON 缓存数字 ID 已通过实际
+Redis Codec 兼容测试，数据库迁移脚本不自动执行。
+
+现有登录和在线会话按账户主键读取当前状态，同时核验名称与 accountCreatedAt；升级前缺少该字段的在线记录需重新登录，不能按当前用户名回填身份。新
+Token 包含账户主键、账户创建时间及随机会话标识，避免同名账户／重复登录复用旧会话键。旧 RBAC 菜单权限继续使用原服务，不转为空间授权。
+
+公共身份启用时默认 FIXED AI 兼容适配仅增加当前账户及稳定主体核验，原 tenantId／workspaceId／subjectId、grant
+和预算引用不改变；不表示公共成员、动态资源授权或撤权／收尾已完成。存储当前读要求同一物理 appDataSource 的原事务，拒绝路由
+DataSource 外层事务与物理库独立提交混用。实现和部署说明见 [公共身份适配说明](backend/arte-app/docs/PLATFORM_IDENTITY.md)。
+
 #### 3.2 公共输入、输出与 API 签名
 
 core 的 `TrustedActor` 由可信身份适配创建，HTTP 不接受其字段。`Scope(tenantId, workspaceId)` 是选择，服务端解析成
@@ -1823,7 +1847,7 @@ Outbox 表分别命名为 `arte_platform_command`、`arte_platform_outbox`，不
 
 | 表                                                         | 关键字段                                                                                                                                                                               | 必须约束及索引                                                                                                        |
 |------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| arte_platform_principal_identity                           | subject_id、provider、external_user_id、created_at                                                                                                                                     | PK(subject_id)，UNIQUE(provider, external_user_id)；subject_id 不因改名变化                                           |
+| arte_platform_principal_identity                           | subject_id、provider、external_user_id、external_created_at、created_at                                                                                                                | PK(subject_id)，UNIQUE(provider, external_user_id)；subject_id 不因改名变化                                           |
 | arte_platform_tenant                                       | id、type PERSONAL／ORGANIZATION、personal_subject_id、state ACTIVE／SUSPENDED／CLOSING、version、auth_epoch                                                                            | PERSONAL 主体关联唯一，组织 personal_subject_id 为空；默认个人关系不按名字查询                                        |
 | arte_platform_tenant_member                                | id、tenant_id、subject_id、role、state ACTIVE／REVOKED、generation、version                                                                                                            | UNIQUE(tenant_id, subject_id)；原记录保留，重新加入 generation 增加                                                   |
 | arte_platform_workspace                                    | id、tenant_id、name、description、state、created_by、version、auth_epoch、created_at、updated_at                                                                                       | UNIQUE(tenant_id,id)；按租户／状态／更新时间索引；负责人取成员 OWNER，不重复维护另一个可漂移字段                      |

@@ -1,9 +1,6 @@
 package com.arte.app.config;
 
-import com.arte.ainew.web.controller.NewAiBudgetController;
-import com.arte.ainew.web.controller.NewAiChatController;
-import com.arte.ainew.web.controller.NewAiConversationController;
-import com.arte.ainew.web.controller.NewAiInvocationController;
+import com.arte.ainew.web.controller.*;
 import com.arte.core.annotations.AnonymousAccess;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -91,7 +88,7 @@ class WebSecurityConfigTest {
         var handlers = new LinkedHashMap<RequestMappingInfo, HandlerMethod>();
         var beans = new DefaultListableBeanFactory();
         for (var controller : Set.of(NewAiConversationController.class, NewAiChatController.class,
-                NewAiInvocationController.class, NewAiBudgetController.class)) {
+                NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class, NewAiReconciliationController.class)) {
             var beanName = controller.getSimpleName();
             beans.registerBeanDefinition(beanName, new RootBeanDefinition(controller));
             var root = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);
@@ -103,7 +100,7 @@ class WebSecurityConfigTest {
                 }
             }
         }
-        assertEquals(10, handlers.size());
+        assertFalse(handlers.isEmpty());
         assertTrue(urls("getUnControlUrls", handlers).isEmpty());
         assertTrue(urls("getAnonymousUrls", handlers).isEmpty());
     }

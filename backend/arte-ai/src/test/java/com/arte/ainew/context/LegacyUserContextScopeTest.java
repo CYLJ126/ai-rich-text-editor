@@ -25,6 +25,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class LegacyUserContextScopeTest {
+
+    @Test
+    public void legacyScopeAcceptsFullLongIdsAndRejectsOverflow() {
+        try (var ignored = LegacyUserContextScope.open(context("large-account", Long.toString(Long.MAX_VALUE)))) {
+            assertEquals(Long.valueOf(Long.MAX_VALUE), UserContext.getUserOnlineInfo().getId());
+        }
+        assertFalse(UserContext.hasUserOnlineInfo());
+        assertThrows(IllegalArgumentException.class,
+                () -> LegacyUserContextScope.open(context("overflow", "9223372036854775808")));
+        assertFalse(UserContext.hasUserOnlineInfo());
+    }
+
     @After
     public void clear() {
         UserContext.clear();
@@ -33,7 +45,7 @@ public class LegacyUserContextScopeTest {
 
     @Test
     public void restoresNestedUserAndTraceAfterFailureWithoutCopyingCredentials() {
-        var previous = new UserOnlineInfo().setId(99).setUserName("previous").setToken("old-token");
+        var previous = new UserOnlineInfo().setId(99L).setUserName("previous").setToken("old-token");
         UserContext.setUserOnlineInfo(previous);
         MDC.put(CoreConstant.LOG_TRACE_ID, "original-trace");
         MDC.put("unrelated", "keep");
@@ -65,7 +77,11 @@ public class LegacyUserContextScopeTest {
             assertThrows(IllegalStateException.class, outer::close);
             var failure = new AtomicReference<Throwable>();
             var wrongThread = new Thread(() -> {
-                try { inner.close(); } catch (Throwable e) { failure.set(e); }
+                try {
+                    inner.close();
+                } catch (Throwable e) {
+                    failure.set(e);
+                }
             });
             wrongThread.start();
             wrongThread.join(5000);
@@ -81,7 +97,7 @@ public class LegacyUserContextScopeTest {
 
     @Test
     public void rejectsUnmappableOrServiceIdentityWithoutChangingPreviousUser() {
-        var user = new UserOnlineInfo().setId(99).setUserName("previous");
+        var user = new UserOnlineInfo().setId(99L).setUserName("previous");
         UserContext.setUserOnlineInfo(user);
         assertThrows(IllegalArgumentException.class, () -> LegacyUserContextScope.open(context("alice", "uuid")));
         var service = new ExecutionContext("service", "trace",
@@ -119,7 +135,7 @@ public class LegacyUserContextScopeTest {
             var results = Flux.range(1, 50).flatMap(index -> ReactiveExecutionContext.withContext(
                     bridge.call(execution -> {
                         assertEquals("user-" + index, UserContext.getUserName());
-                        assertEquals(Integer.valueOf(index), UserContext.getUserOnlineInfo().getId());
+                        assertEquals(Long.valueOf(index), UserContext.getUserOnlineInfo().getId());
                         return index;
                     }), ExecutionRuntimeContext.start(context("user-" + index, String.valueOf(index)))), 8);
             StepVerifier.create(results).expectNextCount(50).expectComplete().verify(Duration.ofSeconds(5));

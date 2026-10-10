@@ -1,9 +1,10 @@
 package com.arte.app.pojo.rbac.param;
 
 import com.arte.app.common.enums.RbacRelationEnum;
-import com.arte.app.pojo.BaseParam;
+import com.arte.app.pojo.BaseQueryParam;
 import com.arte.app.pojo.rbac.UserDto;
 import com.arte.core.enums.StatusEnum;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -21,10 +22,16 @@ import java.util.List;
 @Setter
 @ToString(callSuper = true)
 @Accessors(chain = true)
-public class UserParam extends BaseParam<UserDto> implements Serializable {
+public class UserParam extends BaseQueryParam<UserDto> implements Serializable {
 
     @Serial
     private static final long serialVersionUID = -5020055060001356914L;
+
+    /**
+     * 账号主键；JSON 兼容旧数字输入，输出使用字符串。
+     */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long id;
 
     /**
      * 用户名

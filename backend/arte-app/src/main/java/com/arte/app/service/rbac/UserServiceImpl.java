@@ -3,9 +3,6 @@ package com.arte.app.service.rbac;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.arte.app.api.base.TagService;
 import com.arte.app.api.rbac.RbacRelationService;
 import com.arte.app.api.rbac.RoleService;
@@ -14,8 +11,8 @@ import com.arte.app.common.enums.RbacRelationEnum;
 import com.arte.app.common.enums.TagTypeEnum;
 import com.arte.app.config.bean.WebSecurityProperties;
 import com.arte.app.mapper.rbac.UserMapper;
-import com.arte.app.pojo.base.TagDto;
 import com.arte.app.pojo.BaseDto;
+import com.arte.app.pojo.base.TagDto;
 import com.arte.app.pojo.rbac.*;
 import com.arte.app.pojo.rbac.param.RbacRelationParam;
 import com.arte.app.pojo.rbac.param.RoleParam;
@@ -26,14 +23,19 @@ import com.arte.core.enums.StatusEnum;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.UserContext;
 import com.arte.core.pojo.UserOnlineInfo;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -136,14 +138,39 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDto> implements
         return this.page(param, getQueryWrapper(param));
     }
 
+    /**
+     * 读取当前账号和密码，沿用既有 RBAC 权限服务。
+     * 登录期间暂停外层路由事务，避免已绑定的其他库连接覆盖 Mapper 的 app 路由。
+     */
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public @NonNull UserDetails loadUserByUsername(@NonNull String username) throws UsernameNotFoundException {
+        // 暂停外层路由事务，让 Mapper 切面在获取连接前选择 app 库。
+        if (CharSequenceUtil.isBlank(username)) {
+            throw new UsernameNotFoundException("Account unavailable");
+        }
+        var rows = baseMapper.selectLoginByName(username);
+        if (rows.size() != 1) {
+            throw new UsernameNotFoundException("Account unavailable");
+        }
+        // 状态、创建记录和密码来自同一次数据库查询，不能从权限缓存中取密码。
+        UserDto userDto = rows.getFirst();
+        if (userDto.getId() == null || userDto.getId() <= 0 || CharSequenceUtil.isBlank(userDto.getUserName())
+                || !StatusEnum.isNormal(userDto.getStatus()) || userDto.getCreateTime() == null
+                || CharSequenceUtil.isBlank(userDto.getPassword())) {
+            throw new UsernameNotFoundException("Account unavailable");
+        }
+        var cached = getByName(userDto.getUserName());
+        // 数据库记录与缓存记录一致性校验
+        if (cached == null || !Objects.equals(cached.getId(), userDto.getId())) {
+            throw new UsernameNotFoundException("Account identity changed");
+        }
         UserOnlineInfo userOnlineInfo = new UserOnlineInfo();
-        UserDto userDto = getByName(username);
         UserParam userParam = new UserParam();
         BeanUtil.copyProperties(userDto, userOnlineInfo, "status");
         BeanUtil.copyProperties(userDto, userParam);
         userOnlineInfo.setStatus(userDto.getStatus());
+        userOnlineInfo.setAccountCreatedAt(userDto.getCreateTime());
         userOnlineInfo.setRoles(getRoles(userParam));
         userOnlineInfo.setMenus(getMenus(userParam));
         userOnlineInfo.setMenuOperations(getAuthorities(userParam));

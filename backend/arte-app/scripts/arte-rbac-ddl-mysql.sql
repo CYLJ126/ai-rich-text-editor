@@ -79,7 +79,7 @@ create table arte_rbac_role
 -- auto-generated definition
 create table arte_rbac_user
 (
-    id          int auto_increment comment '主键'
+    id bigint auto_increment comment '主键'
         primary key,
     user_name   varchar(64)                         not null comment '用户名',
     status      char                                not null comment '状态：0-初始（未激活）；1-正常；3-注销；',

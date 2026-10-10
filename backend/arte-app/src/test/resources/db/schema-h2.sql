@@ -1,6 +1,6 @@
 create table arte_rbac_user
 (
-    id          int auto_increment comment '主键',
+    id bigint auto_increment comment '主键',
     name        varchar(64)                         not null comment '用户名',
     status      char                                not null comment '状态，0-初始（未激活）；1-正常；2-注销；',
     mobile      varchar(11)                         not null comment '手机号',

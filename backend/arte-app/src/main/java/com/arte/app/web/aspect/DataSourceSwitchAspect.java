@@ -29,7 +29,8 @@ public class DataSourceSwitchAspect {
     private void chlorophyllAspect() {
     }
 
-    @Before("appAspect()")
+    // 身份 Mapper 已绑定物理 app 库，不参与线程路由；避免破坏调用方的路由上下文。
+    @Before("appAspect() && !bean(identityUserMapper)")
     public void app() {
         log.info("切换到 app 数据源...");
         DbContextHolder.setDataSourceKey("app");
@@ -41,7 +42,7 @@ public class DataSourceSwitchAspect {
         DbContextHolder.setDataSourceKey("chlorophyll");
     }
 
-    @After("appAspect() || chlorophyllAspect()")
+    @After("(appAspect() || chlorophyllAspect()) && !bean(identityUserMapper)")
     public void clear() {
         log.info("清除数据源关联-{}", DbContextHolder.getDataSourceKey());
         DbContextHolder.clearDataSourceKey();

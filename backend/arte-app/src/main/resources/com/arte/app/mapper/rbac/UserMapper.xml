@@ -3,7 +3,7 @@
 <mapper namespace="com.arte.app.mapper.rbac.UserMapper">
 
     <resultMap id="tagMap" type="com.arte.app.pojo.rbac.UserDto">
-        <id property="id" column="id" jdbcType="INTEGER" />
+        <id property="id" column="id" javaType="java.lang.Long" jdbcType="BIGINT"/>
         <result property="userName" column="name" jdbcType="VARCHAR" />
         <result property="mobile" column="mobile" jdbcType="VARCHAR" />
         <result property="email" column="email" jdbcType="VARCHAR" />
@@ -20,4 +20,57 @@
     <sql id="baseColumn">
         distinct (id), user_name, mobile, email, password, status, description, create_by, update_by, create_time, update_time, row_version
     </sql>
+
+    <!-- 身份核验只映射主键、名称、状态和创建时间，不加载密码或权限集合。 -->
+    <resultMap id="identityAccount" type="com.arte.app.pojo.rbac.UserDto" autoMapping="false">
+        <id property="id" column="id" javaType="java.lang.Long" jdbcType="BIGINT"/>
+        <result property="userName" column="user_name" jdbcType="VARCHAR"/>
+        <result property="status" column="status" jdbcType="INTEGER"
+                javaType="com.arte.core.enums.StatusEnum"
+                typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="identityColumns">
+        id
+        , user_name, status, create_time
+    </sql>
+
+    <!-- 登录额外读取当前密码和个人资料，普通身份核验仍不加载密码。 -->
+    <resultMap id="loginAccount" type="com.arte.app.pojo.rbac.UserDto"
+               extends="identityAccount" autoMapping="false">
+        <result property="password" column="password" jdbcType="VARCHAR"/>
+        <result property="mobile" column="mobile" jdbcType="VARCHAR"/>
+        <result property="email" column="email" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <select id="selectLoginByName" resultMap="loginAccount" useCache="false" flushCache="true">
+        SELECT<include refid="identityColumns"/>, password, mobile, email
+        FROM arte_rbac_user
+        WHERE user_name = #{name}
+    </select>
+
+    <!-- 每次执行 SQL 并清理会话查询缓存，避免使用停用／改名之前的账号快照。 -->
+    <select id="selectIdentityByName" resultMap="identityAccount" useCache="false" flushCache="true">
+        SELECT
+        <include refid="identityColumns"/>
+        FROM arte_rbac_user
+        WHERE user_name = #{name}
+    </select>
+
+    <select id="selectIdentityById" resultMap="identityAccount" useCache="false" flushCache="true">
+        SELECT
+        <include refid="identityColumns"/>
+        FROM arte_rbac_user
+        WHERE id = #{id}
+    </select>
+
+    <!-- 调用方须持有 app 物理库事务，锁保持至该事务结束。 -->
+    <select id="selectCurrentIdentityById" resultMap="identityAccount" useCache="false" flushCache="true">
+        SELECT
+        <include refid="identityColumns"/>
+        FROM arte_rbac_user
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
 </mapper>

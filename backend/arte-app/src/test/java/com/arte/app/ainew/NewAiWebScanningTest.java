@@ -1,9 +1,6 @@
 package com.arte.app.ainew;
 
-import com.arte.ainew.web.controller.NewAiBudgetController;
-import com.arte.ainew.web.controller.NewAiChatController;
-import com.arte.ainew.web.controller.NewAiConversationController;
-import com.arte.ainew.web.controller.NewAiInvocationController;
+import com.arte.ainew.web.controller.*;
 import com.arte.app.AIRichTextEditorApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -47,7 +44,8 @@ public class NewAiWebScanningTest {
     @Test
     public void applicationScanDiscoversAllEnabledNewAiControllers() {
         assertEquals(Set.of(NewAiConversationController.class.getName(), NewAiChatController.class.getName(),
-                        NewAiBudgetController.class.getName(), NewAiInvocationController.class.getName()),
+                        NewAiBudgetController.class.getName(), NewAiInvocationController.class.getName(),
+                        NewAiConfigurationController.class.getName(), NewAiReconciliationController.class.getName()),
                 discoverControllers(true, true));
     }
 
@@ -59,6 +57,7 @@ public class NewAiWebScanningTest {
     @Test
     public void invocationRequiresExecutionButConversationChatAndBudgetRemainAvailable() {
         assertEquals(Set.of(NewAiConversationController.class.getName(), NewAiChatController.class.getName(),
-                NewAiBudgetController.class.getName()), discoverControllers(true, false));
+                NewAiBudgetController.class.getName(), NewAiConfigurationController.class.getName(),
+                NewAiReconciliationController.class.getName()), discoverControllers(true, false));
     }
 }

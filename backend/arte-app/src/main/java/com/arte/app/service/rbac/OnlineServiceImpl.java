@@ -8,6 +8,7 @@ import com.arte.app.api.rbac.AbstractSecurityService;
 import com.arte.app.api.rbac.OnlineService;
 import com.arte.app.api.rbac.RoleService;
 import com.arte.app.api.rbac.UserService;
+import com.arte.app.platform.identity.RbacAccountReader;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.pojo.rbac.RoleDto;
 import com.arte.app.pojo.rbac.UserDto;
@@ -44,6 +45,9 @@ public class OnlineServiceImpl extends AbstractSecurityService implements Online
     @Resource
     private RoleService roleService;
 
+    @Resource
+    private RbacAccountReader accountReader;
+
     @Override
     public void saveOnlineInfo(Authentication authentication, String token, HttpServletRequest request) throws Exception {
         UserAgent userAgent = UserAgentUtil.parse(request.getHeader("User-Agent"));
@@ -78,16 +82,22 @@ public class OnlineServiceImpl extends AbstractSecurityService implements Online
         if (userOnlineInfo == null) {
             return null;
         }
-        UserDto currentUserCache = userService.getByName(userOnlineInfo.getUserName());
-        if (Objects.nonNull(currentUserCache)) {
-            userOnlineInfo.setMenus(currentUserCache.getMenus());
-            userOnlineInfo.setRoles(currentUserCache.getRoles());
-            userOnlineInfo.setMenuOperations(currentUserCache.getMenuOperations());
-        }
+        // 在线记录只能作为会话证据；用户名不能把旧会话重新绑定到同名新账户。
+        var current = accountReader.findById(userOnlineInfo.getId());
+        if (current.isEmpty() || !current.get().active()
+                || !current.get().name().equals(userOnlineInfo.getUserName())
+                || !current.get().createdAt().equals(userOnlineInfo.getAccountCreatedAt())) return null;
+        UserDto currentUserCache = userService.getByName(current.get().name());
+        if (currentUserCache == null || !Objects.equals(currentUserCache.getId(), userOnlineInfo.getId())) return null;
+        userOnlineInfo.setStatus(current.get().status());
+        userOnlineInfo.setMenus(currentUserCache.getMenus());
+        userOnlineInfo.setRoles(currentUserCache.getRoles());
+        userOnlineInfo.setMenuOperations(currentUserCache.getMenuOperations());
         if (CollUtil.isNotEmpty(userOnlineInfo.getRoles())) {
             // 加入角色所拥有的菜单、操作权限
             userOnlineInfo.getRoles().forEach(roleCode -> {
                 RoleDto role = roleService.getRoleByCode(roleCode);
+                if (role == null) return;
                 userOnlineInfo.setMenus(new HashSet<>(CollUtil.union(role.getMenus(), userOnlineInfo.getMenus())));
                 userOnlineInfo.setMenuOperations(new HashSet<>(CollUtil.union(role.getMenuOperations(), userOnlineInfo.getMenuOperations())));
             });
