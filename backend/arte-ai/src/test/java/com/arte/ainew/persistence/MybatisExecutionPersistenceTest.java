@@ -357,6 +357,35 @@ public class MybatisExecutionPersistenceTest {
         assertNotNull(dispatch("inv"));
     }
 
+    @Test
+    public void settlementColumnMigrationPreservesFactsAndIdempotentReplay() {
+        account("100");
+        accept("inv", "budget");
+        create("inv");
+        var reserved = first.reserve(reserveCommand("inv", "80")).block().value();
+        dispatch("inv");
+        var pending = new BudgetCommands.Settle(OWNER, 0,
+                new BudgetSettlement("unknown", reserved.reservationId(), BudgetSettlement.State.PENDING_RECONCILIATION,
+                        Usage.unknown(), null, Instant.now()), BudgetCommands.Evidence.UNKNOWN_COST, null);
+        assertEquals(APPLIED, first.settle(pending).block().code());
+        var facts = jdbc.queryForList("SELECT * FROM arte_ai_settlement");
+        // 模拟当前部署的旧列名，再用真实增量脚本迁移隔离数据库。
+        jdbc.execute("ALTER TABLE arte_ai_settlement RENAME COLUMN workspace_snapshot TO snapshot");
+        new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-settlement-snapshot-migration.sql")).execute(dataSource);
+        assertEquals(facts, jdbc.queryForList("SELECT * FROM arte_ai_settlement"));
+        assertEquals(REPLAYED, second.settle(pending).block().code());
+        assertEquals(money("80"), first.account(OWNER, "budget").block().held());
+        var bill = new BudgetCommands.Settle(OWNER, 1,
+                new BudgetSettlement("bill", reserved.reservationId(), BudgetSettlement.State.SETTLED,
+                        new Usage(Usage.Basis.PROVIDER_REPORTED, 1L, 1L, 2L), money("10"), Instant.now()),
+                BudgetCommands.Evidence.PROVIDER_BILL, "bill-ref");
+        assertEquals(APPLIED, first.settle(bill).block().code());
+        assertEquals(REPLAYED, second.settle(bill).block().code());
+        assertEquals(2, count("arte_ai_settlement"));
+        assertEquals(money("0"), first.account(OWNER, "budget").block().held());
+        assertEquals(money("10"), first.account(OWNER, "budget").block().charged());
+    }
+
     @Test public void unknownCostKeepsFundsAndFinalSettlementIsExactlyOnce() {
         account("100"); accept("inv", "budget"); create("inv");
         var reserved = first.reserve(reserveCommand("inv", "80")).block().value(); dispatch("inv");

@@ -253,14 +253,14 @@ public class AdmissionIntegrationTest {
         assertNull(second.payloads.find(AdmissionFixture.owner("bob-id"), accepted.executionId(), stored.value()).block());
         var fake = new ResultRef(stored.value().resultId(), stored.value().resultType(), 1, "0".repeat(64), false);
         assertThrows(IllegalStateException.class, () -> second.payloads.find(owner, accepted.executionId(), fake).block());
-        jdbc.update("UPDATE arte_ai_result SET snapshot=? WHERE id_key=?", "{}", stored.value().resultId());
+        jdbc.update("UPDATE arte_ai_result SET workspace_snapshot=? WHERE id_key=?", "{}", stored.value().resultId());
         assertThrows(IllegalStateException.class, () -> second.payloads.find(owner, accepted.executionId(), stored.value()).block());
     }
 
     @Test
     public void budgetInitializationPreservesExistingLedgerAndRequiresSeparatePrivilege() {
         first.initializeBudget("alice");
-        jdbc.update("UPDATE arte_ai_account SET snapshot=?", first.codec.encode(new com.arte.ainew.pojo.budget.BudgetCommands.Account(
+        jdbc.update("UPDATE arte_ai_account SET workspace_snapshot=?", first.codec.encode(new com.arte.ainew.pojo.budget.BudgetCommands.Account(
                 "alice-budget", AdmissionFixture.owner("alice-id"), AdmissionFixture.money("100"), AdmissionFixture.money("3"),
                 AdmissionFixture.money("7"), AdmissionFixture.RATE, 2)));
         var account = second.budgets.initialize("alice-budget", second.context("alice", "initialize", Set.of("ai:budget:admin"))).block();

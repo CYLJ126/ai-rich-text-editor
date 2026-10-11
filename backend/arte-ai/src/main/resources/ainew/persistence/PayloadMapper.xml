@@ -14,7 +14,7 @@
         </constructor>
     </resultMap>
     <select id="context" resultMap="PayloadRow" useCache="false">
-        SELECT owner_key,NULL AS invocation_key,NULL AS attempt_key,'context-workspaceSnapshot' AS result_type,
+        SELECT owner_key,NULL AS invocation_key,NULL AS attempt_key,'context-snapshot' AS result_type,
         1 AS schema_version,0 AS partial,payload_digest,workspace_snapshot FROM arte_ai_context_snapshot WHERE
         id_key=#{idKey}
     </select>

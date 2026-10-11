@@ -12,11 +12,11 @@ import java.util.List;
  * @since 2026/10/4 23:30 ✾
  */
 public interface BudgetMapper {
-    int insertAccount(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("snapshot") String snapshot);
+    int insertAccount(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("workspaceSnapshot") String workspaceSnapshot);
 
-    int saveAccount(@Param("snapshot") String snapshot, @Param("idKey") String idKey);
+    int saveAccount(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);
 
-    int saveReservation(@Param("snapshot") String snapshot, @Param("idKey") String idKey);
+    int saveReservation(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);
 
     List<String> reservationForAttempt(@Param("attemptKey") String attemptKey, @Param("invocationKey") String invocationKey);
 
@@ -25,7 +25,7 @@ public interface BudgetMapper {
             @Param("accountKey") String accountKey,
             @Param("invocationKey") String invocationKey,
             @Param("attemptKey") String attemptKey,
-            @Param("snapshot") String snapshot);
+            @Param("workspaceSnapshot") String workspaceSnapshot);
 
     List<SettlementRow> settlement(@Param("reservationKey") String reservationKey, @Param("settlementKey") String settlementKey);
 
@@ -33,7 +33,7 @@ public interface BudgetMapper {
             @Param("reservationKey") String reservationKey,
             @Param("settlementKey") String settlementKey,
             @Param("digest") String digest,
-            @Param("snapshot") String snapshot,
+            @Param("workspaceSnapshot") String workspaceSnapshot,
             @Param("resultSnapshot") String resultSnapshot,
             @Param("evidenceKind") String evidenceKind,
             @Param("evidenceRef") String evidenceRef);

@@ -16,7 +16,7 @@ public interface EventMapper {
     int insertEvent(
             @Param("invocationKey") String invocationKey,
             @Param("sequenceNo") long sequenceNo,
-            @Param("snapshot") String snapshot);
+            @Param("workspaceSnapshot") String workspaceSnapshot);
 
     int saveNextSequence(@Param("nextSequence") long nextSequence, @Param("idKey") String idKey);
 

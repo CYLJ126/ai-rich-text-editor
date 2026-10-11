@@ -245,7 +245,7 @@ public class DispatchIntegrationTest {
             var expired = new Attempt(value.attemptId(), value.invocationId(), value.attemptNumber(), value.workerId(), value.fencingToken(),
                     value.createdAt().plusMillis(1), value.version(), value.state(), value.dispatch(), value.remoteRequestId(),
                     value.budgetReservationId(), value.usage(), value.error(), value.createdAt(), value.updatedAt());
-            jdbc.update("UPDATE arte_ai_attempt SET snapshot=? WHERE id_key=?", fixture.codec.encode(expired), CanonicalJson.key(value.attemptId()));
+            jdbc.update("UPDATE arte_ai_attempt SET workspace_snapshot=? WHERE id_key=?", fixture.codec.encode(expired), CanonicalJson.key(value.attemptId()));
             Thread.sleep(5);
         }
 

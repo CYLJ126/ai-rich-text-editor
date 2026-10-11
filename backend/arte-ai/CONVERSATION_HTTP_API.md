@@ -122,7 +122,7 @@ DEBUG；现有 `arte-app` 的 Log4j2 root 为 DEBUG，若运行环境调高了�
 日志不额外序列化认证头、幂等键、聊天正文、内部 JSON 快照、绑定参数或结果正文。完整异常堆栈保留数据库自身的错误描述；不要为查询问题开启全局
 SQL 参数打印。
 
-新增 H2 故障测试分别移除会话表和 `owner_key` 列，验证实际 SQL 异常、SQLState、完整堆栈、跨 MVC
+新增 H2 故障测试分别移除会话表、`owner_key` 列和 `workspace_snapshot` 列，验证实际 SQL 异常、SQLState、完整堆栈、跨 MVC
 异步派发的请求标识，以及日志未输出认证头和操作键；另验证正常空列表的分页响应。只修改各测试自己的临时数据库：
 
 ```sh
@@ -135,6 +135,35 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 2026-10-10：上述 3 项诊断测试与模块编译通过。会话／持久化完整回归另发现已有 XML 占位符 `workspaceSnapshot` 与 Java
 `@Param("snapshot")` 不一致，52 项中 47 项失败；本次日志改动未修改 Mapper SQL、DDL 或实际数据库。该绑定问题与生产列表查询的
 SQL 语法异常应分别按新日志定位。
+
+2026-10-11 修复与核对：
+
+- 本机 22:31 日志确认列表失败于 `AdmissionMapper.conversationSnapshots`，SQL 使用 `SELECT workspaceSnapshot`，MySQL 报
+  `Unknown column 'workspaceSnapshot' in 'field list'`（SQLState `42S22`、错误码 `1054`）；预算读取也有同类错误。当前源码的读取列已为
+  `workspace_snapshot`，必须重新构建并重启，不能继续使用旧进程中的 Mapper。
+- 本批将会话、执行、事件、预算与字节存储的数据库列统一为 `workspace_snapshot`，对应 Java 参数／投影字段为 `workspaceSnapshot`
+  ，XML 值占位符使用 `#{workspaceSnapshot}`，与 `@Param("workspaceSnapshot")` 对齐。修复事件写入残留的驼峰列名，并恢复上下文投影的
+  `context-snapshot` 类型别名；已有快照 JSON 和类型别名不因持久化参数改名而改变。
+- 已只读核对 `backend/profile/app.properties` 指向的实际 MySQL：9 张快照表的 `workspace_snapshot` 列存在，计数、分页快照和预算快照
+  SQL 可执行；该连接下的结算表仍为 `snapshot`
+  。若实际运行也使用此连接，发布时执行[结算列名迁移](scripts/arte-ai-new-settlement-snapshot-migration.sql)
+  ；仅在旧列存在且新列不存在时执行，已改名的库跳过。此轮没有修改实际数据库。
+- 按 `workspace_snapshot`／`workspaceSnapshot` 统一后，新 AI 全包回归 292 项中 288 项通过、4 项因未配置隔离 Redis
+  而跳过；其中持久化回归 44 项全部通过，验证迁移保留结算事实、原回执重放和后续结算不重复计费。测试使用隔离 H2／本机模拟
+  HTTP，未调用真实模型。
+- `arte-app` 及依赖模块离线打包通过，生成 `backend/arte-app/target/arte-app-boot.jar`；结算列名迁移与应用重启尚未执行。
+
+完整新 AI 回归：
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  '-Dtest=com/arte/ainew/**/*Test' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+本机 HTTP／SSE 模拟服务需要允许绑定回环端口；Redis 条件测试需要其声明的隔离测试实例。只读 SQL 核对不代表部署后 HTTP
+或真实模型链路已经验收。
 
 ### 响应与契约验证
 

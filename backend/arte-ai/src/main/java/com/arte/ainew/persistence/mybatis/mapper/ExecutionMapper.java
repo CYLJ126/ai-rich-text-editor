@@ -16,13 +16,13 @@ import java.util.List;
 public interface ExecutionMapper {
     String attemptPurpose(@Param("idKey") String idKey);
 
-    int saveInvocation(@Param("snapshot") String snapshot, @Param("idKey") String idKey);
+    int saveInvocation(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);
 
-    int saveAttempt(@Param("snapshot") String snapshot, @Param("idKey") String idKey);
+    int saveAttempt(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);
 
     List<AcceptanceRow> acceptance(@Param("scopeKey") String scopeKey, @Param("idempotencyKey") String idempotencyKey);
 
-    int insertInvocation(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("snapshot") String snapshot);
+    int insertInvocation(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("workspaceSnapshot") String workspaceSnapshot);
 
     int insertAcceptance(
             @Param("scopeKey") String scopeKey,
@@ -37,7 +37,7 @@ public interface ExecutionMapper {
             @Param("invocationKey") String invocationKey,
             @Param("attemptNumber") int attemptNumber,
             @Param("purpose") String purpose,
-            @Param("snapshot") String snapshot);
+            @Param("workspaceSnapshot") String workspaceSnapshot);
 
     int advanceAttemptCounters(
             @Param("nextAttempt") int nextAttempt,

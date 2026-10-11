@@ -110,15 +110,23 @@ public class ConversationHttpIntegrationTest {
 
     @Test
     public void diagnosticsIncludeMissingTableCauseSqlAndAsyncRequestContext() throws Exception {
-        assertDatabaseFailureDiagnostics("DROP TABLE arte_ai_conversation_new", "42S02");
+        assertDatabaseFailureDiagnostics("DROP TABLE arte_ai_conversation_new", "42S02", "countConversations", "owner_key=?");
     }
 
     @Test
     public void diagnosticsIncludeMissingColumnCauseWithoutLoggingBoundValues() throws Exception {
-        assertDatabaseFailureDiagnostics("ALTER TABLE arte_ai_conversation_new DROP COLUMN owner_key", "42S22");
+        assertDatabaseFailureDiagnostics("ALTER TABLE arte_ai_conversation_new DROP COLUMN owner_key", "42S22", "countConversations", "owner_key=?");
     }
 
-    private void assertDatabaseFailureDiagnostics(String faultSql, String expectedSqlState) throws Exception {
+    @Test
+    public void diagnosticsIdentifySnapshotColumnFailureAfterCountSucceeds() throws Exception {
+        createId("snapshot column", "create-snapshot");
+        assertDatabaseFailureDiagnostics("ALTER TABLE arte_ai_conversation_new DROP COLUMN workspace_snapshot",
+                "42S22", "conversationSnapshots", "SELECT workspace_snapshot");
+    }
+
+    private void assertDatabaseFailureDiagnostics(String faultSql, String expectedSqlState,
+                                                  String statement, String sqlFragment) throws Exception {
         var events = new java.util.concurrent.CopyOnWriteArrayList<org.apache.logging.log4j.core.LogEvent>();
         var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("conversation-diagnostics", null, null, false,
                 org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
@@ -141,14 +149,14 @@ public class ConversationHttpIntegrationTest {
             jdbc.execute(faultSql);
             var result = send(post(ROOT + "listConversations")
                     .header("Authorization", "Bearer debug-test-secret").header("Idempotency-Key", "private-debug-key")
-                    .content("{" + SCOPE + ",\"page\":{\"current\":2,\"size\":5}}"), 500);
+                    .content("{" + SCOPE + ",\"page\":{\"current\":1,\"size\":5}}"), 500);
             var context = (ConversationRequestDiagnostics) result.getRequest().getAttribute(ConversationRequestDiagnostics.ATTRIBUTE);
             assertNotNull(context);
             assertEquals("listConversations", context.operation());
             assertEquals("tenant", context.tenantId());
             assertEquals("workspace", context.workspaceId());
             assertEquals("alice-id", context.subjectId());
-            assertEquals(Long.valueOf(2), context.current());
+            assertEquals(Long.valueOf(1), context.current());
             assertEquals(Long.valueOf(5), context.size());
             assertNotNull(context.traceId());
             assertNotNull(context.executionId());
@@ -159,8 +167,8 @@ public class ConversationHttpIntegrationTest {
             assertTrue(failure.getMessage().getFormattedMessage().contains("sqlState=" + expectedSqlState));
             var sqlFailure = events.stream().map(event -> event.getMessage().getFormattedMessage())
                     .filter(message -> message.startsWith("New AI SQL failed")).findFirst().orElseThrow();
-            assertTrue(sqlFailure, sqlFailure.contains("AdmissionMapper.countConversations"));
-            assertTrue(sqlFailure, sqlFailure.contains("owner_key=?"));
+            assertTrue(sqlFailure, sqlFailure.contains("AdmissionMapper." + statement));
+            assertTrue(sqlFailure, sqlFailure.contains(sqlFragment));
             assertTrue(sqlFailure, sqlFailure.contains("sqlState=" + expectedSqlState));
             assertTrue(events.stream().anyMatch(event -> event.getMessage().getFormattedMessage().contains("AI conversation query failed, operation=listConversations, traceId=" + context.traceId())));
             var messages = events.stream().map(event -> event.getMessage().getFormattedMessage()).toList().toString();
@@ -328,7 +336,7 @@ public class ConversationHttpIntegrationTest {
             var turn = new Turn("turn-" + sequence, "ordered", sequence, null, null,
                     new ChatMessage("message-" + sequence, ChatMessage.Role.USER, List.of(new ChatMessage.Text("text-" + sequence)), List.of(), null),
                     List.of(), null, 0, now, now);
-            jdbc.update("INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,snapshot) VALUES(?,?,?,?)",
+            jdbc.update("INSERT INTO arte_ai_turn(id_key,conversation_key,sequence_no,workspace_snapshot) VALUES(?,?,?,?)",
                     UUID.randomUUID().toString(), key, sequence, fixture.codec.encode(turn));
         }
         var page = new PageParam();

@@ -1,6 +1,7 @@
 package com.arte.ainew.persistence;
 
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
+import com.arte.ainew.persistence.mybatis.ExecutionSqlDiagnostics;
 import com.arte.ainew.persistence.mybatis.ExecutionSqlSessionFactory;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.mapper.BudgetMapper;
@@ -58,7 +59,9 @@ public class ExecutionSqlSessionFactoryTest {
         var config=ExecutionSqlSessionFactory.create(dataSource).getConfiguration();
         assertSame(dataSource,config.getEnvironment().getDataSource());
         assertTrue(config.getEnvironment().getTransactionFactory() instanceof SpringManagedTransactionFactory);
-        assertTrue(config.getInterceptors().isEmpty());
+        assertEquals(1, config.getInterceptors().size());
+        assertTrue(config.getInterceptors().getFirst() instanceof ExecutionSqlDiagnostics);
+        assertEquals(org.apache.ibatis.logging.nologging.NoLoggingImpl.class, config.getLogImpl());
         assertFalse(config.isCacheEnabled());
         assertEquals(LocalCacheScope.STATEMENT,config.getLocalCacheScope());
         assertEquals(ExecutorType.SIMPLE,config.getDefaultExecutorType());

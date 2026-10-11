@@ -13,12 +13,12 @@ public interface PayloadMapper {
     PayloadRow context(@Param("idKey") String idKey);
 
     int insertContext(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey,
-                      @Param("digest") String digest, @Param("snapshot") String snapshot);
+                      @Param("digest") String digest, @Param("workspaceSnapshot") String workspaceSnapshot);
 
     PayloadRow result(@Param("idKey") String idKey);
 
     int insertResult(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey,
                      @Param("invocationKey") String invocationKey, @Param("attemptKey") String attemptKey,
                      @Param("resultKey") String resultKey, @Param("resultType") String resultType,
-                     @Param("partial") int partial, @Param("digest") String digest, @Param("snapshot") String snapshot);
+                     @Param("partial") int partial, @Param("digest") String digest, @Param("workspaceSnapshot") String workspaceSnapshot);
 }

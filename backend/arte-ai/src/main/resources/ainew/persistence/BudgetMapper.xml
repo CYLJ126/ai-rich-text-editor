@@ -9,13 +9,13 @@
     </resultMap>
     <insert id="insertAccount">
         INSERT INTO arte_ai_account(id_key,owner_key,workspace_snapshot) VALUES
-        (#{idKey},#{ownerKey},#{workspace_snapshot})
+        (#{idKey},#{ownerKey},#{workspaceSnapshot})
     </insert>
     <update id="saveAccount">
-        UPDATE arte_ai_account SET workspace_snapshot=#{workspace_snapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_account SET workspace_snapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
     </update>
     <update id="saveReservation">
-        UPDATE arte_ai_reservation SET workspace_snapshot=#{workspace_snapshot} WHERE id_key=#{idKey}
+        UPDATE arte_ai_reservation SET workspace_snapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
     </update>
     <select id="reservationForAttempt" resultType="java.lang.String" useCache="false">
         SELECT workspace_snapshot FROM arte_ai_reservation WHERE attempt_key=#{attemptKey} AND
@@ -23,7 +23,7 @@
     </select>
     <insert id="insertReservation">
         INSERT INTO arte_ai_reservation(id_key,account_key,invocation_key,attempt_key,workspace_snapshot) VALUES
-        (#{idKey},#{accountKey},#{invocationKey},#{attemptKey},#{workspace_snapshot})
+        (#{idKey},#{accountKey},#{invocationKey},#{attemptKey},#{workspaceSnapshot})
     </insert>
     <select id="settlement" resultMap="SettlementRow" useCache="false">
         SELECT digest,result_snapshot FROM arte_ai_settlement WHERE reservation_key=#{reservationKey} AND settlement_key=#{settlementKey}
@@ -32,7 +32,7 @@
         INSERT INTO
         arte_ai_settlement(reservation_key,settlement_key,digest,workspace_snapshot,result_snapshot,evidence_kind,evidence_ref)
         VALUES
-        (#{reservationKey},#{settlementKey},#{digest},#{workspace_snapshot},#{resultSnapshot},#{evidenceKind},#{evidenceRef})
+        (#{reservationKey},#{settlementKey},#{digest},#{workspaceSnapshot},#{resultSnapshot},#{evidenceKind},#{evidenceRef})
     </insert>
     <select id="accountSnapshot" resultType="java.lang.String" useCache="false">
         SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=#{idKey}

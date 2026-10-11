@@ -1,8 +1,9 @@
 -- 新 AI 独立存储表：由部署流程显式执行，不在应用启动时执行。
 -- 表名统一使用 arte_ai_ 前缀；连接及数据库时区统一 UTC，所有表使用 InnoDB。
--- 不添加 @MybatisParams 注解，因为 ExecutionSqlSessionFactory 中并未添加拦截器。
+-- 独立工厂只注册 SQL 诊断拦截器，不继承旧业务 MyBatis-Plus 插件。
 -- 新存储会话表使用 arte_ai_conversation_new，与旧 arte_ai_conversation 表隔离。TODO：改造完后去掉 _new 后缀。
 -- *_key 为 UTF-8 长度前缀编码的 SHA-256；workspace_snapshot 为 schemaVersion=1 的内部 JSON 快照。
+-- 对应 Java 字段／Mapper 参数使用 workspaceSnapshot；快照内容随各表对象而定，不代表公共空间实体快照。
 
 create table arte_ai_lock
 (

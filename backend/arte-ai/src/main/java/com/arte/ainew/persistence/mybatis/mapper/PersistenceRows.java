@@ -16,8 +16,11 @@ public final class PersistenceRows {
 
     public record ConversationCreationRow(String requestDigest, String conversationKey) { }
 
+    /**
+     * workspaceSnapshot 对应 workspace_snapshot 列的 JSON 字节，内容为上下文或专有结果快照。
+     */
     public record PayloadRow(String ownerKey, String invocationKey, String attemptKey, String resultType,
-                             int schemaVersion, int partial, String payloadDigest, String snapshot) { }
+                             int schemaVersion, int partial, String payloadDigest, String workspaceSnapshot) { }
 
     public record ConversationGateRow(long versionNo, String activeInvocation) {
     }

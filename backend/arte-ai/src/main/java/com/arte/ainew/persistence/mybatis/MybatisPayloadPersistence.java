@@ -79,19 +79,19 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
 
     private void integrity(PayloadRow row) {
         if (row.schemaVersion() != 1 || row.partial() < 0 || row.partial() > 1
-                || !row.payloadDigest().equals(CanonicalJson.sha256(row.snapshot()))) {
+                || !row.payloadDigest().equals(CanonicalJson.sha256(row.workspaceSnapshot()))) {
             throw new IllegalStateException("Payload integrity verification failed");
         }
     }
 
     @Override
-    public Mono<StoreOutcome<ContextSnapshot>> put(ExecutionOwner owner, ContextSnapshot snapshot) {
+    public Mono<StoreOutcome<ContextSnapshot>> put(ExecutionOwner owner, ContextSnapshot workspaceSnapshot) {
         var ownerId = ownerKey(owner);
-        Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(workspaceSnapshot, "workspaceSnapshot");
         return tx(() -> {
-            var id = key(ownerId, snapshot.snapshotId());
+            var id = key(ownerId, workspaceSnapshot.snapshotId());
             lock(key("context-payload", id));
-            var encoded = bytes(snapshot);
+            var encoded = bytes(workspaceSnapshot);
             var digest = CanonicalJson.sha256(encoded);
             var existing = payloadMapper.context(id);
             if (existing != null) {
@@ -99,10 +99,10 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
                 if (!ownerId.equals(existing.ownerKey()) || !digest.equals(existing.payloadDigest())) {
                     return StoreOutcome.rejected(IDEMPOTENCY_CONFLICT);
                 }
-                return StoreOutcome.replayed(executionRecordCodec.decode(existing.snapshot(), ContextSnapshot.class));
+                return StoreOutcome.replayed(executionRecordCodec.decode(existing.workspaceSnapshot(), ContextSnapshot.class));
             }
             payloadMapper.insertContext(id, ownerId, digest, encoded);
-            return StoreOutcome.applied(snapshot);
+            return StoreOutcome.applied(workspaceSnapshot);
         });
     }
 
@@ -116,11 +116,11 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
                 return null;
             }
             integrity(row);
-            var snapshot = executionRecordCodec.decode(row.snapshot(), ContextSnapshot.class);
-            if (!snapshot.snapshotId().equals(snapshotId)) {
+            var workspaceSnapshot = executionRecordCodec.decode(row.workspaceSnapshot(), ContextSnapshot.class);
+            if (!workspaceSnapshot.snapshotId().equals(snapshotId)) {
                 throw new IllegalStateException("Snapshot identity mismatch");
             }
-            return snapshot;
+            return workspaceSnapshot;
         });
     }
 
@@ -183,7 +183,7 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
             if (!reference.equals(reference(reference.resultId(), row))) {
                 throw new IllegalStateException("Result reference mismatch");
             }
-            var value = executionRecordCodec.decode(row.snapshot(), InvocationResult.class);
+            var value = executionRecordCodec.decode(row.workspaceSnapshot(), InvocationResult.class);
             if (!type(value).equals(reference.resultType()) || partial(value) != reference.partial()) {
                 throw new IllegalStateException("Result type or completeness mismatch");
             }

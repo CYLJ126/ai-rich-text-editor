@@ -21,7 +21,7 @@ public interface AdmissionMapper {
             @Param("idKey") String idKey,
             @Param("ownerKey") String ownerKey,
             @Param("versionNo") long versionNo,
-            @Param("snapshot") String snapshot);
+            @Param("workspaceSnapshot") String workspaceSnapshot);
 
     ConversationGateRow conversationGate(@Param("idKey") String idKey);
 
@@ -33,14 +33,14 @@ public interface AdmissionMapper {
             @Param("idKey") String idKey,
             @Param("conversationKey") String conversationKey,
             @Param("sequenceNo") long sequenceNo,
-            @Param("snapshot") String snapshot);
+            @Param("workspaceSnapshot") String workspaceSnapshot);
 
-    int saveTurn(@Param("snapshot") String snapshot, @Param("idKey") String idKey);
+    int saveTurn(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);
 
     int advanceConversation(
             @Param("versionNo") long versionNo,
             @Param("activeInvocation") String activeInvocation,
-            @Param("snapshot") String snapshot,
+            @Param("workspaceSnapshot") String workspaceSnapshot,
             @Param("idKey") String idKey);
 
     int releaseConversation(@Param("idKey") String idKey, @Param("activeInvocation") String activeInvocation);

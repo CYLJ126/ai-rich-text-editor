@@ -68,6 +68,16 @@ discardThrough 仅裁剪已知终态、已确认发布的历史，并耐久保�
 
 ## 5. 显式装配与部署
 
+快照数据库列统一为 `workspace_snapshot`，对应 Java 字段／Mapper 参数名为 `workspaceSnapshot`、XML 值占位符为
+`#{workspaceSnapshot}`。这是存储命名约定：实际内容仍是各表的调用、尝试、会话、预算、事件或结果对象快照，不表示公共空间实体快照。已有库若
+`arte_ai_settlement` 仍使用 `snapshot` 列，在发布新版 Mapper
+时显式执行 [结算快照列名迁移](scripts/arte-ai-new-settlement-snapshot-migration.sql)。该脚本仅重命名列，保留
+JSON、账本与原回执；新建库或已迁移库跳过，运行时不自动执行。2026-10-11 已只读核对当前应用配置连接的数据库，仍发现结算表使用旧
+`snapshot`，其余 9 张快照表使用 `workspace_snapshot`；未对其执行 DDL。
+
+`result_snapshot`／`resultSnapshot` 单独保存幂等操作的首次返回回执，沿用独立名称。`ContextSnapshot`、`snapshotId` 和编码协议的
+`context-snapshot` 类型别名保持原义；重命名存储参数与数据库投影不改变已有 JSON 的字段、类型别名或 schemaVersion。
+
 目标数据库为 MySQL 8，全部新表使用 InnoDB。`scripts/arte-ai-new-ddl-mysql.sql` 提供建表与索引 DDL，按既有脚本风格声明字段、约束、索引及中文注释。表名、约束名及索引名统一使用 `arte_ai_*` 命名；新存储会话表使用 `arte_ai_conversation_new`，避免与旧会话表重名。脚本由部署流程显式执行，不放入运行时 classpath、不随应用启动执行；Maven 仅将它复制为测试资源，测试通过 ResourceDatabasePopulator 显式初始化临时 H2 数据库。该脚本用于首次建表，不能在已有同名表的数据库上重复执行。若此前已手动创建其他前缀的执行存储表，须通过独立迁移处理表名及已有数据，再使用新 Mapper。`arte_ai_conversation_new` 与旧 `arte_ai_conversation` 使用不同表名及数据结构，新旧实现可以在同库中分别使用各自表；不能直接复用旧会话表。此脚本不包含删除、覆盖或迁移旧表的操作。本轮未修改任何实际数据库。
 
 ```java

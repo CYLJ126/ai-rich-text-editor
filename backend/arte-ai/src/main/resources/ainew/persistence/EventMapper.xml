@@ -5,7 +5,7 @@
         SELECT next_sequence FROM arte_ai_invocation WHERE id_key=#{idKey}
     </select>
     <insert id="insertEvent">
-        INSERT INTO arte_ai_event(invocation_key,sequence_no,workspaceSnapshot) VALUES
+        INSERT INTO arte_ai_event(invocation_key,sequence_no,workspace_snapshot) VALUES
         (#{invocationKey},#{sequenceNo},#{workspaceSnapshot})
     </insert>
     <update id="saveNextSequence">

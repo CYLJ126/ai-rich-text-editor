@@ -308,7 +308,7 @@ public class BudgetHttpIntegrationTest {
                 new BudgetCommands.Account(original.budgetRef(), original.owner(), new Money(original.limit().amount(), Currency.getInstance("USD")),
                         new Money(original.held().amount(), Currency.getInstance("USD")), new Money(original.charged().amount(), Currency.getInstance("USD")), original.rateVersion(), 1));
         for (var account : changed) {
-            jdbc.update("UPDATE arte_ai_account SET snapshot=? WHERE id_key=?", fixture.codec.encode(account), CanonicalJson.key("alice-budget"));
+            jdbc.update("UPDATE arte_ai_account SET workspace_snapshot=? WHERE id_key=?", fixture.codec.encode(account), CanonicalJson.key("alice-budget"));
             var failure = send(query("alice-budget"), 400);
             assertEquals(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT.getCode(), failure.path("code").asString());
             assertEquals(account, account());

@@ -145,12 +145,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         system.lock(key);
     }
 
-    private <T> T snapshot(String encoded, Class<T> type) {
+    private <T> T workspaceSnapshot(String encoded, Class<T> type) {
         return encoded == null ? null : codec.decode(encoded, type);
     }
 
     private Invocation invocation(Version version) {
-        var invocation = snapshot(execution.invocationSnapshot(hash(version.invocationId()), true), Invocation.class);
+        var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(version.invocationId()), true), Invocation.class);
         require(invocation != null, NOT_FOUND);
         require(ExecutionOwner.from(invocation.request().context()).equals(version.owner()), OWNER_MISMATCH);
         return invocation;
@@ -161,7 +161,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private Attempt attempt(Invocation invocation, String attemptId, long expectedVersion) {
-        var attempt = snapshot(execution.attemptSnapshot(hash(attemptId), true), Attempt.class);
+        var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(attemptId), true), Attempt.class);
         require(attempt != null && attempt.invocationId().equals(id(invocation)), NOT_FOUND);
         require(attempt.attemptId().equals(invocation.activeAttemptId()), LEASE_LOST);
         require(attempt.version() == expectedVersion, VERSION_CONFLICT);
@@ -226,7 +226,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var existing = admission.conversationCreation(owner, key);
             if (existing != null) {
                 require(existing.requestDigest().equals(requestDigest), IDEMPOTENCY_CONFLICT);
-                var original = snapshot(admission.conversationSnapshot(existing.conversationKey(), false), Conversation.class);
+                var original = workspaceSnapshot(admission.conversationSnapshot(existing.conversationKey(), false), Conversation.class);
                 require(original != null && original.owner().equals(conversation.owner()), NOT_FOUND);
                 return StoreOutcome.replayed(original);
             }
@@ -244,7 +244,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return tx(() -> {
             var records = execution.acceptance(hash(ownerKey(owner), capabilityId), hash(idempotencyKey));
             if (records.isEmpty()) { return null; }
-            var original = snapshot(execution.invocationSnapshot(records.getFirst().invocationKey(), false), Invocation.class);
+            var original = workspaceSnapshot(execution.invocationSnapshot(records.getFirst().invocationKey(), false), Invocation.class);
             if (original == null || !ExecutionOwner.from(original.request().context()).equals(owner)) {
                 throw new IllegalStateException("Broken acceptance record");
             }
@@ -268,7 +268,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(conversationId, "conversationId");
         return tx(() -> {
-            var conversation = snapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
             return conversation != null && conversation.owner().equals(owner) ? conversation : null;
         });
     }
@@ -299,7 +299,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return outcome(() -> {
             var key = hash(conversationId);
             // 与 accept 的会话锁一致；版本检查和本页轮次读取期间不能插入新轮次。
-            var conversation = snapshot(admission.conversationSnapshot(key, true), Conversation.class);
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(key, true), Conversation.class);
             require(conversation != null && conversation.owner().equals(owner), NOT_FOUND);
             require(conversation.version() == expectedVersion, VERSION_CONFLICT);
             long total = admission.countTurns(key);
@@ -325,7 +325,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     @Override
     public Mono<Long> nextTurnSequence(ExecutionOwner owner, String conversationId) {
         return tx(() -> {
-            var conversation = snapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
             if (conversation == null || !conversation.owner().equals(owner)) return null;
             return Math.addExact(admission.maximumTurnSequence(hash(conversationId)), 1);
         });
@@ -337,11 +337,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         ContractChecks.id(conversationId, "conversationId");
         ContractChecks.id(turnId, "turnId");
         return tx(() -> {
-            var conversation = snapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
             if (conversation == null || !conversation.owner().equals(owner)) {
                 return null;
             }
-            var turn = snapshot(admission.turnSnapshot(hash(turnId), false), com.arte.ainew.pojo.conversation.Turn.class);
+            var turn = workspaceSnapshot(admission.turnSnapshot(hash(turnId), false), com.arte.ainew.pojo.conversation.Turn.class);
             return turn != null && turn.conversationId().equals(conversationId) ? turn : null;
         });
     }
@@ -359,14 +359,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var existing = execution.acceptance(scope, key);
             if (!existing.isEmpty()) {
                 require(candidate.requestDigest().equals(existing.getFirst().requestDigest()), IDEMPOTENCY_CONFLICT);
-                return StoreOutcome.replayed(snapshot(execution.invocationSnapshot(existing.getFirst().invocationKey(), false), Invocation.class));
+                return StoreOutcome.replayed(workspaceSnapshot(execution.invocationSnapshot(existing.getFirst().invocationKey(), false), Invocation.class));
             }
             require(candidate.request().options().deadline().isAfter(now()), INVALID_STATE);
             lock(hash("invocation-id", id(candidate)));
-            require(snapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
+            require(workspaceSnapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
             var link = candidate.conversation();
             if (link != null) {
-                var conversation = snapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
+                var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
                 require(conversation != null, NOT_FOUND);
                 require(conversation.owner().equals(owner), OWNER_MISMATCH);
                 require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
@@ -374,7 +374,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
                 if (row.activeInvocation() != null) {
                     // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
-                    var stopped = snapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
+                    var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
                     require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
                             && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
                             && userStoppedGeneration(stopped), CONVERSATION_BUSY);
@@ -382,7 +382,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 }
                 var turn = command.turn();
                 lock(hash("turn-id", turn.turnId()));
-                var oldTurn = snapshot(admission.turnSnapshot(hash(turn.turnId()), true), com.arte.ainew.pojo.conversation.Turn.class);
+                var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), com.arte.ainew.pojo.conversation.Turn.class);
                 if (oldTurn == null) {
                     require(candidate.replacesInvocationId() == null, INVALID_STATE);
                     require(turn.version() == 0 && turn.selectedInvocationId() == null
@@ -395,7 +395,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     require(candidate.replacesInvocationId() != null
                             && oldTurn.invocationIds().contains(candidate.replacesInvocationId())
                             && oldTurn.sequence() == admission.maximumTurnSequence(hash(link.conversationId())), INVALID_STATE);
-                    var source = snapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
+                    var source = workspaceSnapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
                     require(source != null && ExecutionOwner.from(source.request().context()).equals(owner)
                                     && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
                                     && source.conversation().conversationId().equals(link.conversationId())
@@ -439,7 +439,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(invocationId, "invocationId");
         return tx(() -> {
-            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
             return invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner) ? invocation : null;
         });
     }
@@ -450,11 +450,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         ContractChecks.id(invocationId, "invocationId");
         ContractChecks.id(attemptId, "attemptId");
         return tx(() -> {
-            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
             if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) {
                 return null;
             }
-            var attempt = snapshot(execution.attemptSnapshot(hash(attemptId), false), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(attemptId), false), Attempt.class);
             return attempt != null && attempt.invocationId().equals(invocationId) ? attempt : null;
         });
     }
@@ -467,7 +467,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
             require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
             if (invocation.activeAttemptId() != null) {
-                var previous = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
                 require(previous.state() == Attempt.State.FAILED || previous.state() == Attempt.State.TIMED_OUT
                         || previous.state() == Attempt.State.INTERRUPTED, INVALID_STATE);
                 require(previous.error().retryable() && previous.error().certainty() == ExecutionError.Certainty.KNOWN
@@ -475,15 +475,15 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                         || previous.error().sideEffect() == ExecutionError.SideEffect.NONE), RECONCILIATION_REQUIRED);
             }
             if (invocation.state() == Invocation.State.QUEUED && invocation.activeAttemptId() != null) {
-                var previous = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
                 require(safelyRejected(previous) && event.writtenBytes(hash(id(invocation))) == 0, RECONCILIATION_REQUIRED);
                 if (previous.budgetReservationId() != null) {
-                    var reservation = snapshot(budget.reservationSnapshot(hash(previous.budgetReservationId()), true), BudgetReservation.class);
+                    var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(previous.budgetReservationId()), true), BudgetReservation.class);
                     require(reservation != null && reservation.state() == BudgetReservation.State.RELEASED, RECONCILIATION_REQUIRED);
                 }
             }
             lock(hash("attempt-id", command.attemptId()));
-            require(snapshot(execution.attemptSnapshot(hash(command.attemptId()), false), Attempt.class) == null, IDEMPOTENCY_CONFLICT);
+            require(workspaceSnapshot(execution.attemptSnapshot(hash(command.attemptId()), false), Attempt.class) == null, IDEMPOTENCY_CONFLICT);
             var counters = execution.attemptCounters(hash(id(invocation)));
             int number = counters.nextAttempt() + 1;
             require(number <= invocation.request().options().maxAttempts(), INVALID_STATE);
@@ -551,7 +551,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
             if (invocation.request().context().budgetRef() != null) {
                 require(attempt.budgetReservationId() != null, INSUFFICIENT_BUDGET);
-                var reservation = snapshot(budget.reservationSnapshot(hash(attempt.budgetReservationId()), true), BudgetReservation.class);
+                var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(attempt.budgetReservationId()), true), BudgetReservation.class);
                 require(reservation != null && reservation.state() == BudgetReservation.State.RESERVED
                         && reservation.expiresAt().isAfter(now()), INSUFFICIENT_BUDGET);
             }
@@ -579,7 +579,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(request, "request");
         return outcome(() -> {
-            var invocation = snapshot(execution.invocationSnapshot(hash(request.invocationId()), true), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(request.invocationId()), true), Invocation.class);
             // 不存在和不属于当前主体均返回 NOT_FOUND，不泄露其他主体的执行记录。
             require(invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner), NOT_FOUND);
             var key = hash("control", request.command().name(), request.commandKey());
@@ -598,7 +598,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 // 固定标记不随 CONTROL 事件裁剪消失；其他实例和重启后的 Worker 均可读取。
                 execution.insertCompletion(hash(id(invocation)), CANCEL_REQUEST_KEY, digest, control.sequence(), 1, codec.encode(receipt));
                 var attempt = invocation.activeAttemptId() == null ? null
-                        : snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                        : workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
                 if (attempt == null || attempt.dispatch() == Attempt.Dispatch.NOT_STARTED || safelyRejected(attempt)) {
                     var error = new ExecutionError("INVOCATION_CANCELLED", ExecutionError.Phase.INVOCATION, false,
                             ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, invocation.request().context().traceId());
@@ -627,7 +627,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var invocation = invocation(target);
             version(invocation, target);
             require(!invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
-            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
             boolean uncertain = attempt.dispatch() != Attempt.Dispatch.NOT_STARTED;
             var cancelled = operation(invocation, CANCEL_REQUEST_KEY) != null;
@@ -706,7 +706,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     @Override
     public Mono<Instant> retryNotBefore(ExecutionOwner owner, String invocationId, String attemptId) {
         return tx(() -> {
-            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
             if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
             var schedule = operation(invocation, operationKey("retry-schedule", attemptId));
             return schedule == null ? null : codec.decode(schedule.resultSnapshot(), RetrySchedule.class).notBefore();
@@ -738,7 +738,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var invocation = invocation(target);
             version(invocation, target);
             require(!invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
-            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
             require(attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
                     && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), RECONCILIATION_REQUIRED);
@@ -766,7 +766,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
                     && (terminal.state() == Invocation.State.FAILED || terminal.state() == Invocation.State.TIMED_OUT
                     || terminal.state() == Invocation.State.CANCELLED), INVALID_STATE);
-            var attempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(safelyRejected(attempt), RECONCILIATION_REQUIRED);
             // 保留已失败 Attempt 的原证据，不能把供应商拒绝改写成未知取消。
             var completed = state(invocation, terminal.state(), attempt.attemptId(), null, terminal.error());
@@ -850,9 +850,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                             && row.ownerKey().equals(ownerKey(command.guard().invocation().owner()))
                             && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
                             && row.schemaVersion() == ref.schemaVersion() && row.payloadDigest().equals(ref.contentDigest())
-                            && row.payloadDigest().equals(com.arte.ainew.serialization.CanonicalJson.sha256(row.snapshot()));
+                            && row.payloadDigest().equals(com.arte.ainew.serialization.CanonicalJson.sha256(row.workspaceSnapshot()));
                     if (verifiedOutput) {
-                        var value = codec.decode(row.snapshot(), InvocationResult.class);
+                        var value = codec.decode(row.workspaceSnapshot(), InvocationResult.class);
                         verifiedOutput = value instanceof InvocationResult.Generation generation && !generation.value().complete()
                                 && generation.value().usage().equals(command.usage());
                     }
@@ -882,8 +882,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private void selectCompletedCandidate(Invocation completed) {
         var link = completed.conversation();
         // 与 accept 相同顺序：先会话，再轮次；完整成功后才替换历史中采用的答案。
-        var conversation = snapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
-        var turn = snapshot(admission.turnSnapshot(hash(link.turnId()), true), Turn.class);
+        var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
+        var turn = workspaceSnapshot(admission.turnSnapshot(hash(link.turnId()), true), Turn.class);
         require(turn != null && turn.invocationIds().getLast().equals(id(completed)), INVALID_STATE);
         admission.saveTurn(codec.encode(new Turn(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), turn.invocationIds(), id(completed), turn.version() + 1,
@@ -1152,7 +1152,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(budgetRef, "budgetRef");
         return tx(() -> {
-            var account = snapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
+            var account = workspaceSnapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
             return account != null && account.owner().equals(owner) ? account : null;
         });
     }
@@ -1162,11 +1162,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(reservationId, "reservationId");
         return tx(() -> {
-            var reservation = snapshot(budget.reservationSnapshot(hash(reservationId), false), BudgetReservation.class);
+            var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(reservationId), false), BudgetReservation.class);
             if (reservation == null) {
                 return null;
             }
-            var invocation = snapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
             return invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner) ? reservation : null;
         });
     }
@@ -1185,7 +1185,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var invocation = invocation(command.guard().invocation());
             var budgetRef = invocation.request().context().budgetRef();
             require(budgetRef != null, NOT_FOUND);
-            var account = snapshot(budget.accountSnapshot(hash(budgetRef), true), BudgetCommands.Account.class);
+            var account = workspaceSnapshot(budget.accountSnapshot(hash(budgetRef), true), BudgetCommands.Account.class);
             require(account != null, NOT_FOUND);
             require(account.owner().equals(command.guard().invocation().owner()), OWNER_MISMATCH);
             var duplicates = budget.reservationForAttempt(hash(command.guard().attemptId()), hash(id(invocation))).stream().map(value -> codec.decode(value, BudgetReservation.class)).toList();
@@ -1205,7 +1205,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(account.rateVersion().equals(command.rateVersion()), RATE_MISMATCH);
             require(account.available().compareTo(command.amount().amount()) >= 0, INSUFFICIENT_BUDGET);
             lock(hash("reservation-id", command.reservationId()));
-            require(snapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class) == null,
+            require(workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class) == null,
                     IDEMPOTENCY_CONFLICT);
             var reservedAt = now();
             var reservation = new BudgetReservation(command.reservationId(), budgetRef, id(invocation), attempt.attemptId(),
@@ -1231,12 +1231,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private StoreOutcome<BudgetReservation> settleLocked(BudgetCommands.Settle command) {
         var settlement = command.settlement();
         // 先只读定位，再按统一顺序锁 Invocation -> Account -> Reservation，避免与预留／发送互锁。
-        var pointer = snapshot(budget.reservationSnapshot(hash(settlement.reservationId()), false), BudgetReservation.class);
+        var pointer = workspaceSnapshot(budget.reservationSnapshot(hash(settlement.reservationId()), false), BudgetReservation.class);
         require(pointer != null, NOT_FOUND);
         var invocation = invocation(new Version(command.owner(), pointer.invocationId(), 0));
-        var account = snapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
+        var account = workspaceSnapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
         require(account != null && account.owner().equals(command.owner()), OWNER_MISMATCH);
-        var reservation = snapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
+        var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
         var key = hash(settlement.settlementKey());
         var digest = hash(codec.encode(settlement), command.evidence().name(), Objects.toString(command.evidenceRef(), ""));
         var previous = budget.settlement(hash(reservation.reservationId()), key);
@@ -1249,11 +1249,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 || reservation.state() == BudgetReservation.State.PENDING_RECONCILIATION, INVALID_STATE);
         require(settlement.charge() == null || settlement.charge().currency().equals(reservation.reserved().currency()), CURRENCY_MISMATCH);
         if (command.evidence() == BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED) {
-            var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
             require(attempt != null && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED, RECONCILIATION_REQUIRED);
         }
         if (command.evidence() == BudgetCommands.Evidence.PROVEN_NO_EXECUTION) {
-            var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(reservation.attemptId()), true), Attempt.class);
             require(attempt != null && safelyRejected(attempt) && event.writtenBytes(hash(id(invocation))) == 0
                     && settlement.state() == BudgetSettlement.State.RELEASED
                     && settlement.charge().amount().signum() == 0, RECONCILIATION_REQUIRED);
@@ -1282,12 +1282,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     public Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(ExecutionOwner owner, String budgetRef, long current, long size) {
         long offset = pageOffset(current, size);
         return tx(() -> {
-            var account = snapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
+            var account = workspaceSnapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
             require(account != null && account.owner().equals(owner), OWNER_MISMATCH);
             var records = budget.pendingSnapshots(hash(budgetRef), ownerKey(owner), size, offset).stream().map(encoded -> {
                 var reservation = codec.decode(encoded, BudgetReservation.class);
-                var invocation = snapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
-                var attempt = snapshot(execution.attemptSnapshot(hash(reservation.attemptId()), false), Attempt.class);
+                var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
+                var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(reservation.attemptId()), false), Attempt.class);
                 return new Reconciliation.Pending(id(invocation), invocation.conversation() == null ? null : invocation.conversation().conversationId(),
                         invocation.state(), invocation.version(), reservation.reservationId(), reservation.version(), reservation.budgetRef(),
                         reservation.reserved(), attempt == null ? null : attempt.remoteRequestId(), invocation.acceptedAt());
@@ -1312,12 +1312,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             version(invocation, new Version(command.owner(), command.invocationId(), command.invocationVersion()));
             require(invocation.request().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION
                     && invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
-            var reservation = snapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class);
+            var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class);
             require(reservation != null && reservation.invocationId().equals(id(invocation))
                     && reservation.attemptId().equals(invocation.activeAttemptId())
                     && reservation.budgetRef().equals(command.budgetRef())
                     && reservation.budgetRef().equals(invocation.request().context().budgetRef()), OWNER_MISMATCH);
-            var recordedAttempt = snapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            var recordedAttempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(recordedAttempt != null && command.reservationId().equals(recordedAttempt.budgetReservationId()), INVALID_STATE);
             long firstSequence = event.nextSequence(hash(id(invocation))) + 1;
             // 实际账单可以高于预留：保留真实费用，余额不足时后续请求由预留入口拒绝。
@@ -1356,7 +1356,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     @Override
     public Mono<Reconciliation.Receipt> reconciliationReceipt(ExecutionOwner owner, String invocationId, String key) {
         return tx(() -> {
-            var invocation = snapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
             if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
             var saved = operation(invocation, operationKey("manual-bill", key));
             return saved == null ? null : codec.decode(saved.resultSnapshot(), Reconciliation.Receipt.class);
