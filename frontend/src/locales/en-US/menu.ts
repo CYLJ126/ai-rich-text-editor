@@ -1,4 +1,6 @@
 export default {
+  'menu.ChatNew': 'AI Chat (New)',
+  'menu.AI.ChatNew': 'AI Chat (New)',
   'menu.HomePage': 'Home Page',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',

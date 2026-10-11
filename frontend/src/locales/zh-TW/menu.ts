@@ -1,4 +1,6 @@
 export default {
+  'menu.ChatNew': 'AI 聊天（新版）',
+  'menu.AI.ChatNew': 'AI 聊天（新版）',
   'menu.HomePage': '首頁',
   'menu.welcome': '歡迎',
   'menu.more-blocks': '更多區塊',
