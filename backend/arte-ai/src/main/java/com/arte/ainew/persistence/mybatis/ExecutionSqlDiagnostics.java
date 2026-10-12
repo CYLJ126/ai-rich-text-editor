@@ -1,5 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
+import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -27,9 +28,14 @@ import java.util.Collection;
 })
 public final class ExecutionSqlDiagnostics implements Interceptor {
 
+    private static final String SYSTEM_MAPPER_PREFIX = SystemMapper.class.getName() + ".";
+
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
         var statement = (MappedStatement) invocation.getArgs()[0];
+        if (statement.getId().startsWith(SYSTEM_MAPPER_PREFIX)) {
+            return invocation.proceed();
+        }
         var started = System.nanoTime();
         String sql = null;
         try {
