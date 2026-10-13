@@ -17,7 +17,11 @@ vi.mock('@umijs/max', () => ({
     }) => messages[id as keyof typeof messages] ?? defaultMessage ?? id
   })
 }));
-vi.mock('@/features/workspace/useWorkspace', () => ({useCurrentWorkspace: () => state.workspace}));
+vi.mock('@/features/workspace/useWorkspace', () => ({
+  useCurrentWorkspace: () => state.workspace,
+  registerWorkspaceGuard: vi.fn(() => () => {
+  })
+}));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button type="button">公共空间选择器</button>}));
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),

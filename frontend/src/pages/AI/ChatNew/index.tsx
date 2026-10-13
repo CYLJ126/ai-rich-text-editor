@@ -2,10 +2,10 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
 import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Splitter, Tabs, Tag} from 'antd';
 import type {AiScope, ChatModelOption, ConversationResponse} from '@/services/arte-ai';
-import {getConversation} from '@/services/arte-ai';
+import {AiApiError, getConversation} from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
-import {useCurrentWorkspace} from '@/features/workspace/useWorkspace';
+import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/ChatConfigurationForm';
 import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/BusinessChatPanel';
@@ -141,10 +141,12 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
     proceed();
   }
 
-  protectRef.current = guard;
-  useEffect(() => () => {
-    protectRef.current = null;
-  }, []);
+  useEffect(() => {
+    protectRef.current = guard;
+    return () => {
+      if (protectRef.current === guard) protectRef.current = null;
+    };
+  }, [guard]);
   const rejectConfiguration: ConfigurationRejected = (request, error) => {
     if (!sameScope(request.scope, workspace.scope)) return;
     if (config && (error.httpStatus === 401 || error.httpStatus === 403 || (request.binding.id === config.bindingId && request.binding.version === config.bindingVersion && request.budgetRef === config.budgetRef))) {
@@ -317,7 +319,12 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
     {optionsState?.id === selectedId && !optionsState.loading && !options.length &&
       <Alert type={optionsState.error ? 'warning' : 'info'}
-             title={optionsState.error ? '当前空间的 AI 配置读取失败或尚未授权。' : '此空间尚无可用 AI 模型或兼容预算。'}
+             title={optionsState.error
+               ? optionsState.error instanceof AiApiError && (optionsState.error.httpStatus === 403 || optionsState.error.code === '205001')
+                 ? '此空间尚未配置 AI 使用能力或当前账号无调用授权。'
+                 : '当前空间的 AI 配置读取失败，请重试。'
+               : '此空间尚无可用 AI 模型或兼容预算。'}
+             description="公共空间不会自动继承其他空间的模型、预算或历史；请在当前范围配置后再发送。"
              action={<Button onClick={() => {
                setPanelOpen(true);
                setTab('models');
@@ -424,21 +431,26 @@ export default function ChatNewPage() {
     state: null
   } : current;
   const previousAccount = useRef(userId);
+  useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
+    if (protect.current) protect.current(proceed); else proceed();
+  }), [userId]);
+  useEffect(() => {
+    const selected = (event: Event) => {
+      if ((event as CustomEvent).detail.userId !== userId) return;
+      removeValue(fixedScopeKey);
+      setLegacy(null);
+    };
+    window.addEventListener('arte-workspace-selected', selected);
+    return () => window.removeEventListener('arte-workspace-selected', selected);
+  }, [userId, fixedScopeKey]);
   useEffect(() => {
     if (previousAccount.current && previousAccount.current !== userId) clearAccountSession(previousAccount.current);
     previousAccount.current = userId;
   }, [userId]);
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
   return <main className="ainew-page" aria-label="AI 聊天（新版）">
-    <header className="ainew-page-header"><WorkspacePicker key={userId} userId={userId}
-                                                           beforeSelect={(_scope, proceed) => {
-                                                             const next = () => {
-                                                               removeValue(fixedScopeKey);
-                                                               setLegacy(null);
-                                                               proceed();
-                                                             };
-                                                             if (protect.current) protect.current(next); else next();
-                                                           }}/><Tag>AI 聊天（新版）</Tag><Button type="text"
+    <header className="ainew-page-header"><WorkspacePicker key={userId} userId={userId}/><Tag>AI 聊天（新版）</Tag><Button
+      type="text"
                                                                                                onClick={() => setConnectionOpen(true)}>连接已有
       AI 工作空间</Button></header>
     {legacy?.userId === userId && <Alert type="info" title="当前使用手动指定的已有 AI scope" description={<>

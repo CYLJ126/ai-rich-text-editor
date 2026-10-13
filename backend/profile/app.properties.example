@@ -94,6 +94,46 @@ spring.ai.mcp.server.name=arte-mcp-server
 spring.ai.mcp.server.endpoint=/mcp
 spring.ai.mcp.server.disallow-delete=true
 
+# ======================== Public platform / workspace ========================
+# Filtered into classpath:platform/config/application.properties, imported by application.yml.
+# Rebuild Maven resources and restart the application after changing these values.
+# First execute arte-platform-identity-ddl-mysql.sql and arte-platform-workspace-ddl-mysql.sql.
+# Test database checked: both platform DDLs exist; zhangsc has id=1 and uses the existing FIXED subject.
+# Recheck these migration values and bindings before using a different database or account.
+arte.platform.identity.enabled=true
+# REQUIRED: the reviewed old-account cutoff recorded at migration; never default this to 0.
+arte.platform.identity.legacy-user-id-ceiling=1798873089
+# REQUIRED: the real arte_rbac_user.id of the configured grants[0].subject-name (not a username).
+arte.platform.identity.bindings[0].user-id=1
+# Preserve the existing FIXED AI subject, budget owner and history; do not generate a replacement.
+arte.platform.identity.bindings[0].subject-id=${arte.ai-new.grants[0].subject-id}
+
+arte.platform.persistence.enabled=true
+arte.platform.persistence.workers=8
+arte.platform.persistence.queue-capacity=128
+arte.platform.persistence.query-timeout-seconds=5
+arte.platform.persistence.transaction-timeout-seconds=15
+arte.platform.persistence.outbox-batch-size=50
+arte.platform.persistence.lease=30s
+arte.platform.persistence.poll-interval=1s
+arte.platform.persistence.retry-delay=5s
+arte.platform.persistence.cursor-ttl=10m
+arte.platform.persistence.redis-prefix=arte:platform:
+# Space CRUD does not require event delivery. Enable when testing Redis Streams / Outbox consumers.
+arte.platform.persistence.outbox-enabled=false
+
+arte.platform.workspace.enabled=true
+# Template for NEW personal tenants only; changing it does not overwrite saved policies.
+arte.platform.workspace.personal-policy.creation-types=article,collection,model,assistant
+arte.platform.workspace.personal-policy.personal-credentials-allowed=true
+# Empty allowlists prohibit these actions; they are not wildcard access or AI FIXED authorization.
+arte.platform.workspace.personal-policy.protocols=
+arte.platform.workspace.personal-policy.providers=
+arte.platform.workspace.personal-policy.destinations=
+arte.platform.workspace.personal-policy.export-types=article,collection
+arte.platform.workspace.personal-policy.egress-types=article,collection
+arte.platform.workspace.personal-policy.share-target-kinds=SUBJECT,SPACE_ROLE,WORKSPACE
+
 # ======================== New AI fixed configuration ========================
 # Maven filters this file into classpath:ainew/config/application.properties.
 # application-ai.yml imports that runtime file; changing this file requires rebuilding resources.
@@ -111,7 +151,7 @@ arte.ai-new.limits.workspaceSnapshot-retention=15m
 
 # Trusted authorization: subject-name must equal Authentication.getName().
 # For a real login, replace the example identity and keep the budget owner in sync.
-arte.ai-new.grants[0].subject-name=example-user
+arte.ai-new.grants[0].subject-name=zhangsc
 arte.ai-new.grants[0].subject-id=example-subject-id
 arte.ai-new.grants[0].principal-kind=USER
 arte.ai-new.grants[0].tenant-id=example-tenant

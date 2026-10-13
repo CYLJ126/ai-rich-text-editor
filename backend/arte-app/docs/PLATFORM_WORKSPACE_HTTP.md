@@ -13,18 +13,18 @@ Controller；关闭时不注册空间 HTTP。Controller 路径为 `/workspace`�
 所有操作为 POST，使用现有登录 Bearer Token。类级 `@PreAuthorize("isAuthenticated()")` 满足现有入口安全扫描；公共服务在数据库工作线程
 重新核验当前账号与目标资格，旧 RBAC 的 admin 不绕过空间授权。
 
-| 完整 URL                                    | 请求体                                                        | 响应                                                   |
-|---------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------|
-| /arte/workspace/initializePersonalWorkspace | 无                                                            | ResultContext<CommandReceipt<PersonalWorkspaceView>>   |
-| /arte/workspace/listAccessibleWorkspaces    | current、size，缺省 1／20，size 最大 100                      | PageView<WorkspaceSummary>，total 仅包含当前可访问空间 |
-| /arte/workspace/getWorkspace                | scope                                                         | ResultContext<WorkspaceView>                           |
-| /arte/workspace/createWorkspace             | tenantId、name、description                                   | ResultContext<CommandReceipt<WorkspaceView>>           |
-| /arte/workspace/renameWorkspace             | scope、expectedVersion、name、description                     | ResultContext<CommandReceipt<WorkspaceView>>           |
-| /arte/workspace/getWorkspacePreference      | 无                                                            | ResultContext<PreferenceView>                          |
-| /arte/workspace/updateWorkspacePreference   | expectedPreferenceVersion、startupScope、lastScope、favorites | ResultContext<CommandReceipt<PreferenceView>>          |
-| /arte/workspace/checkWorkspaceAccess        | scope、resourceType、action                                   | ResultContext<AccessResponse>                          |
-| /arte/workspace/batchCheckWorkspaceAccess   | requests，1～100 项 CheckRequest                              | ResultContext<List<AccessResponse>>，与输入逐项对应    |
-| /arte/workspace/getWorkspaceCommandReceipt  | operationId                                                   | ResultContext<CommandReceipt<?>>，原操作的公开结果     |
+| 完整 URL                                         | 请求体                                                        | 响应                                                   |
+|--------------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------|
+| /arte/workspace/initializePersonalWorkspace      | 无                                                            | ResultContext<CommandReceipt<PersonalWorkspaceView>>   |
+| /arte/workspace/listAccessibleWorkspaces         | current、size，缺省 1／20，size 最大 100                      | PageView<WorkspaceSummary>，total 仅包含当前可访问空间 |
+| /arte/workspace/getWorkspace                     | scope                                                         | ResultContext<WorkspaceView>                           |
+| /arte/workspace/createWorkspace                  | tenantId、name、description                                   | ResultContext<CommandReceipt<WorkspaceView>>           |
+| /arte/workspace/renameWorkspace                  | scope、expectedVersion、name、description                     | ResultContext<CommandReceipt<WorkspaceView>>           |
+| /arte/workspace/getWorkspacePreference           | 无                                                            | ResultContext<PreferenceView>                          |
+| /arte/workspace/updateWorkspacePreference        | expectedPreferenceVersion、startupScope、lastScope、favorites | ResultContext<CommandReceipt<PreferenceView>>          |
+| /arte/workspace/access/checkWorkspaceAccess      | scope、resourceType、action                                   | ResultContext<AccessResponse>                          |
+| /arte/workspace/access/batchCheckWorkspaceAccess | requests，1～100 项 CheckRequest                              | ResultContext<List<AccessResponse>>，与输入逐项对应    |
+| /arte/workspace/getWorkspaceCommandReceipt       | operationId                                                   | ResultContext<CommandReceipt<?>>，原操作的公开结果     |
 
 初始化、创建、改名、偏好更新必须携带 `Idempotency-Key` 请求头。其校验沿用公共 CommandMeta：非空、最长 256、不能包含控制字符或首尾空白。
 操作键由客户端为一次用户意图生成，服务端不得替换；结果不确定时按原键和原业务字段重试。相同键不同业务字段返回 409，不自动换键重发。

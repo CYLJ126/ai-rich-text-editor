@@ -91,7 +91,11 @@ class WorkspaceHttpIntegrationTest {
     }
 
     private MvcResult execute(String operation, String body, String key, Authentication authentication) throws Exception {
-        MockHttpServletRequestBuilder request = post("/workspace/" + operation).contentType(MediaType.APPLICATION_JSON);
+        String prefix = switch (operation) {
+            case "checkWorkspaceAccess", "batchCheckWorkspaceAccess" -> "/workspace/access/";
+            default -> "/workspace/";
+        };
+        MockHttpServletRequestBuilder request = post(prefix + operation).contentType(MediaType.APPLICATION_JSON);
         if (body != null) request.content(body);
         if (key != null) request.header("Idempotency-Key", key);
         if (authentication != null) request.principal(authentication);

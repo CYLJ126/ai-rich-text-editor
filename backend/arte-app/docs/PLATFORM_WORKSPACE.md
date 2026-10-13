@@ -26,6 +26,20 @@ ACL、组织与关闭服务不注册。
 
 ## 启用与默认政策
 
+本地开发配置统一维护在 `backend/profile/app.properties`，模板为 `app.properties.example`。Maven `dev` profile 将公共平台配置过滤到
+`classpath:platform/config/application.properties`，由 app 的 `application.yml` 导入。身份、持久化、空间服务开关、线程池／超时、Redis
+游标／Outbox 和个人政策都在这两份 properties 中维护，不再在 YAML 写死空间开关。
+
+两份 properties 当前已为本地测试库启用三个公共平台开关：旧账号上限为已核对的 `1798873089`，测试账号 `zhangsc` 的真实 ID 为
+`1`。 2026-10-12 只读检查确认该库的 11 张公共平台表已存在，测试账号有效且没有冲突的主体映射；本次不执行 DDL 或身份回填。
+用于其他数据库前必须重新核对 `arte.platform.identity.legacy-user-id-ceiling` 及
+`arte.platform.identity.bindings[0].user-id`；两项留空会在启用身份时拒绝启动。首个绑定的 subject-id 引用现有
+`arte.ai-new.grants[0].subject-id`，保持 FIXED AI 的历史与预算主体一致，不能把用户名填成 user-id。额外账户绑定需同时在
+profile 与运行时过滤模板中增加对应索引字段。
+
+修改后在 `backend` 执行 `mvn -Pdev -pl arte-app -am process-resources` 并重启实际运行的应用。资源构建不执行
+DDL、身份迁移或预算初始化。 公共空间 CRUD 不依赖 Outbox 投递；`outbox-enabled` 默认关闭，测试 Redis Streams 消费链路时另行启用。
+
 先完成身份核对及两批 DDL；沿用第一、二批的配置，然后增加：
 
 ```yaml
