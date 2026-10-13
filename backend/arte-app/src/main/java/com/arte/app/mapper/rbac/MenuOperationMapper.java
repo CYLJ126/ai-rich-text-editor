@@ -1,8 +1,8 @@
 package com.arte.app.mapper.rbac;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.arte.app.pojo.rbac.MenuOperationDto;
 import com.arte.core.annotations.MybatisParams;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**
  * <p>
@@ -12,7 +12,7 @@ import com.arte.core.annotations.MybatisParams;
  * @author zhangsc
  * @since 2025-03-13
  */
-@MybatisParams(value = "arte_rbac_menu", queryFields = {})
+@MybatisParams(value = "arte_rbac_menu_operation", queryFields = {})
 public interface MenuOperationMapper extends BaseMapper<MenuOperationDto> {
 
 }
