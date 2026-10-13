@@ -1,7 +1,7 @@
 # 新 AI 前端接口
 
 本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 JSON POST 接口。页面位于
-`src/pages/AI/Chat`；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
+`src/pages/AI/ChatNew`（旧测试入口仍位于 `src/pages/AI/Chat`）；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
 
 统一从 `@/services/arte-ai` 导入。成功返回 `{ httpStatus, body }`：普通接口使用 `body.data`，分页接口使用 `body.records`、
 `body.current`、`body.size`、`body.total`；`body.code`、`body.desc` 同样保留。HTTP 202 仅表示消息已受理。
@@ -27,21 +27,28 @@ try {
 }
 ```
 
-| 功能         | 导出函数                                             | 响应位置                 |
-|--------------|------------------------------------------------------|--------------------------|
-| 发现聊天配置 | `discoverChatOptions({scope}, options?)`             | `body.data.options`      |
-| 创建会话     | `createConversation(data, idempotencyKey, options?)` | `body.data`              |
-| 会话列表     | `listConversations(data, options?)`                  | `body.records`           |
-| 会话详情     | `getConversation(data, options?)`                    | `body.data`              |
-| 轮次历史     | `queryTurnsOfConversation(data, options?)`           | `body.records`           |
-| 发送文本     | `turnsForChat(data, idempotencyKey, options?)`       | `body.data`，HTTP 202    |
-| 执行状态     | `getInvocationStatus(data, options?)`                | `body.data`              |
-| 执行结果     | `getInvocationResult(data, options?)`                | `body.data.result.value` |
-| 事件重放     | `invocationEvent(data, options?)`                    | `body.data.events`       |
-| 预算快照     | `getBudget(data, options?)`                          | `body.data`              |
+| 功能         | 导出函数                                                                         | 响应位置                        |
+|--------------|----------------------------------------------------------------------------------|---------------------------------|
+| 发现聊天配置 | `discoverChatOptions({scope}, options?)`                                         | `body.data.options`             |
+| 创建会话     | `createConversation(data, idempotencyKey, options?)`                             | `body.data`                     |
+| 会话列表     | `listConversations(data, options?)`                                              | `body.records`                  |
+| 会话详情     | `getConversation(data, options?)`                                                | `body.data`                     |
+| 轮次历史     | `queryTurnsOfConversation(data, options?)`                                       | `body.records`                  |
+| 发送文本     | `turnsForChat(data, idempotencyKey, options?)`                                   | `body.data`，HTTP 202           |
+| 执行状态     | `getInvocationStatus(data, options?)`                                            | `body.data`                     |
+| 执行结果     | `getInvocationResult(data, options?)`                                            | `body.data.result.value`        |
+| 批量快照     | `getInvocationSnapshots({scope, invocationIds, knownResultVersions?}, options?)` | `body.data` 数组，最多 20 个 ID |
+| 合并单条快照 | `getInvocationSnapshot({scope, invocationId, knownResultVersion?}, options?)`    | 单个快照；同轮调度自动组成批次  |
+| 事件重放     | `invocationEvent(data, options?)`                                                | `body.data.events`              |
+| 预算快照     | `getBudget(data, options?)`                                                      | `body.data`                     |
 
 `options` 只接受 `{ signal?: AbortSignal }`，供页面切换会话/卸载时取消请求。封装不自动重试、不自动生成幂等键、不启动轮询、不弹窗。使用
 `skipErrorHandler` 交给页面处理错误，同时全局响应拦截器尊重此标记，避免重复提示。
+
+只读请求按当前 Token、完整 scope 和参数合并进行中的请求，不缓存已完成请求的授权或余额。
+每个使用者独立取消，最后一个退出才中止传输；切换账号后的迟到响应不返回给原使用者。写请求保持各自幂等协议。 快照包含
+`invocationId/status/result/missing`；归属不符与不存在均为 `missing=true`，不泄露其他用户的调用。 只有全部使用者都持有同版本结果时才发送
+`knownResultVersions` 省略字节；状态和本次预算预留仍重新读取。
 
 - 创建及发送使用必填 `Idempotency-Key`；读取接口不需要。范围 `scope` 由后端验证，不能自行声明用户或权限。
 - 历史查询及发送的 `expectedVersion` 从会话详情读取；409/`205030` 表示版本冲突，需要页面刷新详情后决定下一步。
@@ -57,7 +64,8 @@ try {
 
 `watchInvocation({scope, invocationId, afterSequence}, onEvent, {signal, onConnected?, onText?})` 返回持续读取连接的
 Promise。 通知类型为 `{executionId, sequence, kind, text?}`，OUTPUT 的 text 为已落库的文本增量，旧服务端只发指针时缺省。
-成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。
+成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。 聊天 Hook 的回调只登记刷新事实，不等待
+HTTP；连续通知合并，失败事实保留并低频重试。 状态、结果、历史、余额读取由刷新协调器完成，避免 HTTP 查询阻塞文字解码。
 `onText` 接收独立的 `text-delta`：`{executionId, attemptId, offset, text}`，offset 按 UTF-16 计数。 每帧最多 256 个 UTF-16
 字符，没有 SSE id，不推进耐久游标。它是模型预览，可能重复或缺失；页面按偏移合并并由 OUTPUT／终态结果修复。 支持分块 UTF-8、多行
 data、CR/LF、注释心跳、安全 error 帧；单帧最多 8 Mi 个解码字符，以兼容历史大批次的 JSON 转义， 单批 text 和页面累计增量均限

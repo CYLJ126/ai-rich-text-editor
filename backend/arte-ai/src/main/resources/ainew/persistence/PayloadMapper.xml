@@ -32,4 +32,22 @@
         VALUES
         (#{idKey},#{ownerKey},#{invocationKey},#{attemptKey},#{resultKey},#{resultType},1,#{partial},#{digest},#{workspaceSnapshot})
     </insert>
+    <resultMap id="ResultBatchRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$ResultBatchRow">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="attempt_key" javaType="java.lang.String"/>
+            <arg column="result_type" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="_int"/>
+            <arg column="partial" javaType="_int"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="workspace_snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="results" resultMap="ResultBatchRow" useCache="false">
+        SELECT id_key, owner_key, invocation_key, attempt_key, result_type, schema_version, partial, payload_digest,
+        workspace_snapshot FROM arte_ai_result WHERE owner_key=#{ownerKey} AND id_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
 </mapper>

@@ -7,8 +7,7 @@ import {
   type ConversationTurnResponse,
   getBudget,
   getConversation,
-  getInvocationResult,
-  getInvocationStatus,
+  getInvocationSnapshot,
   type InvocationResultResponse,
   type InvocationStatusResponse,
   queryTurnsOfConversation,
@@ -148,6 +147,10 @@ export function useChatSession(
   const invocationReads = useRef(new Map<string, InvocationRead>());
   const historyRevision = useRef(0);
   const historyRead = useRef<HistoryRead | null>(null);
+  const firstHistory = useRef(!!context);
+  const budgetRead = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  const budgetDirty = useRef(false);
+  const budgetKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [stopping, setStopping] = useState(false);
@@ -359,20 +362,16 @@ export function useChatSession(
           let revision: number;
           do {
             revision = invocationRevisions.current.get(id) ?? 0;
-            const {body} = await getInvocationStatus(
-              {scope, invocationId: id},
-              {signal: controller.signal},
-            );
-            if (controller.signal.aborted)
-              throw new DOMException('Aborted', 'AbortError');
-            let result = views.current[id]?.result;
-            if (body.data.resultAvailable && !isActive(body.data) &&
-              (!result || views.current[id]?.status?.version !== body.data.version)) {
-              result = (await getInvocationResult(
-                {scope, invocationId: id},
-                {signal: controller.signal},
-              )).body.data;
-            }
+            const snapshot = await getInvocationSnapshot({
+              scope, invocationId: id,
+              knownResultVersion: views.current[id]?.result ? views.current[id]?.status?.version : undefined
+            }, {signal: controller.signal});
+            if (snapshot.missing || !snapshot.status || snapshot.status.invocationId !== id)
+              throw new Error('Invocation unavailable');
+            const body = {data: snapshot.status};
+            const result = snapshot.result ?? (views.current[id]?.status?.version === body.data.version ? views.current[id]?.result : undefined);
+            if (body.data.resultAvailable && !isActive(body.data) && !result)
+              throw new Error('Committed invocation result unavailable');
             if (controller.signal.aborted || !alive.current)
               throw new DOMException('Aborted', 'AbortError');
             const previous = views.current[id]?.status;
@@ -428,7 +427,7 @@ export function useChatSession(
     if (history) historyRevision.current++;
     await Promise.allSettled([
       ...(history ? [loadHistory()] : []),
-      loadBudget(),
+      loadBudget(true),
     ]);
   }
 
@@ -506,6 +505,58 @@ export function useChatSession(
     };
     // 历史、停止和 SSE 共用同一个状态读取；事件期间的变化由读取循环补查。
     const refresh = refreshOnce;
+    // 通知回调只登记失效事实；HTTP 刷新与 SSE 解码独立，短时间连续通知合并一次。
+    const queued = new Map<string, boolean>();
+    let flushing = false;
+    let scheduled: ReturnType<typeof setTimeout> | null = null;
+    const schedule = (wait = 50) => {
+      if (!valid() || flushing || scheduled || !queued.size) return;
+      scheduled = setTimeout(() => {
+        timers.current.delete(scheduled!);
+        scheduled = null;
+        void flush();
+      }, wait);
+      timers.current.add(scheduled);
+    };
+    const flush = async () => {
+      if (!valid()) return;
+      flushing = true;
+      const work = [...queued];
+      queued.clear();
+      let failed = false;
+      const outcomes = await Promise.allSettled(work.map(([id]) => refresh(id)));
+      if (valid()) {
+        outcomes.forEach((outcome, index) => {
+          if (outcome.status !== 'rejected') return;
+          const [id, budgetChanged] = work[index];
+          queued.set(id, (queued.get(id) ?? false) || budgetChanged);
+          failed = true;
+          setPollError(outcome.reason);
+          if (outcome.reason instanceof AiApiError && [401, 403].includes(outcome.reason.httpStatus)) {
+            controller.abort();
+            if (expiry.current) clearTimeout(expiry.current);
+            setWatching(false);
+          }
+        });
+        if (!failed && work.some(([id, changed]) => changed && views.current[id]?.status && isActive(views.current[id].status)))
+          await loadBudget(true);
+      }
+      flushing = false;
+      // 失败事实留在队列，低频补查；不能因为已处理通知游标而丢掉终态刷新。
+      schedule(failed ? POLL_INTERVAL_MS : 50);
+    };
+    const claimed = new Set<string>();
+    const enqueue = (id: string, budgetChanged: boolean) => {
+      invalidateInvocation(id);
+      // 已有读取立即登记 SSE 使用者，翻页取消历史时不能取消其余使用者仍需要的请求。
+      if (invocationReads.current.has(id) && !claimed.has(id)) {
+        claimed.add(id);
+        void readInvocation(id, controller.signal).catch(() => {
+        }).finally(() => claimed.delete(id));
+      }
+      queued.set(id, (queued.get(id) ?? false) || budgetChanged);
+      schedule();
+    };
     const observe = async (id: string) => {
       while (valid() && watched.current.includes(id)) {
         try {
@@ -544,39 +595,10 @@ export function useChatSession(
                     id,
                     offset + event.text.length,
                   );
-                } else if (event.kind === 'TERMINAL') {
-                  invalidateInvocation(id);
-                  await refresh(id);
-                } else if (
-                  event.kind === 'CONTROL' ||
-                  event.kind === 'STARTED' ||
-                  event.kind === 'BUDGET_CHANGED'
-                ) {
-                  invalidateInvocation(id);
-                  void refresh(id)
-                    .then(async () => {
-                      if (
-                        event.kind === 'BUDGET_CHANGED' &&
-                        valid() &&
-                        views.current[id]?.status &&
-                        isActive(views.current[id].status)
-                      )
-                        await loadBudget();
-                    })
-                    .catch((error) => {
-                      if (!valid()) return;
-                      setPollError(error);
-                      if (
-                        error instanceof AiApiError &&
-                        [401, 403].includes(error.httpStatus)
-                      ) {
-                        controller.abort();
-                        if (expiry.current) clearTimeout(expiry.current);
-                        setWatching(false);
-                      }
-                    });
+                } else if (['TERMINAL', 'CONTROL', 'STARTED', 'BUDGET_CHANGED'].includes(event.kind)) {
+                  enqueue(id, event.kind === 'BUDGET_CHANGED');
                 }
-                // 回调成功后才推进游标，结果读取失败可以重放终态通知。
+                // 登记刷新事实后推进通知游标；失败由队列重试，重连始终先恢复权威状态。
                 if (valid()) cursors.current.set(id, event.sequence);
               },
               {
@@ -615,28 +637,45 @@ export function useChatSession(
     for (const id of watched.current) void observe(id);
   }
 
-  async function loadBudget() {
-    requests.current.budget?.abort();
-    if (!sendingEnabled || !settings.current.budgetRef) {
+  function loadBudget(force = false): Promise<void> {
+    const budgetRef = settings.current.budgetRef;
+    const key = JSON.stringify([scope, budgetRef, sendingEnabled]);
+    if (budgetKey.current !== key) {
+      budgetKey.current = key;
       setBudget(null);
-      return;
+    }
+    if (budgetRead.current?.key === key && !requests.current.budget?.signal.aborted) {
+      if (force) budgetDirty.current = true;
+      return budgetRead.current.promise;
+    }
+    requests.current.budget?.abort();
+    if (!sendingEnabled || !budgetRef) {
+      setBudget(null);
+      return Promise.resolve();
     }
     const controller = new AbortController();
     requests.current.budget = controller;
     setBudgetLoading(true);
     setBudgetError(null);
-    setBudget(null);
-    try {
-      const {body} = await getBudget(
-        {scope, budgetRef: settings.current.budgetRef},
-        {signal: controller.signal},
-      );
-      if (!controller.signal.aborted && alive.current) setBudget(body.data);
-    } catch (error) {
-      if (!controller.signal.aborted && alive.current) setBudgetError(error);
-    } finally {
+    const pending = {
+      key, promise: Promise.resolve().then(async () => {
+        do {
+          budgetDirty.current = false;
+          try {
+            const {body} = await getBudget({scope, budgetRef}, {signal: controller.signal});
+            if (!controller.signal.aborted && alive.current) setBudget(previous =>
+              previous?.budgetRef === body.data.budgetRef && previous.version > body.data.version ? previous : body.data);
+          } catch (error) {
+            if (!controller.signal.aborted && alive.current) setBudgetError(error);
+          }
+        } while (budgetDirty.current && !controller.signal.aborted && alive.current);
+      }).finally(() => {
+        if (budgetRead.current === pending) budgetRead.current = null;
       if (!controller.signal.aborted && alive.current) setBudgetLoading(false);
-    }
+      })
+    };
+    budgetRead.current = pending;
+    return pending.promise;
   }
 
   function loadHistory(requestedPage?: number): Promise<void> {
@@ -660,11 +699,14 @@ export function useChatSession(
   }
 
   async function readHistory(requestedPage: number | undefined, controller: AbortController) {
+    let retriedConflict = false;
     try {
       while (!controller.signal.aborted && alive.current) {
         const revision = historyRevision.current;
         try {
-          const conversation = (
+          const reuseInitial = firstHistory.current;
+          firstHistory.current = false;
+          const conversation = reuseInitial ? initial : (
             await getConversation(
               {scope, conversationId: initial.conversationId},
               {signal: controller.signal},
@@ -698,26 +740,39 @@ export function useChatSession(
             const latest = turn.invocationIds.at(-1);
             return [selected, latest].filter((id): id is string => !!id);
           }), ...Object.entries(views.current).filter(([, view]) => blocksConversation(view.status)).map(([id]) => id)])];
-          const entries = await Promise.all(
-            ids.map(async (id) => {
-              try {
-                return [id, await readInvocation(id, controller.signal)] as const;
-              } catch (error) {
-                return [id, {error}] as const;
-              }
-            }),
-          );
-          if (controller.signal.aborted || !alive.current) return;
-          // 提交或终态发生在查询期间，旧会话版本不能用于下一轮；合并为一次后续刷新。
-          if (revision !== historyRevision.current) continue;
-          metadata.current = conversation;
-          updated.current(conversation);
+          // 先展示问题与已有回答；读取状态仍进行时禁止提交，避免使用尚未核对的会话版本。
           setTurns(history.records);
           setPage(history.current);
           setTotal(history.total);
           if (requestedPage === undefined && ids.length)
             setInvocationId(created.current ?? history.records.at(-1)?.invocationIds.at(-1) ?? null);
-          publish(Object.fromEntries(entries));
+          const entries: [string, InvocationView][] = [];
+          const unread = ids.filter(id => {
+            if (!canReuseInvocation(views.current[id])) return true;
+            entries.push([id, views.current[id]]);
+            return false;
+          });
+          // 最近的回复先补全；每批不超过服务端上限，每批返回立即发布。
+          unread.reverse();
+          for (let offset = 0; offset < unread.length; offset += 20) {
+            await Promise.all(unread.slice(offset, offset + 20).map(async id => {
+              try {
+                entries.push([id, await readInvocation(id, controller.signal)]);
+              } catch (error) {
+                const view = {error};
+                entries.push([id, view]);
+                if (!controller.signal.aborted && alive.current) publish({[id]: view});
+              }
+            }));
+            if (controller.signal.aborted || !alive.current) return;
+            const denied = entries.find(([, view]) => view.error instanceof AiApiError && [401, 403].includes(view.error.httpStatus));
+            if (denied) throw denied[1].error;
+          }
+          if (controller.signal.aborted || !alive.current) return;
+          // 提交或终态发生在查询期间，旧会话版本不能用于下一轮；合并为一次后续刷新。
+          if (revision !== historyRevision.current) continue;
+          metadata.current = conversation;
+          updated.current(conversation);
           for (const [id, view] of entries) {
             if ('status' in view && view.status && !isActive(view.status))
               refreshedTerminalVersions.current.set(id, view.status.version);
@@ -753,6 +808,13 @@ export function useChatSession(
         } catch (error) {
           if (!controller.signal.aborted && alive.current && revision !== historyRevision.current &&
             !(error instanceof AiApiError && [401, 403].includes(error.httpStatus))) continue;
+          if (error instanceof AiApiError && error.httpStatus === 409 && revision === historyRevision.current) {
+            // 已有会话元数据可能在打开期间变化；只允许一次自动恢复，持续冲突交给显式刷新。
+            if (!retriedConflict) {
+              retriedConflict = true;
+              continue;
+            }
+          }
           throw error;
         }
       }
@@ -834,7 +896,7 @@ export function useChatSession(
       setInvocationId(body.data.invocationId);
       created.current = body.data.invocationId;
       watch([body.data.invocationId]);
-      void loadBudget();
+      void loadBudget(true);
       historyRevision.current++;
       void loadHistory();
     } catch (error) {
@@ -857,7 +919,7 @@ export function useChatSession(
             historyRevision.current++;
             void loadHistory();
           }
-          void loadBudget();
+          void loadBudget(true);
         }
       }
     } finally {
@@ -901,7 +963,7 @@ export function useChatSession(
       created.current = body.data.executionId;
       watch([body.data.executionId]);
       historyRevision.current++;
-      void loadBudget();
+      void loadBudget(true);
       void loadHistory();
     } catch (error) {
       if (controller.signal.aborted || !alive.current) return;
@@ -913,7 +975,7 @@ export function useChatSession(
         // 原参数固定；拒绝后重新读取会话和预算，不能自动改为新问题或新配置重发。
         historyRevision.current++;
         void loadHistory();
-        void loadBudget();
+        void loadBudget(true);
       }
     } finally {
       if (!controller.signal.aborted && alive.current) {
@@ -1011,6 +1073,21 @@ export function useChatSession(
   useEffect(() => {
     void loadBudget();
   }, [config, sendingEnabled]);
+
+  useEffect(() => {
+    const updatedBudget = (event: Event) => {
+      if (!alive.current || !sendingEnabled) return;
+      const {scope: owner, account} = (event as CustomEvent<{
+        scope: typeof scope;
+        account: BudgetAccountResponse
+      }>).detail;
+      if (owner.tenantId !== scope.tenantId || owner.workspaceId !== scope.workspaceId || account.budgetRef !== settings.current.budgetRef) return;
+      setBudget(previous => previous?.budgetRef === account.budgetRef && previous.version > account.version ? previous : account);
+      setBudgetError(null);
+    };
+    window.addEventListener('arte-ai-budget-updated', updatedBudget);
+    return () => window.removeEventListener('arte-ai-budget-updated', updatedBudget);
+  }, [config.budgetRef, sendingEnabled]);
 
   useEffect(() => {
     if (context && alive.current && !writeValue(storageKey(context, 'draft', target), draft)) setStorageWarning(STORAGE_WARNING);

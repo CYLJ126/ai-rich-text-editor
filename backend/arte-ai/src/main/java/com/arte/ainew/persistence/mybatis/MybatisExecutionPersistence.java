@@ -44,7 +44,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  * @since 2026/10/4 23:30 ✾
  */
 @Slf4j
-public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionEventStore,
+public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
         ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore {
     private final SystemMapper system;
     private final ExecutionMapper execution;
@@ -55,6 +55,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final DispatchLimitMapper dispatchLimits;
     private final PayloadMapper payload;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate readTransaction;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
 
@@ -78,6 +79,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.payload = sessions.getMapper(PayloadMapper.class);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
+        this.readTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        this.readTransaction.setReadOnly(true);
+        this.readTransaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        this.readTransaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
@@ -432,6 +437,50 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
             return StoreOutcome.applied(accepted);
         });
+    }
+
+    @Override
+    public Mono<List<ExecutionReadStore.Snapshot>> snapshots(ExecutionOwner owner, List<String> invocationIds) {
+        Objects.requireNonNull(owner, "owner");
+        ContractChecks.require(!invocationIds.isEmpty() && invocationIds.size() <= 20, "Batch requires 1 to 20 invocation IDs");
+        invocationIds.forEach(value -> ContractChecks.id(value, "invocationId"));
+        return Mono.fromCallable(() -> {
+            if (Schedulers.isInNonBlockingThread())
+                throw new IllegalStateException("Blocking persistence requires a bounded JDBC worker Scheduler");
+            return readTransaction.execute(status -> {
+                var invocations = execution.invocationSnapshots(ownerKey(owner), invocationIds.stream().distinct().map(MybatisExecutionPersistence::hash).toList())
+                        .stream().map(json -> codec.decode(json, Invocation.class)).toList();
+                var attempts = new java.util.HashMap<String, Attempt>();
+                var keys = invocations.stream().map(Invocation::activeAttemptId).filter(Objects::nonNull).distinct().map(MybatisExecutionPersistence::hash).toList();
+                if (!keys.isEmpty()) execution.attemptSnapshots(keys).forEach(json -> {
+                    var attempt = codec.decode(json, Attempt.class);
+                    attempts.put(attempt.attemptId(), attempt);
+                });
+                var reservations = new java.util.HashMap<String, BudgetReservation>();
+                var reservationKeys = attempts.values().stream().map(Attempt::budgetReservationId).filter(Objects::nonNull).distinct().map(MybatisExecutionPersistence::hash).toList();
+                if (!reservationKeys.isEmpty()) budget.reservationSnapshots(reservationKeys).forEach(json -> {
+                    var reservation = codec.decode(json, BudgetReservation.class);
+                    reservations.put(reservation.reservationId(), reservation);
+                });
+                return invocations.stream().map(invocation -> {
+                    if (!ExecutionOwner.from(invocation.request().context()).equals(owner) || !invocationIds.contains(id(invocation)))
+                        throw new IllegalStateException("Invocation ownership mismatch");
+                    var state = InvocationBudgetState.NOT_RESERVED;
+                    if (invocation.activeAttemptId() != null) {
+                        var attempt = attempts.get(invocation.activeAttemptId());
+                        if (attempt == null || !attempt.invocationId().equals(id(invocation)))
+                            throw new IllegalStateException("Committed attempt is missing or mismatched");
+                        if (attempt.budgetReservationId() != null) {
+                            var reservation = reservations.get(attempt.budgetReservationId());
+                            if (reservation == null || !reservation.invocationId().equals(id(invocation)) || !reservation.attemptId().equals(attempt.attemptId()))
+                                throw new IllegalStateException("Committed reservation is missing or mismatched");
+                            state = InvocationBudgetState.valueOf(reservation.state().name());
+                        }
+                    }
+                    return new ExecutionReadStore.Snapshot(invocation, state);
+                }).toList();
+            });
+        }).subscribeOn(scheduler);
     }
 
     @Override

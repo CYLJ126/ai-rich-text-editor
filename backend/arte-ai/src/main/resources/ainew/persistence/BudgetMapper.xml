@@ -63,4 +63,9 @@
         <include refid="pendingFrom"/>
         ORDER BY r.id_key ASC LIMIT #{limit} OFFSET #{offset}
     </select>
+
+    <select id="reservationSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_reservation WHERE id_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
 </mapper>

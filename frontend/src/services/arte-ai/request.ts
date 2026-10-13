@@ -5,6 +5,66 @@ export interface AiRequestOptions {
   signal?: AbortSignal;
 }
 
+/** 只合并正在进行的读取；完整请求参数和当前登录凭据隔离资源，不缓存授权或余额。 */
+const reads = new Map<string, { controller: AbortController; users: Set<symbol>; promise: Promise<unknown> }>();
+
+function sharedRead<T>(key: string, signal: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  let entry = reads.get(key);
+  if (!entry || entry.controller.signal.aborted) {
+    const controller = new AbortController();
+    const pending = {
+      controller, users: new Set<symbol>(), promise: Promise.resolve().then(() => {
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        return run(controller.signal);
+      })
+    };
+    entry = pending;
+    reads.set(key, pending);
+    void pending.promise.finally(() => {
+      if (reads.get(key) === pending) reads.delete(key);
+    }).catch(() => {
+    });
+  }
+  const pending = entry;
+  return new Promise<T>((resolve, reject) => {
+    const user = Symbol();
+    pending.users.add(user);
+    const detach = () => {
+      signal?.removeEventListener('abort', abort);
+      pending.users.delete(user);
+      if (!pending.users.size && reads.get(key) === pending) {
+        reads.delete(key);
+        pending.controller.abort();
+      }
+    };
+    const abort = () => {
+      detach();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', abort, {once: true});
+    pending.promise.then(value => {
+      detach();
+      if (!signal?.aborted) resolve(value as T);
+    }, error => {
+      detach();
+      reject(error);
+    });
+  });
+}
+
+const readPaths = new Set([
+  'configuration/discoverChatOptions', 'budget/getBudget',
+  'conversation/getConversation', 'conversation/listConversations', 'conversation/queryTurnsOfConversation',
+  'invocation/getInvocationStatus', 'invocation/getInvocationResult', 'invocation/getInvocationSnapshots',
+]);
+
+function stable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stable(item)]));
+  return value;
+}
+
 /** HTTP/业务失败保留原始响应；网络错误与取消请求仍按原错误抛出。 */
 export class AiApiError extends Error {
   readonly httpStatus: number;
@@ -28,7 +88,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function post<T extends AiResultMetadata>(
+async function transport<T extends AiResultMetadata>(
   path: string,
   data: unknown,
   options: AiRequestOptions | undefined,
@@ -71,6 +131,31 @@ async function post<T extends AiResultMetadata>(
     );
   }
   return {httpStatus: response.status, body: body as unknown as T};
+}
+
+export function currentAiCredential(): string | null {
+  try {
+    return localStorage.getItem('user_token');
+  } catch {
+    return null;
+  }
+}
+
+export function shareAiRead<T>(resource: unknown, signal: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<T>) {
+  const token = currentAiCredential();
+  return sharedRead(JSON.stringify([token, stable(resource)]), signal, async transportSignal => {
+    if (currentAiCredential() !== token) throw new DOMException('Account changed', 'AbortError');
+    const value = await run(transportSignal);
+    if (currentAiCredential() !== token) throw new DOMException('Account changed', 'AbortError');
+    return value;
+  });
+}
+
+async function post<T extends AiResultMetadata>(path: string, data: unknown, options: AiRequestOptions | undefined,
+                                                idempotencyKey?: string, basePath = '/arte/ai-new'): Promise<AiHttpResponse<T>> {
+  if (basePath !== '/arte/ai-new' || idempotencyKey || !readPaths.has(path))
+    return transport<T>(path, data, options, idempotencyKey, basePath);
+  return shareAiRead([basePath, path, data], options?.signal, signal => transport<T>(path, data, {signal}, undefined, basePath));
 }
 
 export async function postResult<T>(

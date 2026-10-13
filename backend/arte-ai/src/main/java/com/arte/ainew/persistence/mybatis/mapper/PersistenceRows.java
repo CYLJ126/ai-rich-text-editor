@@ -19,6 +19,15 @@ public final class PersistenceRows {
     /**
      * workspaceSnapshot 对应 workspace_snapshot 列的 JSON 字节，内容为上下文或专有结果快照。
      */
+    public record ResultBatchRow(String idKey, String ownerKey, String invocationKey, String attemptKey,
+                                 String resultType,
+                                 int schemaVersion, int partial, String payloadDigest, String workspaceSnapshot) {
+        public PayloadRow payload() {
+            return new PayloadRow(ownerKey, invocationKey, attemptKey, resultType,
+                    schemaVersion, partial, payloadDigest, workspaceSnapshot);
+        }
+    }
+
     public record PayloadRow(String ownerKey, String invocationKey, String attemptKey, String resultType,
                              int schemaVersion, int partial, String payloadDigest, String workspaceSnapshot) { }
 

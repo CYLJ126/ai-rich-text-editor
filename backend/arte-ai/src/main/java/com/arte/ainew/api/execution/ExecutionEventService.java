@@ -19,6 +19,32 @@ import reactor.core.publisher.Mono;
  * @since 2026/10/4 17:40 ✾
  **/
 public interface ExecutionEventService {
+    record InvocationSnapshot(String invocationId, com.arte.ainew.pojo.execution.Invocation invocation,
+                              com.arte.ainew.pojo.execution.InvocationBudgetState budgetState,
+                              InvocationResult result) {
+    }
+
+    default Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, ExecutionContext context) {
+        return Mono.error(new UnsupportedOperationException("Batch snapshots not configured"));
+    }
+
+    default Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, java.util.Map<String, Long> knownResultVersions, ExecutionContext context) {
+        return snapshots(ids, context);
+    }
+
+    sealed interface WatchSignal {
+        record Event(ExecutionEvent<?> value) implements WatchSignal {
+        }
+
+        record Text(LiveTextDelta value) implements WatchSignal {
+        }
+    }
+
+    default Flux<WatchSignal> watchCombined(ExecutionEvent.Cursor cursor, ExecutionContext context) {
+        return Flux.merge(1, watch(cursor, context).map(WatchSignal.Event::new),
+                watchText(cursor.executionId(), context).map(WatchSignal.Text::new));
+    }
+
 
     /**
      * 单页有界重放；保留 CURSOR_EXPIRED，不静默跳过已裁剪历史。

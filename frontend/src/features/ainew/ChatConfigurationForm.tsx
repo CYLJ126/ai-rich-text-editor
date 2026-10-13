@@ -19,6 +19,7 @@ type Values = ChatConfigValues & { modelKey?: string };
 
 export default function ChatConfigurationForm({
                                                 restored,
+                                                sharedDiscovery,
                                                 invalidationRevision = 0,
                                                 onApply,
                                                 onRestore,
@@ -39,6 +40,7 @@ export default function ChatConfigurationForm({
                                                 onDraftChange,
                                               }: {
   restored: ChatTestConfig | null;
+  sharedDiscovery?: ReturnType<typeof useConfigurationDiscovery>;
   invalidationRevision?: number;
   onApply: (config: ChatTestConfig, option: ChatModelOption) => void;
   onRestore: (config: ChatTestConfig, option: ChatModelOption) => void;
@@ -59,7 +61,8 @@ export default function ChatConfigurationForm({
   onDraftChange?: (values: ConfigurationDraft) => void;
 }) {
   const [form] = Form.useForm<Values>();
-  const discovery = useConfigurationDiscovery();
+  const localDiscovery = useConfigurationDiscovery();
+  const discovery = sharedDiscovery ?? localDiscovery;
   const selectedKey = Form.useWatch('modelKey', form);
   const budgetRef = Form.useWatch('budgetRef', form);
   const selected = discovery.options.find(
@@ -121,7 +124,7 @@ export default function ChatConfigurationForm({
     );
   }
 
-  async function loadOptions(restore = false, initialLoad = false) {
+  async function loadOptions(restore = false, initialLoad = false, reuseDirectory = false) {
     const values = form.getFieldsValue(true) as Values;
     const parsed = chatScopeSchema.safeParse(values);
     if (!parsed.success) {
@@ -130,7 +133,9 @@ export default function ChatConfigurationForm({
     }
     if (!initialLoad || !fixedScope) onDirty();
     form.setFieldsValue(parsed.data);
-    const options = await discovery.load(parsed.data);
+    const reusable = reuseDirectory && fixedScope && discovery.scope?.tenantId === parsed.data.tenantId &&
+      discovery.scope?.workspaceId === parsed.data.workspaceId && !discovery.error && !discovery.loading;
+    const options = reusable ? discovery.options : await discovery.load(parsed.data);
     if (!options) return;
     const previous = options.find((option) => matchesModel(values, option));
     const option = previous ?? (options.length === 1 ? options[0] : undefined);
@@ -152,7 +157,7 @@ export default function ChatConfigurationForm({
   }
 
   useEffect(() => {
-    if (restored || fixedScope) void loadOptions(!!restored, true);
+    if (restored || fixedScope) void loadOptions(!!restored, true, true);
   }, []);
 
   useEffect(() => {

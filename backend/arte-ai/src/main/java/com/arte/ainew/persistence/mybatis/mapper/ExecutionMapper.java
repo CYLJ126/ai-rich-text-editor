@@ -14,6 +14,10 @@ import java.util.List;
  * @since 2026/10/4 23:30 ✾
  */
 public interface ExecutionMapper {
+    List<String> invocationSnapshots(@Param("ownerKey") String ownerKey, @Param("keys") List<String> keys);
+
+    List<String> attemptSnapshots(@Param("keys") List<String> keys);
+
     String attemptPurpose(@Param("idKey") String idKey);
 
     int saveInvocation(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);

@@ -179,16 +179,39 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
             if (row == null || !row.ownerKey().equals(ownerId) || !row.invocationKey().equals(key(invocationId))) {
                 return null;
             }
-            integrity(row);
-            if (!reference.equals(reference(reference.resultId(), row))) {
-                throw new IllegalStateException("Result reference mismatch");
-            }
-            var value = executionRecordCodec.decode(row.workspaceSnapshot(), InvocationResult.class);
-            if (!type(value).equals(reference.resultType()) || partial(value) != reference.partial()) {
-                throw new IllegalStateException("Result type or completeness mismatch");
-            }
-            return value;
+            return verified(row, reference);
         });
+    }
+
+    @Override
+    public Mono<java.util.Map<String, InvocationResult>> findAll(ExecutionOwner owner, java.util.Map<String, ResultRef> references) {
+        ContractChecks.require(references.size() <= 20, "Result batch exceeds limit");
+        if (references.isEmpty()) return Mono.just(java.util.Map.of());
+        var ownerId = ownerKey(owner);
+        return tx(() -> {
+            var rows = new java.util.HashMap<String, PayloadRow>();
+            for (var row : payloadMapper.results(ownerId, references.values().stream().map(ResultRef::resultId).distinct().toList())) {
+                rows.put(row.idKey(), row.payload());
+            }
+            var values = new java.util.HashMap<String, InvocationResult>();
+            references.forEach((id, reference) -> {
+                var row = rows.get(reference.resultId());
+                if (row == null || !row.ownerKey().equals(ownerId) || !row.invocationKey().equals(key(id)))
+                    throw new IllegalStateException("Committed result bytes are missing or mismatched");
+                values.put(id, verified(row, reference));
+            });
+            return java.util.Map.copyOf(values);
+        });
+    }
+
+    private InvocationResult verified(PayloadRow row, ResultRef reference) {
+        integrity(row);
+        if (!reference.equals(reference(reference.resultId(), row)))
+            throw new IllegalStateException("Result reference mismatch");
+        var value = executionRecordCodec.decode(row.workspaceSnapshot(), InvocationResult.class);
+        if (!type(value).equals(reference.resultType()) || partial(value) != reference.partial())
+            throw new IllegalStateException("Result type or completeness mismatch");
+        return value;
     }
 
     private static ResultRef reference(String id, PayloadRow row) {

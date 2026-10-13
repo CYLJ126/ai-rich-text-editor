@@ -81,7 +81,8 @@ export function useSelectedBudget(
     void getBudget({scope, budgetRef}, {signal: controller.signal})
       .then(({body}) => {
         if (!controller.signal.aborted)
-          setState({key, account: body.data, loading: false, error: null});
+          setState(previous => previous.key === key && previous.account && previous.account.version > body.data.version
+            ? {...previous, loading: false} : {key, account: body.data, loading: false, error: null});
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
@@ -89,6 +90,16 @@ export function useSelectedBudget(
       });
     return () => controller.abort();
   }, [key, revision]);
+  useEffect(() => {
+    const updated = (event: Event) => {
+      const {scope: owner, account} = (event as CustomEvent<{ scope: AiScope; account: BudgetAccountResponse }>).detail;
+      if (!scope || owner.tenantId !== scope.tenantId || owner.workspaceId !== scope.workspaceId || account.budgetRef !== budgetRef) return;
+      setState(previous => previous.key === key && previous.account && previous.account.version > account.version
+        ? previous : {key, account, loading: previous.key === key && previous.loading, error: null});
+    };
+    window.addEventListener('arte-ai-budget-updated', updated);
+    return () => window.removeEventListener('arte-ai-budget-updated', updated);
+  }, [key]);
   // scope／账户切换后的第一帧也不能展示旧余额。
   const current =
     key && state.key === key

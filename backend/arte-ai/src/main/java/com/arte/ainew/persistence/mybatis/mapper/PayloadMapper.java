@@ -10,6 +10,8 @@ import org.apache.ibatis.annotations.Param;
  * @since 2026/10/5 16:22 ✾
  */
 public interface PayloadMapper {
+    java.util.List<com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ResultBatchRow> results(@Param("ownerKey") String ownerKey, @Param("keys") java.util.List<String> keys);
+
     PayloadRow context(@Param("idKey") String idKey);
 
     int insertContext(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey,

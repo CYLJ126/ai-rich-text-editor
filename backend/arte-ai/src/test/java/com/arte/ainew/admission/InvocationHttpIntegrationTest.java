@@ -285,9 +285,13 @@ public class InvocationHttpIntegrationTest {
         var id = submit();
         var revoked = new AtomicBoolean();
         var reads = new AtomicInteger();
+        var authorizations = new AtomicInteger();
         var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
         var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> Mono.defer(() ->
-                revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes)),
+        {
+            authorizations.incrementAndGet();
+            return revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes);
+        }),
                 fixture.properties, Clock.systemUTC());
         ExecutionEventStore tracked = new ExecutionEventStore() {
             @Override
@@ -306,17 +310,19 @@ public class InvocationHttpIntegrationTest {
                 return fixture.executions.discardThrough(owner, invocationId, through);
             }
         };
-        var service = new DefaultExecutionEventService(authorization, fixture.executions, tracked, fixture.payloads, notifier, Clock.systemUTC());
+        var service = new DefaultExecutionEventService(authorization, fixture.executions, tracked, fixture.payloads, notifier, Clock.systemUTC(), null, liveText);
         var first = new CountDownLatch(1);
         var ended = new CountDownLatch(1);
         var errors = new CopyOnWriteArrayList<Throwable>();
-        var subscription = service.watch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "revocable-watch"))
+        var subscription = service.watchCombined(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "revocable-watch"))
                 .subscribe(event -> first.countDown(), error -> {
                     errors.add(error);
                     ended.countDown();
                 });
         try {
             assertTrue(first.await(5, TimeUnit.SECONDS));
+            assertEquals(1, authorizations.get());
+            assertEquals(1, liveText.subscriberCount());
             var message = fixture.executions.claim(com.arte.ainew.pojo.execution.OutboxMessage.Kind.EVENT,
                     "duplicate-publisher", Duration.ofMinutes(1), 1).block().getFirst();
             notifier.publish(message);
@@ -326,6 +332,8 @@ public class InvocationHttpIntegrationTest {
             assertEquals(1, errors.size());
             assertTrue(errors.getFirst() instanceof AccessDeniedException);
             assertEquals(1, reads.get());
+            assertEquals(2, authorizations.get());
+            assertEquals(0, liveText.subscriberCount());
         } finally {
             subscription.dispose();
         }
@@ -935,6 +943,65 @@ public class InvocationHttpIntegrationTest {
         assertEquals(1, modelCalls.get());
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_attempt", Long.class).longValue());
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_settlement", Long.class).longValue());
+    }
+
+    @Test
+    public void batchSnapshotsReturnStatusAndCommittedResultWithBoundedOwnerScopedReads() throws Exception {
+        var first = submit();
+        dispatch();
+        var second = submit();
+        dispatch();
+        var source = (javax.sql.DataSource) jdbc.getDataSource();
+        var statements = new CopyOnWriteArrayList<String>();
+        var counted = new org.springframework.jdbc.datasource.DelegatingDataSource(source) {
+            @Override
+            public java.sql.Connection getConnection() throws java.sql.SQLException {
+                var connection = super.getConnection();
+                return (java.sql.Connection) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                        new Class<?>[]{java.sql.Connection.class}, (proxy, method, args) -> {
+                            if (method.getName().equals("prepareStatement")) statements.add((String) args[0]);
+                            try {
+                                return method.invoke(connection, args);
+                            } catch (java.lang.reflect.InvocationTargetException error) {
+                                throw error.getCause();
+                            }
+                        });
+            }
+        };
+        var codec = new JacksonExecutionRecordCodec();
+        var store = new com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence(counted, codec, database);
+        var payloads = new com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence(counted, codec, database);
+        var service = new DefaultExecutionEventService(authorization(fixture.properties, Clock.systemUTC()), store, store, payloads);
+        var snapshots = service.snapshots(List.of(first, second, "missing", first), fixture.context("alice", "batch-read")).block();
+        assertEquals(3, snapshots.size());
+        assertEquals(first, snapshots.getFirst().invocationId());
+        assertEquals(Invocation.State.SUCCEEDED, snapshots.getFirst().invocation().state());
+        assertEquals(InvocationBudgetState.SETTLED, snapshots.getFirst().budgetState());
+        assertNotNull(snapshots.getFirst().result());
+        assertNull(snapshots.getLast().invocation());
+        assertEquals(statements.toString(), 4, statements.size());
+        assertTrue(statements.toString(), statements.stream().allMatch(sql -> sql.toUpperCase(Locale.ROOT).replaceAll("\\s+", " ").contains(" IN ")));
+        assertFalse(statements.stream().anyMatch(sql -> sql.toUpperCase(Locale.ROOT).contains("FOR UPDATE")));
+        statements.clear();
+        var version = snapshots.getFirst().invocation().version();
+        var reused = service.snapshots(List.of(first), Map.of(first, version), fixture.context("alice", "batch-reuse")).block().getFirst();
+        assertNotNull(reused.invocation());
+        assertNull(reused.result());
+        assertEquals(3, statements.size());
+        statements.clear();
+        assertNull(service.snapshots(List.of(first), fixture.context("bob", "batch-other-owner")).block().getFirst().invocation());
+        assertEquals(1, statements.size());
+        var http = send("/ai-new/invocation/getInvocationSnapshots", Map.of("scope", SCOPE, "invocationIds", List.of(first, "missing")), 200).path("data");
+        assertEquals("SUCCEEDED", http.get(0).path("status").path("state").asString());
+        assertEquals("GENERATION", http.get(0).path("result").path("kind").asString());
+        assertTrue(http.get(1).path("missing").asBoolean());
+        assertFalse(http.toString().contains("private user input"));
+        assertFalse(http.get(0).path("status").has("context"));
+        send("/ai-new/invocation/getInvocationSnapshots", Map.of("scope", SCOPE, "invocationIds", List.of()), 400);
+        send("/ai-new/invocation/getInvocationSnapshots", Map.of("scope", SCOPE, "invocationIds", Collections.nCopies(21, first)), 400);
+        jdbc.update("UPDATE arte_ai_result SET payload_digest=?", "0".repeat(64));
+        assertThrows(IllegalStateException.class, () -> service.snapshots(List.of(first), fixture.context("alice", "batch-corrupt")).block());
+        assertEquals(2, modelCalls.get());
     }
 
     @Test

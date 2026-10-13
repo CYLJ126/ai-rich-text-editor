@@ -312,7 +312,7 @@ describe('新 AI 接口封装', () => {
     expect((await getBudget(budgetQuery)).body.data).toEqual(budget);
   });
 
-  it('透传 AbortSignal，取消后原样抛出并且不重试', async () => {
+  it('网络取消原样抛出且不重试，共享读取使用独立传输 signal', async () => {
     const controller = new AbortController();
     const cancelled = new Error('canceled');
     cancelled.name = 'CanceledError';
@@ -321,7 +321,8 @@ describe('新 AI 接口封装', () => {
       getInvocationStatus(invocationQuery, {signal: controller.signal}),
     ).rejects.toBe(cancelled);
     expect(request).toHaveBeenCalledTimes(1);
-    expect(requestMock.mock.calls[0][1]?.signal).toBe(controller.signal);
+    expect(requestMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(requestMock.mock.calls[0][1]?.signal).not.toBe(controller.signal);
   });
 });
 

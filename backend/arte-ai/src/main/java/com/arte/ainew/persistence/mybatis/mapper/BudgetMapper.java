@@ -12,6 +12,8 @@ import java.util.List;
  * @since 2026/10/4 23:30 ✾
  */
 public interface BudgetMapper {
+    java.util.List<String> reservationSnapshots(@Param("keys") java.util.List<String> keys);
+
     int insertAccount(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("workspaceSnapshot") String workspaceSnapshot);
 
     int saveAccount(@Param("workspaceSnapshot") String workspaceSnapshot, @Param("idKey") String idKey);

@@ -11,6 +11,8 @@ export {
   cancelInvocation,
   getInvocationResult,
   getInvocationStatus,
+  getInvocationSnapshots,
+  getInvocationSnapshot,
   invocationEvent,
 } from './invocation';
 export type {

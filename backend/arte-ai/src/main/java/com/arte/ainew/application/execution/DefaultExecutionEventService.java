@@ -121,6 +121,102 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     }
 
     @Override
+    public Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, ExecutionContext context) {
+        return snapshots(ids, java.util.Map.of(), context);
+    }
+
+    @Override
+    public Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, java.util.Map<String, Long> knownResultVersions, ExecutionContext context) {
+        com.arte.ainew.common.validation.ContractChecks.require(!ids.isEmpty() && ids.size() <= 20, "Batch requires 1 to 20 IDs");
+        var distinct = ids.stream().distinct().toList();
+        return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
+            var owner = ExecutionOwner.from(current);
+            Mono<java.util.List<com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>> snapshots;
+            if (executionStore instanceof com.arte.ainew.spi.persistence.ExecutionReadStore batch)
+                snapshots = batch.snapshots(owner, distinct);
+            else
+                snapshots = Flux.fromIterable(distinct).concatMap(id -> executionStore.find(owner, id).flatMap(invocation ->
+                        (budgetStatus == null ? Mono.just(InvocationBudgetState.NOT_RESERVED) : budgetStatus.resolve(invocation))
+                                .map(state -> new com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot(invocation, state)))).collectList();
+            return snapshots.flatMap(values -> {
+                var byId = new java.util.HashMap<String, com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>();
+                var references = new java.util.HashMap<String, com.arte.ainew.pojo.execution.ResultRef>();
+                values.forEach(value -> {
+                    var id = value.invocation().request().context().executionId();
+                    byId.put(id, value);
+                    if (value.invocation().result() != null && value.invocation().state().terminal()
+                            && !java.util.Objects.equals(knownResultVersions.get(id), value.invocation().version()))
+                        references.put(id, value.invocation().result());
+                });
+                return executionResultStore.findAll(owner, references).map(results -> distinct.stream().map(id -> {
+                    var value = byId.get(id);
+                    if (value == null) return new InvocationSnapshot(id, null, null, null);
+                    if (references.containsKey(id) && !results.containsKey(id))
+                        throw new IllegalStateException("Committed result bytes are missing");
+                    return new InvocationSnapshot(id, value.invocation(), value.budgetState(), results.get(id));
+                }).toList());
+            });
+        });
+    }
+
+    /**
+     * 一条连接共享初始授权、归属检查和定时撤权检查；并发唤醒只合并正在进行的授权。
+     */
+    @Override
+    public Flux<WatchSignal> watchCombined(ExecutionEvent.Cursor cursor, ExecutionContext context) {
+        if (localExecutionEventNotifier == null)
+            return Flux.error(new AdmissionException(ResultCodeEnum.AI_EVENT_WATCH_NOT_ENABLED));
+        return Flux.defer(() -> {
+            var gate = new ConnectionAuthorization(context);
+            var done = Sinks.<Void>one();
+            var after = new AtomicLong(cursor.afterSequence());
+            var outcomeDelivered = new AtomicBoolean();
+            var remaining = Duration.between(clock.instant(), context.deadline());
+            if (remaining.isNegative() || remaining.isZero()) return gate.check().thenMany(Flux.empty());
+            return gate.check().flatMapMany(current -> {
+                var owner = ExecutionOwner.from(current);
+                return executionStore.find(owner, cursor.executionId())
+                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                        .flatMapMany(invocation -> {
+                            var events = localExecutionEventNotifier.watch(owner, cursor.executionId())
+                                    .publishOn(Schedulers.parallel(), 1)
+                                    .filter(hint -> hint == 0L || hint > after.get())
+                                    .concatMap(hint -> (hint == 0L ? Mono.just(current) : gate.check())
+                                            .thenMany(drain(owner, cursor.executionId(), after, done, outcomeDelivered, false)), 1)
+                                    .map(event -> (WatchSignal) new WatchSignal.Event(event))
+                                    .takeUntilOther(done.asMono());
+                            Flux<WatchSignal> text = liveTextNotifier == null ? Flux.empty()
+                                    : liveTextNotifier.watch(owner, cursor.executionId()).publishOn(Schedulers.parallel(), 1)
+                                    .map(delta -> (WatchSignal) new WatchSignal.Text(delta)).takeUntilOther(done.asMono());
+                            var reauthorize = Flux.interval(REAUTHORIZE_INTERVAL).concatMap(ignored -> gate.check(), 1)
+                                    .thenMany(Flux.<WatchSignal>never()).takeUntilOther(done.asMono());
+                            return Flux.merge(1, events, text, reauthorize);
+                        });
+            }).takeUntilOther(Mono.delay(remaining));
+        });
+    }
+
+    private final class ConnectionAuthorization {
+        private final ExecutionContext context;
+        private Mono<ExecutionContext> pending;
+
+        private ConnectionAuthorization(ExecutionContext context) {
+            this.context = context;
+        }
+
+        private synchronized Mono<ExecutionContext> check() {
+            if (pending != null) return pending;
+            pending = authorization.require(context, AdmissionAuthorization.READ)
+                    .doFinally(ignored -> clear()).cache();
+            return pending;
+        }
+
+        private synchronized void clear() {
+            pending = null;
+        }
+    }
+
+    @Override
     public Flux<LiveTextDelta> watchText(String invocationId, ExecutionContext context) {
         if (liveTextNotifier == null) return Flux.empty();
         var preview = Flux.defer(() -> authorization.require(context, AdmissionAuthorization.READ).flatMapMany(current -> {

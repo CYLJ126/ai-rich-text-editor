@@ -1,3 +1,4 @@
+import {useConfigurationDiscovery} from '@/features/ainew/useConfigurationSelection';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
 import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Result, Splitter, Tabs, Tag} from 'antd';
@@ -92,6 +93,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
       warning: recent.warning ?? (recent.value && !parsed.success ? '已保存配置失效，请重新选择。' : null)
     };
   }, [selectedId, context]);
+  const discovery = useConfigurationDiscovery();
   const [pins, setPins] = useState<string[]>(() => {
     const stored = readValue<unknown>(storageKey(context, 'pins'), true).value;
     return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string').slice(0, 100) : [];
@@ -99,18 +101,29 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
   const [pinnedRecords, setPinnedRecords] = useState<Record<string, ConversationResponse | null>>({});
   useEffect(() => {
     const controller = new AbortController();
-    for (const id of pins) void getConversation({
-      scope: workspace.scope,
-      conversationId: id
-    }, {signal: controller.signal})
-      .then(({body}) => {
-        if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: body.data}));
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: null}));
-      });
+    const available = new Map(conversations.records.map(record => [record.conversationId, record]));
+    if (conversations.selected) available.set(conversations.selected.conversationId, conversations.selected);
+    setPinnedRecords(previous => Object.fromEntries(pins.map(id => [id, available.get(id) ?? previous[id] ?? null])));
+    const pending = pins.filter(id => !available.has(id));
+    // 置顶上限 100，最多四个并行详情请求，避免占满浏览器连接和数据库线程。
+    const read = async () => {
+      while (pending.length && !controller.signal.aborted) {
+        const id = pending.shift()!;
+        try {
+          const {body} = await getConversation({
+            scope: workspace.scope,
+            conversationId: id
+          }, {signal: controller.signal});
+          if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: body.data}));
+        } catch {
+          if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: null}));
+        }
+      }
+    };
+    const workers = Math.min(4, pending.length);
+    for (let index = 0; index < workers; index++) void read();
     return () => controller.abort();
-  }, [pins, context]);
+  }, [pins, context, conversations.records]);
 
   function togglePin(id: string) {
     const next = pins.includes(id) ? pins.filter(pin => pin !== id) : [...pins, id].slice(0, 100);
@@ -320,7 +333,8 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     <div hidden={tab !== 'models'}>
       {dirty && <Tag color="orange">有未应用更改</Tag>}
       {cache.warning && <Alert type="warning" title={cache.warning}/>}
-      <ChatConfigurationForm key={selectedId} draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
+      <ChatConfigurationForm sharedDiscovery={discovery} key={selectedId}
+                             draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
                              initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
                              fixedScope={workspace.scope} restored={cache.value} applied={config}
                              invalidationRevision={editingId === selectedId ? invalidation : 0}

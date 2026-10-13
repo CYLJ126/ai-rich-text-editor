@@ -29,6 +29,7 @@ vi.mock('@/services/arte-ai', async original => ({
   listConversations: vi.fn(),
   getConversation: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
+  getInvocationSnapshot: vi.fn(),
   getBudget: vi.fn(),
   turnsForChat: vi.fn(),
   watchInvocation: vi.fn()
@@ -79,6 +80,12 @@ beforeEach(() => {
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
   vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
   vi.mocked(api.listConversations).mockResolvedValue(page([conversation]));
+  vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
+    const status = (await api.getInvocationStatus(query, options)).body.data;
+    const result = status.resultAvailable && query.knownResultVersion !== status.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state)
+      ? (await api.getInvocationResult(query, options)).body.data : null;
+    return {invocationId: query.invocationId, status, result, missing: false};
+  });
   vi.mocked(api.getConversation).mockResolvedValue(reply(conversation));
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({

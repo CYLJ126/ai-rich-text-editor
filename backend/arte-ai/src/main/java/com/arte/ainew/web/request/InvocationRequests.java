@@ -17,10 +17,15 @@ public final class InvocationRequests {
     }
 
     /**
-     * 查询指定调用的状态或结果。
-     *
-     * @param scope        租户与工作空间，必填并校验内部字段；服务端还需验证当前用户的访问权限
-     * @param invocationId 平台调用 ID，必填且非空白，最多 256 个字符；不是会话 ID 或供应商请求 ID
+     * 有界状态和结果查询；已持有同版本结果的客户端可省略结果字节，状态及预算仍重新读取。
+     */
+    public record Batch(@NotNull @Valid ConversationRequests.Scope scope,
+                        @NotNull @Size(min = 1, max = 20) java.util.List<@NotBlank @Size(max = 256) String> invocationIds,
+                        @Size(max = 20) java.util.Map<@NotBlank @Size(max = 256) String, @NotNull @Min(0) Long> knownResultVersions) {
+    }
+
+    /**
+     * 查询指定调用的状态或结果，ID 不提供访问权限。
      */
     public record Query(@NotNull @Valid ConversationRequests.Scope scope,
                         @NotBlank @Size(max = 256) String invocationId) {

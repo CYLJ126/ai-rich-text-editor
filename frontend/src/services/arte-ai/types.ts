@@ -451,3 +451,11 @@ export interface ReconciliationReceipt {
   reservationVersion: number;
   confirmedAt: string;
 }
+
+/** 每批最多 20 个；missing 对不存在及归属不符使用相同投影。 */
+export interface InvocationSnapshotResponse {
+  invocationId: string;
+  status: InvocationStatusResponse | null;
+  result: InvocationResultResponse | null;
+  missing: boolean;
+}

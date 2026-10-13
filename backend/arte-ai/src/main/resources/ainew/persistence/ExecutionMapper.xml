@@ -80,4 +80,13 @@
         SELECT workspace_snapshot FROM arte_ai_attempt WHERE id_key=#{idKey}
         <if test="forUpdate">FOR UPDATE</if>
     </select>
+
+    <select id="invocationSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_invocation WHERE owner_key=#{ownerKey} AND id_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
+    <select id="attemptSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_attempt WHERE id_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
 </mapper>

@@ -37,6 +37,7 @@ vi.mock('@/services/arte-ai', async original => ({
   turnsForChat: vi.fn(),
   watchInvocation: vi.fn(),
   getInvocationStatus: vi.fn(),
+  getInvocationSnapshot: vi.fn(),
 }));
 let userSequence = 0;
 const otherScope = {tenantId: 'other-tenant', workspaceId: 'other-space'};
@@ -112,6 +113,12 @@ beforeEach(() => {
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
   vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
   vi.mocked(api.listConversations).mockResolvedValue(page([conversation]));
+  vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
+    const status = (await api.getInvocationStatus(query, options)).body.data;
+    const result = status.resultAvailable && query.knownResultVersion !== status.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state)
+      ? (await api.getInvocationResult(query, options)).body.data : null;
+    return {invocationId: query.invocationId, status, result, missing: false};
+  });
   vi.mocked(api.getConversation).mockResolvedValue(reply(conversation));
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({
@@ -136,6 +143,20 @@ async function chooseConversation() {
   fireEvent.click(await screen.findByRole('button', {name: '我的会话'}));
   await screen.findByLabelText('输入问题');
 }
+
+it('reuses the workspace model directory when switching conversations', async () => {
+  const other = {...conversation, conversationId: 'other-conversation', title: '另一个会话'};
+  vi.mocked(api.listConversations).mockResolvedValue(page([conversation, other]));
+  vi.mocked(api.getConversation).mockImplementation(async request => reply(request.conversationId === other.conversationId ? other : conversation));
+  app();
+  await chooseConversation();
+  await waitFor(() => expect(api.getBudget).toHaveBeenCalled());
+  const directoryReads = vi.mocked(api.discoverChatOptions).mock.calls.length;
+  if (!screen.queryByRole('button', {name: other.title})) fireEvent.click(screen.getByRole('button', {name: '会话列表'}));
+  fireEvent.click(await screen.findByRole('button', {name: other.title}));
+  await waitFor(() => expect(api.queryTurnsOfConversation).toHaveBeenLastCalledWith(expect.objectContaining({conversationId: other.conversationId}), expect.anything()));
+  expect(api.discoverChatOptions).toHaveBeenCalledTimes(directoryReads);
+});
 
 
 function app() {

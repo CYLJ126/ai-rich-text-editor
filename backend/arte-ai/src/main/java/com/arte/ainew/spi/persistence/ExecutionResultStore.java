@@ -14,6 +14,12 @@ import reactor.core.publisher.Mono;
  * @since 2026/10/5 13:09 ✾
  */
 public interface ExecutionResultStore {
+    default Mono<java.util.Map<String, InvocationResult>> findAll(ExecutionOwner owner, java.util.Map<String, ResultRef> references) {
+        return reactor.core.publisher.Flux.fromIterable(references.entrySet()).concatMap(entry ->
+                        find(owner, entry.getKey(), entry.getValue()).map(value -> java.util.Map.entry(entry.getKey(), value)))
+                .collectMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue);
+    }
+
 
     /**
      * owner＋invocationId＋attemptId＋resultKey 防重，同键不同内容冲突；部分／完整输出使用不同键。

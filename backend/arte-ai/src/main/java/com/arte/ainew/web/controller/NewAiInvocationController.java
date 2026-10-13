@@ -107,6 +107,21 @@ public class NewAiInvocationController {
                                 ResultContext.success(InvocationStatusResponse.from(invocation, state), ResultCodeEnum.SUCCESS, locale))));
     }
 
+    public record SnapshotResponse(String invocationId, InvocationStatusResponse status,
+                                   InvocationResultResponse result, boolean missing) {
+    }
+
+    @PostMapping("/getInvocationSnapshots")
+    public Mono<ResultContext<java.util.List<SnapshotResponse>>> getInvocationSnapshots(
+            @Valid @RequestBody InvocationRequests.Batch request, Locale locale) {
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                        context -> executionEventService.snapshots(request.invocationIds(), request.knownResultVersions() == null ? java.util.Map.of() : request.knownResultVersions(), context))
+                .map(values -> ResultContext.success(values.stream().map(value -> new SnapshotResponse(value.invocationId(),
+                        value.invocation() == null ? null : InvocationStatusResponse.from(value.invocation(), value.budgetState()),
+                        value.result() == null ? null : InvocationResultResponse.from(value.invocationId(), value.result()),
+                        value.invocation() == null)).toList(), ResultCodeEnum.SUCCESS, locale));
+    }
+
     @PostMapping("/getInvocationResult")
     public Mono<ResultContext<InvocationResultResponse>> getInvocationResult(
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
@@ -164,40 +179,34 @@ public class NewAiInvocationController {
                     var firstPreview = new AtomicBoolean();
                     // 仅用于在事件流结束时停止心跳。
                     var done = Sinks.<Void>one();
-                    Flux<ServerSentEvent<Object>> events = executionEventService.watch(cursor, executionContext)
-                            // 从已重新授权的耐久事件投影文字；Redis 仍只广播指针。
-                            .map(event -> {
+                    Flux<ServerSentEvent<Object>> updates = executionEventService.watchCombined(cursor, executionContext)
+                            .map(signal -> {
+                                if (signal instanceof ExecutionEventService.WatchSignal.Text preview) {
+                                    var delta = preview.value();
+                                    if (firstPreview.compareAndSet(false, true))
+                                        timing.mark("SSE_FIRST_LIVE_TEXT_ENQUEUED");
+                                    return ServerSentEvent.<Object>builder(SSE_JSON.writeValueAsString(Map.of("executionId", delta.executionId(),
+                                                    "attemptId", delta.attemptId(), "offset", delta.offset(), "text", delta.text())))
+                                            .event("text-delta").build();
+                                }
+                                var event = ((ExecutionEventService.WatchSignal.Event) signal).value();
                                 var notification = InvocationNotification.from(event);
-                                if (notification.get("text") instanceof String text && !text.isEmpty()
-                                        && firstText.compareAndSet(false, true))
+                                if (notification.get("text") instanceof String text && !text.isEmpty() && firstText.compareAndSet(false, true))
                                     timing.mark("SSE_FIRST_TEXT_ENQUEUED", started, event.sequence());
                                 timing.batch("SSE_EVENT_ENQUEUED", started, event.sequence());
                                 return ServerSentEvent.<Object>builder(SSE_JSON.writeValueAsString(notification)).event("invocation")
                                         .id(Long.toString(event.sequence())).build();
                             })
-                            // 响应开始后通过 error 帧报告错误，不再修改 HTTP 状态或暴露异常详情。
                             .onErrorResume(error -> Flux.just(streamError(error)))
-                            // 正常完成或发送完错误帧后，通知心跳流结束。
                             .concatWith(Flux.defer(() -> {
                                 done.tryEmitEmpty();
                                 return Flux.empty();
                             }));
-                    // 注释心跳只保活，不读取数据库，也不推进事件游标。
                     var heartbeat = Flux.interval(Duration.ofSeconds(15))
-                            .map(ignored -> ServerSentEvent.builder().comment("heartbeat").build())
-                            .takeUntilOther(done.asMono());
-                    // 文字预览不经过落库／EVENT 领取／重放；不给 SSE id，浏览器不能用它推进耐久游标。
-                    var text = executionEventService.watchText(request.invocationId(), executionContext)
-                            .map(delta -> {
-                                if (firstPreview.compareAndSet(false, true))
-                                    timing.mark("SSE_FIRST_LIVE_TEXT_ENQUEUED");
-                                return ServerSentEvent.<Object>builder(SSE_JSON.writeValueAsString(Map.of("executionId", delta.executionId(),
-                                                "attemptId", delta.attemptId(), "offset", delta.offset(), "text", delta.text())))
-                                        .event("text-delta").build();
-                            }).takeUntilOther(done.asMono());
+                            .map(ignored -> ServerSentEvent.builder().comment("heartbeat").build()).takeUntilOther(done.asMono());
                     // 先发送连接标记，再合并事件和心跳；每个来源预取 1 条。
                     var stream = Flux.concat(Flux.just(ServerSentEvent.builder().comment("connected").build()),
-                                    Flux.merge(1, events, text, heartbeat))
+                                    Flux.merge(1, updates, heartbeat))
                             .onErrorResume(error -> Flux.just(streamError(error)))
                             .doFinally(signal -> timing.mark("SSE_END_" + signal.name()));
                     // 返回流式响应，禁止缓存，并请求代理关闭响应缓冲。

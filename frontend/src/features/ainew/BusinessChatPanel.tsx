@@ -135,7 +135,7 @@ export default function BusinessChatPanel({
               }}/>}
             </div>
             {text ? <MarkdownText text={text} streaming={!result}/> :
-              <p>{invocation?.status && isActive(invocation.status) ? '等待模型回复…' : '暂无可用回复'}</p>}
+              <p>{!invocation?.status && chat.historyLoading ? '正在读取回复…' : invocation?.status && isActive(invocation.status) ? '等待模型回复…' : '暂无可用回复'}</p>}
             {!result && text && <p className="ainew-muted">流式预览；最终结果以服务器记录为准。</p>}
             {error(invocation?.error, () => id && void chat.inspectCandidate(id))}
             <div className="ainew-answer-actions">

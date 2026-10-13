@@ -11,6 +11,7 @@ import {
   getBudget,
   getConversation,
   getInvocationResult,
+  getInvocationSnapshot,
   getInvocationStatus,
   type InvocationResultResponse,
   type InvocationStatusResponse,
@@ -31,6 +32,7 @@ vi.mock('@/services/arte-ai', async (original) => ({
   getConversation: vi.fn(),
   getInvocationResult: vi.fn(),
   getInvocationStatus: vi.fn(),
+  getInvocationSnapshot: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   turnsForChat: vi.fn(),
   regenerateChat: vi.fn(),
@@ -205,6 +207,12 @@ async function ready(hook: {
   });
 }
 
+async function notification(value: void | Promise<void>) {
+  await value;
+  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(50);
+  else await new Promise(resolve => setTimeout(resolve, 55));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(watchInvocation).mockImplementation(
@@ -216,6 +224,12 @@ beforeEach(() => {
       });
     },
   );
+  vi.mocked(getInvocationSnapshot).mockImplementation(async (query, options) => {
+    const value = (await getInvocationStatus(query, options)).body.data;
+    const output = value.resultAvailable && query.knownResultVersion !== value.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(value.state)
+      ? (await getInvocationResult(query, options)).body.data : null;
+    return {invocationId: query.invocationId, status: value, result: output, missing: false};
+  });
   vi.mocked(getConversation).mockResolvedValue(reply(conversation));
   vi.mocked(getBudget).mockResolvedValue(reply(budget));
   vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([]));
@@ -297,11 +311,11 @@ describe('消息、历史和预算', () => {
     expect(turnsForChat).toHaveBeenCalledTimes(1);
     state = 'SUCCEEDED';
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls.at(-1)?.[1]({
+      await notification(vi.mocked(watchInvocation).mock.calls.at(-1)?.[1]({
         executionId: 'invocation-1',
         sequence: 4,
         kind: 'TERMINAL',
-      });
+      }));
     });
     await waitFor(() => expect(hook.result.current.activeIds).toEqual([]), {
       timeout: 3000,
@@ -484,11 +498,11 @@ describe('消息、历史和预算', () => {
       reply(status('invocation-1', 'SUCCEEDED', 3)),
     );
     await act(async () => {
-      await notify({
+      await notification(notify({
         executionId: 'invocation-1',
         sequence: 4,
         kind: 'TERMINAL',
-      });
+      }));
     });
     expect(hook.result.current.activeIds).toEqual([]);
     expect(getInvocationResult).toHaveBeenCalledOnce();
@@ -625,11 +639,11 @@ describe('消息、历史和预算', () => {
       reply(status('invocation-1', 'SUCCEEDED', 3)),
     );
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls[1][1]({
+      await notification(vi.mocked(watchInvocation).mock.calls[1][1]({
         executionId: 'invocation-1',
         sequence: 7,
         kind: 'TERMINAL',
-      });
+      }));
     });
     expect(hook.result.current.invocations['invocation-1'].result).toEqual(
       result('invocation-1'),
@@ -703,11 +717,11 @@ describe('消息、历史和预算', () => {
       reply(status('invocation-1', 'SUCCEEDED', 3)),
     );
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls[1][1]({
+      await notification(vi.mocked(watchInvocation).mock.calls[1][1]({
         executionId: 'invocation-1',
         sequence: 6,
         kind: 'TERMINAL',
-      });
+      }));
     });
     expect(hook.result.current.invocations['invocation-1'].result).toEqual(
       result('invocation-1'),
@@ -792,11 +806,11 @@ describe('消息、历史和预算', () => {
       reply(status('invocation-1', 'FAILED', 3)),
     );
     await act(async () => {
-      await notify({
+      await notification(notify({
         executionId: 'invocation-1',
         sequence: 5,
         kind: 'TERMINAL',
-      });
+      }));
     });
     expect(screen.getByLabelText('实时回复').textContent).toContain('首字');
     expect(screen.getByText('已接收部分输出，完整结果尚未可用。')).toBeTruthy();
@@ -869,11 +883,11 @@ describe('消息、历史和预算', () => {
       reply({...budget, held: '1', available: '99', version: 1}),
     );
     await act(async () => {
-      await notify({
+      await notification(notify({
         executionId: 'invocation-1',
         sequence: 5,
         kind: 'TERMINAL',
-      });
+      }));
     });
     expect(hook.result.current.invocations['invocation-1'].result).toEqual(
       result('invocation-1'),
@@ -891,11 +905,11 @@ describe('消息、历史和预算', () => {
       reply({...budget, charged: '0.1', available: '99.9', version: 2}),
     );
     await act(async () => {
-      await notify({
+      await notification(notify({
         executionId: 'invocation-1',
         sequence: 6,
         kind: 'BUDGET_CHANGED',
-      });
+      }));
     });
     expect(hook.result.current.activeIds).toEqual([]);
     expect(
@@ -962,11 +976,11 @@ describe('消息、历史和预算', () => {
       reply({...budget, held: '1', available: '99'}),
     );
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls[0][1]({
+      await notification(vi.mocked(watchInvocation).mock.calls[0][1]({
         executionId: 'invocation-1',
         sequence: 6,
         kind: 'BUDGET_CHANGED',
-      });
+      }));
     });
     expect(hook.result.current.activeIds).toEqual([]);
     expect(hook.result.current.unresolved).toBe(true);
@@ -1308,11 +1322,11 @@ describe('状态缓存与请求合并', () => {
     const currentReads = vi.mocked(getInvocationStatus).mock.calls.length;
     current = status('invocation-11', 'SUCCEEDED', 3);
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls.at(-1)?.[1]({
+      await notification(vi.mocked(watchInvocation).mock.calls.at(-1)?.[1]({
         executionId: 'invocation-11',
         sequence: 4,
         kind: 'TERMINAL'
-      });
+      }));
     });
     await ready(hook);
     expect(getInvocationStatus).toHaveBeenCalledTimes(currentReads + 1);
@@ -1466,7 +1480,7 @@ describe('状态缓存与请求合并', () => {
     vi.mocked(getInvocationStatus).mockResolvedValue(reply(status('invocation-1', 'SUCCEEDED', 3)));
     let terminalRequest!: Promise<void>;
     await act(async () => {
-      terminalRequest = Promise.resolve(vi.mocked(watchInvocation).mock.calls[0][1]({
+      terminalRequest = notification(vi.mocked(watchInvocation).mock.calls[0][1]({
         executionId: 'invocation-1',
         sequence: 4,
         kind: 'TERMINAL'
@@ -1520,7 +1534,7 @@ describe('状态缓存与请求合并', () => {
     vi.mocked(getInvocationStatus).mockResolvedValue(reply(status('invocation-1', 'SUCCEEDED', 3)));
     let terminalRequest!: Promise<void>;
     await act(async () => {
-      terminalRequest = Promise.resolve(vi.mocked(watchInvocation).mock.calls[0][1]({
+      terminalRequest = notification(vi.mocked(watchInvocation).mock.calls[0][1]({
         executionId: 'invocation-1',
         sequence: 4,
         kind: 'TERMINAL'
@@ -1533,7 +1547,7 @@ describe('状态缓存与请求合并', () => {
     expect(hook.result.current.historyError).toBeNull();
     expect(updated.mock.calls.at(-1)?.[0].version).toBe(2);
     expect(hook.result.current.invocations['invocation-1'].status?.state).toBe('SUCCEEDED');
-    expect(queryTurnsOfConversation).toHaveBeenCalledTimes(queries + 2);
+    expect(queryTurnsOfConversation).toHaveBeenCalledTimes(queries + 3);
   });
 });
 
@@ -1624,7 +1638,11 @@ describe('停止生成', () => {
     };
     vi.mocked(getInvocationStatus).mockResolvedValue(reply(cancelled));
     await act(async () => {
-      await vi.mocked(watchInvocation).mock.calls[0][1]({executionId: 'invocation-1', sequence: 3, kind: 'TERMINAL'});
+      await notification(vi.mocked(watchInvocation).mock.calls[0][1]({
+        executionId: 'invocation-1',
+        sequence: 3,
+        kind: 'TERMINAL'
+      }));
     });
     expect(screen.queryByRole('button', {name: t('stopping')})).not.toBeInTheDocument();
     expect(screen.getByText(t('stoppedPendingReconciliation'))).toBeInTheDocument();

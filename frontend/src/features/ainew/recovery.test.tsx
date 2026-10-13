@@ -17,6 +17,7 @@ vi.mock('@/services/arte-ai', async original => ({
   queryTurnsOfConversation: vi.fn(),
   getBudget: vi.fn(),
   getInvocationStatus: vi.fn(),
+  getInvocationSnapshot: vi.fn(),
   getInvocationResult: vi.fn(),
   turnsForChat: vi.fn(),
   regenerateChat: vi.fn(),
@@ -71,6 +72,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   localStorage.clear();
+  vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
+    const status = (await api.getInvocationStatus(query, options)).body.data;
+    const result = status.resultAvailable && query.knownResultVersion !== status.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state)
+      ? (await api.getInvocationResult(query, options)).body.data : null;
+    return {invocationId: query.invocationId, status, result, missing: false};
+  });
   vi.mocked(api.getConversation).mockResolvedValue(result(conversation));
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.listConversations).mockResolvedValue(page());
@@ -214,7 +221,8 @@ describe('browser recovery uses original operations', () => {
   it('reads history without a model and does not query a pretend budget or submit', async () => {
     const hook = session({...config, bindingId: '', budgetRef: ''}, false);
     await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
-    expect(api.getConversation).toHaveBeenCalled();
+    expect(api.getConversation).not.toHaveBeenCalled();
+    expect(api.queryTurnsOfConversation).toHaveBeenCalled();
     expect(api.getBudget).not.toHaveBeenCalled();
     act(() => hook.result.current.setDraft('问题'));
     await act(async () => {
@@ -279,4 +287,98 @@ it('restores a reconciliation and queries the receipt without issuing a new char
   }, expect.anything()));
   expect(api.confirmReconciliation).not.toHaveBeenCalled();
   expect(readOperation(context, 'reconcile', 'budget').value?.key).toBe('reconcile-key');
+});
+
+
+describe('progressive history and asynchronous notification refresh', () => {
+  const completed: api.InvocationStatusResponse = {
+    invocationId: 'inv', kind: 'GENERATION', conversation: null, state: 'SUCCEEDED', version: 3,
+    activeAttemptId: 'attempt', budgetState: 'SETTLED', resultAvailable: false, partial: null,
+    error: null, acceptedAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+  };
+  const historyTurn: api.ConversationTurnResponse = {
+    turnId: 'turn', conversationId: conversation.conversationId, sequence: 1,
+    parentTurnId: null, supersedesTurnId: null, selectedInvocationId: 'inv', invocationIds: ['inv'], version: 1,
+    userMessage: {messageId: 'message', role: 'USER', content: [{text: '先显示问题'}], toolCalls: [], toolCallId: null},
+    createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+  };
+  it('shows questions while snapshots are pending and prevents submitting with unverified history', async () => {
+    let finish!: (value: api.InvocationSnapshotResponse) => void;
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getInvocationSnapshot).mockReturnValue(new Promise(resolve => {
+      finish = resolve;
+    }));
+    const hook = session();
+    await waitFor(() => expect(hook.result.current.turns).toEqual([historyTurn]));
+    expect(hook.result.current.historyLoading).toBe(true);
+    act(() => hook.result.current.setDraft('下一题'));
+    await act(async () => hook.result.current.send());
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({invocationId: 'inv', status: completed, result: null, missing: false});
+    });
+    await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+    expect(hook.result.current.historyError).toBeNull();
+  });
+  it('returns from a burst of SSE callbacks before slow HTTP completes and coalesces the refresh', async () => {
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+      invocationId: 'inv',
+      status: {...completed, state: 'RUNNING', version: 1, budgetState: 'RESERVED'},
+      result: null,
+      missing: false
+    });
+    const hook = session();
+    await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+    await waitFor(() => expect(api.watchInvocation).toHaveBeenCalledOnce());
+    const reads = vi.mocked(api.getInvocationSnapshot).mock.calls.length;
+    let finish!: (value: api.InvocationSnapshotResponse) => void;
+    vi.mocked(api.getInvocationSnapshot).mockImplementation(() => new Promise(resolve => {
+      finish = resolve;
+    }));
+    const notify = vi.mocked(api.watchInvocation).mock.calls[0][1];
+    await act(async () => {
+      await notify({executionId: 'inv', sequence: 2, kind: 'STARTED'});
+      await notify({executionId: 'inv', sequence: 3, kind: 'CONTROL'});
+      await notify({executionId: 'inv', sequence: 4, kind: 'TERMINAL'});
+    });
+    expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads);
+    await waitFor(() => expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1));
+    await act(async () => finish({invocationId: 'inv', status: completed, result: null, missing: false}));
+    await waitFor(() => expect(hook.result.current.activeIds).toEqual([]));
+    expect(hook.result.current.invocations.inv.status?.state).toBe('SUCCEEDED');
+    expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
+  });
+  it('retries a failed terminal refresh after its notification cursor was already recorded', async () => {
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+      invocationId: 'inv',
+      status: {...completed, state: 'RUNNING', version: 1, budgetState: 'RESERVED'},
+      result: null,
+      missing: false
+    });
+    const hook = session();
+    await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+    await waitFor(() => expect(api.watchInvocation).toHaveBeenCalledOnce());
+    const reads = vi.mocked(api.getInvocationSnapshot).mock.calls.length;
+    vi.mocked(api.getInvocationSnapshot).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({invocationId: 'inv', status: completed, result: null, missing: false});
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await vi.mocked(api.watchInvocation).mock.calls[0][1]({executionId: 'inv', sequence: 4, kind: 'TERMINAL'});
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(hook.result.current.pollError).toBeInstanceOf(Error);
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
+      await act(async () => vi.advanceTimersByTimeAsync(9999));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 2);
+      expect(hook.result.current.activeIds).toEqual([]);
+      expect(hook.result.current.invocations.inv.status?.state).toBe('SUCCEEDED');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

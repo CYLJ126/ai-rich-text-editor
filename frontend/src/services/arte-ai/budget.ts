@@ -1,8 +1,16 @@
-import {type AiRequestOptions, postResult, requireIdempotencyKey} from './request';
+import {type AiRequestOptions, currentAiCredential, postResult, requireIdempotencyKey} from './request';
 import type {BudgetAccountResponse, BudgetQuery} from './types';
 
-export function getBudget(data: BudgetQuery, options?: AiRequestOptions) {
-  return postResult<BudgetAccountResponse>('budget/getBudget', data, options);
+export async function getBudget(data: BudgetQuery, options?: AiRequestOptions) {
+  const token = currentAiCredential();
+  const response = await postResult<BudgetAccountResponse>('budget/getBudget', data, options);
+  if (!options?.signal?.aborted && currentAiCredential() === token) window.dispatchEvent(new CustomEvent('arte-ai-budget-updated', {
+    detail: {
+      scope: data.scope,
+      account: response.body.data
+    }
+  }));
+  return response;
 }
 
 export function pendingReconciliations(data: BudgetQuery & {

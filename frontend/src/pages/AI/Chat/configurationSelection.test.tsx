@@ -132,4 +132,20 @@ describe('配置与预算请求隔离', () => {
       budgetRef: 'a',
     });
   });
+  it('共享余额通知不发起新请求，迟到旧版本不能覆盖较新余额', async () => {
+    const pending = deferred<Awaited<ReturnType<typeof getBudget>>>();
+    vi.mocked(getBudget).mockReturnValue(pending.promise);
+    const hook = renderHook(() => useSelectedBudget(scope, 'a'));
+    act(() => window.dispatchEvent(new CustomEvent('arte-ai-budget-updated', {
+      detail: {
+        scope, account: {...account, version: 4, available: '80'},
+      }
+    })));
+    expect(hook.result.current.account?.available).toBe('80');
+    await act(async () => pending.resolve(reply({...account, version: 2, available: '90'})));
+    expect(hook.result.current.account?.version).toBe(4);
+    expect(hook.result.current.account?.available).toBe('80');
+    expect(hook.result.current.loading).toBe(false);
+    expect(getBudget).toHaveBeenCalledOnce();
+  });
 });
