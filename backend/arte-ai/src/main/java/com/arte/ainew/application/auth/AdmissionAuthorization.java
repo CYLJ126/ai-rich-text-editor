@@ -18,7 +18,7 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * 应用边界当前授权检查；任务权限上限不可扩大，发布／绑定／预算使用资格来自受信配置。
+ * 展示读取复用本次订阅的可信快照，写入／派发始终复核当前资格；任务权限上限不可扩大。
  * <p>
  * 典型用法是先检查操作权限，再检查资源使用范围：
  * authorization.require(context, AdmissionAuthorization.INVOKE)
@@ -82,14 +82,26 @@ public final class AdmissionAuthorization {
     /**
      * 操作权限检查
      * <p>
-     * 不只是检查一个权限字符串，也能发现授权被撤销或主体发生变化。授权查询受剩余执行时间限制。
+     * 订阅内只读快照在入口已验证资格；没有快照时重新查询当前授权。
+     * 权限、主体和总期限始终校验；写入／派发必须使用 requireWrite。
      *
      * @param context 执行上下文
      * @param scope 操作权限范围
      * @return 执行上下文
      */
     public Mono<ExecutionContext> require(ExecutionContext context, String scope) {
-        Mono<ExecutionContext> result = Mono.defer(() -> {
+        return require(context, scope, false);
+    }
+
+    /**
+     * 写操作与外部派发不得由订阅内展示快照授权，始终重新取得当前资格。
+     */
+    public Mono<ExecutionContext> requireWrite(ExecutionContext context, String scope) {
+        return require(context, scope, true);
+    }
+
+    private Mono<ExecutionContext> require(ExecutionContext context, String scope, boolean write) {
+        Mono<ExecutionContext> result = Mono.deferContextual(values -> {
             var original = Objects.requireNonNull(context).authorization();
             // 检查上下文是否包含所需权限，例如 ai:invoke
             if (!original.scopes().contains(scope)) {
@@ -101,9 +113,17 @@ public final class AdmissionAuthorization {
             if (remaining.isNegative() || remaining.isZero()) {
                 throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
             }
+            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent()) {
+                if (write) return Mono.error(new IllegalStateException("Read snapshot cannot authorize a write"));
+                return Mono.just(context);
+            }
             // 通过 ExecutionAuthorizationResolver 重新查询当前授权，确认授权仍有效
-            return resolver.resolve(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes())
-                    .timeout(remaining)
+            Mono<com.arte.ainew.common.execution.ExecutionAuthorization> resolved = !write
+                    && resolver instanceof com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver reads
+                    ? reads.readSnapshot(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes(), false)
+                    .map(com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot::authorization)
+                    : resolver.resolve(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes());
+            return resolved.timeout(remaining)
                     .switchIfEmpty(Mono.error(new AccessDeniedException("Execution authorization denied")))
                     .map(fresh -> {
                         // 确认主体、租户、工作空间和权限集合与原上下文一致
@@ -135,8 +155,28 @@ public final class AdmissionAuthorization {
      */
     public Grant grant(ExecutionContext context) {
         if (source != null) return source.grant(context);
+        return grant(properties, context);
+    }
+
+    public Mono<Grant> configurationGrant(ExecutionContext context) {
+        return Mono.deferContextual(values -> {
+            var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
+            if (snapshot.isPresent()) {
+                if (snapshot.get().configuration() == null)
+                    return Mono.error(new IllegalStateException("Read operation did not request control configuration"));
+                return Mono.just(grant(snapshot.get().configuration(), context));
+            }
+            Mono<Grant> result = Mono.fromCallable(() -> grant(context));
+            return source == null ? result : result.subscribeOn(scheduler);
+        });
+    }
+
+    /**
+     * 本次操作已授权的配置快照；不再次查询来源。
+     */
+    public Grant grant(NewAiProperties configuration, ExecutionContext context) {
         var owner = ExecutionOwner.from(context);
-        return properties.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(owner.subjectId())
+        return configuration.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(owner.subjectId())
                         && g.tenantId().equals(owner.tenantId()) && g.workspaceId().equals(owner.workspaceId())
                         && g.subjectName().equals(context.authorization().principal().subjectName())
                         && g.principalKind() == context.authorization().principal().kind()).findFirst()

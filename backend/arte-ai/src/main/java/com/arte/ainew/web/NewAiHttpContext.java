@@ -34,15 +34,27 @@ public final class NewAiHttpContext {
         this.properties = properties;
     }
 
+    public <T> Mono<T> read(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
+                            boolean includeConfiguration, java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        validate(scope, timeout, null, null);
+        return executionContextFactory.readCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
+                timeout, null, null, properties.releaseRef(), null), includeConfiguration, work);
+    }
+
     public Mono<ExecutionContext> create(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
                                          String budgetRef, String idempotencyKey) {
+        validate(scope, timeout, budgetRef, idempotencyKey);
+        return executionContextFactory.createCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
+                timeout, null, budgetRef, properties.releaseRef(), idempotencyKey));
+    }
+
+    private void validate(ConversationRequests.Scope scope, Duration timeout, String budgetRef, String idempotencyKey) {
         ContractChecks.id(scope.tenantId(), "tenantId");
         ContractChecks.id(scope.workspaceId(), "workspaceId");
         ContractChecks.optionalId(budgetRef, "budgetRef");
         ContractChecks.optionalId(idempotencyKey, "idempotencyKey");
         ContractChecks.require(timeout != null && timeout.compareTo(Duration.ofSeconds(1)) >= 0
                 && timeout.compareTo(properties.limits().maximumTimeout()) <= 0, "Timeout exceeds execution limits");
-        return executionContextFactory.createCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
-                timeout, null, budgetRef, properties.releaseRef(), idempotencyKey));
     }
+
 }

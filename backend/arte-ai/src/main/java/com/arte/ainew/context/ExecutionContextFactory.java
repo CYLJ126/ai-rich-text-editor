@@ -51,6 +51,30 @@ public final class ExecutionContextFactory {
         return create(SecurityContextHolder.getContext().getAuthentication(), request);
     }
 
+    /**
+     * MVC 身份仍在调用时捕获；快照按订阅创建，数据库读取完成后才进入本次只读操作。
+     */
+    public <T> Mono<T> readCurrent(ExecutionContextRequest request, boolean includeConfiguration,
+                                   java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        Authentication captured = SecurityContextHolder.getContext().getAuthentication();
+        if (!(authorizationResolver instanceof com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver reads))
+            return create(captured, request).flatMap(work).timeout(request.timeout());
+        if (captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken)
+            return create(captured, request).flatMap(work);
+        // 与 create 一样，只复制请求线程验证后的名称，订阅闭包不持有在线用户或 Authentication。
+        String name = captured.getName();
+        if (name == null || name.isBlank())
+            return Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required"));
+        return Mono.defer(() -> {
+            var snapshot = new java.util.concurrent.atomic.AtomicReference<com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot>();
+            var scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
+                    reads.readSnapshot(authenticatedName, tenant, workspace, scopes, includeConfiguration)
+                            .doOnNext(snapshot::set).map(com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot::authorization), clock);
+            return scoped.create(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(name, null, java.util.List.of()), request)
+                    .flatMap(context -> ReadOperationSnapshot.use(context, snapshot.get(), work));
+        }).timeout(request.timeout());
+    }
+
     public Mono<ExecutionContext> createReactive(ExecutionContextRequest request) {
         return ReactiveSecurityContextHolder.getContext()
                 .switchIfEmpty(Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required")))

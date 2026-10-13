@@ -36,6 +36,23 @@ class TransactionGovernanceLocksTest {
     }
 
     @Test
+    void guardReadsEachGovernanceRowOnceAndDiscardsFactsBeforeWriteCallback() {
+        Scope scope = seed("tenant", "space");
+        var request = DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_UPDATE, "write");
+        f.transactions.required(() -> f.services.writeGuard().inCurrentTransaction(alice, List.of(request, request), () -> {
+            for (String key : List.of("subject:alice", "tenant:tenant", "workspace:space", "tenant-member:tenant", "workspace-member:space"))
+                assertEquals(1L, f.lockOrder.stream().filter(key::equals).count(), key);
+            var key = workspaceKey(scope, "alice");
+            var member = f.workspaceMembers.get(key);
+            f.workspaceMembers.put(key, new WorkspaceMembership(member.id(), scope, "alice", member.role(),
+                    MembershipStateEnum.REVOKED, member.generation(), member.version() + 1));
+            assertThrows(com.arte.core.exception.platform.PlatformException.class,
+                    () -> f.services.authorization().requireInCurrentTransaction(alice, request));
+            return Boolean.TRUE;
+        }));
+    }
+
+    @Test
     void ascendingNewTenantsCanComposeWithoutPredeclaringRanges() {
         Scope first = seed("a-tenant", "space");
         Scope second = seed("z-tenant", "space");

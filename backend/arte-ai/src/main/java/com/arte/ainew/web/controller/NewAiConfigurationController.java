@@ -47,8 +47,7 @@ public class NewAiConfigurationController {
     public Mono<ResultContext<ChatConfigurationResponse>> discoverChatOptions(
             @Valid @RequestBody ConfigurationRequests.DiscoverChatOptions request, Locale locale) {
         // 必须在 MVC 请求线程捕获身份；不需要预算引用或幂等键。
-        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE), queryTimeout, null, null)
-                .flatMap(configurations::discover)
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.INVOKE), queryTimeout, true, configurations::discover)
                 .map(options -> ResultContext.success(ChatConfigurationResponse.from(options), ResultCodeEnum.SUCCESS, locale));
     }
 }

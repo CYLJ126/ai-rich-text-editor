@@ -16,6 +16,13 @@
             flushCache="true">
         SELECT * FROM arte_ai_workspace_configuration WHERE tenant_id=#{tenant} AND workspace_id=#{workspace} FOR UPDATE
     </select>
+    <select id="workspaceRead" resultType="com.arte.app.pojo.platform.PlatformAiControlRow" useCache="false">
+        SELECT * FROM arte_ai_workspace_configuration WHERE tenant_id=#{tenant} AND workspace_id=#{workspace}
+    </select>
+    <select id="budgetsRead" resultType="com.arte.app.pojo.platform.PlatformAiControlRow" useCache="false">
+        SELECT * FROM arte_ai_budget_definition WHERE tenant_id=#{tenant} AND workspace_id=#{workspace} AND
+        subject_id=#{subject} ORDER BY budget_ref
+    </select>
     <insert id="insertWorkspace">INSERT INTO arte_ai_workspace_configuration(tenant_id,workspace_id,payload,version)
         VALUES(#{row.tenantId},#{row.workspaceId},#{row.payload},#{row.version})
     </insert>

@@ -40,7 +40,7 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
 
     @Override
     public <T> T inCurrentTransaction(TrustedActor actor, List<AccessRequest> requests, Supplier<T> work) {
-        transactions.requireActive();
+        transactions.requireWritable();
         principals.requireActive(actor);
         List<AccessRequest> inputs = List.copyOf(requests);
         if (inputs.isEmpty() || inputs.size() > 100)
@@ -54,10 +54,13 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
                 throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "write-guard");
         }
         // 租户治理无需空间资格；混合请求仍统一先锁全部租户，再锁目标空间及成员。
-        locks.ranges(actor.principal().subjectId(), inputs.stream().map(request -> request.scope().tenantId()).toList(),
-                inputs.stream().filter(request -> request.resource().type().equals(WORKSPACE))
-                        .map(request -> request.scope().requireWorkspace()).toList());
-        for (AccessRequest request : inputs) authorization.requireInCurrentTransaction(actor, request);
+        locks.duringAuthorization(() -> {
+            locks.ranges(actor.principal().subjectId(), inputs.stream().map(request -> request.scope().tenantId()).toList(),
+                    inputs.stream().filter(request -> request.resource().type().equals(WORKSPACE))
+                            .map(request -> request.scope().requireWorkspace()).toList());
+            for (AccessRequest request : inputs) authorization.requireInCurrentTransaction(actor, request);
+            return Boolean.TRUE;
+        });
         return Objects.requireNonNull(work).get();
     }
 }

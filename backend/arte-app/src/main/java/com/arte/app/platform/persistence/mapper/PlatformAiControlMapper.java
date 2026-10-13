@@ -23,6 +23,10 @@ public interface PlatformAiControlMapper {
 
     PlatformAiControlRow workspace(@Param("tenant") String tenant, @Param("workspace") String workspace);
 
+    PlatformAiControlRow workspaceRead(@Param("tenant") String tenant, @Param("workspace") String workspace);
+
+    List<PlatformAiControlRow> budgetsRead(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("subject") String subject);
+
     int insertWorkspace(@Param("row") PlatformAiControlRow row);
 
     int replaceWorkspace(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);

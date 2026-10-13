@@ -24,6 +24,7 @@ public final class JdbcPublicTransactionRunner implements PublicTransactionRunne
 
     private final DataSource source;
     private final TransactionTemplate template;
+    private final TransactionTemplate readTemplate;
 
     private record StateKey(DataSource source) {
     }
@@ -40,12 +41,18 @@ public final class JdbcPublicTransactionRunner implements PublicTransactionRunne
         this.stateKey = new StateKey(source);
         template = new TransactionTemplate(manager);
         template.setTimeout(timeoutSeconds);
+        readTemplate = new TransactionTemplate(manager);
+        readTemplate.setTimeout(timeoutSeconds);
+        readTemplate.setReadOnly(true);
+        readTemplate.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
     }
 
     @Override
     public <T> T required(Supplier<T> work) {
         if (TransactionSynchronizationManager.isActualTransactionActive() && !isTransactionActive())
             throw new IllegalStateException("Cannot join a transaction on another datasource");
+        if (isTransactionActive() && isReadOnly())
+            throw new IllegalStateException("Write transaction cannot join a read-only snapshot");
         return template.execute(
                 status -> {
                     try {
@@ -58,9 +65,21 @@ public final class JdbcPublicTransactionRunner implements PublicTransactionRunne
     }
 
     @Override
+    public <T> T readOnly(Supplier<T> work) {
+        if (TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Read snapshot requires its own transaction boundary");
+        return readTemplate.execute(status -> work.get());
+    }
+
+    @Override
     public boolean isTransactionActive() {
         return TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.hasResource(source);
+    }
+
+    @Override
+    public boolean isReadOnly() {
+        return isTransactionActive() && TransactionSynchronizationManager.isCurrentTransactionReadOnly();
     }
 
     @SuppressWarnings("unchecked")

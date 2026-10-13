@@ -65,7 +65,7 @@ public final class DefaultChatService implements ChatService {
 
     @Override
     public Mono<AcceptedExecution> submit(EntryRequests.Chat request, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(currentContext ->
+        return authorization.requireWrite(context, AdmissionAuthorization.INVOKE).flatMap(currentContext ->
                         // 查找会话
                         conversationsService.find(request.conversationId(), currentContext).flatMap(conversation -> {
                             if (conversation.state() != Conversation.State.ACTIVE) {
@@ -111,7 +111,7 @@ public final class DefaultChatService implements ChatService {
 
     @Override
     public Mono<AcceptedExecution> regenerate(EntryRequests.Regenerate request, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current ->
+        return authorization.requireWrite(context, AdmissionAuthorization.INVOKE).flatMap(current ->
                 // 查找原调用（invocationId 对应的记录）
                 executionStore.find(ExecutionOwner.from(current), request.originalInvocationId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))

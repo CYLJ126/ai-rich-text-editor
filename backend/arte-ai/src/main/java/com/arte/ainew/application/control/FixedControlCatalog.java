@@ -92,21 +92,31 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     }
 
     public Mono<NewAiProperties> configuration(ExecutionContext context) {
-        return source == null ? Mono.just(properties)
-                : Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler);
+        return Mono.deferContextual(values -> {
+            var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
+            if (snapshot.isPresent()) {
+                var configuration = snapshot.get().configuration();
+                if (configuration == null)
+                    return Mono.error(new IllegalStateException("Read operation did not request control configuration"));
+                return Mono.just(configuration);
+            }
+            return source == null ? Mono.just(properties)
+                    : Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler);
+        });
     }
 
     public java.util.List<NewAiProperties.Rate> rates() {
         return source == null ? properties.rates() : source.definitions().rates();
     }
 
+    public FixedControlCatalog fromSnapshot(NewAiProperties value) {
+        var snapshotAuthorization = new AdmissionAuthorization(
+                new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(value), value, clock);
+        return new FixedControlCatalog(value, snapshotAuthorization, clock);
+    }
+
     private Mono<FixedControlCatalog> current(ExecutionContext context) {
-        return configuration(context).map(value -> {
-            // 来源已在本次读取中验证当前公共资格；纯配置算法复用这份快照，避免递归回查数据库。
-            var snapshotAuthorization = new AdmissionAuthorization(
-                    new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(value), value, clock);
-            return new FixedControlCatalog(value, snapshotAuthorization, clock);
-        });
+        return configuration(context).map(this::fromSnapshot);
     }
 
     public Mono<NewAiProperties.Budget> budget(String ref, ExecutionContext context) {

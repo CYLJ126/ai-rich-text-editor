@@ -31,23 +31,23 @@ public final class BudgetAccountQueryService {
         ContractChecks.id(budgetRef, "budgetRef");
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
             var owner = ExecutionOwner.from(current);
-            // 先校验使用资格，使未知预算和其他主体预算返回相同的不可见响应。
-            if (!authorization.grant(current).budgetRefs().contains(budgetRef)) {
-                throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
-            }
-
-            return configuration.budget(budgetRef, current).flatMap(definition -> {
-            if (!definition.owner().equals(owner)) {
-                throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
-            }
-            return budgets.account(owner, budgetRef)
-                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
-                    .map(account -> {
-                        if (!account.budgetRef().equals(budgetRef) || !account.owner().equals(owner)
-                                || !account.limit().equals(definition.limit()) || !account.rateVersion().equals(definition.rate())) {
-                            throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
-                        }
-                        return account;
+            return configuration.configuration(current).flatMap(snapshot -> {
+                // 未知预算与其他主体预算均不可见；资格、定义来自同一次可信读取。
+                if (!authorization.grant(snapshot, current).budgetRefs().contains(budgetRef))
+                    throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
+                var definition = snapshot.budgets().stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst()
+                        .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE));
+                if (!definition.owner().equals(owner)) {
+                    throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
+                }
+                return budgets.account(owner, budgetRef)
+                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
+                        .map(account -> {
+                            if (!account.budgetRef().equals(budgetRef) || !account.owner().equals(owner)
+                                    || !account.limit().equals(definition.limit()) || !account.rateVersion().equals(definition.rate())) {
+                                throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
+                            }
+                            return account;
                     });
             });
         });

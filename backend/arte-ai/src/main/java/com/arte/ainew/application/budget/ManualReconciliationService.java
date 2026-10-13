@@ -36,13 +36,14 @@ public final class ManualReconciliationService {
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(authorized ->
                 budgetAccountQueryService.account(budgetRef, authorized).flatMap(account ->
                         reconciliationStore.pendingReconciliations(ExecutionOwner.from(authorized), budgetRef, current, size)
-                                .map(page -> new PendingPage(page, authorization.grant(authorized).scopes().contains(AdmissionAuthorization.BUDGET_ADMIN)))));
+                                .flatMap(page -> authorization.configurationGrant(authorized)
+                                        .map(grant -> new PendingPage(page, grant.scopes().contains(AdmissionAuthorization.BUDGET_ADMIN))))));
     }
 
     public Mono<Reconciliation.Receipt> confirm(String budgetRef, String invocationId, long invocationVersion,
                                                 String reservationId, long reservationVersion, Money charge, String evidenceRef, String note,
                                                 boolean executionEnded, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(authorized ->
+        return authorization.requireWrite(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(authorized ->
                 budgetAccountQueryService.account(budgetRef, authorized).flatMap(account -> {
                     if (!account.limit().currency().equals(charge.currency()))
                         throw new AdmissionException(ResultCodeEnum.AI_CURRENCY_MISMATCH);

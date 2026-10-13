@@ -124,12 +124,16 @@ class DatabaseAiControlIntegrationTest {
     }
 
     ApplicationContextRunner context() {
+        return context(f.source);
+    }
+
+    ApplicationContextRunner context(DataSource source) {
         return new ApplicationContextRunner().withUserConfiguration(PlatformWorkspaceConfiguration.class, PlatformIdentityConfiguration.class,
                         PlatformPersistenceConfiguration.class, DatabaseAiControlService.class, Stores.class, NewAiAdmissionConfiguration.class)
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
                         "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true", "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE")
-                .withBean("appDataSource", DataSource.class, () -> f.source)
-                .withBean(RbacAccountReader.class, () -> new RbacAccountReader(f.source, new RbacAccountMapperConfiguration().identityUserMapper(f.source)))
+                .withBean("appDataSource", DataSource.class, () -> source)
+                .withBean(RbacAccountReader.class, () -> new RbacAccountReader(source, new RbacAccountMapperConfiguration().identityUserMapper(source)))
                 .withPropertyValues(seedProperties())
                 .withBean(RedissonClient.class, () -> mock(RedissonClient.class))
                 .withBean(ModelGateway.class, () -> new ModelGateway() {
@@ -186,6 +190,87 @@ class DatabaseAiControlIntegrationTest {
             assertEquals(2, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
             var legacy = db.resolve("alice", "legacy-tenant", "legacy-space", Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT);
             assertEquals("legacy-v1", legacy.grantRef());
+        });
+    }
+
+    static final class SqlRecorder extends org.springframework.jdbc.datasource.DelegatingDataSource {
+        final List<String> sql = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        SqlRecorder(DataSource source) {
+            super(source);
+        }
+
+        @Override
+        public java.sql.Connection getConnection() throws java.sql.SQLException {
+            var connection = super.getConnection();
+            return (java.sql.Connection) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                    new Class<?>[]{java.sql.Connection.class}, (proxy, method, args) -> {
+                        if (method.getName().equals("prepareStatement") && args[0] instanceof String query)
+                            sql.add(query);
+                        try {
+                            return method.invoke(connection, args);
+                        } catch (java.lang.reflect.InvocationTargetException failure) {
+                            throw failure.getCause();
+                        }
+                    });
+        }
+
+        void assertNoLocks() {
+            assertTrue(sql.stream().noneMatch(q -> q.toUpperCase().contains("FOR UPDATE")), sql.toString());
+        }
+    }
+
+    @Test
+    void readOperationsUseOneFreshSnapshotNoWriteLocksAndOnlyLoadRequestedConfiguration() {
+        var scope = f.initialize().value().workspace().scope();
+        var recorded = new SqlRecorder(f.source);
+        context(recorded).run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("import"));
+            db.ensure(f.actor, scope);
+            var conversation = c.getBean(ConversationService.class).create("Read snapshot", null, List.of(),
+                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "read-conversation")).block(WAIT);
+            var source = org.mockito.Mockito.spy(db);
+            var http = new com.arte.ainew.web.NewAiHttpContext(new com.arte.ainew.context.ExecutionContextFactory(source, Clock.systemUTC()), c.getBean(NewAiProperties.class));
+            var target = new com.arte.ainew.web.request.ConversationRequests.Scope(scope.tenantId(), scope.workspaceId());
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                    org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
+            try {
+                var discovery = http.read(target, Set.of(AdmissionAuthorization.INVOKE), WAIT, true,
+                        c.getBean(ChatConfigurationQueryService.class)::discover);
+                recorded.sql.clear();
+                var options = discovery.block(WAIT).options();
+                recorded.assertNoLocks();
+                org.mockito.Mockito.verify(source).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.INVOKE), true);
+                assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_control_head")).count());
+                assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
+                assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")).count());
+                int discoveryQueries = recorded.sql.size();
+                assertTrue(discoveryQueries <= 20, recorded.sql.toString());
+                recorded.sql.clear();
+                http.read(target, Set.of(AdmissionAuthorization.READ), WAIT, true,
+                        ctx -> c.getBean(BudgetAccountQueryService.class).account(options.getFirst().budgetRefs().getFirst(), ctx)).block(WAIT);
+                recorded.assertNoLocks();
+                org.mockito.Mockito.verify(source).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.READ), true);
+                assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
+                int budgetQueries = recorded.sql.size();
+                assertTrue(budgetQueries <= 21, recorded.sql.toString());
+                recorded.sql.clear();
+                http.read(target, Set.of(AdmissionAuthorization.CONVERSATION), WAIT, false,
+                        ctx -> c.getBean(ConversationService.class).find(conversation.conversationId(), ctx)).block(WAIT);
+                recorded.assertNoLocks();
+                org.mockito.Mockito.verify(source).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.CONVERSATION), false);
+                assertTrue(recorded.sql.stream().noneMatch(q -> q.contains("arte_ai_control_head") || q.contains("arte_ai_control_revision") || q.contains("arte_ai_budget_definition")));
+                assertTrue(recorded.sql.size() <= 18, recorded.sql.toString());
+                System.out.println("READ_SNAPSHOT_SQL_COUNTS discovery=" + discoveryQueries + " budget=" + budgetQueries + " conversation=" + recorded.sql.size());
+                f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+                assertThrows(Exception.class, () -> discovery.block(WAIT));
+                org.mockito.Mockito.verify(source, org.mockito.Mockito.times(2)).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.INVOKE), true);
+                org.mockito.Mockito.verify(source, org.mockito.Mockito.never()).resolve(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anySet());
+            } finally {
+                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            }
         });
     }
 

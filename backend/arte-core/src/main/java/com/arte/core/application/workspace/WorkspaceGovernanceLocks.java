@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  * <p>
  * 同一外层事务共享主体／租户取锁记录。所有子记录锁须在对应排他父租户锁下取得，
  * 因此同租户组合调用可重入或扩展空间；跨租户新增父锁必须递增，租户锁后不再新增主体锁。
- * 持锁后的允许判断仍交由 AuthorizationService，记录不缓存身份、授权或领域事实。
+ * 持锁后的允许判断仍交由 AuthorizationService；只在一次写回调前的授权批次内复用锁定事实，回调开始前清除。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
@@ -36,6 +36,8 @@ public final class WorkspaceGovernanceLocks {
         String lastSubject;
         String lastTenant;
         boolean failed;
+        int authorizationDepth;
+        Map<Object, Object> authorizationFacts;
     }
 
     private final PublicTransactionRunner transactions;
@@ -56,6 +58,32 @@ public final class WorkspaceGovernanceLocks {
         this.workspaceMembers = Objects.requireNonNull(workspaceMembers);
     }
 
+    /**
+     * 仅在写回调前的一批授权内复用已锁事实；退出后立即清除，后续写入／重入必须重读。
+     */
+    public <T> T duringAuthorization(Supplier<T> work) {
+        LockState state = state();
+        if (state.authorizationDepth++ == 0) state.authorizationFacts = new HashMap<>();
+        try {
+            return work.get();
+        } finally {
+            if (--state.authorizationDepth == 0) state.authorizationFacts = null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T authorizationFact(Object key, Supplier<T> read) {
+        LockState state = state();
+        if (state.authorizationFacts == null) return read.get();
+        if (state.authorizationFacts.containsKey(key)) return (T) state.authorizationFacts.get(key);
+        T value = read.get();
+        state.authorizationFacts.put(key, value);
+        return value;
+    }
+
+    private record FactKey(Class<?> store, Object range, String subject) {
+    }
+
     public void tenant(String subjectId, String tenantId) {
         preflight(subjectId, List.of(tenantId));
         subject(subjectId);
@@ -72,10 +100,10 @@ public final class WorkspaceGovernanceLocks {
         LockState state = state();
         checkSubject(state, subjectId);
         if (state.subjects.add(subjectId)) state.lastSubject = subjectId;
-        acquire(() -> {
+        authorizationFact(new FactKey(PreferenceStore.class, subjectId, subjectId), () -> acquire(() -> {
             preferences.lockSubject(subjectId);
             return Boolean.TRUE;
-        });
+        }));
     }
 
     public Optional<Tenant> lockTenant(String tenantId) {
@@ -83,24 +111,27 @@ public final class WorkspaceGovernanceLocks {
         LockState state = state();
         checkTenant(state, tenantId);
         if (state.tenants.add(tenantId)) state.lastTenant = tenantId;
-        Optional<Tenant> result = acquire(() -> tenants.lock(tenantId));
+        Optional<Tenant> result = authorizationFact(new FactKey(TenantStore.class, tenantId, null),
+                () -> acquire(() -> tenants.lock(tenantId)));
         if (result.isPresent()) state.lockedParents.add(tenantId);
         return result;
     }
 
     public Optional<Workspace> lockWorkspace(Scope scope) {
         requireParent(scope.tenantId());
-        return acquire(() -> workspaces.lock(scope));
+        return authorizationFact(new FactKey(WorkspaceStore.class, scope, null), () -> acquire(() -> workspaces.lock(scope)));
     }
 
     public Optional<TenantMembership> lockTenantMember(String tenantId, String subjectId) {
         requireParentAndSubject(tenantId, subjectId);
-        return acquire(() -> tenantMembers.lock(tenantId, subjectId));
+        return authorizationFact(new FactKey(TenantMembershipStore.class, tenantId, subjectId),
+                () -> acquire(() -> tenantMembers.lock(tenantId, subjectId)));
     }
 
     public Optional<WorkspaceMembership> lockWorkspaceMember(Scope scope, String subjectId) {
         requireParentAndSubject(scope.tenantId(), subjectId);
-        return acquire(() -> workspaceMembers.lock(scope, subjectId));
+        return authorizationFact(new FactKey(WorkspaceMembershipStore.class, scope, subjectId),
+                () -> acquire(() -> workspaceMembers.lock(scope, subjectId)));
     }
 
     public void scopes(String subjectId, Collection<Scope> scopes) {
@@ -156,7 +187,7 @@ public final class WorkspaceGovernanceLocks {
     }
 
     private LockState state() {
-        transactions.requireActive();
+        transactions.requireWritable();
         LockState state = transactions.resource(TRANSACTION_LOCK_STATE, LockState::new);
         if (state.failed) reject(state);
         return state;

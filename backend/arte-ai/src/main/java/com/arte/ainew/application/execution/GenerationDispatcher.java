@@ -166,7 +166,7 @@ public final class GenerationDispatcher {
         if (!(persisted.input() instanceof GenerationRequest generation)) {
             return rejectBeforeAttempt(invocation, new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY));
         }
-        return admissionAuthorization.require(runtime.execution(), AdmissionAuthorization.INVOKE)
+        return admissionAuthorization.requireWrite(runtime.execution(), AdmissionAuthorization.INVOKE)
                 .flatMap(current -> {
                     var request = new InvocationRequest<>(persisted.capability(), persisted.binding(), persisted.kind(),
                             generation, persisted.options(), current);

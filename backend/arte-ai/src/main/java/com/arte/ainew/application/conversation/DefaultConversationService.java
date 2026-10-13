@@ -44,7 +44,7 @@ public final class DefaultConversationService implements ConversationService {
 
     @Override
     public Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+        return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
             var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
             if (profile != null || !selections.isEmpty()) {

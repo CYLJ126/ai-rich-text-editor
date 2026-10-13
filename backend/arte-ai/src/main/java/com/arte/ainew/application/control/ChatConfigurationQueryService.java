@@ -37,9 +37,9 @@ public final class ChatConfigurationQueryService {
                 return Mono.just(new ChatConfigurationOptions(List.of()));
             }
             return catalog.configuration(current).flatMap(configuration -> {
-            var grant = authorization.grant(current);
+                var grant = authorization.grant(configuration, current);
             var owner = ExecutionOwner.from(current);
-            return catalog.discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
+                return catalog.fromSnapshot(configuration).discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
                     .filter(binding -> binding.contextWindowTokens() >= 2
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING))

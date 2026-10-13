@@ -46,8 +46,8 @@ public class NewAiReconciliationController {
 
     @PostMapping("/pendingReconciliations")
     public Mono<ResultContext<ReconciliationResponses.PendingPage>> pending(@Valid @RequestBody ReconciliationRequests.Query request, Locale locale) {
-        return newAiHttpContext.create(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, null, null)
-                .flatMap(context -> manualReconciliationService.pending(request.budgetRef(), request.current(), request.size(), context))
+        return newAiHttpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, true,
+                        context -> manualReconciliationService.pending(request.budgetRef(), request.current(), request.size(), context))
                 .map(value -> ResultContext.success(ReconciliationResponses.PendingPage.from(value), ResultCodeEnum.SUCCESS, locale));
     }
 
@@ -63,8 +63,8 @@ public class NewAiReconciliationController {
 
     @PostMapping("/reconciliationReceipt")
     public Mono<ResultContext<ReconciliationResponses.Receipt>> receipt(@Valid @RequestBody ReconciliationRequests.ReceiptQuery request, Locale locale) {
-        return newAiHttpContext.create(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, null, null)
-                .flatMap(context -> manualReconciliationService.receipt(request.budgetRef(), request.invocationId(), request.key(), context))
+        return newAiHttpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, true,
+                        context -> manualReconciliationService.receipt(request.budgetRef(), request.invocationId(), request.key(), context))
                 .map(value -> ResultContext.success(ReconciliationResponses.Receipt.from(value), ResultCodeEnum.SUCCESS, locale));
     }
 }

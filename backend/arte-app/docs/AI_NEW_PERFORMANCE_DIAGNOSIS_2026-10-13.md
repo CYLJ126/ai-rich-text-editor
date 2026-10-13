@@ -4,6 +4,13 @@
 请求多次重新加载完整控制面。前端串行加载和请求扇出进一步放大这些开销。另有已确认的结算表列名不匹配，使成功调用的预算保持
 RESERVED，SSE 持续到连接期限。
 
+结算问题修复进展：2026-10-13 21:31 已完成列名迁移，21:32:26 Worker 自动结算成功；目标预留已 SETTLED，账户 held=0，7
+个成功调用均已结算，迁移后没有新增 insertSettlement
+1054。详见[修复验证记录](/Users/cylj126/Workspace/my_project/arte_dev/backend/arte-app/docs/AI_NEW_SETTLEMENT_REPAIR_2026-10-13.md)。
+
+只读授权与写门控重构进展：已实现一次订阅内的轻量授权快照和非锁定读取，并消除写门控批次内重复治理查询。查询次数与安全边界验证详见[重构记录](/Users/cylj126/Workspace/my_project/arte_dev/backend/arte-app/docs/AI_NEW_READ_AUTHORIZATION_2026-10-13.md)
+。实际接口耗时需重启后复测。
+
 依据：`backend/log` 日志、当前工作区源码，以及使用项目现有连接配置执行的只读 SELECT
 1、表结构和预算状态查询。这里不把用户给出的接口时间当作服务端阶段计时；当前日志未包含对应 17.45 秒提交的完整 CHAT_ACCEPTED
 链路，也未给所有接口提供统一开始／结束日志。

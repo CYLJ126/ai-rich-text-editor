@@ -18,6 +18,25 @@ public interface PublicTransactionRunner {
     <T> T required(Supplier<T> work);
 
     /**
+     * 本地只读一致快照；持久化实现须提供只读、可重复读事务，不能取得写门控。
+     */
+    default <T> T readOnly(Supplier<T> work) {
+        throw new UnsupportedOperationException("Read-only snapshots are not supported by this transaction runner");
+    }
+
+    default boolean isReadOnly() {
+        return false;
+    }
+
+    /**
+     * 写门控不能加入展示读取事务。
+     */
+    default void requireWritable() {
+        requireActive();
+        if (isReadOnly()) throw new IllegalStateException("Write gate cannot join a read-only snapshot");
+    }
+
+    /**
      * 判断当前线程是否存在可参与的本地事务。
      */
     boolean isTransactionActive();

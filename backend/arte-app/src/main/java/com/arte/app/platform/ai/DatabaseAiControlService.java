@@ -14,7 +14,7 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
-import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
@@ -59,7 +59,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  */
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
-public class DatabaseAiControlService implements ExecutionAuthorizationResolver, AiControlConfigurationSource, WorkspaceProvisioningParticipant {
+public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, AiControlConfigurationSource, WorkspaceProvisioningParticipant {
 
     private final PlatformAiControlMapper mapper;
     private final PlatformJson json;
@@ -141,62 +141,90 @@ public class DatabaseAiControlService implements ExecutionAuthorizationResolver,
 
     @Override
     public Mono<ExecutionAuthorization> resolve(String name, String tenantId, String workspaceId, Set<String> requested) {
+        return Mono.fromCallable(() -> tx.required(() -> currentSnapshot(name, null,
+                        new Scope(tenantId, workspaceId), requested, false).authorization()))
+                .subscribeOn(scheduler).onErrorMap(PlatformException.class, failure ->
+                        failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE ? failure
+                                : new AccessDeniedException("Workspace AI access denied", failure));
+    }
+
+    @Override
+    public Mono<Snapshot> readSnapshot(String name, String tenantId, String workspaceId,
+                                       Set<String> requested, boolean includeConfiguration) {
+        var scopes = Set.copyOf(requested);
         return Mono.fromCallable(() -> {
-            var value = authorizedConfiguration(name, null, new Scope(tenantId, workspaceId), requested);
-            var grant = value.grant();
-            return new ExecutionAuthorization(new ExecutionPrincipal(grant.subjectId(), grant.subjectName(), grant.principalKind()),
-                    tenantId, workspaceId, requested, grant.grantRef());
+            // 首次稳定身份关联可有独立初始化事务；公共事实与控制面随后只读，不在快照内创建身份。
+            var actor = actor(name);
+            return tx.readOnly(() -> readSnapshot(actor, name, new Scope(tenantId, workspaceId), scopes, includeConfiguration));
         }).subscribeOn(scheduler).onErrorMap(PlatformException.class, failure ->
                 failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE ? failure
                         : new AccessDeniedException("Workspace AI access denied", failure));
     }
 
-    private record AuthorizedConfiguration(Published published, NewAiProperties.Grant grant,
-                                           WorkspaceConfiguration workspace, List<NewAiProperties.Budget> budgets) {
-    }
-
-    /**
-     * 单次公共事务取得当前资格与配置；同一次校验不重复取得全部治理锁或重读预算。
-     */
-    private AuthorizedConfiguration authorizedConfiguration(String name, String subjectId, Scope scope, Set<String> requested) {
+    private Snapshot readSnapshot(TrustedActor actor, String name, Scope scope, Set<String> requested, boolean includeConfiguration) {
         if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
                 AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
             throw new AccessDeniedException("Workspace AI action denied");
-        try {
-            return tx.required(() -> {
-                var actor = actor(name);
-                if (subjectId != null && !actor.principal().subjectId().equals(subjectId))
-                    throw new AccessDeniedException("Stable identity mismatch");
-                var published = published(true);
-                var legacy = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
-                        && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
-                        && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
-                        && g.scopes().containsAll(requested)).findFirst();
-                if (legacy.isPresent() && workspaces.getObject().find(scope).isEmpty()) {
-                    identities.findCurrentBySubjectId(actor.principal().subjectId()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
-                            .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
-                    var grant = renamed(legacy.get(), name);
-                    return new AuthorizedConfiguration(published, grant, null, published.catalog().legacyBudgets().stream()
-                            .filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList());
-                }
-                var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
-                requests.add(DefaultAuthorizationService.workspaceRequest(scope,
-                        requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai"));
-                if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN))
-                    requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai"));
-                return guards.getObject().inCurrentTransaction(actor, requests, () -> {
-                    var settings = ownConfiguration(scope);
-                    if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
-                        throw new AccessDeniedException("Workspace AI disabled");
-                    var definitions = budgets(scope, actor.principal().subjectId());
-                    var grant = workspaceGrant(actor, settings, requested, name, definitions);
-                    return new AuthorizedConfiguration(published, grant, settings, definitions);
-                });
-            });
-        } catch (PlatformException failure) {
-            if (failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw failure;
-            throw new AccessDeniedException("Workspace AI access denied", failure);
+        var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
+        requests.add(DefaultAuthorizationService.workspaceRequest(scope,
+                requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-read"));
+        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN))
+            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-read"));
+        int requiredActions = requests.size();
+        int policyAction = requested.contains(AdmissionAuthorization.BUDGET_ADMIN) ? 1 : -1;
+        int invokeAction = requested.contains(AdmissionAuthorization.INVOKE) ? 0 : -1;
+        if (includeConfiguration && policyAction < 0) {
+            policyAction = requests.size();
+            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-options"));
         }
+        if (includeConfiguration && invokeAction < 0) {
+            invokeAction = requests.size();
+            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_AI_USE, "database-ai-options"));
+        }
+        var decisions = guardsAuthorization().batchCheck(actor, requests);
+        if (decisions.size() != requests.size()) throw unavailable();
+        if (decisions.subList(0, requiredActions).stream().anyMatch(d -> !d.allowed())) {
+            if (decisions.stream().anyMatch(d -> d.reason() == com.arte.core.enums.access.AccessReasonEnum.AUTHORITY_UNAVAILABLE))
+                throw unavailable();
+            // 仅没有公共父空间的兼容范围可使用已发布 legacy grant，真实空间不能借用旧授权。
+            if (decisions.getFirst().reason() == com.arte.core.enums.access.AccessReasonEnum.NOT_FOUND
+                    && workspaces.getObject().find(scope).isEmpty()) {
+                var published = published(true);
+                var grant = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
+                                && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
+                                && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
+                                && g.scopes().containsAll(requested)).findFirst()
+                        .map(g -> renamed(g, name)).orElseThrow(() -> new AccessDeniedException("Workspace AI access denied"));
+                var configuration = includeConfiguration ? published.catalog().properties(infrastructure, List.of(grant),
+                        published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null;
+                return new Snapshot(authorization(grant, requested), configuration);
+            }
+            throw new AccessDeniedException("Workspace AI access denied");
+        }
+        var row = mapper.workspaceRead(scope.tenantId(), scope.workspaceId());
+        var settings = configurationRow(scope, row);
+        if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
+            throw new AccessDeniedException("Workspace AI disabled");
+        var auth = new ExecutionAuthorization(new ExecutionPrincipal(actor.principal().subjectId(), name, ExecutionPrincipal.Kind.USER),
+                scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
+        if (!includeConfiguration) return new Snapshot(auth, null);
+        var definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
+                .map(b -> json.read(b.getPayload(), NewAiProperties.Budget.class)).toList();
+        var permissions = new HashSet<>(Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
+        if (settings.preset().enabled() && decisions.get(invokeAction).allowed())
+            permissions.add(AdmissionAuthorization.INVOKE);
+        if (decisions.get(policyAction).allowed()) permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
+        var grant = workspaceGrant(actor, settings, permissions, name, definitions);
+        var catalog = published(true).catalog();
+        var bindings = catalog.bindings().stream().filter(b -> settings.preset().bindings().contains(b.definition())).toList();
+        var filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
+                List.of(), List.of(), settings.preset());
+        return new Snapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions));
+    }
+
+    private ExecutionAuthorization authorization(NewAiProperties.Grant grant, Set<String> requested) {
+        return new ExecutionAuthorization(new ExecutionPrincipal(grant.subjectId(), grant.subjectName(), grant.principalKind()),
+                grant.tenantId(), grant.workspaceId(), requested, grant.grantRef());
     }
 
     private boolean allows(TrustedActor actor, Scope scope, com.arte.core.pojo.access.Action action) {
@@ -221,7 +249,10 @@ public class DatabaseAiControlService implements ExecutionAuthorizationResolver,
     }
 
     private WorkspaceConfiguration ownConfiguration(Scope scope) {
-        var row = mapper.workspace(scope.tenantId(), scope.workspaceId());
+        return configurationRow(scope, mapper.workspace(scope.tenantId(), scope.workspaceId()));
+    }
+
+    private WorkspaceConfiguration configurationRow(Scope scope, PlatformAiControlRow row) {
         if (row == null) throw new AccessDeniedException("Workspace AI is not prepared");
         var value = json.read(row.getPayload(), WorkspaceConfiguration.class);
         if (!value.scope().equals(scope) || value.version() != row.getVersion()) throw unavailable();
@@ -242,30 +273,71 @@ public class DatabaseAiControlService implements ExecutionAuthorizationResolver,
                 value.preset().bindings().stream().map(DefinitionRef::id).collect(java.util.stream.Collectors.toSet()), refs);
     }
 
-    private AuthorizedConfiguration authorizedConfiguration(ExecutionContext context) {
+    /**
+     * 写入／派发边界使用当前事务门控，与展示读取的 MVCC 快照分开。
+     */
+    private Snapshot currentSnapshot(String name, String subjectId, Scope scope, Set<String> requested, boolean includeConfiguration) {
+        var actor = actor(name);
+        if (subjectId != null && !actor.principal().subjectId().equals(subjectId))
+            throw new AccessDeniedException("Stable identity mismatch");
+        if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
+                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
+            throw new AccessDeniedException("Workspace AI action denied");
+        if (workspaces.getObject().find(scope).isEmpty()) {
+            var published = published(true);
+            var grant = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
+                            && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
+                            && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
+                            && g.scopes().containsAll(requested)).findFirst().map(g -> renamed(g, name))
+                    .orElseThrow(() -> new AccessDeniedException("Workspace AI access denied"));
+            identities.findCurrentBySubjectId(actor.principal().subjectId()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
+                    .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
+            return new Snapshot(authorization(grant, requested), includeConfiguration ? published.catalog().properties(infrastructure,
+                    List.of(grant), published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null);
+        }
+        var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
+        requests.add(DefaultAuthorizationService.workspaceRequest(scope,
+                requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-write"));
+        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN))
+            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-write"));
+        return guards.getObject().inCurrentTransaction(actor, requests, () -> {
+            var settings = ownConfiguration(scope);
+            if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
+                throw new AccessDeniedException("Workspace AI disabled");
+            var auth = new ExecutionAuthorization(new ExecutionPrincipal(actor.principal().subjectId(), name, ExecutionPrincipal.Kind.USER),
+                    scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
+            if (!includeConfiguration) return new Snapshot(auth, null);
+            var definitions = budgets(scope, actor.principal().subjectId());
+            var grant = workspaceGrant(actor, settings, requested, name, definitions);
+            var catalog = published(true).catalog();
+            var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
+                    .filter(b -> settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
+                    List.of(), List.of(), settings.preset());
+            return new Snapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions));
+        });
+    }
+
+    private Snapshot snapshot(ExecutionContext context) {
         var principal = context.authorization().principal();
         if (principal.kind() != ExecutionPrincipal.Kind.USER)
             throw new AccessDeniedException("Stable identity mismatch");
-        return authorizedConfiguration(principal.subjectName(), principal.subjectId(),
-                new Scope(context.authorization().tenantId(), context.authorization().workspaceId()), context.authorization().scopes());
+        try {
+            return tx.required(() -> currentSnapshot(principal.subjectName(), principal.subjectId(),
+                    new Scope(context.authorization().tenantId(), context.authorization().workspaceId()), context.authorization().scopes(), true));
+        } catch (PlatformException failure) {
+            if (failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw failure;
+            throw new AccessDeniedException("Workspace AI access denied", failure);
+        }
     }
 
     @Override
     public NewAiProperties.Grant grant(ExecutionContext context) {
-        return authorizedConfiguration(context).grant();
+        return snapshot(context).configuration().grants().getFirst();
     }
 
     @Override
     public NewAiProperties configuration(ExecutionContext context) {
-        var value = authorizedConfiguration(context);
-        var catalog = value.published().catalog();
-        if (value.workspace() != null) {
-            var settings = value.workspace();
-            var bindings = catalog.bindings().stream().filter(b -> settings.preset().bindings().contains(b.definition())).toList();
-            catalog = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
-                    List.of(), List.of(), settings.preset());
-        }
-        return catalog.properties(infrastructure, List.of(value.grant()), value.budgets());
+        return snapshot(context).configuration();
     }
 
     private PlatformAiControlRow workspaceRow(WorkspaceConfiguration value) {

@@ -29,6 +29,12 @@ public final class ConversationHttpContext {
         this.properties = properties;
     }
 
+    public <T> Mono<T> read(ConversationRequests.Scope scope, java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        var timeout = Duration.ofSeconds(30).compareTo(properties.limits().maximumTimeout()) <= 0
+                ? Duration.ofSeconds(30) : properties.limits().maximumTimeout();
+        return httpContext.read(scope, Set.of(AdmissionAuthorization.CONVERSATION), timeout, false, work);
+    }
+
     public Mono<ExecutionContext> create(ConversationRequests.Scope scope, String idempotencyKey) {
         var timeout = Duration.ofSeconds(30).compareTo(properties.limits().maximumTimeout()) <= 0
                 ? Duration.ofSeconds(30) : properties.limits().maximumTimeout();

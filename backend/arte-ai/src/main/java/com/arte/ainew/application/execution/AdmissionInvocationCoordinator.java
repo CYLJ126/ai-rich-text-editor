@@ -57,9 +57,9 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
 
     @Override
     public Mono<AcceptedExecution> submit(InvocationSubmission<?> submission) {
-        return Mono.defer(() -> admissionAuthorization.require(submission.request().context(), AdmissionAuthorization.INVOKE)
+        return Mono.defer(() -> admissionAuthorization.requireWrite(submission.request().context(), AdmissionAuthorization.INVOKE)
                 .flatMap(current -> submission.conversation() == null ? Mono.just(current)
-                        : admissionAuthorization.require(current, AdmissionAuthorization.CONVERSATION))
+                        : admissionAuthorization.requireWrite(current, AdmissionAuthorization.CONVERSATION))
                 .flatMap(current -> {
                     if (!(submission.request().input() instanceof GenerationRequest generation)) {
                         throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
@@ -171,7 +171,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
 
     @Override
     public Mono<ControlReceipt> control(ExecutionControlRequest request, ExecutionContext context) {
-        return admissionAuthorization.require(context, AdmissionAuthorization.INVOKE)
+        return admissionAuthorization.requireWrite(context, AdmissionAuthorization.INVOKE)
                 .flatMap(current -> executionStore.requestControl(ExecutionOwner.from(current), request))
                 .flatMap(outcome -> outcome.successful() ? Mono.just(outcome.value())
                         : Mono.error(AdmissionException.fromStoreRejection(outcome.code())));

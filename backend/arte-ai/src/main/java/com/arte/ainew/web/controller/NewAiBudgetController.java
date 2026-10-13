@@ -48,8 +48,8 @@ public class NewAiBudgetController {
     public Mono<ResultContext<BudgetAccountResponse>> getBudget(
             @Valid @RequestBody BudgetRequests.Query request, Locale locale) {
         // 在请求线程捕获真实身份；读取不需要预算管理权限或幂等键。
-        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, null, null)
-                .flatMap(context -> budgetQueryService.account(request.budgetRef(), context))
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, true,
+                        context -> budgetQueryService.account(request.budgetRef(), context))
                 .map(account -> ResultContext.success(BudgetAccountResponse.from(account), ResultCodeEnum.SUCCESS, locale));
     }
 }

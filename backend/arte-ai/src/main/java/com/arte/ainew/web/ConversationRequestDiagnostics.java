@@ -21,15 +21,21 @@ public record ConversationRequestDiagnostics(
                                                  ConversationRequests.Scope scope, String conversationId,
                                                  PageParam page, Long expectedVersion,
                                                  java.util.function.Supplier<Mono<ExecutionContext>> source) {
-        var pending = new ConversationRequestDiagnostics(operation, field(scope.tenantId()), field(scope.workspaceId()),
-                field(conversationId), page == null ? null : page.getCurrent(), page == null ? null : page.getSize(),
-                expectedVersion, null, null, null);
-        http.setAttribute(ATTRIBUTE, pending);
+        var pending = prepare(http, operation, scope, conversationId, page, expectedVersion);
         // 必须在 MVC 线程构造 source，以保留现有 Authentication 捕获时机。
         return source.get().doOnNext(context -> http.setAttribute(ATTRIBUTE, new ConversationRequestDiagnostics(
                 operation, pending.tenantId(), pending.workspaceId(), pending.conversationId(), pending.current(),
                 pending.size(), expectedVersion, context.traceId(), context.executionId(),
                 field(context.authorization().principal().subjectId()))));
+    }
+
+    public static ConversationRequestDiagnostics prepare(HttpServletRequest http, String operation,
+                                                         ConversationRequests.Scope scope, String conversationId, PageParam page, Long expectedVersion) {
+        var pending = new ConversationRequestDiagnostics(operation, field(scope.tenantId()), field(scope.workspaceId()),
+                field(conversationId), page == null ? null : page.getCurrent(), page == null ? null : page.getSize(),
+                expectedVersion, null, null, null);
+        http.setAttribute(ATTRIBUTE, pending);
+        return pending;
     }
 
     private static String field(String value) {

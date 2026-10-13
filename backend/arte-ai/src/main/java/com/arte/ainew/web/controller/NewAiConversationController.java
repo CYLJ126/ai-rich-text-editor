@@ -54,25 +54,28 @@ public class NewAiConversationController {
 
     @PostMapping("/listConversations")
     public Mono<PageView<ConversationResponse>> listConversations(@Valid @RequestBody ConversationRequests.ListQuery request, Locale locale, HttpServletRequest http) {
-        return ConversationRequestDiagnostics.capture(http, "listConversations", request.getScope(), null, request.getPage(), null,
-                        () -> conversationHttpContext.create(request.getScope(), null))
-                .flatMap(context -> conversationService.list(request.getPage(), context))
+        ConversationRequestDiagnostics.prepare(http, "listConversations", request.getScope(), null, request.getPage(), null);
+        return conversationHttpContext.read(request.getScope(), context ->
+                        ConversationRequestDiagnostics.capture(http, "listConversations", request.getScope(), null, request.getPage(), null,
+                                () -> Mono.just(context)).flatMap(current -> conversationService.list(request.getPage(), current)))
                 .map(page -> pageView(page, ConversationResponse::from, locale));
     }
 
     @PostMapping("/getConversation")
     public Mono<ResultContext<ConversationResponse>> getConversation(@Valid @RequestBody ConversationRequests.Find request, Locale locale, HttpServletRequest http) {
-        return ConversationRequestDiagnostics.capture(http, "getConversation", request.scope(), request.conversationId(), null, null,
-                        () -> conversationHttpContext.create(request.scope(), null))
-                .flatMap(context -> conversationService.find(request.conversationId(), context))
+        ConversationRequestDiagnostics.prepare(http, "getConversation", request.scope(), request.conversationId(), null, null);
+        return conversationHttpContext.read(request.scope(), context ->
+                        ConversationRequestDiagnostics.capture(http, "getConversation", request.scope(), request.conversationId(), null, null,
+                                () -> Mono.just(context)).flatMap(current -> conversationService.find(request.conversationId(), current)))
                 .map(conversation -> ResultContext.success(ConversationResponse.from(conversation), ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/queryTurnsOfConversation")
     public Mono<PageView<ConversationTurnResponse>> queryTurnsOfConversation(@Valid @RequestBody ConversationRequests.TurnsQuery request, Locale locale, HttpServletRequest http) {
-        return ConversationRequestDiagnostics.capture(http, "queryTurnsOfConversation", request.getScope(), request.getConversationId(), request.getPage(), request.getExpectedVersion(),
-                        () -> conversationHttpContext.create(request.getScope(), null))
-                .flatMap(context -> conversationService.turns(request.getConversationId(), request.getExpectedVersion(), request.getPage(), context))
+        ConversationRequestDiagnostics.prepare(http, "queryTurnsOfConversation", request.getScope(), request.getConversationId(), request.getPage(), request.getExpectedVersion());
+        return conversationHttpContext.read(request.getScope(), context ->
+                        ConversationRequestDiagnostics.capture(http, "queryTurnsOfConversation", request.getScope(), request.getConversationId(), request.getPage(), request.getExpectedVersion(),
+                                () -> Mono.just(context)).flatMap(current -> conversationService.turns(request.getConversationId(), request.getExpectedVersion(), request.getPage(), current)))
                 .map(page -> pageView(page, ConversationTurnResponse::from, locale));
     }
 

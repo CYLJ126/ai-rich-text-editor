@@ -154,8 +154,8 @@ public final class WorkspaceAccessSupport {
         Tenant tenant = locks.lockTenant(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         TenantMembership member = locks.lockTenantMember(tenantId, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        return tenantSnapshot(principals.requireActiveCurrent(actor), tenantId, tenant, member,
-                () -> policies.findCurrentTenantPolicy(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+        return tenantSnapshot(locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()), () -> principals.requireActiveCurrent(actor)), tenantId, tenant, member,
+                () -> locks.authorizationFact(List.of(PolicyStore.class, tenantId), () -> policies.findCurrentTenantPolicy(tenantId)).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
     }
 
     private TenantSnapshot tenantSnapshot(Principal principal, String tenantId, Tenant tenant,
@@ -198,11 +198,11 @@ public final class WorkspaceAccessSupport {
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         WorkspaceMembership member = locks.lockWorkspaceMember(scope, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        Principal principal = principals.requireActiveCurrent(actor);
+        Principal principal = locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()), () -> principals.requireActiveCurrent(actor));
         TenantSnapshot tenantSnapshot = tenantSnapshot(principal, scope.tenantId(), tenant, tenantMember,
-                () -> policies.findCurrentTenantPolicy(scope.tenantId()).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope.tenantId()), () -> policies.findCurrentTenantPolicy(scope.tenantId())).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
         return workspaceSnapshot(tenantSnapshot, scope, workspace, member,
-                () -> policies.findCurrentWorkspacePolicy(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope), () -> policies.findCurrentWorkspacePolicy(scope)).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
     }
 
     private WorkspaceSnapshot workspaceSnapshot(TenantSnapshot tenant, Scope scope, Workspace workspace,

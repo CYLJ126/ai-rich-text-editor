@@ -194,6 +194,26 @@ class PlatformPersistenceIntegrationTest {
     }
 
     @Test
+    void readSnapshotUsesRepeatableReadAndRejectsWriteGateAndNestedWriteTransaction() {
+        var scope = initialize().value().workspace().scope();
+        tx.readOnly(() -> {
+            assertTrue(tx.isReadOnly());
+            var holder = (org.springframework.jdbc.datasource.ConnectionHolder) TransactionSynchronizationManager.getResource(source);
+            try {
+                assertEquals(java.sql.Connection.TRANSACTION_REPEATABLE_READ, holder.getConnection().getTransactionIsolation());
+            } catch (java.sql.SQLException error) {
+                throw new IllegalStateException(error);
+            }
+            assertThrows(IllegalStateException.class, () -> tx.required(() -> "write"));
+            var request = com.arte.core.application.access.DefaultAuthorizationService.workspaceRequest(scope,
+                    com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE, "read-gate-test");
+            assertThrows(IllegalStateException.class, () -> services.writeGuard().inCurrentTransaction(actor, List.of(request), () -> "write"));
+            return true;
+        });
+        assertFalse(tx.isReadOnly());
+    }
+
+    @Test
     void realDatabaseInitializationReplayAndOneAssociationAcrossKeys() {
         var first = initialize();
         var replay = initialize();

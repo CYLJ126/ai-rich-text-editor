@@ -8,7 +8,6 @@ import com.arte.ainew.application.execution.InvocationBudgetStatusResolver;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
-import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
@@ -18,7 +17,6 @@ import com.arte.ainew.pojo.execution.ControlReceipt;
 import com.arte.ainew.pojo.execution.ExecutionControlRequest;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.web.NewAiHttpContext;
-import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.ainew.web.request.InvocationRequests;
 import com.arte.ainew.web.response.InvocationEventsResponse;
 import com.arte.ainew.web.response.InvocationNotification;
@@ -103,17 +101,17 @@ public class NewAiInvocationController {
     @PostMapping("/getInvocationStatus")
     public Mono<ResultContext<InvocationStatusResponse>> getInvocationStatus(
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
-        return readContext(request.scope())
-                .flatMap(context -> executionControl.status(request.invocationId(), context))
-                .flatMap(invocation -> budgetStatus.resolve(invocation).map(state ->
-                        ResultContext.success(InvocationStatusResponse.from(invocation, state), ResultCodeEnum.SUCCESS, locale)));
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                context -> executionControl.status(request.invocationId(), context)
+                        .flatMap(invocation -> budgetStatus.resolve(invocation).map(state ->
+                                ResultContext.success(InvocationStatusResponse.from(invocation, state), ResultCodeEnum.SUCCESS, locale))));
     }
 
     @PostMapping("/getInvocationResult")
     public Mono<ResultContext<InvocationResultResponse>> getInvocationResult(
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
-        return readContext(request.scope())
-                .flatMap(context -> executionEventService.result(request.invocationId(), context))
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                        context -> executionEventService.result(request.invocationId(), context))
                 .map(result -> ResultContext.success(InvocationResultResponse.from(request.invocationId(), result),
                         ResultCodeEnum.SUCCESS, locale));
     }
@@ -124,9 +122,9 @@ public class NewAiInvocationController {
     @PostMapping("/invocationEvent")
     public Mono<ResultContext<InvocationEventsResponse>> invocationEvent(
             @Valid @RequestBody InvocationRequests.Replay request, Locale locale) {
-        return readContext(request.scope())
-                .flatMap(context -> executionEventService.replay(
-                        new ExecutionEvent.Cursor(request.invocationId(), request.afterSequence()), request.limit(), context))
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                        context -> executionEventService.replay(
+                                new ExecutionEvent.Cursor(request.invocationId(), request.afterSequence()), request.limit(), context))
                 .map(outcome -> {
                     if (!outcome.successful()) {
                         throw AdmissionException.fromStoreRejection(outcome.code());
@@ -154,9 +152,9 @@ public class NewAiInvocationController {
         // 排他游标：仅接收大于 afterSequence 的事件，支持断线续读。
         var cursor = new ExecutionEvent.Cursor(request.invocationId(), request.afterSequence());
         // 创建本次观看的 READ 上下文，期限独立于模型执行。
-        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.READ), watchTimeout, null, null)
+        return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), watchTimeout, false, executionContext ->
                 // 预读一条检查归属及游标，不推进游标；此处失败仍可返回 HTTP 错误。
-                .flatMap(executionContext -> executionEventService.replay(cursor, 1, executionContext).map(preflight -> {
+                executionEventService.replay(cursor, 1, executionContext).map(preflight -> {
                     if (!preflight.successful()) {
                         throw AdmissionException.fromStoreRejection(preflight.code());
                     }
@@ -216,8 +214,4 @@ public class NewAiInvocationController {
         return ServerSentEvent.<Object>builder(Map.of("httpStatus", status, "code", code)).event("error").build();
     }
 
-    private Mono<ExecutionContext> readContext(ConversationRequests.Scope scope) {
-        // 在 MVC 请求线程捕获身份，每次读取分配新的查询期限，不沿用原模型执行上下文。
-        return httpContext.create(scope, Set.of(AdmissionAuthorization.READ), queryTimeout, null, null);
-    }
 }
