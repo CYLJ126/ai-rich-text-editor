@@ -12,6 +12,7 @@ import {
 } from './config';
 import {useConfigurationDiscovery, useSelectedBudget,} from './useConfigurationSelection';
 import {hasAvailableBudget} from './useChatSession';
+import {aiReadAccessIssue} from './accessFeedback';
 
 export type ConfigurationDraft = ChatConfigValues & { modelKey?: string };
 type Values = ChatConfigValues & { modelKey?: string };
@@ -30,6 +31,7 @@ export default function ChatConfigurationForm({
                                                 externalModel,
                                                 applyRevision = 0,
                                                 cancelRevision = 0,
+                                                refreshRevision = 0,
                                                 applied,
                                                 onCancel,
                                                 draftValues,
@@ -49,6 +51,7 @@ export default function ChatConfigurationForm({
   externalModel?: { key: string; revision: number };
   applyRevision?: number;
   cancelRevision?: number;
+  refreshRevision?: number;
   applied?: ChatTestConfig | null;
   onCancel?: () => void;
   draftValues?: ConfigurationDraft;
@@ -153,6 +156,10 @@ export default function ChatConfigurationForm({
   }, []);
 
   useEffect(() => {
+    if (refreshRevision) void loadOptions(false, true);
+  }, [refreshRevision]);
+
+  useEffect(() => {
     if (!invalidationRevision) return;
     edited.current = true;
     discovery.clear();
@@ -210,23 +217,23 @@ export default function ChatConfigurationForm({
     onApply(parsed.data, chosen);
   }
 
-  const errorAlert = (error: unknown) =>
-    error ? (
-      <Alert
-        type="error"
-        showIcon
-        title={error instanceof AiApiError ? error.message : t('error.network')}
-        description={
-          error instanceof AiApiError
-            ? error.httpStatus === 401
-              ? t('error.login')
-              : error.httpStatus === 403
-                ? t('error.permission')
-                : undefined
-            : undefined
-        }
-      />
-    ) : null;
+  const errorAlert = (error: unknown, source: 'configuration' | 'budget' = 'budget') => {
+    if (!error) return null;
+    const issue = aiReadAccessIssue(error);
+    if (!issue && source === 'budget') return <Alert type="error" showIcon
+                                                     title={error instanceof AiApiError ? error.message : t('error.network')}/>;
+    const unavailable = error instanceof AiApiError && error.code === '205001';
+    return <Alert
+      type={issue || unavailable ? 'info' : 'error'}
+      showIcon
+      title={issue === 'login' ? '登录已失效'
+        : issue === 'forbidden' ? source === 'configuration' ? '当前账号无法查看此空间的可用模型' : '当前账号暂无此预算的访问权限'
+          : unavailable ? '此空间尚无可用 AI 模型或兼容预算。' : '可用模型暂时加载失败'}
+      description={issue === 'login' ? t('error.login')
+        : issue === 'forbidden' ? '请联系管理员确认使用权限，开通后重新加载。'
+          : unavailable ? '请联系管理员确认当前空间的模型和预算配置。' : '请稍后重新加载，若仍无法读取，请联系管理员。'}
+    />;
+  };
 
   const numberField = (
     name: keyof Values,
@@ -290,7 +297,7 @@ export default function ChatConfigurationForm({
       >
         {t('loadOptions')}
       </Button>
-      {errorAlert(discovery.error)}
+      {errorAlert(discovery.error, 'configuration')}
       {discovery.loading && <p role="status">{t('loadingOptions')}</p>}
       {discovery.scope &&
         !discovery.loading &&

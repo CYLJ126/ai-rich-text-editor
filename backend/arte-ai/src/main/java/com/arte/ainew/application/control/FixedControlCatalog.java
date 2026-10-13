@@ -14,9 +14,11 @@ import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.core.enums.ResultCodeEnum;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.time.Clock;
 import java.util.*;
@@ -25,7 +27,7 @@ import java.util.function.Function;
 /**
  * 首批固定文本能力控制面
  * <p>
- * 从服务器固定配置（配置文件）中完成解析和校验。仅解析受信固定版本，不提供管理 CRUD 或远端探测。
+ * 从受信固定版本配置中完成解析和校验；数据库模式通过来源 SPI 读取当前范围配置，不缓存授权，不执行远端探测。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
@@ -41,6 +43,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     private final Map<DefinitionRef, ConnectionDefinition> connections;
     private final Map<DefinitionRef, NewAiProperties.Rate> rates;
     private final Map<String, NewAiProperties.Budget> budgets;
+    private AiControlConfigurationSource source;
+    private Scheduler scheduler;
 
     public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock) {
         this.properties = properties;
@@ -77,6 +81,38 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         }
     }
 
+    /**
+     * 数据库模式使用同一校验算法，每次读取当前已发布配置，不缓存授权或空间配置。
+     */
+    public FixedControlCatalog(NewAiProperties infrastructure, AdmissionAuthorization authorization, Clock clock,
+                               AiControlConfigurationSource source, reactor.core.scheduler.Scheduler scheduler) {
+        this(infrastructure, authorization, clock);
+        this.source = Objects.requireNonNull(source);
+        this.scheduler = Objects.requireNonNull(scheduler);
+    }
+
+    public Mono<NewAiProperties> configuration(ExecutionContext context) {
+        return source == null ? Mono.just(properties)
+                : Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler);
+    }
+
+    public java.util.List<NewAiProperties.Rate> rates() {
+        return source == null ? properties.rates() : source.definitions().rates();
+    }
+
+    private Mono<FixedControlCatalog> current(ExecutionContext context) {
+        return configuration(context).map(value -> {
+            // 来源已在本次读取中验证当前公共资格；纯配置算法复用这份快照，避免递归回查数据库。
+            var snapshotAuthorization = new AdmissionAuthorization(
+                    new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(value), value, clock);
+            return new FixedControlCatalog(value, snapshotAuthorization, clock);
+        });
+    }
+
+    public Mono<NewAiProperties.Budget> budget(String ref, ExecutionContext context) {
+        return current(context).map(catalog -> catalog.budget(ref));
+    }
+
     private static <K, V> Map<K, V> index(List<V> values, Function<V, K> key) {
         var result = new HashMap<K, V>();
         for (var value : values) {
@@ -102,6 +138,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Mono<ResolvedBinding> resolve(DefinitionRef binding, DefinitionRef capability, ExecutionContext context) {
+        if (source != null) return current(context).flatMap(catalog -> catalog.resolve(binding, capability, context));
         return authorization.require(context, AdmissionAuthorization.INVOKE).map(current -> binding(binding, capability, current));
     }
 
@@ -109,6 +146,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
      * ConnectionManager 的返回类型与 CapabilityCatalog.resolve 相同签名冲突，使用独立门面注册。
      */
     public Mono<ConnectionDefinition> resolveConnection(DefinitionRef reference, ExecutionContext context) {
+        if (source != null) return current(context).flatMap(catalog -> catalog.resolveConnection(reference, context));
         return authorization.require(context, AdmissionAuthorization.INVOKE).map(current -> {
             reference.requireType("connection");
             var allowed = bindings.values().stream().anyMatch(b -> b.connection().equals(reference)
@@ -124,6 +162,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Mono<CapabilityDescriptor> resolve(DefinitionRef reference, ExecutionContext context) {
+        if (source != null) return current(context).flatMap(catalog -> catalog.resolve(reference, context));
         return authorization.require(context, AdmissionAuthorization.INVOKE).map(current -> {
             reference.requireType("capability");
             return available(current).stream().filter(c -> c.definition().equals(reference)).findFirst()
@@ -147,6 +186,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
      * 有界固定目录中的当前可见绑定；同一能力的不同绑定和版本分别保留。
      */
     public Flux<ResolvedBinding> discoverBindings(CapabilityDescriptor.Kind kind, ExecutionContext context) {
+        if (source != null) return current(context).flatMapMany(catalog -> catalog.discoverBindings(kind, context));
         Objects.requireNonNull(kind, "kind");
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMapMany(current ->
                 Flux.fromIterable(availableBindings(current).stream().filter(b -> b.capability().kind() == kind)
@@ -156,6 +196,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Flux<CapabilityDescriptor> discover(CapabilityDescriptor.Kind kind, int limit, ExecutionContext context) {
+        if (source != null) return current(context).flatMapMany(catalog -> catalog.discover(kind, limit, context));
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMapMany(current -> {
             ContractChecks.range(limit, "limit", 1, 256);
             return Flux.fromIterable(available(current).stream().filter(c -> c.kind() == Objects.requireNonNull(kind)).limit(limit).toList());
@@ -164,6 +205,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Mono<Void> validate(InvocationRequest<?> request) {
+        if (source != null) return current(request.context()).flatMap(catalog -> catalog.validate(request));
         return resolve(request.binding(), request.capability(), request.context()).flatMap(binding -> Mono.fromRunnable(() -> {
             if (!(request.input() instanceof GenerationRequest generation) || request.kind() != CapabilityDescriptor.Kind.GENERATION
                     || !(generation.outputFormat() instanceof GenerationRequest.TextOutput) || !generation.tools().isEmpty()) {

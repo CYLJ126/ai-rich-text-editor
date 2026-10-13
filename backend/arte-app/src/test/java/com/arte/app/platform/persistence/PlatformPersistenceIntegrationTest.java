@@ -97,7 +97,8 @@ class PlatformPersistenceIntegrationTest {
         for (String script :
                 List.of(
                         "arte-platform-identity-ddl-mysql.sql",
-                        "arte-platform-workspace-ddl-mysql.sql")) {
+                        "arte-platform-workspace-ddl-mysql.sql",
+                        "arte-platform-personal-policy-template-ddl-mysql.sql")) {
             String sql = Files.readString(Path.of("scripts", script));
             if (mysql == null)
                 sql =
@@ -163,7 +164,7 @@ class PlatformPersistenceIntegrationTest {
                 audits,
                 () -> UUID.randomUUID().toString(),
                 Clock.systemUTC(),
-                DefaultWorkspacePolicies.conservativePersonalDefaults(),
+                new DefaultWorkspacePolicies(new PlatformServiceTestFactory(source, tx, json, new Cursors()).templates()),
                 facts);
     }
 
@@ -246,7 +247,7 @@ class PlatformPersistenceIntegrationTest {
                 factory.audit(),
                 () -> UUID.randomUUID().toString(),
                 Clock.systemUTC(),
-                DefaultWorkspacePolicies.conservativePersonalDefaults(),
+                new DefaultWorkspacePolicies(factory.templates()),
                 factory.facts());
     }
 
@@ -329,6 +330,49 @@ class PlatformPersistenceIntegrationTest {
         assertEquals(0, count("tenant"));
         assertEquals(0, count("outbox"));
         assertEquals(0, count("command"));
+    }
+
+    @Test
+    void policyAuditFailureRollsBackPersistedPoliciesParentVersionsAndEpochs() {
+        var scope = initialize().value().workspace().scope();
+        var accounts = new RbacAccountReader(source, new RbacAccountMapperConfiguration().identityUserMapper(source));
+        var provider = new RbacIdentityProvider(accounts, new JdbcPrincipalIdentityStore(source, accounts),
+                new TransactionTemplate(new DataSourceTransactionManager(source)),
+                new PlatformIdentityProperties(true, 0L, List.of()), List::of, Clock.systemUTC());
+        var failing = services(provider, outbox, e -> {
+            throw new IllegalStateException("Injected policy audit failure");
+        });
+        var tenant = policies.findTenantPolicy(scope.tenantId()).orElseThrow();
+        var workspace = policies.findWorkspacePolicy(scope).orElseThrow();
+        assertThrows(IllegalStateException.class, () -> failing.policies().updateTenantPolicy(actor,
+                new com.arte.core.pojo.workspace.TenantCommands.UpdateTenantPolicy(meta("failed-tenant-policy"), scope.tenantId(),
+                        0, 0, tenant.rules(), true)));
+        assertThrows(IllegalStateException.class, () -> failing.policies().updateWorkspacePolicy(actor,
+                new WorkspaceCommands.UpdateWorkspacePolicy(meta("failed-space-policy"), scope, 0, 0, workspace.rules())));
+        assertEquals(tenant, policies.findTenantPolicy(scope.tenantId()).orElseThrow());
+        assertEquals(workspace, policies.findWorkspacePolicy(scope).orElseThrow());
+        assertEquals(0, tenants.find(scope.tenantId()).orElseThrow().version());
+        assertEquals(0, tenants.find(scope.tenantId()).orElseThrow().authEpoch());
+        assertEquals(0, workspaces.find(scope).orElseThrow().version());
+        assertEquals(0, workspaces.find(scope).orElseThrow().authEpoch());
+        assertEquals(1, count("outbox"));
+        assertEquals(1, count("audit"));
+        assertEquals(1, count("command"));
+    }
+
+    @Test
+    void legacyPolicyWithNoTemplateProvenanceIsNotRebasedByInitializationOrGovernance() {
+        var scope = initialize().value().workspace().scope();
+        jdbc.update("UPDATE arte_platform_tenant_policy SET personal_template_version=NULL WHERE tenant_id=?", scope.tenantId());
+        assertNull(policies.findTenantPolicy(scope.tenantId()).orElseThrow().personalTemplateVersion());
+        services.personal().initialize(actor, meta("legacy-existing"));
+        var old = policies.findTenantPolicy(scope.tenantId()).orElseThrow();
+        var updated = services.policies().updateTenantPolicy(actor,
+                new com.arte.core.pojo.workspace.TenantCommands.UpdateTenantPolicy(meta("legacy-policy-update"), scope.tenantId(),
+                        0, 0, old.rules(), old.membersMayCreateWorkspace()));
+        assertNull(updated.value().personalTemplateVersion());
+        assertNull(policies.findTenantPolicy(scope.tenantId()).orElseThrow().personalTemplateVersion());
+        assertEquals(1, updated.value().version());
     }
 
     @Test

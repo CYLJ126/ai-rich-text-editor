@@ -33,7 +33,9 @@
 - `PersonalWorkspaceService`、`WorkspaceService`、`ScopeResolver`：个人初始化、空间管理及当前范围验证。个人初始化默认实现只接受有效
   USER，不给 SERVICE 建默认个人空间。
 - `MembershipService`、`TenantService`：空间邀请／成员治理及租户治理。组织创建另受 `TenantProvisioningPolicy` 限制。
-- `WorkspacePreferenceService`、`WorkspacePolicyService`：本人偏好及获授权治理政策。默认空间关联不能通过偏好更新修改；完整政策只供相应治理资格使用，不混入普通空间查询
+- `WorkspacePreferenceService`、`WorkspacePolicyService`
+  ：本人偏好及获授权治理政策。默认空间关联不能通过偏好更新修改；完整政策及历史回执只供相应治理资格使用，不混入普通空间查询。政策治理查询视图在同次当前读提供父版本和
+  epoch
   View。
 - `AuthorizationService`：唯一通用动作判定入口；`check`、`require`、`batchCheck`、`requireInCurrentTransaction` 使用同一规则，最多
   100 项批量输入。领域必要条件通过
@@ -291,3 +293,6 @@ app 第 3 步第 1～2 批已增加稳定身份适配及首批空间 JDBC Store�
 [公共空间 HTTP](../arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)，不代表完成压测或端到端事件消费。身份迁移仍核对原 AI
 subjectId，不修改历史
 scope 或账本，资源授权、邀请／组织与关闭分别实施，本批不切换 ainew 授权路径。
+
+个人租户生产默认政策通过 `PersonalTenantPolicyTemplateStore.findCurrent` 在初始化原事务内读取数据库发布修订；无配置回退。模板仅创建独立政策，来源版本保存在
+`TenantPolicy.personalTemplateVersion`，存量政策不随模板发布改写。

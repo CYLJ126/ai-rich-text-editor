@@ -4,7 +4,6 @@ import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.workspace.*;
-import com.arte.core.application.workspace.DefaultWorkspacePolicies;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
@@ -51,6 +50,7 @@ class PlatformWorkspaceConfigurationTest {
                     assertSame(services.personal(), context.getBean(PersonalWorkspaceService.class));
                     assertSame(services.workspaces(), context.getBean(WorkspaceService.class));
                     assertSame(services.preferences(), context.getBean(WorkspacePreferenceService.class));
+                    assertSame(services.policies(), context.getBean(WorkspacePolicyService.class));
                     assertSame(services.scopes(), context.getBean(ScopeResolver.class));
                     assertSame(services.authorization(), context.getBean(AuthorizationService.class));
                     assertSame(services.writeGuard(), context.getBean(WorkspaceWriteGuard.class));
@@ -65,29 +65,8 @@ class PlatformWorkspaceConfigurationTest {
     }
 
     @Test
-    void policyBindingPreservesExplicitEmptyWhitelistAndRestrictsCreationTypes() {
-        dependencies().withPropertyValues("arte.platform.workspace.enabled=true",
-                        "arte.platform.identity.enabled=true", "arte.platform.persistence.enabled=true",
-                        "arte.platform.workspace.personal-policy.creation-types=article,collection",
-                        "arte.platform.workspace.personal-policy.protocols=https",
-                        "arte.platform.workspace.personal-policy.providers=example",
-                        "arte.platform.workspace.personal-policy.destinations=api.example.com",
-                        "arte.platform.workspace.personal-policy.export-types=",
-                        "arte.platform.workspace.personal-policy.personal-credentials-allowed=false")
-                .run(context -> {
-                    assertNull(context.getStartupFailure());
-                    var rules = context.getBean(DefaultWorkspacePolicies.class).personalTenant("tenant").rules();
-                    assertEquals(2, rules.allowedCreationTypes().size());
-                    assertEquals(java.util.Set.of("https"), rules.allowedProtocols());
-                    assertTrue(rules.exportTypes().isEmpty());
-                    assertFalse(rules.personalCredentialsAllowed());
-                    assertFalse(rules.guestAiAllowed());
-                });
-    }
-
-    @Test
-    void unknownPolicyTypesAndUnknownPropertiesFailStartup() {
-        for (String invalid : java.util.List.of("personal-policy.creation-types=unknown", "unknown-property=true")) {
+    void removedPolicyConfigurationAndUnknownPropertiesFailStartup() {
+        for (String invalid : java.util.List.of("personal-policy.creation-types=article", "unknown-property=true")) {
             dependencies().withPropertyValues("arte.platform.workspace.enabled=true",
                     "arte.platform.identity.enabled=true", "arte.platform.persistence.enabled=true",
                     "arte.platform.workspace." + invalid).run(context -> assertNotNull(context.getStartupFailure()));
@@ -101,6 +80,7 @@ class PlatformWorkspaceConfigurationTest {
                 .withBean(WorkspaceStore.class, () -> mock(WorkspaceStore.class))
                 .withBean(TenantMembershipStore.class, () -> mock(TenantMembershipStore.class))
                 .withBean(WorkspaceMembershipStore.class, () -> mock(WorkspaceMembershipStore.class))
+                .withBean(PersonalTenantPolicyTemplateStore.class, () -> mock(PersonalTenantPolicyTemplateStore.class))
                 .withBean(PolicyStore.class, () -> mock(PolicyStore.class))
                 .withBean(PreferenceStore.class, () -> mock(PreferenceStore.class))
                 .withBean(CommandReceiptStore.class, () -> mock(CommandReceiptStore.class))

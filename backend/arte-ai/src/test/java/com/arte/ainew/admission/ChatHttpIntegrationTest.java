@@ -170,6 +170,41 @@ public class ChatHttpIntegrationTest {
     }
 
     @Test
+    public void deadlineCoversSubmissionAfterAuthorizationAndReturns504() throws Exception {
+        var id = create();
+        var cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+        var entered = new java.util.concurrent.atomic.AtomicBoolean();
+        var slow = new com.arte.ainew.api.entry.ChatService() {
+            public reactor.core.publisher.Mono<com.arte.ainew.common.execution.AcceptedExecution> submit(
+                    com.arte.ainew.pojo.entry.EntryRequests.Chat request, com.arte.ainew.common.execution.ExecutionContext context) {
+                entered.set(true);
+                return reactor.core.publisher.Mono.<com.arte.ainew.common.execution.AcceptedExecution>never()
+                        .doOnCancel(() -> cancelled.set(true));
+            }
+
+            public reactor.core.publisher.Mono<com.arte.ainew.common.execution.AcceptedExecution> regenerate(
+                    com.arte.ainew.pojo.entry.EntryRequests.Regenerate request, com.arte.ainew.common.execution.ExecutionContext context) {
+                return reactor.core.publisher.Mono.never();
+            }
+        };
+        mvc = MockMvcBuilders.standaloneSetup(new NewAiChatController(slow, fixture.catalog,
+                        new NewAiHttpContext(fixture.factory, fixture.properties), fixture.properties))
+                .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
+        var request = request(id, 0, "deadline");
+        request.put("timeoutSeconds", 1);
+        var response = submit(request, "deadline", 504);
+        assertEquals(ResultCodeEnum.AI_DEADLINE_EXCEEDED.getCode(), response.path("code").asString());
+        assertTrue(entered.get());
+        assertTrue(cancelled.get());
+        assertEquals(0, count("arte_ai_invocation"));
+        assertEquals(0, count("arte_ai_turn"));
+        var handler = new ConversationExceptionHandler();
+        var servlet = new org.springframework.mock.web.MockHttpServletRequest("POST", SUBMIT);
+        assertEquals(504, handler.handle(new org.springframework.web.context.request.async.AsyncRequestTimeoutException(),
+                servlet, Locale.ENGLISH).getStatusCode().value());
+    }
+
+    @Test
     public void acceptedResponseCorrespondsToCommittedInvocationTurnAndOutboxWithoutDispatch() throws Exception {
         var id = create();
         var response = submit(request(id, 0, "你好 世界\n  保留空白  "), "submit", 202);

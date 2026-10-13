@@ -75,6 +75,7 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiAuthorizationResolver")
     @ConditionalOnMissingBean(ExecutionAuthorizationResolver.class)
+    @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "FIXED", matchIfMissing = true)
     ExecutionAuthorizationResolver resolver(NewAiProperties properties) {
         return new FixedExecutionAuthorizationResolver(properties);
     }
@@ -125,8 +126,11 @@ public class NewAiAdmissionConfiguration {
      * 同时约束固定配置中的绑定／预算使用资格，防止任务权限范围扩大。
      */
     @Bean("newAiAdmissionAuthorization")
-    AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
-        return new AdmissionAuthorization(resolver, properties, clock);
+    AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
+                                         ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        var source = sources.getIfAvailable();
+        return source == null ? new AdmissionAuthorization(resolver, properties, clock)
+                : new AdmissionAuthorization(resolver, properties, clock, source, scheduler);
     }
 
     /**
@@ -143,8 +147,11 @@ public class NewAiAdmissionConfiguration {
      * 装配时校验引用、Schema、费率／币种及归属；使用时检查当前授权与能力／连接启用状态。
      */
     @Bean("newAiControlCatalog")
-    FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock) {
-        return new FixedControlCatalog(properties, authorization, clock);
+    FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
+                                       ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        var source = sources.getIfAvailable();
+        return source == null ? new FixedControlCatalog(properties, authorization, clock)
+                : new FixedControlCatalog(properties, authorization, clock, source, scheduler);
     }
 
     /**

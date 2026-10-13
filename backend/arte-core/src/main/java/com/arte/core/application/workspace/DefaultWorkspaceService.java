@@ -40,6 +40,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
     private final PolicyStore policies;
     private final PreferenceStore preferences;
     private final DefaultWorkspacePolicies defaults;
+    private final java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning;
     private final PlatformIdGenerator ids;
     private final Clock clock;
     private final WorkspaceMutationEffects effects;
@@ -48,7 +49,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                                    DefaultAuthorizationService authorization, WorkspaceGovernanceLocks locks, DefaultCommandExecutor commands,
                                    TenantStore tenants, WorkspaceStore workspaces, WorkspaceMembershipStore members, PolicyStore policies,
                                    PreferenceStore preferences, DefaultWorkspacePolicies defaults, PlatformIdGenerator ids, Clock clock,
-                                   WorkspaceMutationEffects effects) {
+                                   WorkspaceMutationEffects effects, java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning) {
         this.principals = Objects.requireNonNull(principals);
         this.access = Objects.requireNonNull(access);
         this.authorization = Objects.requireNonNull(authorization);
@@ -60,6 +61,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         this.policies = Objects.requireNonNull(policies);
         this.preferences = Objects.requireNonNull(preferences);
         this.defaults = Objects.requireNonNull(defaults);
+        this.provisioning = java.util.List.copyOf(provisioning);
         this.ids = Objects.requireNonNull(ids);
         this.clock = Objects.requireNonNull(clock);
         this.effects = Objects.requireNonNull(effects);
@@ -148,6 +150,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     Tenant updated = new Tenant(old.id(), old.name(), old.type(), old.personalSubjectId(), old.state(), old.createdBy(),
                             Math.incrementExact(old.version()), Math.incrementExact(old.authEpoch()), old.createdAt(), now);
                     check(tenants.replace(updated, old.version()), command.meta());
+                    provisioning.forEach(participant -> participant.provision(actor, newScope, operationId));
                     effects.append(actor, new CommandScope(newScope.tenantId(), newScope.workspaceId()), "workspace:created", operationId, 0,
                             Map.of("tenantEpoch", Long.toString(updated.authEpoch()), "workspaceEpoch", "0"));
                     return new DefaultCommandExecutor.Result<>(getCurrent(actor, newScope), 0);

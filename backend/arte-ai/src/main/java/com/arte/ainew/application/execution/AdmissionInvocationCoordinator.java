@@ -77,6 +77,11 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                         error.getClass().getName()));
     }
 
+    private Mono<NewAiProperties> configuration(ExecutionContext context) {
+        return bindingManager instanceof com.arte.ainew.application.control.FixedControlCatalog catalog
+                ? catalog.configuration(context) : Mono.just(properties);
+    }
+
     private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding) {
         var request = submission.request();
         var snapshot = submission.snapshot();
@@ -118,14 +123,17 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                     }
                     return budgetService.account(owner, request.context().budgetRef())
                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
-                            .flatMap(account -> {
-                                var definition = properties.budgets().stream().filter(b -> b.budgetRef().equals(request.context().budgetRef())).findFirst().orElseThrow();
-                                if (!account.budgetRef().equals(request.context().budgetRef()) || !account.owner().equals(owner) || !account.rateVersion().equals(binding.rate())
+                            .flatMap(account -> configuration(request.context()).flatMap(configuration -> {
+                                var definition = configuration.budgets().stream().filter(b ->
+                                        b.budgetRef().equals(request.context().budgetRef())).findFirst().orElseThrow();
+                                if (!account.budgetRef().equals(request.context().budgetRef())
+                                        || !account.owner().equals(owner)
+                                        || !account.rateVersion().equals(binding.rate())
                                         || !account.limit().currency().equals(definition.limit().currency())) {
                                     throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
                                 }
                                 return contextSnapshotStore.put(owner, snapshot);
-                            })
+                            }))
                             .flatMap(saved -> {
                                 if (!saved.successful()) {
                                     throw AdmissionException.fromStoreRejection(saved.code());

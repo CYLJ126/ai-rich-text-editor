@@ -253,7 +253,7 @@ public final class GenerationDispatcher {
     }
 
     private NewAiProperties.Rate rate(com.arte.ainew.common.reference.DefinitionRef reference) {
-        return newAiProperties.rates().stream().filter(value -> value.definition().equals(reference)).findFirst()
+        return fixedControlCatalog.rates().stream().filter(value -> value.definition().equals(reference)).findFirst()
                 .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
     }
 

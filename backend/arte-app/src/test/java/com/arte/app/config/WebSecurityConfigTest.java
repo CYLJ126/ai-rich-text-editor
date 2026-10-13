@@ -2,6 +2,7 @@ package com.arte.app.config;
 
 import com.arte.ainew.web.controller.*;
 import com.arte.app.web.controller.platform.WorkspaceAccessController;
+import com.arte.app.web.controller.platform.WorkspaceAiConfigurationController;
 import com.arte.app.web.controller.platform.WorkspaceController;
 import com.arte.core.annotations.AnonymousAccess;
 import org.junit.jupiter.api.Test;
@@ -90,7 +91,7 @@ class WebSecurityConfigTest {
         var handlers = new LinkedHashMap<RequestMappingInfo, HandlerMethod>();
         var beans = new DefaultListableBeanFactory();
         for (var controller : Set.of(NewAiConversationController.class, NewAiChatController.class,
-                NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class, NewAiReconciliationController.class, WorkspaceController.class, WorkspaceAccessController.class)) {
+                NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class, NewAiReconciliationController.class, WorkspaceController.class, WorkspaceAccessController.class, WorkspaceAiConfigurationController.class)) {
             var beanName = controller.getSimpleName();
             beans.registerBeanDefinition(beanName, new RootBeanDefinition(controller));
             var root = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);

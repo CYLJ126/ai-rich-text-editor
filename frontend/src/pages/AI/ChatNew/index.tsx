@@ -1,10 +1,14 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
-import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Splitter, Tabs, Tag} from 'antd';
+import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Result, Splitter, Tabs, Tag} from 'antd';
+import {LockOutlined} from '@ant-design/icons';
+import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
 import type {AiScope, ChatModelOption, ConversationResponse} from '@/services/arte-ai';
 import {AiApiError, getConversation} from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
+import WorkspaceAiSettings from '@/features/ainew/WorkspaceAiSettings';
 import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/ChatConfigurationForm';
@@ -24,8 +28,9 @@ import {
 } from '@/features/ainew/storage';
 import './style.css';
 
-function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
+function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWorkspace}: {
   userId: string;
+  onChooseWorkspace: () => void;
   workspace: Pick<WorkspaceView, 'scope' | 'name'> & { state: WorkspaceView['state'] | null };
   t: (key: string) => string;
   translate: (id: string) => string;
@@ -47,6 +52,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
   const [dirtyState, setDirtyState] = useState<{ id: string; dirty: boolean }>({id: '', dirty: false});
   const dirty = dirtyState.id === selectedId && dirtyState.dirty;
   const [warning, setWarning] = useState<string | null>(null);
+  const [aiSettingsUnsafe, setAiSettingsUnsafe] = useState(false);
   useEffect(() => {
     const changed = (event: StorageEvent) => {
       if ([storageKey(context, 'configuration', selectedId), storageKey(context, 'recentConfiguration')].includes(event.key ?? '')) setWarning('另一标签页更新了配置偏好，请刷新目录并重新校验；当前选择和原操作保持不变。');
@@ -69,6 +75,8 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
   const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState('settings');
   const [listOpen, setListOpen] = useState(false);
+  const [accessHelpOpen, setAccessHelpOpen] = useState(false);
+  const [discoveryRefresh, setDiscoveryRefresh] = useState({id: '', revision: 0});
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('新会话');
@@ -130,7 +138,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
   }
 
   function guard(proceed: () => void) {
-    if (interaction.unsafeToLeave || conversations.unsafeToLeave) {
+    if (aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave) {
       setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
       return;
     }
@@ -199,18 +207,35 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
       medium.removeEventListener('change', update);
     };
   }, []);
+  const listAccessIssue = aiReadAccessIssue(conversations.listError);
+  const modelsAccessIssue = aiReadAccessIssue(optionsState?.id === selectedId ? optionsState.error : null);
+  const readBlocked = listAccessIssue != null;
+
+  function recheckAccess() {
+    void conversations.loadPage(conversations.page);
+    setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
+  }
+
+  const accessActions = listAccessIssue === 'login'
+    ? <Button type="primary" href="/user/login">重新登录</Button>
+    : <>
+      <Button type="primary" onClick={onChooseWorkspace}>切换工作空间</Button>
+      <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
+      <Button loading={conversations.listLoading} onClick={recheckAccess}>重新检查</Button>
+    </>;
   const list = <aside className="ainew-sidebar" aria-label="会话列表">
     <Button block type="primary"
-            disabled={(workspace.state !== 0 && workspace.state !== null) || conversations.creating}
+            disabled={readBlocked || (workspace.state !== 0 && workspace.state !== null) || conversations.creating}
+            title={readBlocked ? '请先确认当前空间的 AI 访问权限' : undefined}
             onClick={() => guard(() => {
               setTitle(conversations.pendingTitle ?? '新会话');
               setCreating(true);
             })}>新建会话</Button>
-    <Input aria-label="筛选本页会话" placeholder="筛选本页会话" value={filter}
+    <Input aria-label="筛选本页会话" placeholder="筛选本页会话" value={filter} disabled={readBlocked}
            onChange={event => setFilter(event.target.value)}/>
-    <Button size="small" loading={conversations.listLoading}
-            onClick={() => void conversations.loadPage(conversations.page)}>刷新列表</Button>
-    {pins.length > 0 &&
+    {!readBlocked && <Button size="small" loading={conversations.listLoading}
+                             onClick={() => void conversations.loadPage(conversations.page)}>刷新列表</Button>}
+    {!readBlocked && pins.length > 0 &&
       <section><h3>在此浏览器置顶</h3>{pins.map(id => <div className="ainew-conversation-row" key={id}>
         <Button type="text" onClick={() => guard(() => {
           void conversations.select(id);
@@ -222,10 +247,14 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
       <section><h3>当前会话</h3><p>{conversations.selected.title}</p><Button size="small"
                                                                              onClick={() => togglePin(conversations.selectedId!)}>{pins.includes(conversations.selectedId!) ? '取消置顶' : '在此浏览器置顶'}</Button>
       </section>}
-    {conversations.listError != null && <Alert type="error" title="会话列表读取失败" action={<Button
-      onClick={() => void conversations.loadPage(conversations.page)}>重试</Button>}/>}
+    {readBlocked ? <p className="ainew-muted" role="status">{listAccessIssue === 'login'
+        ? '重新登录后即可检查会话访问权限。' : '当前账号暂时无法读取此空间的会话列表。'}</p>
+      : conversations.listError != null && <Alert type="error" showIcon title="会话列表暂时加载失败"
+                                                  description="网络或服务暂时不可用，请稍后重试。" action={<Button
+      onClick={() => void conversations.loadPage(conversations.page)}>重试加载</Button>}/>}
     {!conversations.listLoading && !conversations.listError && !conversations.records.filter(record => record.title.includes(filter)).length &&
-      <Empty description="当前页没有匹配会话，可切换页面。"/>}
+      <Empty description={filter ? '没有匹配的会话，请调整筛选内容。'
+        : conversations.total === 0 ? '此空间还没有会话。' : '当前页没有会话，可切换页面。'}/>}
     <ul
       className="ainew-conversations">{conversations.records.filter(record => record.title.includes(filter) && !pins.includes(record.conversationId)).map(record =>
       <li key={record.conversationId}>
@@ -238,8 +267,9 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
           <time>{new Date(record.updatedAt).toLocaleString()}</time>
           <Button size="small" onClick={() => togglePin(record.conversationId)}>置顶</Button></div>
       </li>)}</ul>
-    <Pagination simple hideOnSinglePage current={conversations.page} total={conversations.total} pageSize={20}
-                showSizeChanger={false} onChange={page => void conversations.loadPage(page)}/>
+    {!conversations.listError &&
+      <Pagination simple hideOnSinglePage current={conversations.page} total={conversations.total} pageSize={20}
+                  showSizeChanger={false} onChange={page => void conversations.loadPage(page)}/>}
   </aside>;
   const editor = <div className="ainew-settings" aria-label="辅助设置">
     <Tabs activeKey={tab} onChange={setTab} items={[
@@ -259,7 +289,10 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
         key: 'models',
         label: '模型管理',
         children: <><p>当前可用目录；连接和发布配置由服务器维护。</p>{!options.length &&
-          <p>此空间尚无可用 AI 配置，请刷新目录或联系配置人员。</p>}{options.map(item => <article
+          <p>{optionsState?.loading ? '正在加载可用模型…' : modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
+            : modelsAccessIssue === 'login' ? '请重新登录后查看可用模型。'
+              : optionsState?.error ? '可用模型暂时无法读取，请重新加载。'
+                : '此空间尚无可用 AI 配置，请联系管理员确认模型和预算配置。'}</p>}{options.map(item => <article
           className="ainew-model-card" key={modelOptionKey(item)}>
           <strong>{item.displayName}</strong><p className="ainew-muted">文本／流式
           · {item.binding.id}@{item.binding.version}</p>
@@ -268,6 +301,14 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
           <Button size="small"
                   onClick={() => chooseModel(modelOptionKey(item))}>{config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}</Button>
         </article>)}</>
+      },
+      {
+        key: 'workspace-ai',
+        label: '空间 AI 配置',
+        children: <WorkspaceAiSettings scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
+                                       onUpdated={() => {
+                                         recheckAccess();
+                                       }}/>
       },
       {key: 'assistants', label: '助手管理', children: <p>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</p>},
       {
@@ -286,6 +327,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
                              externalModel={editingId === selectedId ? externalModel : undefined}
                              applyRevision={editingId === selectedId ? applyRevision : 0}
                              cancelRevision={editingId === selectedId ? cancelRevision : 0}
+                             refreshRevision={discoveryRefresh.id === selectedId ? discoveryRefresh.revision : 0}
                              onOptions={(items, error, loading) => setOptionsState({
                                id: selectedId,
                                options: items,
@@ -317,20 +359,33 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
       }}>设置</Button></header>
     {(warning || conversations.storageWarning || conversations.selectionNotice) &&
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
-    {optionsState?.id === selectedId && !optionsState.loading && !options.length &&
-      <Alert type={optionsState.error ? 'warning' : 'info'}
-             title={optionsState.error
-               ? optionsState.error instanceof AiApiError && (optionsState.error.httpStatus === 403 || optionsState.error.code === '205001')
-                 ? '此空间尚未配置 AI 使用能力或当前账号无调用授权。'
-                 : '当前空间的 AI 配置读取失败，请重试。'
-               : '此空间尚无可用 AI 模型或兼容预算。'}
-             description="公共空间不会自动继承其他空间的模型、预算或历史；请在当前范围配置后再发送。"
-             action={<Button onClick={() => {
-               setPanelOpen(true);
-               setTab('models');
-             }}>查看配置与重试</Button>}/>}
+    {!readBlocked && optionsState?.id === selectedId && !optionsState.loading && !options.length &&
+      <Alert type="info" showIcon
+             title={modelsAccessIssue === 'login' ? '登录已失效，请重新登录。'
+               : modelsAccessIssue === 'forbidden' ? '当前账号暂无此空间的 AI 使用权限'
+                 : optionsState.error && !(optionsState.error instanceof AiApiError && optionsState.error.code === '205001')
+                   ? '可用模型暂时加载失败，请重试。'
+                   : '此空间尚无可用 AI 模型或兼容预算。'}
+             description={modelsAccessIssue === 'login' ? '重新登录后再检查可用模型和会话。'
+               : modelsAccessIssue === 'forbidden' ? '你仍可阅读已获授权的会话。请联系管理员确认 AI 使用权限，或切换到可用的工作空间。'
+                 : optionsState.error && !(optionsState.error instanceof AiApiError && optionsState.error.code === '205001')
+                   ? '请检查网络连接后重新加载；已获授权的会话仍可阅读。'
+                   : '请联系管理员确认当前空间的模型和预算配置。已获授权的会话仍可阅读。'}
+             action={modelsAccessIssue === 'login' ? <Button href="/user/login">重新登录</Button>
+               : modelsAccessIssue === 'forbidden' ?
+                 <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
+                 : <Button onClick={() => {
+                   setPanelOpen(true);
+                   setTab('models');
+                 }}>查看模型设置</Button>}/>}
     {(workspace.state !== 0 && workspace.state !== null) && <Alert type="info" title="当前空间只读，历史仍按授权读取。"/>}
-    {conversations.detailLoading ? <p role="status">正在读取会话…</p> : conversations.detailError ?
+    {readBlocked && !conversations.selected ? <div className="ainew-empty" aria-label="AI 访问提示">
+      <Result className="ainew-access-state" icon={<LockOutlined/>}
+              title={listAccessIssue === 'login' ? '登录已失效，请重新登录' : '此空间的 AI 功能暂不可用'}
+              subTitle={listAccessIssue === 'login' ? '重新登录后，可以继续检查当前空间的会话和 AI 使用权限。'
+                : `当前账号暂时无法访问「${workspace.name}」的 AI 功能。创建工作空间不会自动开通 AI 权限，请联系管理员确认。`}
+              extra={accessActions}/>
+    </div> : conversations.detailLoading ? <p role="status">正在读取会话…</p> : conversations.detailError ?
       <Alert type="error" title="会话详情读取失败" action={<Button
         onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
         <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
@@ -338,7 +393,11 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
                            onUpdated={conversations.updateConversation} t={t}
                            onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
                            onInteraction={setInteraction} writable={workspace.state === 0 || workspace.state === null}/>
-        : <div className="ainew-empty"><Empty description="创建或选择会话即可开始；模型配置不影响会话阅读。"/><Button
+        : conversations.listLoading ? <div className="ainew-empty" role="status">正在读取会话列表…</div>
+          : conversations.listError ?
+            <div className="ainew-empty"><Empty description="暂时无法加载会话，请稍后重试。"/></div>
+            : <div className="ainew-empty"><Empty description={conversations.total === 0
+              ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
           onClick={() => {
             setPanelOpen(true);
             setTab('models');
@@ -368,9 +427,24 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef}: {
                   rootStyle={{position: 'fixed'}} styles={{body: {padding: 0}}}>{editor}</Drawer>}
       </Splitter.Panel>
     </Splitter></div>
+    <Modal title="如何开通此空间的 AI 功能" open={accessHelpOpen}
+           onCancel={() => setAccessHelpOpen(false)}
+           footer={<Button onClick={() => setAccessHelpOpen(false)}>知道了</Button>}>
+      <p>创建工作空间后，AI 使用权限需要单独开通。空间负责人身份也不代表已获得 AI 使用权限。</p>
+      <ol>
+        <li>联系管理员，确认当前账号在此空间的 AI 使用权限与会话访问权限。</li>
+        <li>由管理员检查此空间是否已配置可用模型和预算。</li>
+        <li>开通后点击“重新检查”；也可从顶部选择已有 AI 权限的工作空间。</li>
+      </ol>
+      <details>
+        <summary>提供给管理员的空间信息</summary>
+        <p>{workspace.name}</p><p className="ainew-support-id">租户标识：{workspace.scope.tenantId}</p>
+        <p className="ainew-support-id">空间标识：{workspace.scope.workspaceId}</p>
+      </details>
+    </Modal>
     <Modal title={conversations.pendingTitle ? '确认原创建操作' : '新建会话'} open={creating}
            onCancel={() => setCreating(false)} confirmLoading={conversations.creating}
-           okButtonProps={{disabled: !title.trim() || (workspace.state !== 0 && workspace.state !== null)}}
+           okButtonProps={{disabled: readBlocked || !title.trim() || (workspace.state !== 0 && workspace.state !== null)}}
            onOk={async () => {
              if (await conversations.create(title.trim())) setCreating(false);
            }}>
@@ -417,6 +491,15 @@ export default function ChatNewPage() {
   const current = useCurrentWorkspace(userId);
   const protect = useRef<((proceed: () => void) => void) | null>(null);
   const [connectionOpen, setConnectionOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogUnsafe, setCatalogUnsafe] = useState(false);
+  const [preparationUnsafe, setPreparationUnsafe] = useState(false);
+  const [aiPreparationRevision, setAiPreparationRevision] = useState(0);
+  const catalogContext = useMemo<BrowserContext>(() => ({
+    userId,
+    scope: {tenantId: 'control-admin', workspaceId: 'catalog'}
+  }), [userId]);
   const [tenantId, setTenantId] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
   const fixedScopeKey = `arte.ainew.fixedScope.v1.${encodeURIComponent(JSON.stringify([userId]))}`;
@@ -432,8 +515,9 @@ export default function ChatNewPage() {
   } : current;
   const previousAccount = useRef(userId);
   useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
+    if (catalogUnsafe || preparationUnsafe) return;
     if (protect.current) protect.current(proceed); else proceed();
-  }), [userId]);
+  }), [userId, catalogUnsafe, preparationUnsafe]);
   useEffect(() => {
     const selected = (event: Event) => {
       if ((event as CustomEvent).detail.userId !== userId) return;
@@ -444,21 +528,37 @@ export default function ChatNewPage() {
     return () => window.removeEventListener('arte-workspace-selected', selected);
   }, [userId, fixedScopeKey]);
   useEffect(() => {
-    if (previousAccount.current && previousAccount.current !== userId) clearAccountSession(previousAccount.current);
+    if (previousAccount.current && previousAccount.current !== userId) {
+      clearAccountSession(previousAccount.current);
+      setCatalogOpen(false);
+      setCatalogUnsafe(false);
+      setPreparationUnsafe(false);
+    }
     previousAccount.current = userId;
   }, [userId]);
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
   return <main className="ainew-page" aria-label="AI 聊天（新版）">
-    <header className="ainew-page-header"><WorkspacePicker key={userId} userId={userId}/><Tag>AI 聊天（新版）</Tag><Button
+    <header className="ainew-page-header"><WorkspacePicker key={userId} userId={userId} open={pickerOpen}
+                                                           onOpenChange={setPickerOpen}/><Tag>AI 聊天（新版）</Tag><Button
       type="text"
                                                                                                onClick={() => setConnectionOpen(true)}>连接已有
-      AI 工作空间</Button></header>
+      AI 工作空间</Button><Button onClick={() => setCatalogOpen(true)}>平台 AI 配置</Button></header>
+    {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
+    <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} width={640}>
+      <WorkspaceAiSettings key={userId} scope={catalogContext.scope} context={catalogContext} adminOnly
+                           onUnsafeChange={setCatalogUnsafe}
+                           onUpdated={() => setAiPreparationRevision(value => value + 1)}/>
+    </Drawer>
     {legacy?.userId === userId && <Alert type="info" title="当前使用手动指定的已有 AI scope" description={<>
       <div style={{overflowWrap: 'anywhere'}}>租户：{legacy.scope.tenantId} · 空间：{legacy.scope.workspaceId}</div>
       用于固定授权过渡。公共默认空间不会自动继承此处模型、预算和历史；后端仍检查当前账号授权。</>}/>}
     {workspace ?
-      <WorkspaceChat key={JSON.stringify([userId, workspace.scope])} userId={userId} workspace={workspace} t={t}
-                     translate={translate} protectRef={protect}/>
+      <WorkspaceAiPreparation key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
+                              context={{userId, scope: workspace.scope}} legacy={workspace.state === null}
+                              refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}>
+        <WorkspaceChat userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}
+                       onChooseWorkspace={() => setPickerOpen(true)}/>
+      </WorkspaceAiPreparation>
       : <div className="ainew-empty"><Empty
         description="请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。"/></div>}
     <Modal title="连接已有 AI 工作空间" open={connectionOpen} onCancel={() => setConnectionOpen(false)}
@@ -469,6 +569,7 @@ export default function ChatNewPage() {
         setLegacy({userId, scope});
         setConnectionOpen(false);
       };
+      if (catalogUnsafe || preparationUnsafe) return;
       if (protect.current) protect.current(proceed); else proceed();
     }}><p>填写当前账号已有授权的真实范围。发现、会话及发送仍由后端授权检查。</p><Input aria-label="已有 AI 租户 ID"
                                                                                     placeholder="租户 ID"

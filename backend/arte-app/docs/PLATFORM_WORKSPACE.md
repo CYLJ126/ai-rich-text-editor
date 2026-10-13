@@ -6,7 +6,7 @@ ainew 的固定授权路径。
 
 ## 服务与装配
 
-`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，七个公共 Bean
+`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，八个公共 Bean
 直接返回该实例的服务，组合取锁、当前授权、幂等和政策规则仍由 core 实现。
 
 | Bean                                | 接口／职责                                                             |
@@ -14,6 +14,7 @@ ainew 的固定授权路径。
 | personalWorkspaceService            | PersonalWorkspaceService：本人个人租户与默认空间初始化                 |
 | workspaceService                    | WorkspaceService：目录、读取、创建、改名                               |
 | workspacePreferenceService          | WorkspacePreferenceService：本人启动、最近访问和收藏偏好               |
+| workspacePolicyService              | WorkspacePolicyService：租户／空间政策治理与版本／权限代次更新         |
 | workspaceScopeResolver              | ScopeResolver：真实身份、两级成员与政策校验                            |
 | platformAuthorizationService        | core AuthorizationService：公共基础动作判断，不替代原 RBAC 功能权限    |
 | workspaceWriteGuard                 | WorkspaceWriteGuard：原事务内门控、当前授权与业务写入                  |
@@ -28,7 +29,7 @@ ACL、组织与关闭服务不注册。
 
 本地开发配置统一维护在 `backend/profile/app.properties`，模板为 `app.properties.example`。Maven `dev` profile 将公共平台配置过滤到
 `classpath:platform/config/application.properties`，由 app 的 `application.yml` 导入。身份、持久化、空间服务开关、线程池／超时、Redis
-游标／Outbox 和个人政策都在这两份 properties 中维护，不再在 YAML 写死空间开关。
+游标／Outbox 都在这两份 properties 中维护；个人政策模板在数据库中维护，不再在 YAML 写死空间开关。
 
 两份 properties 当前已为本地测试库启用三个公共平台开关：旧账号上限为已核对的 `1798873089`，测试账号 `zhangsc` 的真实 ID 为
 `1`。 2026-10-12 只读检查确认该库的 11 张公共平台表已存在，测试账号有效且没有冲突的主体映射；本次不执行 DDL 或身份回填。
@@ -53,26 +54,14 @@ arte:
       # 沿用有界 workers、queue-capacity、超时、Redis 和 Outbox 配置
     workspace:
       enabled: true
-      personal-policy:
-        creation-types: [ article, collection, model, assistant ]
-        personal-credentials-allowed: true
-        protocols: [ ]
-        providers: [ ]
-        destinations: [ ]
-        export-types: [ article, collection ]
-        egress-types: [ article, collection ]
-        share-target-kinds: [ SUBJECT, SPACE_ROLE, WORKSPACE ]
 ```
 
 配置 `workspace.enabled=true` 时必须同时启用身份和持久化，缺少
 SPI／基础设施会启动失败，不以空服务或内存存储降级。开启身份仍要求明确核对旧账号边界，不能复制示例后省略旧身份迁移。
 
-政策未填写时采用上述保守默认值；明确空集合表示禁止，连接白名单为空不表示通配。首版类型仅接受
-article、collection、model、assistant；白名单每项使用公共 ID 校验、每组最多 100 项，未知配置拒绝。访客 AI
-和额外角色创建扩权不通过本批配置开放。模型／助手创建类型仅表示政策上限，不代表模型发布或资源 ACL 已完成。
-
-模板只用于新建个人租户；同租户新增空间继承已保存的租户政策。改变部署模板或重启不会覆盖已有租户／空间政策；已有政策修改需后续显式治理命令、版本与
-epoch 更新。各实例应部署相同模板，历史政策以数据库为权威。
+新个人租户政策采用数据库中的版本化模板；既有政策通过已授权治理命令修改，政策版本、父记录版本、权限代次、
+审计及回执同事务提交。迁移顺序、模板发布流程及治理 HTTP 见 [政策治理与个人租户模板](PLATFORM_WORKSPACE_POLICY.md)。 旧
+`personal-policy.*` 配置必须移除，模板缺失时新租户初始化拒绝执行。
 
 ## 同步与响应式调用
 
@@ -90,7 +79,7 @@ create(authentication,
         new WorkspaceCommands.CreateWorkspace(meta, tenantId, name, description));
 ```
 
-该适配支持初始化、目录、读取、创建、改名、偏好读写、Scope 验证、单项／批量授权及命令回执查询。调用时复制账户
+该适配支持初始化、目录、读取、创建、改名、偏好及政策读写、Scope 验证、单项／批量授权及命令回执查询。调用时复制账户
 ID、名称和账户创建时间，拒绝未认证或不完整会话；不保留
 Token、密码、原可变在线用户对象或菜单角色。订阅后在已有 `platformPersistenceScheduler` 上进行身份数据库核验和完整公共调用；不在入口线程访问
 JDBC，不读取切线程后的 UserContext。

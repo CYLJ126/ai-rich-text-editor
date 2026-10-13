@@ -1,6 +1,6 @@
 # 公共空间 HTTP：第 3 步第 4 批
 
-首批共 10 个端点：`com.arte.app.web.controller.platform.WorkspaceController` 提供空间、偏好和命令回执；同包的
+当前共 14 个端点：`com.arte.app.web.controller.platform.WorkspaceController` 提供空间、偏好和命令回执；同包的
 `WorkspaceAccessController` 提供单项／批量权限检查。路径使用完整主体与操作，便于浏览器网络面板识别。 两个 Controller 均调用
 `ReactiveWorkspaceOperations`，身份／授权／幂等／事务由已装配的公共服务负责。 本次补充 core 的
 `DefaultCommandReceiptQueryService`，复用现有回执 Store、身份与治理门控，不增加表或另一套权限算法。
@@ -26,7 +26,11 @@ Controller；关闭时不注册空间 HTTP。Controller 路径为 `/workspace`�
 | /arte/workspace/access/batchCheckWorkspaceAccess | requests，1～100 项 CheckRequest                              | ResultContext<List<AccessResponse>>，与输入逐项对应    |
 | /arte/workspace/getWorkspaceCommandReceipt       | operationId                                                   | ResultContext<CommandReceipt<?>>，原操作的公开结果     |
 
-初始化、创建、改名、偏好更新必须携带 `Idempotency-Key` 请求头。其校验沿用公共 CommandMeta：非空、最长 256、不能包含控制字符或首尾空白。
+政策治理新增 `/getTenantPolicy`、`/getWorkspacePolicy`、`/updateTenantPolicy`、`/updateWorkspacePolicy` 四个端点，
+查询视图提供政策及更新所需的父版本。完整请求、治理资格和事务语义见 [政策治理与个人租户模板](PLATFORM_WORKSPACE_POLICY.md)。
+
+初始化、创建、改名、偏好更新及政策更新必须携带 `Idempotency-Key` 请求头。其校验沿用公共 CommandMeta：非空、最长
+256、不能包含控制字符或首尾空白。
 操作键由客户端为一次用户意图生成，服务端不得替换；结果不确定时按原键和原业务字段重试。相同键不同业务字段返回 409，不自动换键重发。
 本人初始化不接收 tenantId／workspaceId／subjectId／角色。初始化回执提供真实租户、默认空间和偏好，前端以这些 ID 或目录结果定位后续操作。
 
@@ -97,7 +101,8 @@ REPLAYED， 不执行原命令、不新增回执、审计或事件。历史 curr
 getWorkspace／权限检查。 个人初始化另核验当前受保护的个人租户、默认空间关联及两级
 OWNER；偏好结果的启动、最近访问和收藏引用均按当前资格重检，即使当前偏好已清空。 任一引用已不可见时整份回执返回
 404，不泄露旧空间引用；他人回执及不存在回执也为 404。权威故障、未知结果 Schema、损坏关联或非成功状态为 503。 回执响应不返回
-CommandIdentity、operationKey、请求摘要或存储信封。后续异步命令的 PENDING／失败结果需随相应功能另行接入，不能用本接口推断其完成。
+CommandIdentity、operationKey、请求摘要或存储信封。政策回执也要求当前治理资格；后续异步命令的
+PENDING／失败结果需随相应功能另行接入，不能用本接口推断其完成。
 
 ## 错误与追踪
 

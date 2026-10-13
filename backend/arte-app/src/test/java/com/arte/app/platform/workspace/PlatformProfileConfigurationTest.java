@@ -61,12 +61,8 @@ class PlatformProfileConfigurationTest {
                     assertTrue(persistence.workers() > 0);
                     assertTrue(persistence.transactionTimeoutSeconds() >= persistence.queryTimeoutSeconds());
                     assertFalse(persistence.cursorTtl().isNegative());
-                    var policy = context.getBean(PlatformWorkspaceProperties.class).personalPolicy();
-                    assertTrue(policy.creationTypes().contains("model"));
-                    assertTrue(policy.personalCredentialsAllowed());
-                    assertTrue(policy.protocols().isEmpty());
-                    assertTrue(policy.providers().isEmpty());
-                    assertTrue(policy.destinations().isEmpty());
+                    assertTrue(context.getBean(PlatformWorkspaceProperties.class).enabled());
+                    assertNull(context.getEnvironment().getProperty("arte.platform.workspace.personal-policy.creation-types"));
                 });
     }
 

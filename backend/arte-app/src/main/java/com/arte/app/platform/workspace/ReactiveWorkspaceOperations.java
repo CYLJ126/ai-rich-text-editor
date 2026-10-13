@@ -5,10 +5,7 @@ import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.platform.CommandReceiptQueryService;
-import com.arte.core.api.workspace.PersonalWorkspaceService;
-import com.arte.core.api.workspace.ScopeResolver;
-import com.arte.core.api.workspace.WorkspacePreferenceService;
-import com.arte.core.api.workspace.WorkspaceService;
+import com.arte.core.api.workspace.*;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.UserOnlineInfo;
@@ -16,9 +13,7 @@ import com.arte.core.pojo.access.AccessDecision;
 import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.access.VerifiedAccess;
 import com.arte.core.pojo.platform.*;
-import com.arte.core.pojo.workspace.VerifiedScope;
-import com.arte.core.pojo.workspace.WorkspaceCommands;
-import com.arte.core.pojo.workspace.WorkspaceViews;
+import com.arte.core.pojo.workspace.*;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -49,11 +44,12 @@ public final class ReactiveWorkspaceOperations {
     private final AuthorizationService authorization;
     private final WorkspaceWriteGuard guard;
     private final CommandReceiptQueryService receipts;
+    private final WorkspacePolicyService policies;
 
     public ReactiveWorkspaceOperations(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
                                        PersonalWorkspaceService personal, WorkspaceService workspaces, WorkspacePreferenceService preferences,
                                        ScopeResolver scopes, AuthorizationService authorization, WorkspaceWriteGuard guard,
-                                       CommandReceiptQueryService receipts) {
+                                       CommandReceiptQueryService receipts, WorkspacePolicyService policies) {
         this.identities = identities;
         this.executor = executor;
         this.personal = personal;
@@ -63,6 +59,7 @@ public final class ReactiveWorkspaceOperations {
         this.authorization = authorization;
         this.guard = guard;
         this.receipts = receipts;
+        this.policies = policies;
     }
 
     public Mono<CommandReceipt<WorkspaceViews.PersonalWorkspaceView>> initializePersonal(Authentication authentication, CommandMeta meta) {
@@ -95,6 +92,22 @@ public final class ReactiveWorkspaceOperations {
 
     public Mono<CommandReceipt<WorkspaceViews.PreferenceView>> updatePreference(Authentication authentication, WorkspaceCommands.UpdatePreference command) {
         return call(authentication, actor -> preferences.update(actor, command));
+    }
+
+    public Mono<WorkspacePolicyViews.TenantPolicyView> getTenantPolicy(Authentication authentication, String tenantId) {
+        return call(authentication, actor -> policies.getTenantPolicyView(actor, tenantId));
+    }
+
+    public Mono<WorkspacePolicyViews.WorkspacePolicyView> getWorkspacePolicy(Authentication authentication, Scope scope) {
+        return call(authentication, actor -> policies.getWorkspacePolicyView(actor, scope));
+    }
+
+    public Mono<CommandReceipt<TenantPolicy>> updateTenantPolicy(Authentication authentication, TenantCommands.UpdateTenantPolicy command) {
+        return call(authentication, actor -> policies.updateTenantPolicy(actor, command));
+    }
+
+    public Mono<CommandReceipt<WorkspacePolicy>> updateWorkspacePolicy(Authentication authentication, WorkspaceCommands.UpdateWorkspacePolicy command) {
+        return call(authentication, actor -> policies.updateWorkspacePolicy(actor, command));
     }
 
     public Mono<VerifiedScope> verifyScope(Authentication authentication, Scope scope) {

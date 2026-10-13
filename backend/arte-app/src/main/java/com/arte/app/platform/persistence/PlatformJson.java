@@ -1,8 +1,11 @@
 package com.arte.app.platform.persistence;
 
+import com.arte.app.platform.ai.AiControlData;
 import com.arte.core.pojo.platform.CommandIdentity;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.StoredCommandReceipt;
+import com.arte.core.pojo.workspace.TenantPolicy;
+import com.arte.core.pojo.workspace.WorkspacePolicy;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 import com.arte.core.serialize.SerializerFactory;
 import tools.jackson.databind.DeserializationFeature;
@@ -29,7 +32,11 @@ public final class PlatformJson {
             Map.of(
                     "personal:view:v1", WorkspaceViews.PersonalWorkspaceView.class,
                     "workspace:view:v1", WorkspaceViews.WorkspaceView.class,
-                    "preference:view:v1", WorkspaceViews.PreferenceView.class
+                    "preference:view:v1", WorkspaceViews.PreferenceView.class,
+                    "tenant:policy:v1", TenantPolicy.class,
+                    "workspace:policy:v1", WorkspacePolicy.class,
+                    "workspace:ai:view:v1", AiControlData.WorkspaceView.class,
+                    "ai:catalog:view:v1", AiControlData.CatalogView.class
             );
 
     public String write(Object value) {

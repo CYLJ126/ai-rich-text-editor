@@ -115,6 +115,7 @@ final class PlatformRecords {
         row.setTenantId(v.tenantId());
         row.setRules(json.write(v.rules()));
         row.setMembersMayCreateWorkspace(v.membersMayCreateWorkspace());
+        row.setPersonalTemplateVersion(v.personalTemplateVersion());
         row.setPolicySchemaVersion(v.policySchemaVersion());
         row.setRolePresetVersion(v.rolePresetVersion());
         row.setVersion(v.version());
@@ -122,7 +123,7 @@ final class PlatformRecords {
     }
 
     static TenantPolicy tenantPolicy(PlatformTenantPolicyDto v, PlatformJson json) {
-        return new TenantPolicy(v.getTenantId(), json.read(v.getRules(), PolicyRules.class), v.getMembersMayCreateWorkspace(), v.getPolicySchemaVersion(), v.getRolePresetVersion(), v.getVersion());
+        return new TenantPolicy(v.getTenantId(), json.read(v.getRules(), PolicyRules.class), v.getMembersMayCreateWorkspace(), v.getPolicySchemaVersion(), v.getRolePresetVersion(), v.getVersion(), v.getPersonalTemplateVersion());
     }
 
     static PlatformWorkspacePolicyDto workspacePolicy(WorkspacePolicy v, PlatformJson json) {

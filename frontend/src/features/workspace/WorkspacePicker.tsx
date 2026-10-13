@@ -5,12 +5,20 @@ import {sameScope} from '@/features/ainew/storage';
 import {protectWorkspaceChange, useWorkspaceDirectory} from './useWorkspace';
 import {getWorkspace, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
 
-export default function WorkspacePicker({userId, beforeSelect}: {
+export default function WorkspacePicker({userId, beforeSelect, open: controlledOpen, onOpenChange}: {
   userId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   beforeSelect?: (scope: WorkspaceScope, proceed: () => void) => void;
 }) {
   const directory = useWorkspaceDirectory(userId);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+
+  function setOpen(value: boolean) {
+    setInternalOpen(value);
+    onOpenChange?.(value);
+  }
   const [filter, setFilter] = useState('');
   const [editor, setEditor] = useState<{ kind: 'create'; tenantId: string } | {
     kind: 'rename';

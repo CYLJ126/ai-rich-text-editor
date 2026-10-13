@@ -62,7 +62,7 @@ class WorkspaceHttpIntegrationTest {
         scheduler = Schedulers.newBoundedElastic(2, 16, "workspace-http");
         var services = fixture.services;
         operations = new ReactiveWorkspaceOperations(identities, new PlatformPersistenceExecutor(scheduler, fixture.tx),
-                services.personal(), services.workspaces(), services.preferences(), services.scopes(), services.authorization(), services.writeGuard(), services.receiptQueries());
+                services.personal(), services.workspaces(), services.preferences(), services.scopes(), services.authorization(), services.writeGuard(), services.receiptQueries(), services.policies());
         var proxyFactory = new AspectJProxyFactory(new WorkspaceController(operations));
         proxyFactory.setProxyTargetClass(true);
         proxyFactory.addAspect(new WebAspect());
@@ -131,6 +131,64 @@ class WorkspaceHttpIntegrationTest {
     private String renameBody(JSONObject scope, long version, String name) {
         return JSONUtil.createObj().set("scope", scope).set("expectedVersion", version)
                 .set("name", name).set("description", "description").toString();
+    }
+
+    @Test
+    void policyHttpReadsWritesReplaysAndQueriesTypedReceipts() throws Exception {
+        var scope = initialize().getJSONObject("workspace").getJSONObject("scope");
+        String tenantId = scope.getStr("tenantId");
+        var target = JSONUtil.createObj().set("tenantId", tenantId);
+        var tenantPolicy = ok("getTenantPolicy", target.toString(), null).getJSONObject("data").getJSONObject("policy");
+        assertEquals(1L, tenantPolicy.getLong("personalTemplateVersion"));
+        var rules = tenantPolicy.getJSONObject("rules");
+        var tenantCommand = JSONUtil.createObj().set("tenantId", tenantId).set("expectedTenantVersion", 0)
+                .set("expectedPolicyVersion", 0).set("rules", rules).set("membersMayCreateWorkspace", false);
+        rejected("updateTenantPolicy", tenantCommand.toString(), null, alice, 400, "INVALID_ARGUMENT");
+        var tenantReceipt = ok("updateTenantPolicy", tenantCommand.toString(), "tenant-policy").getJSONObject("data");
+        assertEquals(1L, tenantReceipt.getJSONObject("value").getLong("version"));
+        assertEquals(tenantReceipt.getStr("operationId"), ok("updateTenantPolicy", tenantCommand.toString(), "tenant-policy")
+                .getJSONObject("data").getStr("operationId"));
+        rejected("updateTenantPolicy", tenantCommand.toString(), "stale-tenant", alice, 409, "VERSION_CONFLICT");
+        var workspaceTarget = JSONUtil.createObj().set("scope", scope);
+        assertEquals(0L, ok("getWorkspacePolicy", workspaceTarget.toString(), null).getJSONObject("data").getJSONObject("policy").getLong("version"));
+        var spaceCommand = JSONUtil.createObj().set("scope", scope).set("expectedWorkspaceVersion", 0)
+                .set("expectedPolicyVersion", 0).set("rules", rules);
+        var receipt = ok("updateWorkspacePolicy", spaceCommand.toString(), "workspace-policy").getJSONObject("data");
+        assertEquals(1L, receipt.getJSONObject("value").getLong("version"));
+        assertEquals(receipt.getStr("operationId"), ok("updateWorkspacePolicy", spaceCommand.toString(), "workspace-policy")
+                .getJSONObject("data").getStr("operationId"));
+        for (var saved : List.of(tenantReceipt, receipt)) {
+            var queried = ok("getWorkspaceCommandReceipt", JSONUtil.createObj().set("operationId", saved.getStr("operationId")).toString(), null)
+                    .getJSONObject("data");
+            assertEquals(saved.getJSONObject("value"), queried.getJSONObject("value"));
+        }
+        assertEquals(1L, fixture.jdbc.queryForObject("SELECT auth_epoch FROM arte_platform_tenant WHERE id=?", Long.class, tenantId));
+        assertEquals(1L, fixture.jdbc.queryForObject("SELECT auth_epoch FROM arte_platform_workspace WHERE id=?", Long.class, scope.getStr("workspaceId")));
+        assertEquals(3, fixture.count("audit"));
+        // Space ADMIN can read normal summaries but cannot read, update or replay full policy.
+        fixture.jdbc.update("UPDATE arte_platform_workspace_member SET role=1,version=version+1 WHERE workspace_id=?", scope.getStr("workspaceId"));
+        rejected("getWorkspacePolicy", workspaceTarget.toString(), null, alice, 403, "ACCESS_DENIED");
+        rejected("updateWorkspacePolicy", spaceCommand.toString(), "workspace-policy", alice, 403, "ACCESS_DENIED");
+        rejected("getWorkspaceCommandReceipt", JSONUtil.createObj().set("operationId", receipt.getStr("operationId")).toString(), null,
+                alice, 403, "ACCESS_DENIED");
+    }
+
+    @Test
+    void policyHttpRejectsMissingVersionsMalformedRulesAndCrossTenantScope() throws Exception {
+        var scope = initialize().getJSONObject("workspace").getJSONObject("scope");
+        String tenantId = scope.getStr("tenantId");
+        var rules = ok("getTenantPolicy", JSONUtil.createObj().set("tenantId", tenantId).toString(), null)
+                .getJSONObject("data").getJSONObject("policy").getJSONObject("rules");
+        rejected("updateTenantPolicy", JSONUtil.createObj().set("tenantId", tenantId).set("rules", rules)
+                .set("membersMayCreateWorkspace", false).toString(), "invalid", alice, 400, "INVALID_ARGUMENT");
+        rejected("updateWorkspacePolicy", JSONUtil.createObj().set("scope", scope).set("expectedWorkspaceVersion", -1)
+                .set("expectedPolicyVersion", 0).set("rules", rules).toString(), "negative", alice, 400, "INVALID_ARGUMENT");
+        rejected("updateWorkspacePolicy", JSONUtil.createObj().set("scope", scope).set("expectedWorkspaceVersion", 0)
+                .set("expectedPolicyVersion", 0).set("rules", JSONUtil.createObj()).toString(), "missing-rules", alice, 400, "INVALID_ARGUMENT");
+        rejected("getTenantPolicy", "{\"tenantId\":\"another-tenant\"}", null, alice, 404, "NOT_FOUND");
+        var cross = JSONUtil.createObj().set("tenantId", "another-tenant").set("workspaceId", scope.getStr("workspaceId"));
+        rejected("getWorkspacePolicy", JSONUtil.createObj().set("scope", cross).toString(), null, alice, 404, "NOT_FOUND");
+        assertEquals(1, fixture.count("audit"));
     }
 
     @Test

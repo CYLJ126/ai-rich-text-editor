@@ -214,17 +214,49 @@ class PlatformWorkspaceAssemblyIntegrationTest {
     }
 
     @Test
-    void restartingWithDifferentDefaultsDoesNotOverwriteStoredPolicy() {
+    void publishingDatabaseRevisionOnlyAffectsNewPersonalTenants() {
         final Scope[] scope = new Scope[1];
         context().run(c -> scope[0] = c.getBean(ReactiveWorkspaceOperations.class)
                 .initializePersonal(login(1, "alice"), meta("init")).block(WAIT).value().workspace().scope());
-        context().withPropertyValues("arte.platform.workspace.personal-policy.creation-types=article")
-                .run(c -> {
+        var initialRules = fixture.policies.findTenantPolicy(scope[0].tenantId()).orElseThrow().rules();
+        var nextRules = new com.arte.core.pojo.workspace.PolicyRules(Set.of(com.arte.core.constant.platform.PlatformResourceTypes.ARTICLE),
+                java.util.Map.of(), false, false, Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of());
+        fixture.jdbc.update("INSERT INTO arte_platform_personal_policy_template VALUES(2,?,false,1,1,'test',CURRENT_TIMESTAMP)", fixture.json.write(nextRules));
+        fixture.jdbc.update("UPDATE arte_platform_personal_policy_template_head SET version=2 WHERE id=1 AND version=1");
+        fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+        context().run(c -> {
                     var api = c.getBean(ReactiveWorkspaceOperations.class);
                     api.initializePersonal(login(1, "alice"), meta("new-key")).block(WAIT);
                     assertEquals(4, c.getBean(com.arte.core.spi.workspace.PolicyStore.class)
                             .findTenantPolicy(scope[0].tenantId()).orElseThrow().rules().allowedCreationTypes().size());
-                });
+            assertEquals(initialRules, fixture.policies.findTenantPolicy(scope[0].tenantId()).orElseThrow().rules());
+            assertEquals(1L, fixture.policies.findTenantPolicy(scope[0].tenantId()).orElseThrow().personalTemplateVersion());
+            var bob = api.initializePersonal(login(2, "bob"), meta("bob-init")).block(WAIT).value().workspace().scope();
+            var bobPolicy = fixture.policies.findTenantPolicy(bob.tenantId()).orElseThrow();
+            assertEquals(nextRules, bobPolicy.rules());
+            assertEquals(2L, bobPolicy.personalTemplateVersion());
+            assertEquals(0, bobPolicy.version());
+        });
+    }
+
+    @Test
+    void missingOrUnsupportedTemplateFailsClosedAndDoesNotAffectExistingInitialization() {
+        context().run(c -> {
+            var api = c.getBean(ReactiveWorkspaceOperations.class);
+            var alice = login(1, "alice");
+            var scope = api.initializePersonal(alice, meta("alice-init")).block(WAIT).value().workspace().scope();
+            fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+            fixture.jdbc.update("DELETE FROM arte_platform_personal_policy_template_head");
+            assertEquals(scope, api.initializePersonal(alice, meta("existing-without-template")).block(WAIT).value().workspace().scope());
+            var missing = assertThrows(PlatformException.class, () -> api.initializePersonal(login(2, "bob"), meta("bob-init")).block(WAIT));
+            assertEquals(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, missing.getCode());
+            assertEquals(1, fixture.count("tenant"));
+            fixture.jdbc.update("INSERT INTO arte_platform_personal_policy_template_head VALUES(1,1)");
+            fixture.jdbc.update("UPDATE arte_platform_personal_policy_template SET policy_schema_version=2 WHERE version=1");
+            var unsupported = assertThrows(PlatformException.class, () -> api.initializePersonal(login(2, "bob"), meta("bob-init")).block(WAIT));
+            assertEquals(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, unsupported.getCode());
+            assertEquals(1, fixture.count("tenant"));
+        });
     }
 
     private AccessRequest read(Scope scope) {

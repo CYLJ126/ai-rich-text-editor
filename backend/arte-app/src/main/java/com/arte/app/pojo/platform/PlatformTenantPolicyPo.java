@@ -54,4 +54,10 @@ public class PlatformTenantPolicyPo implements java.io.Serializable {
      */
     @TableField(value = "version")
     private Long version;
+
+    /**
+     * 创建时采用的个人模板版本；旧政策／组织政策为空，治理更新保留此来源。
+     */
+    @TableField(value = "personal_template_version")
+    private Long personalTemplateVersion;
 }

@@ -8,6 +8,7 @@
         <result column="policy_schema_version" property="policySchemaVersion"/>
         <result column="role_preset_version" property="rolePresetVersion"/>
         <result column="version" property="version"/>
+        <result column="personal_template_version" property="personalTemplateVersion"/>
     </resultMap>
 
     <select id="selectCurrent" resultMap="row" useCache="false" flushCache="true">

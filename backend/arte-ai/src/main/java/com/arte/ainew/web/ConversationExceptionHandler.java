@@ -3,6 +3,8 @@ package com.arte.ainew.web;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.web.controller.*;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.IResult;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 import java.sql.SQLException;
 import java.util.Locale;
@@ -40,7 +43,11 @@ public class ConversationExceptionHandler {
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
         var status = HttpStatus.INTERNAL_SERVER_ERROR;
         ResultCodeEnum code = null;
-        if (exception instanceof AuthenticationException) {
+        if (exception instanceof java.util.concurrent.TimeoutException
+                || exception instanceof AsyncRequestTimeoutException) {
+            status = HttpStatus.GATEWAY_TIMEOUT;
+            code = ResultCodeEnum.AI_DEADLINE_EXCEEDED;
+        } else if (exception instanceof AuthenticationException) {
             status = HttpStatus.UNAUTHORIZED;
             code = ResultCodeEnum.FAIL;
         } else if (exception instanceof AccessDeniedException) {
@@ -50,6 +57,10 @@ public class ConversationExceptionHandler {
                 || exception instanceof ServletRequestBindingException || exception instanceof IllegalArgumentException) {
             status = HttpStatus.BAD_REQUEST;
             code = ResultCodeEnum.FAIL;
+        } else if (exception instanceof PlatformException platform) {
+            code = ResultCodeEnum.FAIL;
+            status = platform.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE
+                    ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.FORBIDDEN;
         } else if (exception instanceof AdmissionException admission) {
             code = admission.getResultCode();
             status = switch (code) {
@@ -58,6 +69,7 @@ public class ConversationExceptionHandler {
                 case AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY, AI_RESULT_NOT_AVAILABLE ->
                         HttpStatus.CONFLICT;
                 case AI_CURSOR_EXPIRED -> HttpStatus.GONE;
+                case AI_DEADLINE_EXCEEDED -> HttpStatus.GATEWAY_TIMEOUT;
                 default -> HttpStatus.BAD_REQUEST;
             };
         }

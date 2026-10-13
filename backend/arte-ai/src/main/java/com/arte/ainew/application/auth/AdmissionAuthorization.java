@@ -5,11 +5,13 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiProperties.Grant;
+import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -61,11 +63,20 @@ public final class AdmissionAuthorization {
     private final NewAiProperties properties;
 
     private final Clock clock;
+    private AiControlConfigurationSource source;
+    private Scheduler scheduler;
 
     public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock) {
         this.resolver = Objects.requireNonNull(resolver);
         this.properties = properties;
         this.clock = clock;
+    }
+
+    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock,
+                                  AiControlConfigurationSource source, Scheduler scheduler) {
+        this(resolver, properties, clock);
+        this.source = source;
+        this.scheduler = scheduler;
     }
 
     /**
@@ -78,7 +89,7 @@ public final class AdmissionAuthorization {
      * @return 执行上下文
      */
     public Mono<ExecutionContext> require(ExecutionContext context, String scope) {
-        return Mono.defer(() -> {
+        Mono<ExecutionContext> result = Mono.defer(() -> {
             var original = Objects.requireNonNull(context).authorization();
             // 检查上下文是否包含所需权限，例如 ai:invoke
             if (!original.scopes().contains(scope)) {
@@ -110,18 +121,20 @@ public final class AdmissionAuthorization {
                                 context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
                     });
         });
+        return source == null ? result : result.publishOn(scheduler);
     }
 
     /**
      * 固定授权配置查询，直接返回 NewAiProperties.Grant
      * <p>
      * 根据上下文中的主体 ID、名称、类型、租户和工作空间，查找处于启用状态的配置；找不到就抛出 AccessDeniedException。
-     * 调用方据此判断该主体能否使用某个绑定或预算。grant 本身不重新查询授权，也不检查操作权限或执行期限。
+     * 调用方据此判断该主体能否使用某个绑定或预算。固定文件模式不重新查询授权，数据库来源会重查当前公共资格；此方法不检查执行期限。
      *
-      * @param context 执行上下文
+     * @param context 执行上下文
      * @return 授权配置（包含 bindingIds、budgetRefs 等信息）
      */
     public Grant grant(ExecutionContext context) {
+        if (source != null) return source.grant(context);
         var owner = ExecutionOwner.from(context);
         return properties.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(owner.subjectId())
                         && g.tenantId().equals(owner.tenantId()) && g.workspaceId().equals(owner.workspaceId())

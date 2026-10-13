@@ -4,6 +4,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -47,7 +48,7 @@ public class PlatformIdentityConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
+    @ConditionalOnExpression("${arte.ai-new.enabled:false} and '${arte.ai-new.configuration-mode:FIXED}' == 'FIXED'")
     @ConditionalOnMissingBean(ExecutionAuthorizationResolver.class)
     ExecutionAuthorizationResolver rbacFixedExecutionAuthorizationResolver(RbacIdentityProvider identities, NewAiProperties properties,
                                                                            @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {

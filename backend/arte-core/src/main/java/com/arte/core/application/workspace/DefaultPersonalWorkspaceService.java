@@ -35,6 +35,7 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
     private final PreferenceStore preferences;
     private final PolicyStore policies;
     private final DefaultWorkspacePolicies defaults;
+    private final java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning;
     private final PlatformIdGenerator ids;
     private final Clock clock;
     private final WorkspaceMutationEffects effects;
@@ -45,7 +46,7 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
                                            WorkspaceAccessSupport access, WorkspaceGovernanceLocks locks, TenantStore tenants, WorkspaceStore workspaces,
                                            TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PreferenceStore preferences,
                                            PolicyStore policies, DefaultWorkspacePolicies defaults, PlatformIdGenerator ids, Clock clock,
-                                           WorkspaceMutationEffects effects, DefaultWorkspacePreferenceService preferenceViews, CommandReceiptStore receipts) {
+                                           WorkspaceMutationEffects effects, DefaultWorkspacePreferenceService preferenceViews, CommandReceiptStore receipts, java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning) {
         this.principals = Objects.requireNonNull(principals);
         this.commands = Objects.requireNonNull(commands);
         this.access = Objects.requireNonNull(access);
@@ -57,6 +58,7 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
         this.preferences = Objects.requireNonNull(preferences);
         this.policies = Objects.requireNonNull(policies);
         this.defaults = Objects.requireNonNull(defaults);
+        this.provisioning = java.util.List.copyOf(provisioning);
         this.ids = Objects.requireNonNull(ids);
         this.clock = Objects.requireNonNull(clock);
         this.effects = Objects.requireNonNull(effects);
@@ -116,8 +118,9 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
                     requireInsert(policies.insertTenantPolicy(tenantPolicy), meta);
                     requireInsert(policies.insertWorkspacePolicy(defaults.workspace(scope, tenantPolicy)), meta);
                     requireInsert(preferences.insert(new WorkspacePreference(subjectId, scope, null, null, Set.of(), 0)), meta);
+                    provisioning.forEach(participant -> participant.provision(actor, scope, operationId));
                     effects.append(actor, new CommandScope(tenantId, scope.workspaceId()), "personal:initialized", operationId, 0,
-                            Map.of("tenantEpoch", "0", "workspaceEpoch", "0"));
+                            Map.of("tenantEpoch", "0", "workspaceEpoch", "0", "personalTemplateVersion", Long.toString(tenantPolicy.personalTemplateVersion())));
                     return new DefaultCommandExecutor.Result<>(existing(actor, subjectId), 0);
                 });
     }

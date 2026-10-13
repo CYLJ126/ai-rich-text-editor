@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformPersonalPolicyTemplateMapper">
+    <select id="selectCurrent" resultType="com.arte.app.pojo.platform.PlatformPersonalPolicyTemplateDto"
+            useCache="false" flushCache="true">
+        SELECT r.rules, r.members_may_create_workspace, r.policy_schema_version, r.role_preset_version, r.version
+        FROM arte_platform_personal_policy_template_head h
+        JOIN arte_platform_personal_policy_template r ON r.version=h.version
+        WHERE h.id=1 FOR UPDATE
+    </select>
+</mapper>

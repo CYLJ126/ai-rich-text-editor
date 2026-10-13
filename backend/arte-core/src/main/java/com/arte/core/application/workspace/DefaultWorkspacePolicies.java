@@ -1,29 +1,53 @@
 package com.arte.core.application.workspace;
 
 import com.arte.core.enums.access.GrantTargetKindEnum;
+import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.workspace.PersonalTenantPolicyTemplate;
 import com.arte.core.pojo.workspace.PolicyRules;
 import com.arte.core.pojo.workspace.TenantPolicy;
 import com.arte.core.pojo.workspace.WorkspacePolicy;
+import com.arte.core.spi.workspace.PersonalTenantPolicyTemplateStore;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static com.arte.core.constant.platform.PlatformResourceTypes.*;
 
 /**
- * 首版结构化政策模板。生产环境显式传入受支持的协议／供应商／目的地白名单。
+ * 新个人租户政策工厂；生产环境通过版本化数据库模板提供政策。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
  */
 public final class DefaultWorkspacePolicies {
 
-    private final PolicyRules personalRules;
+    private final Supplier<PersonalTenantPolicyTemplate> personalTemplate;
 
     public DefaultWorkspacePolicies(PolicyRules personalRules) {
-        this.personalRules = Objects.requireNonNull(personalRules);
+        Objects.requireNonNull(personalRules);
+        this.personalTemplate = () -> new PersonalTenantPolicyTemplate(personalRules, false, 1, 1, 1);
+    }
+
+    /**
+     * 生产装配每次新建时读取数据库；不在启动时缓存模板。
+     */
+    public DefaultWorkspacePolicies(PersonalTenantPolicyTemplateStore store) {
+        Objects.requireNonNull(store);
+        this.personalTemplate = () -> {
+            try {
+                return store.findCurrent().orElseThrow(() -> new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, "personal-policy-template"));
+            } catch (PlatformException failure) {
+                throw failure;
+            } catch (RuntimeException failure) {
+                var unavailable = new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, "personal-policy-template");
+                unavailable.initCause(failure);
+                throw unavailable;
+            }
+        };
     }
 
     /**
@@ -37,7 +61,9 @@ public final class DefaultWorkspacePolicies {
     }
 
     public TenantPolicy personalTenant(String tenantId) {
-        return new TenantPolicy(tenantId, personalRules, false, 1, 1, 0);
+        var template = personalTemplate.get();
+        WorkspaceAccessSupport.requirePolicyVersion(template.policySchemaVersion(), template.rolePresetVersion());
+        return template.instantiate(tenantId);
     }
 
     public WorkspacePolicy workspace(Scope scope, TenantPolicy tenantPolicy) {

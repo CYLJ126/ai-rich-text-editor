@@ -282,3 +282,16 @@
     flex-basis: 100%;
   }
 }
+
+.ainew-access-state {
+  max-width: 680px;
+  padding: 32px 24px;
+}
+
+.ainew-access-state .ant-result-icon {
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-support-id {
+  overflow-wrap: anywhere;
+}

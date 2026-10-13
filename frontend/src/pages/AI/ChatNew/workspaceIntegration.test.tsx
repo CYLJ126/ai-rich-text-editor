@@ -40,6 +40,14 @@ vi.mock('@/services/arte-ai', async original => ({
 }));
 let userSequence = 0;
 const otherScope = {tenantId: 'other-tenant', workspaceId: 'other-space'};
+vi.mock('@/services/platform/ai', () => ({
+  ensureWorkspaceAi: vi.fn(async () => ({body: {data: {needsImport: false}}})),
+  getWorkspaceAi: vi.fn(async () => {
+    throw new Error('FIXED mode');
+  }),
+  getAiCatalog: vi.fn(), importAiConfiguration: vi.fn(), updateWorkspaceAi: vi.fn(), publishAiCatalog: vi.fn(),
+  refKey: (ref: { type: string; id: string; version: string }) => JSON.stringify([ref.type, ref.id, ref.version])
+}));
 const scope = {tenantId: 'tenant', workspaceId: 'workspace'};
 const conversation: api.ConversationResponse = {
   conversationId: 'conversation',
@@ -311,7 +319,7 @@ it('shows FIXED authorization denial without borrowing models or budgets from th
   await chooseConversation();
   await waitFor(() => expect(api.getBudget).toHaveBeenCalled());
   await selectFromHeader('空间B');
-  await screen.findByText('此空间尚未配置 AI 使用能力或当前账号无调用授权。');
+  await screen.findByText('当前账号暂无此空间的 AI 使用权限');
   await chooseConversation();
   fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '没有授权时不能发送'}});
   expect(screen.getByRole('button', {name: '发送'})).toBeDisabled();
@@ -347,7 +355,7 @@ it.each(['resolve', 'reject'])('aborts old model and conversation reads and igno
   });
   expect(screen.getAllByLabelText('选择工作空间')[0]).toHaveTextContent('空间B');
   expect(screen.queryByText('我的会话')).not.toBeInTheDocument();
-  expect(screen.queryByText('此空间尚未配置 AI 使用能力或当前账号无调用授权。')).not.toBeInTheDocument();
+  expect(screen.queryByText('当前账号暂无此空间的 AI 使用权限')).not.toBeInTheDocument();
   expect(api.getBudget).not.toHaveBeenCalled();
   expect(api.turnsForChat).not.toHaveBeenCalled();
 });
@@ -439,4 +447,24 @@ it('cancels the old invocation observer on switching and resumes only the origin
     invocationId: 'accepted-in-A'
   }));
   expect(api.turnsForChat).toHaveBeenCalledTimes(1);
+});
+
+it('opens the real workspace picker from a denied AI state and recovers in another authorized space', async () => {
+  vi.mocked(api.discoverChatOptions).mockImplementation(async request => {
+    if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});
+    return reply({options: [model]});
+  });
+  vi.mocked(api.listConversations).mockImplementation(async request => {
+    if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});
+    return page([conversation]);
+  });
+  app();
+  await screen.findByText('此空间的 AI 功能暂不可用');
+  fireEvent.click(screen.getByRole('button', {name: '切换工作空间'}));
+  fireEvent.click(await screen.findByRole('button', {name: '空间B'}));
+  await screen.findByRole('button', {name: '我的会话'});
+  expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();
+  expect(api.listConversations).toHaveBeenLastCalledWith(expect.objectContaining({scope: otherScope}), expect.anything());
+  expect(api.turnsForChat).not.toHaveBeenCalled();
 });

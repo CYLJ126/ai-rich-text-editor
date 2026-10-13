@@ -47,6 +47,10 @@ final class PlatformServiceTestFactory {
         return new PreferenceStoreServiceImpl(config.platformWorkspacePreferenceMapper(session), tx, json);
     }
 
+    PersonalTenantPolicyTemplateStoreServiceImpl templates() {
+        return new PersonalTenantPolicyTemplateStoreServiceImpl(config.platformPersonalPolicyTemplateMapper(session), tx, json);
+    }
+
     PolicyStoreServiceImpl policies() {
         return new PolicyStoreServiceImpl(config.platformTenantPolicyMapper(session), tx, config.platformWorkspacePolicyMapper(session), json);
     }

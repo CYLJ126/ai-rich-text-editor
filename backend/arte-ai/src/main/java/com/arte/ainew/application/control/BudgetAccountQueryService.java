@@ -35,7 +35,8 @@ public final class BudgetAccountQueryService {
             if (!authorization.grant(current).budgetRefs().contains(budgetRef)) {
                 throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
             }
-            var definition = configuration.budget(budgetRef);
+
+            return configuration.budget(budgetRef, current).flatMap(definition -> {
             if (!definition.owner().equals(owner)) {
                 throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
             }
@@ -48,6 +49,7 @@ public final class BudgetAccountQueryService {
                         }
                         return account;
                     });
+            });
         });
     }
 }

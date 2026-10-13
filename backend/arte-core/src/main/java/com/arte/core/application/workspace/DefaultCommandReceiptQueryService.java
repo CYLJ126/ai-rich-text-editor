@@ -10,6 +10,8 @@ import com.arte.core.enums.workspace.TenantRoleEnum;
 import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.*;
+import com.arte.core.pojo.workspace.TenantPolicy;
+import com.arte.core.pojo.workspace.WorkspacePolicy;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 import com.arte.core.spi.platform.CommandReceiptStore;
 import com.arte.core.spi.platform.PublicTransactionRunner;
@@ -76,8 +78,17 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
                 if (!current.subjectId().equals(subjectId) || !current.defaultScope().equals(saved.defaultScope()))
                     throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
             }
+            if (value instanceof TenantPolicy policy) {
+                locks.tenant(subjectId, policy.tenantId());
+                authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.tenantRequest(policy.tenantId(),
+                        com.arte.core.constant.platform.PlatformActions.TENANT_POLICY_WRITE, "policy-receipt"));
+            }
             locks.scopes(subjectId, targets);
             for (Scope target : targets) requireVisible(actor, target);
+            if (value instanceof WorkspacePolicy policy) {
+                authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(policy.scope(),
+                        com.arte.core.constant.platform.PlatformActions.WORKSPACE_POLICY_WRITE, "policy-receipt"));
+            }
             if (value instanceof WorkspaceViews.PersonalWorkspaceView personal) {
                 var tenant = authorityRead(() -> tenants.findCurrentPersonal(subjectId)).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
                 var snapshot = access.snapshotCurrent(actor, personal.workspace().scope());
@@ -118,6 +129,20 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
                         : !view.scope().workspaceId().equals(identityScope.workspaceId())))
                     throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
                 yield Set.of(view.scope());
+            }
+            case "tenant:policy:update" -> {
+                if (!stored.resultSchema().equals("tenant:policy:v1") || !(receipt.value() instanceof TenantPolicy policy)
+                        || receipt.resultVersion() != policy.version() || !policy.tenantId().equals(identityScope.tenantId())
+                        || identityScope.workspaceId() != null)
+                    throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                yield Set.of();
+            }
+            case "workspace:policy:update" -> {
+                if (!stored.resultSchema().equals("workspace:policy:v1") || !(receipt.value() instanceof WorkspacePolicy policy)
+                        || receipt.resultVersion() != policy.version() || !policy.scope().tenantId().equals(identityScope.tenantId())
+                        || !policy.scope().workspaceId().equals(identityScope.workspaceId()))
+                    throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                yield Set.of(policy.scope());
             }
             default -> throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
         };

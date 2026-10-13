@@ -88,6 +88,7 @@ public class NewAiChatController {
                         .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)
                                 .doOnNext(accepted -> new InvocationTiming(accepted.executionId(), executionContext.traceId(), null, started)
                                         .mark("CHAT_ACCEPTED"))))
+                .timeout(timeout)
                 .map(accepted -> ResultContext.success(ChatAcceptedResponse.from(request.conversationId(), accepted),
                         ResultCodeEnum.SUCCESS, locale));
     }
@@ -103,6 +104,7 @@ public class NewAiChatController {
                 .flatMap(context -> chatService.regenerate(new EntryRequests.Regenerate(request.originalInvocationId(),
                         request.expectedConversationVersion(), new ExecutionOptions(context.deadline(), maxAttempts(),
                         properties.limits().maxOutputBytes(), 0, 0, timeout)), context))
+                .timeout(timeout)
                 .map(accepted -> ResultContext.success(accepted, ResultCodeEnum.SUCCESS, locale));
     }
 

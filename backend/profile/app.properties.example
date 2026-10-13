@@ -123,21 +123,15 @@ arte.platform.persistence.redis-prefix=arte:platform:
 arte.platform.persistence.outbox-enabled=false
 
 arte.platform.workspace.enabled=true
-# Template for NEW personal tenants only; changing it does not overwrite saved policies.
-arte.platform.workspace.personal-policy.creation-types=article,collection,model,assistant
-arte.platform.workspace.personal-policy.personal-credentials-allowed=true
-# Empty allowlists prohibit these actions; they are not wildcard access or AI FIXED authorization.
-arte.platform.workspace.personal-policy.protocols=
-arte.platform.workspace.personal-policy.providers=
-arte.platform.workspace.personal-policy.destinations=
-arte.platform.workspace.personal-policy.export-types=article,collection
-arte.platform.workspace.personal-policy.egress-types=article,collection
-arte.platform.workspace.personal-policy.share-target-kinds=SUBJECT,SPACE_ROLE,WORKSPACE
+# NEW personal tenant defaults are versioned in the database; see arte-app/docs/PLATFORM_WORKSPACE_POLICY.md.
+# Existing policies change only through authorized governance commands.
 
 # ======================== New AI fixed configuration ========================
 # Maven filters this file into classpath:ainew/config/application.properties.
 # application-ai.yml imports that runtime file; changing this file requires rebuilding resources.
 # These values match examples/ainew-generation.yml; the example identity/rates are for testing.
+# Switch to DATABASE after applying the AI control migration; then import the reviewed deployment seed in the page.
+arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1

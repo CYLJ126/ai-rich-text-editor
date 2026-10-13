@@ -37,8 +37,8 @@ public final class BudgetAccountInitializer {
     }
 
     public Mono<BudgetCommands.Account> initialize(String ref, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(current -> {
-            var definition = configuration.budget(ref);
+        return authorization.require(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(current -> configuration.budget(ref, current).flatMap(definition -> {
+
             if (!definition.owner().equals(ExecutionOwner.from(current)) || !authorization.grant(current).budgetRefs().contains(ref)) {
                 throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
             }
@@ -60,7 +60,7 @@ public final class BudgetAccountInitializer {
                         }
                         return account;
                     });
-        }).doOnNext(account -> log.info("AI budget initialization verified, invocationId={}, traceId={}, budgetRef={}, version={}",
+        })).doOnNext(account -> log.info("AI budget initialization verified, invocationId={}, traceId={}, budgetRef={}, version={}",
                 context.executionId(), context.traceId(), ref, account.version()));
     }
 }

@@ -45,12 +45,22 @@ public class PlatformMybatisConfiguration {
         // CAS、成员代次及授权 epoch 的约束由 Mapper XML 的专用 SQL 明确表达。
         for (Class<?> mapper : List.of(PlatformTenantMapper.class, PlatformWorkspaceMapper.class,
                 PlatformTenantMemberMapper.class, PlatformWorkspaceMemberMapper.class,
-                PlatformTenantPolicyMapper.class, PlatformWorkspacePolicyMapper.class,
+                PlatformTenantPolicyMapper.class, PlatformWorkspacePolicyMapper.class, PlatformPersonalPolicyTemplateMapper.class, PlatformAiControlMapper.class,
                 PlatformWorkspacePreferenceMapper.class, PlatformCommandMapper.class,
                 PlatformOutboxMapper.class, PlatformAuditMapper.class)) {
             configuration.addMapper(mapper);
         }
         return new PlatformMybatisSession(new MybatisSqlSessionFactoryBuilder().build(configuration));
+    }
+
+    @Bean
+    PlatformPersonalPolicyTemplateMapper platformPersonalPolicyTemplateMapper(PlatformMybatisSession session) {
+        return session.mapper(PlatformPersonalPolicyTemplateMapper.class);
+    }
+
+    @Bean
+    public PlatformAiControlMapper platformAiControlMapper(PlatformMybatisSession session) {
+        return session.mapper(PlatformAiControlMapper.class);
     }
 
     @Bean

@@ -14,6 +14,7 @@ import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -83,8 +84,11 @@ public class NewAiGenerationConfiguration {
      * @return DeepSeek 请求及响应语义适配器
      */
     @Bean("newAiDeepSeekProviderAdapter")
-    DeepSeekGenerationProviderAdapter provider(NewAiProperties admission, NewAiGenerationProperties generation) {
-        var supported = admission.bindings().stream().filter(binding -> admission.connections().stream().anyMatch(connection ->
+    DeepSeekGenerationProviderAdapter provider(NewAiProperties admission, NewAiGenerationProperties generation,
+                                               ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources) {
+        var source = sources.getIfAvailable();
+        var definitions = source == null ? admission : source.definitions();
+        var supported = definitions.bindings().stream().filter(binding -> definitions.connections().stream().anyMatch(connection ->
                         connection.definition().equals(binding.connection()) && connection.providerId().equals("deepseek")
                                 && connection.protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)))
                 .map(ResolvedBinding::capability).distinct().toList();

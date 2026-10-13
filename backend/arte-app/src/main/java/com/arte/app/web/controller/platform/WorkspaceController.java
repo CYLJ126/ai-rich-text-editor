@@ -6,8 +6,7 @@ import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.platform.*;
-import com.arte.core.pojo.workspace.WorkspaceCommands;
-import com.arte.core.pojo.workspace.WorkspaceViews;
+import com.arte.core.pojo.workspace.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -165,6 +164,55 @@ public class WorkspaceController {
             @Valid @RequestBody CommandReceiptRequest request,
             Locale locale) {
         return workspaceOperations.getCommandReceipt(authentication, request.operationId())
+                .map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    public record TenantPolicyRequest(@NotBlank @Size(max = 256) String tenantId) {
+    }
+
+    public record UpdateTenantPolicyRequest(@NotBlank @Size(max = 256) String tenantId,
+                                            @NotNull @Min(0) Long expectedTenantVersion,
+                                            @NotNull @Min(0) Long expectedPolicyVersion,
+                                            @NotNull PolicyRules rules, @NotNull Boolean membersMayCreateWorkspace) {
+    }
+
+    public record UpdateWorkspacePolicyRequest(@NotNull Scope scope,
+                                               @NotNull @Min(0) Long expectedWorkspaceVersion,
+                                               @NotNull @Min(0) Long expectedPolicyVersion,
+                                               @NotNull PolicyRules rules) {
+    }
+
+    @PostMapping("/getTenantPolicy")
+    public Mono<ResultContext<WorkspacePolicyViews.TenantPolicyView>> getTenantPolicy(Authentication authentication,
+                                                                                      @Valid @RequestBody TenantPolicyRequest request, Locale locale) {
+        return workspaceOperations.getTenantPolicy(authentication, request.tenantId())
+                .map(policy -> ResultContext.success(policy, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getWorkspacePolicy")
+    public Mono<ResultContext<WorkspacePolicyViews.WorkspacePolicyView>> getWorkspacePolicy(Authentication authentication,
+                                                                                            @Valid @RequestBody GetRequest request, Locale locale) {
+        return workspaceOperations.getWorkspacePolicy(authentication, request.scope())
+                .map(policy -> ResultContext.success(policy, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/updateTenantPolicy")
+    public Mono<ResultContext<CommandReceipt<TenantPolicy>>> updateTenantPolicy(Authentication authentication,
+                                                                                @Valid @RequestBody UpdateTenantPolicyRequest request, @RequestHeader("Idempotency-Key") String operationKey,
+                                                                                HttpServletRequest httpRequest, Locale locale) {
+        var command = new TenantCommands.UpdateTenantPolicy(commandMeta(operationKey, httpRequest), request.tenantId(),
+                request.expectedTenantVersion(), request.expectedPolicyVersion(), request.rules(), request.membersMayCreateWorkspace());
+        return workspaceOperations.updateTenantPolicy(authentication, command)
+                .map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/updateWorkspacePolicy")
+    public Mono<ResultContext<CommandReceipt<WorkspacePolicy>>> updateWorkspacePolicy(Authentication authentication,
+                                                                                      @Valid @RequestBody UpdateWorkspacePolicyRequest request, @RequestHeader("Idempotency-Key") String operationKey,
+                                                                                      HttpServletRequest httpRequest, Locale locale) {
+        var command = new WorkspaceCommands.UpdateWorkspacePolicy(commandMeta(operationKey, httpRequest), request.scope(),
+                request.expectedWorkspaceVersion(), request.expectedPolicyVersion(), request.rules());
+        return workspaceOperations.updateWorkspacePolicy(authentication, command)
                 .map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
     }
 

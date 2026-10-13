@@ -9,6 +9,7 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.time.Duration;
 import java.util.List;
@@ -25,7 +26,14 @@ import java.util.Set;
 public record NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef,
                               Persistence persistence, Limits limits, List<Grant> grants,
                               List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                              List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets) {
+                              List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets,
+                              String configurationMode) {
+    public NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef, Persistence persistence, Limits limits,
+                           List<Grant> grants, List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
+                           List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets) {
+        this(enabled, dataSourceBean, releaseRef, persistence, limits, grants, capabilities, bindings, connections, rates, budgets, "FIXED");
+    }
+
     public record Persistence(int threads, int queuedTasks) {
         public Persistence {
             ContractChecks.range(threads, "threads", 1, 64);
@@ -89,7 +97,10 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
         }
     }
 
+    @ConstructorBinding
     public NewAiProperties {
+        configurationMode = configurationMode == null ? "FIXED" : configurationMode;
+        ContractChecks.require(Set.of("FIXED", "DATABASE").contains(configurationMode), "Unknown AI configuration mode");
         dataSourceBean = dataSourceBean == null ? "appDataSource" : ContractChecks.id(dataSourceBean, "dataSourceBean");
         persistence = persistence == null ? new Persistence(4, 256) : persistence;
         limits = limits == null ? new Limits(65_536, 4096, 1_048_576, Duration.ofMinutes(2), Duration.ofMinutes(15)) : limits;
@@ -101,7 +112,8 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
         budgets = copy(budgets);
         if (enabled) {
             ContractChecks.id(releaseRef, "releaseRef");
-            ContractChecks.require(!grants.isEmpty() && !capabilities.isEmpty() && !bindings.isEmpty()
+            if (configurationMode.equals("FIXED"))
+                ContractChecks.require(!grants.isEmpty() && !capabilities.isEmpty() && !bindings.isEmpty()
                     && !connections.isEmpty() && !rates.isEmpty() && !budgets.isEmpty(), "Enabled admission requires complete fixed configuration");
         }
     }

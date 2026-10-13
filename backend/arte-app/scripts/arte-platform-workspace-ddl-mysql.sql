@@ -96,6 +96,7 @@ CREATE TABLE arte_platform_workspace_member
 
 CREATE TABLE arte_platform_tenant_policy
 (
+    personal_template_version bigint NULL COMMENT '创建时个人模板版本；旧政策／组织为空，后续治理保留来源',
     tenant_id                    varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '所属租户 ID',
     rules                        longtext                                               NOT NULL COMMENT '租户策略规则 JSON，使用固定版本结构，不包含可执行脚本或 Java 类型名',
     members_may_create_workspace boolean                                                NOT NULL COMMENT '是否允许普通租户成员创建工作空间，仍须通过成员资格和基础授权检查',
@@ -104,7 +105,8 @@ CREATE TABLE arte_platform_tenant_policy
     version                      bigint                                                 NOT NULL COMMENT '乐观锁版本号，非负；更新时用于版本比较',
     PRIMARY KEY (tenant_id),
     FOREIGN KEY (tenant_id) REFERENCES arte_platform_tenant (id),
-    CHECK (policy_schema_version >= 1 AND role_preset_version >= 1 AND version >= 0)
+    CHECK (policy_schema_version >= 1 AND role_preset_version >= 1 AND version >= 0),
+    CHECK (personal_template_version IS NULL OR personal_template_version >= 1)
 ) ENGINE=InnoDB COMMENT='平台租户策略：租户内空间和资源行为的策略上限';
 
 CREATE TABLE arte_platform_workspace_policy

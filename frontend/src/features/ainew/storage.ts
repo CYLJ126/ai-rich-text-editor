@@ -14,6 +14,25 @@ const scopeSchema = z.object({tenantId: id, workspaceId: id});
 const ref = z.object({type: id, id, version: id});
 const version = z.number().int().nonnegative();
 const schemas = {
+  'ai-configuration': z.discriminatedUnion('kind', [
+    z.object({scope: scopeSchema, kind: z.literal('import'), request: z.null()}),
+    z.object({
+      scope: scopeSchema, kind: z.literal('workspace'), request: z.object({
+        scope: scopeSchema, expectedVersion: version, expectedWorkspaceVersion: version,
+        preset: z.object({
+          enabled: z.boolean(), bindings: z.array(ref).max(100), budgets: z.array(z.object({
+            rate: ref,
+            limit: z.object({amount: z.union([z.string().min(1), z.number()]), currency: id})
+          })).max(100)
+        })
+      })
+    }),
+    z.object({
+      scope: scopeSchema,
+      kind: z.literal('publish'),
+      request: z.object({expectedVersion: version, catalog: z.record(z.string(), z.unknown())})
+    })
+  ]),
   send: z.object({
     scope: scopeSchema, conversationId: id, expectedVersion: version, text: z.string().min(1).max(1_000_000),
     capability: ref, binding: ref, budgetRef: id, maxInputTokens: z.number().int().positive(),

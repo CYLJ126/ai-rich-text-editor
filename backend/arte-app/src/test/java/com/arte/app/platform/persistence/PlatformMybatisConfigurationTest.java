@@ -73,7 +73,8 @@ class PlatformMybatisConfigurationTest {
             assertEquals(LocalCacheScope.STATEMENT, configuration.getLocalCacheScope());
             assertEquals(7, configuration.getDefaultStatementTimeout());
             assertTrue(configuration.getInterceptors().isEmpty());
-            assertEquals(10, configuration.getMapperRegistry().getMappers().size());
+            assertEquals(12, configuration.getMapperRegistry().getMappers().size());
+            assertTrue(configuration.hasMapper(com.arte.app.platform.persistence.mapper.PlatformPersonalPolicyTemplateMapper.class));
             assertFalse(configuration.hasMapper(UserMapper.class));
         });
     }

@@ -36,16 +36,17 @@ public final class ChatConfigurationQueryService {
             if (modelGateway == null) {
                 return Mono.just(new ChatConfigurationOptions(List.of()));
             }
+            return catalog.configuration(current).flatMap(configuration -> {
             var grant = authorization.grant(current);
             var owner = ExecutionOwner.from(current);
             return catalog.discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
                     .filter(binding -> binding.contextWindowTokens() >= 2
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING))
-                    .filter(binding -> properties.connections().stream().anyMatch(connection ->
+                    .filter(binding -> configuration.connections().stream().anyMatch(connection ->
                             connection.definition().equals(binding.connection()) && modelGateway.supportsTextChat(binding, connection)))
                     .map(binding -> {
-                        var budgets = properties.budgets().stream()
+                        var budgets = configuration.budgets().stream()
                                 .filter(budget -> grant.budgetRefs().contains(budget.budgetRef()) && budget.owner().equals(owner)
                                         && budget.rate().equals(binding.rate()))
                                 .map(NewAiProperties.Budget::budgetRef).sorted().toList();
@@ -61,6 +62,7 @@ public final class ChatConfigurationQueryService {
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
                     .collectList().map(ChatConfigurationOptions::new);
+            });
         });
     }
 }

@@ -3,10 +3,7 @@ package com.arte.core.api.workspace;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
-import com.arte.core.pojo.workspace.TenantCommands;
-import com.arte.core.pojo.workspace.TenantPolicy;
-import com.arte.core.pojo.workspace.WorkspaceCommands;
-import com.arte.core.pojo.workspace.WorkspacePolicy;
+import com.arte.core.pojo.workspace.*;
 
 /**
  * 获授权治理者的结构化政策 API
@@ -35,6 +32,16 @@ public interface WorkspacePolicyService {
      * @return 空间结构化政策及版本
      */
     WorkspacePolicy getWorkspacePolicy(TrustedActor actor, Scope scope);
+
+    /**
+     * 在同一次治理当前读中取得政策、租户版本及权限代次。
+     */
+    WorkspacePolicyViews.TenantPolicyView getTenantPolicyView(TrustedActor actor, String tenantId);
+
+    /**
+     * 在同一次治理当前读中取得政策、空间版本及两级权限代次。
+     */
+    WorkspacePolicyViews.WorkspacePolicyView getWorkspacePolicyView(TrustedActor actor, Scope scope);
 
     /**
      * 更新租户政策，并在同一事务内更新权限版本。
