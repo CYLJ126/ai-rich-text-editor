@@ -1,0 +1,8 @@
+{
+  "medianMs": 34.039729,
+  "maxMs": 39.570792,
+  "samples": 20,
+  "minMs": 33.466875,
+  "query": "SELECT 1",
+  "p95Ms": 34.688292
+}

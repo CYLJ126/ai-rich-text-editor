@@ -22,6 +22,7 @@ import com.arte.ainew.web.response.InvocationEventsResponse;
 import com.arte.ainew.web.response.InvocationNotification;
 import com.arte.ainew.web.response.InvocationResultResponse;
 import com.arte.ainew.web.response.InvocationStatusResponse;
+import com.arte.core.diagnostics.RequestObservation;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
 import jakarta.validation.Valid;
@@ -212,7 +213,7 @@ public class NewAiInvocationController {
                     // 返回流式响应，禁止缓存，并请求代理关闭响应缓冲。
                     return ResponseEntity.ok().contentType(new MediaType("text", "event-stream", java.nio.charset.StandardCharsets.UTF_8))
                             .header("Cache-Control", "no-cache, no-transform").header("X-Accel-Buffering", "no")
-                            .body(stream);
+                            .body(RequestObservation.observe(stream));
                 }));
     }
 

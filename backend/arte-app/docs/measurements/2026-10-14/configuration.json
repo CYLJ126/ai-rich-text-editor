@@ -1,0 +1,23 @@
+{
+  "runId": "ai-20261014-094408",
+  "baseUrl": "http://127.0.0.1:12637/arte",
+  "scope": {
+    "tenantId": "d10c8938-a093-487a-a17f-60e3559344a2",
+    "workspaceId": "1430a4bc-a260-446b-9eec-46242ed12f62"
+  },
+  "conversationId": "d3434b9f-b5eb-4d6e-9192-6ca22518e0fd",
+  "budgetRef": "ws-budget-316d53d11ef3a3cd064d8a3c2ce707204f6655d1eb5cca262b0d8faccada25d0",
+  "invocationId": "a033876f-f773-457a-ac7c-6ea2b48fbbf1",
+  "repetitions": 5,
+  "concurrency": 8,
+  "readEndpoints": [
+    "configuration/discoverChatOptions",
+    "budget/getBudget",
+    "conversation/getConversation",
+    "conversation/listConversations",
+    "conversation/queryTurnsOfConversation",
+    "invocation/getInvocationStatus",
+    "invocation/getInvocationResult",
+    "invocation/getInvocationSnapshots"
+  ]
+}

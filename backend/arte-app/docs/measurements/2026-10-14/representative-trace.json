@@ -1,0 +1,56 @@
+{
+  "traceId": "ef63d18cf1f744d88b9ce08c25c68515",
+  "clientTtfbMs": 1003.92,
+  "clientTotalMs": 1004.228,
+  "mvcTotalMs": 1002.143,
+  "factoryInitialAuthorizationMs": 801.211,
+  "conversationServiceElapsedMs": 143.0,
+  "jdbcSqlCount": 17,
+  "mybatisPreparedStatements": [
+    {
+      "thread": "http-nio-12637-exec-5",
+      "sql": "SELECT id , user_name, status, create_time FROM arte_rbac_user WHERE id = ?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT id , user_name, status, create_time FROM arte_rbac_user WHERE user_name = ?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT id , user_name, status, create_time FROM arte_rbac_user WHERE id = ?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT id , user_name, status, create_time FROM arte_rbac_user WHERE id = ?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT id,name,type,personal_subject_id,state,created_by,version,auth_epoch,created_sec,created_nano,updated_sec,updated_nano FROM arte_platform_tenant WHERE id IN ( ? )"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT * FROM arte_platform_tenant_member WHERE tenant_id IN ( ? ) AND subject_id=?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT tenant_id,rules,members_may_create_workspace,policy_schema_version,role_preset_version,version,personal_template_version FROM arte_platform_tenant_policy WHERE tenant_id IN ( ? )"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT * FROM arte_platform_workspace WHERE ( (tenant_id=? AND id=?) )"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT * FROM arte_platform_workspace_member WHERE ( (tenant_id=? AND workspace_id=?) ) AND subject_id=?"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT * FROM arte_platform_workspace_policy WHERE ( (tenant_id=? AND workspace_id=?) )"
+    },
+    {
+      "thread": "arte-ainew-db-1",
+      "sql": "SELECT * FROM arte_ai_workspace_configuration WHERE tenant_id=? AND workspace_id=?"
+    }
+  ],
+  "note": "仅保留带 trace 的 SQL 模板和线程名；没有参数、响应正文或认证头。MyBatis 模板不包含直接 JDBC，实际 SQL 次数以 JDBC 指标为准。"
+}

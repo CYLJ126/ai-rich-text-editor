@@ -1,0 +1,338 @@
+[
+  {
+    "group": "single",
+    "path": "configuration/discoverChatOptions",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 968.199,
+      "p95": 979.709
+    },
+    "totalMs": {
+      "median": 968.516,
+      "p95": 980.772
+    },
+    "sqlCount": 19,
+    "sqlExecuteMs": 676.577,
+    "initialAuthorizationMs": 919.621,
+    "connectionAcquireMs": 0.064,
+    "mvcTotalMs": 966.568,
+    "schedulerQueueSumMs": 0.134
+  },
+  {
+    "group": "single",
+    "path": "budget/getBudget",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1108.108,
+      "p95": 1110.674
+    },
+    "totalMs": {
+      "median": 1108.444,
+      "p95": 1111.213
+    },
+    "sqlCount": 20,
+    "sqlExecuteMs": 710.774,
+    "initialAuthorizationMs": 915.26,
+    "connectionAcquireMs": 0.068,
+    "mvcTotalMs": 1106.208,
+    "schedulerQueueSumMs": 0.154
+  },
+  {
+    "group": "single",
+    "path": "conversation/getConversation",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 994.768,
+      "p95": 1014.24
+    },
+    "totalMs": {
+      "median": 995.398,
+      "p95": 1014.881
+    },
+    "sqlCount": 17,
+    "sqlExecuteMs": 603.173,
+    "initialAuthorizationMs": 801.211,
+    "connectionAcquireMs": 0.06,
+    "mvcTotalMs": 992.851,
+    "schedulerQueueSumMs": 0.135
+  },
+  {
+    "group": "single",
+    "path": "conversation/listConversations",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1028.393,
+      "p95": 1033.564
+    },
+    "totalMs": {
+      "median": 1030.228,
+      "p95": 1033.877
+    },
+    "sqlCount": 18,
+    "sqlExecuteMs": 638.2,
+    "initialAuthorizationMs": 800.265,
+    "connectionAcquireMs": 0.059,
+    "mvcTotalMs": 1026.901,
+    "schedulerQueueSumMs": 0.139
+  },
+  {
+    "group": "single",
+    "path": "conversation/queryTurnsOfConversation",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1071.797,
+      "p95": 1078.858
+    },
+    "totalMs": {
+      "median": 1072.127,
+      "p95": 1079.21
+    },
+    "sqlCount": 19,
+    "sqlExecuteMs": 675.072,
+    "initialAuthorizationMs": 799.718,
+    "connectionAcquireMs": 0.068,
+    "mvcTotalMs": 1069.97,
+    "schedulerQueueSumMs": 0.146
+  },
+  {
+    "group": "single",
+    "path": "invocation/getInvocationStatus",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1346.62,
+      "p95": 1356.836
+    },
+    "totalMs": {
+      "median": 1346.925,
+      "p95": 1357.251
+    },
+    "sqlCount": 21,
+    "sqlExecuteMs": 737.946,
+    "initialAuthorizationMs": 792.28,
+    "connectionAcquireMs": 0.083,
+    "mvcTotalMs": 1345.126,
+    "schedulerQueueSumMs": 0.339
+  },
+  {
+    "group": "single",
+    "path": "invocation/getInvocationResult",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1123.696,
+      "p95": 1128.239
+    },
+    "totalMs": {
+      "median": 1124.049,
+      "p95": 1128.73
+    },
+    "sqlCount": 18,
+    "sqlExecuteMs": 631.824,
+    "initialAuthorizationMs": 788.838,
+    "connectionAcquireMs": 0.075,
+    "mvcTotalMs": 1122.189,
+    "schedulerQueueSumMs": 0.274
+  },
+  {
+    "group": "single",
+    "path": "invocation/getInvocationSnapshots",
+    "count": 5,
+    "successes": 5,
+    "matchedTraces": 5,
+    "ttfbMs": {
+      "median": 1355.522,
+      "p95": 1376.892
+    },
+    "totalMs": {
+      "median": 1355.932,
+      "p95": 1377.418
+    },
+    "sqlCount": 20,
+    "sqlExecuteMs": 703.224,
+    "initialAuthorizationMs": 789.394,
+    "connectionAcquireMs": 0.087,
+    "mvcTotalMs": 1353.113,
+    "schedulerQueueSumMs": 0.308
+  },
+  {
+    "group": "concurrent",
+    "path": "configuration/discoverChatOptions",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 1851.991,
+      "p95": 2898.24
+    },
+    "totalMs": {
+      "median": 1852.1660000000002,
+      "p95": 2898.786
+    },
+    "sqlCount": 19.0,
+    "sqlExecuteMs": 675.845,
+    "initialAuthorizationMs": 1714.9895000000001,
+    "connectionAcquireMs": 28.184,
+    "mvcTotalMs": 1849.7865000000002,
+    "schedulerQueueSumMs": 887.4884999999999
+  },
+  {
+    "group": "concurrent",
+    "path": "budget/getBudget",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 2025.3765,
+      "p95": 2568.437
+    },
+    "totalMs": {
+      "median": 2025.6425,
+      "p95": 2568.642
+    },
+    "sqlCount": 20.0,
+    "sqlExecuteMs": 696.3045,
+    "initialAuthorizationMs": 1430.8985,
+    "connectionAcquireMs": 0.025,
+    "mvcTotalMs": 2024.2939999999999,
+    "schedulerQueueSumMs": 946.8330000000001
+  },
+  {
+    "group": "concurrent",
+    "path": "conversation/getConversation",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 1826.7075,
+      "p95": 2273.844
+    },
+    "totalMs": {
+      "median": 1827.018,
+      "p95": 2274.208
+    },
+    "sqlCount": 17.0,
+    "sqlExecuteMs": 599.8045,
+    "initialAuthorizationMs": 1252.745,
+    "connectionAcquireMs": 0.027,
+    "mvcTotalMs": 1824.2765,
+    "schedulerQueueSumMs": 853.091
+  },
+  {
+    "group": "concurrent",
+    "path": "conversation/listConversations",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 1847.9009999999998,
+      "p95": 2305.387
+    },
+    "totalMs": {
+      "median": 1848.374,
+      "p95": 2305.724
+    },
+    "sqlCount": 18.0,
+    "sqlExecuteMs": 627.7660000000001,
+    "initialAuthorizationMs": 1244.636,
+    "connectionAcquireMs": 0.021,
+    "mvcTotalMs": 1847.016,
+    "schedulerQueueSumMs": 849.5409999999999
+  },
+  {
+    "group": "concurrent",
+    "path": "conversation/queryTurnsOfConversation",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 2101.343,
+      "p95": 2488.888
+    },
+    "totalMs": {
+      "median": 2101.6000000000004,
+      "p95": 2489.288
+    },
+    "sqlCount": 19.0,
+    "sqlExecuteMs": 781.3105,
+    "initialAuthorizationMs": 1142.6779999999999,
+    "connectionAcquireMs": 0.024,
+    "mvcTotalMs": 2100.292,
+    "schedulerQueueSumMs": 901.514
+  },
+  {
+    "group": "concurrent",
+    "path": "invocation/getInvocationStatus",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 2419.005,
+      "p95": 2726.489
+    },
+    "totalMs": {
+      "median": 2419.3415,
+      "p95": 2726.785
+    },
+    "sqlCount": 21.0,
+    "sqlExecuteMs": 727.6185,
+    "initialAuthorizationMs": 1118.9675,
+    "connectionAcquireMs": 0.035,
+    "mvcTotalMs": 2418.1130000000003,
+    "schedulerQueueSumMs": 1133.0695
+  },
+  {
+    "group": "concurrent",
+    "path": "invocation/getInvocationResult",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 2023.795,
+      "p95": 2306.74
+    },
+    "totalMs": {
+      "median": 2024.1425,
+      "p95": 2307.078
+    },
+    "sqlCount": 18.0,
+    "sqlExecuteMs": 627.62,
+    "initialAuthorizationMs": 1239.016,
+    "connectionAcquireMs": 0.028,
+    "mvcTotalMs": 2022.904,
+    "schedulerQueueSumMs": 948.597
+  },
+  {
+    "group": "concurrent",
+    "path": "invocation/getInvocationSnapshots",
+    "count": 40,
+    "successes": 40,
+    "matchedTraces": 40,
+    "ttfbMs": {
+      "median": 2512.014,
+      "p95": 2968.215
+    },
+    "totalMs": {
+      "median": 2512.4139999999998,
+      "p95": 2968.712
+    },
+    "sqlCount": 20.0,
+    "sqlExecuteMs": 700.02,
+    "initialAuthorizationMs": 1241.2415,
+    "connectionAcquireMs": 0.029,
+    "mvcTotalMs": 2511.126,
+    "schedulerQueueSumMs": 1181.632
+  }
+]

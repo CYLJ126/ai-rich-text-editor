@@ -6,6 +6,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.web.request.ConversationRequests;
+import com.arte.core.diagnostics.RequestObservation;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -37,15 +38,15 @@ public final class NewAiHttpContext {
     public <T> Mono<T> read(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
                             boolean includeConfiguration, java.util.function.Function<ExecutionContext, Mono<T>> work) {
         validate(scope, timeout, null, null);
-        return executionContextFactory.readCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
-                timeout, null, null, properties.releaseRef(), null), includeConfiguration, work);
+        return RequestObservation.observe(executionContextFactory.readCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
+                timeout, RequestObservation.currentTraceId(), null, properties.releaseRef(), null), includeConfiguration, work));
     }
 
     public Mono<ExecutionContext> create(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
                                          String budgetRef, String idempotencyKey) {
         validate(scope, timeout, budgetRef, idempotencyKey);
-        return executionContextFactory.createCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
-                timeout, null, budgetRef, properties.releaseRef(), idempotencyKey));
+        return RequestObservation.observe(executionContextFactory.createCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
+                timeout, RequestObservation.currentTraceId(), budgetRef, properties.releaseRef(), idempotencyKey)));
     }
 
     private void validate(ConversationRequests.Scope scope, Duration timeout, String budgetRef, String idempotencyKey) {

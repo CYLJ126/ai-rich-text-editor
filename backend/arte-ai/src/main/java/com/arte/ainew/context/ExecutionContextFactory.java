@@ -3,6 +3,7 @@ package com.arte.ainew.context;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.core.diagnostics.RequestObservation;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -105,7 +106,7 @@ public final class ExecutionContextFactory {
         String traceId = request.traceId() == null ? UUID.randomUUID().toString().replace("-", "") : request.traceId();
         var deadline = clock.instant().plus(request.timeout());
         // 先解析并验证授权引用，再创建执行上下文
-        return authorize(authenticatedName, request.tenantId(), request.workspaceId(), request.scopes(), deadline)
+        return RequestObservation.initialAuthorization(authorize(authenticatedName, request.tenantId(), request.workspaceId(), request.scopes(), deadline))
                 .map(authorization -> new ExecutionContext(executionId, traceId, authorization, deadline, null,
                         request.budgetRef(), request.releaseRef(), request.idempotencyKey()));
     }

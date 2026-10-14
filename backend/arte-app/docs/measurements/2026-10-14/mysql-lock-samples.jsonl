@@ -1,0 +1,59 @@
+{
+  "atEpochMs": 1791942246189,
+  "kind": "ready",
+  "performanceSchemaEnabled": false
+}
+{
+  "atEpochMs": 1791942254658,
+  "group": "single",
+  "counters": {
+    "Innodb_row_lock_current_waits": 0,
+    "Innodb_row_lock_time": 1623803,
+    "Innodb_row_lock_waits": 606
+  },
+  "kind": "begin"
+}
+{
+  "samples": 0,
+  "atEpochMs": 1791942309539,
+  "waitingSamples": 0,
+  "group": "single",
+  "transactionAccess": "42000",
+  "kind": "end",
+  "globalDelta": {
+    "Innodb_row_lock_time": 0,
+    "Innodb_row_lock_waits": 0
+  },
+  "counters": {
+    "Innodb_row_lock_current_waits": 0,
+    "Innodb_row_lock_time": 1623803,
+    "Innodb_row_lock_waits": 606
+  }
+}
+{
+  "atEpochMs": 1791942309610,
+  "group": "concurrent",
+  "counters": {
+    "Innodb_row_lock_current_waits": 0,
+    "Innodb_row_lock_time": 1623803,
+    "Innodb_row_lock_waits": 606
+  },
+  "kind": "begin"
+}
+{
+  "samples": 0,
+  "atEpochMs": 1791942417954,
+  "waitingSamples": 0,
+  "group": "concurrent",
+  "transactionAccess": "42000",
+  "kind": "end",
+  "globalDelta": {
+    "Innodb_row_lock_time": 4235,
+    "Innodb_row_lock_waits": 33
+  },
+  "counters": {
+    "Innodb_row_lock_current_waits": 0,
+    "Innodb_row_lock_time": 1628038,
+    "Innodb_row_lock_waits": 639
+  }
+}
