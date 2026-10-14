@@ -9,6 +9,10 @@
  *
  * @doc https://umijs.org/docs/guides/proxy
  */
+import {Agent} from 'node:http';
+
+const backendAgent = new Agent({keepAlive: true, maxSockets: 64, maxFreeSockets: 16});
+
 export default {
   // 如果需要自定义本地开发服务器  请取消注释按需调整
   dev: {
@@ -16,8 +20,9 @@ export default {
     '/arte/': {
       target: 'http://localhost:12636', // 要代理的地址
       changeOrigin: true, // 配置了这个可以从 http 代理到 https；依赖 origin 的功能可能需要这个，比如 cookie
+      agent: backendAgent,
       compress: false, // 关键配置：修复无法查看响应数据问题
-      ws: true, // SSE 关键配置：禁用缓冲
+      ws: true, // 仅用于 WebSocket 升级；SSE 使用普通 HTTP 流。
       onProxyReq: (proxyReq: any) => {
         // 重写请求头，移除 accept-encoding，禁止后端返回压缩数据
         proxyReq.removeHeader('accept-encoding');

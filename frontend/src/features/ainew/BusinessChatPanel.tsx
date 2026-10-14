@@ -134,7 +134,7 @@ export default function BusinessChatPanel({
                 void chat.inspectCandidate(candidate);
               }}/>}
             </div>
-            {text ? <MarkdownText text={text} streaming={!result}/> :
+            {text ? <MarkdownText text={text} streaming={!result} invocationId={id}/> :
               <p>{!invocation?.status && chat.historyLoading ? '正在读取回复…' : invocation?.status && isActive(invocation.status) ? '等待模型回复…' : '暂无可用回复'}</p>}
             {!result && text && <p className="ainew-muted">流式预览；最终结果以服务器记录为准。</p>}
             {error(invocation?.error, () => id && void chat.inspectCandidate(id))}
@@ -165,6 +165,7 @@ export default function BusinessChatPanel({
       })}
       {current?.streamText && !allTurns.some(turn => chat.invocationId && turn.invocationIds.includes(chat.invocationId)) &&
         <article className="ainew-answer"><strong>助手 · 生成中</strong><MarkdownText text={current.streamText}
+                                                                                      invocationId={chat.invocationId ?? undefined}
                                                                                       streaming/></article>}
     </div>
     {newContent && <Button className="ainew-follow" onClick={() => {

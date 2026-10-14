@@ -1,6 +1,7 @@
 import {getLocale} from '@umijs/max';
 import {AiApiError} from './request';
 import type {ExecutionEvent, InvocationQuery} from './types';
+import {markChatLatency} from './latency';
 
 export type InvocationNotification = Pick<
   ExecutionEvent,
@@ -46,6 +47,7 @@ export async function watchInvocation(
   touch();
   try {
     const token = localStorage.getItem('user_token');
+    markChatLatency(request.invocationId, 'sseRequest');
     const response = await fetch('/arte/ai-new/invocation/watchInvocation', {
       method: 'POST',
       headers: {
@@ -69,6 +71,7 @@ export async function watchInvocation(
       throw new Error('Invalid AI event stream');
     }
     options.onConnected?.();
+    markChatLatency(request.invocationId, 'sseConnected');
     reader = response.body.getReader();
     const cancelReader = () => {
       void reader?.cancel().catch(() => {
@@ -126,6 +129,7 @@ export async function watchInvocation(
         ) {
           throw new Error('Invalid AI text preview');
         }
+        markChatLatency(request.invocationId, 'firstTextReceived');
         options.onText?.(delta);
         return;
       }
@@ -155,6 +159,7 @@ export async function watchInvocation(
         throw new Error('Invalid AI invocation notification');
       }
       if (event.sequence <= after) return;
+      if (event.text) markChatLatency(request.invocationId, 'firstTextReceived');
       await onEvent(event);
       after = event.sequence;
     };

@@ -406,6 +406,67 @@ public class InvocationHttpIntegrationTest {
     }
 
     @Test
+    public void preparedWatchReusesImmediateQualificationAndRejectsASecondSubscription() throws Exception {
+        var id = submit();
+        var checks = new AtomicInteger();
+        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
+        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> {
+            checks.incrementAndGet();
+            return resolver.resolve(name, tenant, workspace, scopes);
+        }, fixture.properties, Clock.systemUTC());
+        var service = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads,
+                notifier, Clock.systemUTC(), null, liveText);
+        var prepared = service.prepareWatch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "prepared-watch")).block();
+        assertTrue(prepared.validation().successful());
+        assertEquals(1, checks.get());
+        var first = new CountDownLatch(1);
+        var subscription = prepared.updates().subscribe(ignored -> first.countDown());
+        try {
+            assertTrue(first.await(5, TimeUnit.SECONDS));
+            assertEquals(1, checks.get());
+            assertEquals(1, liveText.subscriberCount());
+            assertThrows(IllegalStateException.class, () -> prepared.updates().next().block(Duration.ofSeconds(1)));
+        } finally {
+            subscription.dispose();
+        }
+        assertEquals(0, liveText.subscriberCount());
+    }
+
+    @Test
+    public void delayedPreparedWatchChecksQualificationAgainBeforeTextSubscription() throws Exception {
+        var id = submit();
+        var checks = new AtomicInteger();
+        var revoked = new AtomicBoolean();
+        var instant = new java.util.concurrent.atomic.AtomicReference<>(java.time.Instant.now());
+        var clock = new Clock() {
+            public java.time.ZoneId getZone() {
+                return java.time.ZoneOffset.UTC;
+            }
+
+            public Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            public java.time.Instant instant() {
+                return instant.get();
+            }
+        };
+        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
+        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> {
+            checks.incrementAndGet();
+            return revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes);
+        }, fixture.properties, clock);
+        var service = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads,
+                notifier, clock, null, liveText);
+        var prepared = service.prepareWatch(new ExecutionEvent.Cursor(id, 0), fixture.context("alice", "delayed-watch")).block();
+        revoked.set(true);
+        instant.updateAndGet(value -> value.plusSeconds(2));
+        assertThrows(AccessDeniedException.class, () -> prepared.updates().next().block(Duration.ofSeconds(1)));
+        assertEquals(2, checks.get());
+        assertEquals(0, liveText.subscriberCount());
+    }
+
+    @Test
     public void liveTextReachesBrowserWhileOutputTransactionAndEventPublisherAreBlocked() throws Exception {
         mode = "controlled";
         controlled = reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();

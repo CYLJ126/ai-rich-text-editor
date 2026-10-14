@@ -1,7 +1,8 @@
-import React, {memo, useEffect, useState} from 'react';
+import React, {memo, useLayoutEffect, useState} from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {Button} from 'antd';
+import {markChatDomCommit} from '@/services/arte-ai/latency';
 
 export async function copyText(text: string, report: (message: string) => void) {
   try {
@@ -23,14 +24,17 @@ function CodeBlock({children, ...props}: React.ComponentProps<'pre'>) {
 }
 
 const components = {pre: CodeBlock};
-export default memo(function MarkdownText({text, streaming = false}: { text: string; streaming?: boolean }) {
-  const [frame, setFrame] = useState(text);
-  useEffect(() => {
-    if (!streaming) return;
-    const request = requestAnimationFrame(() => setFrame(text));
-    return () => cancelAnimationFrame(request);
-  }, [text, streaming]);
-  // Raw HTML is skipped, and react-markdown's default URL transform rejects unsafe protocols.
+export default memo(function MarkdownText({text, invocationId}: {
+  text: string;
+  streaming?: boolean;
+  invocationId?: string
+}) {
+  const hasText = text.length > 0;
+  useLayoutEffect(() => {
+    if (invocationId && hasText) return markChatDomCommit(invocationId);
+    return undefined;
+  }, [invocationId, hasText]);
+  // 流式状态已在会话层按帧合并，此处直接绘制，避免再等待一帧或持续取消重排。
   return <div className="ainew-markdown"><Markdown skipHtml remarkPlugins={[remarkGfm]}
-                                                   components={components}>{streaming ? frame : text}</Markdown></div>;
+                                                   components={components}>{text}</Markdown></div>;
 });

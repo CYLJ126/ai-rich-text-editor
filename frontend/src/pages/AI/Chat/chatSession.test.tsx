@@ -510,6 +510,34 @@ describe('消息、历史和预算', () => {
     expect(turnsForChat).not.toHaveBeenCalled();
   });
 
+  it('首段立即发布，后续高频增量共享一帧而不取消重排', async () => {
+    vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
+    vi.mocked(getInvocationStatus).mockResolvedValue(reply(status('invocation-1', 'RUNNING', 1)));
+    const hook = mount();
+    await ready(hook);
+    await waitFor(() => expect(watchInvocation).toHaveBeenCalledOnce());
+    const frames: FrameRequestCallback[] = [];
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => frames.push(callback));
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame');
+    const text = vi.mocked(watchInvocation).mock.calls[0][2].onText!;
+    try {
+      await act(async () => text({executionId: 'invocation-1', attemptId: 'attempt', offset: 0, text: '首'}));
+      expect(hook.result.current.invocations['invocation-1'].streamText).toBe('首');
+      expect(frame).not.toHaveBeenCalled();
+      await act(async () => {
+        for (let i = 1; i <= 50; i++) text({executionId: 'invocation-1', attemptId: 'attempt', offset: i, text: '字'});
+      });
+      expect(frame).toHaveBeenCalledOnce();
+      expect(cancel).not.toHaveBeenCalled();
+      await act(async () => frames[0](performance.now()));
+      expect(hook.result.current.invocations['invocation-1'].streamText).toBe('首' + '字'.repeat(50));
+    } finally {
+      hook.unmount();
+      frame.mockRestore();
+      cancel.mockRestore();
+    }
+  });
+
   it('实时片段短暂乱序时有界暂存，缺口补齐后立即显示，不等待落库或轮询', async () => {
     vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
     vi.mocked(getInvocationStatus).mockResolvedValue(

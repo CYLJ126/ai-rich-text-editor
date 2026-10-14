@@ -3,6 +3,7 @@ package com.arte.ainew.config;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.net.URI;
 import java.time.Duration;
@@ -18,7 +19,14 @@ import java.util.Objects;
 @ConfigurationProperties(prefix = "arte.ai-new-generation", ignoreUnknownFields = false)
 public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigins, List<SecretEnvironment> secrets,
                                         int maxPools, int connectionsPerPool, int pendingAcquires,
-                                        Duration acquireTimeout, int maxFrameBytes, int maxRequestBytes) {
+                                        Duration acquireTimeout, int maxFrameBytes, int maxRequestBytes,
+                                        Duration completedStreamDrainTimeout) {
+    public NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigins, List<SecretEnvironment> secrets,
+                                     int maxPools, int connectionsPerPool, int pendingAcquires,
+                                     Duration acquireTimeout, int maxFrameBytes, int maxRequestBytes) {
+        this(enabled, allowedOrigins, secrets, maxPools, connectionsPerPool, pendingAcquires, acquireTimeout,
+                maxFrameBytes, maxRequestBytes, null);
+    }
     /**
      * 仅固定版本 SecretRef 到环境变量名称的映射；环境变量值在实际发送时读取。
      */
@@ -30,6 +38,7 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
         }
     }
 
+    @ConstructorBinding
     public NewAiGenerationProperties {
         allowedOrigins = allowedOrigins == null ? List.of(URI.create("https://api.deepseek.com"))
                 : ContractChecks.list(allowedOrigins, "allowedOrigins", 1, 64);
@@ -51,5 +60,9 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
                 && acquireTimeout.compareTo(Duration.ofSeconds(30)) <= 0, "Invalid acquire timeout");
         maxFrameBytes = maxFrameBytes == 0 ? 65_536 : (int) ContractChecks.range(maxFrameBytes, "maxFrameBytes", 1024, 1_048_576);
         maxRequestBytes = maxRequestBytes == 0 ? 1_048_576 : (int) ContractChecks.range(maxRequestBytes, "maxRequestBytes", 1024, 4_194_304);
+        // DONE 后只为 HTTP 尾部预留短暂排空时间；首段文字不等待该阶段。
+        completedStreamDrainTimeout = completedStreamDrainTimeout == null ? Duration.ofMillis(100) : completedStreamDrainTimeout;
+        ContractChecks.require(completedStreamDrainTimeout.compareTo(Duration.ofMillis(1)) >= 0
+                && completedStreamDrainTimeout.compareTo(Duration.ofSeconds(1)) <= 0, "Invalid completed stream drain timeout");
     }
 }

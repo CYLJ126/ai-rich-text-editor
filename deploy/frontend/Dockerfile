@@ -25,6 +25,8 @@ LABEL org.opencontainers.image.source="https://github.com/CYLJ126/ai-rich-text-e
       org.opencontainers.image.title="AIRichTextEditor Frontend"
 
 COPY deploy/frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY deploy/frontend/15-backend-upstream.envsh /docker-entrypoint.d/15-backend-upstream.envsh
+RUN chmod +x /docker-entrypoint.d/15-backend-upstream.envsh
 COPY --from=build /workspace/frontend/dist/ /usr/share/nginx/html/
 
 EXPOSE 8080 8443

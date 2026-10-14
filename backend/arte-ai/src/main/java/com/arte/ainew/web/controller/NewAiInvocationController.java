@@ -170,7 +170,8 @@ public class NewAiInvocationController {
         // 创建本次观看的 READ 上下文，期限独立于模型执行。
         return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), watchTimeout, false, executionContext ->
                 // 预读一条检查归属及游标，不推进游标；此处失败仍可返回 HTTP 错误。
-                executionEventService.replay(cursor, 1, executionContext).map(preflight -> {
+                executionEventService.prepareWatch(cursor, executionContext).map(prepared -> {
+                    var preflight = prepared.validation();
                     if (!preflight.successful()) {
                         throw AdmissionException.fromStoreRejection(preflight.code());
                     }
@@ -180,7 +181,7 @@ public class NewAiInvocationController {
                     var firstPreview = new AtomicBoolean();
                     // 仅用于在事件流结束时停止心跳。
                     var done = Sinks.<Void>one();
-                    Flux<ServerSentEvent<Object>> updates = executionEventService.watchCombined(cursor, executionContext)
+                    Flux<ServerSentEvent<Object>> updates = prepared.updates()
                             .map(signal -> {
                                 if (signal instanceof ExecutionEventService.WatchSignal.Text preview) {
                                     var delta = preview.value();

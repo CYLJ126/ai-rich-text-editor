@@ -159,25 +159,49 @@ public final class DefaultExecutionEventService implements ExecutionEventService
         });
     }
 
+    @Override
+    public Mono<WatchPreparation> prepareWatch(ExecutionEvent.Cursor cursor, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
+            var checkedAt = clock.instant();
+            var owner = ExecutionOwner.from(current);
+            return executionStore.find(owner, cursor.executionId())
+                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                    .then(executionEventStore.replay(owner, cursor, 1))
+                    .map(validation -> new WatchPreparation(validation,
+                            combined(cursor, context, current, checkedAt)));
+        });
+    }
+
     /**
      * 一条连接共享初始授权、归属检查和定时撤权检查；并发唤醒只合并正在进行的授权。
      */
     @Override
     public Flux<WatchSignal> watchCombined(ExecutionEvent.Cursor cursor, ExecutionContext context) {
+        return combined(cursor, context, null, null);
+    }
+
+    private Flux<WatchSignal> combined(ExecutionEvent.Cursor cursor, ExecutionContext context,
+                                       ExecutionContext prepared, java.time.Instant checkedAt) {
         if (localExecutionEventNotifier == null)
             return Flux.error(new AdmissionException(ResultCodeEnum.AI_EVENT_WATCH_NOT_ENABLED));
+        var subscribed = new AtomicBoolean();
         return Flux.defer(() -> {
+            if (prepared != null && !subscribed.compareAndSet(false, true))
+                return Flux.error(new IllegalStateException("Prepared watch already subscribed"));
             var gate = new ConnectionAuthorization(context);
             var done = Sinks.<Void>one();
             var after = new AtomicLong(cursor.afterSequence());
             var outcomeDelivered = new AtomicBoolean();
             var remaining = Duration.between(clock.instant(), context.deadline());
             if (remaining.isNegative() || remaining.isZero()) return gate.check().thenMany(Flux.empty());
-            return gate.check().flatMapMany(current -> {
+            // 仅 HTTP 本次准备到实际订阅的一秒内交接可复用；延迟订阅重新检查，不能跨请求缓存。
+            boolean reuse = prepared != null && !clock.instant().isAfter(checkedAt.plusSeconds(1));
+            return (reuse ? Mono.just(prepared) : gate.check()).flatMapMany(current -> {
                 var owner = ExecutionOwner.from(current);
-                return executionStore.find(owner, cursor.executionId())
+                return (reuse ? Mono.just(true) : executionStore.find(owner, cursor.executionId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                        .flatMapMany(invocation -> {
+                        .thenReturn(true))
+                        .flatMapMany(ignored -> {
                             var events = localExecutionEventNotifier.watch(owner, cursor.executionId())
                                     .publishOn(Schedulers.parallel(), 1)
                                     .filter(hint -> hint == 0L || hint > after.get())
@@ -188,7 +212,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                             Flux<WatchSignal> text = liveTextNotifier == null ? Flux.empty()
                                     : liveTextNotifier.watch(owner, cursor.executionId()).publishOn(Schedulers.parallel(), 1)
                                     .map(delta -> (WatchSignal) new WatchSignal.Text(delta)).takeUntilOther(done.asMono());
-                            var reauthorize = Flux.interval(REAUTHORIZE_INTERVAL).concatMap(ignored -> gate.check(), 1)
+                            var firstCheck = reuse ? Duration.between(clock.instant(), checkedAt.plus(REAUTHORIZE_INTERVAL)) : REAUTHORIZE_INTERVAL;
+                            if (firstCheck.isNegative()) firstCheck = Duration.ZERO;
+                            var reauthorize = Flux.interval(firstCheck, REAUTHORIZE_INTERVAL).concatMap(tick -> gate.check(), 1)
                                     .thenMany(Flux.<WatchSignal>never()).takeUntilOther(done.asMono());
                             return Flux.merge(1, events, text, reauthorize);
                         });

@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {beginChatLatency, markChatLatency} from '@/services/arte-ai/latency';
 import {
   AiApiError,
   type BudgetAccountResponse,
@@ -196,6 +197,7 @@ export function useChatSession(
     candidate: null as AbortController | null,
   });
   const alive = useRef(true);
+  const textFrame = useRef<number | null>(null);
 
   function appendText(
     id: string,
@@ -259,15 +261,16 @@ export function useChatSession(
     if (appended.length > 1_000_000)
       throw new Error('AI streamed text is too large');
     if (appended === previous?.streamText) return;
+    if (!previous?.streamText && appended.length) markChatLatency(id, 'firstUsableText');
     publish({
       [id]: {
         streamText: appended,
         ...(pending.attemptId ? {streamAttemptId: pending.attemptId} : {}),
       },
-    });
+    }, !!previous?.streamText);
   }
 
-  function publish(entries: Record<string, InvocationView>) {
+  function publish(entries: Record<string, InvocationView>, byFrame = false) {
     for (const [id, entry] of Object.entries(entries)) {
       let view = entry;
       const previous = views.current[id];
@@ -333,8 +336,19 @@ export function useChatSession(
       pendingText.current.delete(id);
       excess--;
     }
-    views.current = {...views.current};
-    setInvocations(views.current);
+    const commit = () => {
+      textFrame.current = null;
+      if (!alive.current) return;
+      views.current = {...views.current};
+      setInvocations(views.current);
+    };
+    if (byFrame) {
+      // 首段立即发布；后续片段共享同一个待执行帧，既合并高频更新，也不反复取消推迟绘制。
+      if (textFrame.current === null) textFrame.current = requestAnimationFrame(commit);
+    } else {
+      if (textFrame.current !== null) cancelAnimationFrame(textFrame.current);
+      commit();
+    }
   }
 
   function invalidateInvocation(id: string) {
@@ -876,6 +890,7 @@ export function useChatSession(
         };
       })();
     if (!snapshot.request.text) return;
+    const acceptedLatency = beginChatLatency();
     pendingRef.current = snapshot;
     persist('send', snapshot);
     setPending(snapshot);
@@ -889,6 +904,7 @@ export function useChatSession(
       });
       if (controller.signal.aborted || !alive.current) return;
       if (httpStatus !== 202 || !body.data.invocationId || body.data.conversationId !== snapshot.request.conversationId) throw new Error('Invalid chat acceptance; confirm the original request.');
+      acceptedLatency(body.data.invocationId);
       persist('send', {...snapshot, acceptedId: body.data.invocationId});
       pendingRef.current = null;
       setPending(null);
@@ -945,6 +961,7 @@ export function useChatSession(
         },
       };
     }
+    const acceptedLatency = beginChatLatency();
     regenerationRef.current = snapshot;
     persist('regenerate', snapshot);
     setPendingRegeneration(snapshot);
@@ -956,6 +973,7 @@ export function useChatSession(
       const {body, httpStatus} = await regenerateChat(snapshot.request, snapshot.key, {signal: controller.signal});
       if (controller.signal.aborted || !alive.current) return;
       if (httpStatus !== 202 || !body.data.executionId) throw new Error('Invalid regeneration acceptance; confirm the original request.');
+      acceptedLatency(body.data.executionId);
       persist('regenerate', {...snapshot, acceptedId: body.data.executionId});
       regenerationRef.current = null;
       setPendingRegeneration(null);
@@ -1063,6 +1081,8 @@ export function useChatSession(
     }
     return () => {
       alive.current = false;
+      if (textFrame.current !== null) cancelAnimationFrame(textFrame.current);
+      textFrame.current = null;
       stopWatching();
       pendingText.current.clear();
       for (const request of Object.values(requests.current)) request?.abort();
@@ -1096,6 +1116,8 @@ export function useChatSession(
     const logout = (event: Event) => {
       if (!context || (event as CustomEvent).detail !== context.userId) return;
       alive.current = false;
+      if (textFrame.current !== null) cancelAnimationFrame(textFrame.current);
+      textFrame.current = null;
       stopWatching();
       for (const request of Object.values(requests.current)) request?.abort();
       for (const read of invocationReads.current.values()) read.controller.abort();

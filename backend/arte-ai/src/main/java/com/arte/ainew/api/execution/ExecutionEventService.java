@@ -45,6 +45,24 @@ public interface ExecutionEventService {
                 watchText(cursor.executionId(), context).map(WatchSignal.Text::new));
     }
 
+    /**
+     * HTTP 建连前的游标检查与后续流；仅服务内部使用，不序列化为客户端 DTO。
+     */
+    record WatchPreparation(StoreOutcome<ExecutionEventStore.Page> validation, Flux<WatchSignal> updates) {
+    }
+
+    /**
+     * 建连前验证权限、归属和游标，失败仍可返回 HTTP 错误。
+     * 实现可在本次短暂交接中复用检查结果；后续订阅仍须按连接策略重新授权。
+     *
+     * @param cursor  排他事件游标
+     * @param context 本次观看的可信读取上下文
+     * @return 检查结果及后续 SSE 流；默认实现保持独立复核行为
+     */
+    default Mono<WatchPreparation> prepareWatch(ExecutionEvent.Cursor cursor, ExecutionContext context) {
+        return replay(cursor, 1, context).map(validation -> new WatchPreparation(validation, watchCombined(cursor, context)));
+    }
+
 
     /**
      * 单页有界重放；保留 CURSOR_EXPIRED，不静默跳过已裁剪历史。

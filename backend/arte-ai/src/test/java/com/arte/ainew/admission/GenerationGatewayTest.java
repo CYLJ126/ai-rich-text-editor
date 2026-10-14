@@ -47,6 +47,33 @@ public class GenerationGatewayTest {
 
     private static final Duration WAIT = Duration.ofSeconds(10);
 
+    @Test
+    public void repeatedSuccessfulStreamsReuseTheSameTcpConnection() throws Exception {
+        try (var rig = new Rig()) {
+            rig.gateway.generate(rig.call()).collectList().block(WAIT);
+            awaitReleases(rig, 1);
+            rig.gateway.generate(rig.call()).collectList().block(WAIT);
+            awaitReleases(rig, 2);
+            assertEquals(2, rig.requests.get());
+            assertEquals(rig.remotePorts.getFirst(), rig.remotePorts.getLast());
+            assertEquals(2, rig.credentialReads.get());
+        }
+    }
+
+    @Test
+    public void resourceWarmupDoesNotSendAndDoneWithAnOpenHttpTailHasBoundedDrain() throws Exception {
+        try (var rig = new Rig()) {
+            rig.runtime.warmupResources();
+            assertEquals(0, rig.requests.get());
+            assertEquals(0, rig.credentialReads.get());
+            rig.reply.set(new Reply(200, "text/event-stream", success(), ": late tail\n\n", 2000));
+            var signals = rig.gateway.generate(rig.call()).collectList().block(Duration.ofSeconds(1));
+            assertTrue(signals.stream().anyMatch(signal -> signal instanceof GenerationSignal.Result));
+            assertFalse(signals.stream().anyMatch(signal -> signal instanceof GenerationSignal.Failure));
+            assertEquals(1, rig.requests.get());
+        }
+    }
+
     private record Reply(int status, String contentType, String body, String tail, long pauseMillis) {
         static Reply sse(String body) {
             return new Reply(200, "text/event-stream", body, "", 0);
@@ -75,6 +102,7 @@ public class GenerationGatewayTest {
         final AtomicReference<String> requestPath = new AtomicReference<>();
         final AtomicReference<String> token = new AtomicReference<>("test-token-one");
         final AtomicInteger requests = new AtomicInteger(), credentialReads = new AtomicInteger(), releases = new AtomicInteger();
+        final List<Integer> remotePorts = new java.util.concurrent.CopyOnWriteArrayList<>();
         final NewAiProperties properties;
         final NewAiGenerationProperties generation;
         final FixedControlCatalog catalog;
@@ -91,6 +119,7 @@ public class GenerationGatewayTest {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(workers);
             server.createContext("/", exchange -> {
+                remotePorts.add(exchange.getRemoteAddress().getPort());
                 requests.incrementAndGet();
                 requestPath.set(exchange.getRequestURI().getPath());
                 requestAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));

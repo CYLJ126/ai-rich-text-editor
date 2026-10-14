@@ -157,6 +157,15 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
         this.egress = new HttpEgressPolicy(properties);
     }
 
+    /**
+     * 预热独立事件循环及 TLS 运行资源，不解析供应商 DNS、不建立远端连接、不读取凭据。
+     */
+    public void warmupResources() {
+        HttpClient.create(ConnectionProvider.newConnection()).runOn(loops)
+                .resolver(io.netty.resolver.NoopAddressResolverGroup.INSTANCE).secure().warmup()
+                .block(Duration.ofSeconds(10));
+    }
+
     @Override
     public Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
         return Mono.<Lease<Handle>>defer(() -> {
@@ -188,8 +197,15 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
             int connectMillis = Math.clamp(definition.connectTimeout().toMillis(), 1, Integer.MAX_VALUE);
             var http = HttpClient.create(pool.provider).runOn(loops).resolver(pool.resolver)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectMillis)
+                    .option(ChannelOption.SO_KEEPALIVE, true).keepAlive(true)
                     .responseTimeout(definition.responseTimeout()).disableRetry(true).followRedirect(false)
                     .httpResponseDecoder(spec -> spec.maxHeaderSize(16_384))
+                    .doOnRequest((request, connection) -> {
+                        var uses = connection.channel().attr(io.netty.util.AttributeKey.<java.util.concurrent.atomic.AtomicInteger>valueOf("arte-ainew-http-uses"));
+                        uses.setIfAbsent(new java.util.concurrent.atomic.AtomicInteger());
+                        log.info("AI_HTTP_CONNECTION invocationId={} traceId={} connectionId={} reused={}",
+                                runtime.execution().executionId(), runtime.execution().traceId(), definition.definition().id(), uses.get().getAndIncrement() > 0);
+                    })
                     .doAfterRequest((request, connection) -> request.currentContextView().<InvocationTiming>getOrEmpty(InvocationTiming.class)
                             .ifPresent(timing -> timing.mark("PROVIDER_REQUEST_SENT")));
             String base = definition.endpoint().toString();

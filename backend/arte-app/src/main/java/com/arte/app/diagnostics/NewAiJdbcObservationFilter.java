@@ -35,7 +35,9 @@ public final class NewAiJdbcObservationFilter extends FilterAdapter {
             failed = false;
             return value;
         } finally {
-            observation.sql(System.nanoTime() - start, sql != null && sql.toUpperCase(java.util.Locale.ROOT).contains("FOR UPDATE"), failed, mysqlId(statement.getConnectionProxy().getRawObject()));
+            String normalized = sql == null ? "" : sql.toUpperCase(java.util.Locale.ROOT);
+            observation.sql(System.nanoTime() - start, normalized.contains("FOR UPDATE") || normalized.contains("FOR SHARE"), failed,
+                    mysqlId(statement.getConnectionProxy().getRawObject()));
         }
     }
 
@@ -51,8 +53,10 @@ public final class NewAiJdbcObservationFilter extends FilterAdapter {
         }
     };
 
-    private Long mysqlId(Object connection) {
+    static Long mysqlId(Object connection) {
         try {
+            if (connection instanceof com.alibaba.druid.pool.DruidStatementConnection wrapped)
+                connection = wrapped.getConnection();
             if (connection instanceof ConnectionProxy proxy) connection = proxy.getRawObject();
             // 驱动 ID 是 CONNECTION_ID()，避免为了诊断额外发一次 SQL。
             var method = MYSQL_ID.get(connection.getClass());

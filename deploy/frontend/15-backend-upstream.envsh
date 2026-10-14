@@ -1,0 +1,22 @@
+#!/bin/sh
+# 官方 Nginx entrypoint 会 source .envsh；保留已有完整上游 URL 配置，派生连接池所需地址。
+arte_upstream=${NGINX_BACKEND_UPSTREAM:-http://backend:12636}
+case "$arte_upstream" in
+  http://*) NGINX_BACKEND_SCHEME=http; NGINX_BACKEND_AUTHORITY=${arte_upstream#http://} ;;
+  https://*) NGINX_BACKEND_SCHEME=https; NGINX_BACKEND_AUTHORITY=${arte_upstream#https://} ;;
+  *) echo 'Invalid NGINX_BACKEND_UPSTREAM scheme' >&2; exit 1 ;;
+esac
+NGINX_BACKEND_AUTHORITY=${NGINX_BACKEND_AUTHORITY%/}
+if ! printf '%s' "$NGINX_BACKEND_AUTHORITY" | LC_ALL=C grep -Eq '^[A-Za-z0-9._-]+(:[0-9]+)?$|^\[[0-9A-Fa-f:]+\](:[0-9]+)?$'; then
+  echo 'NGINX_BACKEND_UPSTREAM must be an origin without credentials or path' >&2
+  exit 1
+fi
+# upstream server 未写端口时固定默认 80；HTTPS origin 需要显式补齐 443。
+case "$NGINX_BACKEND_SCHEME" in https) arte_port=443 ;; *) arte_port=80 ;; esac
+case "$NGINX_BACKEND_AUTHORITY" in
+  \[*\]) NGINX_BACKEND_HOST=$NGINX_BACKEND_AUTHORITY; NGINX_BACKEND_AUTHORITY="$NGINX_BACKEND_AUTHORITY:$arte_port" ;;
+  *:*) NGINX_BACKEND_HOST=${NGINX_BACKEND_AUTHORITY%:*} ;;
+  *) NGINX_BACKEND_HOST=$NGINX_BACKEND_AUTHORITY; NGINX_BACKEND_AUTHORITY="$NGINX_BACKEND_AUTHORITY:$arte_port" ;;
+esac
+export NGINX_BACKEND_SCHEME NGINX_BACKEND_AUTHORITY NGINX_BACKEND_HOST
+unset arte_upstream arte_port

@@ -24,7 +24,8 @@ public class NewAiSseWebConfiguration {
 
     /**
      * 创建名为 newAiSseWriteExecutor 的有界线程池，供 MVC 异步处理及响应式 SSE 的阻塞 Servlet 响应写入使用。
-     * 核心线程数为 4，最大线程数为 16，待执行任务队列容量为 256；队列容量表示任务数，不是 SSE 连接数上限。
+     * 核心线程数为 4，最大线程数为 16，使用直接交接队列；慢连接占满核心线程后立即扩展，避免新首段排队。
+     * 达到最大线程数时明确拒绝，由连接重试恢复；线程数不是 SSE 连接总数上限。
      * 线程名称以 arte-ainew-sse- 开头，便于日志及线程排查；线程池初始化和关闭由 Spring 管理。
      * <p>
      * 随本配置类仅在 Servlet Web 应用且 arte.ai-new.enabled、arte.ai-new-execution.enabled 均为 true 时注册。
@@ -38,7 +39,7 @@ public class NewAiSseWebConfiguration {
         executor.setThreadNamePrefix("arte-ainew-sse-");
         executor.setCorePoolSize(4);
         executor.setMaxPoolSize(16);
-        executor.setQueueCapacity(256);
+        executor.setQueueCapacity(0);
         return executor;
     }
 

@@ -1,0 +1,1189 @@
+{
+  "date": "2026-10-14",
+  "environment": "localhost development, restored local primary MySQL, personal workspace, real deepseek-chat, dev proxy",
+  "scopeComparison": "Same original prompt and generation limits for sample 2; personal workspace/conversation/budget differ from original supplied scope. Not a controlled before/after benchmark. Samples 3/4 include conversation history.",
+  "slaUnderOneSecondValidated": false,
+  "paintMetric": "Two requestAnimationFrame callbacks after first nonempty text DOM commit; paint opportunity proxy, not direct pixel timing. Screenshot verifies final rendered answer only.",
+  "database": {
+    "cloud": {
+      "date": "2026-10-14",
+      "readOnly": true,
+      "sql": "SELECT 1",
+      "freshConnectionMs": 801.428,
+      "warmQuery": {
+        "samples": 30,
+        "minMs": 38.046,
+        "p50Ms": 38.482,
+        "p95Ms": 39.222,
+        "maxMs": 42.05
+      },
+      "queryAndCommit": {
+        "samples": 30,
+        "minMs": 75.909,
+        "p50Ms": 76.52,
+        "p95Ms": 77.011,
+        "maxMs": 77.024
+      },
+      "pooledAcquisitionMeasured": false
+    },
+    "restoredLocalWarm": {
+      "date": "2026-10-14",
+      "readOnly": true,
+      "sql": "SELECT 1",
+      "freshConnectionMs": 143.37,
+      "warmQuery": {
+        "samples": 30,
+        "minMs": 0.27,
+        "p50Ms": 0.349,
+        "p95Ms": 0.473,
+        "maxMs": 0.858
+      },
+      "queryAndCommit": {
+        "samples": 30,
+        "minMs": 0.468,
+        "p50Ms": 0.553,
+        "p95Ms": 0.658,
+        "maxMs": 1.005
+      },
+      "pooledAcquisitionMeasured": false
+    },
+    "restoredLocalDuringStartup": {
+      "date": "2026-10-14",
+      "readOnly": true,
+      "sql": "SELECT 1",
+      "freshConnectionMs": 272.032,
+      "warmQuery": {
+        "samples": 30,
+        "minMs": 0.633,
+        "p50Ms": 5.016,
+        "p95Ms": 17.07,
+        "maxMs": 22.159
+      },
+      "queryAndCommit": {
+        "samples": 30,
+        "minMs": 3.753,
+        "p50Ms": 10.578,
+        "p95Ms": 18.194,
+        "maxMs": 20.695
+      },
+      "pooledAcquisitionMeasured": false
+    }
+  },
+  "copyVerification": {
+    "tablesVerified": 123,
+    "rowsVerified": 21698,
+    "criticalTablesHashVerified": 13,
+    "matched": true
+  },
+  "nginxIsolated": {
+    "proxy": "nginx:1.27-alpine",
+    "syntheticTailDelayMs": 1500,
+    "upstreamTcpReused": true,
+    "gzipDisabled": true,
+    "samples": [
+      {
+        "firstFrameMs": 2.13,
+        "totalMs": 1505.07
+      },
+      {
+        "firstFrameMs": 1.22,
+        "totalMs": 1504.16
+      }
+    ]
+  },
+  "browserSamples": [
+    {
+      "invocationId": "d59b8c3e-643a-40f1-a434-1fffe02056e2",
+      "prompt": "李世民的一生",
+      "history": "empty",
+      "maxInputTokens": 32768,
+      "maxOutputTokens": 512,
+      "timeoutSeconds": 60,
+      "browserMs": {
+        "accepted": 298.9,
+        "sseRequest": 299.4,
+        "sseConnected": 415.5,
+        "firstTextReceived": 1494.4,
+        "firstUsableText": 1494.6,
+        "domCommitted": 1508.8,
+        "paintOpportunity": 1514.5
+      },
+      "visibility": "visible",
+      "modelHttpTcpReused": false,
+      "terminalState": "FAILED",
+      "terminalCode": "MODEL_OUTPUT_INCOMPLETE",
+      "backendTimings": [
+        {
+          "localTime": "21:33:50.730",
+          "stage": "CHAT_ACCEPTED",
+          "elapsedMs": 208,
+          "phaseMs": 208,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.763",
+          "stage": "DISPATCH_START",
+          "elapsedMs": 0,
+          "phaseMs": 0,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.810",
+          "stage": "DISPATCH_LOADED",
+          "elapsedMs": 46,
+          "phaseMs": 46,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.823",
+          "stage": "SSE_READY",
+          "elapsedMs": 64,
+          "phaseMs": 64,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.864",
+          "stage": "PREFLIGHT_READY",
+          "elapsedMs": 101,
+          "phaseMs": 101,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.909",
+          "stage": "DISPATCH_PREPARATION_STARTED",
+          "elapsedMs": 145,
+          "phaseMs": 145,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.977",
+          "stage": "DISPATCH_PREPARATION_COMMITTED",
+          "elapsedMs": 213,
+          "phaseMs": 68,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.983",
+          "stage": "ATTEMPT_CREATED",
+          "elapsedMs": 219,
+          "phaseMs": 219,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.983",
+          "stage": "BUDGET_RESERVED",
+          "elapsedMs": 219,
+          "phaseMs": 219,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.983",
+          "stage": "DISPATCH_MARKED",
+          "elapsedMs": 219,
+          "phaseMs": 219,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:50.998",
+          "stage": "GATEWAY_SUBSCRIBED",
+          "elapsedMs": 234,
+          "phaseMs": 234,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.218",
+          "stage": "PROVIDER_REQUEST_SENT",
+          "elapsedMs": 167,
+          "phaseMs": 167,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.367",
+          "stage": "PROVIDER_HEADERS",
+          "elapsedMs": 316,
+          "phaseMs": 316,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.381",
+          "stage": "PROVIDER_FIRST_DATA_FRAME",
+          "elapsedMs": 330,
+          "phaseMs": 330,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.926",
+          "stage": "FIRST_TEXT_DELTA",
+          "elapsedMs": 1162,
+          "phaseMs": 1162,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.927",
+          "stage": "SSE_FIRST_LIVE_TEXT_ENQUEUED",
+          "elapsedMs": 1168,
+          "phaseMs": 1168,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:51.972",
+          "stage": "FIRST_OUTPUT_COMMITTED",
+          "elapsedMs": 1209,
+          "phaseMs": 38,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:33:51.995",
+          "stage": "SSE_FIRST_TEXT_ENQUEUED",
+          "elapsedMs": 1236,
+          "phaseMs": 1236,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:33:55.408",
+          "stage": "PROVIDER_STREAM_END_CANCEL",
+          "elapsedMs": 4357,
+          "phaseMs": 4357,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.409",
+          "stage": "GATEWAY_COMPLETED",
+          "elapsedMs": 4645,
+          "phaseMs": 4645,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.580",
+          "stage": "RESULT_STORED",
+          "elapsedMs": 4816,
+          "phaseMs": 43,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.651",
+          "stage": "TERMINAL_COMMITTED",
+          "elapsedMs": 4887,
+          "phaseMs": 71,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.697",
+          "stage": "BUDGET_PROCESSING_DONE",
+          "elapsedMs": 4933,
+          "phaseMs": 45,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.702",
+          "stage": "DISPATCH_END_ON_COMPLETE",
+          "elapsedMs": 4939,
+          "phaseMs": 4939,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:33:55.737",
+          "stage": "SSE_END_ON_COMPLETE",
+          "elapsedMs": 4978,
+          "phaseMs": 4978,
+          "sequence": 0
+        }
+      ]
+    },
+    {
+      "invocationId": "042046f5-b8ff-49e6-a986-0829e7d41e90",
+      "prompt": "李世民的一生",
+      "history": "empty",
+      "maxInputTokens": 32768,
+      "maxOutputTokens": 8192,
+      "timeoutSeconds": 60,
+      "browserMs": {
+        "accepted": 272.3,
+        "sseRequest": 272.7,
+        "sseConnected": 366.4,
+        "firstTextReceived": 1304.7,
+        "firstUsableText": 1304.7,
+        "domCommitted": 1313.7,
+        "paintOpportunity": 1332.1
+      },
+      "visibility": "visible",
+      "modelHttpTcpReused": false,
+      "terminalState": "SUCCEEDED",
+      "terminalCode": null,
+      "backendTimings": [
+        {
+          "localTime": "21:41:57.673",
+          "stage": "CHAT_ACCEPTED",
+          "elapsedMs": 125,
+          "phaseMs": 125,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.700",
+          "stage": "DISPATCH_START",
+          "elapsedMs": 0,
+          "phaseMs": 0,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.723",
+          "stage": "DISPATCH_LOADED",
+          "elapsedMs": 23,
+          "phaseMs": 23,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.752",
+          "stage": "SSE_READY",
+          "elapsedMs": 29,
+          "phaseMs": 29,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.808",
+          "stage": "PREFLIGHT_READY",
+          "elapsedMs": 108,
+          "phaseMs": 108,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.842",
+          "stage": "DISPATCH_PREPARATION_STARTED",
+          "elapsedMs": 141,
+          "phaseMs": 141,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.910",
+          "stage": "DISPATCH_PREPARATION_COMMITTED",
+          "elapsedMs": 209,
+          "phaseMs": 67,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.910",
+          "stage": "ATTEMPT_CREATED",
+          "elapsedMs": 209,
+          "phaseMs": 209,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.910",
+          "stage": "BUDGET_RESERVED",
+          "elapsedMs": 209,
+          "phaseMs": 209,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.910",
+          "stage": "DISPATCH_MARKED",
+          "elapsedMs": 209,
+          "phaseMs": 209,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:57.910",
+          "stage": "GATEWAY_SUBSCRIBED",
+          "elapsedMs": 210,
+          "phaseMs": 210,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.006",
+          "stage": "PROVIDER_REQUEST_SENT",
+          "elapsedMs": 63,
+          "phaseMs": 63,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.105",
+          "stage": "PROVIDER_HEADERS",
+          "elapsedMs": 161,
+          "phaseMs": 161,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.114",
+          "stage": "PROVIDER_FIRST_DATA_FRAME",
+          "elapsedMs": 170,
+          "phaseMs": 170,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.707",
+          "stage": "FIRST_TEXT_DELTA",
+          "elapsedMs": 1006,
+          "phaseMs": 1006,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.708",
+          "stage": "SSE_FIRST_LIVE_TEXT_ENQUEUED",
+          "elapsedMs": 985,
+          "phaseMs": 985,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:41:58.750",
+          "stage": "FIRST_OUTPUT_COMMITTED",
+          "elapsedMs": 1050,
+          "phaseMs": 41,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:41:58.783",
+          "stage": "SSE_FIRST_TEXT_ENQUEUED",
+          "elapsedMs": 1060,
+          "phaseMs": 1060,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:42:03.849",
+          "stage": "PROVIDER_STREAM_END_CANCEL",
+          "elapsedMs": 5906,
+          "phaseMs": 5906,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.849",
+          "stage": "GATEWAY_COMPLETED",
+          "elapsedMs": 6149,
+          "phaseMs": 6149,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.890",
+          "stage": "RESULT_STORED",
+          "elapsedMs": 6190,
+          "phaseMs": 12,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.916",
+          "stage": "TERMINAL_COMMITTED",
+          "elapsedMs": 6215,
+          "phaseMs": 25,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.934",
+          "stage": "BUDGET_PROCESSING_DONE",
+          "elapsedMs": 6234,
+          "phaseMs": 18,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.937",
+          "stage": "DISPATCH_END_ON_COMPLETE",
+          "elapsedMs": 6236,
+          "phaseMs": 6236,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:42:03.961",
+          "stage": "SSE_END_ON_COMPLETE",
+          "elapsedMs": 6238,
+          "phaseMs": 6238,
+          "sequence": 0
+        }
+      ]
+    },
+    {
+      "invocationId": "dc95e08b-fa8b-4a74-aa83-51663a90b99f",
+      "prompt": "用一句话总结。",
+      "history": "previous successful turns",
+      "maxInputTokens": 32768,
+      "maxOutputTokens": 8192,
+      "timeoutSeconds": 60,
+      "browserMs": {
+        "accepted": 634.7,
+        "sseRequest": 635,
+        "sseConnected": 1006.8,
+        "firstTextReceived": 2188.6,
+        "firstUsableText": 2188.7,
+        "domCommitted": 2199.6,
+        "paintOpportunity": 2215.2
+      },
+      "visibility": "visible",
+      "modelHttpTcpReused": false,
+      "terminalState": "SUCCEEDED",
+      "terminalCode": null,
+      "backendTimings": [
+        {
+          "localTime": "21:43:48.459",
+          "stage": "CHAT_ACCEPTED",
+          "elapsedMs": 535,
+          "phaseMs": 535,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:48.634",
+          "stage": "DISPATCH_START",
+          "elapsedMs": 0,
+          "phaseMs": 0,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:48.679",
+          "stage": "DISPATCH_LOADED",
+          "elapsedMs": 45,
+          "phaseMs": 45,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:48.826",
+          "stage": "SSE_READY",
+          "elapsedMs": 311,
+          "phaseMs": 311,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:48.833",
+          "stage": "PREFLIGHT_READY",
+          "elapsedMs": 198,
+          "phaseMs": 198,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:48.960",
+          "stage": "DISPATCH_PREPARATION_STARTED",
+          "elapsedMs": 325,
+          "phaseMs": 325,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.245",
+          "stage": "DISPATCH_PREPARATION_COMMITTED",
+          "elapsedMs": 610,
+          "phaseMs": 285,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.245",
+          "stage": "ATTEMPT_CREATED",
+          "elapsedMs": 610,
+          "phaseMs": 610,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.245",
+          "stage": "BUDGET_RESERVED",
+          "elapsedMs": 610,
+          "phaseMs": 610,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.245",
+          "stage": "DISPATCH_MARKED",
+          "elapsedMs": 611,
+          "phaseMs": 611,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.246",
+          "stage": "GATEWAY_SUBSCRIBED",
+          "elapsedMs": 611,
+          "phaseMs": 611,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.404",
+          "stage": "PROVIDER_REQUEST_SENT",
+          "elapsedMs": 138,
+          "phaseMs": 138,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.494",
+          "stage": "PROVIDER_HEADERS",
+          "elapsedMs": 228,
+          "phaseMs": 228,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:49.495",
+          "stage": "PROVIDER_FIRST_DATA_FRAME",
+          "elapsedMs": 230,
+          "phaseMs": 230,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.017",
+          "stage": "FIRST_TEXT_DELTA",
+          "elapsedMs": 1382,
+          "phaseMs": 1382,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.017",
+          "stage": "SSE_FIRST_LIVE_TEXT_ENQUEUED",
+          "elapsedMs": 1502,
+          "phaseMs": 1502,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.059",
+          "stage": "FIRST_OUTPUT_COMMITTED",
+          "elapsedMs": 1424,
+          "phaseMs": 41,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:43:50.084",
+          "stage": "SSE_FIRST_TEXT_ENQUEUED",
+          "elapsedMs": 1569,
+          "phaseMs": 1569,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:43:50.297",
+          "stage": "PROVIDER_STREAM_END_CANCEL",
+          "elapsedMs": 1031,
+          "phaseMs": 1031,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.297",
+          "stage": "GATEWAY_COMPLETED",
+          "elapsedMs": 1662,
+          "phaseMs": 1662,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.330",
+          "stage": "RESULT_STORED",
+          "elapsedMs": 1695,
+          "phaseMs": 7,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.350",
+          "stage": "TERMINAL_COMMITTED",
+          "elapsedMs": 1715,
+          "phaseMs": 20,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.370",
+          "stage": "BUDGET_PROCESSING_DONE",
+          "elapsedMs": 1735,
+          "phaseMs": 19,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.373",
+          "stage": "DISPATCH_END_ON_COMPLETE",
+          "elapsedMs": 1738,
+          "phaseMs": 1738,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:43:50.400",
+          "stage": "SSE_END_ON_COMPLETE",
+          "elapsedMs": 1885,
+          "phaseMs": 1885,
+          "sequence": 0
+        }
+      ]
+    },
+    {
+      "invocationId": "34591134-33b6-46c2-968d-a7cec91e9319",
+      "prompt": "李世民的一生",
+      "history": "previous successful turns",
+      "maxInputTokens": 32768,
+      "maxOutputTokens": 8192,
+      "timeoutSeconds": 60,
+      "browserMs": {
+        "accepted": 187.9,
+        "sseRequest": 188.2,
+        "sseConnected": 242.1,
+        "firstTextReceived": 1052.5,
+        "firstUsableText": 1052.5,
+        "domCommitted": 1062.2,
+        "paintOpportunity": 1082.6
+      },
+      "visibility": "visible",
+      "modelHttpTcpReused": true,
+      "terminalState": "SUCCEEDED",
+      "terminalCode": null,
+      "backendTimings": [
+        {
+          "localTime": "21:44:12.934",
+          "stage": "CHAT_ACCEPTED",
+          "elapsedMs": 107,
+          "phaseMs": 107,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:12.945",
+          "stage": "DISPATCH_START",
+          "elapsedMs": 0,
+          "phaseMs": 0,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:12.954",
+          "stage": "DISPATCH_LOADED",
+          "elapsedMs": 9,
+          "phaseMs": 9,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:12.973",
+          "stage": "SSE_READY",
+          "elapsedMs": 19,
+          "phaseMs": 19,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:12.995",
+          "stage": "PREFLIGHT_READY",
+          "elapsedMs": 50,
+          "phaseMs": 50,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.021",
+          "stage": "DISPATCH_PREPARATION_STARTED",
+          "elapsedMs": 76,
+          "phaseMs": 76,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.077",
+          "stage": "DISPATCH_PREPARATION_COMMITTED",
+          "elapsedMs": 132,
+          "phaseMs": 56,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.078",
+          "stage": "ATTEMPT_CREATED",
+          "elapsedMs": 132,
+          "phaseMs": 132,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.078",
+          "stage": "BUDGET_RESERVED",
+          "elapsedMs": 132,
+          "phaseMs": 132,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.078",
+          "stage": "DISPATCH_MARKED",
+          "elapsedMs": 132,
+          "phaseMs": 132,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.078",
+          "stage": "GATEWAY_SUBSCRIBED",
+          "elapsedMs": 133,
+          "phaseMs": 133,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.109",
+          "stage": "PROVIDER_REQUEST_SENT",
+          "elapsedMs": 27,
+          "phaseMs": 27,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.228",
+          "stage": "PROVIDER_HEADERS",
+          "elapsedMs": 146,
+          "phaseMs": 146,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.228",
+          "stage": "PROVIDER_FIRST_DATA_FRAME",
+          "elapsedMs": 147,
+          "phaseMs": 147,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.802",
+          "stage": "FIRST_TEXT_DELTA",
+          "elapsedMs": 856,
+          "phaseMs": 856,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.802",
+          "stage": "SSE_FIRST_LIVE_TEXT_ENQUEUED",
+          "elapsedMs": 847,
+          "phaseMs": 847,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:13.825",
+          "stage": "FIRST_OUTPUT_COMMITTED",
+          "elapsedMs": 880,
+          "phaseMs": 23,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:44:13.848",
+          "stage": "SSE_FIRST_TEXT_ENQUEUED",
+          "elapsedMs": 893,
+          "phaseMs": 893,
+          "sequence": 4
+        },
+        {
+          "localTime": "21:44:16.637",
+          "stage": "PROVIDER_STREAM_END_CANCEL",
+          "elapsedMs": 3556,
+          "phaseMs": 3556,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.637",
+          "stage": "GATEWAY_COMPLETED",
+          "elapsedMs": 3692,
+          "phaseMs": 3692,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.671",
+          "stage": "RESULT_STORED",
+          "elapsedMs": 3725,
+          "phaseMs": 11,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.690",
+          "stage": "TERMINAL_COMMITTED",
+          "elapsedMs": 3745,
+          "phaseMs": 19,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.708",
+          "stage": "BUDGET_PROCESSING_DONE",
+          "elapsedMs": 3763,
+          "phaseMs": 17,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.711",
+          "stage": "DISPATCH_END_ON_COMPLETE",
+          "elapsedMs": 3765,
+          "phaseMs": 3765,
+          "sequence": 0
+        },
+        {
+          "localTime": "21:44:16.744",
+          "stage": "SSE_END_ON_COMPLETE",
+          "elapsedMs": 3790,
+          "phaseMs": 3790,
+          "sequence": 0
+        }
+      ]
+    }
+  ],
+  "httpMetrics": [
+    {
+      "traceId": "fc21cf79360340c9b1daaf0535dfb2d2",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/chat/turnsForChat",
+      "status": 202,
+      "mvcTotalMs": 247.108,
+      "mvcStartedEpochMs": 1791984830485,
+      "serverFirstWriteMs": 247.032,
+      "responseBytes": 304,
+      "sqlCount": 78,
+      "sqlExecuteMs": 91.236,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 78,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 26.879,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        15
+      ],
+      "connectionCount": 11,
+      "connectionAcquireMs": 0.024,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 43.676,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 13,
+          "sumMs": 0.322,
+          "maxMs": 0.044
+        }
+      }
+    },
+    {
+      "traceId": "325aba04f0d14756a7dfa435903350e1",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/invocation/watchInvocation",
+      "status": 200,
+      "mvcTotalMs": 4995.6,
+      "mvcStartedEpochMs": 1791984830742,
+      "serverFirstWriteMs": 107.249,
+      "responseBytes": 96819,
+      "sqlCount": 197,
+      "sqlExecuteMs": 339.822,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 197,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 43.804,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        11,
+        13,
+        14
+      ],
+      "connectionCount": 63,
+      "connectionAcquireMs": 1.328,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 33.493,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 50,
+          "sumMs": 21.416,
+          "maxMs": 15.268
+        }
+      }
+    },
+    {
+      "traceId": "283e9c3312a94fecae2e72be944fa5c2",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/chat/turnsForChat",
+      "status": 202,
+      "mvcTotalMs": 207.345,
+      "mvcStartedEpochMs": 1791985317468,
+      "serverFirstWriteMs": 207.275,
+      "responseBytes": 304,
+      "sqlCount": 78,
+      "sqlExecuteMs": 64.252,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 78,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 19.662,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        11
+      ],
+      "connectionCount": 11,
+      "connectionAcquireMs": 0.025,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 37.259,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 13,
+          "sumMs": 0.417,
+          "maxMs": 0.092
+        }
+      }
+    },
+    {
+      "traceId": "e2ebc78ab9914d9b828fa7028a83960c",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/invocation/watchInvocation",
+      "status": 200,
+      "mvcTotalMs": 6275.444,
+      "mvcStartedEpochMs": 1791985317686,
+      "serverFirstWriteMs": 70.107,
+      "responseBytes": 133997,
+      "sqlCount": 239,
+      "sqlExecuteMs": 147.77,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 239,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 25.388,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        12,
+        14,
+        15
+      ],
+      "connectionCount": 75,
+      "connectionAcquireMs": 1.509,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 18.959,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 59,
+          "sumMs": 2.0,
+          "maxMs": 0.8
+        }
+      }
+    },
+    {
+      "traceId": "c1428a1262a64d6982b9b69b1e865566",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/chat/turnsForChat",
+      "status": 202,
+      "mvcTotalMs": 585.446,
+      "mvcStartedEpochMs": 1791985427876,
+      "serverFirstWriteMs": 585.294,
+      "responseBytes": 304,
+      "sqlCount": 83,
+      "sqlExecuteMs": 276.943,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 83,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 113.063,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        11
+      ],
+      "connectionCount": 14,
+      "connectionAcquireMs": 0.051,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 95.56,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 18,
+          "sumMs": 4.686,
+          "maxMs": 2.467
+        }
+      }
+    },
+    {
+      "traceId": "68ae47b786784a9d88920fbc606361d0",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/invocation/watchInvocation",
+      "status": 200,
+      "mvcTotalMs": 1930.253,
+      "mvcStartedEpochMs": 1791985428471,
+      "serverFirstWriteMs": 360.842,
+      "responseBytes": 8153,
+      "sqlCount": 113,
+      "sqlExecuteMs": 271.141,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 113,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 27.729,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        14,
+        15,
+        20
+      ],
+      "connectionCount": 39,
+      "connectionAcquireMs": 2.779,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 216.511,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 32,
+          "sumMs": 154.541,
+          "maxMs": 126.892
+        }
+      }
+    },
+    {
+      "traceId": "c6bcb355112e491497d7259ddc5e7c59",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/chat/turnsForChat",
+      "status": 202,
+      "mvcTotalMs": 134.174,
+      "mvcStartedEpochMs": 1791985452802,
+      "serverFirstWriteMs": 134.088,
+      "responseBytes": 304,
+      "sqlCount": 85,
+      "sqlExecuteMs": 50.934,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 85,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 16.499,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        14
+      ],
+      "connectionCount": 16,
+      "connectionAcquireMs": 0.028,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 27.121,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 20,
+          "sumMs": 0.553,
+          "maxMs": 0.105
+        }
+      }
+    },
+    {
+      "traceId": "25035f4b27e24314977ffe42b44e05b6",
+      "measurementId": null,
+      "method": "POST",
+      "path": "/ai-new/invocation/watchInvocation",
+      "status": 200,
+      "mvcTotalMs": 3803.634,
+      "mvcStartedEpochMs": 1791985452942,
+      "serverFirstWriteMs": 32.81,
+      "responseBytes": 108571,
+      "sqlCount": 183,
+      "sqlExecuteMs": 215.463,
+      "sqlErrors": 0,
+      "sqlCompletedCount": 183,
+      "sqlInFlight": 0,
+      "forUpdateExecuteMs": 29.507,
+      "lockWaitMs": null,
+      "mysqlConnectionIds": [
+        11,
+        12,
+        15,
+        20
+      ],
+      "connectionCount": 59,
+      "connectionAcquireMs": 0.112,
+      "connectionErrors": 0,
+      "initialAuthorizationCount": 1,
+      "initialAuthorizationMs": 12.873,
+      "schedulerQueues": {
+        "newAiPersistenceScheduler": {
+          "tasks": 47,
+          "sumMs": 1.528,
+          "maxMs": 0.297
+        }
+      }
+    }
+  ],
+  "backendRegression": {
+    "arte-core": {
+      "tests": 159,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "arte-ai": {
+      "tests": 327,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4
+    },
+    "arte-app": {
+      "tests": 155,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9
+    }
+  },
+  "additionalDefaultAppDiagnosticTestsPassed": 6,
+  "frontendTestsPassed": 266,
+  "frontendTestFilesPassed": 16,
+  "backendPackage": "passed",
+  "frontendProductionBuild": "passed",
+  "globalTypecheck": "failed on unrelated existing files; no changed AI chat/proxy file diagnostics"
+}

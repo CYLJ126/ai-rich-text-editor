@@ -66,7 +66,7 @@ public class NewAiGenerationConfiguration {
      * @param clock 新 AI 层时钟，用于运行期限校验
      * @return 由 Spring 管理生命周期的 HTTP 连接运行时
      */
-    @Bean(name = "newAiHttpConnectionRuntime", destroyMethod = "close")
+    @Bean(name = "newAiHttpConnectionRuntime", initMethod = "warmupResources", destroyMethod = "close")
     HttpConnectionRuntime runtime(ConnectionManager connections, AdmissionAuthorization authorization,
                                   ConnectionCredentialResolver credentials, NewAiGenerationProperties properties,
                                   @Qualifier("newAiClock") Clock clock) {

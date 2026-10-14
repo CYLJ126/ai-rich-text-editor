@@ -1,3 +1,9 @@
+upstream arte_backend {
+    server ${NGINX_BACKEND_AUTHORITY};
+    keepalive 32;
+    keepalive_timeout 60s;
+}
+
 server {
     listen 8080;
     include /etc/nginx/tls/*.conf;
@@ -21,11 +27,33 @@ server {
         proxy_read_timeout 3600s;
     }
 
+    # SSE 和 AI API 禁止响应缓冲、缓存及压缩，心跳使连接在空闲时仍及时刷新。
+    location ^~ /arte/ai-new/ {
+        proxy_pass ${NGINX_BACKEND_SCHEME}://arte_backend;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Accept-Encoding "identity";
+        proxy_ssl_server_name on;
+        proxy_ssl_name ${NGINX_BACKEND_HOST};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 75s;
+        proxy_send_timeout 75s;
+    }
+
     location ^~ /arte {
-        proxy_pass ${NGINX_BACKEND_UPSTREAM};
+        proxy_pass ${NGINX_BACKEND_SCHEME}://arte_backend;
         proxy_request_buffering off;
         proxy_http_version 1.1;
-        proxy_set_header Connection "close";
+        proxy_set_header Connection "";
+        proxy_ssl_server_name on;
+        proxy_ssl_name ${NGINX_BACKEND_HOST};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

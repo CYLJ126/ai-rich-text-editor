@@ -14,6 +14,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -124,8 +125,12 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
                         if (type.isEmpty() || !MediaType.TEXT_EVENT_STREAM.isCompatibleWith(type.get())) {
                             return bounded.releaseBody().onErrorComplete().thenMany(Flux.error(GenerationException.output("INVALID_PROVIDER_CONTENT_TYPE")));
                         }
-                        // 按顺序处理事件，预取设为 1，避免积压大量待映射帧。
+                        var completed = new AtomicBoolean();
+                        var drain = Sinks.<Boolean>one();
+                        // DONE 后继续消费 HTTP 尾部，避免 takeUntil 提前取消使成功连接被关闭。
+                        // 非正常尾部最多排空配置的短时间，之后关闭连接；不延迟任何正文增量。
                         return bounded.bodyToFlux(SSE).concatMap(event -> {
+                                    if (completed.get()) return Flux.<SseFrame>empty();
                             // 注释心跳、无 data 或空 data 不形成平台响应帧。
                             if (event.data() == null || event.data().isBlank()) {
                                 return Flux.<SseFrame>empty();
@@ -137,9 +142,16 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
                             }
                             if (!data.equals("[DONE]") && firstFrame.compareAndSet(false, true))
                                 timing.mark("PROVIDER_FIRST_DATA_FRAME");
-                            // [DONE] 显式传给供应商适配器，takeUntil 在发布它之后终止流。
-                            return Flux.just(data.equals("[DONE]") ? new SseFrame.Done() : new SseFrame.Data(data));
-                        }, 1).takeUntil(frame -> frame instanceof SseFrame.Done);
+                                    if (data.equals("[DONE]")) {
+                                        completed.set(true);
+                                        drain.tryEmitValue(true);
+                                        return Flux.<SseFrame>empty();
+                                    }
+                                    return Flux.<SseFrame>just(new SseFrame.Data(data));
+                                }, 1)
+                                .takeUntilOther(drain.asMono().delayElement(properties.completedStreamDrainTimeout()))
+                                .onErrorResume(error -> completed.get() ? Flux.empty() : Flux.error(error))
+                                .concatWith(Flux.defer(() -> completed.get() ? Flux.just(new SseFrame.Done()) : Flux.empty()));
                     }).doFinally(signal -> timing.mark("PROVIDER_STREAM_END_" + signal.name()))
                     .contextWrite(context -> context.put(InvocationTiming.class, timing));
         });
