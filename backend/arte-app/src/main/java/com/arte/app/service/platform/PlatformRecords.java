@@ -5,11 +5,10 @@ import com.arte.app.pojo.platform.*;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.workspace.*;
 
-import java.time.Instant;
 import java.util.Set;
 
 /**
- * core 值对象和 app PO/DTO 的显式转换，保持稳定主体、完整范围和 Instant 纳秒精度。
+ * core 值对象和 app PO/DTO 的显式转换，保持稳定主体、完整范围和 UTC 微秒精度。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/10 16:28 ✾
@@ -44,15 +43,13 @@ final class PlatformRecords {
         row.setCreatedBy(v.createdBy());
         row.setVersion(v.version());
         row.setAuthEpoch(v.authEpoch());
-        row.setCreatedSec(v.createdAt().getEpochSecond());
-        row.setCreatedNano(v.createdAt().getNano());
-        row.setUpdatedSec(v.updatedAt().getEpochSecond());
-        row.setUpdatedNano(v.updatedAt().getNano());
+        row.setCreatedAt(PlatformUtcTimes.encode(v.createdAt()));
+        row.setUpdatedAt(PlatformUtcTimes.encode(v.updatedAt()));
         return row;
     }
 
     static Tenant tenant(PlatformTenantDto v) {
-        return new Tenant(v.getId(), v.getName(), v.getType(), v.getPersonalSubjectId(), v.getState(), v.getCreatedBy(), v.getVersion(), v.getAuthEpoch(), Instant.ofEpochSecond(v.getCreatedSec(), v.getCreatedNano()), Instant.ofEpochSecond(v.getUpdatedSec(), v.getUpdatedNano()));
+        return new Tenant(v.getId(), v.getName(), v.getType(), v.getPersonalSubjectId(), v.getState(), v.getCreatedBy(), v.getVersion(), v.getAuthEpoch(), PlatformUtcTimes.decode(v.getCreatedAt()), PlatformUtcTimes.decode(v.getUpdatedAt()));
     }
 
     static PlatformWorkspaceDto workspace(Workspace v) {
@@ -65,15 +62,13 @@ final class PlatformRecords {
         row.setCreatedBy(v.createdBy());
         row.setVersion(v.version());
         row.setAuthEpoch(v.authEpoch());
-        row.setCreatedSec(v.createdAt().getEpochSecond());
-        row.setCreatedNano(v.createdAt().getNano());
-        row.setUpdatedSec(v.updatedAt().getEpochSecond());
-        row.setUpdatedNano(v.updatedAt().getNano());
+        row.setCreatedAt(PlatformUtcTimes.encode(v.createdAt()));
+        row.setUpdatedAt(PlatformUtcTimes.encode(v.updatedAt()));
         return row;
     }
 
     static Workspace workspace(PlatformWorkspaceDto v) {
-        return new Workspace(new Scope(v.getTenantId(), v.getId()), v.getName(), v.getDescription(), v.getState(), v.getCreatedBy(), v.getVersion(), v.getAuthEpoch(), Instant.ofEpochSecond(v.getCreatedSec(), v.getCreatedNano()), Instant.ofEpochSecond(v.getUpdatedSec(), v.getUpdatedNano()));
+        return new Workspace(new Scope(v.getTenantId(), v.getId()), v.getName(), v.getDescription(), v.getState(), v.getCreatedBy(), v.getVersion(), v.getAuthEpoch(), PlatformUtcTimes.decode(v.getCreatedAt()), PlatformUtcTimes.decode(v.getUpdatedAt()));
     }
 
     static PlatformTenantMemberDto tenantMember(TenantMembership v) {

@@ -3,6 +3,7 @@ package com.arte.core.pojo.workspace;
 import com.arte.core.enums.workspace.TenantStateEnum;
 import com.arte.core.enums.workspace.TenantTypeEnum;
 import com.arte.core.utils.platform.PlatformChecks;
+import com.arte.core.utils.platform.PlatformTimePrecision;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -33,8 +34,8 @@ public record Tenant(
         PlatformChecks.id(createdBy, "createdBy");
         PlatformChecks.version(version, "version");
         PlatformChecks.version(authEpoch, "authEpoch");
-        Objects.requireNonNull(createdAt, "createdAt");
-        Objects.requireNonNull(updatedAt, "updatedAt");
+        createdAt = PlatformTimePrecision.micros(createdAt);
+        updatedAt = PlatformTimePrecision.micros(updatedAt);
         PlatformChecks.require((type == TenantTypeEnum.PERSONAL) == (personalSubjectId != null), "personal subject must match tenant type");
         PlatformChecks.require(!updatedAt.isBefore(createdAt), "update precedes creation");
     }

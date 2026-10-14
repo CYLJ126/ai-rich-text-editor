@@ -9,12 +9,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.arte.core.application.workspace.InMemoryWorkspaceFixture.NOW;
 import static com.arte.core.application.workspace.InMemoryWorkspaceFixture.meta;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class WorkspaceTimePolicyTest {
     private final MutableClock clock = new MutableClock(NOW);
@@ -32,7 +34,7 @@ class WorkspaceTimePolicyTest {
         var receipt = f.services.workspaces().rename(actor, command);
         var saved = f.workspaces.get(scope);
         assertEquals(NOW, saved.createdAt());
-        assertEquals(latest, saved.updatedAt());
+        assertEquals(latest.truncatedTo(ChronoUnit.MICROS), saved.updatedAt());
         assertEquals(2, saved.version());
         assertEquals("second", saved.name());
         assertEquals(NOW.minusSeconds(10), f.events.getLast().occurredAt());
@@ -91,13 +93,53 @@ class WorkspaceTimePolicyTest {
     }
 
     @Test
-    void laterWallTimeStillAdvancesMetadataWithExistingNanosecondPrecision() {
+    void laterWallTimeAdvancesMetadataWithMicrosecondPrecision() {
         var actor = f.user("alice");
         var scope = f.initialize(actor).workspace().scope();
         Instant later = NOW.plusSeconds(1).plusNanos(987654321);
         clock.set(later);
         f.services.workspaces().rename(actor, new WorkspaceCommands.RenameWorkspace(meta("later"), scope, 0, "later", ""));
-        assertEquals(later, f.workspaces.get(scope).updatedAt());
+        assertEquals(later.truncatedTo(java.time.temporal.ChronoUnit.MICROS), f.workspaces.get(scope).updatedAt());
+    }
+
+    @Test
+    void nanosecondClockIsNormalizedBeforeModelsReceiptsAndEffectsAreCreated() {
+        Instant raw = Instant.parse("1969-12-31T23:59:59.999999999Z");
+        Instant expected = Instant.parse("1969-12-31T23:59:59.999999Z");
+        clock.set(raw);
+        var actor = f.user("alice");
+        var receipt = f.services.personal().initialize(actor, meta("precision"));
+        var scope = receipt.value().workspace().scope();
+        assertEquals(expected, f.workspaces.get(scope).createdAt());
+        assertEquals(expected, f.tenants.get(scope.tenantId()).createdAt());
+        assertEquals(expected, receipt.acceptedAt());
+        assertEquals(expected, receipt.completedAt());
+        assertEquals(expected, f.events.getFirst().occurredAt());
+        assertEquals(expected, f.audits.getFirst().occurredAt());
+        // 同一微秒内再次更新，时间允许相等，状态版本必须推进。
+        clock.set(raw.minusNanos(1));
+        f.services.workspaces().rename(actor, new WorkspaceCommands.RenameWorkspace(meta("same-micro"), scope, 0, "changed", ""));
+        assertEquals(expected, f.workspaces.get(scope).updatedAt());
+        assertEquals(1, f.workspaces.get(scope).version());
+        assertThrows(IllegalArgumentException.class, () -> new com.arte.core.pojo.workspace.WorkspaceCandidateKey(raw, scope));
+    }
+
+    @Test
+    void historicalReceiptReplayKeepsItsOriginalNanoseconds() {
+        var actor = f.user("alice");
+        var command = meta("historical");
+        var applied = f.services.personal().initialize(actor, command);
+        var entry = f.receipts.entrySet().iterator().next();
+        var old = entry.getValue();
+        var original = new com.arte.core.pojo.platform.CommandReceipt<>(applied.operationId(), applied.status(), applied.delivery(),
+                applied.value(), applied.resultVersion(), NOW.plusNanos(123456789), NOW.plusNanos(987654321));
+        f.receipts.put(entry.getKey(), new com.arte.core.pojo.platform.StoredCommandReceipt(old.identity(), old.requestDigest(),
+                old.resultSchema(), original, old.version()));
+        var replay = f.services.personal().initialize(actor, command);
+        assertEquals(original.acceptedAt(), replay.acceptedAt());
+        assertEquals(original.completedAt(), replay.completedAt());
+        assertEquals(CommandDeliveryEnum.REPLAYED, replay.delivery());
+        assertEquals(1, f.events.size());
     }
 
     private static final class MutableClock extends Clock {

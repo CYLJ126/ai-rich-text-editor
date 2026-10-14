@@ -12,10 +12,8 @@
         <result column="created_by" property="createdBy"/>
         <result column="version" property="version"/>
         <result column="auth_epoch" property="authEpoch"/>
-        <result column="created_sec" property="createdSec"/>
-        <result column="created_nano" property="createdNano"/>
-        <result column="updated_sec" property="updatedSec"/>
-        <result column="updated_nano" property="updatedNano"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
     <select id="selectPersonal" resultMap="row" useCache="false" flushCache="true">
@@ -29,12 +27,12 @@
 
     <update id="replaceCas">
         UPDATE arte_platform_tenant SET
-        name=#{row.name},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_sec=#{row.updatedSec},updated_nano=#{row.updatedNano}
+        name=#{row.name},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_at=#{row.updatedAt}
         WHERE id=#{row.id} AND version=#{expected} AND type=#{row.type}
         AND (personal_subject_id=#{row.personalSubjectId} OR (personal_subject_id IS NULL AND
         #{row.personalSubjectId,jdbcType=VARCHAR} IS NULL))
-        AND created_by=#{row.createdBy} AND created_sec=#{row.createdSec} AND created_nano=#{row.createdNano} AND
+        AND created_by=#{row.createdBy} AND created_at=#{row.createdAt} AND
         auth_epoch&lt;=#{row.authEpoch}
-        AND (updated_sec&lt;#{row.updatedSec} OR (updated_sec=#{row.updatedSec} AND updated_nano&lt;=#{row.updatedNano}))
+        AND updated_at&lt;=#{row.updatedAt}
     </update>
 </mapper>

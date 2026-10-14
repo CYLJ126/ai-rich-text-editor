@@ -36,7 +36,8 @@ Controller；关闭时不注册空间 HTTP。Controller 路径为 `/workspace`�
 | /arte/workspace/browseAccessibleWorkspaces | cursor 可空，size 默认 20／最大 100，search 可空／最大 100 字符 | records、nextCursor、exhausted；无 total |
 | /arte/workspace/countAccessibleWorkspaces  | 无                                                              | 本次扫描的可见数量；显式全量扫描         |
 
-浏览允许预算耗尽后的不足一页／空页续扫。游标绑定主体、规范化搜索、页大小、版本和有效期，不授予权限。 过期为
+浏览允许预算耗尽后的不足一页／空页续扫。游标 v3 绑定主体、规范化搜索、页大小、UTC 微秒边界和有效期；旧 v2 游标失效后须重新加载。游标不授予权限。
+过期为
 410／PLATFORM_CURSOR_EXPIRED，绑定不匹配或畸形 token 为 400，Redis 故障为 503；这些错误保持 ResultContext 格式。
 浏览不调用精确计数，后者不把候选数量当作可见总数。详见 [目录改造契约](WORKSPACE_DIRECTORY_REDESIGN.md)。
 

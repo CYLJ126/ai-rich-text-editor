@@ -102,7 +102,7 @@ class WorkspaceBrowseTest {
         f.beforeFactBatch = batch -> {
             var old = f.workspaces.get(scopes.getFirst());
             f.workspaces.put(old.scope(), new Workspace(old.scope(), old.name(), old.description(), old.state(),
-                    old.createdBy(), old.version(), old.authEpoch(), old.createdAt().plusNanos(1), old.updatedAt().plusNanos(1)));
+                    old.createdBy(), old.version(), old.authEpoch(), old.createdAt().plusNanos(1000), old.updatedAt().plusNanos(1000)));
         };
         var error = assertThrows(PlatformException.class,
                 () -> f.services.workspaces().browseAccessible(actor, new WorkspaceBrowseQuery(20, ""), null));

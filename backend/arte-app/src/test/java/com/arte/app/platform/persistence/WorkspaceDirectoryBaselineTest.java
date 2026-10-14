@@ -176,7 +176,7 @@ class WorkspaceDirectoryBaselineTest {
                 report.put("requestsPerScenario", requests);
                 report.put("page", Map.of("current", 1, "size", 20));
                 report.put("scenarios", output);
-                report.put("candidateExplain", fixture.jdbc.queryForList("EXPLAIN SELECT m.tenant_id,m.workspace_id,m.workspace_created_sec,m.workspace_created_nano FROM arte_platform_workspace_member m WHERE m.subject_digest=? AND m.subject_id=? ORDER BY m.workspace_created_sec DESC,m.workspace_created_nano DESC,m.tenant_id,m.workspace_id LIMIT 101", digest(fixture.actor.principal().subjectId()), fixture.actor.principal().subjectId()));
+                report.put("candidateExplain", fixture.jdbc.queryForList("EXPLAIN SELECT m.tenant_id,m.workspace_id,m.workspace_created_at FROM arte_platform_workspace_member m WHERE m.subject_digest=? AND m.subject_id=? ORDER BY m.workspace_created_at DESC,m.tenant_id,m.workspace_id LIMIT 101", digest(fixture.actor.principal().subjectId()), fixture.actor.principal().subjectId()));
                 report.put("indexSizes", fixture.jdbc.queryForList("SELECT table_name,index_name,stat_value AS pages FROM mysql.innodb_index_stats WHERE database_name=? AND stat_name='size'", fixture.database));
                 Path destination = Path.of(System.getProperty("platform.workspace.baseline.output", "target/workspace-directory-baseline.json"));
                 Files.createDirectories(destination.toAbsolutePath().getParent());
@@ -207,12 +207,12 @@ class WorkspaceDirectoryBaselineTest {
         for (int i = 0; i < count; i++) {
             String id = "bench%08d".formatted(i);
             long sec = 1_797_000_000L - i / 100;
-            rows.add(new Object[]{base.tenantId(), id, id, "", 0, subject, 0, 0, sec, 123456789, sec, 123456789});
+            rows.add(new Object[]{base.tenantId(), id, id, "", 0, subject, 0, 0, java.time.LocalDateTime.ofInstant(Instant.ofEpochSecond(sec, 123456000), java.time.ZoneOffset.UTC), java.time.LocalDateTime.ofInstant(Instant.ofEpochSecond(sec, 123456000), java.time.ZoneOffset.UTC)});
             members.add(new Object[]{id, subject, digest(subject), base.tenantId(), id});
             policies.add(new Object[]{id, base.tenantId(), base.workspaceId()});
         }
-        f.jdbc.batchUpdate("INSERT INTO arte_platform_workspace(tenant_id,id,name,description,state,created_by,version,auth_epoch,created_sec,created_nano,updated_sec,updated_nano) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", rows);
-        f.jdbc.batchUpdate("INSERT INTO arte_platform_workspace_member(id,tenant_id,workspace_id,subject_id,subject_digest,workspace_created_sec,workspace_created_nano,role,state,generation,version) SELECT ?,tenant_id,id,?,?,created_sec,created_nano,2,0,0,0 FROM arte_platform_workspace WHERE tenant_id=? AND id=?", members);
+        f.jdbc.batchUpdate("INSERT INTO arte_platform_workspace(tenant_id,id,name,description,state,created_by,version,auth_epoch,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)", rows);
+        f.jdbc.batchUpdate("INSERT INTO arte_platform_workspace_member(id,tenant_id,workspace_id,subject_id,subject_digest,workspace_created_at,role,state,generation,version) SELECT ?,tenant_id,id,?,?,created_at,2,0,0,0 FROM arte_platform_workspace WHERE tenant_id=? AND id=?", members);
         f.jdbc.batchUpdate("INSERT INTO arte_platform_workspace_policy(tenant_id,workspace_id,rules,policy_schema_version,role_preset_version,version) SELECT tenant_id,?,rules,policy_schema_version,role_preset_version,0 FROM arte_platform_workspace_policy WHERE tenant_id=? AND workspace_id=?", policies);
         f.jdbc.execute("ANALYZE TABLE arte_platform_workspace, arte_platform_workspace_member");
     }

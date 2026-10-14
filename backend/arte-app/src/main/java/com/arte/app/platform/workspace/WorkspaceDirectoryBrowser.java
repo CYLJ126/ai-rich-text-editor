@@ -66,7 +66,7 @@ public final class WorkspaceDirectoryBrowser {
         }
         var result = workspaces.browseAccessible(actor, query, after);
         String next = result.exhausted() ? null : cursors.save(new WorkspaceCursorStore.Cursor(
-                actor.principal().subjectId(), 2, query.size(), query.search(), result.nextBoundary()));
+                actor.principal().subjectId(), 3, query.size(), query.search(), result.nextBoundary()));
         return new Page(result.records(), next, result.exhausted());
     }
 }

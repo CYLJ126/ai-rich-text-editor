@@ -70,11 +70,10 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
             key = new PlatformWorkspaceDto();
             key.setTenantId(after.scope().tenantId());
             key.setId(after.scope().workspaceId());
-            key.setCreatedSec(after.createdAt().getEpochSecond());
-            key.setCreatedNano(after.createdAt().getNano());
+            key.setCreatedAt(PlatformUtcTimes.encode(after.createdAt()));
         }
         var rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1).stream()
-                .map(row -> new WorkspaceCandidateKey(java.time.Instant.ofEpochSecond(row.getCreatedSec(), row.getCreatedNano()),
+                .map(row -> new WorkspaceCandidateKey(PlatformUtcTimes.decode(row.getCreatedAt()),
                         new Scope(row.getTenantId(), row.getId()))).toList();
         boolean more = rows.size() > limit;
         var records = List.copyOf(rows.subList(0, Math.min(limit, rows.size())));

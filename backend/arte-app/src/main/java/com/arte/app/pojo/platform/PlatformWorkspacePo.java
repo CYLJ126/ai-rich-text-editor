@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * 平台工作空间：资源归属、协作和空间策略的边界。
  * 数据库实体，不继承旧 BaseDto；不承担授权或对外接口职责。
@@ -69,26 +71,14 @@ public class PlatformWorkspacePo implements java.io.Serializable {
     private Long authEpoch;
 
     /**
-     * 创建时间的 Unix 秒数，与 created_nano 共同保存完整时间精度；作为不可变分页排序键。
+     * 不可变创建时间，明确按 UTC 映射的 DATETIME(6)，精度为微秒。
      */
-    @TableField(value = "created_sec")
-    private Long createdSec;
+    @TableField(value = "created_at")
+    private LocalDateTime createdAt;
 
     /**
-     * 创建时间的秒内纳秒数，范围 0 至 999999999；作为不可变分页排序键。
+     * 非递减更新时间，明确按 UTC 映射的 DATETIME(6)，允许同一微秒内版本递增。
      */
-    @TableField(value = "created_nano")
-    private Integer createdNano;
-
-    /**
-     * 最后更新时间的 Unix 秒数，与 updated_nano 配对。
-     */
-    @TableField(value = "updated_sec")
-    private Long updatedSec;
-
-    /**
-     * 最后更新时间的秒内纳秒数，范围 0 至 999999999。
-     */
-    @TableField(value = "updated_nano")
-    private Integer updatedNano;
+    @TableField(value = "updated_at")
+    private LocalDateTime updatedAt;
 }

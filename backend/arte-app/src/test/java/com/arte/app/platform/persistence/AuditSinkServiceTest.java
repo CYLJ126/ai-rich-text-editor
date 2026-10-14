@@ -156,7 +156,7 @@ class AuditSinkServiceTest {
 
     private AuditEntry entry(String id, CommandScope scope) {
         return new AuditEntry(id, "stable-subject", scope, "workspace:changed", "operation-id",
-                "调整成员资格", Instant.ofEpochSecond(1791600000L, 123456789));
+                "调整成员资格", Instant.ofEpochSecond(1791600000L, 123456000));
     }
 
     private PlatformAuditMapper insertOnlyMapper(IntSupplier insert) {
@@ -170,7 +170,7 @@ class AuditSinkServiceTest {
     }
 
     private void businessWrite() {
-        jdbc.update("INSERT INTO arte_platform_tenant VALUES('business','name',1,NULL,0,'actor',0,0,123,1,123,1)");
+        jdbc.update("INSERT INTO arte_platform_tenant VALUES('business','name',1,NULL,0,'actor',0,0,'1970-01-01 00:02:03.000001','1970-01-01 00:02:03.000001')");
     }
 
     private void assertNoBusinessCommit() {

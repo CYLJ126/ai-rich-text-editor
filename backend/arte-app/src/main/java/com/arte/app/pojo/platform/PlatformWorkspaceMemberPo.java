@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * 平台空间成员：主体在工作空间内的治理角色和成员资格。
  * 数据库实体，不继承旧 BaseDto；不承担授权或对外接口职责。
@@ -52,16 +54,10 @@ public class PlatformWorkspaceMemberPo implements java.io.Serializable {
     private String subjectDigest;
 
     /**
-     * 关联空间创建时间的 Unix 秒数，不可变；用于成员空间列表分页排序。
+     * 关联空间的不可变创建时间，UTC 微秒；通过联合外键与空间创建键保持一致。
      */
-    @TableField(value = "workspace_created_sec")
-    private Long workspaceCreatedSec;
-
-    /**
-     * 关联空间创建时间的秒内纳秒数，不可变；与 workspace_created_sec 配对。
-     */
-    @TableField(value = "workspace_created_nano")
-    private Integer workspaceCreatedNano;
+    @TableField(value = "workspace_created_at")
+    private LocalDateTime workspaceCreatedAt;
 
     /**
      * 空间治理角色：0 负责人，1 管理员，2 成员，3 访客；不隐式授予私有正文读取权限。

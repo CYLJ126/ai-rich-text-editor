@@ -11,17 +11,14 @@
         <result column="created_by" property="createdBy"/>
         <result column="version" property="version"/>
         <result column="auth_epoch" property="authEpoch"/>
-        <result column="created_sec" property="createdSec"/>
-        <result column="created_nano" property="createdNano"/>
-        <result column="updated_sec" property="updatedSec"/>
-        <result column="updated_nano" property="updatedNano"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
     <resultMap id="candidate" type="com.arte.app.pojo.platform.PlatformWorkspaceDto" autoMapping="false">
         <id column="workspace_id" property="id"/>
         <result column="tenant_id" property="tenantId"/>
-        <result column="workspace_created_sec" property="createdSec"/>
-        <result column="workspace_created_nano" property="createdNano"/>
+        <result column="workspace_created_at" property="createdAt"/>
     </resultMap>
 
     <select id="selectScoped" resultMap="row" useCache="false" flushCache="true">
@@ -31,10 +28,10 @@
 
     <update id="replaceCas">
         UPDATE arte_platform_workspace SET
-        name=#{row.name},description=#{row.description},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_sec=#{row.updatedSec},updated_nano=#{row.updatedNano}
+        name=#{row.name},description=#{row.description},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_at=#{row.updatedAt}
         WHERE tenant_id=#{row.tenantId} AND id=#{row.id} AND version=#{expected} AND created_by=#{row.createdBy} AND
-        created_sec=#{row.createdSec} AND created_nano=#{row.createdNano} AND auth_epoch&lt;=#{row.authEpoch}
-        AND (updated_sec&lt;#{row.updatedSec} OR (updated_sec=#{row.updatedSec} AND updated_nano&lt;=#{row.updatedNano}))
+        created_at=#{row.createdAt} AND auth_epoch&lt;=#{row.authEpoch}
+        AND updated_at&lt;=#{row.updatedAt}
     </update>
 
     <select id="selectScopes" resultMap="row" useCache="false" flushCache="true">
@@ -45,15 +42,14 @@
     </select>
 
     <select id="scanCandidates" resultMap="candidate" useCache="false" flushCache="true">
-        SELECT m.tenant_id,m.workspace_id,m.workspace_created_sec,m.workspace_created_nano FROM
+        SELECT m.tenant_id,m.workspace_id,m.workspace_created_at FROM
         arte_platform_workspace_member m
         WHERE m.subject_digest=#{digest} AND m.subject_id=#{subject}
         <if test="key != null">
-            AND (m.workspace_created_sec&lt;#{key.createdSec} OR (m.workspace_created_sec=#{key.createdSec} AND
-            m.workspace_created_nano&lt;#{key.createdNano})
-            OR (m.workspace_created_sec=#{key.createdSec} AND m.workspace_created_nano=#{key.createdNano} AND
+            AND (m.workspace_created_at&lt;#{key.createdAt}
+            OR (m.workspace_created_at=#{key.createdAt} AND
             (m.tenant_id&gt;#{key.tenantId} OR (m.tenant_id=#{key.tenantId} AND m.workspace_id&gt;#{key.id}))))
         </if>
-        ORDER BY m.workspace_created_sec DESC,m.workspace_created_nano DESC,m.tenant_id,m.workspace_id LIMIT #{limit}
+        ORDER BY m.workspace_created_at DESC,m.tenant_id,m.workspace_id LIMIT #{limit}
     </select>
 </mapper>

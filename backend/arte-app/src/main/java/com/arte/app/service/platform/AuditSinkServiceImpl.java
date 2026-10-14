@@ -5,6 +5,7 @@ import com.arte.app.pojo.platform.PlatformAuditSinkDto;
 import com.arte.core.pojo.platform.AuditEntry;
 import com.arte.core.spi.platform.AuditSink;
 import com.arte.core.spi.platform.PublicTransactionRunner;
+import com.arte.core.utils.platform.PlatformTimePrecision;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,6 +39,7 @@ public class AuditSinkServiceImpl extends ServiceImpl<PlatformAuditMapper, Platf
     public void append(AuditEntry auditEntry) {
         tx.requireActive();
         try {
+            PlatformTimePrecision.requireMicros(auditEntry.occurredAt());
             if (!save(convert(auditEntry))) {
                 throw new IllegalStateException("Mandatory audit entry was not persisted");
             }

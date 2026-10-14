@@ -99,7 +99,8 @@ class PlatformPersistenceIntegrationTest {
                         "arte-platform-identity-ddl-mysql.sql",
                         "arte-platform-workspace-ddl-mysql.sql",
                         "arte-platform-personal-policy-template-ddl-mysql.sql")) {
-            String sql = Files.readString(Path.of("scripts", script));
+            String sql = Files.readString(script.equals("arte-platform-workspace-ddl-mysql.sql")
+                    ? workspaceDdl() : Path.of("scripts", script));
             if (mysql == null)
                 sql =
                         sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
@@ -144,6 +145,10 @@ class PlatformPersistenceIntegrationTest {
         audit = factory.audit();
         facts = factory.facts();
         services = services(provider, outbox, audit);
+    }
+
+    Path workspaceDdl() {
+        return Path.of("scripts", "arte-platform-workspace-ddl-mysql.sql");
     }
 
     DefaultWorkspaceServices services(
@@ -450,8 +455,8 @@ class PlatformPersistenceIntegrationTest {
                                             now.createdBy(),
                                             2,
                                             now.authEpoch(),
-                                            now.createdAt().plusNanos(1),
-                                            now.updatedAt().plusNanos(1)),
+                                            now.createdAt().plusNanos(1000),
+                                            now.updatedAt().plusNanos(1000)),
                                     1));
                     return null;
                 });
@@ -491,13 +496,13 @@ class PlatformPersistenceIntegrationTest {
             gates(scope);
             var tenant = tenants.lock(scope.tenantId()).orElseThrow();
             var changed = new Tenant(tenant.id(), "renamed tenant", tenant.type(), tenant.personalSubjectId(),
-                    tenant.state(), tenant.createdBy(), 1, 1, tenant.createdAt(), tenant.updatedAt().plusNanos(1));
+                    tenant.state(), tenant.createdBy(), 1, 1, tenant.createdAt(), tenant.updatedAt().plusNanos(1000));
             assertTrue(tenants.replace(changed, 0));
             assertFalse(tenants.replace(changed, 0));
             assertFalse(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(),
-                    tenant.state(), tenant.createdBy(), 2, 0, tenant.createdAt(), tenant.updatedAt().plusNanos(2)), 1));
+                    tenant.state(), tenant.createdBy(), 2, 0, tenant.createdAt(), tenant.updatedAt().plusNanos(2000)), 1));
             assertFalse(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), "different-subject",
-                    tenant.state(), tenant.createdBy(), 2, 1, tenant.createdAt(), tenant.updatedAt().plusNanos(2)), 1));
+                    tenant.state(), tenant.createdBy(), 2, 1, tenant.createdAt(), tenant.updatedAt().plusNanos(2000)), 1));
             var tp = policies.findCurrentTenantPolicy(scope.tenantId()).orElseThrow();
             var nextTenantPolicy = new TenantPolicy(tp.tenantId(), tp.rules(), tp.membersMayCreateWorkspace(),
                     tp.policySchemaVersion(), tp.rolePresetVersion(), 1);
@@ -569,7 +574,7 @@ class PlatformPersistenceIntegrationTest {
     }
 
     @Test
-    void keysetScanSurvivesBoundaryDeletionRenameAndNanosecondTimes() {
+    void keysetScanSurvivesBoundaryDeletionRenameAndMicrosecondTimes() {
         var scope = initialize().value().workspace().scope();
         var first =
                 services.workspaces()
@@ -686,7 +691,7 @@ class PlatformPersistenceIntegrationTest {
                         "workspace:changed",
                         1,
                         0,
-                        Instant.now(),
+                        Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS),
                         Map.of("version", "0"));
         tx.required(
                 () -> {
@@ -729,7 +734,7 @@ class PlatformPersistenceIntegrationTest {
     }
 
     @Test
-    void nanosecondScanKeyAndItsForeignKeyRemainExact() {
+    void microsecondTiesUseScopeAndForeignKeyRemainsExact() {
         var scope = initialize().value().workspace().scope();
         long sec = Instant.now().getEpochSecond() + 10;
         var low = new Scope(scope.tenantId(), "nano-low");
@@ -768,7 +773,7 @@ class PlatformPersistenceIntegrationTest {
                     }
                     return null;
                 });
-        assertEquals(123456789, workspaces.find(high).orElseThrow().createdAt().getNano());
+        assertEquals(123456000, workspaces.find(high).orElseThrow().createdAt().getNano());
         var page = workspaces.scanMembershipCandidates(actor.principal().subjectId(), null, 1);
         assertEquals(high, page.records().getFirst().scope());
         assertEquals(
@@ -783,13 +788,13 @@ class PlatformPersistenceIntegrationTest {
                 org.springframework.dao.DataIntegrityViolationException.class,
                 () ->
                         jdbc.update(
-                                "UPDATE arte_platform_workspace_member SET workspace_created_nano=0"
+                                "UPDATE arte_platform_workspace_member SET workspace_created_at='2000-01-01 00:00:00'"
                                         + " WHERE workspace_id=?",
                                 high.workspaceId()));
     }
 
     @Test
-    void timestampsRetainNanosecondsAndPoliciesRetainTypeKeys() {
+    void timestampsRetainMicrosecondsAndPoliciesRetainTypeKeys() {
         var scope = initialize().value().workspace().scope();
         var value = workspaces.find(scope).orElseThrow();
         assertEquals(
@@ -813,13 +818,13 @@ class PlatformPersistenceIntegrationTest {
             gates(scope);
             var workspace = workspaces.find(scope).orElseThrow();
             var tenant = tenants.find(scope.tenantId()).orElseThrow();
-            var later = workspace.updatedAt().plusSeconds(10).plusNanos(123456789);
+            var later = workspace.updatedAt().plusSeconds(10).plusNanos(123456000);
             assertTrue(workspaces.replace(new Workspace(scope, workspace.name(), workspace.description(), workspace.state(),
                     workspace.createdBy(), 1, workspace.authEpoch(), workspace.createdAt(), later), 0));
             assertTrue(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(),
                     tenant.createdBy(), 1, tenant.authEpoch(), tenant.createdAt(), later), 0));
             assertFalse(workspaces.replace(new Workspace(scope, workspace.name(), workspace.description(), workspace.state(),
-                    workspace.createdBy(), 2, workspace.authEpoch(), workspace.createdAt(), later.minusNanos(1)), 1));
+                    workspace.createdBy(), 2, workspace.authEpoch(), workspace.createdAt(), later.minusNanos(1000)), 1));
             assertFalse(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(),
                     tenant.createdBy(), 2, tenant.authEpoch(), tenant.createdAt(), later.minusSeconds(1)), 1));
             assertEquals(later, workspaces.find(scope).orElseThrow().updatedAt());
@@ -940,7 +945,7 @@ class PlatformPersistenceIntegrationTest {
                         "workspace:changed",
                         1,
                         0,
-                        Instant.now(),
+                        Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS),
                         Map.of());
         assertThrows(
                 org.springframework.transaction.UnexpectedRollbackException.class,

@@ -64,7 +64,7 @@ public class PlatformPersistenceConfiguration {
     @Bean
     WorkspaceCursorStore workspaceCursorStore(
             RedissonClient r, PlatformJson j, PlatformPersistenceProperties p) {
-        return new RedisWorkspaceCursorStore(r, j, p.cursorTtl(), p.redisPrefix() + "cursor:v2:");
+        return new RedisWorkspaceCursorStore(r, j, p.cursorTtl(), p.redisPrefix() + "cursor:v3:");
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")

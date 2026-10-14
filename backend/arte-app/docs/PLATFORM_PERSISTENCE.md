@@ -2,7 +2,7 @@
 
 2026-10-14 工作空间目录改造第一批补充了时间策略、更新时间 CAS 防线和专用测量入口；下文原批次装配记录保留。
 最新契约见 [目录改造](WORKSPACE_DIRECTORY_REDESIGN.md)，本机实测与验证限制见
-[基线报告](WORKSPACE_DIRECTORY_BASELINE_2026-10-14.md)。 第二批移除了内部 Redis 续扫和候选空间 JOIN，公开导航使用 Redis v2
+[基线报告](WORKSPACE_DIRECTORY_BASELINE_2026-10-14.md)。 第二批移除了内部 Redis 续扫和候选空间 JOIN，公开导航使用 Redis v3
 状态；配置和测量见
 [第二批交付](WORKSPACE_DIRECTORY_BATCH2_2026-10-14.md)。
 
@@ -17,7 +17,7 @@ HTTP。本持久化配置自身不装配 core 默认应用服务。第 3
 |-----------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
 | TenantStoreServiceImpl／WorkspaceStoreServiceImpl                     | 完整范围、个人关联唯一、治理当前读、版本 CAS、创建事实不可变、索引游标扫描                        |
 | TenantMembershipStoreServiceImpl／WorkspaceMembershipStoreServiceImpl | 两级成员独立存储、范围过滤、成员代次不倒退、版本更新，不实现授权算法                              |
-| PreferenceStoreServiceImpl／PolicyStoreServiceImpl                    | 系统默认关联不可改、结构化政策与收藏；UTC Instant 不丢纳秒                                        |
+| PreferenceStoreServiceImpl／PolicyStoreServiceImpl                    | 系统默认关联不可改、结构化政策与收藏；业务时间使用 UTC 微秒；历史回执保留原始精度                 |
 | WorkspaceAccessFactsStoreServiceImpl                                  | 每批最多 100 个租户／空间，最多 7 次集合查询；不循环调用单项 find，不跨请求缓存                   |
 | CommandReceiptStoreServiceImpl／PlatformJson                          | 长度编码的完整命令身份 SHA-256 唯一键；保存原始身份并核对碰撞；固定 View Schema，无 Java 多态类名 |
 | JdbcPublicTransactionRunner                                           | 同线程同 appDataSource 的 REQUIRED 事务；事务共享状态、挂起／恢复、强制回滚                       |
@@ -53,9 +53,10 @@ ServiceImpl；批量授权事实服务以空间 Mapper 为基础，组合其余 
 core SPI 注入，不通过实现类的继承 CRUD 绕过这些约束。
 
 `pojo.platform` 下的 PO／DTO 精确映射 10 张平台表，DTO 沿用项目继承 PO 的结构，不继承旧 BaseDto。ID 由平台提供，以 INPUT
-写入；枚举按 core 的整数值保存，未知／缺失枚举在转换成 core 值对象时拒绝；JSON 原文保持 String；秒／纳秒保持
-Long／Integer；Outbox 日期使用表示 UTC 的 LocalDateTime。`PlatformRecords` 在 app 中显式转换领域记录与 DTO，保持完整范围和
-Instant 精度，不给 core 引入 MyBatis 注解或基类。
+写入；枚举按 core 的整数值保存，未知／缺失枚举在转换成 core 值对象时拒绝；JSON 原文保持 String；租户／空间创建及更新时间、成员创建键使用明确表示
+UTC 的 LocalDateTime 映射 DATETIME (6)。 审计与 Outbox 的历史秒／纳秒列仍使用 Long／Integer 保真，投递租约日期沿用 UTC
+LocalDateTime。`PlatformRecords` 在 app 中显式转换领域记录与 DTO，保持完整范围和 约定的微秒精度及历史记录原文，不给 core 引入
+MyBatis 注解或基类。
 
 `platform.persistence.mapper` 下的 10 个 Mapper 仅由 PlatformMybatisConfiguration 显式注册，固定绑定物理
 appDataSource，位于旧 Mapper 扫描范围之外。工厂和 SqlSessionTemplate 保存在专用会话容器中，不作为全局同类型 Bean，保留旧
@@ -101,13 +102,13 @@ runner 共享；失败标记实际连接回滚，即使外层捕获异常也不�
 
 ## 性能与可靠投递
 
-- 目录按 `(created_sec DESC, created_nano DESC, tenantId, workspaceId)` 做稳定 keyset 查询；每页仅取 limit+1，最多 101
+- 目录按 `(workspace_created_at DESC, tenant_id ASC, workspace_id ASC)` 做稳定 keyset 查询；每页仅取 limit+1，最多 101
   条。成员记录复制不可变创建键，通过复合外键核对空间事实；索引使用主体摘要缩短索引长度，查询仍绑定原
   subjectId，摘要不参与授权。改名或边界成员记录移除不导致漏扫。
 - 政策规则、收藏、公开回执及事件使用固定结构 JSON；不存模型凭据、文章正文或任意脚本。未知回执 Schema 拒绝，不从存储／客户端提供的类名加载
   Java 类型。
-- 当前秒／纳秒列保持完整 Instant 精度；目标 UTC 微秒契约要求在领域生成时统一精度，DDL 和游标随后协调迁移， 不依赖 DATETIME
-  (6) 隐式舍入。第一批通过 PlatformTimes 和 CAS 条件保证元数据更新时间非递减、回执完成时间不早于受理，
+- 第三批已将租户／空间元数据及成员创建键迁移为 UTC DATETIME (6)，进入模型前统一截断，存储侧校验微秒精度及日期范围。 公开游标升级为
+  v3；历史回执、事件及审计保留原文，不依赖数据库隐式舍入。第一批通过 PlatformTimes 和 CAS 条件保证元数据更新时间非递减、回执完成时间不早于受理，
   事件／审计共用实际观测时间。投递租期仍按数据库时间计算。见 [目录改造契约](WORKSPACE_DIRECTORY_REDESIGN.md)。
 - Outbox 通过就绪时间索引和 FOR UPDATE SKIP LOCKED 分批取租约；取租约事务提交后才访问 Redis，网络访问不持有数据库事务。发布后仅以匹配
   leaseToken 确认；过期的未确认租约可再次领取。
@@ -121,13 +122,15 @@ runner 共享；失败标记实际连接回滚，即使外层捕获异常也不�
 - Mono 取消不是业务命令取消，正在运行的 JDBC 提交结果仍可能不确定；使用原 operationKey 查询或重试，不能改键重发。不会在持事务线程中等待
   Redis 或切换 Reactor 线程。
 
-公共 API 仍要求精确可见 total，默认空间列表服务会扫描所有候选计算可见总数；本批优化分页定位和数据库往返，不宣称目录总数查询已经成为常数成本。授权事实必须按批重读；未来大目录改用不含精确
-total 的公共契约时另行评审。
+旧页码接口及独立计数仍扫描全部候选得到可见数量。交互选择器已使用带扫描预算且不含 total 的浏览接口；授权事实按批重读。
+第三批完整记录见 [微秒迁移及验收](WORKSPACE_DIRECTORY_BATCH3_2026-10-14.md)。
 
 ## 部署
 
 1. 第一批身份功能及旧 AI 主体核对已完成，先部署／执行 `scripts/arte-platform-identity-ddl-mysql.sql`。
 2. 经数据库迁移执行 `scripts/arte-platform-workspace-ddl-mysql.sql`，MySQL 8+／InnoDB；这是新建表脚本，按迁移版本执行一次，不用于覆盖既有库。
+   已有秒／纳秒结构须先停止旧版写入并备份，执行 `scripts/arte-platform-workspace-time-micros-migration-mysql.sql`，随后启动
+   v3 应用；新建表脚本不能用于覆盖旧库。
 3. 所有 app 库连接的会话时区设为 UTC（例如 Druid connection-init-sqls 执行 SET time_zone = '+00:00'），JDBC serverTimezone
    同样设为 UTC。DDL 中的 SET 只影响执行脚本的连接，不能替代连接池设置。
 4. 已配置 Redis 后显式启用持久化；投递需另开 outbox-enabled。当前消费者尚未接入时可以保持投递关闭，事件仍可靠保存在数据库。

@@ -1,6 +1,7 @@
 package com.arte.core.pojo.workspace;
 
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.utils.platform.PlatformTimePrecision;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -15,7 +16,7 @@ import java.util.Objects;
 public record WorkspaceCandidateKey(Instant createdAt, Scope scope) implements Comparable<WorkspaceCandidateKey> {
 
     public WorkspaceCandidateKey {
-        Objects.requireNonNull(createdAt, "createdAt");
+        PlatformTimePrecision.requireMicros(createdAt);
         Objects.requireNonNull(scope, "scope");
     }
 

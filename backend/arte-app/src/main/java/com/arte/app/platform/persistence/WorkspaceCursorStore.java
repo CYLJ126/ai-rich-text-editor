@@ -16,7 +16,7 @@ public interface WorkspaceCursorStore {
      * 公开游标对应的导航状态，构造时校验版本、扫描边界和规范化查询条件。
      *
      * @param subjectId 游标所属认证主体的标识，继续浏览时必须与当前主体一致
-     * @param version   游标结构版本，当前仅支持版本 2
+     * @param version   游标结构版本，当前仅支持版本 3
      * @param size      绑定的单次结果条数上限，范围为 1～100，继续浏览时不可改变
      * @param search    绑定的规范化搜索词，不能为空引用；去除首尾空白后按 Locale.ROOT 转为小写，
      *                  不含控制字符，空字符串表示不筛选名称；允许最多 300 个 UTF-16 代码单元以容纳原始搜索词转小写后的长度增长
@@ -26,7 +26,7 @@ public interface WorkspaceCursorStore {
 
         public Cursor {
             PlatformChecks.id(subjectId, "subjectId");
-            PlatformChecks.require(version == 2 && key != null, "invalid cursor");
+            PlatformChecks.require(version == 3 && key != null, "invalid cursor");
             PlatformChecks.require(size >= 1 && size <= 100 && search != null
                     && search.length() <= 300 && search.equals(search.strip().toLowerCase(java.util.Locale.ROOT))
                     && search.chars().noneMatch(Character::isISOControl), "noncanonical cursor search");

@@ -7,6 +7,7 @@ import com.arte.core.pojo.platform.CommandIdentity;
 import com.arte.core.pojo.platform.StoredCommandReceipt;
 import com.arte.core.spi.platform.CommandReceiptStore;
 import com.arte.core.spi.platform.PublicTransactionRunner;
+import com.arte.core.utils.platform.PlatformTimePrecision;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -125,6 +126,10 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
 
     @Override
     public boolean insertIfAbsent(StoredCommandReceipt value) {
+        // 新回执必须已在领域生成边界规范化；读取和重放历史回执保留原始精度。
+        PlatformTimePrecision.requireMicros(value.receipt().acceptedAt());
+        if (value.receipt().completedAt() != null)
+            PlatformTimePrecision.requireMicros(value.receipt().completedAt());
         boolean inserted = insertRecord(() -> baseMapper.insert(encode(value)));
         if (!inserted) {
             findCurrent(value.identity());

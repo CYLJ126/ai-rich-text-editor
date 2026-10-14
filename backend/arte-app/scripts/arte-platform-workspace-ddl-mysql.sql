@@ -1,6 +1,7 @@
 -- Batch 2: MySQL 8+, InnoDB. Apply identity DDL first, then this file once through deployment migrations.
 -- No automatic DDL or legacy resource backfill. All connections use UTC.
--- created_sec/created_nano preserve Instant precision and immutable keyset order (DATETIME(6) alone loses nanoseconds).
+-- Tenant/workspace times and membership scan keys use UTC DATETIME(6); application truncates new values before persistence.
+-- Historical audit/outbox occurrence pairs retain original nanoseconds; their JSON is not rewritten.
 -- Policy rules, favorites, receipts and events use fixed versioned JSON structures, never executable scripts or Java type names.
 -- IDs use case sensitive utf8mb4_bin; platform identifiers reject leading/trailing whitespace.
 SET NAMES utf8mb4;
@@ -17,12 +18,11 @@ CREATE TABLE arte_platform_tenant
     created_by          varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '创建人稳定主体 ID，仅用于审计，不代表资源归属或权限',
     version             bigint                                                 NOT NULL COMMENT '乐观锁版本号，非负；更新时用于版本比较',
     auth_epoch          bigint                                                 NOT NULL COMMENT '租户授权变更代次，非负；用于使旧授权缓存失效',
-    created_sec         bigint                                                 NOT NULL COMMENT '创建时间的 Unix 秒数，与 created_nano 共同保存完整时间精度',
-    created_nano        int                                                    NOT NULL COMMENT '创建时间的秒内纳秒数，范围 0 至 999999999',
-    updated_sec         bigint                                                 NOT NULL COMMENT '最后更新时间的 Unix 秒数，与 updated_nano 配对',
-    updated_nano        int                                                    NOT NULL COMMENT '最后更新时间的秒内纳秒数，范围 0 至 999999999',
+    created_at datetime(6) NOT NULL COMMENT 'UTC 微秒创建时间；应用写入前统一截断',
+    updated_at datetime(6) NOT NULL COMMENT 'UTC 微秒更新时间；应用写入前统一截断',
     PRIMARY KEY (id),
     UNIQUE KEY uk_platform_personal_tenant(personal_subject_id),
+    CONSTRAINT ck_platform_tenant_time CHECK (updated_at >= created_at),
     CHECK (version >= 0 AND auth_epoch >= 0),
     CHECK ((type = 0 AND personal_subject_id IS NOT NULL) OR (type = 1 AND personal_subject_id IS NULL)),
     FOREIGN KEY (personal_subject_id) REFERENCES arte_platform_principal_identity (subject_id)
@@ -38,16 +38,14 @@ CREATE TABLE arte_platform_workspace
     created_by   varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '创建人稳定主体 ID，仅用于审计，不代表资源归属或权限',
     version      bigint                                                 NOT NULL COMMENT '乐观锁版本号，非负；更新时用于版本比较',
     auth_epoch   bigint                                                 NOT NULL COMMENT '空间授权变更代次，非负；用于使旧授权缓存失效',
-    created_sec  bigint                                                 NOT NULL COMMENT '创建时间的 Unix 秒数，与 created_nano 共同保存完整时间精度；作为不可变分页排序键',
-    created_nano int                                                    NOT NULL COMMENT '创建时间的秒内纳秒数，范围 0 至 999999999；作为不可变分页排序键',
-    updated_sec  bigint                                                 NOT NULL COMMENT '最后更新时间的 Unix 秒数，与 updated_nano 配对',
-    updated_nano int                                                    NOT NULL COMMENT '最后更新时间的秒内纳秒数，范围 0 至 999999999',
+    created_at datetime(6) NOT NULL COMMENT 'UTC 微秒创建时间；应用写入前统一截断',
+    updated_at datetime(6) NOT NULL COMMENT 'UTC 微秒更新时间；应用写入前统一截断',
     PRIMARY KEY (id),
     UNIQUE KEY uk_platform_workspace_scope(tenant_id,id),
-    UNIQUE KEY uk_platform_workspace_scan_key(tenant_id,id,created_sec,created_nano),
-    KEY          ix_platform_workspace_scan(created_sec DESC,created_nano DESC,tenant_id,id),
+    UNIQUE KEY uk_platform_workspace_created_at(tenant_id,id,created_at),
+    KEY        ix_platform_workspace_scan(created_at DESC,tenant_id,id),
     CHECK (version >= 0 AND auth_epoch >= 0),
-    CHECK (created_nano >= 0 AND created_nano < 1000000000 AND updated_nano >= 0 AND updated_nano < 1000000000),
+    CONSTRAINT ck_platform_workspace_time CHECK (updated_at >= created_at),
     FOREIGN KEY (tenant_id) REFERENCES arte_platform_tenant (id)
 ) ENGINE=InnoDB COMMENT='平台工作空间：资源归属、协作和空间策略的边界';
 
@@ -75,8 +73,7 @@ CREATE TABLE arte_platform_workspace_member
     workspace_id           varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '所属工作空间 ID，与租户 ID 共同确定空间范围',
     subject_id             varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '稳定主体 ID，关联平台身份，不使用可变登录名',
     subject_digest         char(64) CHARACTER SET ascii COLLATE ascii_bin         NOT NULL COMMENT '主体 ID 的 SHA-256 十六进制摘要，仅用于缩短导航索引；鉴权仍核对原主体 ID',
-    workspace_created_sec  bigint                                                 NOT NULL COMMENT '关联空间创建时间的 Unix 秒数，不可变；用于成员空间列表分页排序',
-    workspace_created_nano int                                                    NOT NULL COMMENT '关联空间创建时间的秒内纳秒数，不可变；与 workspace_created_sec 配对',
+    workspace_created_at datetime(6) NOT NULL COMMENT '关联空间的不可变 UTC 微秒创建时间；联合外键保证扫描键一致',
     role                   int                                                    NOT NULL COMMENT '空间治理角色：0 负责人，1 管理员，2 成员，3 访客；不隐式授予私有正文读取权限',
     state                  int                                                    NOT NULL COMMENT '成员状态：0 有效，1 已撤销；撤销后保留成员记录',
     generation             bigint                                                 NOT NULL COMMENT '成员资格代次，非负；重新加入时递增，防止旧授权恢复生效',
@@ -84,13 +81,13 @@ CREATE TABLE arte_platform_workspace_member
     PRIMARY KEY (id),
     UNIQUE KEY uk_platform_workspace_member(tenant_id,workspace_id,subject_id),
     KEY                    ix_platform_workspace_member_subject(subject_id,tenant_id,workspace_id),
-    KEY                    ix_platform_workspace_member_scan(subject_digest,workspace_created_sec DESC,workspace_created_nano DESC,tenant_id,workspace_id),
+    KEY                  ix_platform_workspace_member_scan(subject_digest,workspace_created_at DESC,tenant_id,workspace_id),
     CHECK (version >= 0 AND generation >= 0),
     FOREIGN KEY (subject_id) REFERENCES arte_platform_principal_identity (subject_id),
     FOREIGN KEY (tenant_id) REFERENCES arte_platform_tenant (id),
     FOREIGN KEY (tenant_id, workspace_id) REFERENCES arte_platform_workspace (tenant_id, id),
-    FOREIGN KEY (tenant_id, workspace_id, workspace_created_sec,
-                 workspace_created_nano) REFERENCES arte_platform_workspace (tenant_id, id, created_sec, created_nano),
+    CONSTRAINT fk_platform_workspace_member_created_at FOREIGN KEY (tenant_id, workspace_id, workspace_created_at)
+        REFERENCES arte_platform_workspace (tenant_id, id, created_at),
     FOREIGN KEY (tenant_id, subject_id) REFERENCES arte_platform_tenant_member (tenant_id, subject_id)
 ) ENGINE=InnoDB COMMENT='平台空间成员：主体在工作空间内的治理角色和成员资格';
 

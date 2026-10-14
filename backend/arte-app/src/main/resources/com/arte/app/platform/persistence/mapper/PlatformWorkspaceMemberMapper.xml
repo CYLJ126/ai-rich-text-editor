@@ -7,8 +7,7 @@
         <result column="workspace_id" property="workspaceId"/>
         <result column="subject_id" property="subjectId"/>
         <result column="subject_digest" property="subjectDigest"/>
-        <result column="workspace_created_sec" property="workspaceCreatedSec"/>
-        <result column="workspace_created_nano" property="workspaceCreatedNano"/>
+        <result column="workspace_created_at" property="workspaceCreatedAt"/>
         <result column="role" property="role" javaType="com.arte.core.enums.workspace.WorkspaceRoleEnum"
                 typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
         <result column="state" property="state" javaType="com.arte.core.enums.workspace.MembershipStateEnum"
@@ -47,9 +46,9 @@
 
     <insert id="insertFromWorkspace">
         INSERT INTO
-        arte_platform_workspace_member(id,tenant_id,workspace_id,subject_id,subject_digest,workspace_created_sec,workspace_created_nano,role,state,generation,version)
+        arte_platform_workspace_member(id,tenant_id,workspace_id,subject_id,subject_digest,workspace_created_at,role,state,generation,version)
         SELECT
-        #{row.id},tenant_id,id,#{row.subjectId},#{row.subjectDigest},created_sec,created_nano,#{row.role},#{row.state},#{row.generation},#{row.version}
+        #{row.id},tenant_id,id,#{row.subjectId},#{row.subjectDigest},created_at,#{row.role},#{row.state},#{row.generation},#{row.version}
         FROM arte_platform_workspace WHERE tenant_id=#{row.tenantId} AND id=#{row.workspaceId}
     </insert>
 

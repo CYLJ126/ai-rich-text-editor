@@ -133,7 +133,7 @@ class PlatformMybatisConfigurationTest {
     }
 
     @Test
-    void enumNanosecondAndNullableLeaseMappingsRoundTrip() {
+    void enumMicrosecondAndNullableLeaseMappingsRoundTrip() {
         runner.run(context -> {
             var tenants = context.getBean(PlatformTenantMapper.class);
             var value = tenant("precision", "precision");
@@ -165,7 +165,7 @@ class PlatformMybatisConfigurationTest {
     void compositePolicyLookupAlwaysIncludesTenantAndWorkspace() {
         runner.run(context -> {
             var jdbc = new JdbcTemplate(context.getBean("appDataSource", DataSource.class));
-            jdbc.update("INSERT INTO arte_platform_workspace VALUES('tenant','space','name','',0,'actor',0,0,123,1,123,1)");
+            jdbc.update("INSERT INTO arte_platform_workspace VALUES('tenant','space','name','',0,'actor',0,0,'1970-01-01 00:02:03.000001','1970-01-01 00:02:03.000001')");
             jdbc.update("INSERT INTO arte_platform_workspace_policy VALUES('tenant','space','{}',1,1,0)");
             var mapper = context.getBean(PlatformWorkspacePolicyMapper.class);
             var policy = mapper.selectByScope("tenant", "space");
@@ -212,10 +212,8 @@ class PlatformMybatisConfigurationTest {
         value.setCreatedBy("actor");
         value.setVersion(0L);
         value.setAuthEpoch(0L);
-        value.setCreatedSec(123L);
-        value.setCreatedNano(123456789);
-        value.setUpdatedSec(123L);
-        value.setUpdatedNano(987654321);
+        value.setCreatedAt(LocalDateTime.of(2026, 10, 14, 1, 2, 3, 123456000));
+        value.setUpdatedAt(LocalDateTime.of(2026, 10, 14, 1, 2, 3, 987654000));
         return value;
     }
 
@@ -250,7 +248,7 @@ class PlatformMybatisConfigurationTest {
                     ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
                 }
             }
-            new JdbcTemplate(source).update("INSERT INTO arte_platform_tenant VALUES('tenant',?,1,NULL,0,'actor',0,0,123,1,123,1)", name);
+            new JdbcTemplate(source).update("INSERT INTO arte_platform_tenant VALUES('tenant',?,1,NULL,0,'actor',0,0,'1970-01-01 00:02:03.000001','1970-01-01 00:02:03.000001')", name);
             return source;
         }
     }

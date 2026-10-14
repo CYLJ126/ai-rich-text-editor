@@ -38,7 +38,7 @@ public final class WorkspaceMutationEffects {
                        Map<String, String> attributes) {
         Map<String, String> metadata = new HashMap<>(attributes);
         metadata.put("operationId", operationId);
-        var observedAt = PlatformTimes.observedNow(clock);
+        var observedAt = PlatformTimes.businessNow(clock);
         outbox.append(new PublicEvent(ids.nextId(), scope, action, 1, version, observedAt, metadata));
         audit.append(new AuditEntry(ids.nextId(), actor.principal().subjectId(), scope, action, operationId, "", observedAt));
     }

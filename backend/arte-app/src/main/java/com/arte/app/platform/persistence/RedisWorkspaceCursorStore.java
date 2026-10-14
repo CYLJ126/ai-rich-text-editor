@@ -7,6 +7,7 @@ import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -52,7 +53,7 @@ public final class RedisWorkspaceCursorStore implements WorkspaceCursorStore {
         if (value == null)
             throw new PlatformException(PlatformErrorCodeEnum.CURSOR_EXPIRED, "workspace-cursor");
         try {
-            return java.util.Objects.requireNonNull(json.read(value, Cursor.class));
+            return Objects.requireNonNull(json.read(value, Cursor.class));
         } catch (RuntimeException failure) {
             throw new PlatformException(PlatformErrorCodeEnum.CURSOR_EXPIRED, "workspace-cursor");
         }

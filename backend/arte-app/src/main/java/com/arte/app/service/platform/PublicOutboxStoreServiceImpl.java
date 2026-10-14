@@ -7,6 +7,7 @@ import com.arte.app.pojo.platform.PlatformOutboxDto;
 import com.arte.core.pojo.platform.PublicEvent;
 import com.arte.core.spi.platform.PublicOutboxStore;
 import com.arte.core.spi.platform.PublicTransactionRunner;
+import com.arte.core.utils.platform.PlatformTimePrecision;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class PublicOutboxStoreServiceImpl extends PlatformStoreSupport<PlatformO
     public void append(PublicEvent event) {
         tx.requireActive();
         try {
+            PlatformTimePrecision.requireMicros(event.occurredAt());
             var row = new PlatformOutboxDto();
             row.setId(event.id());
             row.setEventType(event.eventType());

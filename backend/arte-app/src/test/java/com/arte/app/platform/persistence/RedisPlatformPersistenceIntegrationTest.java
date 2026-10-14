@@ -1,6 +1,14 @@
 package com.arte.app.platform.persistence;
 
+import com.arte.app.platform.workspace.WorkspaceDirectoryBrowser;
+import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.enums.platform.PrincipalKindEnum;
+import com.arte.core.enums.platform.PrincipalStatusEnum;
+import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.pojo.platform.Principal;
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.workspace.WorkspaceBrowseQuery;
 import com.arte.core.pojo.workspace.WorkspaceCandidateKey;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +23,7 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -144,35 +153,43 @@ class RedisPlatformPersistenceIntegrationTest {
                         first,
                         fixture.json,
                         properties.cursorTtl(),
-                        properties.redisPrefix() + "cursor:");
+                        properties.redisPrefix() + "cursor:v3:");
         var b =
                 new RedisWorkspaceCursorStore(
                         second,
                         fixture.json,
                         properties.cursorTtl(),
-                        properties.redisPrefix() + "cursor:");
+                        properties.redisPrefix() + "cursor:v3:");
         Scope scope =
                 fixture.preferences
                         .find(fixture.actor.principal().subjectId())
                         .orElseThrow()
                         .defaultScope();
-        var cursor =
-                new WorkspaceCursorStore.Cursor(
-                        fixture.actor.principal().subjectId(), 2, 20, "",
-                        WorkspaceCandidateKey.from(fixture.workspaces.find(scope).orElseThrow()));
+        var cursor = new WorkspaceCursorStore.Cursor(fixture.actor.principal().subjectId(), 3, 20, "",
+                WorkspaceCandidateKey.from(fixture.workspaces.find(scope).orElseThrow()));
         String token = a.save(cursor);
         assertEquals(cursor, b.load(token));
-        var browser = new com.arte.app.platform.workspace.WorkspaceDirectoryBrowser(fixture.services.workspaces(), b);
+        String oldToken = UUID.randomUUID().toString();
+        first.getBucket(properties.redisPrefix() + "cursor:v2:" + oldToken, StringCodec.INSTANCE)
+                .set(fixture.json.write(cursor).replace("\"version\":3", "\"version\":2"), properties.cursorTtl());
+        assertEquals(PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(PlatformException.class, () -> b.load(oldToken)).getCode());
+        // 即使旧状态误放在新前缀，也必须按结构版本拒绝。
+        first.getBucket(properties.redisPrefix() + "cursor:v3:" + oldToken, StringCodec.INSTANCE)
+                .set(fixture.json.write(cursor).replace("\"version\":3", "\"version\":2"), properties.cursorTtl());
+        assertEquals(PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(PlatformException.class, () -> b.load(oldToken)).getCode());
+        var browser = new WorkspaceDirectoryBrowser(fixture.services.workspaces(), b);
         assertThrows(IllegalArgumentException.class, () -> browser.browse(fixture.actor, token,
-                new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(10, "")));
-        var stranger = new com.arte.core.pojo.platform.TrustedActor(new com.arte.core.pojo.platform.Principal("stranger",
-                com.arte.core.enums.platform.PrincipalKindEnum.USER, com.arte.core.enums.platform.PrincipalStatusEnum.ACTIVE),
-                java.time.Instant.now());
+                new WorkspaceBrowseQuery(10, "")));
+        var stranger = new TrustedActor(new Principal("stranger",
+                PrincipalKindEnum.USER, PrincipalStatusEnum.ACTIVE),
+                Instant.now());
         assertThrows(IllegalArgumentException.class, () -> browser.browse(stranger, token,
-                new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, "")));
-        assertTrue(browser.browse(fixture.actor, token, new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, "")).exhausted());
-        first.getBucket(properties.redisPrefix() + "cursor:" + token).delete();
-        assertEquals(com.arte.core.enums.platform.PlatformErrorCodeEnum.CURSOR_EXPIRED,
-                assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> b.load(token)).getCode());
+                new WorkspaceBrowseQuery(20, "")));
+        assertTrue(browser.browse(fixture.actor, token, new WorkspaceBrowseQuery(20, "")).exhausted());
+        first.getBucket(properties.redisPrefix() + "cursor:v3:" + token).delete();
+        assertEquals(PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(PlatformException.class, () -> b.load(token)).getCode());
     }
 }
