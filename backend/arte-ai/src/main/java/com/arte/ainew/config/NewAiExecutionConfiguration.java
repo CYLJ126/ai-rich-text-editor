@@ -79,7 +79,8 @@ public class NewAiExecutionConfiguration {
 
     @Bean("newAiExecutionEventBroadcast")
     ExecutionEventBroadcast broadcast(NewAiEventProperties properties, LocalExecutionEventNotifier notifier,
-                                      ObjectProvider<RedissonClient> redis, NewAiExecutionProperties execution, LiveTextNotifier liveText) {
+                                      ObjectProvider<RedissonClient> redis, NewAiExecutionProperties execution, LiveTextNotifier liveText,
+                                      LocalDispatchNotifier dispatchNotifier) {
         if (properties.transport() == NewAiEventProperties.Transport.LOCAL) {
             return message -> Mono.fromRunnable(() -> notifier.publish(message));
         }
@@ -89,7 +90,7 @@ public class NewAiExecutionConfiguration {
         if (client == null) {
             throw new IllegalStateException("Redis event transport requires the existing RedissonClient bean");
         }
-        return new RedisExecutionEventBroadcast(client, notifier, properties, liveText);
+        return new RedisExecutionEventBroadcast(client, notifier, properties, liveText, dispatchNotifier);
     }
 
     @Bean("newAiLiveTextPublisher")
@@ -105,7 +106,17 @@ public class NewAiExecutionConfiguration {
 
     @Bean("newAiInvocationDispatchWorker")
     InvocationDispatchWorker worker(MybatisExecutionPersistence executions, InvocationCoordinator coordinator,
-                                    NewAiExecutionProperties properties, @Qualifier("newAiWorkerScheduler") Scheduler scheduler) {
-        return new InvocationDispatchWorker(executions, executions, coordinator, properties, scheduler);
+                                    NewAiExecutionProperties properties, @Qualifier("newAiWorkerScheduler") Scheduler scheduler,
+                                    LocalDispatchNotifier notifier) {
+        return new InvocationDispatchWorker(executions, executions, coordinator, properties, scheduler, notifier);
+    }
+
+    /**
+     * 仅受理节点也广播提交提示；Worker 在远端仍通过数据库领取。
+     */
+    @Bean("newAiDispatchWakeupPublisher")
+    DispatchWakeupPublisher dispatchWakeupPublisher(LocalDispatchNotifier notifier, ExecutionEventBroadcast broadcast,
+                                                    @Qualifier("newAiWorkerScheduler") Scheduler scheduler) {
+        return new DispatchWakeupPublisher(notifier, broadcast, scheduler);
     }
 }

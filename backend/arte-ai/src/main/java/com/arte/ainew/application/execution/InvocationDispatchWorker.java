@@ -11,6 +11,7 @@ import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -37,11 +38,19 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
     private final Scheduler scheduler;
     private final String workerId = "dispatch-" + UUID.randomUUID();
     private final AtomicBoolean polling = new AtomicBoolean();
-    private volatile Disposable loop;
+    private final LocalDispatchNotifier notifier;
+    private volatile Run current;
     private volatile boolean running;
 
     public InvocationDispatchWorker(ExecutionOutboxStore executionOutboxStore, ExecutionStore executionStore,
                                     InvocationCoordinator invocationCoordinator, NewAiExecutionProperties newAiExecutionProperties, Scheduler scheduler) {
+        this(executionOutboxStore, executionStore, invocationCoordinator, newAiExecutionProperties, scheduler, new LocalDispatchNotifier());
+    }
+
+    public InvocationDispatchWorker(ExecutionOutboxStore executionOutboxStore, ExecutionStore executionStore,
+                                    InvocationCoordinator invocationCoordinator, NewAiExecutionProperties newAiExecutionProperties,
+                                    Scheduler scheduler, LocalDispatchNotifier notifier) {
+        this.notifier = notifier;
         this.executionOutboxStore = executionOutboxStore;
         this.executionStore = executionStore;
         this.invocationCoordinator = invocationCoordinator;
@@ -50,12 +59,13 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
     }
 
     /**
-     * 每批只领取可立即执行的数量；同实例手动轮询不叠加，跨实例归属仍由数据库仲裁。
+     * 手动处理一批，只领取可立即执行的数量；自动运行或已有手动批次时返回 0。
+     * 自动运行按槽位持续补充，手动批次保留完成后返回计数的兼容语义；跨实例归属仍由数据库仲裁。
      */
     public Mono<Integer> pollOnce() {
         return Mono.defer(() -> {
-            if (!polling.compareAndSet(false, true)) {
-                return Mono.just(0);
+            synchronized (this) {
+                if (running || !polling.compareAndSet(false, true)) return Mono.just(0);
             }
             return executionOutboxStore.claim(OutboxMessage.Kind.DISPATCH, workerId, newAiExecutionProperties.outboxLease(), newAiExecutionProperties.concurrency())
                     .doOnNext(messages -> {
@@ -65,7 +75,10 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                     .flatMapMany(Flux::fromIterable)
                     .flatMap(message -> process(message).thenReturn(1), newAiExecutionProperties.concurrency(), 1)
                     .reduce(0, Integer::sum)
-                    .doFinally(ignored -> polling.set(false));
+                    .doFinally(ignored -> {
+                        polling.set(false);
+                        if (running) notifier.wakeWorker();
+                    });
         });
     }
 
@@ -105,31 +118,99 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                 });
     }
 
+    /**
+     * 自动运行按空闲槽位领取；提交、完成和统一恢复定时器均只发检查提示。
+     */
     @Override
     public synchronized void start() {
-        if (running) {
-            return;
-        }
+        if (running) return;
         running = true;
-        log.info("AI dispatch worker started, workerId={}, concurrency={}, pollInterval={}, outboxLease={}",
+        var run = new Run();
+        current = run;
+        log.info("AI dispatch worker started, workerId={}, concurrency={}, recoveryInterval={}, outboxLease={}",
                 workerId, newAiExecutionProperties.concurrency(), newAiExecutionProperties.pollInterval(), newAiExecutionProperties.outboxLease());
-        loop = Mono.defer(() -> pollOnce().onErrorResume(error -> {
-                    log.warn("AI dispatch outbox polling failed, workerId={}, type={}", workerId, error.getClass().getName());
-                    return Mono.just(0);
-                })).then(Mono.delay(newAiExecutionProperties.pollInterval(), scheduler))
-                .repeat().subscribe(ignored -> {
+        run.loop = Flux.merge(notifier.wakeups(), Flux.interval(newAiExecutionProperties.pollInterval(), scheduler))
+                .onBackpressureLatest().publishOn(scheduler, 1)
+                // 只串行领取，任务独立订阅；长任务不会阻塞下一次补充槽位。
+                .concatMap(ignored -> run.refill(), 1)
+                .subscribe(ignored -> {
                 }, error -> {
-                    running = false;
+                    synchronized (this) {
+                        if (current == run) {
+                            running = false;
+                            run.tasks.dispose();
+                        }
+                    }
                     log.error("AI dispatch worker loop stopped unexpectedly, workerId={}, type={}", workerId, error.getClass().getName());
                 });
+    }
+
+    /**
+     * 单次启动拥有独立的计数与订阅，旧启动的完成回调不得影响重启后的槽位。
+     */
+    private final class Run {
+        private final Disposable.Composite tasks = Disposables.composite();
+        private Disposable loop;
+        // 计数变更及启动/停止与领取结果交接由外部对象监视器保护。
+        private int active;
+
+        private boolean live() {
+            return running && current == this;
+        }
+
+        private Mono<Integer> refill() {
+            return Mono.defer(() -> {
+                int free;
+                synchronized (InvocationDispatchWorker.this) {
+                    if (!live() || polling.get()) return Mono.just(0);
+                    free = newAiExecutionProperties.concurrency() - active;
+                }
+                if (free == 0) return Mono.just(0);
+                long started = System.nanoTime();
+                return executionOutboxStore.claim(OutboxMessage.Kind.DISPATCH, workerId,
+                                newAiExecutionProperties.outboxLease(), free)
+                        .map(messages -> {
+                            synchronized (InvocationDispatchWorker.this) {
+                                // 停止后才完成的领取不启动工作，未确认记录由租约恢复。
+                                if (!live()) return 0;
+                                for (var message : messages) launch(message);
+                                if (!messages.isEmpty())
+                                    log.debug("AI dispatch slots filled, workerId={}, claimed={}, active={}, claimMs={}",
+                                            workerId, messages.size(), active, (System.nanoTime() - started) / 1_000_000);
+                                return messages.size();
+                            }
+                        });
+            }).onErrorResume(error -> {
+                log.warn("AI dispatch outbox recovery scan failed, workerId={}, type={}", workerId, error.getClass().getName());
+                return Mono.just(0);
+            });
+        }
+
+        private void launch(OutboxMessage message) {
+            active++;
+            // 先登记占位句柄，兼容同步完成及 stop 与 subscribe 交错；已完成句柄及时移除。
+            Disposable.Swap slot = Disposables.swap();
+            tasks.add(slot);
+            slot.update(Mono.defer(() -> process(message)).doFinally(ignored -> {
+                synchronized (InvocationDispatchWorker.this) {
+                    tasks.remove(slot);
+                    slot.dispose();
+                    active--;
+                    if (live()) notifier.wakeWorker();
+                }
+            }).subscribe());
+        }
     }
 
     @Override
     public synchronized void stop() {
         if (running) log.info("AI dispatch worker stopping, workerId={}", workerId);
         running = false;
-        if (loop != null) {
-            loop.dispose();
+        var run = current;
+        current = null;
+        if (run != null) {
+            if (run.loop != null) run.loop.dispose();
+            run.tasks.dispose();
         }
     }
 

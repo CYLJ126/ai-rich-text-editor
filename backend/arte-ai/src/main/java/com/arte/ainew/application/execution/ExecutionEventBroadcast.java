@@ -21,4 +21,11 @@ public interface ExecutionEventBroadcast {
     default Mono<Void> publishText(LiveTextDelta delta) {
         return Mono.empty();
     }
+
+    /**
+     * 无任务内容的派发检查提示；不等待消费者领取，不作为发送许可，LOCAL 实现无需广播。
+     */
+    default Mono<Void> publishDispatchWakeup() {
+        return Mono.empty();
+    }
 }

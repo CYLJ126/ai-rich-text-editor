@@ -9,6 +9,7 @@ import java.time.Duration;
 
 /**
  * 第 5～6 步独立开关；默认不启动 Worker，不创建账户、不执行 DDL。
+ * pollInterval 是统一恢复扫描周期，兜底遗漏提示、延后任务及过期领取；正常提交和空闲槽位由提示即时驱动。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 16:14 ✾

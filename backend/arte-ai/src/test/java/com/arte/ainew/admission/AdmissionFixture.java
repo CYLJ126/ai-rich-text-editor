@@ -126,13 +126,19 @@ final class AdmissionFixture {
     }
 
     AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, NewAiProperties properties, Runnable wakeup) {
+        this(dataSource, scheduler, codec, properties, wakeup, () -> {
+        });
+    }
+
+    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, NewAiProperties properties,
+                     Runnable wakeup, Runnable dispatchWakeup) {
         this.properties = properties;
         this.codec = codec;
         var clock = Clock.systemUTC();
         var resolver = new FixedExecutionAuthorizationResolver(properties);
         var authorization = new AdmissionAuthorization(resolver, properties, clock);
         factory = new ExecutionContextFactory(resolver, clock);
-        executions = new MybatisExecutionPersistence(dataSource, codec, scheduler, wakeup);
+        executions = new MybatisExecutionPersistence(dataSource, codec, scheduler, wakeup, dispatchWakeup);
         payloads = new MybatisPayloadPersistence(dataSource, codec, scheduler);
         catalog = new FixedControlCatalog(properties, authorization, clock);
         budgets = new BudgetAccountInitializer(catalog, authorization, executions, executions);

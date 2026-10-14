@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-14",
+  "environment": "isolated H2 in MySQL mode, real JDBC/MyBatis admission and Outbox stores, controlled coordinator for scheduling; local fake HTTP/SSE for dispatch and settlement; fake Redisson Topic for cross-node hint protocol",
+  "real_provider_called": false,
+  "running_service_restarted": false,
+  "real_redis_transport_verified": false,
+  "real_mysql_lock_competition_verified": false,
+  "end_to_end_first_text_sla_verified": false,
+  "timing_sample": {
+    "recovery_interval_ms": 60000,
+    "concurrency": 2,
+    "submit_to_controlled_dispatch_ms": 20,
+    "after_commit_to_controlled_dispatch_ms": 2,
+    "short_task_completion_to_next_controlled_dispatch_ms": 1,
+    "sample_count_per_scenario": 1,
+    "limits": "One isolated H2 sample, not percentiles, provider first text, Redis network latency or browser TTFT; scheduling assertions use a 10 second bound before the configured 60 second recovery timer"
+  },
+  "sql_regression": {
+    "chat_submission": 77,
+    "dispatch_before_mock_text": 105,
+    "dispatch_before_mock_text_commits": 7,
+    "stable_send_revalidation": 18
+  },
+  "regression": {
+    "arte-core": {
+      "tests": 159,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suites": 12
+    },
+    "arte-ai": {
+      "tests": 322,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4,
+      "suites": 29
+    },
+    "arte-app": {
+      "tests": 155,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "suites": 20
+    }
+  },
+  "regression_total": {
+    "tests": 636,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 13,
+    "passed": 623
+  },
+  "skipped_tests": [
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisHintsAreOwnerIsolatedAndInvalidHintsAreSafe",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisBroadcastReachesAnotherInstanceAndReconnectReplaysAcknowledgedEvents",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisLiveTextReachesAuthorizedRemoteWatcherWithoutEventOutbox",
+    "com.arte.ainew.admission.ExecutionAssemblyTest.redisHttpOnlyNodeAutomaticallySubscribesWithoutDatabaseAccess",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.cursorIsSharedAcrossInstancesAndBindsStableSubject",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.independentClientsPublishOnceAndKeepDatabaseLedger",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisFailureLeavesEventsPendingForRecovery",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisCoordinationCannotBypassDatabaseLease",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.migrationPreservesDataHistoryAndStableScanAcrossTruncationTies",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.utcMappingDoesNotDependOnJvmOrDatabaseSessionTimeZone",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.partiallyAddedColumnsCanBeRecoveredWithoutChangingRecordCounts",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.invalidLegacyTimeIsRejectedBeforeAnyColumnConversion",
+    "com.arte.app.platform.persistence.WorkspaceDirectoryBaselineTest.recordDirectoryBaseline"
+  ],
+  "regression_selection": "com.arte.ainew.**.*Test excluding com.arte.ainew.admission.ProfileConfigurationTest; public access/workspace and app platform identity/persistence/workspace tests, workspace-baseline profile",
+  "source_revision_at_batch3_start": "31bab00a8b7b70d727fd91baa49554d2294951ab",
+  "build": {
+    "jdk": "21.0.8",
+    "command": "mvn -Pworkspace-baseline -pl arte-app -am -DskipTests package",
+    "exit_code": 0
+  },
+  "deployment": {
+    "local_hints": "same process only",
+    "remote_immediate_hints": "existing REDIS event transport with same channel and RedissonClient; HTTP-only nodes publish even when worker-enabled=false",
+    "recovery_poll_interval": "unchanged, default 1 second, never waits for all current tasks to finish",
+    "delayed_tasks": "database due time is preserved; later scans or hints claim eligible work"
+  },
+  "remaining_work": [
+    "real deployment application/database RTT and HTTP hot connections",
+    "SSE establishment and browser paint",
+    "end-to-end first text target verification"
+  ]
+}

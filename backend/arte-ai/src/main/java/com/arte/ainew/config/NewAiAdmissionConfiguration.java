@@ -16,6 +16,7 @@ import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
+import com.arte.ainew.application.execution.LocalDispatchNotifier;
 import com.arte.ainew.application.execution.LocalExecutionEventNotifier;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -99,14 +100,24 @@ public class NewAiAdmissionConfiguration {
     }
 
     /**
+     * 派发提交提示通道，单独装配时不访问数据库、不启动 Worker。
+     */
+    @Bean("newAiLocalDispatchNotifier")
+    LocalDispatchNotifier dispatchNotifier() {
+        return new LocalDispatchNotifier();
+    }
+
+    /**
      * 执行权威存储，同时提供 ExecutionStore、ExecutionEventStore、ExecutionOutboxStore、
      * AdmissionCatalogStore 和 BudgetService，负责受理、执行状态、事件、Outbox 及账本事务。
      * 按配置名称取得物理数据源，使用独立 MyBatis 工厂和专用调度器，不继承旧 Mapper 插件。
      */
     @Bean("newAiExecutionPersistence")
     MybatisExecutionPersistence executionPersistence(NewAiProperties properties, ListableBeanFactory beans,
-                                                     ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, LocalExecutionEventNotifier notifier) {
-        return new MybatisExecutionPersistence(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, notifier::wakePublisher);
+                                                     ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                                     LocalExecutionEventNotifier notifier, LocalDispatchNotifier dispatchNotifier) {
+        return new MybatisExecutionPersistence(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler,
+                notifier::wakePublisher, dispatchNotifier::committed);
     }
 
     /**

@@ -34,6 +34,11 @@ import java.util.concurrent.CompletionStage;
  */
 @Slf4j
 public final class RedisExecutionEventBroadcast implements ExecutionEventBroadcast, SmartLifecycle {
+    /**
+     * 常量检查提示，不含归属、正文或任务身份；接收端只能重新领取数据库记录。
+     */
+    private static final String DISPATCH_WAKEUP = "arte:ai-new:dispatch-wakeup:v1";
+    private final LocalDispatchNotifier dispatchNotifier;
 
     /**
      * 通知 JSON 的长度上限，按 String.length() 的 UTF-16 字符单元计数；发送与接收均检查，不是字节数上限。
@@ -133,6 +138,13 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
 
     public RedisExecutionEventBroadcast(RedissonClient client, LocalExecutionEventNotifier localExecutionEventNotifier,
                                         NewAiEventProperties properties, LiveTextNotifier liveTextNotifier) {
+        this(client, localExecutionEventNotifier, properties, liveTextNotifier, null);
+    }
+
+    public RedisExecutionEventBroadcast(RedissonClient client, LocalExecutionEventNotifier localExecutionEventNotifier,
+                                        NewAiEventProperties properties, LiveTextNotifier liveTextNotifier,
+                                        LocalDispatchNotifier dispatchNotifier) {
+        this.dispatchNotifier = dispatchNotifier;
         this.liveTextNotifier = liveTextNotifier;
         this.redisTopic = Objects.requireNonNull(client, "Redis transport requires RedissonClient")
                 .getTopic(properties.channel(), StringCodec.INSTANCE);
@@ -158,6 +170,12 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
         });
     }
 
+    @Override
+    public Mono<Void> publishDispatchWakeup() {
+        return Mono.defer(() -> Mono.fromCompletionStage(redisTopic.publishAsync(DISPATCH_WAKEUP)))
+                .timeout(properties.publishTimeout()).then();
+    }
+
     /**
      * 处理 Redis 消息监听器收到的通知 JSON：先检查长度，再反序列化为 Signal 并通过其构造器校验字段。
      * 校验成功后，按 owner、invocationId 和 sequence 唤醒本地订阅者；实际事件读取与序号去重由后续订阅流程完成。
@@ -167,6 +185,10 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
      */
     private void receive(String encoded) {
         try {
+            if (DISPATCH_WAKEUP.equals(encoded)) {
+                if (dispatchNotifier != null) dispatchNotifier.wakeWorker();
+                return;
+            }
             if (encoded.startsWith(TEXT_PREFIX)) {
                 if (encoded.length() > MAX_TEXT_SIGNAL_CHARS)
                     throw new IllegalArgumentException("Oversized text preview");
@@ -258,6 +280,7 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
                             if (running && generation == token) {
                                 log.info("AI Redis channel subscribed; replaying missed events");
                                 localExecutionEventNotifier.wakeSubscribers();
+                                if (dispatchNotifier != null) dispatchNotifier.wakeWorker();
                             }
                         }
                     }), token).flatMap(statusId -> {
@@ -286,6 +309,7 @@ public final class RedisExecutionEventBroadcast implements ExecutionEventBroadca
                         log.info("AI Redis event and text notification listeners ready");
                         // 两个 Redis 监听器都注册成功后，让本节点现有的事件订阅者再检查一次数据库，补回注册期间可能遗漏的事件
                         localExecutionEventNotifier.wakeSubscribers();
+                        if (dispatchNotifier != null) dispatchNotifier.wakeWorker();
                     }
                 }, error -> log.warn("AI Redis subscription stopped, type={}", error.getClass().getName()));
     }

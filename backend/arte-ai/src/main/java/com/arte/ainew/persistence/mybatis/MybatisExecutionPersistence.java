@@ -60,6 +60,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final Scheduler scheduler;
 
     private final Runnable eventWakeup;
+    private final Runnable dispatchWakeup;
 
     public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler) {
         this(dataSource, codec, scheduler, () -> {
@@ -67,7 +68,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler, Runnable eventWakeup) {
+        this(dataSource, codec, scheduler, eventWakeup, () -> {
+        });
+    }
+
+    public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler,
+                                       Runnable eventWakeup, Runnable dispatchWakeup) {
         this.eventWakeup = Objects.requireNonNull(eventWakeup, "eventWakeup");
+        this.dispatchWakeup = Objects.requireNonNull(dispatchWakeup, "dispatchWakeup");
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(Objects.requireNonNull(dataSource, "dataSource")));
         this.system = sessions.getMapper(SystemMapper.class);
         this.execution = sessions.getMapper(ExecutionMapper.class);
@@ -1049,17 +1057,17 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var key = hash(id(invocation), kind.name(), Long.toString(sequence));
         var owner = ExecutionOwner.from(invocation.request().context());
         outbox.insertMessage(key, hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(), owner.subjectId(), kind.name(), sequence);
-        if (kind == OutboxMessage.Kind.EVENT) {
+        if (kind == OutboxMessage.Kind.EVENT || kind == OutboxMessage.Kind.DISPATCH) {
             // 回滚不通知。唤醒失败不改变已提交的业务结果，由统一 Outbox 恢复扫描兜底。
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
                             try {
-                                eventWakeup.run();
+                                (kind == OutboxMessage.Kind.EVENT ? eventWakeup : dispatchWakeup).run();
                             } catch (RuntimeException error) {
-                                log.warn("AI event wakeup failed; outbox scan will recover, invocationId={}, sequence={}, type={}",
-                                        id(invocation), sequence, error.getClass().getName());
+                                log.warn("AI outbox wakeup failed; outbox scan will recover, invocationId={}, kind={}, sequence={}, type={}",
+                                        id(invocation), kind, sequence, error.getClass().getName());
                             }
                         }
                     });

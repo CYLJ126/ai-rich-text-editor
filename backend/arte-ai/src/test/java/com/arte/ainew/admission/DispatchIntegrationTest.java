@@ -89,6 +89,7 @@ public class DispatchIntegrationTest {
         final java.util.concurrent.ExecutorService httpThreads = Executors.newFixedThreadPool(4);
         final HttpServer server;
         final AtomicInteger requests = new AtomicInteger();
+        final LocalDispatchNotifier dispatchNotifier = new LocalDispatchNotifier();
         final List<String> requestBodies = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         final AtomicBoolean failSettlement = new AtomicBoolean();
         volatile String body = chunk("你好", "stop", USAGE) + "data: [DONE]\n\n";
@@ -159,7 +160,9 @@ public class DispatchIntegrationTest {
             dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000");
             new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql")).execute(dataSource);
             jdbc = new JdbcTemplate(dataSource);
-            fixture = new AdmissionFixture(dataSource, db, new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec(), properties);
+            fixture = new AdmissionFixture(dataSource, db, new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec(), properties,
+                    () -> {
+                    }, dispatchNotifier::committed);
             var clock = Clock.systemUTC();
             authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock);
             var generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 4, 4, Duration.ofSeconds(2), 65536, 65536);
@@ -172,7 +175,7 @@ public class DispatchIntegrationTest {
             chat = new DefaultChatService(authorization, fixture.conversations, fixture.catalog, fixture.contexts, coordinator, clock, fixture.executions, fixture.executions, fixture.properties);
             control = new DefaultExecutionControl(authorization, fixture.executions, coordinator);
             reading = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads);
-            worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
+            worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer, dispatchNotifier);
             fixture.initializeBudget("alice");
         }
 
@@ -675,6 +678,39 @@ public class DispatchIntegrationTest {
             assertFalse(rig.worker.isRunning());
             assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
             assertEquals(1, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void committedWakeupCompletesAtomicDispatchAndSettlementBeforeRecoveryScan() throws Exception {
+        var settings = new NewAiExecutionProperties(true, false, 2, Duration.ofMinutes(1), Duration.ofMinutes(2),
+                Duration.ofMinutes(2), Duration.ofDays(1));
+        try (var rig = new Rig(false, settings)) {
+            var notifier = rig.dispatchNotifier;
+            var worker = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
+                    rig.coordinator(rig.fixture.executions), settings, rig.timer, notifier);
+            var committed = new java.util.concurrent.CountDownLatch(1);
+            var wake = notifier.commits().subscribe(ignored -> committed.countDown());
+            try {
+                worker.start();
+                // 提交提示驱动真实网关、预算和结算闭环；空库后的即时性另由 Worker 调度测试验证。
+                var barrier = new java.util.concurrent.CountDownLatch(1);
+                rig.timer.schedule(barrier::countDown);
+                assertTrue(barrier.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                var accepted = rig.submit(rig.conversation(), "automatic-wakeup");
+                assertTrue(committed.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                Flux.interval(Duration.ofMillis(20)).concatMap(ignored -> Mono.fromCallable(() -> rig.jdbc.queryForObject(
+                                "SELECT delivered FROM arte_ai_outbox WHERE kind='DISPATCH'", Integer.class)).subscribeOn(rig.db))
+                        .filter(delivered -> delivered == 1).next().block(WAIT);
+                assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+                assertEquals(1, rig.requests.get());
+                assertEquals(1, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_settlement", Integer.class).intValue());
+                notifier.wakeWorker();
+                assertEquals(Integer.valueOf(0), worker.pollOnce().block(WAIT));
+            } finally {
+                worker.stop();
+                wake.dispose();
+            }
         }
     }
 
