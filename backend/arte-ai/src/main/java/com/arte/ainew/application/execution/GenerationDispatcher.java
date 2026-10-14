@@ -36,6 +36,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * 一次 Attempt 的耐久生成处理
@@ -178,8 +179,7 @@ public final class GenerationDispatcher {
                                         if (!snapshot.messages().equals(generation.messages()) || !snapshot.expiresAt().isAfter(clock.instant())) {
                                             throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                                         }
-                                        return new Prepared(request, binding, snapshot,
-                                                new ExecutionRuntimeContext(current, runtime.cancellation()));
+                                        return new Prepared(request, binding, snapshot, new ExecutionRuntimeContext(current, runtime.cancellation()));
                                     }));
                 })
                 .onErrorResume(error -> predictable(error)
@@ -201,8 +201,7 @@ public final class GenerationDispatcher {
         return Mono.error(new DispatchDeferredException(delay.compareTo(remaining) > 0 ? remaining : delay));
     }
 
-    private Mono<Void> withPermit(Invocation invocation, OutboxMessage message, Prepared prepared,
-                                  java.util.function.Supplier<Mono<Void>> work) {
+    private Mono<Void> withPermit(Invocation invocation, OutboxMessage message, Prepared prepared, Supplier<Mono<Void>> work) {
         if (!newAiExecutionProperties.dispatchLimits().enabled()) return Mono.defer(work);
         if (!(executionOutboxStore instanceof DispatchLimitStore limits))
             return Mono.error(new IllegalStateException("Dispatch limit store required"));
