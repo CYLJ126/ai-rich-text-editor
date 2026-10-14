@@ -108,7 +108,7 @@ public final class DefaultCommandExecutor {
                 return new CommandReceipt<>(receipt.operationId(), receipt.status(), CommandDeliveryEnum.REPLAYED,
                         value, receipt.resultVersion(), receipt.acceptedAt(), receipt.completedAt());
             }
-            var acceptedAt = clock.instant();
+            var acceptedAt = PlatformTimes.businessNow(clock);
             // 操作 ID 供领域写入、事件和审计关联使用。
             String operationId = ids.nextId();
             // 持锁执行领域回调，由回调完成写权限与版本校验。
@@ -118,7 +118,7 @@ public final class DefaultCommandExecutor {
                 throw new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, meta.traceId());
             }
             var receipt = new CommandReceipt<>(operationId, CommandStatusEnum.APPLIED, CommandDeliveryEnum.APPLIED,
-                    result.value(), result.version(), acceptedAt, clock.instant());
+                    result.value(), result.version(), acceptedAt, PlatformTimes.notBefore(clock, acceptedAt));
             // 原子保存回执，防止并发请求重复提交同一命令。
             if (!receipts.insertIfAbsent(new StoredCommandReceipt(identity, digest, schema, receipt, 0))) {
                 // 整体回滚本次领域写入；调用者按原键重试读取胜出回执。

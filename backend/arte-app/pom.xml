@@ -115,4 +115,36 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <!-- Compile only the isolated directory benchmark and its shared fixtures. -->
+        <profile>
+            <id>workspace-baseline</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <testIncludes>
+                                <testInclude>**/WorkspaceDirectoryBaselineTest.java</testInclude>
+                                <testInclude>**/PlatformPersistenceIntegrationTest.java</testInclude>
+                                <testInclude>**/PlatformServiceTestFactory.java</testInclude>
+                            </testIncludes>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <log4j.configurationFile>
+                                    ${project.basedir}/src/test/resources/workspace-baseline-log4j2.xml
+                                </log4j.configurationFile>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

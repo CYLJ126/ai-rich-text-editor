@@ -42,7 +42,7 @@ public interface TenantStore {
     boolean insert(Tenant tenant);
 
     /**
-     * 按预期版本更新租户，版本条件不满足时返回 false。
+     * 按预期版本更新租户，版本条件不满足或更新时间倒退时返回 false；更新时间允许相等。
      */
     boolean replace(Tenant tenant, long expectedVersion);
 }

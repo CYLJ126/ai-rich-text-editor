@@ -4,6 +4,7 @@ import com.arte.core.api.workspace.WorkspacePolicyService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
+import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.*;
@@ -110,7 +111,7 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
                     var updated = new TenantPolicy(current.id(), command.rules(), command.membersMayCreateWorkspace(),
                             policy.policySchemaVersion(), policy.rolePresetVersion(), Math.incrementExact(policy.version()), policy.personalTemplateVersion());
                     var tenant = new Tenant(current.id(), current.name(), current.type(), current.personalSubjectId(), current.state(),
-                            current.createdBy(), Math.incrementExact(current.version()), Math.incrementExact(current.authEpoch()), current.createdAt(), clock.instant());
+                            current.createdBy(), Math.incrementExact(current.version()), Math.incrementExact(current.authEpoch()), current.createdAt(), PlatformTimes.notBefore(clock, current.updatedAt()));
                     check(policies.replaceTenantPolicy(updated, policy.version()), command.meta());
                     check(tenants.replace(tenant, current.version()), command.meta());
                     effects.append(actor, scope, "tenant:policy:updated", operationId, updated.version(),
@@ -140,7 +141,7 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
                     var updated = new WorkspacePolicy(current.scope(), command.rules(), policy.policySchemaVersion(),
                             policy.rolePresetVersion(), Math.incrementExact(policy.version()));
                     var workspace = new Workspace(current.scope(), current.name(), current.description(), current.state(), current.createdBy(),
-                            Math.incrementExact(current.version()), Math.incrementExact(current.authEpoch()), current.createdAt(), clock.instant());
+                            Math.incrementExact(current.version()), Math.incrementExact(current.authEpoch()), current.createdAt(), PlatformTimes.notBefore(clock, current.updatedAt()));
                     check(policies.replaceWorkspacePolicy(updated, policy.version()), command.meta());
                     check(workspaces.replace(workspace, current.version()), command.meta());
                     effects.append(actor, scope, "workspace:policy:updated", operationId, updated.version(),

@@ -4,6 +4,7 @@ import com.arte.core.api.workspace.WorkspaceService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
+import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.access.AccessReasonEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.workspace.MembershipStateEnum;
@@ -138,7 +139,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     getCurrent(actor, value.scope());
                 }, operationId -> {
                     var tenant = authorization.requireWorkspaceCreationCurrent(actor, command.tenantId());
-                    var now = clock.instant();
+                    var now = PlatformTimes.businessNow(clock);
                     Scope newScope = new Scope(command.tenantId(), ids.nextId());
                     Workspace workspace = new Workspace(newScope, command.name(), command.description(), WorkspaceStateEnum.ACTIVE,
                             subjectId, 0, 0, now, now);
@@ -148,7 +149,8 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     check(policies.insertWorkspacePolicy(defaults.workspace(newScope, tenant.policy())), command.meta());
                     Tenant old = tenant.tenant();
                     Tenant updated = new Tenant(old.id(), old.name(), old.type(), old.personalSubjectId(), old.state(), old.createdBy(),
-                            Math.incrementExact(old.version()), Math.incrementExact(old.authEpoch()), old.createdAt(), now);
+                            Math.incrementExact(old.version()), Math.incrementExact(old.authEpoch()), old.createdAt(),
+                            PlatformTimes.notBefore(now, old.updatedAt()));
                     check(tenants.replace(updated, old.version()), command.meta());
                     provisioning.forEach(participant -> participant.provision(actor, newScope, operationId));
                     effects.append(actor, new CommandScope(newScope.tenantId(), newScope.workspaceId()), "workspace:created", operationId, 0,
@@ -172,7 +174,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     if (old.version() != command.expectedVersion())
                         throw new PlatformException(PlatformErrorCodeEnum.VERSION_CONFLICT, command.meta().traceId());
                     Workspace updated = new Workspace(scope, command.name(), command.description(), old.state(), old.createdBy(),
-                            Math.incrementExact(old.version()), old.authEpoch(), old.createdAt(), clock.instant());
+                            Math.incrementExact(old.version()), old.authEpoch(), old.createdAt(), PlatformTimes.notBefore(clock, old.updatedAt()));
                     check(workspaces.replace(updated, old.version()), command.meta());
                     effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:renamed", operationId,
                             updated.version(), Map.of("workspaceEpoch", Long.toString(updated.authEpoch())));

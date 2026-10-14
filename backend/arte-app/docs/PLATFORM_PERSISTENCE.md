@@ -1,5 +1,9 @@
 # 公共持久化：第 3 步第 2 批
 
+2026-10-14 工作空间目录改造第一批补充了时间策略、更新时间 CAS 防线和专用测量入口；下文原批次装配记录保留。
+最新契约见 [目录改造](WORKSPACE_DIRECTORY_REDESIGN.md)，本机实测与验证限制见
+[基线报告](WORKSPACE_DIRECTORY_BASELINE_2026-10-14.md)。
+
 本批在 `com.arte.app.service.platform` 实现公共空间数据库 SPI，在 `com.arte.app.platform.persistence`
 装配事务、Mapper、响应式执行边界、Redis 游标和 Outbox 投递基础设施。默认关闭；不执行 DDL、不回填旧资源、不注册空间
 HTTP。本持久化配置自身不装配 core 默认应用服务。第 3
@@ -100,7 +104,9 @@ runner 共享；失败标记实际连接回滚，即使外层捕获异常也不�
   subjectId，摘要不参与授权。改名或边界成员记录移除不导致漏扫。
 - 政策规则、收藏、公开回执及事件使用固定结构 JSON；不存模型凭据、文章正文或任意脚本。未知回执 Schema 拒绝，不从存储／客户端提供的类名加载
   Java 类型。
-- 固定秒／纳秒列保持完整 Instant 精度，避免 DATETIME (6) 舍入破坏目录顺序；投递租期按数据库时间计算，不依赖节点时钟相等。
+- 当前秒／纳秒列保持完整 Instant 精度；目标 UTC 微秒契约要求在领域生成时统一精度，DDL 和游标随后协调迁移， 不依赖 DATETIME
+  (6) 隐式舍入。第一批通过 PlatformTimes 和 CAS 条件保证元数据更新时间非递减、回执完成时间不早于受理，
+  事件／审计共用实际观测时间。投递租期仍按数据库时间计算。见 [目录改造契约](WORKSPACE_DIRECTORY_REDESIGN.md)。
 - Outbox 通过就绪时间索引和 FOR UPDATE SKIP LOCKED 分批取租约；取租约事务提交后才访问 Redis，网络访问不持有数据库事务。发布后仅以匹配
   leaseToken 确认；过期的未确认租约可再次领取。
 - Redis 不可用时命令仍能提交业务和数据库事件，发布失败按 retry-delay 延后。发布成功但 DB 确认失败可能重复投递，消费者必须以

@@ -24,8 +24,9 @@ import java.util.function.UnaryOperator;
  * @since 2026/10/09 22:35 ✾
  */
 final class InMemoryWorkspaceFixture {
+
     static final Instant NOW = Instant.parse("2026-10-09T00:00:00Z");
-    final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    final Clock clock;
     final Map<String, Principal> identities = new HashMap<>();
     final Map<String, Tenant> tenants = new LinkedHashMap<>();
     final Map<Scope, Workspace> workspaces = new LinkedHashMap<>();
@@ -175,7 +176,8 @@ final class InMemoryWorkspaceFixture {
         public boolean replace(Tenant tenant, long version) {
             transactions.requireActive();
             Tenant old = tenants.get(tenant.id());
-            if (old == null || old.version() != version || tenant.version() != version + 1) return false;
+            if (old == null || old.version() != version || tenant.version() != version + 1
+                    || tenant.updatedAt().isBefore(old.updatedAt())) return false;
             tenants.put(tenant.id(), tenant);
             return true;
         }
@@ -202,7 +204,8 @@ final class InMemoryWorkspaceFixture {
             transactions.requireActive();
             Workspace old = workspaces.get(workspace.scope());
             if (old == null || old.version() != version || workspace.version() != version + 1
-                    || !old.createdAt().equals(workspace.createdAt())) return false;
+                    || !old.createdAt().equals(workspace.createdAt())
+                    || workspace.updatedAt().isBefore(old.updatedAt())) return false;
             workspaces.put(workspace.scope(), workspace);
             return true;
         }
@@ -456,9 +459,22 @@ final class InMemoryWorkspaceFixture {
         transactions.requireActive();
         audits.add(entry);
     };
-    final DefaultWorkspaceServices services = new DefaultWorkspaceServices(identity, transactions, tenantStore, workspaceStore,
-            tenantMemberStore, workspaceMemberStore, policyStore, preferenceStore, receiptStore, outbox, audit,
-            () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults(), batchFactsStore);
+    final DefaultWorkspaceServices services;
+
+    InMemoryWorkspaceFixture() {
+        this(Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    InMemoryWorkspaceFixture(Clock clock) {
+        this(clock, List.of());
+    }
+
+    InMemoryWorkspaceFixture(Clock clock, List<WorkspaceProvisioningParticipant> provisioning) {
+        this.clock = clock;
+        services = new DefaultWorkspaceServices(identity, transactions, tenantStore, workspaceStore,
+                tenantMemberStore, workspaceMemberStore, policyStore, preferenceStore, receiptStore, outbox, audit,
+                () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults(), batchFactsStore, provisioning);
+    }
 
     TrustedActor user(String id) {
         Principal principal = new Principal(id, PrincipalKindEnum.USER, PrincipalStatusEnum.ACTIVE);

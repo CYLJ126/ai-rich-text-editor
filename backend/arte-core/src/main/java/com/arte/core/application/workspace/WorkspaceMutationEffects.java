@@ -1,5 +1,6 @@
 package com.arte.core.application.workspace;
 
+import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.pojo.platform.AuditEntry;
 import com.arte.core.pojo.platform.CommandScope;
 import com.arte.core.pojo.platform.PublicEvent;
@@ -37,7 +38,8 @@ public final class WorkspaceMutationEffects {
                        Map<String, String> attributes) {
         Map<String, String> metadata = new HashMap<>(attributes);
         metadata.put("operationId", operationId);
-        outbox.append(new PublicEvent(ids.nextId(), scope, action, 1, version, clock.instant(), metadata));
-        audit.append(new AuditEntry(ids.nextId(), actor.principal().subjectId(), scope, action, operationId, "", clock.instant()));
+        var observedAt = PlatformTimes.observedNow(clock);
+        outbox.append(new PublicEvent(ids.nextId(), scope, action, 1, version, observedAt, metadata));
+        audit.append(new AuditEntry(ids.nextId(), actor.principal().subjectId(), scope, action, operationId, "", observedAt));
     }
 }

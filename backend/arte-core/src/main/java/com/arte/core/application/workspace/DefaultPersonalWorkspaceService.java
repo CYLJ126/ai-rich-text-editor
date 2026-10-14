@@ -3,6 +3,7 @@ package com.arte.core.application.workspace;
 import com.arte.core.api.workspace.PersonalWorkspaceService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
+import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.workspace.*;
 import com.arte.core.exception.platform.PlatformException;
@@ -102,7 +103,7 @@ public final class DefaultPersonalWorkspaceService implements PersonalWorkspaceS
                     if (existing.isPresent()) return new DefaultCommandExecutor.Result<>(existing(actor, subjectId),
                             preferences.findCurrent(subjectId).orElseThrow(DefaultPersonalWorkspaceService::error).version());
                     if (preferences.findCurrent(subjectId).isPresent()) throw error();
-                    var now = clock.instant();
+                    var now = PlatformTimes.businessNow(clock);
                     String tenantId = ids.nextId();
                     Scope scope = new Scope(tenantId, ids.nextId());
                     Tenant tenant = new Tenant(tenantId, "个人", TenantTypeEnum.PERSONAL, subjectId,

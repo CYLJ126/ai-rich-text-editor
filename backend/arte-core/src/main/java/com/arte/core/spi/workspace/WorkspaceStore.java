@@ -33,7 +33,8 @@ public interface WorkspaceStore {
     boolean insert(Workspace workspace);
 
     /**
-     * 按预期版本更新空间，版本条件不满足时返回 false。创建时间与完整范围必须保留，不允许更新扫描稳定键。
+     * 按预期版本更新空间，版本条件不满足或更新时间倒退时返回 false。
+     * 创建时间与完整范围必须保留，不允许更新扫描稳定键；更新时间允许相等，不承担并发版本职责。
      */
     boolean replace(Workspace workspace, long expectedVersion);
 

@@ -809,6 +809,28 @@ class PlatformPersistenceIntegrationTest {
     }
 
     @Test
+    void metadataCasRejectsEarlierUpdatesEvenWhenTheExpectedVersionMatches() {
+        var scope = initialize().value().workspace().scope();
+        tx.required(() -> {
+            gates(scope);
+            var workspace = workspaces.find(scope).orElseThrow();
+            var tenant = tenants.find(scope.tenantId()).orElseThrow();
+            var later = workspace.updatedAt().plusSeconds(10).plusNanos(123456789);
+            assertTrue(workspaces.replace(new Workspace(scope, workspace.name(), workspace.description(), workspace.state(),
+                    workspace.createdBy(), 1, workspace.authEpoch(), workspace.createdAt(), later), 0));
+            assertTrue(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(),
+                    tenant.createdBy(), 1, tenant.authEpoch(), tenant.createdAt(), later), 0));
+            assertFalse(workspaces.replace(new Workspace(scope, workspace.name(), workspace.description(), workspace.state(),
+                    workspace.createdBy(), 2, workspace.authEpoch(), workspace.createdAt(), later.minusNanos(1)), 1));
+            assertFalse(tenants.replace(new Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(),
+                    tenant.createdBy(), 2, tenant.authEpoch(), tenant.createdAt(), later.minusSeconds(1)), 1));
+            assertEquals(later, workspaces.find(scope).orElseThrow().updatedAt());
+            assertEquals(later, tenants.find(scope.tenantId()).orElseThrow().updatedAt());
+            return null;
+        });
+    }
+
+    @Test
     void hundredScopeFactsUseSevenSetQueries() throws Exception {
         var scope = initialize().value().workspace().scope();
         var ranges = new HashSet<Scope>();

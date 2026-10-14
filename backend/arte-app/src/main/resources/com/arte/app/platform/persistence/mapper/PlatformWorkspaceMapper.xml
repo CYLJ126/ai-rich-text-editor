@@ -27,6 +27,7 @@
         name=#{row.name},description=#{row.description},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_sec=#{row.updatedSec},updated_nano=#{row.updatedNano}
         WHERE tenant_id=#{row.tenantId} AND id=#{row.id} AND version=#{expected} AND created_by=#{row.createdBy} AND
         created_sec=#{row.createdSec} AND created_nano=#{row.createdNano} AND auth_epoch&lt;=#{row.authEpoch}
+        AND (updated_sec&lt;#{row.updatedSec} OR (updated_sec=#{row.updatedSec} AND updated_nano&lt;=#{row.updatedNano}))
     </update>
 
     <select id="selectScopes" resultMap="row" useCache="false" flushCache="true">
