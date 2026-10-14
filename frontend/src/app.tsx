@@ -10,7 +10,6 @@ import React from 'react';
 import {AliveScope} from 'react-activation';
 import {AvatarDropdown, ErrorBoundary, LangDropdown, OfflineBanner, ThemeSwitch,} from '@/components';
 import TabsLayout from '@/components/TabsLayout';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceSession from '@/features/workspace/WorkspaceSession';
 import {Toaster} from '@/components/ui/sonner';
 import {getStoredLayoutMenuState, LayoutMenuContextProvider, saveLayoutMenuState,} from '@/contexts/LayoutMenuContext';
@@ -297,16 +296,6 @@ export const layout: RunTimeLayoutConfig = ({
       return (
         <LayoutMenuContextProvider>
           <WorkspaceSession userId={String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '')}/>
-          {initialState?.currentUser && <header aria-label="当前工作空间"
-                                                style={{
-                                                  display: 'flex',
-                                                  justifyContent: 'flex-end',
-                                                  padding: '4px 12px',
-                                                  background: 'var(--ant-color-bg-container)'
-                                                }}>
-            <WorkspacePicker key={`workspace-${initialState.currentUser.id ?? initialState.currentUser.userid}`}
-                             userId={String(initialState.currentUser.id ?? initialState.currentUser.userid ?? '')}/>
-          </header>}
           <TabsLayout />
           {children}
         </LayoutMenuContextProvider>
