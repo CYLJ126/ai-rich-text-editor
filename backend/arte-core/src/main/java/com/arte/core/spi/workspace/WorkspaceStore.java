@@ -2,6 +2,7 @@ package com.arte.core.spi.workspace;
 
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.workspace.Workspace;
+import com.arte.core.pojo.workspace.WorkspaceCandidateKey;
 import com.arte.core.pojo.workspace.WorkspaceCandidatePage;
 
 import java.util.Optional;
@@ -40,11 +41,11 @@ public interface WorkspaceStore {
 
     /**
      * 按 WorkspaceCandidateKey 顺序扫描：createdAt 降序、tenantId 和 workspaceId 升序，limit 为 1..100。
-     * cursor 为绑定 subjectId 的受信不透明续扫键，null 表示首批；必须按上一批最后一个完整键严格向后查询，不能使用 offset。
-     * 下一批不能按 updatedAt 等可变字段重新定位，也不能依赖边界记录仍存在；未知或跨主体游标须拒绝，返回的续扫游标不能循环。
+     * after 为服务端传递的完整边界，null 表示首批；严格向后查询，不保存 Redis token，不使用 offset。
+     * 下一批不能按 updatedAt 等可变字段重新定位，也不能依赖边界记录仍存在；对外游标绑定由导航适配负责。
      * 示例后继条件：created_at &lt; lastCreatedAt，或时间相等且完整范围字典序大于 lastScope。
      * 不暴露候选总数；持续存在的候选不能因更新、改名或先前记录删除而漏扫。
      * 本接口不是成员目录快照：扫描期间新增／撤销关系仍逐项按当前资格过滤，新加入且位于边界前的候选可在下次查询出现。
      */
-    WorkspaceCandidatePage scanMembershipCandidates(String subjectId, String cursor, int limit);
+    WorkspaceCandidatePage scanMembershipCandidates(String subjectId, WorkspaceCandidateKey after, int limit);
 }

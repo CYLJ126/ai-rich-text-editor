@@ -1,11 +1,5 @@
 import {z} from 'zod';
-import {
-  AiApiError,
-  type AiRequestOptions,
-  postPage,
-  postResult,
-  requireIdempotencyKey
-} from '@/services/arte-ai/request';
+import {AiApiError, type AiRequestOptions, postResult, requireIdempotencyKey} from '@/services/arte-ai/request';
 import type {
   CommandReceipt,
   CreateWorkspaceRequest,
@@ -15,7 +9,6 @@ import type {
   WorkspaceAccessResponse,
   WorkspacePreference,
   WorkspaceScope,
-  WorkspaceSummary,
   WorkspaceView
 } from './workspaceTypes';
 
@@ -62,12 +55,24 @@ async function result<T>(path: string, data: unknown, schema: z.ZodType, options
 
 export const initializePersonalWorkspace = (key: string, options?: AiRequestOptions) => result<CommandReceipt<PersonalWorkspace>>('initializePersonalWorkspace', undefined, receiptSchema(personalWorkspaceSchema), options, operationKey(key));
 
-export async function listAccessibleWorkspaces(current = 1, options?: AiRequestOptions) {
-  const response = await postPage<WorkspaceSummary>('listAccessibleWorkspaces', {current, size: 20}, options, base);
-  if (!z.array(workspaceViewSchema.extend({defaultWorkspace: z.boolean()})).safeParse(response.body.records).success)
-    throw new AiApiError(response.httpStatus, response.body, 'Invalid workspace directory response');
-  return response;
-}
+const browseSchema = z.object({
+  records: z.array(workspaceViewSchema.extend({defaultWorkspace: z.boolean()})).max(100),
+  nextCursor: z.string().uuid().nullable(),
+  exhausted: z.boolean(),
+}).refine(page => page.exhausted === (page.nextCursor === null), 'Invalid directory continuation')
+  .refine(page => new Set(page.records.map(record => JSON.stringify([record.scope.tenantId, record.scope.workspaceId]))).size
+    === page.records.length, 'Duplicate directory scopes');
+
+export const browseAccessibleWorkspaces = (cursor: string | null = null, search = '', options?: AiRequestOptions) =>
+  result<import('./workspaceTypes').WorkspaceBrowsePage>('browseAccessibleWorkspaces', {
+    cursor,
+    search,
+    size: 20
+  }, browseSchema, options);
+
+/** Explicit full count; browsing does not call this endpoint. */
+export const countAccessibleWorkspaces = (options?: AiRequestOptions) =>
+  result<number>('countAccessibleWorkspaces', undefined, z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), options);
 
 export const getWorkspace = (scope: WorkspaceScope, options?: AiRequestOptions) => result<WorkspaceView>('getWorkspace', {scope}, workspaceViewSchema, options);
 export const createWorkspace = (data: CreateWorkspaceRequest, key: string, options?: AiRequestOptions) => result<CommandReceipt<WorkspaceView>>('createWorkspace', data, receiptSchema(workspaceViewSchema), options, operationKey(key));

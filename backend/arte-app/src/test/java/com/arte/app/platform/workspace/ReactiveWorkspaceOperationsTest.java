@@ -59,7 +59,8 @@ class ReactiveWorkspaceOperationsTest {
                 new PlatformPersistenceExecutor(scheduler, interfaceMock(PublicTransactionRunner.class)), personal,
                 interfaceMock(WorkspaceService.class), preferences, interfaceMock(ScopeResolver.class),
                 interfaceMock(AuthorizationService.class), interfaceMock(WorkspaceWriteGuard.class),
-                interfaceMock(com.arte.core.api.platform.CommandReceiptQueryService.class), interfaceMock(com.arte.core.api.workspace.WorkspacePolicyService.class));
+                interfaceMock(com.arte.core.api.platform.CommandReceiptQueryService.class), interfaceMock(com.arte.core.api.workspace.WorkspacePolicyService.class),
+                new WorkspaceDirectoryBrowser(interfaceMock(WorkspaceService.class), interfaceMock(com.arte.app.platform.persistence.WorkspaceCursorStore.class)));
     }
 
     @Test

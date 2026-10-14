@@ -96,6 +96,9 @@ class WorkspaceDirectoryBaselineTest {
                         factory.receipts(), factory.outbox(), factory.audit(), () -> UUID.randomUUID().toString(),
                         Clock.systemUTC(), new DefaultWorkspacePolicies(factory.templates()), factory.facts());
                 var executor = new PlatformPersistenceExecutor(scheduler, tx);
+                var browser = new com.arte.app.platform.workspace.WorkspaceDirectoryBrowser(services.workspaces(), cursors);
+                String mode = System.getProperty("platform.workspace.baseline.mode", "legacy");
+                assertTrue(Set.of("legacy", "browse").contains(mode));
                 var output = new ArrayList<Map<String, Object>>();
                 for (int count : Arrays.stream(System.getProperty("platform.workspace.baseline.sizes", "100,1000,10000").split(","))
                         .mapToInt(Integer::parseInt).toArray()) {
@@ -106,7 +109,9 @@ class WorkspaceDirectoryBaselineTest {
                         for (int concurrency : new int[]{1, 8, 32}) {
                             // Warm both the workers and the query/connection paths; exclude warm-up samples.
                             for (int i = 0; i < 2; i++)
-                                executor.read(() -> services.workspaces().listAccessible(fixture.actor, new PageQuery(1, 20))).block();
+                                executor.read(() -> mode.equals("browse")
+                                        ? browser.browse(fixture.actor, null, new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, ""))
+                                        : services.workspaces().listAccessible(fixture.actor, new PageQuery(1, 20))).block();
                             var samples = new ArrayList<Sample>();
                             for (int offset = 0; offset < requests; offset += concurrency) {
                                 var pending = new ArrayList<CompletableFuture<Sample>>();
@@ -119,9 +124,19 @@ class WorkspaceDirectoryBaselineTest {
                                         long allocated = allocatedBytes();
                                         active.set(sample);
                                         try {
-                                            var page = services.workspaces().listAccessible(fixture.actor, new PageQuery(1, 20));
-                                            assertEquals(1L + count * visiblePercent / 100, page.total());
-                                            assertEquals(Math.min(20, page.total()), page.records().size());
+                                            if (mode.equals("browse")) {
+                                                var page = browser.browse(fixture.actor, null, new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, ""));
+                                                assertTrue(page.records().size() <= Math.min(20, 1L + count * visiblePercent / 100));
+                                                assertTrue(sample.candidateBatches <= 4);
+                                                assertTrue(sample.candidateRowsFetched <= 204);
+                                                assertTrue(page.exhausted() || page.nextCursor() != null);
+                                                sample.returnedRecords = page.records().size();
+                                            } else {
+                                                var page = services.workspaces().listAccessible(fixture.actor, new PageQuery(1, 20));
+                                                assertEquals(1L + count * visiblePercent / 100, page.total());
+                                                assertEquals(Math.min(20, page.total()), page.records().size());
+                                                sample.returnedRecords = page.records().size();
+                                            }
                                             sample.totalMs = millis(System.nanoTime() - sample.submitted);
                                             sample.allocatedBytes = allocated < 0 ? -1 : allocatedBytes() - allocated;
                                             return sample;
@@ -148,6 +163,9 @@ class WorkspaceDirectoryBaselineTest {
                 }
                 var report = new LinkedHashMap<String, Object>();
                 report.put("kind", "workspace-directory-service-baseline");
+                report.put("mode", mode);
+                report.put("browseBudget", Map.of("batchSize", 100, "maxCandidates", 200, "maxBatches", 4,
+                        "maxWorkTimeMs", 1000, "initialBatch", "min(size*2,batchSize)"));
                 report.put("observedAt", Instant.now().toString());
                 report.put("javaVersion", System.getProperty("java.version"));
                 report.put("sqlDebugLogging", false);
@@ -158,7 +176,7 @@ class WorkspaceDirectoryBaselineTest {
                 report.put("requestsPerScenario", requests);
                 report.put("page", Map.of("current", 1, "size", 20));
                 report.put("scenarios", output);
-                report.put("candidateExplain", fixture.jdbc.queryForList("EXPLAIN SELECT w.* FROM arte_platform_workspace_member m JOIN arte_platform_workspace w ON w.tenant_id=m.tenant_id AND w.id=m.workspace_id WHERE m.subject_digest=? AND m.subject_id=? ORDER BY m.workspace_created_sec DESC,m.workspace_created_nano DESC,m.tenant_id,m.workspace_id LIMIT 101", digest(fixture.actor.principal().subjectId()), fixture.actor.principal().subjectId()));
+                report.put("candidateExplain", fixture.jdbc.queryForList("EXPLAIN SELECT m.tenant_id,m.workspace_id,m.workspace_created_sec,m.workspace_created_nano FROM arte_platform_workspace_member m WHERE m.subject_digest=? AND m.subject_id=? ORDER BY m.workspace_created_sec DESC,m.workspace_created_nano DESC,m.tenant_id,m.workspace_id LIMIT 101", digest(fixture.actor.principal().subjectId()), fixture.actor.principal().subjectId()));
                 report.put("indexSizes", fixture.jdbc.queryForList("SELECT table_name,index_name,stat_value AS pages FROM mysql.innodb_index_stats WHERE database_name=? AND stat_name='size'", fixture.database));
                 Path destination = Path.of(System.getProperty("platform.workspace.baseline.output", "target/workspace-directory-baseline.json"));
                 Files.createDirectories(destination.toAbsolutePath().getParent());
@@ -209,7 +227,7 @@ class WorkspaceDirectoryBaselineTest {
                 return (Connection) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{Connection.class}, (proxy, method, args) -> {
                     Object value = invoke(connection, method, args);
                     if (value instanceof PreparedStatement statement) return statement(statement,
-                            args[0].toString().contains("SELECT w.* FROM arte_platform_workspace_member"));
+                            args[0].toString().contains("FROM arte_platform_workspace_member m"));
                     return value;
                 });
             }
@@ -268,6 +286,6 @@ class WorkspaceDirectoryBaselineTest {
     public static final class Sample {
         public long submitted;
         public double totalMs, queueMs, sqlMs, connectionMs;
-        public long sqlCount, redisReads, redisWrites, candidateBatches, candidateRowsFetched, allocatedBytes;
+        public long sqlCount, redisReads, redisWrites, candidateBatches, candidateRowsFetched, allocatedBytes, returnedRecords;
     }
 }

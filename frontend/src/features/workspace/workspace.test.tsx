@@ -11,7 +11,7 @@ vi.mock('@/services/platform/workspace', async original => ({
   ...(await original<typeof import('@/services/platform/workspace')>()),
   getWorkspace: vi.fn(),
   getWorkspacePreference: vi.fn(),
-  listAccessibleWorkspaces: vi.fn(),
+  browseAccessibleWorkspaces: vi.fn(),
   initializePersonalWorkspace: vi.fn(),
   checkWorkspaceAccess: vi.fn(),
   createWorkspace: vi.fn(),
@@ -40,16 +40,16 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(api.getWorkspace).mockImplementation(async scope => reply(view(scope)));
   vi.mocked(api.getWorkspacePreference).mockResolvedValue(reply(preference));
-  vi.mocked(api.listAccessibleWorkspaces).mockResolvedValue({
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValue({
     httpStatus: 200,
     body: {
       success: true,
       code: '200',
       desc: 'OK',
-      records: [{...view(), defaultWorkspace: true}],
-      current: 1,
-      size: 20,
-      total: 21
+      data: {
+        records: [{...view(), defaultWorkspace: true}],
+        nextCursor: '00000000-0000-4000-8000-000000000001', exhausted: false
+      }
     }
   });
   vi.mocked(api.checkWorkspaceAccess).mockResolvedValue(reply({allowed: true, reason: 'ALLOWED', checkedAt: 'now'}));
@@ -85,11 +85,11 @@ it('uses the public prefix and numeric view enums without fabricating AI permiss
     }
   }));
 });
-it('loads a real default workspace and preserves server pagination total', async () => {
+it('loads a real default workspace and preserves directory continuation', async () => {
   const userId = `account-${++counter}`;
   const hook = renderHook(() => useWorkspaceDirectory(userId));
   await waitFor(() => expect(hook.result.current.current?.scope).toEqual(a));
-  expect(hook.result.current.total).toBe(21);
+  expect(hook.result.current.nextCursor).toBe('00000000-0000-4000-8000-000000000001');
   expect(api.initializePersonalWorkspace).not.toHaveBeenCalled();
 });
 it('falls back from an inaccessible startup preference to the real default', async () => {
@@ -163,7 +163,7 @@ it('shares directory, preference and in-flight startup reads between header and 
   expect(second.result.current.records).toEqual(first.result.current.records);
   expect(second.result.current.preference).toEqual(first.result.current.preference);
   expect(api.getWorkspacePreference).toHaveBeenCalledTimes(1);
-  expect(api.listAccessibleWorkspaces).toHaveBeenCalledTimes(1);
+  expect(api.browseAccessibleWorkspaces).toHaveBeenCalledTimes(1);
 });
 it('restores a valid tab selection before server startup and last-access preferences', async () => {
   const userId = `account-${++counter}`;
@@ -355,4 +355,83 @@ it.each(['resolved', 'rejected'])('ignores a stale %s refresh started while a se
   });
   expect(hook.result.current.current?.scope).toEqual(b);
   expect(hook.result.current.error).toBeInstanceOf(TypeError);
+});
+
+it('continues after an empty browse page without fetching an exact total or resetting selection', async () => {
+  const cursor = '00000000-0000-4000-8000-000000000002';
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [],
+    nextCursor: cursor,
+    exhausted: false
+  }));
+  const userId = `account-${++counter}`;
+  const hook = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(hook.result.current.current?.scope).toEqual(a));
+  expect(hook.result.current.records).toEqual([]);
+  expect(hook.result.current.exhausted).toBe(false);
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [{...view(b), defaultWorkspace: false}], nextCursor: null, exhausted: true,
+  }));
+  const selections = vi.mocked(api.getWorkspace).mock.calls.length;
+  await act(async () => {
+    await hook.result.current.loadMore();
+  });
+  expect(hook.result.current.records.map(record => record.scope)).toEqual([b]);
+  expect(hook.result.current.exhausted).toBe(true);
+  expect(api.browseAccessibleWorkspaces).toHaveBeenLastCalledWith(cursor, '', expect.anything());
+  expect(api.getWorkspace).toHaveBeenCalledTimes(selections);
+});
+
+it('preserves records and offers a restart when the continuation expires', async () => {
+  const userId = `account-${++counter}`;
+  const hook = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  vi.mocked(api.browseAccessibleWorkspaces).mockRejectedValueOnce(new AiApiError(410, {
+    code: 'PLATFORM_CURSOR_EXPIRED',
+    desc: 'expired'
+  }));
+  await act(async () => {
+    await hook.result.current.loadMore();
+  });
+  expect(hook.result.current.cursorExpired).toBe(true);
+  expect(hook.result.current.records).toHaveLength(1);
+  const calls = vi.mocked(api.browseAccessibleWorkspaces).mock.calls.length;
+  await act(async () => {
+    await hook.result.current.loadMore();
+  });
+  expect(api.browseAccessibleWorkspaces).toHaveBeenCalledTimes(calls);
+  await act(async () => {
+    await hook.result.current.load();
+  });
+  expect(api.browseAccessibleWorkspaces).toHaveBeenLastCalledWith(null, '', expect.anything());
+  expect(hook.result.current.cursorExpired).toBe(false);
+});
+
+it('search starts at the beginning and late continuation responses cannot overwrite it', async () => {
+  const userId = `account-${++counter}`;
+  const hook = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  let finish!: (response: ReturnType<typeof reply<api.WorkspaceBrowsePage>>) => void;
+  vi.mocked(api.browseAccessibleWorkspaces).mockImplementationOnce(() => new Promise(resolve => {
+    finish = resolve;
+  }));
+  let more!: Promise<void>;
+  act(() => {
+    more = hook.result.current.loadMore();
+  });
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [],
+    nextCursor: null,
+    exhausted: true
+  }));
+  await act(async () => {
+    await hook.result.current.setSearch('missing');
+  });
+  await act(async () => {
+    finish(reply({records: [{...view(b), defaultWorkspace: false}], nextCursor: null, exhausted: true}));
+    await more;
+  });
+  expect(hook.result.current.search).toBe('missing');
+  expect(hook.result.current.records).toEqual([]);
+  expect(api.browseAccessibleWorkspaces).toHaveBeenLastCalledWith(null, 'missing', expect.anything());
 });

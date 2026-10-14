@@ -44,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * @since 2026/10/10 18:42 ✾
  */
 class WorkspaceHttpIntegrationTest {
+    private final PlatformPersistenceIntegrationTest.Cursors cursors = new PlatformPersistenceIntegrationTest.Cursors();
     private final PlatformPersistenceIntegrationTest fixture = new PlatformPersistenceIntegrationTest();
     private Scheduler scheduler;
     private LocalValidatorFactoryBean validator;
@@ -62,7 +63,8 @@ class WorkspaceHttpIntegrationTest {
         scheduler = Schedulers.newBoundedElastic(2, 16, "workspace-http");
         var services = fixture.services;
         operations = new ReactiveWorkspaceOperations(identities, new PlatformPersistenceExecutor(scheduler, fixture.tx),
-                services.personal(), services.workspaces(), services.preferences(), services.scopes(), services.authorization(), services.writeGuard(), services.receiptQueries(), services.policies());
+                services.personal(), services.workspaces(), services.preferences(), services.scopes(), services.authorization(), services.writeGuard(), services.receiptQueries(), services.policies(),
+                new com.arte.app.platform.workspace.WorkspaceDirectoryBrowser(services.workspaces(), cursors));
         var proxyFactory = new AspectJProxyFactory(new WorkspaceController(operations));
         proxyFactory.setProxyTargetClass(true);
         proxyFactory.addAspect(new WebAspect());
@@ -131,6 +133,37 @@ class WorkspaceHttpIntegrationTest {
     private String renameBody(JSONObject scope, long version, String name) {
         return JSONUtil.createObj().set("scope", scope).set("expectedVersion", version)
                 .set("name", name).set("description", "description").toString();
+    }
+
+    @Test
+    void browseHttpUsesOpaqueContinuationAndIndependentVisibleCount() throws Exception {
+        String tenant = initialize().getJSONObject("tenant").getStr("id");
+        ok("createWorkspace", JSONUtil.createObj().set("tenantId", tenant).set("name", "First").toString(), "first");
+        ok("createWorkspace", JSONUtil.createObj().set("tenantId", tenant).set("name", "Second").toString(), "second");
+        var first = ok("browseAccessibleWorkspaces", "{\"size\":1}", null).getJSONObject("data");
+        assertFalse(first.getBool("exhausted"));
+        assertEquals(1, first.getJSONArray("records").size());
+        String token = first.getStr("nextCursor");
+        assertEquals(36, token.length());
+        assertFalse(first.containsKey("total"));
+        assertFalse(first.containsKey("nextBoundary"));
+        rejected("browseAccessibleWorkspaces", JSONUtil.createObj().set("cursor", token).set("size", 2).toString(),
+                null, alice, 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleWorkspaces", JSONUtil.createObj().set("cursor", token).set("size", 1).set("search", "other").toString(),
+                null, alice, 400, "INVALID_ARGUMENT");
+        var returned = first.getJSONArray("records").getJSONObject(0).getJSONObject("scope");
+        fixture.jdbc.update("DELETE FROM arte_platform_workspace_member WHERE tenant_id=? AND workspace_id=?",
+                returned.getStr("tenantId"), returned.getStr("workspaceId"));
+        var next = ok("browseAccessibleWorkspaces", JSONUtil.createObj().set("cursor", token).set("size", 1).toString(), null).getJSONObject("data");
+        assertNotEquals(returned, next.getJSONArray("records").getJSONObject(0).getJSONObject("scope"));
+        assertEquals(2L, ok("countAccessibleWorkspaces", null, null).getLong("data"));
+        cursors.values.remove(token);
+        rejected("browseAccessibleWorkspaces", JSONUtil.createObj().set("cursor", token).set("size", 1).toString(),
+                null, alice, 410, "CURSOR_EXPIRED");
+        var missing = ok("browseAccessibleWorkspaces", "{\"search\":\"no such name\"}", null).getJSONObject("data");
+        assertTrue(missing.getBool("exhausted"));
+        assertEquals(0, missing.getJSONArray("records").size());
+        rejected("browseAccessibleWorkspaces", "{\"cursor\":\"short\"}", null, alice, 400, "INVALID_ARGUMENT");
     }
 
     @Test

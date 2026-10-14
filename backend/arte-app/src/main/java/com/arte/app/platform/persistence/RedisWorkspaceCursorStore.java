@@ -1,7 +1,8 @@
 package com.arte.app.platform.persistence;
 
+import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.utils.platform.PlatformChecks;
-
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 
@@ -20,8 +21,7 @@ public final class RedisWorkspaceCursorStore implements WorkspaceCursorStore {
     private final Duration ttl;
     private final String prefix;
 
-    public RedisWorkspaceCursorStore(
-            RedissonClient redis, PlatformJson json, Duration ttl, String prefix) {
+    public RedisWorkspaceCursorStore(RedissonClient redis, PlatformJson json, Duration ttl, String prefix) {
         this.redis = redis;
         this.json = json;
         this.ttl = ttl;
@@ -31,7 +31,11 @@ public final class RedisWorkspaceCursorStore implements WorkspaceCursorStore {
     @Override
     public String save(Cursor cursor) {
         String token = UUID.randomUUID().toString();
-        redis.<String>getBucket(prefix + token, StringCodec.INSTANCE).set(json.write(cursor), ttl);
+        try {
+            redis.<String>getBucket(prefix + token, StringCodec.INSTANCE).set(json.write(cursor), ttl);
+        } catch (RuntimeException failure) {
+            throw new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, "workspace-cursor");
+        }
         return token;
     }
 
@@ -39,9 +43,18 @@ public final class RedisWorkspaceCursorStore implements WorkspaceCursorStore {
     public Cursor load(String token) {
         PlatformChecks.id(token, "cursor");
         UUID.fromString(token);
-        String value = redis.<String>getBucket(prefix + token, StringCodec.INSTANCE).get();
+        String value;
+        try {
+            value = redis.<String>getBucket(prefix + token, StringCodec.INSTANCE).get();
+        } catch (RuntimeException failure) {
+            throw new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, "workspace-cursor");
+        }
         if (value == null)
-            throw new IllegalArgumentException("Unknown or expired workspace cursor");
-        return json.read(value, Cursor.class);
+            throw new PlatformException(PlatformErrorCodeEnum.CURSOR_EXPIRED, "workspace-cursor");
+        try {
+            return java.util.Objects.requireNonNull(json.read(value, Cursor.class));
+        } catch (RuntimeException failure) {
+            throw new PlatformException(PlatformErrorCodeEnum.CURSOR_EXPIRED, "workspace-cursor");
+        }
     }
 }

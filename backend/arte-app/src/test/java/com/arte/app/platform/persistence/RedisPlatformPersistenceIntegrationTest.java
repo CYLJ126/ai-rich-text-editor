@@ -158,15 +158,21 @@ class RedisPlatformPersistenceIntegrationTest {
                         .defaultScope();
         var cursor =
                 new WorkspaceCursorStore.Cursor(
-                        fixture.actor.principal().subjectId(),
+                        fixture.actor.principal().subjectId(), 2, 20, "",
                         WorkspaceCandidateKey.from(fixture.workspaces.find(scope).orElseThrow()));
         String token = a.save(cursor);
         assertEquals(cursor, b.load(token));
-        var store = new PlatformServiceTestFactory(fixture.source, fixture.tx, fixture.json, b).workspaces();
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> store.scanMembershipCandidates("other-user", token, 1));
+        var browser = new com.arte.app.platform.workspace.WorkspaceDirectoryBrowser(fixture.services.workspaces(), b);
+        assertThrows(IllegalArgumentException.class, () -> browser.browse(fixture.actor, token,
+                new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(10, "")));
+        var stranger = new com.arte.core.pojo.platform.TrustedActor(new com.arte.core.pojo.platform.Principal("stranger",
+                com.arte.core.enums.platform.PrincipalKindEnum.USER, com.arte.core.enums.platform.PrincipalStatusEnum.ACTIVE),
+                java.time.Instant.now());
+        assertThrows(IllegalArgumentException.class, () -> browser.browse(stranger, token,
+                new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, "")));
+        assertTrue(browser.browse(fixture.actor, token, new com.arte.core.pojo.workspace.WorkspaceBrowseQuery(20, "")).exhausted());
         first.getBucket(properties.redisPrefix() + "cursor:" + token).delete();
-        assertThrows(IllegalArgumentException.class, () -> b.load(token));
+        assertEquals(com.arte.core.enums.platform.PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> b.load(token)).getCode());
     }
 }

@@ -64,7 +64,7 @@ class PlatformPersistenceIntegrationTest {
 
         public Cursor load(String token) {
             return Optional.ofNullable(values.get(token))
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid cursor"));
+                    .orElseThrow(() -> new PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.CURSOR_EXPIRED, "test-cursor"));
         }
     }
 
@@ -587,7 +587,7 @@ class PlatformPersistenceIntegrationTest {
                         .value();
         var page = workspaces.scanMembershipCandidates(actor.principal().subjectId(), null, 1);
         assertEquals(second.scope(), page.records().getFirst().scope());
-        assertNotNull(page.nextCursor());
+        assertFalse(page.exhausted());
         services.workspaces()
                 .rename(
                         actor,
@@ -598,16 +598,14 @@ class PlatformPersistenceIntegrationTest {
                 second.scope().workspaceId());
         var next =
                 workspaces.scanMembershipCandidates(
-                        actor.principal().subjectId(), page.nextCursor(), 1);
+                        actor.principal().subjectId(), page.records().getLast(), 1);
         assertEquals(first.scope(), next.records().getFirst().scope());
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> workspaces.scanMembershipCandidates("other-user", page.nextCursor(), 1));
+        assertTrue(workspaces.scanMembershipCandidates("other-user", page.records().getLast(), 1).exhausted());
         assertEquals(
                 scope,
                 workspaces
                         .scanMembershipCandidates(
-                                actor.principal().subjectId(), next.nextCursor(), 1)
+                                actor.principal().subjectId(), next.records().getLast(), 1)
                         .records()
                         .getFirst()
                         .scope());
@@ -777,7 +775,7 @@ class PlatformPersistenceIntegrationTest {
                 low,
                 workspaces
                         .scanMembershipCandidates(
-                                actor.principal().subjectId(), page.nextCursor(), 1)
+                                actor.principal().subjectId(), page.records().getLast(), 1)
                         .records()
                         .getFirst()
                         .scope());

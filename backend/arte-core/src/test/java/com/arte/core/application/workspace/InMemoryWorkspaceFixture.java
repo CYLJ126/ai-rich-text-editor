@@ -72,10 +72,6 @@ final class InMemoryWorkspaceFixture {
     IntConsumer beforeCandidateScan = ignored -> {
     };
 
-    private record CandidateCursor(String subjectId, WorkspaceCandidateKey lastKey) {
-    }
-
-    private final Map<String, CandidateCursor> candidateCursors = new HashMap<>();
     private final AtomicLong sequence = new AtomicLong();
     private final ReentrantLock transactionLock = new ReentrantLock();
     private final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
@@ -210,25 +206,16 @@ final class InMemoryWorkspaceFixture {
             return true;
         }
 
-        public WorkspaceCandidatePage scanMembershipCandidates(String subject, String cursor, int limit) {
+        public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit) {
             com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
             com.arte.core.utils.platform.PlatformChecks.require(limit >= 1 && limit <= 100, "candidate limit must be 1..100");
-            CandidateCursor anchor = cursor == null ? null : candidateCursors.get(cursor);
-            if (cursor != null && (anchor == null || !anchor.subjectId().equals(subject)))
-                throw new IllegalArgumentException("Unknown or foreign candidate cursor");
             beforeCandidateScan.accept(++candidateScans);
             Comparator<Workspace> order = Comparator.comparing(WorkspaceCandidateKey::from);
             var candidates = workspaces.values().stream().filter(w -> scanAll || workspaceMembers.containsKey(workspaceKey(w.scope(), subject)))
-                    .filter(w -> anchor == null || WorkspaceCandidateKey.from(w).compareTo(anchor.lastKey()) > 0)
+                    .filter(w -> after == null || loopCursor || WorkspaceCandidateKey.from(w).compareTo(after) > 0)
                     .sorted(reverseCandidateOrder ? order.reversed() : order).limit(limit + 1L).toList();
-            List<Workspace> records = candidates.subList(0, Math.min(candidates.size(), limit));
-            String next = null;
-            if (candidates.size() > limit || loopCursor) {
-                next = loopCursor ? "loop" : UUID.randomUUID().toString();
-                if (!records.isEmpty())
-                    candidateCursors.put(next, new CandidateCursor(subject, WorkspaceCandidateKey.from(records.getLast())));
-            }
-            return new WorkspaceCandidatePage(records, next);
+            var records = candidates.subList(0, Math.min(candidates.size(), limit)).stream().map(WorkspaceCandidateKey::from).toList();
+            return new WorkspaceCandidatePage(records, !loopCursor && candidates.size() <= limit);
         }
     };
 
@@ -470,10 +457,15 @@ final class InMemoryWorkspaceFixture {
     }
 
     InMemoryWorkspaceFixture(Clock clock, List<WorkspaceProvisioningParticipant> provisioning) {
+        this(clock, provisioning, WorkspaceBrowseBudget.defaults(), System::nanoTime);
+    }
+
+    InMemoryWorkspaceFixture(Clock clock, List<WorkspaceProvisioningParticipant> provisioning,
+                             WorkspaceBrowseBudget budget, java.util.function.LongSupplier nanoTime) {
         this.clock = clock;
         services = new DefaultWorkspaceServices(identity, transactions, tenantStore, workspaceStore,
                 tenantMemberStore, workspaceMemberStore, policyStore, preferenceStore, receiptStore, outbox, audit,
-                () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults(), batchFactsStore, provisioning);
+                () -> "id-" + sequence.incrementAndGet(), clock, DefaultWorkspacePolicies.conservativePersonalDefaults(), batchFactsStore, provisioning, budget, nanoTime);
     }
 
     TrustedActor user(String id) {

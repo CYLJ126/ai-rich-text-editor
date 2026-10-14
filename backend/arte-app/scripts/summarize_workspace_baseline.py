@@ -23,7 +23,9 @@ def summarize(source):
         for name in ("totalMs", "queueMs", "sqlMs", "connectionMs", "allocatedBytes"):
             values = [sample[name] for sample in samples]
             summary[name] = {"median": statistics.median(values), "p95": percentile(values, .95)}
-        for name in ("sqlCount", "redisReads", "redisWrites", "candidateBatches", "candidateRowsFetched"):
+        for name in ("sqlCount", "redisReads", "redisWrites", "candidateBatches", "candidateRowsFetched", "returnedRecords"):
+            if name not in samples[0]:
+                continue
             values = [sample[name] for sample in samples]
             summary[name] = {"min": min(values), "max": max(values)}
         scenarios.append(summary)

@@ -1,6 +1,7 @@
 package com.arte.app.web.controller.platform;
 
 import com.arte.app.platform.workspace.ReactiveWorkspaceOperations;
+import com.arte.app.platform.workspace.WorkspaceDirectoryBrowser;
 import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageView;
@@ -46,6 +47,47 @@ public class WorkspaceController {
     }
 
     public record GetRequest(@NotNull Scope scope) {
+    }
+
+    public record BrowseRequest(@Size(min = 36, max = 36) String cursor, @Min(1) @Max(100) Integer size,
+                                @Size(max = 100) String search) {
+        public BrowseRequest {
+            size = size == null ? 20 : size;
+        }
+    }
+
+    /**
+     * 按游标和扫描预算浏览当前登录用户可访问的空间，可按当前空间名称搜索。
+     * <p>
+     * 首次请求不传游标；后续请求使用返回的 nextCursor，并保持用户、结果条数及规范化搜索条件一致。
+     * 结果不包含可见总数，条数不足或为空时仍可能存在后续游标，应根据 exhausted 判断是否扫描到候选末尾。
+     * 每次请求重新验证当前访问资格，不提供固定时点的目录快照。
+     *
+     * @param authentication 当前请求的认证信息，由服务端转换为可信操作者
+     * @param request        浏览请求，包含可选游标、结果条数上限（默认 20，范围为 1～100）和可选空间名称搜索词
+     * @param locale         响应消息使用的语言区域
+     * @return 异步响应，包含当前可访问的空间摘要、后续游标及候选是否已扫描完毕的标记
+     */
+    @PostMapping("/browseAccessibleWorkspaces")
+    public Mono<ResultContext<WorkspaceDirectoryBrowser.Page>> browseAccessibleWorkspaces(
+            Authentication authentication, @Valid @RequestBody BrowseRequest request, Locale locale) {
+        return workspaceOperations.browseAccessible(authentication, request.cursor(), new WorkspaceBrowseQuery(request.size(), request.search()))
+                .map(page -> ResultContext.success(page, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    /**
+     * 显式统计当前登录用户可访问的空间数量，不应用浏览接口的搜索条件。
+     * <p>
+     * 此操作完整扫描成员候选并逐批检查当前访问资格，成本随候选数量增长，交互式空间选择器不自动调用。
+     * 统计不提供固定时点的快照，扫描期间的目录和权限变化可能影响最终数量。
+     *
+     * @param authentication 当前请求的认证信息，由服务端转换为可信操作者
+     * @param locale         响应消息使用的语言区域
+     * @return 异步响应，包含本次完整扫描中通过当前访问资格验证的空间数量
+     */
+    @PostMapping("/countAccessibleWorkspaces")
+    public Mono<ResultContext<Long>> countAccessibleWorkspaces(Authentication authentication, Locale locale) {
+        return workspaceOperations.countAccessible(authentication).map(total -> ResultContext.success(total, ResultCodeEnum.SUCCESS, locale));
     }
 
     public record CommandReceiptRequest(@NotBlank @Size(max = 256) String operationId) {

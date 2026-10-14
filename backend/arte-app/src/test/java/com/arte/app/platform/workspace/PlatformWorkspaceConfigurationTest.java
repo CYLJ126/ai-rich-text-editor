@@ -88,7 +88,23 @@ class PlatformWorkspaceConfigurationTest {
                 .withBean(AuditSink.class, () -> mock(AuditSink.class))
                 .withBean(PlatformIdGenerator.class, () -> () -> java.util.UUID.randomUUID().toString())
                 .withBean(WorkspaceAccessFactsStore.class, () -> mock(WorkspaceAccessFactsStore.class))
-                .withBean(PlatformPersistenceExecutor.class, () -> mock(PlatformPersistenceExecutor.class));
+                .withBean(PlatformPersistenceExecutor.class, () -> mock(PlatformPersistenceExecutor.class))
+                .withBean(com.arte.app.platform.persistence.WorkspaceCursorStore.class,
+                        () -> mock(com.arte.app.platform.persistence.WorkspaceCursorStore.class));
+    }
+
+    @Test
+    void directoryBudgetsBindAndInvalidLimitsFailAtStartup() {
+        dependencies().withPropertyValues("arte.platform.workspace.enabled=true", "arte.platform.identity.enabled=true",
+                "arte.platform.persistence.enabled=true", "arte.platform.workspace.directory.max-candidates=40",
+                "arte.platform.workspace.directory.batch-size=10", "arte.platform.workspace.directory.max-batches=4",
+                "arte.platform.workspace.directory.max-work-time=100ms").run(context -> {
+            assertNull(context.getStartupFailure());
+            assertEquals(40, context.getBean(PlatformWorkspaceProperties.class).directory().budget().maxCandidates());
+        });
+        dependencies().withPropertyValues("arte.platform.workspace.enabled=true", "arte.platform.identity.enabled=true",
+                        "arte.platform.persistence.enabled=true", "arte.platform.workspace.directory.max-candidates=0")
+                .run(context -> assertNotNull(context.getStartupFailure()));
     }
 
     private Throwable root(Throwable failure) {

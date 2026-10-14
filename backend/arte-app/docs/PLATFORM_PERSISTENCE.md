@@ -2,7 +2,9 @@
 
 2026-10-14 工作空间目录改造第一批补充了时间策略、更新时间 CAS 防线和专用测量入口；下文原批次装配记录保留。
 最新契约见 [目录改造](WORKSPACE_DIRECTORY_REDESIGN.md)，本机实测与验证限制见
-[基线报告](WORKSPACE_DIRECTORY_BASELINE_2026-10-14.md)。
+[基线报告](WORKSPACE_DIRECTORY_BASELINE_2026-10-14.md)。 第二批移除了内部 Redis 续扫和候选空间 JOIN，公开导航使用 Redis v2
+状态；配置和测量见
+[第二批交付](WORKSPACE_DIRECTORY_BATCH2_2026-10-14.md)。
 
 本批在 `com.arte.app.service.platform` 实现公共空间数据库 SPI，在 `com.arte.app.platform.persistence`
 装配事务、Mapper、响应式执行边界、Redis 游标和 Outbox 投递基础设施。默认关闭；不执行 DDL、不回填旧资源、不注册空间

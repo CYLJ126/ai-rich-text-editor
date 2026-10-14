@@ -59,7 +59,7 @@ class WorkspaceCandidateScanTest {
         Scope boundary = first.records().getLast().scope();
         f.workspaces.remove(boundary);
         f.workspaceMembers.remove(workspaceKey(boundary, "alice"));
-        var rest = scan(first.nextCursor(), 100);
+        var rest = scan(first.records().getLast(), 100);
         assertEquals(scopes.subList(100, 205), rest);
         assertEquals(rest.size(), rest.stream().distinct().count());
     }
@@ -69,7 +69,7 @@ class WorkspaceCandidateScanTest {
         var scopes = seed(205);
         var first = f.workspaceStore.scanMembershipCandidates("alice", null, 100);
         f.workspaceMembers.remove(workspaceKey(scopes.getFirst(), "alice"));
-        assertEquals(scopes.subList(100, 205), scan(first.nextCursor(), 100));
+        assertEquals(scopes.subList(100, 205), scan(first.records().getLast(), 100));
     }
 
     @Test
@@ -87,7 +87,7 @@ class WorkspaceCandidateScanTest {
         var scopes = seed(8);
         var first = f.workspaceStore.scanMembershipCandidates("alice", null, 3);
         Scope newer = seed("tenant", "newer", NOW.plusSeconds(1));
-        assertEquals(scopes.subList(3, 8), scan(first.nextCursor(), 3));
+        assertEquals(scopes.subList(3, 8), scan(first.records().getLast(), 3));
         assertEquals(newer, scan(null, 3).getFirst());
     }
 
@@ -101,18 +101,14 @@ class WorkspaceCandidateScanTest {
     }
 
     @Test
-    void cursorIsOpaqueSubjectBoundAndLimitIsBounded() {
+    void internalBoundaryIsTypedAndTheLimitIsBounded() {
         seed(3);
         var first = f.workspaceStore.scanMembershipCandidates("alice", null, 1);
-        assertNotNull(first.nextCursor());
-        assertThrows(IllegalArgumentException.class,
-                () -> f.workspaceStore.scanMembershipCandidates("bob", first.nextCursor(), 1));
-        assertThrows(IllegalArgumentException.class,
-                () -> f.workspaceStore.scanMembershipCandidates("alice", "unknown", 1));
-        assertThrows(IllegalArgumentException.class,
-                () -> f.workspaceStore.scanMembershipCandidates("alice", null, 0));
-        assertThrows(IllegalArgumentException.class,
-                () -> f.workspaceStore.scanMembershipCandidates("alice", null, 101));
+        assertFalse(first.exhausted());
+        assertEquals(2, scan(first.records().getLast(), 1).size());
+        assertTrue(f.workspaceStore.scanMembershipCandidates("bob", first.records().getLast(), 1).records().isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> f.workspaceStore.scanMembershipCandidates("alice", null, 0));
+        assertThrows(IllegalArgumentException.class, () -> f.workspaceStore.scanMembershipCandidates("alice", null, 101));
     }
 
     @Test
@@ -125,12 +121,12 @@ class WorkspaceCandidateScanTest {
         assertEquals(old, f.workspaces.get(scope));
     }
 
-    private List<Scope> scan(String cursor, int limit) {
+    private List<Scope> scan(WorkspaceCandidateKey cursor, int limit) {
         List<Scope> result = new ArrayList<>();
         do {
             var batch = f.workspaceStore.scanMembershipCandidates("alice", cursor, limit);
-            result.addAll(batch.records().stream().map(Workspace::scope).toList());
-            cursor = batch.nextCursor();
+            result.addAll(batch.records().stream().map(WorkspaceCandidateKey::scope).toList());
+            cursor = batch.exhausted() ? null : batch.records().getLast();
         } while (cursor != null);
         return result;
     }

@@ -20,6 +20,12 @@ export interface WorkspaceSummary extends WorkspaceView {
   defaultWorkspace: boolean
 }
 
+export interface WorkspaceBrowsePage {
+  records: WorkspaceSummary[];
+  nextCursor: string | null;
+  exhausted: boolean;
+}
+
 export interface WorkspacePreference {
   defaultScope: WorkspaceScope;
   startupScope: WorkspaceScope | null;

@@ -1,0 +1,1113 @@
+{
+  "kind": "workspace-directory-service-baseline",
+  "mode": "browse",
+  "browseBudget": {
+    "maxBatches": 4,
+    "maxWorkTimeMs": 1000,
+    "maxCandidates": 200,
+    "batchSize": 100,
+    "initialBatch": "min(size*2,batchSize)"
+  },
+  "observedAt": "2026-10-14T04:28:47.312881Z",
+  "javaVersion": "21.0.8",
+  "sqlDebugLogging": false,
+  "mysqlVersion": "8.4.11",
+  "workers": 8,
+  "queueCapacityPerWorker": 128,
+  "connectionPoolSize": 8,
+  "requestsPerScenario": 32,
+  "page": {
+    "size": 20,
+    "current": 1
+  },
+  "candidateExplain": [
+    {
+      "id": 1,
+      "select_type": "SIMPLE",
+      "table": "m",
+      "partitions": null,
+      "type": "range",
+      "possible_keys": "ix_platform_workspace_member_subject,ix_platform_workspace_member_scan",
+      "key": "ix_platform_workspace_member_scan",
+      "key_len": "64",
+      "ref": null,
+      "rows": 4950,
+      "filtered": 50.0,
+      "Extra": "Using index condition; Using where"
+    }
+  ],
+  "indexSizes": [
+    {
+      "table_name": "arte_platform_audit",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_audit",
+      "index_name": "ix_platform_audit_operation",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_audit",
+      "index_name": "ix_platform_audit_scope",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_command",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_command",
+      "index_name": "uk_platform_command_identity",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_outbox",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_outbox",
+      "index_name": "ix_platform_outbox_ready",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_personal_policy_template",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_personal_policy_template_head",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_personal_policy_template_head",
+      "index_name": "version",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_principal_identity",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_principal_identity",
+      "index_name": "uk_platform_external_identity",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant",
+      "index_name": "uk_platform_personal_tenant",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant_member",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant_member",
+      "index_name": "ix_platform_tenant_member_subject",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant_member",
+      "index_name": "uk_platform_tenant_member",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_tenant_policy",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_workspace",
+      "index_name": "PRIMARY",
+      "pages": 161
+    },
+    {
+      "table_name": "arte_platform_workspace",
+      "index_name": "ix_platform_workspace_scan",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace",
+      "index_name": "uk_platform_workspace_scan_key",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace",
+      "index_name": "uk_platform_workspace_scope",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "PRIMARY",
+      "pages": 161
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "ix_platform_workspace_member_scan",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "ix_platform_workspace_member_subject",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "tenant_id",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "tenant_id_2",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_member",
+      "index_name": "uk_platform_workspace_member",
+      "pages": 97
+    },
+    {
+      "table_name": "arte_platform_workspace_policy",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_workspace_preference",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_workspace_preference",
+      "index_name": "default_tenant_id",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_platform_workspace_preference",
+      "index_name": "uk_platform_default_workspace",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_rbac_user",
+      "index_name": "PRIMARY",
+      "pages": 1
+    },
+    {
+      "table_name": "arte_rbac_user",
+      "index_name": "user_name",
+      "pages": 1
+    }
+  ],
+  "scenarios": [
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 15.760521,
+        "p95": 23.830375
+      },
+      "queueMs": {
+        "median": 0.0447085,
+        "p95": 0.113667
+      },
+      "sqlMs": {
+        "median": 8.384853,
+        "p95": 17.411916
+      },
+      "connectionMs": {
+        "median": 0.06910549999999999,
+        "p95": 0.178124
+      },
+      "allocatedBytes": {
+        "median": 3871848.0,
+        "p95": 3981848
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 24.477604,
+        "p95": 30.94325
+      },
+      "queueMs": {
+        "median": 0.0393545,
+        "p95": 0.213667
+      },
+      "sqlMs": {
+        "median": 14.4670395,
+        "p95": 22.264914
+      },
+      "connectionMs": {
+        "median": 0.015521,
+        "p95": 0.03162600000000001
+      },
+      "allocatedBytes": {
+        "median": 3797444.0,
+        "p95": 3896536
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 53.684833,
+        "p95": 80.229209
+      },
+      "queueMs": {
+        "median": 32.7083745,
+        "p95": 64.214542
+      },
+      "sqlMs": {
+        "median": 13.233998499999998,
+        "p95": 17.003249000000004
+      },
+      "connectionMs": {
+        "median": 0.012622999999999999,
+        "p95": 0.026624000000000002
+      },
+      "allocatedBytes": {
+        "median": 3727488.0,
+        "p95": 3736976
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 18.149104,
+        "p95": 47.739833
+      },
+      "queueMs": {
+        "median": 0.051416,
+        "p95": 0.1255
+      },
+      "sqlMs": {
+        "median": 12.017252,
+        "p95": 34.185628
+      },
+      "connectionMs": {
+        "median": 0.029919,
+        "p95": 0.12225000000000004
+      },
+      "allocatedBytes": {
+        "median": 8928064.0,
+        "p95": 9215360
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 0,
+        "max": 0
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 102,
+        "max": 102
+      },
+      "returnedRecords": {
+        "min": 11,
+        "max": 11
+      }
+    },
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 26.737499999999997,
+        "p95": 35.31675
+      },
+      "queueMs": {
+        "median": 0.0218955,
+        "p95": 0.084041
+      },
+      "sqlMs": {
+        "median": 19.899750499999996,
+        "p95": 27.890499000000002
+      },
+      "connectionMs": {
+        "median": 0.03468650000000001,
+        "p95": 0.05337400000000001
+      },
+      "allocatedBytes": {
+        "median": 8856072.0,
+        "p95": 8870824
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 0,
+        "max": 0
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 102,
+        "max": 102
+      },
+      "returnedRecords": {
+        "min": 11,
+        "max": 11
+      }
+    },
+    {
+      "candidates": 101,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 93.7431455,
+        "p95": 133.455834
+      },
+      "queueMs": {
+        "median": 58.820875,
+        "p95": 109.168166
+      },
+      "sqlMs": {
+        "median": 24.9217715,
+        "p95": 32.773958
+      },
+      "connectionMs": {
+        "median": 0.03574900000000001,
+        "p95": 0.06091800000000002
+      },
+      "allocatedBytes": {
+        "median": 8852536.0,
+        "p95": 8852688
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 0,
+        "max": 0
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 102,
+        "max": 102
+      },
+      "returnedRecords": {
+        "min": 11,
+        "max": 11
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 8.951104,
+        "p95": 11.841709
+      },
+      "queueMs": {
+        "median": 0.0402495,
+        "p95": 0.052833
+      },
+      "sqlMs": {
+        "median": 6.2875820000000004,
+        "p95": 7.934960000000002
+      },
+      "connectionMs": {
+        "median": 0.0116255,
+        "p95": 0.018792000000000003
+      },
+      "allocatedBytes": {
+        "median": 3580744.0,
+        "p95": 3625112
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 14.8059585,
+        "p95": 17.5145
+      },
+      "queueMs": {
+        "median": 0.0252705,
+        "p95": 0.090208
+      },
+      "sqlMs": {
+        "median": 11.650083,
+        "p95": 14.208835
+      },
+      "connectionMs": {
+        "median": 0.0215625,
+        "p95": 0.050999
+      },
+      "allocatedBytes": {
+        "median": 3571764.0,
+        "p95": 3572672
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 40.116125,
+        "p95": 63.464625
+      },
+      "queueMs": {
+        "median": 26.592270999999997,
+        "p95": 45.943333
+      },
+      "sqlMs": {
+        "median": 11.578979,
+        "p95": 14.794918
+      },
+      "connectionMs": {
+        "median": 0.019063000000000004,
+        "p95": 0.03241600000000001
+      },
+      "allocatedBytes": {
+        "median": 3569924.0,
+        "p95": 3570888
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 18.3567295,
+        "p95": 163.959
+      },
+      "queueMs": {
+        "median": 0.0452085,
+        "p95": 0.120709
+      },
+      "sqlMs": {
+        "median": 13.244750499999999,
+        "p95": 142.21695499999998
+      },
+      "connectionMs": {
+        "median": 0.021372500000000003,
+        "p95": 0.13883400000000004
+      },
+      "allocatedBytes": {
+        "median": 11896952.0,
+        "p95": 11910408
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 97.4405,
+        "p95": 113.068042
+      },
+      "queueMs": {
+        "median": 0.098104,
+        "p95": 1.660459
+      },
+      "sqlMs": {
+        "median": 83.1306055,
+        "p95": 98.715333
+      },
+      "connectionMs": {
+        "median": 0.04504100000000001,
+        "p95": 0.11283600000000002
+      },
+      "allocatedBytes": {
+        "median": 11896992.0,
+        "p95": 11918544
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 1001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 298.012562,
+        "p95": 423.373166
+      },
+      "queueMs": {
+        "median": 184.97981299999998,
+        "p95": 349.343666
+      },
+      "sqlMs": {
+        "median": 89.157126,
+        "p95": 121.01937500000004
+      },
+      "connectionMs": {
+        "median": 0.038772500000000015,
+        "p95": 0.05387600000000001
+      },
+      "allocatedBytes": {
+        "median": 11895524.0,
+        "p95": 11895640
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 8.485917,
+        "p95": 10.043375
+      },
+      "queueMs": {
+        "median": 0.0343955,
+        "p95": 0.048666
+      },
+      "sqlMs": {
+        "median": 5.937416000000001,
+        "p95": 6.960625000000001
+      },
+      "connectionMs": {
+        "median": 0.0056895,
+        "p95": 0.022039
+      },
+      "allocatedBytes": {
+        "median": 3552704.0,
+        "p95": 3552704
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 14.711979,
+        "p95": 18.799709
+      },
+      "queueMs": {
+        "median": 0.017583500000000002,
+        "p95": 0.035417
+      },
+      "sqlMs": {
+        "median": 11.623998,
+        "p95": 13.861791000000002
+      },
+      "connectionMs": {
+        "median": 0.007000000000000001,
+        "p95": 0.056667
+      },
+      "allocatedBytes": {
+        "median": 3552792.0,
+        "p95": 3562880
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 100,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 30.8355835,
+        "p95": 50.680333
+      },
+      "queueMs": {
+        "median": 18.6349995,
+        "p95": 39.19625
+      },
+      "sqlMs": {
+        "median": 9.841459,
+        "p95": 12.981501
+      },
+      "connectionMs": {
+        "median": 0.004625499999999999,
+        "p95": 0.006252000000000001
+      },
+      "allocatedBytes": {
+        "median": 3552704.0,
+        "p95": 3552792
+      },
+      "sqlCount": {
+        "min": 17,
+        "max": 17
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateRowsFetched": {
+        "min": 41,
+        "max": 41
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 1,
+      "requests": 32,
+      "totalMs": {
+        "median": 15.273896,
+        "p95": 17.969625
+      },
+      "queueMs": {
+        "median": 0.034125,
+        "p95": 0.05975
+      },
+      "sqlMs": {
+        "median": 10.716186999999998,
+        "p95": 12.943293000000002
+      },
+      "connectionMs": {
+        "median": 0.004414,
+        "p95": 0.007621999999999999
+      },
+      "allocatedBytes": {
+        "median": 11893536.0,
+        "p95": 11893872
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 8,
+      "requests": 32,
+      "totalMs": {
+        "median": 26.3468125,
+        "p95": 29.40275
+      },
+      "queueMs": {
+        "median": 0.0153545,
+        "p95": 0.035417
+      },
+      "sqlMs": {
+        "median": 20.9348355,
+        "p95": 25.096999000000004
+      },
+      "connectionMs": {
+        "median": 0.008416,
+        "p95": 0.011417000000000002
+      },
+      "allocatedBytes": {
+        "median": 11893768.0,
+        "p95": 11894696
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    },
+    {
+      "candidates": 10001,
+      "visiblePercentOfSeeded": 10,
+      "concurrency": 32,
+      "requests": 32,
+      "totalMs": {
+        "median": 67.5906875,
+        "p95": 107.016833
+      },
+      "queueMs": {
+        "median": 40.0226255,
+        "p95": 80.122709
+      },
+      "sqlMs": {
+        "median": 21.781082999999995,
+        "p95": 23.588872999999992
+      },
+      "connectionMs": {
+        "median": 0.0080825,
+        "p95": 0.009789
+      },
+      "allocatedBytes": {
+        "median": 11893720.0,
+        "p95": 11893848
+      },
+      "sqlCount": {
+        "min": 27,
+        "max": 27
+      },
+      "redisReads": {
+        "min": 0,
+        "max": 0
+      },
+      "redisWrites": {
+        "min": 1,
+        "max": 1
+      },
+      "candidateBatches": {
+        "min": 2,
+        "max": 2
+      },
+      "candidateRowsFetched": {
+        "min": 142,
+        "max": 142
+      },
+      "returnedRecords": {
+        "min": 20,
+        "max": 20
+      }
+    }
+  ]
+}

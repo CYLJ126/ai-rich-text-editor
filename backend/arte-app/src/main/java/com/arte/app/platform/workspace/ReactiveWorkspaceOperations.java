@@ -45,11 +45,13 @@ public final class ReactiveWorkspaceOperations {
     private final WorkspaceWriteGuard guard;
     private final CommandReceiptQueryService receipts;
     private final WorkspacePolicyService policies;
+    private final WorkspaceDirectoryBrowser browser;
 
     public ReactiveWorkspaceOperations(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
                                        PersonalWorkspaceService personal, WorkspaceService workspaces, WorkspacePreferenceService preferences,
                                        ScopeResolver scopes, AuthorizationService authorization, WorkspaceWriteGuard guard,
-                                       CommandReceiptQueryService receipts, WorkspacePolicyService policies) {
+                                       CommandReceiptQueryService receipts, WorkspacePolicyService policies,
+                                       WorkspaceDirectoryBrowser browser) {
         this.identities = identities;
         this.executor = executor;
         this.personal = personal;
@@ -60,6 +62,7 @@ public final class ReactiveWorkspaceOperations {
         this.guard = guard;
         this.receipts = receipts;
         this.policies = policies;
+        this.browser = browser;
     }
 
     public Mono<CommandReceipt<WorkspaceViews.PersonalWorkspaceView>> initializePersonal(Authentication authentication, CommandMeta meta) {
@@ -68,6 +71,14 @@ public final class ReactiveWorkspaceOperations {
 
     public Mono<PageResult<WorkspaceViews.WorkspaceSummary>> listAccessible(Authentication authentication, PageQuery query) {
         return call(authentication, actor -> workspaces.listAccessible(actor, query));
+    }
+
+    public Mono<WorkspaceDirectoryBrowser.Page> browseAccessible(Authentication authentication, String token, WorkspaceBrowseQuery query) {
+        return call(authentication, actor -> browser.browse(actor, token, query));
+    }
+
+    public Mono<Long> countAccessible(Authentication authentication) {
+        return call(authentication, workspaces::countAccessible);
     }
 
     public Mono<WorkspaceViews.WorkspaceView> get(Authentication authentication, Scope scope) {

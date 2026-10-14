@@ -32,7 +32,7 @@ final class PlatformServiceTestFactory {
     }
 
     WorkspaceStoreServiceImpl workspaces() {
-        return new WorkspaceStoreServiceImpl(config.platformWorkspaceMapper(session), tx, cursors);
+        return new WorkspaceStoreServiceImpl(config.platformWorkspaceMapper(session), tx);
     }
 
     TenantMembershipStoreServiceImpl tenantMembers() {

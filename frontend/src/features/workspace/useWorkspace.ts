@@ -38,7 +38,7 @@ export type WorkspaceOperation = z.infer<typeof pendingSchema>;
 type SelectionGuard = (scope: api.WorkspaceScope, proceed: () => void) => void;
 const guards = new Map<string, Set<SelectionGuard>>();
 
-/** Both the app header and page picker run the active module's protection before changing scope. */
+/** Every picker runs the active module's protection before changing scope. */
 export function registerWorkspaceGuard(userId: string, guard: SelectionGuard) {
   const entries = guards.get(userId) ?? new Set<SelectionGuard>();
   entries.add(guard);
@@ -60,8 +60,10 @@ interface DirectoryState {
   preference: api.WorkspacePreference | null;
   personalTenant: api.TenantView | null;
   records: api.WorkspaceSummary[];
-  page: number;
-  total: number;
+  search: string;
+  nextCursor: string | null;
+  exhausted: boolean;
+  cursorExpired: boolean;
   loading: boolean;
   selecting: boolean;
   saving: boolean;
@@ -77,7 +79,14 @@ interface DirectoryState {
 }
 
 const empty: DirectoryState = {
-  current: null, preference: null, personalTenant: null, records: [], page: 1, total: 0,
+  current: null,
+  preference: null,
+  personalTenant: null,
+  records: [],
+  search: '',
+  nextCursor: null,
+  exhausted: false,
+  cursorExpired: false,
   loading: false, selecting: false, saving: false, loaded: false, error: null, warning: null,
   pending: null, recoveryBlocked: false, unsafeToLeave: false, canCreate: false, canRename: false, lastReceipt: null,
 };
@@ -224,7 +233,7 @@ class WorkspaceDirectory {
         if (authExpired(failure)) this.update({current: null, records: [], canCreate: false, canRename: false});
         else if (isHidden(failure) && sameScope(scope, this.state.current?.scope)) {
           this.update({current: null, canCreate: false, canRename: false});
-          await this.load(this.state.page);
+          await this.load();
         }
       }
       return false;
@@ -232,12 +241,20 @@ class WorkspaceDirectory {
       if (!this.stopped && !controller.signal.aborted) this.update({selecting: false});
     }
   };
-  load = async (page = 1): Promise<void> => {
+  load = async (search = this.state.search): Promise<void> => {
     this.reads?.abort();
     const controller = new AbortController();
     this.reads = controller;
     const selectionRevision = this.revision;
-    this.update({loading: true, error: null});
+    this.update({
+      loading: true,
+      error: null,
+      records: [],
+      search,
+      nextCursor: null,
+      exhausted: false,
+      cursorExpired: false
+    });
     try {
       // A missing preference is the server's indication that this account has not initialized its default space.
       // Never initialize on network/401/403/503 failures or while a previous command is uncertain.
@@ -252,13 +269,13 @@ class WorkspaceDirectory {
         }
         throw failure;
       }
-      const list = await api.listAccessibleWorkspaces(page, {signal: controller.signal});
+      const list = await api.browseAccessibleWorkspaces(null, search, {signal: controller.signal});
       if (this.stopped || controller.signal.aborted || selectionRevision !== this.revision) return;
       this.update({
         preference: prefs.body.data,
-        records: list.body.records,
-        page: list.body.current,
-        total: list.body.total
+        records: list.body.data.records,
+        nextCursor: list.body.data.nextCursor,
+        exhausted: list.body.data.exhausted,
       });
       const stored = readValue<api.WorkspaceScope>(workspaceStorageKey(this.userId, 'currentWorkspace'));
       const parsed = api.workspaceScopeSchema.safeParse(stored.value);
@@ -286,6 +303,7 @@ class WorkspaceDirectory {
         if (authExpired(failure) || isHidden(failure)) this.update({
           current: null,
           records: [],
+          nextCursor: null,
           canCreate: false,
           canRename: false
         });
@@ -294,6 +312,50 @@ class WorkspaceDirectory {
       if (!this.stopped && !controller.signal.aborted) this.update({loading: false, loaded: true});
     }
   };
+
+  setSearch = async (search: string): Promise<void> => {
+    if (!this.state.preference || !this.state.loaded) return this.load(search);
+    await this.readDirectory(false, search);
+  };
+
+  loadMore = async (): Promise<void> => {
+    if (this.state.loading || this.state.exhausted || this.state.cursorExpired || !this.state.nextCursor) return;
+    await this.readDirectory(true, this.state.search);
+  };
+
+  private async readDirectory(append: boolean, search: string): Promise<void> {
+    this.reads?.abort();
+    const controller = new AbortController();
+    this.reads = controller;
+    const cursor = append ? this.state.nextCursor : null;
+    this.update({
+      loading: true, error: null, ...(!append ? {
+        search, records: [], nextCursor: null, exhausted: false, cursorExpired: false,
+      } : {})
+    });
+    try {
+      const response = await api.browseAccessibleWorkspaces(cursor, search, {signal: controller.signal});
+      if (this.stopped || controller.signal.aborted) return;
+      const page = response.body.data;
+      if (page.nextCursor !== null && page.nextCursor === cursor) throw new Error('目录未向后推进，请刷新。');
+      const records = append ? [...this.state.records, ...page.records] : page.records;
+      if (new Set(records.map(record => JSON.stringify([record.scope.tenantId, record.scope.workspaceId]))).size !== records.length)
+        throw new Error('目录返回重复空间，请刷新。');
+      this.update({records, nextCursor: page.nextCursor, exhausted: page.exhausted});
+    } catch (failure) {
+      if (!this.stopped && !controller.signal.aborted) {
+        this.update({error: failure});
+        if (failure instanceof AiApiError && failure.code === 'PLATFORM_CURSOR_EXPIRED')
+          this.update({cursorExpired: true});
+        if (authExpired(failure)) this.update({
+          current: null, records: [], nextCursor: null,
+          canCreate: false, canRename: false
+        });
+      }
+    } finally {
+      if (!this.stopped && !controller.signal.aborted) this.update({loading: false});
+    }
+  }
 
   private async execute(operation: WorkspaceOperation): Promise<boolean> {
     if (this.write || this.state.recoveryBlocked || this.stopped) return false;
@@ -334,7 +396,7 @@ class WorkspaceDirectory {
       }
       this.update({lastReceipt: receipt});
       this.persist(null);
-      await this.load(this.state.page);
+      await this.load();
       return true;
     } catch (failure) {
       if (!this.stopped && !controller.signal.aborted) {
@@ -345,7 +407,7 @@ class WorkspaceDirectory {
           if (authExpired(failure)) this.update({current: null, records: [], canCreate: false, canRename: false});
           if (failure.httpStatus === 409) {
             this.update({warning: '空间或偏好版本已更新，请检查刷新后的内容再操作。'});
-            await this.load(this.state.page);
+            await this.load();
           }
         }
       }
@@ -417,6 +479,8 @@ export function useWorkspaceDirectory(userId: string) {
   return {
     ...state,
     load: directory.load,
+    loadMore: directory.loadMore,
+    setSearch: directory.setSearch,
     select: directory.select,
     initialize: directory.initialize,
     retry: directory.retry,

@@ -43,6 +43,18 @@ public final class DefaultWorkspaceServices {
                                     WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
                                     CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
                                     Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts, java.util.List<WorkspaceProvisioningParticipant> provisioning) {
+        this(identity, transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, policyStore, preferenceStore,
+                receipts, outbox, audit, ids, clock, defaults, batchFacts, provisioning,
+                com.arte.core.pojo.workspace.WorkspaceBrowseBudget.defaults(), System::nanoTime);
+    }
+
+    public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
+                                    TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
+                                    WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
+                                    CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
+                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts,
+                                    java.util.List<WorkspaceProvisioningParticipant> provisioning,
+                                    com.arte.core.pojo.workspace.WorkspaceBrowseBudget budget, java.util.function.LongSupplier nanoTime) {
         var principals = new CurrentPrincipalResolver(identity);
         var access = new WorkspaceAccessSupport(principals, tenantStore, workspaceStore, tenantMembers,
                 workspaceMembers, policyStore, preferenceStore, clock, transactions, batchFacts);
@@ -56,7 +68,7 @@ public final class DefaultWorkspaceServices {
         personal = new DefaultPersonalWorkspaceService(principals, commands, access, locks, tenantStore, workspaceStore,
                 tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences, receipts, provisioning);
         workspaces = new DefaultWorkspaceService(principals, access, authorization, locks, commands, tenantStore,
-                workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects, provisioning);
+                workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects, provisioning, budget, nanoTime);
         policies = new DefaultWorkspacePolicyService(principals, access, authorization, commands, locks, effects,
                 tenantStore, workspaceStore, policyStore, transactions, clock);
         receiptQueries = new DefaultCommandReceiptQueryService(principals, receipts, preferenceStore, tenantStore,

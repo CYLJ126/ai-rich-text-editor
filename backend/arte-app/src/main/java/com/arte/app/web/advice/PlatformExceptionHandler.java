@@ -88,6 +88,7 @@ public class PlatformExceptionHandler {
             case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
             case ACCESS_DENIED, POLICY_DENIED -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case CURSOR_EXPIRED -> HttpStatus.GONE;
             case VERSION_CONFLICT, MEMBER_ROLE_CONFLICT, OWNER_TRANSFER_REQUIRED, IDEMPOTENCY_CONFLICT,
                  SPACE_READ_ONLY, SPACE_CLOSING, CAPABILITY_NOT_ENABLED, IDENTITY_CONFLICT, TENANT_INACTIVE ->
                     HttpStatus.CONFLICT;

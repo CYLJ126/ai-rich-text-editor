@@ -24,7 +24,7 @@ vi.mock('@umijs/max', () => ({
 
 vi.mock('@/services/platform/workspace', async original => ({
   ...(await original<typeof import('@/services/platform/workspace')>()),
-  getWorkspacePreference: vi.fn(), listAccessibleWorkspaces: vi.fn(), getWorkspace: vi.fn(),
+  getWorkspacePreference: vi.fn(), browseAccessibleWorkspaces: vi.fn(), getWorkspace: vi.fn(),
   checkWorkspaceAccess: vi.fn(), updateWorkspacePreference: vi.fn(),
 }));
 vi.mock('@/services/arte-ai', async original => ({
@@ -92,10 +92,12 @@ beforeEach(() => {
     currentRole: 0,
     version: 1,
   }));
-  vi.mocked(platform.listAccessibleWorkspaces).mockResolvedValue(page([
+  vi.mocked(platform.browseAccessibleWorkspaces).mockResolvedValue(reply({
+    records: [
     {scope, name: '空间A', state: 0, currentRole: 0, version: 1, defaultWorkspace: true},
     {scope: otherScope, name: '空间B', state: 0, currentRole: 2, version: 1, defaultWorkspace: false},
-  ]));
+    ], nextCursor: null, exhausted: true
+  }));
   vi.mocked(platform.checkWorkspaceAccess).mockResolvedValue(reply({
     allowed: false,
     reason: 'POLICY_DENIED',

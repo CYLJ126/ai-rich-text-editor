@@ -1,6 +1,5 @@
 package com.arte.app.service.platform;
 
-import com.arte.app.platform.persistence.WorkspaceCursorStore;
 import com.arte.app.platform.persistence.mapper.PlatformWorkspaceMapper;
 import com.arte.app.pojo.platform.PlatformWorkspaceDto;
 import com.arte.core.pojo.platform.Scope;
@@ -14,7 +13,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -29,14 +27,10 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "arte.platform.persistence", name = "enabled", havingValue = "true")
 public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWorkspaceMapper, PlatformWorkspaceDto> implements WorkspaceStore {
 
-    private final WorkspaceCursorStore cursors;
-
     public WorkspaceStoreServiceImpl(
             @Qualifier("platformWorkspaceMapper") PlatformWorkspaceMapper mapper,
-            @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
-            @Qualifier("workspaceCursorStore") WorkspaceCursorStore cursors) {
+            @Qualifier("platformTransactionRunner") PublicTransactionRunner tx) {
         super(mapper, tx);
-        this.cursors = Objects.requireNonNull(cursors);
     }
 
     @Override
@@ -68,24 +62,22 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
     }
 
     @Override
-    public WorkspaceCandidatePage scanMembershipCandidates(String subject, String cursor, int limit) {
+    public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit) {
         com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
         if (limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid scan limit");
         PlatformWorkspaceDto key = null;
-        if (cursor != null) {
-            var saved = cursors.load(cursor);
-            if (!saved.subjectId().equals(subject)) throw new IllegalArgumentException("Cursor subject mismatch");
+        if (after != null) {
             key = new PlatformWorkspaceDto();
-            key.setTenantId(saved.key().scope().tenantId());
-            key.setId(saved.key().scope().workspaceId());
-            key.setCreatedSec(saved.key().createdAt().getEpochSecond());
-            key.setCreatedNano(saved.key().createdAt().getNano());
+            key.setTenantId(after.scope().tenantId());
+            key.setId(after.scope().workspaceId());
+            key.setCreatedSec(after.createdAt().getEpochSecond());
+            key.setCreatedNano(after.createdAt().getNano());
         }
         var rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1).stream()
-                .map(PlatformRecords::workspace).toList();
+                .map(row -> new WorkspaceCandidateKey(java.time.Instant.ofEpochSecond(row.getCreatedSec(), row.getCreatedNano()),
+                        new Scope(row.getTenantId(), row.getId()))).toList();
         boolean more = rows.size() > limit;
         var records = List.copyOf(rows.subList(0, Math.min(limit, rows.size())));
-        String next = more ? cursors.save(new WorkspaceCursorStore.Cursor(subject, WorkspaceCandidateKey.from(records.getLast()))) : null;
-        return new WorkspaceCandidatePage(records, next);
+        return new WorkspaceCandidatePage(records, !more);
     }
 }

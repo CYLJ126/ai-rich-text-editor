@@ -29,7 +29,8 @@ public enum PlatformErrorCodeEnum implements IEnum<Integer>, MyEnum<Integer> {
     CAPABILITY_NOT_ENABLED(112, "能力尚未开放"),
     AUTHORITY_UNAVAILABLE(113, "无法确认当前授权"),
     IDENTITY_CONFLICT(114, "稳定身份关联冲突"),
-    TENANT_INACTIVE(115, "租户已停用或关闭中");
+    TENANT_INACTIVE(115, "租户已停用或关闭中"),
+    CURSOR_EXPIRED(116, "空间目录游标已过期，请刷新目录");
 
     private final Integer value;
     private final String description;

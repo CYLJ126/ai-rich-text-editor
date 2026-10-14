@@ -29,10 +29,16 @@ Controller；关闭时不注册空间 HTTP。Controller 路径为 `/workspace`�
 政策治理新增 `/getTenantPolicy`、`/getWorkspacePolicy`、`/updateTenantPolicy`、`/updateWorkspacePolicy` 四个端点，
 查询视图提供政策及更新所需的父版本。完整请求、治理资格和事务语义见 [政策治理与个人租户模板](PLATFORM_WORKSPACE_POLICY.md)。
 
-目录改造第一批只明确后续浏览契约，本表的 HTTP 接口仍保持现有分页响应。 后续公开游标目标为
-`records + nextCursor + exhausted`，允许扫描预算耗尽后的不足一页／空页续扫；精确可见计数独立设计，
-不把候选数量作为可见总数。游标绑定主体、查询条件、版本和有效期，不授予权限。详见
-[目录改造契约](WORKSPACE_DIRECTORY_REDESIGN.md)。
+第二批新增下列目录接口，旧 listAccessibleWorkspaces 继续兼容；选择器改用新浏览路径。
+
+| 完整 URL                                   | 请求体                                                          | ResultContext.data                       |
+|--------------------------------------------|-----------------------------------------------------------------|------------------------------------------|
+| /arte/workspace/browseAccessibleWorkspaces | cursor 可空，size 默认 20／最大 100，search 可空／最大 100 字符 | records、nextCursor、exhausted；无 total |
+| /arte/workspace/countAccessibleWorkspaces  | 无                                                              | 本次扫描的可见数量；显式全量扫描         |
+
+浏览允许预算耗尽后的不足一页／空页续扫。游标绑定主体、规范化搜索、页大小、版本和有效期，不授予权限。 过期为
+410／PLATFORM_CURSOR_EXPIRED，绑定不匹配或畸形 token 为 400，Redis 故障为 503；这些错误保持 ResultContext 格式。
+浏览不调用精确计数，后者不把候选数量当作可见总数。详见 [目录改造契约](WORKSPACE_DIRECTORY_REDESIGN.md)。
 
 初始化、创建、改名、偏好更新及政策更新必须携带 `Idempotency-Key` 请求头。其校验沿用公共 CommandMeta：非空、最长
 256、不能包含控制字符或首尾空白。

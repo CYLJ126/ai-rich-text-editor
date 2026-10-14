@@ -116,7 +116,7 @@
         </plugins>
     </build>
     <profiles>
-        <!-- Compile only the isolated directory benchmark and its shared fixtures. -->
+        <!-- Isolated platform workspace tests and benchmarks; excludes unrelated app test sources. -->
         <profile>
             <id>workspace-baseline</id>
             <build>
@@ -126,9 +126,8 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
                             <testIncludes>
-                                <testInclude>**/WorkspaceDirectoryBaselineTest.java</testInclude>
-                                <testInclude>**/PlatformPersistenceIntegrationTest.java</testInclude>
-                                <testInclude>**/PlatformServiceTestFactory.java</testInclude>
+                                <testInclude>**/platform/persistence/*.java</testInclude>
+                                <testInclude>**/platform/workspace/*.java</testInclude>
                             </testIncludes>
                         </configuration>
                     </plugin>

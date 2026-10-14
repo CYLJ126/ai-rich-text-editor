@@ -11,7 +11,7 @@ vi.mock('@/services/platform/workspace', async original => ({
   ...(await original<typeof import('@/services/platform/workspace')>()),
   getWorkspace: vi.fn(),
   getWorkspacePreference: vi.fn(),
-  listAccessibleWorkspaces: vi.fn(),
+  browseAccessibleWorkspaces: vi.fn(),
   checkWorkspaceAccess: vi.fn(),
   initializePersonalWorkspace: vi.fn(),
   createWorkspace: vi.fn(),
@@ -48,15 +48,15 @@ beforeEach(() => {
   userId = `picker-user-${++next}`;
   vi.mocked(api.getWorkspace).mockImplementation(async scope => reply(view(scope)));
   vi.mocked(api.getWorkspacePreference).mockResolvedValue(reply(preference));
-  vi.mocked(api.listAccessibleWorkspaces).mockResolvedValue({
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValue({
     httpStatus: 200, body: {
       success: true,
       code: '200',
       desc: 'OK',
-      records: [{...view(), defaultWorkspace: true}, {...view(b), defaultWorkspace: false}],
-      current: 1,
-      size: 20,
-      total: 42,
+      data: {
+        records: [{...view(), defaultWorkspace: true}, {...view(b), defaultWorkspace: false}],
+        nextCursor: '00000000-0000-4000-8000-000000000001', exhausted: false
+      },
     }
   });
   vi.mocked(api.checkWorkspaceAccess).mockResolvedValue(reply({allowed: true, reason: 'ALLOWED', checkedAt: 'now'}));
@@ -74,15 +74,20 @@ async function open() {
   await screen.findByRole('button', {name: '修改空间信息'});
 }
 
-it('shows real tenant IDs and roles, filters only this page and keeps server pagination', async () => {
+it('shows real roles and searches the authorized directory without an exact total', async () => {
   await open();
   expect(screen.getByText('所属租户：tenant-b')).toBeInTheDocument();
   expect(screen.getAllByText('负责人')).toHaveLength(2);
   expect(screen.queryByRole('button', {name: '管理成员'})).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('筛选本页空间'), {target: {value: '协作'}});
-  expect(screen.queryByRole('button', {name: '学习空间'})).not.toBeInTheDocument();
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [{...view(b), defaultWorkspace: false}], nextCursor: null, exhausted: true
+  }));
+  fireEvent.change(screen.getByLabelText('搜索工作空间'), {target: {value: '协作'}});
+  fireEvent.click(screen.getByRole('button', {name: /^搜\s*索$/}));
+  await waitFor(() => expect(screen.queryByRole('button', {name: '学习空间'})).not.toBeInTheDocument());
   expect(screen.getByRole('button', {name: '协作空间'})).toBeInTheDocument();
-  expect(document.querySelector('[title="3"]')).toBeInTheDocument();
+  expect(api.browseAccessibleWorkspaces).toHaveBeenLastCalledWith(null, '协作', expect.anything());
+  expect(document.querySelector('.ant-pagination')).not.toBeInTheDocument();
 });
 it('does not offer create or rename just because the current role is owner', async () => {
   vi.mocked(api.checkWorkspaceAccess).mockResolvedValue(reply({
@@ -147,4 +152,18 @@ it('refreshes conflicts and preserves editable form content without silently ret
   await waitFor(() => expect(api.getWorkspacePreference).toHaveBeenCalledTimes(2));
   expect(within(dialog).getByLabelText('空间名称')).toHaveValue('保留输入');
   expect(api.renameWorkspace).toHaveBeenCalledTimes(1);
+});
+
+it('shows continue searching for an empty nonterminal page and loads a selectable space', async () => {
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [], nextCursor: '00000000-0000-4000-8000-000000000002', exhausted: false,
+  }));
+  await open();
+  expect(screen.getByText('暂未找到匹配空间，可以继续查找。')).toBeInTheDocument();
+  vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({
+    records: [{...view(b), defaultWorkspace: false}], nextCursor: null, exhausted: true,
+  }));
+  fireEvent.click(screen.getByRole('button', {name: '继续查找'}));
+  await screen.findByRole('button', {name: '协作空间'});
+  expect(screen.queryByRole('button', {name: '继续查找'})).not.toBeInTheDocument();
 });

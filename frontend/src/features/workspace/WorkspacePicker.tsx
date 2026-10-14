@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Space, Tag} from 'antd';
+import {Alert, Button, Drawer, Empty, Input, Modal, Space, Tag} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {sameScope} from '@/features/ainew/storage';
 import {protectWorkspaceChange, useWorkspaceDirectory} from './useWorkspace';
@@ -20,6 +20,7 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
     onOpenChange?.(value);
   }
   const [filter, setFilter] = useState('');
+  useEffect(() => setFilter(directory.search), [directory.search]);
   const [editor, setEditor] = useState<{ kind: 'create'; tenantId: string } | {
     kind: 'rename';
     view: WorkspaceView
@@ -71,7 +72,7 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
     }
   }
 
-  const visible = directory.records.filter(item => item.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()));
+  const visible = directory.records;
   const error = directory.error instanceof Error ? directory.error.message : '空间读取失败，请重试。';
   return <>
     <Button onClick={() => setOpen(true)} loading={directory.loading && !directory.current}
@@ -85,7 +86,7 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
         {directory.error != null && <Alert type="error" title={error}/>}
         {editorError && <Alert type="error" title={editorError}/>}
         <Button loading={directory.loading} disabled={directory.saving}
-                onClick={() => void directory.load(directory.page)}>刷新空间目录</Button>
+                onClick={() => void directory.load(filter)}>刷新空间目录</Button>
         {!directory.preference && <Button loading={directory.saving} disabled={locked || unavailable}
                                           onClick={() => void directory.initialize()}>初始化个人默认空间</Button>}
         {directory.pending && <Alert type="warning" title="空间操作结果待确认"
@@ -107,8 +108,10 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
           {directory.canRename &&
             <Button disabled={locked} loading={detailLoading} onClick={() => void editCurrent()}>修改空间信息</Button>}
         </section>}
-        <Input aria-label="筛选本页空间" placeholder="筛选本页空间" value={filter}
-               onChange={event => setFilter(event.target.value)}/>
+        <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
+                      maxLength={100} allowClear enterButton="搜索" disabled={directory.saving}
+                      onChange={event => setFilter(event.target.value)}
+                      onSearch={value => void directory.setSearch(value)}/>
         <ul className="m-0 list-none space-y-3 p-0">
           {visible.map(item => <li key={JSON.stringify(item.scope)}
                                    className="rounded border border-solid border-[var(--ant-color-border)] p-3">
@@ -134,12 +137,12 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
           </li>)}
         </ul>
         {!directory.loading && !directory.error && !visible.length &&
-          <Empty description="当前页没有匹配空间，可切换页面。"/>}
-        <Pagination current={directory.page} total={directory.total} pageSize={20} showSizeChanger={false}
-                    disabled={directory.saving} onChange={page => {
-          setFilter('');
-          void directory.load(page);
-        }}/>
+          <Empty description={directory.exhausted ? '没有匹配的工作空间。' : '暂未找到匹配空间，可以继续查找。'}/>}
+        {!directory.exhausted && directory.nextCursor && !directory.cursorExpired &&
+          <Button loading={directory.loading} disabled={directory.saving || directory.loading}
+                  onClick={() => void directory.loadMore()}>{visible.length ? '继续加载' : '继续查找'}</Button>}
+        {directory.cursorExpired &&
+          <Button disabled={directory.saving} onClick={() => void directory.load(filter)}>重新加载目录</Button>}
         {directory.preference?.startupScope && <Button disabled={locked}
                                                        onClick={() => void directory.updatePreference({startupScope: null})}>清除启动空间偏好</Button>}
         {directory.canCreate && directory.current && <Button disabled={locked} onClick={() => {

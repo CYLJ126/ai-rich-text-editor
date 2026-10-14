@@ -18,6 +18,7 @@ import com.arte.core.spi.workspace.*;
 
 import java.time.Clock;
 import java.util.*;
+import java.util.function.LongSupplier;
 
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_READ;
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE;
@@ -41,16 +42,19 @@ public final class DefaultWorkspaceService implements WorkspaceService {
     private final PolicyStore policies;
     private final PreferenceStore preferences;
     private final DefaultWorkspacePolicies defaults;
-    private final java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning;
+    private final List<WorkspaceProvisioningParticipant> provisioning;
     private final PlatformIdGenerator ids;
     private final Clock clock;
     private final WorkspaceMutationEffects effects;
+    private final WorkspaceBrowseBudget browseBudget;
+    private final LongSupplier nanoTime;
 
     public DefaultWorkspaceService(CurrentPrincipalResolver principals, WorkspaceAccessSupport access,
                                    DefaultAuthorizationService authorization, WorkspaceGovernanceLocks locks, DefaultCommandExecutor commands,
                                    TenantStore tenants, WorkspaceStore workspaces, WorkspaceMembershipStore members, PolicyStore policies,
                                    PreferenceStore preferences, DefaultWorkspacePolicies defaults, PlatformIdGenerator ids, Clock clock,
-                                   WorkspaceMutationEffects effects, java.util.List<com.arte.core.spi.workspace.WorkspaceProvisioningParticipant> provisioning) {
+                                   WorkspaceMutationEffects effects, List<WorkspaceProvisioningParticipant> provisioning,
+                                   WorkspaceBrowseBudget browseBudget, LongSupplier nanoTime) {
         this.principals = Objects.requireNonNull(principals);
         this.access = Objects.requireNonNull(access);
         this.authorization = Objects.requireNonNull(authorization);
@@ -66,6 +70,8 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         this.ids = Objects.requireNonNull(ids);
         this.clock = Objects.requireNonNull(clock);
         this.effects = Objects.requireNonNull(effects);
+        this.browseBudget = Objects.requireNonNull(browseBudget);
+        this.nanoTime = Objects.requireNonNull(nanoTime);
     }
 
     @Override
@@ -87,23 +93,16 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         long offset = Math.multiplyExact(query.current() - 1, query.size());
         long total = 0;
         List<WorkspaceViews.WorkspaceSummary> records = new ArrayList<>();
-        Set<String> cursors = new HashSet<>();
-        Set<Scope> seen = new HashSet<>();
         WorkspaceCandidateKey lastKey = null;
-        String cursor = null;
+        boolean exhausted;
         do {
-            var candidates = workspaces.scanMembershipCandidates(subjectId, cursor, 100);
-            for (Workspace candidate : candidates.records()) {
-                // 校验跨批进度，适配器不能退回可变排序或重复扫描已过边界
-                WorkspaceCandidateKey key = WorkspaceCandidateKey.from(candidate);
-                // 检查当前候选是否排在上一个候选之后，扫描有没有向前推进
+            var candidates = workspaces.scanMembershipCandidates(subjectId, lastKey, 100);
+            for (WorkspaceCandidateKey key : candidates.records()) {
                 if (lastKey != null && key.compareTo(lastKey) <= 0) throw unavailable();
-                // 上一个处理过的 candidate 的排序键，每次 for 都更新，进入下一批 while 时继续保留
                 lastKey = key;
-                if (!seen.add(candidate.scope())) throw unavailable();
             }
             // 每批只装载一次事实；计数和摘要共用授权时验证过的快照，不再逐项重读。
-            var checks = authorization.checkWorkspaceReads(actor, candidates.records().stream().map(Workspace::scope).toList());
+            var checks = authorization.checkWorkspaceReads(actor, candidates.records().stream().map(WorkspaceCandidateKey::scope).toList());
             // 主体失效才需本批重检身份；租户不可用只过滤该租户，不触发身份重检。
             if (checks.stream().anyMatch(check -> check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE))
                 principals.requireActive(actor);
@@ -121,11 +120,85 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                 }
                 total = Math.incrementExact(total);
             }
-            cursor = candidates.nextCursor();
-            if (cursor != null && (candidates.records().isEmpty() || !cursors.add(cursor))) throw unavailable();
-        } while (cursor != null);
+            exhausted = candidates.exhausted();
+        } while (!exhausted);
         principals.requireUser(actor);
         return new PageResult<>(query.current(), query.size(), total, records);
+    }
+
+    @Override
+    public long countAccessible(TrustedActor actor) {
+        String subject = principals.requireUser(actor).subjectId();
+        WorkspaceCandidateKey after = null;
+        long total = 0;
+        boolean exhausted;
+        do {
+            var batch = workspaces.scanMembershipCandidates(subject, after, 100);
+            for (var key : batch.records()) {
+                if (after != null && key.compareTo(after) <= 0) throw unavailable();
+                after = key;
+            }
+            for (var check : authorization.checkWorkspaceReads(actor, batch.records().stream().map(WorkspaceCandidateKey::scope).toList())) {
+                if (check.decision().reason() == AccessReasonEnum.AUTHORITY_UNAVAILABLE) throw unavailable();
+                if (check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE) principals.requireActive(actor);
+                if (check.decision().allowed()) total = Math.incrementExact(total);
+            }
+            exhausted = batch.exhausted();
+        } while (!exhausted);
+        principals.requireUser(actor);
+        return total;
+    }
+
+    @Override
+    public WorkspaceBrowseResult browseAccessible(TrustedActor actor, WorkspaceBrowseQuery query, WorkspaceCandidateKey after) {
+        long started = nanoTime.getAsLong();
+        String subject = principals.requireUser(actor).subjectId();
+        var preference = preferences.find(subject);
+        var records = new ArrayList<WorkspaceViews.WorkspaceSummary>();
+        WorkspaceCandidateKey boundary = after;
+        int processed = 0;
+        int batches = 0;
+        boolean exhausted = false;
+        while (records.size() < query.size() && processed < browseBudget.maxCandidates() && batches < browseBudget.maxBatches()) {
+            // Always process one batch to produce a continuation; SQL itself uses the adapter's statement timeout.
+            if (batches > 0 && nanoTime.getAsLong() - started >= browseBudget.maxWorkTime().toNanos()) break;
+            // Keep the dense first page light; widen subsequent batches to amortize authorization round trips.
+            int desired = batches == 0 ? Math.min(browseBudget.batchSize(), query.size() * 2) : browseBudget.batchSize();
+            int limit = Math.min(desired, browseBudget.maxCandidates() - processed);
+            var batch = workspaces.scanMembershipCandidates(subject, boundary, limit);
+            if (batch.records().size() > limit) throw unavailable();
+            WorkspaceCandidateKey previous = boundary;
+            for (var key : batch.records()) {
+                if (previous != null && key.compareTo(previous) <= 0) throw unavailable();
+                previous = key;
+            }
+            var checks = authorization.checkWorkspaceReads(actor, batch.records().stream().map(WorkspaceCandidateKey::scope).toList());
+            batches++;
+            int consumed = 0;
+            for (int index = 0; index < batch.records().size(); index++) {
+                var check = checks.get(index);
+                boundary = batch.records().get(index);
+                consumed++;
+                processed++;
+                if (check.decision().reason() == AccessReasonEnum.AUTHORITY_UNAVAILABLE) throw unavailable();
+                if (check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE) principals.requireActive(actor);
+                if (check.decision().allowed()) {
+                    var snapshot = check.snapshot();
+                    Workspace workspace = snapshot.workspace();
+                    if (!workspace.scope().equals(boundary.scope()) || !workspace.createdAt().equals(boundary.createdAt()))
+                        throw unavailable();
+                    if (workspace.name().toLowerCase(Locale.ROOT).contains(query.search())) {
+                        records.add(new WorkspaceViews.WorkspaceSummary(workspace.scope(), workspace.name(), workspace.state(),
+                                snapshot.member().role(), preference.map(p -> p.defaultScope().equals(workspace.scope())).orElse(false), workspace.version()));
+                    }
+                }
+                if (records.size() == query.size()) break;
+            }
+            exhausted = batch.exhausted() && consumed == batch.records().size();
+            if (exhausted) break;
+        }
+        principals.requireUser(actor);
+        return new WorkspaceBrowseResult(records, exhausted ? null : boundary, exhausted);
     }
 
     @Override

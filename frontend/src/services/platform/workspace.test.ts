@@ -85,25 +85,30 @@ it('rejects a mismatched personal initialization association', async () => {
   }));
   await expect(api.initializePersonalWorkspace('key')).rejects.toBeInstanceOf(AiApiError);
 });
-it('keeps server directory totals and numeric roles without assuming ownership metadata', async () => {
+it('keeps numeric roles and opaque continuation without ownership assumptions', async () => {
+  response({
+    records: [{...view, defaultWorkspace: true}],
+    nextCursor: '00000000-0000-4000-8000-000000000002', exhausted: false
+  });
+  const result = await api.browseAccessibleWorkspaces();
+  expect(result.body.data.records[0].currentRole).toBe(0);
+  expect(result.body.data.nextCursor).not.toBeNull();
+  expect(request).toHaveBeenCalledWith('/arte/workspace/browseAccessibleWorkspaces', expect.objectContaining({
+    data: {cursor: null, search: '', size: 20}
+  }));
+});
+it('validates empty continuation pages and keeps exact counting separate', async () => {
+  const data = {records: [], nextCursor: '00000000-0000-4000-8000-000000000002', exhausted: false};
+  vi.mocked(request).mockResolvedValue({status: 200, data: {success: true, code: '200', desc: 'OK', data}});
+  expect((await api.browseAccessibleWorkspaces(null, 'keyword')).body.data).toEqual(data);
+  expect(request).toHaveBeenLastCalledWith('/arte/workspace/browseAccessibleWorkspaces', expect.objectContaining({
+    data: {cursor: null, search: 'keyword', size: 20}
+  }));
   vi.mocked(request).mockResolvedValue({
     status: 200,
-    data: {
-      success: true,
-      code: '200',
-      desc: 'OK',
-      records: [{...view, defaultWorkspace: true}],
-      current: 2,
-      size: 20,
-      total: 42
-    }
+    data: {success: true, code: '200', desc: 'OK', data: {...data, exhausted: true}}
   });
-  const response = await api.listAccessibleWorkspaces(2);
-  expect(response.body.total).toBe(42);
-  expect(request).toHaveBeenCalledWith('/arte/workspace/listAccessibleWorkspaces', expect.objectContaining({
-    data: {
-      current: 2,
-      size: 20
-    }
-  }));
+  await expect(api.browseAccessibleWorkspaces()).rejects.toThrow();
+  vi.mocked(request).mockResolvedValue({status: 200, data: {success: true, code: '200', desc: 'OK', data: 42}});
+  expect((await api.countAccessibleWorkspaces()).body.data).toBe(42);
 });
