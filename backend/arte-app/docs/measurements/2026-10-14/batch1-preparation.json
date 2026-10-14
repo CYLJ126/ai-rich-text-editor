@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-14",
+  "environment": "isolated H2 in MySQL mode, real JDBC/MyBatis/services, MockMvc chat and mock generation gateway",
+  "measurement": "prepared SQL statements; setup/authentication filter/driver-internal transaction commands excluded",
+  "real_provider_called": false,
+  "running_service_restarted": false,
+  "phases": {
+    "baseline": {
+      "chat_submission": 320,
+      "dispatch_before_mock_text": 288,
+      "chat_sql_by_table": {
+        "arte_ai_acceptance": 4,
+        "arte_ai_account": 1,
+        "arte_ai_budget_definition": 6,
+        "arte_ai_context_snapshot": 2,
+        "arte_ai_control_head": 6,
+        "arte_ai_control_revision": 6,
+        "arte_ai_conversation_new": 6,
+        "arte_ai_event": 1,
+        "arte_ai_invocation": 4,
+        "arte_ai_lock": 8,
+        "arte_ai_outbox": 2,
+        "arte_ai_turn": 5,
+        "arte_ai_workspace_configuration": 13,
+        "arte_platform_principal_identity": 105,
+        "arte_platform_tenant": 13,
+        "arte_platform_tenant_member": 13,
+        "arte_platform_tenant_policy": 13,
+        "arte_platform_workspace": 23,
+        "arte_platform_workspace_member": 13,
+        "arte_platform_workspace_policy": 13,
+        "arte_rbac_user": 59
+      },
+      "chat_unclassified_sql": 4
+    },
+    "batch1": {
+      "chat_submission": 77,
+      "dispatch_before_mock_text": 129,
+      "chat_sql_by_table": {
+        "arte_ai_acceptance": 4,
+        "arte_ai_account": 1,
+        "arte_ai_budget_definition": 2,
+        "arte_ai_context_snapshot": 2,
+        "arte_ai_control_head": 2,
+        "arte_ai_control_revision": 2,
+        "arte_ai_conversation_new": 6,
+        "arte_ai_event": 1,
+        "arte_ai_invocation": 4,
+        "arte_ai_lock": 8,
+        "arte_ai_outbox": 2,
+        "arte_ai_turn": 5,
+        "arte_ai_workspace_configuration": 2,
+        "arte_platform_principal_identity": 10,
+        "arte_platform_tenant": 2,
+        "arte_platform_tenant_member": 2,
+        "arte_platform_tenant_policy": 2,
+        "arte_platform_workspace": 4,
+        "arte_platform_workspace_member": 2,
+        "arte_platform_workspace_policy": 2,
+        "arte_rbac_user": 8
+      },
+      "chat_unclassified_sql": 4
+    }
+  },
+  "regression": {
+    "arte-core": {
+      "tests": 159,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "arte-ai": {
+      "tests": 297,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4
+    },
+    "arte-app": {
+      "tests": 153,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9
+    }
+  },
+  "skipped_tests": [
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisHintsAreOwnerIsolatedAndInvalidHintsAreSafe",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisBroadcastReachesAnotherInstanceAndReconnectReplaysAcknowledgedEvents",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisLiveTextReachesAuthorizedRemoteWatcherWithoutEventOutbox",
+    "com.arte.ainew.admission.ExecutionAssemblyTest.redisHttpOnlyNodeAutomaticallySubscribesWithoutDatabaseAccess",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.cursorIsSharedAcrossInstancesAndBindsStableSubject",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.independentClientsPublishOnceAndKeepDatabaseLedger",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisFailureLeavesEventsPendingForRecovery",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisCoordinationCannotBypassDatabaseLease",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.migrationPreservesDataHistoryAndStableScanAcrossTruncationTies",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.utcMappingDoesNotDependOnJvmOrDatabaseSessionTimeZone",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.partiallyAddedColumnsCanBeRecoveredWithoutChangingRecordCounts",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.invalidLegacyTimeIsRejectedBeforeAnyColumnConversion",
+    "com.arte.app.platform.persistence.WorkspaceDirectoryBaselineTest.recordDirectoryBaseline"
+  ],
+  "baseline_source_revision": "fc5a0c474ad58cc7b56757ffb4167d28e87f27ba",
+  "build": {
+    "jdk": "21.0.8",
+    "command": "mvn -Pworkspace-baseline -pl arte-app -am -DskipTests package",
+    "exit_code": 0
+  }
+}

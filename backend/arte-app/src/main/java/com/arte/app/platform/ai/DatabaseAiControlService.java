@@ -59,7 +59,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  */
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
-public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, AiControlConfigurationSource, WorkspaceProvisioningParticipant {
+public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource, WorkspaceProvisioningParticipant {
 
     private final PlatformAiControlMapper mapper;
     private final PlatformJson json;
@@ -137,6 +137,17 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private <T> T inScope(TrustedActor actor, Scope scope, com.arte.core.pojo.access.Action action, java.util.function.Supplier<T> work) {
         return tx.required(() -> guards.getObject().inCurrentTransaction(actor,
                 List.of(DefaultAuthorizationService.workspaceRequest(scope, action, "database-ai")), work));
+    }
+
+    @Override
+    public Mono<Preparation> prepare(String name, String tenantId, String workspaceId, Set<String> requested) {
+        var scopes = Set.copyOf(requested);
+        return Mono.fromCallable(() -> tx.required(() -> {
+            var value = currentSnapshot(name, null, new Scope(tenantId, workspaceId), scopes, true);
+            return new Preparation(value.authorization(), value.configuration());
+        })).subscribeOn(scheduler).onErrorMap(PlatformException.class, failure ->
+                failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE ? failure
+                        : new AccessDeniedException("Workspace AI access denied", failure));
     }
 
     @Override

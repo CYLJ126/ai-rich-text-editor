@@ -49,6 +49,15 @@ public final class NewAiHttpContext {
                 timeout, RequestObservation.currentTraceId(), budgetRef, properties.releaseRef(), idempotencyKey)));
     }
 
+    public <T> Mono<T> prepare(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
+                               String budgetRef, String idempotencyKey,
+                               java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        validate(scope, timeout, budgetRef, idempotencyKey);
+        return RequestObservation.observe(executionContextFactory.prepareCurrent(new ExecutionContextRequest(
+                scope.tenantId(), scope.workspaceId(), scopes, timeout, RequestObservation.currentTraceId(),
+                budgetRef, properties.releaseRef(), idempotencyKey), work));
+    }
+
     private void validate(ConversationRequests.Scope scope, Duration timeout, String budgetRef, String idempotencyKey) {
         ContractChecks.id(scope.tenantId(), "tenantId");
         ContractChecks.id(scope.workspaceId(), "workspaceId");

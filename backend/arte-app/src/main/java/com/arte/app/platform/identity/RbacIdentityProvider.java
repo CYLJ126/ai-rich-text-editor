@@ -72,20 +72,20 @@ public final class RbacIdentityProvider implements IdentityProvider {
 
     @Override
     public Optional<Principal> findBySubjectId(String subjectId) {
-        return identities.findBySubjectId(subjectId).map(identity -> principal(identity, false));
+        return identities.findAccountBinding(subjectId, false).map(identity -> principal(identity, false));
     }
 
     @Override
     public Optional<Principal> findCurrentBySubjectId(String subjectId) {
         accounts.requireTransaction();
-        return identities.findCurrentBySubjectId(subjectId).map(identity -> principal(identity, true));
+        return identities.findAccountBinding(subjectId, true).map(identity -> principal(identity, true));
     }
 
     private Principal resolve(RbacAccountReader.Account account) {
-        var existing = identities.findByExternalIdentity(JdbcPrincipalIdentityStore.PROVIDER, String.valueOf(account.id()));
+        var existing = identities.findAccountBindingByExternalId(String.valueOf(account.id()));
         if (existing.isPresent()) {
             validateBinding(existing.get(), account);
-            return principal(existing.get(), false);
+            return principal(existing.get().identity(), account);
         }
         if (!account.active()) throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
         if (TransactionSynchronizationManager.isActualTransactionActive()) accounts.requireTransaction();
@@ -93,10 +93,10 @@ public final class RbacIdentityProvider implements IdentityProvider {
             var current = accounts.findCurrentById(account.id()).filter(a -> a.active() && a.name().equals(account.name())
                             && a.createdAt().equals(account.createdAt()))
                     .orElseThrow(() -> failure(PlatformErrorCodeEnum.UNAUTHENTICATED));
-            var winner = identities.findByExternalIdentity(JdbcPrincipalIdentityStore.PROVIDER, String.valueOf(current.id()));
+            var winner = identities.findAccountBindingByExternalId(String.valueOf(current.id()));
             if (winner.isPresent()) {
                 validateBinding(winner.get(), current);
-                return principal(winner.get(), false);
+                return principal(winner.get().identity(), current);
             }
             String subjectId = candidate(current);
             var identity = new PrincipalIdentity(subjectId, JdbcPrincipalIdentityStore.PROVIDER,
@@ -121,10 +121,11 @@ public final class RbacIdentityProvider implements IdentityProvider {
         return UUID.randomUUID().toString();
     }
 
-    private void validateBinding(PrincipalIdentity identity, RbacAccountReader.Account account) {
+    private void validateBinding(JdbcPrincipalIdentityStore.AccountBinding binding, RbacAccountReader.Account account) {
+        var identity = binding.identity();
         if (!JdbcPrincipalIdentityStore.PROVIDER.equals(identity.provider())
                 || !String.valueOf(account.id()).equals(identity.externalUserId())
-                || !identities.matchesAccount(identity, account))
+                || !account.createdAt().equals(binding.externalCreatedAt()))
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
         var configured = properties.bindings().stream().filter(b -> b.userId() == account.id()).findFirst();
         if (configured.isPresent() && !configured.get().subjectId().equals(identity.subjectId()))
@@ -134,7 +135,8 @@ public final class RbacIdentityProvider implements IdentityProvider {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
     }
 
-    private Principal principal(PrincipalIdentity identity, boolean currentRead) {
+    private Principal principal(JdbcPrincipalIdentityStore.AccountBinding binding, boolean currentRead) {
+        var identity = binding.identity();
         if (!JdbcPrincipalIdentityStore.PROVIDER.equals(identity.provider()))
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
         if (identity.retiredAt() != null)
@@ -148,9 +150,13 @@ public final class RbacIdentityProvider implements IdentityProvider {
         var account = currentRead ? accounts.findCurrentById(userId) : accounts.findById(userId);
         if (account.isEmpty())
             return new Principal(identity.subjectId(), PrincipalKindEnum.USER, PrincipalStatusEnum.DELETED);
-        validateBinding(identity, account.get());
-        return new Principal(identity.subjectId(), PrincipalKindEnum.USER,
-                account.get().active() ? PrincipalStatusEnum.ACTIVE : PrincipalStatusEnum.SUSPENDED);
+        validateBinding(binding, account.get());
+        return principal(identity, account.get());
+    }
+
+    private Principal principal(PrincipalIdentity identity, RbacAccountReader.Account account) {
+        return new Principal(identity.subjectId(), PrincipalKindEnum.USER, identity.retiredAt() != null
+                ? PrincipalStatusEnum.DELETED : account.active() ? PrincipalStatusEnum.ACTIVE : PrincipalStatusEnum.SUSPENDED);
     }
 
     private static PlatformException failure(PlatformErrorCodeEnum code) {

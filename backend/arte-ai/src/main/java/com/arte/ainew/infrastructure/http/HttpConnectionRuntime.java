@@ -199,13 +199,18 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                         codecs.defaultCodecs().maxInMemorySize(properties.maxFrameBytes());
                         codecs.defaultCodecs().jacksonJsonEncoder(new JacksonJsonEncoder(GenerationJson.mapper(properties.maxFrameBytes())));
                     })
-                    .filter((request, next) -> Mono.defer(() -> {
+                    .filter((request, next) -> Mono.deferContextual(values -> {
                         lease.active();
                         checkActive(runtime);
                         if (!request.url().equals(uri) || !lease.sent.compareAndSet(false, true)) {
                             return Mono.error(GenerationException.beforeSend("CONNECTION_REQUEST_NOT_ALLOWED"));
                         }
-                        return connections.resolve(definition.definition(), runtime.execution()).flatMap(current -> {
+                        com.arte.ainew.pojo.execution.GatewayCall<?> call = values.getOrDefault(com.arte.ainew.pojo.execution.GatewayCall.class, null);
+                        if (call != null && !call.runtime().execution().equals(runtime.execution()))
+                            return Mono.error(GenerationException.beforeSend("CONNECTION_REQUEST_NOT_ALLOWED"));
+                        var resolved = call == null ? connections.resolveCurrent(definition.definition(), runtime.execution())
+                                : connections.resolveCurrent(definition.definition(), call);
+                        return resolved.flatMap(current -> {
                             if (!current.equals(definition)) {
                                 return Mono.error(GenerationException.beforeSend("CONNECTION_CONFIGURATION_CHANGED"));
                             }

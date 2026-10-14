@@ -160,7 +160,22 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiConnectionManager")
     ConnectionManager connectionManager(FixedControlCatalog catalog) {
-        return catalog::resolveConnection;
+        return new ConnectionManager() {
+            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolve(
+                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                return catalog.resolveConnection(reference, context);
+            }
+
+            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
+                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                return catalog.resolveCurrentConnection(reference, context);
+            }
+
+            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
+                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.pojo.execution.GatewayCall<?> call) {
+                return catalog.resolveCurrentConnection(reference, call);
+            }
+        };
     }
 
     /**

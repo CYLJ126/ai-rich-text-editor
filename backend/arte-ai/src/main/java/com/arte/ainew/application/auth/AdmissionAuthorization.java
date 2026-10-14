@@ -22,11 +22,11 @@ import java.util.Objects;
  * <p>
  * 典型用法是先检查操作权限，再检查资源使用范围：
  * authorization.require(context, AdmissionAuthorization.INVOKE)
- *         .map(current -> {
- *             var grant = authorization.grant(current);
- *             // 再检查 grant.bindingIds() 是否包含目标绑定
- *             return grant;
- *         });
+ * .map(current -> {
+ * var grant = authorization.grant(current);
+ * // 再检查 grant.bindingIds() 是否包含目标绑定
+ * return grant;
+ * });
  * 例如，一个主体拥有 ai:invoke，说明它可以提交 AI 调用；但能调用哪个绑定、使用哪个预算，还要根据 grant 中的配置继续判断。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -86,7 +86,7 @@ public final class AdmissionAuthorization {
      * 权限、主体和总期限始终校验；写入／派发必须使用 requireWrite。
      *
      * @param context 执行上下文
-     * @param scope 操作权限范围
+     * @param scope   操作权限范围
      * @return 执行上下文
      */
     public Mono<ExecutionContext> require(ExecutionContext context, String scope) {
@@ -98,6 +98,52 @@ public final class AdmissionAuthorization {
      */
     public Mono<ExecutionContext> requireWrite(ExecutionContext context, String scope) {
         return require(context, scope, true);
+    }
+
+    /**
+     * 使用当前授权和本次订阅内的控制配置执行操作。
+     * <p>
+     * 新的受理或派发边界重新加载配置，并核验原上下文中的全部权限。
+     * 操作内部的准备步骤可复用绑定到同一上下文的已有快照。
+     * 只读快照不能用于写操作准备，{@link #requireWrite} 仍独立查询当前授权。
+     * 未配置控制配置来源时，退回到一次新的写授权检查。
+     *
+     * @param context  可信执行上下文，保留其身份、权限上限和截止时间
+     * @param required 本次操作所需的非空权限集合
+     * @param fresh    是否重新读取当前资格和配置，而不复用已有准备结果
+     * @param work     使用已验证上下文及准备配置执行的操作
+     * @param <T>      操作结果类型
+     * @return 操作结果，或授权、期限、准备过程中的错误
+     */
+    public <T> Mono<T> prepare(ExecutionContext context, java.util.Set<String> required, boolean fresh,
+                               java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        return Mono.deferContextual(values -> {
+            if (!context.authorization().scopes().containsAll(required) || required.isEmpty())
+                return Mono.error(new AccessDeniedException("Execution scope denied"));
+            var remaining = Duration.between(clock.instant(), context.deadline());
+            if (remaining.isNegative() || remaining.isZero())
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent())
+                return Mono.error(new IllegalStateException("Read snapshot cannot prepare a write"));
+            if (!fresh && com.arte.ainew.context.ControlPreparation.find(values, context).isPresent())
+                return Mono.defer(() -> work.apply(context));
+            if (source == null)
+                return requireWrite(context, required.iterator().next()).flatMap(work);
+            return Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler).timeout(remaining)
+                    .flatMap(configuration -> {
+                        var grant = grant(configuration, context);
+                        if (!grant.scopes().containsAll(context.authorization().scopes()))
+                            return Mono.error(new AccessDeniedException("Execution scope denied"));
+                        if (!clock.instant().isBefore(context.deadline()))
+                            return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+                        var original = context.authorization();
+                        var authorization = new com.arte.ainew.common.execution.ExecutionAuthorization(
+                                original.principal(), original.tenantId(), original.workspaceId(), original.scopes(), grant.grantRef());
+                        var current = new ExecutionContext(context.executionId(), context.traceId(), authorization,
+                                context.deadline(), context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
+                        return com.arte.ainew.context.ControlPreparation.use(current, configuration, work);
+                    });
+        });
     }
 
     private Mono<ExecutionContext> require(ExecutionContext context, String scope, boolean write) {
@@ -117,6 +163,8 @@ public final class AdmissionAuthorization {
                 if (write) return Mono.error(new IllegalStateException("Read snapshot cannot authorize a write"));
                 return Mono.just(context);
             }
+            if (!write && com.arte.ainew.context.ControlPreparation.find(values, context).isPresent())
+                return Mono.just(context);
             // 通过 ExecutionAuthorizationResolver 重新查询当前授权，确认授权仍有效
             Mono<com.arte.ainew.common.execution.ExecutionAuthorization> resolved = !write
                     && resolver instanceof com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver reads
@@ -160,6 +208,8 @@ public final class AdmissionAuthorization {
 
     public Mono<Grant> configurationGrant(ExecutionContext context) {
         return Mono.deferContextual(values -> {
+            var preparation = com.arte.ainew.context.ControlPreparation.find(values, context);
+            if (preparation.isPresent()) return Mono.just(grant(preparation.get(), context));
             var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
             if (snapshot.isPresent()) {
                 if (snapshot.get().configuration() == null)

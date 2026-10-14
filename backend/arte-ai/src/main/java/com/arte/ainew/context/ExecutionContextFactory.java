@@ -53,6 +53,38 @@ public final class ExecutionContextFactory {
     }
 
     /**
+     * 捕获已认证的 MVC 身份，并在每次订阅时为操作准备一次当前资格和配置。
+     * <p>
+     * 必须在 MVC 请求线程调用。延迟执行的操作仅保留捕获的名称，不持有可变认证对象。
+     * 支持准备能力的解析器一次提供当前资格和配置；其他解析器使用普通上下文创建流程。
+     * 每次订阅均取得新的准备结果，请求超时覆盖整个操作。
+     *
+     * @param request 请求的租户、工作空间、权限上限、超时和执行引用
+     * @param work    使用已验证执行上下文执行的操作
+     * @param <T>     操作结果类型
+     * @return 操作结果，或认证、授权、准备、超时错误
+     */
+    public <T> Mono<T> prepareCurrent(ExecutionContextRequest request,
+                                      java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        Authentication captured = SecurityContextHolder.getContext().getAuthentication();
+        if (!(authorizationResolver instanceof com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver preparations)
+                || captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken)
+            return create(captured, request).flatMap(work).timeout(request.timeout());
+        String name = captured.getName();
+        if (name == null || name.isBlank())
+            return Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required"));
+        return Mono.defer(() -> {
+            var prepared = new java.util.concurrent.atomic.AtomicReference<com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver.Preparation>();
+            var scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
+                    preparations.prepare(authenticatedName, tenant, workspace, scopes)
+                            .doOnNext(prepared::set)
+                            .map(com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver.Preparation::authorization), clock);
+            return scoped.create(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(name, null, java.util.List.of()), request)
+                    .flatMap(context -> ControlPreparation.use(context, prepared.get().configuration(), work));
+        }).timeout(request.timeout());
+    }
+
+    /**
      * MVC 身份仍在调用时捕获；快照按订阅创建，数据库读取完成后才进入本次只读操作。
      */
     public <T> Mono<T> readCurrent(ExecutionContextRequest request, boolean includeConfiguration,

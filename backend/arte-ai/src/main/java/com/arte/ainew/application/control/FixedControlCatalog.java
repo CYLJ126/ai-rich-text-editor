@@ -82,7 +82,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     }
 
     /**
-     * 数据库模式使用同一校验算法，每次读取当前已发布配置，不缓存授权或空间配置。
+     * 数据库模式使用同一校验算法；本次准备内复用一致快照，新的业务边界重新读取当前配置。
      */
     public FixedControlCatalog(NewAiProperties infrastructure, AdmissionAuthorization authorization, Clock clock,
                                AiControlConfigurationSource source, reactor.core.scheduler.Scheduler scheduler) {
@@ -93,6 +93,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     public Mono<NewAiProperties> configuration(ExecutionContext context) {
         return Mono.deferContextual(values -> {
+            var preparation = com.arte.ainew.context.ControlPreparation.find(values, context);
+            if (preparation.isPresent()) return Mono.just(preparation.get());
             var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
             if (snapshot.isPresent()) {
                 var configuration = snapshot.get().configuration();
@@ -167,6 +169,29 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                 throw new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE);
             }
             return value;
+        });
+    }
+
+    /**
+     * Sending an external request must not reuse the earlier preparation's allow decision.
+     */
+    public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference, ExecutionContext context) {
+        if (source == null) return resolveConnection(reference, context);
+        return authorization.prepare(context, Set.of(AdmissionAuthorization.INVOKE), true,
+                current -> resolveConnection(reference, current));
+    }
+
+    public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference,
+                                                               com.arte.ainew.pojo.execution.GatewayCall<?> call) {
+        return authorization.prepare(call.runtime().execution(), Set.of(AdmissionAuthorization.INVOKE), true, current -> {
+            var original = call.request();
+            var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(),
+                    original.input(), original.options(), current);
+            return resolve(request.binding(), request.capability(), current).flatMap(binding -> {
+                if (!binding.equals(call.binding()) || !binding.connection().equals(reference))
+                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
+                return validate(request).then(resolveConnection(reference, current));
+            });
         });
     }
 

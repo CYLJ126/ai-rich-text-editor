@@ -30,12 +30,12 @@ public final class JdbcPrincipalIdentityStore implements PrincipalIdentityStore 
 
     @Override
     public Optional<PrincipalIdentity> findBySubjectId(String subjectId) {
-        return find("subject_id = ?", subjectId);
+        return findAccountBinding(subjectId, false).map(AccountBinding::identity);
     }
 
     @Override
     public Optional<PrincipalIdentity> findByExternalIdentity(String provider, String externalUserId) {
-        return find("provider = ? AND external_user_id = ?", provider, externalUserId);
+        return find("provider = ? AND external_user_id = ?", provider, externalUserId).map(AccountBinding::identity);
     }
 
     /**
@@ -43,7 +43,22 @@ public final class JdbcPrincipalIdentityStore implements PrincipalIdentityStore 
      */
     public Optional<PrincipalIdentity> findCurrentBySubjectId(String subjectId) {
         accounts.requireTransaction();
-        return find("subject_id = ? FOR UPDATE", subjectId);
+        return findAccountBinding(subjectId, true).map(AccountBinding::identity);
+    }
+
+    /**
+     * Birth fingerprint is read with the identity row, without a second snapshot query.
+     */
+    public record AccountBinding(PrincipalIdentity identity, LocalDateTime externalCreatedAt) {
+    }
+
+    public Optional<AccountBinding> findAccountBinding(String subjectId, boolean currentRead) {
+        if (currentRead) accounts.requireTransaction();
+        return find("subject_id = ?" + (currentRead ? " FOR UPDATE" : ""), subjectId);
+    }
+
+    public Optional<AccountBinding> findAccountBindingByExternalId(String externalUserId) {
+        return find("provider = ? AND external_user_id = ?", PROVIDER, externalUserId);
     }
 
     public boolean matchesAccount(PrincipalIdentity identity, RbacAccountReader.Account account) {
@@ -76,13 +91,13 @@ public final class JdbcPrincipalIdentityStore implements PrincipalIdentityStore 
                 Timestamp.from(retiredAt), subjectId, expectedVersion, Timestamp.from(retiredAt)) == 1;
     }
 
-    private Optional<PrincipalIdentity> find(String predicate, Object... values) {
-        var rows = jdbc.query("SELECT subject_id, provider, external_user_id, created_at, retired_at, version "
+    private Optional<AccountBinding> find(String predicate, Object... values) {
+        var rows = jdbc.query("SELECT subject_id, provider, external_user_id, external_created_at, created_at, retired_at, version "
                         + "FROM arte_platform_principal_identity WHERE " + predicate,
-                (rs, n) -> new PrincipalIdentity(rs.getString("subject_id"), rs.getString("provider"),
+                (rs, n) -> new AccountBinding(new PrincipalIdentity(rs.getString("subject_id"), rs.getString("provider"),
                         rs.getString("external_user_id"), rs.getTimestamp("created_at").toInstant(),
                         rs.getTimestamp("retired_at") == null ? null : rs.getTimestamp("retired_at").toInstant(),
-                        rs.getLong("version")), values);
+                        rs.getLong("version")), rs.getObject("external_created_at", LocalDateTime.class)), values);
         if (rows.size() > 1) throw new IllegalStateException("Ambiguous principal identity");
         return rows.stream().findFirst();
     }

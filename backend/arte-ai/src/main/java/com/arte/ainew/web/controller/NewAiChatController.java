@@ -82,9 +82,9 @@ public class NewAiChatController {
         long started = System.nanoTime();
         var timeout = Duration.ofSeconds(request.timeoutSeconds());
         // 创建执行上下文 → 解析绑定 → 提交请求
-        return httpContext.create(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
-                        timeout, request.budgetRef(), idempotencyKey)
-                .flatMap(executionContext -> bindingManager.resolve(request.binding(), request.capability(), executionContext)
+        return httpContext.prepare(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
+                        timeout, request.budgetRef(), idempotencyKey,
+                        executionContext -> bindingManager.resolve(request.binding(), request.capability(), executionContext)
                         .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)
                                 .doOnNext(accepted -> new InvocationTiming(accepted.executionId(), executionContext.traceId(), null, started)
                                         .mark("CHAT_ACCEPTED"))))

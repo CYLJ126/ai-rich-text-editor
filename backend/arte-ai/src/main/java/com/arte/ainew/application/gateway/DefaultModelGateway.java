@@ -89,7 +89,8 @@ public final class DefaultModelGateway<Q, S, H> implements ModelGateway {
                         var request = provider.mapRequest(call);
                         return Flux.usingWhen(runtime.acquire(connection, call.runtime()),
                                 lease -> protocol.exchange(request, lease, call), runtime::release,
-                                (lease, error) -> runtime.release(lease), runtime::release);
+                                        (lease, error) -> runtime.release(lease), runtime::release)
+                                .contextWrite(values -> values.put(GatewayCall.class, call));
                     }).takeUntilOther(stop).concatWith(Flux.defer(() -> interruption.get() == null
                             ? Flux.empty() : Flux.error(interruption.get())));
             return provider.mapStream(frames, call);

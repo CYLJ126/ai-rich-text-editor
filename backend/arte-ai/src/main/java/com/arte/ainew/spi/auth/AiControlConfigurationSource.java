@@ -15,7 +15,7 @@ public interface AiControlConfigurationSource {
 
     /**
      * 在本次调用中核验当前主体、范围和 context 的全部权限，返回包含该主体 Grant 的一致配置快照。
-     * 调用方仅在一次配置校验内复用快照；后续业务边界重新读取，不能跨请求缓存授权。
+     * 调用方可在同一次提交／派发准备内复用快照；受理和实际发送边界重新读取，不能跨请求缓存授权。
      */
     NewAiProperties configuration(ExecutionContext context);
 

@@ -304,7 +304,8 @@ class DatabaseAiControlIntegrationTest {
     @Test
     void databaseChatSubmissionCommitsWithoutDispatchingProvider() {
         var scope = f.initialize().value().workspace().scope();
-        context().run(c -> {
+        var recorded = new SqlRecorder(f.source);
+        context(recorded).run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             db.importConfiguration(f.actor, meta("import"));
@@ -333,13 +334,123 @@ class DatabaseAiControlIntegrationTest {
             var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of());
             org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
             try {
+                recorded.sql.clear();
                 var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/ai-new/chat/turnsForChat")
                         .header("Idempotency-Key", "chat").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(f.json.write(request))).andReturn();
                 result.getAsyncResult(15000);
                 result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(result)).andReturn();
                 assertEquals(202, result.getResponse().getStatus(), result.getResponse().getContentAsString());
+                int queries = recorded.sql.size();
+                assertTrue(queries <= 90, "chat preparation SQL=" + queries + ": " + recorded.sql);
+                assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
+                        && q.toUpperCase().contains("FOR UPDATE")).count());
+                assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
+                assertTrue(recorded.sql.stream().noneMatch(q -> q.startsWith("SELECT external_created_at FROM")));
+                System.out.println("CHAT_PREPARATION_SQL_COUNT=" + queries);
+                var byTable = new java.util.TreeMap<String, Integer>();
+                var tablePattern = java.util.regex.Pattern.compile("(?i)\\b(?:FROM|INTO|UPDATE)\\s+([a-z_]+)");
+                recorded.sql.forEach(sql -> {
+                    var match = tablePattern.matcher(sql);
+                    if (match.find()) byTable.merge(match.group(1), 1, Integer::sum);
+                });
+                System.out.println("CHAT_PREPARATION_SQL_BY_TABLE=" + byTable);
                 assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
                 assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
+                verifyDispatchPreparation(c, recorded);
+            } finally {
+                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            }
+        });
+    }
+
+    private void verifyDispatchPreparation(org.springframework.context.ApplicationContext c, SqlRecorder recorded) {
+        var executions = c.getBean(com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence.class);
+        var payloads = c.getBean(com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence.class);
+        var catalog = c.getBean(FixedControlCatalog.class);
+        var connections = c.getBean(com.arte.ainew.api.control.ConnectionManager.class);
+        var settings = new com.arte.ainew.config.NewAiExecutionProperties(true, false, 1, null, null, null, null);
+        var message = executions.claim(com.arte.ainew.pojo.execution.OutboxMessage.Kind.DISPATCH, "preparation-worker",
+                settings.outboxLease(), 1).block(WAIT).getFirst();
+        var invocation = executions.find(message.owner(), message.invocationId()).block(WAIT);
+        var beforeText = new java.util.concurrent.atomic.AtomicInteger();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        ModelGateway gateway = new ModelGateway() {
+            public boolean supportsTextChat(ResolvedBinding binding, ConnectionDefinition connection) {
+                return true;
+            }
+
+            public Flux<com.arte.ainew.pojo.generation.GenerationSignal> generate(
+                    com.arte.ainew.pojo.execution.GatewayCall<com.arte.ainew.pojo.generation.GenerationRequest> call) {
+                calls.incrementAndGet();
+                var usage = new com.arte.ainew.pojo.execution.Usage(com.arte.ainew.pojo.execution.Usage.Basis.PROVIDER_REPORTED, 1L, 1L, 2L);
+                var output = new com.arte.ainew.pojo.generation.ChatMessage("reply", com.arte.ainew.pojo.generation.ChatMessage.Role.ASSISTANT,
+                        List.of(new com.arte.ainew.pojo.generation.ChatMessage.Text("ok")), List.of(), null);
+                var result = new com.arte.ainew.pojo.generation.ModelResult("result",
+                        new com.arte.ainew.pojo.generation.ModelResult.ModelIdentity("deepseek", "deepseek-chat", null),
+                        List.of(output), com.arte.ainew.pojo.generation.ModelResult.FinishReason.STOP, true, null, usage, List.of());
+                // Gateway/acquire preparation reuses the dispatch snapshot; only final send reloads it.
+                return catalog.validate(call.request()).then(catalog.resolve(call.request().binding(), call.request().capability(), call.runtime().execution()))
+                        .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
+                        .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
+                        .then(connections.resolveCurrent(call.binding().connection(), call))
+                        .doOnNext(ignored -> beforeText.set(recorded.sql.size()))
+                        .thenMany(Flux.just(new com.arte.ainew.pojo.generation.GenerationSignal.Delta(
+                                        new com.arte.ainew.pojo.generation.GenerationEvent.TextDelta("ok")),
+                                new com.arte.ainew.pojo.generation.GenerationSignal.Result(result)));
+            }
+        };
+        var dispatcher = new com.arte.ainew.application.execution.GenerationDispatcher(c.getBean(AdmissionAuthorization.class), catalog,
+                executions, executions, executions, payloads, payloads, executions, gateway, c.getBean(NewAiProperties.class), settings, Clock.systemUTC());
+        recorded.sql.clear();
+        dispatcher.dispatch(message, com.arte.ainew.context.ExecutionRuntimeContext.start(invocation.request().context())).block(WAIT);
+        assertEquals(1, calls.get());
+        assertEquals(com.arte.ainew.pojo.execution.Invocation.State.SUCCEEDED,
+                executions.find(message.owner(), message.invocationId()).block(WAIT).state());
+        // Attempt/budget/fencing transactions are deliberately left for the next batch.
+        assertTrue(beforeText.get() <= 140, "dispatch preparation SQL=" + beforeText.get());
+        assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
+                && q.toUpperCase().contains("FOR UPDATE")).count());
+        System.out.println("DISPATCH_BEFORE_FIRST_TEXT_SQL_COUNT=" + beforeText.get());
+    }
+
+    @Test
+    void revokedMembershipBetweenPreparationAndAdmissionCannotCommitAChat() {
+        var scope = f.initialize().value().workspace().scope();
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("import"));
+            db.ensure(f.actor, scope);
+            var conversation = c.getBean(ConversationService.class).create("Revocation", null, List.of(),
+                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "revoke-conversation")).block(WAIT);
+            var option = c.getBean(ChatConfigurationQueryService.class).discover(
+                            execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null))
+                    .block(WAIT).options().getFirst();
+            var properties = c.getBean(NewAiProperties.class);
+            var http = new com.arte.ainew.web.NewAiHttpContext(c.getBean(com.arte.ainew.context.ExecutionContextFactory.class), properties);
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                    org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
+            try {
+                assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> http.prepare(
+                        new com.arte.ainew.web.request.ConversationRequests.Scope(scope.tenantId(), scope.workspaceId()),
+                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
+                        WAIT, option.budgetRefs().getFirst(), "revoked-chat", ctx -> {
+                            // Revoke after the entry snapshot was acquired, while internal assembly reuses it.
+                            f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+                            var message = new com.arte.ainew.pojo.generation.ChatMessage("user-message",
+                                    com.arte.ainew.pojo.generation.ChatMessage.Role.USER,
+                                    List.of(new com.arte.ainew.pojo.generation.ChatMessage.Text("test")), List.of(), null);
+                            var selection = new com.arte.ainew.pojo.context.ContextRequest(List.of(message), null, List.of(), List.of(), null,
+                                    new com.arte.ainew.pojo.context.ContextBudget(65536, 32768, 512, 0));
+                            var request = new com.arte.ainew.pojo.entry.EntryRequests.Chat(conversation.conversationId(), 0, null, null,
+                                    selection, option.capability(), option.binding(),
+                                    new com.arte.ainew.pojo.generation.GenerationOptions(512, null, null, List.of()),
+                                    new com.arte.ainew.pojo.execution.ExecutionOptions(ctx.deadline(), 1,
+                                            properties.limits().maxOutputBytes(), 0, 0, WAIT));
+                            return c.getBean(com.arte.ainew.api.entry.ChatService.class).submit(request, ctx);
+                        }).block(WAIT));
+                assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
+                assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
             } finally {
                 org.springframework.security.core.context.SecurityContextHolder.clearContext();
             }

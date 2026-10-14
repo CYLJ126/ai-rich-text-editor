@@ -167,19 +167,32 @@ public final class GenerationDispatcher {
         if (!(persisted.input() instanceof GenerationRequest generation)) {
             return rejectBeforeAttempt(invocation, new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY));
         }
-        return admissionAuthorization.requireWrite(runtime.execution(), AdmissionAuthorization.INVOKE)
-                .flatMap(current -> {
+        var entered = new AtomicBoolean();
+        return admissionAuthorization.prepare(runtime.execution(), java.util.Set.of(AdmissionAuthorization.INVOKE), true, current -> {
+            entered.set(true);
+            return prepareAndStart(invocation, message, runtime, timing, persisted, generation, current);
+        }).onErrorResume(error -> !entered.get() && predictable(error)
+                ? rejectBeforeAttempt(invocation, error) : Mono.error(error));
+    }
+
+    private Mono<Void> prepareAndStart(Invocation invocation, OutboxMessage message, ExecutionRuntimeContext runtime,
+                                       InvocationTiming timing, InvocationRequest<?> persisted, GenerationRequest generation,
+                                       com.arte.ainew.common.execution.ExecutionContext current) {
+        return Mono.defer(() -> {
                     var request = new InvocationRequest<>(persisted.capability(), persisted.binding(), persisted.kind(),
                             generation, persisted.options(), current);
                     return fixedControlCatalog.validate(request).then(fixedControlCatalog.resolve(request.binding(), request.capability(), current))
                             .flatMap(binding -> contextSnapshotStore.find(message.owner(), invocation.contextSnapshotId())
                                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)))
-                                    .map(snapshot -> {
+                                    .flatMap(snapshot -> {
                                         TextInputs.verify(snapshot, binding, newAiProperties.limits());
                                         if (!snapshot.messages().equals(generation.messages()) || !snapshot.expiresAt().isAfter(clock.instant())) {
                                             throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                                         }
-                                        return new Prepared(request, binding, snapshot, new ExecutionRuntimeContext(current, runtime.cancellation()));
+                                        return fixedControlCatalog.configuration(current).map(configuration -> new Prepared(request, binding, snapshot,
+                                                new ExecutionRuntimeContext(current, runtime.cancellation()), configuration.rates().stream()
+                                                .filter(value -> value.definition().equals(binding.rate())).findFirst()
+                                                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH))));
                                     }));
                 })
                 .onErrorResume(error -> predictable(error)
@@ -215,7 +228,7 @@ public final class GenerationDispatcher {
     }
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
-                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime) {
+                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime, NewAiProperties.Rate rate) {
     }
 
     private Mono<Void> rejectBeforeAttempt(Invocation invocation, Throwable error) {
@@ -367,7 +380,7 @@ public final class GenerationDispatcher {
         }
 
         Mono<Void> reserveAndSend() {
-            var pricing = rate(prepared.binding().rate());
+            var pricing = prepared.rate();
             var amount = GenerationPricing.amount(pricing, prepared.snapshot().budget().maxInputTokens(),
                     prepared.request().input().options().maxOutputTokens());
             return guarded(guard -> budgetService.reserve(new BudgetCommands.Reserve(guard,

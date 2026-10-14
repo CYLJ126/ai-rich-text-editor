@@ -57,10 +57,9 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
 
     @Override
     public Mono<AcceptedExecution> submit(InvocationSubmission<?> submission) {
-        return Mono.defer(() -> admissionAuthorization.requireWrite(submission.request().context(), AdmissionAuthorization.INVOKE)
-                .flatMap(current -> submission.conversation() == null ? Mono.just(current)
-                        : admissionAuthorization.requireWrite(current, AdmissionAuthorization.CONVERSATION))
-                .flatMap(current -> {
+        return admissionAuthorization.prepare(submission.request().context(), submission.conversation() == null
+                        ? java.util.Set.of(AdmissionAuthorization.INVOKE)
+                        : java.util.Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), true, current -> {
                     if (!(submission.request().input() instanceof GenerationRequest generation)) {
                         throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
                     }
@@ -70,7 +69,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                             submission.newTurn(), submission.replacesInvocationId());
                     return capabilityCatalog.validate(request).then(bindingManager.resolve(request.binding(), request.capability(), current))
                             .flatMap(binding -> admit(refreshed, binding));
-                }))
+                })
                 .doOnError(error -> log.warn("AI admission failed, invocationId={}, traceId={}, capabilityId={}, code={}, type={}",
                         submission.request().context().executionId(), submission.request().context().traceId(), submission.request().capability().id(),
                         error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "ADMISSION_FAILED",

@@ -65,7 +65,7 @@ public final class DefaultChatService implements ChatService {
 
     @Override
     public Mono<AcceptedExecution> submit(EntryRequests.Chat request, ExecutionContext context) {
-        return authorization.requireWrite(context, AdmissionAuthorization.INVOKE).flatMap(currentContext ->
+        return authorization.prepare(context, java.util.Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), false, currentContext ->
                         // 查找会话
                         conversationsService.find(request.conversationId(), currentContext).flatMap(conversation -> {
                             if (conversation.state() != Conversation.State.ACTIVE) {
