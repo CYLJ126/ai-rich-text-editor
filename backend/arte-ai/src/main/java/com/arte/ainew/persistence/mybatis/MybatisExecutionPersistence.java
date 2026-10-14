@@ -45,7 +45,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  */
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
-        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore {
+        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore {
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
@@ -174,10 +174,26 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private Attempt guarded(Invocation invocation, Guard guard) {
+        return guarded(invocation, guard, null);
+    }
+
+    /**
+     * known 仅来自本事务已创建或更新的锁定记录，不接受事务外缓存。
+     */
+    private Attempt guarded(Invocation invocation, Guard guard, Attempt known) {
+        var attempt = checked(invocation, guard, known);
+        require(attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+        return attempt;
+    }
+
+    private Attempt checked(Invocation invocation, Guard guard, Attempt known) {
         version(invocation, guard.invocation());
-        var attempt = attempt(invocation, guard.attemptId(), guard.expectedAttemptVersion());
-        require(attempt.workerId().equals(guard.workerId()) && attempt.fencingToken() == guard.fencingToken()
-                && attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+        var attempt = known == null ? attempt(invocation, guard.attemptId(), guard.expectedAttemptVersion()) : known;
+        require(attempt.invocationId().equals(id(invocation)), NOT_FOUND);
+        require(attempt.attemptId().equals(invocation.activeAttemptId())
+                && attempt.attemptId().equals(guard.attemptId()), LEASE_LOST);
+        require(attempt.version() == guard.expectedAttemptVersion(), VERSION_CONFLICT);
+        require(attempt.workerId().equals(guard.workerId()) && attempt.fencingToken() == guard.fencingToken(), LEASE_LOST);
         return attempt;
     }
 
@@ -194,8 +210,12 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private Invocation state(Invocation source, Invocation.State next, String active, ResultRef result, ExecutionError error) {
+        return state(source, next, active, result, error, now());
+    }
+
+    private Invocation state(Invocation source, Invocation.State next, String active, ResultRef result, ExecutionError error, Instant at) {
         return new Invocation(source.request(), source.requestDigest(), source.conversation(), source.contextSnapshotId(),
-                source.replacesInvocationId(), next, source.version() + 1, active, result, error, source.acceptedAt(), now());
+                source.replacesInvocationId(), next, source.version() + 1, active, result, error, source.acceptedAt(), at);
     }
 
     private Attempt changed(Attempt a, Attempt.State state, Attempt.Dispatch dispatch, String remote, String reservation,
@@ -510,44 +530,90 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<Attempt>> createAttempt(CreateAttempt command) {
+        return outcome(() -> StoreOutcome.applied(createAttemptLocked(command, invocation(command.invocation())).attempt()));
+    }
+
+    private record CreatedAttempt(Invocation invocation, Attempt attempt) {
+    }
+
+    @Override
+    public Mono<StoreOutcome<DispatchPreparationStore.PreparedDispatch>> prepareDispatch(DispatchPreparationStore.Command command) {
         return outcome(() -> {
+            // 统一顺序：Invocation -> Outbox -> Account -> Reservation；不在事务中执行网络请求。
             var invocation = invocation(command.invocation());
             version(invocation, command.invocation());
-            require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
-            require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
-            if (invocation.activeAttemptId() != null) {
-                var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
-                require(previous.state() == Attempt.State.FAILED || previous.state() == Attempt.State.TIMED_OUT
-                        || previous.state() == Attempt.State.INTERRUPTED, INVALID_STATE);
-                require(previous.error().retryable() && previous.error().certainty() == ExecutionError.Certainty.KNOWN
-                        && (previous.dispatch() == Attempt.Dispatch.NOT_STARTED
-                        || previous.error().sideEffect() == ExecutionError.SideEffect.NONE), RECONCILIATION_REQUIRED);
+            var rows = outbox.lockMessage(command.claim().messageId());
+            require(!rows.isEmpty(), NOT_FOUND);
+            var claim = rows.getFirst();
+            claimed(command.claim(), claim);
+            var created = createAttemptLocked(new CreateAttempt(command.invocation(), command.attemptId(),
+                    command.claim().workerId(), command.attemptLease()), invocation);
+            var running = created.invocation();
+            var guard = Guard.from(command.invocation().owner(), running, created.attempt());
+            var attempt = guarded(running, guard, created.attempt());
+            var ref = running.request().context().budgetRef();
+            require(ref != null, NOT_FOUND);
+            var account = workspaceSnapshot(budget.accountSnapshot(hash(ref), true), BudgetCommands.Account.class);
+            require(account != null, NOT_FOUND);
+            require(account.owner().equals(command.invocation().owner()), OWNER_MISMATCH);
+            var reserve = new BudgetCommands.Reserve(guard,
+                    com.arte.ainew.serialization.CanonicalJson.key(attempt.attemptId(), "reservation"), command.amount(),
+                    command.rate(), command.retention());
+            ReservedAttempt reserved;
+            try {
+                reserved = reserveLocked(reserve, running, attempt, account, LeasePurpose.EXECUTE);
+            } catch (Rejected rejection) {
+                // available 检查在任何预留写入前执行；只保留可正常结束的未发送 Attempt。
+                if (rejection.code != INSUFFICIENT_BUDGET) throw rejection;
+                claimed(command.claim(), claim);
+                guarded(running, guard, attempt);
+                return StoreOutcome.applied(new DispatchPreparationStore.PreparedDispatch(running, attempt, false));
             }
-            if (invocation.state() == Invocation.State.QUEUED && invocation.activeAttemptId() != null) {
-                var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
-                require(safelyRejected(previous) && event.writtenBytes(hash(id(invocation))) == 0, RECONCILIATION_REQUIRED);
-                if (previous.budgetReservationId() != null) {
-                    var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(previous.budgetReservationId()), true), BudgetReservation.class);
-                    require(reservation != null && reservation.state() == BudgetReservation.State.RELEASED, RECONCILIATION_REQUIRED);
-                }
-            }
-            lock(hash("attempt-id", command.attemptId()));
-            require(workspaceSnapshot(execution.attemptSnapshot(hash(command.attemptId()), false), Attempt.class) == null, IDEMPOTENCY_CONFLICT);
-            var counters = execution.attemptCounters(hash(id(invocation)));
-            int number = counters.nextAttempt() + 1;
-            require(number <= invocation.request().options().maxAttempts(), INVALID_STATE);
-            long fence = Math.addExact(counters.nextFence(), 1);
-            var createdAt = now();
-            var attempt = new Attempt(command.attemptId(), id(invocation), number, command.workerId(), fence,
-                    createdAt.plus(command.lease()), 0, Attempt.State.CREATED, Attempt.Dispatch.NOT_STARTED, null, null,
-                    Usage.unknown(), null, createdAt, createdAt);
-            execution.insertAttempt(hash(attempt.attemptId()), hash(id(invocation)), number, LeasePurpose.EXECUTE.name(), codec.encode(attempt));
-            execution.advanceAttemptCounters(number, fence, hash(id(invocation)));
-            var running = state(invocation, Invocation.State.RUNNING, attempt.attemptId(), null, null);
-            save(running);
-            event(running, attempt.attemptId(), new ExecutionPayload.Status(Invocation.State.RUNNING));
-            return StoreOutcome.applied(attempt);
+            // 持锁期间也可能经过租约截止点，提交派发前必须再次按数据库时钟检查。
+            claimed(command.claim(), claim);
+            var ready = checked(running, Guard.from(command.invocation().owner(), running, reserved.attempt()), reserved.attempt());
+            var dispatched = markDispatchLocked(new Dispatch(Guard.from(command.invocation().owner(), running, ready),
+                    com.arte.ainew.serialization.CanonicalJson.key(ready.attemptId(), "remote-request")), running, ready, reserved.reservation());
+            return StoreOutcome.applied(new DispatchPreparationStore.PreparedDispatch(running, dispatched, true));
         });
+    }
+
+    private CreatedAttempt createAttemptLocked(CreateAttempt command, Invocation invocation) {
+        version(invocation, command.invocation());
+        require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
+        require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
+        if (invocation.activeAttemptId() != null) {
+            var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(previous.state() == Attempt.State.FAILED || previous.state() == Attempt.State.TIMED_OUT
+                    || previous.state() == Attempt.State.INTERRUPTED, INVALID_STATE);
+            require(previous.error().retryable() && previous.error().certainty() == ExecutionError.Certainty.KNOWN
+                    && (previous.dispatch() == Attempt.Dispatch.NOT_STARTED
+                    || previous.error().sideEffect() == ExecutionError.SideEffect.NONE), RECONCILIATION_REQUIRED);
+        }
+        if (invocation.state() == Invocation.State.QUEUED && invocation.activeAttemptId() != null) {
+            var previous = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(safelyRejected(previous) && event.writtenBytes(hash(id(invocation))) == 0, RECONCILIATION_REQUIRED);
+            if (previous.budgetReservationId() != null) {
+                var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(previous.budgetReservationId()), true), BudgetReservation.class);
+                require(reservation != null && reservation.state() == BudgetReservation.State.RELEASED, RECONCILIATION_REQUIRED);
+            }
+        }
+        lock(hash("attempt-id", command.attemptId()));
+        require(workspaceSnapshot(execution.attemptSnapshot(hash(command.attemptId()), false), Attempt.class) == null, IDEMPOTENCY_CONFLICT);
+        var counters = execution.attemptCounters(hash(id(invocation)));
+        int number = counters.nextAttempt() + 1;
+        require(number <= invocation.request().options().maxAttempts(), INVALID_STATE);
+        long fence = Math.addExact(counters.nextFence(), 1);
+        var createdAt = now();
+        var attempt = new Attempt(command.attemptId(), id(invocation), number, command.workerId(), fence,
+                createdAt.plus(command.lease()), 0, Attempt.State.CREATED, Attempt.Dispatch.NOT_STARTED, null, null,
+                Usage.unknown(), null, createdAt, createdAt);
+        execution.insertAttempt(hash(attempt.attemptId()), hash(id(invocation)), number, LeasePurpose.EXECUTE.name(), codec.encode(attempt));
+        execution.advanceAttemptCounters(number, fence, hash(id(invocation)));
+        var running = state(invocation, Invocation.State.RUNNING, attempt.attemptId(), null, null, createdAt);
+        save(running);
+        event(running, attempt.attemptId(), new ExecutionPayload.Status(Invocation.State.RUNNING), createdAt);
+        return new CreatedAttempt(running, attempt);
     }
 
     @Override
@@ -593,22 +659,33 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     public Mono<StoreOutcome<Attempt>> markDispatch(Dispatch command) {
         return outcome(() -> {
             var invocation = invocation(command.guard().invocation());
-            var attempt = guarded(invocation, command.guard());
-            require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
-            require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
-            require(purpose(attempt) == LeasePurpose.EXECUTE && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
-                    && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
-            if (invocation.request().context().budgetRef() != null) {
-                require(attempt.budgetReservationId() != null, INSUFFICIENT_BUDGET);
-                var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(attempt.budgetReservationId()), true), BudgetReservation.class);
-                require(reservation != null && reservation.state() == BudgetReservation.State.RESERVED
-                        && reservation.expiresAt().isAfter(now()), INSUFFICIENT_BUDGET);
-            }
-            var dispatched = changed(attempt, Attempt.State.RUNNING, Attempt.Dispatch.MAY_HAVE_EXECUTED,
-                    command.remoteRequestId(), attempt.budgetReservationId(), attempt.usage(), null);
-            save(dispatched);
-            return StoreOutcome.applied(dispatched);
+            return StoreOutcome.applied(markDispatchLocked(command, invocation, checked(invocation, command.guard(), null), null));
         });
+    }
+
+    private Attempt markDispatchLocked(Dispatch command, Invocation invocation, Attempt attempt, BudgetReservation knownReservation) {
+        boolean cancelled = operation(invocation, CANCEL_REQUEST_KEY) != null;
+        // 已知预留仅来自本事务新建的 EXECUTE Attempt，否则仍读取权威 purpose 和预留记录。
+        var leasePurpose = knownReservation == null ? purpose(attempt) : LeasePurpose.EXECUTE;
+        BudgetReservation reservation = knownReservation;
+        if (invocation.request().context().budgetRef() != null && attempt.budgetReservationId() != null && reservation == null)
+            reservation = workspaceSnapshot(budget.reservationSnapshot(hash(attempt.budgetReservationId()), true), BudgetReservation.class);
+        // 所有可能等待的锁定读取完成后，按同一新数据库时刻核验并构造派发记录。
+        var at = now();
+        require(attempt.leaseExpiresAt().isAfter(at), LEASE_LOST);
+        require(!cancelled, INVALID_STATE);
+        require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(at), INVALID_STATE);
+        require(leasePurpose == LeasePurpose.EXECUTE && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
+                && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
+        if (invocation.request().context().budgetRef() != null)
+            require(reservation != null && reservation.state() == BudgetReservation.State.RESERVED
+                    && reservation.expiresAt().isAfter(at), INSUFFICIENT_BUDGET);
+        var dispatched = new Attempt(attempt.attemptId(), attempt.invocationId(), attempt.attemptNumber(), attempt.workerId(),
+                attempt.fencingToken(), attempt.leaseExpiresAt(), attempt.version() + 1, Attempt.State.RUNNING,
+                Attempt.Dispatch.MAY_HAVE_EXECUTED, command.remoteRequestId(), attempt.budgetReservationId(),
+                attempt.usage(), null, attempt.createdAt(), at);
+        save(dispatched);
+        return dispatched;
     }
 
     private static final String CANCEL_REQUEST_KEY = hash("control-cancel-requested", "v1");
@@ -945,6 +1022,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private ExecutionEvent<?> event(Invocation invocation, String attemptId, ExecutionPayload payload) {
+        return event(invocation, attemptId, payload, now());
+    }
+
+    private ExecutionEvent<?> event(Invocation invocation, String attemptId, ExecutionPayload payload, Instant at) {
         long sequence = Math.addExact(event.nextSequence(hash(id(invocation))), 1);
         String type = switch (payload) {
             case ExecutionPayload.OutputBatch ignored -> "output-batch";
@@ -953,7 +1034,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             case ExecutionPayload.Terminal ignored -> "terminal";
             case ExecutionPayload.BudgetChanged ignored -> "budget-changed";
         };
-        var event = new ExecutionEvent<>(1, id(invocation), attemptId, sequence, payload.eventKind(), now(), type, 1, payload);
+        var event = new ExecutionEvent<>(1, id(invocation), attemptId, sequence, payload.eventKind(), at, type, 1, payload);
         persistEvent(invocation, event, codec.encode(event));
         return event;
     }
@@ -1246,30 +1327,45 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(previous);
             }
             var attempt = guarded(invocation, command.guard());
-            require(!invocation.state().terminal() && purpose(attempt) == LeasePurpose.EXECUTE
-                    && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
-                    && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING)
-                    && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
-            require(account.limit().currency().equals(command.amount().currency()), CURRENCY_MISMATCH);
-            require(account.rateVersion().equals(command.rateVersion()), RATE_MISMATCH);
-            require(account.available().compareTo(command.amount().amount()) >= 0, INSUFFICIENT_BUDGET);
-            lock(hash("reservation-id", command.reservationId()));
-            require(workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class) == null,
-                    IDEMPOTENCY_CONFLICT);
-            var reservedAt = now();
-            var reservation = new BudgetReservation(command.reservationId(), budgetRef, id(invocation), attempt.attemptId(),
-                    command.amount(), command.rateVersion(), BudgetReservation.State.RESERVED, 0, reservedAt,
-                    reservedAt.plus(command.retention()));
-            budget.insertReservation(hash(reservation.reservationId()), hash(budgetRef), hash(id(invocation)), hash(attempt.attemptId()), codec.encode(reservation));
-            save(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(),
-                    new Money(account.held().amount().add(command.amount().amount()), account.held().currency()),
-                    account.charged(), account.rateVersion(), account.version() + 1));
-            save(changed(attempt, attempt.state(), attempt.dispatch(), attempt.remoteRequestId(), reservation.reservationId(),
-                    attempt.usage(), attempt.error()));
-            event(invocation, attempt.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.RESERVED,
-                    reservation.version(), account.version() + 1));
-            return StoreOutcome.applied(reservation);
+            return StoreOutcome.applied(reserveLocked(command, invocation, attempt, account).reservation());
         });
+    }
+
+    private record ReservedAttempt(Attempt attempt, BudgetReservation reservation) {
+    }
+
+    private ReservedAttempt reserveLocked(BudgetCommands.Reserve command, Invocation invocation, Attempt attempt, BudgetCommands.Account account) {
+        return reserveLocked(command, invocation, attempt, account, null);
+    }
+
+    private ReservedAttempt reserveLocked(BudgetCommands.Reserve command, Invocation invocation, Attempt attempt,
+                                          BudgetCommands.Account account, LeasePurpose knownPurpose) {
+        var budgetRef = invocation.request().context().budgetRef();
+        require(!invocation.state().terminal() && (knownPurpose == null ? purpose(attempt) : knownPurpose) == LeasePurpose.EXECUTE
+                && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
+                && (attempt.state() == Attempt.State.CREATED || attempt.state() == Attempt.State.RUNNING)
+                && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
+        require(account.limit().currency().equals(command.amount().currency()), CURRENCY_MISMATCH);
+        require(account.rateVersion().equals(command.rateVersion()), RATE_MISMATCH);
+        require(account.available().compareTo(command.amount().amount()) >= 0, INSUFFICIENT_BUDGET);
+        lock(hash("reservation-id", command.reservationId()));
+        require(workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class) == null,
+                IDEMPOTENCY_CONFLICT);
+        var reservedAt = now();
+        var reservation = new BudgetReservation(command.reservationId(), budgetRef, id(invocation), attempt.attemptId(),
+                command.amount(), command.rateVersion(), BudgetReservation.State.RESERVED, 0, reservedAt,
+                reservedAt.plus(command.retention()));
+        budget.insertReservation(hash(reservation.reservationId()), hash(budgetRef), hash(id(invocation)), hash(attempt.attemptId()), codec.encode(reservation));
+        save(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(),
+                new Money(account.held().amount().add(command.amount().amount()), account.held().currency()),
+                account.charged(), account.rateVersion(), account.version() + 1));
+        var updated = new Attempt(attempt.attemptId(), attempt.invocationId(), attempt.attemptNumber(), attempt.workerId(),
+                attempt.fencingToken(), attempt.leaseExpiresAt(), attempt.version() + 1, attempt.state(), attempt.dispatch(),
+                attempt.remoteRequestId(), reservation.reservationId(), attempt.usage(), attempt.error(), attempt.createdAt(), reservedAt);
+        save(updated);
+        event(invocation, attempt.attemptId(), new ExecutionPayload.BudgetChanged(InvocationBudgetState.RESERVED,
+                reservation.version(), account.version() + 1), reservedAt);
+        return new ReservedAttempt(updated, reservation);
     }
 
     @Override

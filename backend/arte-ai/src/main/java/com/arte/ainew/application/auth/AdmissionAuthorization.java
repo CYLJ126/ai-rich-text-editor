@@ -129,21 +129,49 @@ public final class AdmissionAuthorization {
                 return Mono.defer(() -> work.apply(context));
             if (source == null)
                 return requireWrite(context, required.iterator().next()).flatMap(work);
-            return Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler).timeout(remaining)
-                    .flatMap(configuration -> {
-                        var grant = grant(configuration, context);
-                        if (!grant.scopes().containsAll(context.authorization().scopes()))
-                            return Mono.error(new AccessDeniedException("Execution scope denied"));
-                        if (!clock.instant().isBefore(context.deadline()))
-                            return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
-                        var original = context.authorization();
-                        var authorization = new com.arte.ainew.common.execution.ExecutionAuthorization(
-                                original.principal(), original.tenantId(), original.workspaceId(), original.scopes(), grant.grantRef());
-                        var current = new ExecutionContext(context.executionId(), context.traceId(), authorization,
-                                context.deadline(), context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
-                        return com.arte.ainew.context.ControlPreparation.use(current, configuration, work);
-                    });
+            return Mono.fromCallable(() -> source.prepareConfiguration(context)).subscribeOn(scheduler).timeout(remaining)
+                    .flatMap(prepared -> withConfiguration(context, prepared, work));
         });
+    }
+
+    /**
+     * 发送前重新授权；来源支持版本凭证时可省略未变化的目录和预算定义读取。
+     *
+     * @param context 需要重新验证的可信上下文
+     * @param work    使用当前资格和配置执行的发送前校验
+     * @param <T>     校验结果类型
+     * @return 当前资格有效时的结果，或授权、配置、期限错误
+     */
+    public <T> Mono<T> revalidate(ExecutionContext context, java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        return Mono.deferContextual(values -> {
+            var prepared = com.arte.ainew.context.ControlPreparation.findPrepared(values, context);
+            if (source == null || prepared.isEmpty())
+                return prepare(context, java.util.Set.of(INVOKE), true, work);
+            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent())
+                return Mono.error(new IllegalStateException("Read snapshot cannot authorize sending"));
+            if (!context.authorization().scopes().contains(INVOKE))
+                return Mono.error(new AccessDeniedException("Execution scope denied"));
+            var remaining = Duration.between(clock.instant(), context.deadline());
+            if (remaining.isNegative() || remaining.isZero())
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+            return Mono.fromCallable(() -> source.revalidate(context, prepared.get())).subscribeOn(scheduler).timeout(remaining)
+                    .flatMap(current -> withConfiguration(context, current, work));
+        });
+    }
+
+    private <T> Mono<T> withConfiguration(ExecutionContext context, AiControlConfigurationSource.PreparedConfiguration prepared,
+                                          java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        var grant = grant(prepared.configuration(), context);
+        if (!grant.scopes().containsAll(context.authorization().scopes()))
+            return Mono.error(new AccessDeniedException("Execution scope denied"));
+        if (!clock.instant().isBefore(context.deadline()))
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+        var original = context.authorization();
+        var authorization = new com.arte.ainew.common.execution.ExecutionAuthorization(
+                original.principal(), original.tenantId(), original.workspaceId(), original.scopes(), grant.grantRef());
+        var current = new ExecutionContext(context.executionId(), context.traceId(), authorization,
+                context.deadline(), context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
+        return com.arte.ainew.context.ControlPreparation.use(current, prepared, work);
     }
 
     private Mono<ExecutionContext> require(ExecutionContext context, String scope, boolean write) {

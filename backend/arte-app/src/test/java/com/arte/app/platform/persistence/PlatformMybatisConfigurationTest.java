@@ -80,6 +80,19 @@ class PlatformMybatisConfigurationTest {
     }
 
     @Test
+    void currentCatalogHeadUsesSharedMysqlLockAndH2CompatibleCurrentRead() {
+        runner.run(context -> {
+            assertNull(context.getStartupFailure());
+            var cfg = context.getBean(PlatformMybatisSession.class).factory().getConfiguration();
+            var statement = cfg.getMappedStatement("com.arte.app.platform.persistence.mapper.PlatformAiControlMapper.headCurrent");
+            cfg.setDatabaseId("MySQL");
+            assertTrue(statement.getBoundSql(null).getSql().contains("FOR SHARE"));
+            cfg.setDatabaseId("H2");
+            assertTrue(statement.getBoundSql(null).getSql().contains("FOR UPDATE"));
+        });
+    }
+
+    @Test
     void mappersIgnoreThreadRouteAndOldCreatorFilters() {
         runner.run(context -> {
             var mapper = context.getBean(PlatformTenantMapper.class);

@@ -5,6 +5,13 @@
         SELECT version FROM arte_ai_control_head WHERE id=1
         <if test="lock">FOR UPDATE</if>
     </select>
+    <select id="headCurrent" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT version FROM arte_ai_control_head WHERE id=1
+        <choose>
+            <when test="_databaseId == 'MySQL'">FOR SHARE</when>
+            <otherwise>FOR UPDATE</otherwise>
+        </choose>
+    </select>
     <select id="revision" resultType="java.lang.String" useCache="false">SELECT payload FROM arte_ai_control_revision
         WHERE version=#{version}
     </select>

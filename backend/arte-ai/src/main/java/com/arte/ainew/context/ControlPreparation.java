@@ -22,7 +22,8 @@ public final class ControlPreparation {
 
     private static final Object KEY = new Object();
 
-    private record Bound(ExecutionContext context, NewAiProperties configuration) {
+    private record Bound(ExecutionContext context,
+                         com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration prepared) {
     }
 
     private ControlPreparation() {
@@ -39,8 +40,17 @@ public final class ControlPreparation {
      */
     public static <T> Mono<T> use(ExecutionContext context, NewAiProperties configuration,
                                   Function<ExecutionContext, Mono<T>> work) {
+        return use(context, new com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration(configuration, null), work);
+    }
+
+    /**
+     * 安装包含发布版本凭证的准备结果；凭证不持久化、不跨操作复用。
+     */
+    public static <T> Mono<T> use(ExecutionContext context,
+                                  com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration prepared,
+                                  Function<ExecutionContext, Mono<T>> work) {
         return Mono.defer(() -> work.apply(context))
-                .contextWrite(values -> values.put(KEY, new Bound(context, configuration)));
+                .contextWrite(values -> values.put(KEY, new Bound(context, prepared)));
     }
 
     /**
@@ -52,10 +62,17 @@ public final class ControlPreparation {
      * @throws AccessDeniedException 已安装快照属于其他执行上下文时抛出
      */
     public static Optional<NewAiProperties> find(ContextView values, ExecutionContext context) {
+        return findPrepared(values, context).map(com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration::configuration);
+    }
+
+    /**
+     * 按完整执行上下文取得当前订阅的配置及版本凭证，供发送前复核使用。
+     */
+    public static Optional<com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration> findPrepared(ContextView values, ExecutionContext context) {
         if (!values.hasKey(KEY)) return Optional.empty();
         Bound bound = values.get(KEY);
         if (!bound.context().equals(context))
             throw new AccessDeniedException("Preparation context mismatch");
-        return Optional.of(bound.configuration());
+        return Optional.of(bound.prepared());
     }
 }

@@ -23,8 +23,15 @@ public interface ExecutionPreparationAuthorizationResolver extends ExecutionAuth
      *
      * @param authorization 已验证的身份、租户、工作空间和权限上限
      * @param configuration 包含已授权主体 Grant 的一致控制配置
+     * @param catalogRevision 不可变目录的发布版本；为空表示不支持版本复核优化
      */
-    record Preparation(ExecutionAuthorization authorization, NewAiProperties configuration) {
+    record Preparation(ExecutionAuthorization authorization, NewAiProperties configuration, Long catalogRevision) {
+        /**
+         * 为不提供发布版本凭证的来源创建兼容准备结果。
+         */
+        public Preparation(ExecutionAuthorization authorization, NewAiProperties configuration) {
+            this(authorization, configuration, null);
+        }
         /**
          * 创建包含授权和配置两个必需部分的准备结果。
          *
@@ -33,6 +40,8 @@ public interface ExecutionPreparationAuthorizationResolver extends ExecutionAuth
         public Preparation {
             Objects.requireNonNull(authorization);
             Objects.requireNonNull(configuration);
+            if (catalogRevision != null && catalogRevision < 1)
+                throw new IllegalArgumentException("Invalid catalog revision");
         }
     }
 

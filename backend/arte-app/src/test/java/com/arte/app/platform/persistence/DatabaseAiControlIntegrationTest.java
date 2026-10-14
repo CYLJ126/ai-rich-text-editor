@@ -195,6 +195,7 @@ class DatabaseAiControlIntegrationTest {
 
     static final class SqlRecorder extends org.springframework.jdbc.datasource.DelegatingDataSource {
         final List<String> sql = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final java.util.concurrent.atomic.AtomicInteger commits = new java.util.concurrent.atomic.AtomicInteger();
 
         SqlRecorder(DataSource source) {
             super(source);
@@ -207,6 +208,7 @@ class DatabaseAiControlIntegrationTest {
                     new Class<?>[]{java.sql.Connection.class}, (proxy, method, args) -> {
                         if (method.getName().equals("prepareStatement") && args[0] instanceof String query)
                             sql.add(query);
+                        if (method.getName().equals("commit")) commits.incrementAndGet();
                         try {
                             return method.invoke(connection, args);
                         } catch (java.lang.reflect.InvocationTargetException failure) {
@@ -373,6 +375,7 @@ class DatabaseAiControlIntegrationTest {
                 settings.outboxLease(), 1).block(WAIT).getFirst();
         var invocation = executions.find(message.owner(), message.invocationId()).block(WAIT);
         var beforeText = new java.util.concurrent.atomic.AtomicInteger();
+        var commitsBeforeText = new java.util.concurrent.atomic.AtomicInteger();
         var calls = new java.util.concurrent.atomic.AtomicInteger();
         ModelGateway gateway = new ModelGateway() {
             public boolean supportsTextChat(ResolvedBinding binding, ConnectionDefinition connection) {
@@ -393,7 +396,10 @@ class DatabaseAiControlIntegrationTest {
                         .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
                         .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
                         .then(connections.resolveCurrent(call.binding().connection(), call))
-                        .doOnNext(ignored -> beforeText.set(recorded.sql.size()))
+                        .doOnNext(ignored -> {
+                            beforeText.set(recorded.sql.size());
+                            commitsBeforeText.set(recorded.commits.get());
+                        })
                         .thenMany(Flux.just(new com.arte.ainew.pojo.generation.GenerationSignal.Delta(
                                         new com.arte.ainew.pojo.generation.GenerationEvent.TextDelta("ok")),
                                 new com.arte.ainew.pojo.generation.GenerationSignal.Result(result)));
@@ -402,6 +408,7 @@ class DatabaseAiControlIntegrationTest {
         var dispatcher = new com.arte.ainew.application.execution.GenerationDispatcher(c.getBean(AdmissionAuthorization.class), catalog,
                 executions, executions, executions, payloads, payloads, executions, gateway, c.getBean(NewAiProperties.class), settings, Clock.systemUTC());
         recorded.sql.clear();
+        recorded.commits.set(0);
         dispatcher.dispatch(message, com.arte.ainew.context.ExecutionRuntimeContext.start(invocation.request().context())).block(WAIT);
         assertEquals(1, calls.get());
         assertEquals(com.arte.ainew.pojo.execution.Invocation.State.SUCCEEDED,
@@ -411,6 +418,41 @@ class DatabaseAiControlIntegrationTest {
         assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
                 && q.toUpperCase().contains("FOR UPDATE")).count());
         System.out.println("DISPATCH_BEFORE_FIRST_TEXT_SQL_COUNT=" + beforeText.get());
+        System.out.println("DISPATCH_BEFORE_FIRST_TEXT_COMMITS=" + commitsBeforeText.get());
+    }
+
+    @Test
+    void sendRevalidationChecksCurrentQualificationAndReusesOnlyUnchangedVersions() {
+        var scope = f.initialize().value().workspace().scope();
+        var recorded = new SqlRecorder(f.source);
+        context(recorded).run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("import"));
+            var view = db.ensure(f.actor, scope);
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "revalidate");
+            var prepared = db.prepareConfiguration(ctx);
+            recorded.sql.clear();
+            assertSame(prepared, db.revalidate(ctx, prepared));
+            assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_control_head")));
+            assertTrue(recorded.sql.stream().noneMatch(q -> q.contains("FROM arte_ai_control_revision")
+                    || q.contains("FROM arte_ai_budget_definition")), recorded.sql.toString());
+            int stableQueries = recorded.sql.size();
+            db.update(f.actor, meta("same-preset"), scope, view.workspaceVersion(), view.configuration().version(), view.configuration().preset());
+            recorded.sql.clear();
+            var changed = db.revalidate(ctx, prepared);
+            assertNotSame(prepared, changed);
+            assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_control_revision")));
+            assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_budget_definition")));
+            db.publish(f.actor, meta("next-catalog"), 1, db.catalog().catalog());
+            recorded.sql.clear();
+            var published = db.revalidate(ctx, changed);
+            assertEquals(2L, published.catalogRevision());
+            assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_control_revision")));
+            f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.revalidate(ctx, published));
+            System.out.println("SEND_STABLE_REVALIDATION_SQL_COUNT=" + stableQueries);
+        });
     }
 
     @Test

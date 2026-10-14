@@ -80,7 +80,9 @@ public final class ExecutionContextFactory {
                             .doOnNext(prepared::set)
                             .map(com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver.Preparation::authorization), clock);
             return scoped.create(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(name, null, java.util.List.of()), request)
-                    .flatMap(context -> ControlPreparation.use(context, prepared.get().configuration(), work));
+                    .flatMap(context -> ControlPreparation.use(context,
+                            new com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration(
+                                    prepared.get().configuration(), prepared.get().catalogRevision()), work));
         }).timeout(request.timeout());
     }
 

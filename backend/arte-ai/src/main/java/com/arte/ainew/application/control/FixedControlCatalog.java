@@ -177,13 +177,12 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
      */
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference, ExecutionContext context) {
         if (source == null) return resolveConnection(reference, context);
-        return authorization.prepare(context, Set.of(AdmissionAuthorization.INVOKE), true,
-                current -> resolveConnection(reference, current));
+        return authorization.revalidate(context, current -> resolveConnection(reference, current));
     }
 
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference,
                                                                com.arte.ainew.pojo.execution.GatewayCall<?> call) {
-        return authorization.prepare(call.runtime().execution(), Set.of(AdmissionAuthorization.INVOKE), true, current -> {
+        return authorization.revalidate(call.runtime().execution(), current -> {
             var original = call.request();
             var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(),
                     original.input(), original.options(), current);

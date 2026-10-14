@@ -694,6 +694,36 @@ public class DispatchIntegrationTest {
     }
 
     @Test
+    public void atomicPreparationSendsHttpOnceAndSettlesTheReservation() throws Exception {
+        try (var rig = new Rig()) {
+            var accepted = rig.submit(rig.conversation(), "atomic-http");
+            var worker = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
+                    rig.coordinator(rig.fixture.executions), rig.settings, rig.timer);
+            assertEquals(Integer.valueOf(1), worker.pollOnce().block(WAIT));
+            assertEquals(1, rig.requests.get());
+            assertEquals(Invocation.State.SUCCEEDED, rig.invocation(accepted).state());
+            assertEquals(BudgetReservation.State.SETTLED, rig.fixture.executions.reservation(AdmissionFixture.owner("alice-id"),
+                    rig.attempt(rig.invocation(accepted)).budgetReservationId()).block(WAIT).state());
+            worker.pollOnce().block(WAIT);
+            assertEquals(1, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void atomicPreparationWithInsufficientBudgetNeverSendsHttp() throws Exception {
+        try (var rig = new Rig(true)) {
+            var accepted = rig.submit(rig.conversation(), "atomic-budget");
+            var worker = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
+                    rig.coordinator(rig.fixture.executions), rig.settings, rig.timer);
+            worker.pollOnce().block(WAIT);
+            assertEquals(0, rig.requests.get());
+            assertEquals(Invocation.State.FAILED, rig.invocation(accepted).state());
+            assertEquals(Attempt.Dispatch.NOT_STARTED, rig.attempt(rig.invocation(accepted)).dispatch());
+            assertEquals(0, rig.account().held().amount().signum());
+        }
+    }
+
+    @Test
     public void acceptedExecutionThatExpiresInQueueEndsWithoutCreatingAnAttempt() throws Exception {
         try (var rig = new Rig()) {
             var conversation = rig.conversation();

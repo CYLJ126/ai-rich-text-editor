@@ -198,15 +198,43 @@ public final class GenerationDispatcher {
                 .onErrorResume(error -> predictable(error)
                         ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
                 .doOnNext(prepared -> timing.mark("PREFLIGHT_READY"))
-                .flatMap(prepared -> withPermit(invocation, message, prepared, () ->
-                        executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
+                .flatMap(prepared -> withPermit(invocation, message, prepared, () -> {
+                    // 自定义预算/Outbox 包装器仍走独立端口，避免绕过其校验或故障恢复行为。
+                    if (executionStore instanceof DispatchPreparationStore atomic
+                            && budgetService == executionStore && executionOutboxStore == executionStore)
+                        return startAtomically(invocation, message, prepared, timing, atomic);
+                    return executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
                                 .then(invocation.activeAttemptId() == null ? Mono.just(1)
                                         : executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
                                         .map(previous -> previous.attemptNumber() + 1))
                                 .flatMap(number -> executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
                                         CanonicalJson.key(message.invocationId(), "attempt-" + number), message.workerId(), newAiExecutionProperties.attemptLease())))
                                 .flatMap(GenerationDispatcher::applied)
-                                .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run())));
+                            .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run());
+                }));
+    }
+
+    private Mono<Void> startAtomically(Invocation invocation, OutboxMessage message, Prepared prepared, InvocationTiming timing,
+                                       DispatchPreparationStore store) {
+        var amount = GenerationPricing.amount(prepared.rate(), prepared.snapshot().budget().maxInputTokens(),
+                prepared.request().input().options().maxOutputTokens());
+        return (invocation.activeAttemptId() == null ? Mono.just(1)
+                : executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
+                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                .map(previous -> previous.attemptNumber() + 1))
+                .flatMap(number -> {
+                    long started = System.nanoTime();
+                    timing.mark("DISPATCH_PREPARATION_STARTED");
+                    return store.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
+                                    CanonicalJson.key(message.invocationId(), "attempt-" + number), newAiExecutionProperties.attemptLease(),
+                                    amount, prepared.binding().rate(), newAiExecutionProperties.reservationRetention()))
+                            .doOnNext(result -> {
+                                if (result.successful()) timing.mark("DISPATCH_PREPARATION_COMMITTED", started, 0);
+                            });
+                })
+                .flatMap(GenerationDispatcher::applied)
+                .flatMap(result -> new Session(result.invocation(), message, prepared, result.attempt(),
+                        timing.withAttempt(result.attempt().attemptId())).run(result));
     }
 
     private Mono<Void> deferred(Invocation invocation, Duration delay) {
@@ -347,7 +375,11 @@ public final class GenerationDispatcher {
         }
 
         Mono<Void> run() {
-            Mono<Void> work = reserveAndSend().onErrorResume(AdmissionException.class, error -> {
+            return run(null);
+        }
+
+        Mono<Void> run(DispatchPreparationStore.PreparedDispatch atomic) {
+            Mono<Void> work = (atomic == null ? reserveAndSend() : sendPrepared(atomic)).onErrorResume(AdmissionException.class, error -> {
                 if (error.getResultCode() != ResultCodeEnum.AI_INSUFFICIENT_BUDGET) {
                     return Mono.error(error);
                 }
@@ -377,6 +409,14 @@ public final class GenerationDispatcher {
                                 .then(load(message.owner(), message.invocationId())).flatMap(current ->
                                         current.state() == Invocation.State.CANCELLED ? settle(current) : Mono.error(error));
                     });
+        }
+
+        Mono<Void> sendPrepared(DispatchPreparationStore.PreparedDispatch atomic) {
+            if (!atomic.ready()) return Mono.error(new AdmissionException(ResultCodeEnum.AI_INSUFFICIENT_BUDGET));
+            timing.mark("BUDGET_RESERVED");
+            timing.mark("DISPATCH_MARKED");
+            return consume(new GatewayCall<>(prepared.request(), prepared.binding(), atomic.attempt(), prepared.runtime()))
+                    .flatMap(this::finish);
         }
 
         Mono<Void> reserveAndSend() {

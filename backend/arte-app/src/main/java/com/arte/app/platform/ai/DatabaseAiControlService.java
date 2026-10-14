@@ -120,6 +120,17 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
+     * 取得最新发布版本并共享锁定指针；不可变 revision 内容随后只读。
+     */
+    private Published publishedCurrent() {
+        Long version = mapper.headCurrent();
+        if (version == null || version == 0) throw unavailable();
+        String payload = mapper.revision(version);
+        if (payload == null) throw unavailable();
+        return new Published(version, json.read(payload, Catalog.class));
+    }
+
+    /**
      * Only provider registration may use the reviewed deployment seed before the explicit one-time import.
      */
     @Override
@@ -144,7 +155,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         var scopes = Set.copyOf(requested);
         return Mono.fromCallable(() -> tx.required(() -> {
             var value = currentSnapshot(name, null, new Scope(tenantId, workspaceId), scopes, true);
-            return new Preparation(value.authorization(), value.configuration());
+            return new Preparation(value.authorization(), value.configuration(), value.catalogRevision());
         })).subscribeOn(scheduler).onErrorMap(PlatformException.class, failure ->
                 failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE ? failure
                         : new AccessDeniedException("Workspace AI access denied", failure));
@@ -285,9 +296,16 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
+     * 当前资格与配置发布版本，同一准备边界取得。
+     */
+    private record CurrentSnapshot(ExecutionAuthorization authorization, NewAiProperties configuration,
+                                   Long catalogRevision) {
+    }
+
+    /**
      * 写入／派发边界使用当前事务门控，与展示读取的 MVCC 快照分开。
      */
-    private Snapshot currentSnapshot(String name, String subjectId, Scope scope, Set<String> requested, boolean includeConfiguration) {
+    private CurrentSnapshot currentSnapshot(String name, String subjectId, Scope scope, Set<String> requested, boolean includeConfiguration) {
         var actor = actor(name);
         if (subjectId != null && !actor.principal().subjectId().equals(subjectId))
             throw new AccessDeniedException("Stable identity mismatch");
@@ -295,7 +313,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
             throw new AccessDeniedException("Workspace AI action denied");
         if (workspaces.getObject().find(scope).isEmpty()) {
-            var published = published(true);
+            var published = publishedCurrent();
             var grant = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
                             && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
                             && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
@@ -303,8 +321,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     .orElseThrow(() -> new AccessDeniedException("Workspace AI access denied"));
             identities.findCurrentBySubjectId(actor.principal().subjectId()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
                     .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
-            return new Snapshot(authorization(grant, requested), includeConfiguration ? published.catalog().properties(infrastructure,
-                    List.of(grant), published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null);
+            return new CurrentSnapshot(authorization(grant, requested), includeConfiguration ? published.catalog().properties(infrastructure,
+                    List.of(grant), published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null, published.version());
         }
         var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
@@ -317,18 +335,19 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 throw new AccessDeniedException("Workspace AI disabled");
             var auth = new ExecutionAuthorization(new ExecutionPrincipal(actor.principal().subjectId(), name, ExecutionPrincipal.Kind.USER),
                     scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
-            if (!includeConfiguration) return new Snapshot(auth, null);
+            if (!includeConfiguration) return new CurrentSnapshot(auth, null, null);
             var definitions = budgets(scope, actor.principal().subjectId());
             var grant = workspaceGrant(actor, settings, requested, name, definitions);
-            var catalog = published(true).catalog();
+            var publication = publishedCurrent();
+            var catalog = publication.catalog();
             var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
                     .filter(b -> settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
                     List.of(), List.of(), settings.preset());
-            return new Snapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions));
+            return new CurrentSnapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions), publication.version());
         });
     }
 
-    private Snapshot snapshot(ExecutionContext context) {
+    private CurrentSnapshot snapshot(ExecutionContext context) {
         var principal = context.authorization().principal();
         if (principal.kind() != ExecutionPrincipal.Kind.USER)
             throw new AccessDeniedException("Stable identity mismatch");
@@ -349,6 +368,42 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     @Override
     public NewAiProperties configuration(ExecutionContext context) {
         return snapshot(context).configuration();
+    }
+
+    @Override
+    public PreparedConfiguration prepareConfiguration(ExecutionContext context) {
+        var value = snapshot(context);
+        return new PreparedConfiguration(value.configuration(), value.catalogRevision());
+    }
+
+    @Override
+    public PreparedConfiguration revalidate(ExecutionContext context, PreparedConfiguration prepared) {
+        var principal = context.authorization().principal();
+        if (principal.kind() != ExecutionPrincipal.Kind.USER)
+            throw new AccessDeniedException("Stable identity mismatch");
+        try {
+            return tx.required(() -> {
+                var current = currentSnapshot(principal.subjectName(), principal.subjectId(),
+                        new Scope(context.authorization().tenantId(), context.authorization().workspaceId()),
+                        context.authorization().scopes(), false);
+                // 成员、策略、账户状态及空间开关已按当前门控重新检查；版本只决定是否重读配置内容。
+                var expected = prepared.configuration().grants().stream().filter(g -> g.enabled()
+                        && g.subjectId().equals(principal.subjectId()) && g.subjectName().equals(principal.subjectName())
+                        && g.principalKind() == principal.kind()
+                        && g.tenantId().equals(context.authorization().tenantId())
+                        && g.workspaceId().equals(context.authorization().workspaceId())
+                        && g.scopes().containsAll(context.authorization().scopes())).findFirst();
+                Long revision = mapper.headCurrent();
+                if (prepared.catalogRevision() != null && prepared.catalogRevision().equals(revision)
+                        && expected.isPresent() && expected.get().grantRef().equals(current.authorization().grantRef()))
+                    return prepared;
+                // 来源没有凭证或配置变化时，回退到完整读取和具体 binding/预算校验。
+                return prepareConfiguration(context);
+            });
+        } catch (PlatformException failure) {
+            if (failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw failure;
+            throw new AccessDeniedException("Workspace AI access denied", failure);
+        }
     }
 
     private PlatformAiControlRow workspaceRow(WorkspaceConfiguration value) {

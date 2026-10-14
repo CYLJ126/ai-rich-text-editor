@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-14",
+  "environment": "isolated H2 in MySQL mode, real JDBC/MyBatis/public services, MockMvc chat and mock generation gateway",
+  "measurement": "prepared JDBC SQL statements and Connection.commit calls; setup, initial Worker context rebuild, message claim and driver-internal transaction commands excluded",
+  "real_provider_called": false,
+  "running_service_restarted": false,
+  "real_mysql_lock_competition_verified": false,
+  "end_to_end_first_text_sla_verified": false,
+  "phases": {
+    "batch1_baseline": {
+      "chat_submission_sql": 77,
+      "dispatch_before_mock_text_sql": 129,
+      "dispatch_before_mock_text_commits": 15
+    },
+    "batch2": {
+      "chat_submission_sql": 77,
+      "dispatch_before_mock_text_sql": 105,
+      "dispatch_before_mock_text_commits": 7,
+      "stable_send_revalidation_sql": 18
+    }
+  },
+  "regression": {
+    "arte-core": {
+      "tests": 159,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suites": 12
+    },
+    "arte-ai": {
+      "tests": 308,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4,
+      "suites": 27
+    },
+    "arte-app": {
+      "tests": 155,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "suites": 20
+    }
+  },
+  "regression_total": {
+    "tests": 622,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 13,
+    "passed": 609
+  },
+  "skipped_tests": [
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisHintsAreOwnerIsolatedAndInvalidHintsAreSafe",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisBroadcastReachesAnotherInstanceAndReconnectReplaysAcknowledgedEvents",
+    "com.arte.ainew.admission.InvocationHttpIntegrationTest.redisLiveTextReachesAuthorizedRemoteWatcherWithoutEventOutbox",
+    "com.arte.ainew.admission.ExecutionAssemblyTest.redisHttpOnlyNodeAutomaticallySubscribesWithoutDatabaseAccess",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.cursorIsSharedAcrossInstancesAndBindsStableSubject",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.independentClientsPublishOnceAndKeepDatabaseLedger",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisFailureLeavesEventsPendingForRecovery",
+    "com.arte.app.platform.persistence.RedisPlatformPersistenceIntegrationTest.redisCoordinationCannotBypassDatabaseLease",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.migrationPreservesDataHistoryAndStableScanAcrossTruncationTies",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.utcMappingDoesNotDependOnJvmOrDatabaseSessionTimeZone",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.partiallyAddedColumnsCanBeRecoveredWithoutChangingRecordCounts",
+    "com.arte.app.platform.persistence.WorkspaceTimeMigrationIntegrationTest.invalidLegacyTimeIsRejectedBeforeAnyColumnConversion",
+    "com.arte.app.platform.persistence.WorkspaceDirectoryBaselineTest.recordDirectoryBaseline"
+  ],
+  "regression_selection": "com.arte.ainew.**.*Test excluding com.arte.ainew.admission.ProfileConfigurationTest; public access/workspace and app platform identity/persistence/workspace tests, workspace-baseline profile",
+  "source_revision_at_batch2_start": "d12a95c58b4dd18060f453898d10890aa99d3672",
+  "build": {
+    "jdk": "21.0.8",
+    "command": "mvn -Pworkspace-baseline -pl arte-app -am -DskipTests package",
+    "exit_code": 0
+  },
+  "remaining_work": [
+    "105 dispatch SQL still include current authorization, concurrency permits, persistence locks/events and state reads",
+    "chat submission remains 77 SQL; snapshot write and acceptance transactions not merged",
+    "Worker immediate wake and continuous slot refill remain batch3",
+    "real deployment RTT, hot HTTP connections, SSE and browser paint need end-to-end measurement"
+  ]
+}

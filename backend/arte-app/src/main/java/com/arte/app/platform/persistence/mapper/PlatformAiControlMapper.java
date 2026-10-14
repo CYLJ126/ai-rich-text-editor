@@ -15,6 +15,11 @@ public interface PlatformAiControlMapper {
 
     Long head(@Param("lock") boolean lock);
 
+    /**
+     * 当前读发布版本，MySQL 使用共享锁避免不同主体的复核互相排斥。
+     */
+    Long headCurrent();
+
     String revision(@Param("version") long version);
 
     int insertRevision(@Param("version") long version, @Param("payload") String payload, @Param("actor") String actor);
