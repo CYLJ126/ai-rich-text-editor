@@ -359,12 +359,23 @@
   flex: 1;
 }
 
-.ainew-chat-tools {
+.ainew-chat-tools.ant-flex {
   padding: 8px 20px;
   font-size: 12px;
 }
 
-.ainew-messages {
+.ainew-chat-tools,
+.ainew-composer {
+  flex-shrink: 0;
+}
+
+.ainew-chat-tools .ant-typography {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.ainew-messages.ant-flex {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -372,12 +383,23 @@
   scroll-behavior: auto;
 }
 
-.ainew-turn {
+/* 消息保持自然高度，避免 Flex 压缩消息、影响历史锚点和自动跟随。 */
+.ainew-messages > * {
+  flex-shrink: 0;
+}
+
+.ainew-messages > .ant-btn {
+  align-self: flex-start;
+}
+
+.ainew-turn.ant-flex {
+  width: 100%;
   max-width: 960px;
   margin: 0 auto 28px;
 }
 
-.ainew-user {
+.ainew-user.ant-flex {
+  width: 85%;
   margin: 0 0 20px auto;
   padding: 12px 18px;
   border-radius: 16px;
@@ -385,7 +407,13 @@
   background: var(--ant-color-fill-secondary);
 }
 
-.ainew-user p {
+.ainew-user .ant-typography {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.ainew-user div.ant-typography {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   margin: 6px 0;
@@ -396,27 +424,38 @@
   overflow-wrap: anywhere;
 }
 
-.ainew-answer-heading {
+.ainew-answer-heading.ant-flex {
   margin-bottom: 10px;
 }
 
-.ainew-answer-actions {
+.ainew-answer-actions.ant-flex {
   margin-top: 12px;
   font-size: 12px;
   color: var(--ant-color-text-secondary);
 }
 
-.ainew-answer-actions details {
+.ainew-execution-details.ant-collapse {
+  flex-basis: 100%;
+  min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-.ainew-composer {
+.ainew-reply-placeholder.ant-flex {
+  margin-bottom: 12px;
+}
+
+.ainew-budget-info.ant-descriptions {
+  margin: 12px 0;
+}
+
+.ainew-composer.ant-flex {
   padding: 12px 20px 16px;
   border-top: 1px solid var(--ant-color-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+}
+
+.ainew-composer > .ant-typography {
+  margin: 0;
 }
 
 .ainew-compose-actions .ant-select {
@@ -426,6 +465,12 @@
 
 .ainew-compose-actions > .ainew-muted {
   flex: 1;
+  min-width: 0;
+}
+
+.ainew-compose-actions > .ainew-muted.ant-typography {
+  font-family: inherit;
+  font-size: 12px;
 }
 
 .ainew-muted {
@@ -502,11 +547,11 @@
 }
 
 @media (max-width: 767px) {
-  .ainew-messages {
+  .ainew-messages.ant-flex {
     padding: 12px;
   }
 
-  .ainew-composer {
+  .ainew-composer.ant-flex {
     padding: 12px;
   }
 

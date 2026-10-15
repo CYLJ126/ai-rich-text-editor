@@ -255,7 +255,7 @@ it('renders GFM tables and code while rejecting raw HTML and unsafe links', () =
   expect(screen.getByText('unsafe').getAttribute('href')).not.toContain('javascript:');
 });
 
-it('keeps composing Enter from sending, then allows ordinary Enter', async () => {
+it('keeps Shift+Enter and composing Enter from sending, then allows ordinary Enter', async () => {
   render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
                             t={t} onUpdated={vi.fn()} onConfigurationRejected={vi.fn()} onChooseModel={vi.fn()}
                             onInteraction={vi.fn()}/>);
@@ -263,6 +263,8 @@ it('keeps composing Enter from sending, then allows ordinary Enter', async () =>
   const input = screen.getByLabelText('输入问题');
   fireEvent.change(input, {target: {value: '中文问题'}});
   await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).not.toBeDisabled());
+  fireEvent.keyDown(input, {key: 'Enter', shiftKey: true});
+  expect(api.turnsForChat).not.toHaveBeenCalled();
   fireEvent.compositionStart(input);
   fireEvent.keyDown(input, {key: 'Enter'});
   expect(api.turnsForChat).not.toHaveBeenCalled();
