@@ -21,7 +21,7 @@ import {
 export const CONVERSATION_PAGE_SIZE = 20;
 
 /** The workspace component is remounted when scope changes. */
-export function useConversations(scope: AiScope | null, context?: BrowserContext) {
+export function useConversations(scope: AiScope | null, context?: BrowserContext, listEnabled = true) {
   const [restored] = useState(() => readOperation<{ scope: AiScope; title: string }>(context, 'create', ''));
   const [storageWarning, setStorageWarning] = useState<string | null>(restored.warning);
   const persist = (value: { key: string; request: { scope: AiScope; title: string } } | null) => {
@@ -61,7 +61,7 @@ export function useConversations(scope: AiScope | null, context?: BrowserContext
 
   const loadPage = useCallback(
     async (current: number) => {
-      if (!scope) return;
+      if (!scope || !listEnabled) return;
       listRequest.current?.abort();
       const controller = new AbortController();
       listRequest.current = controller;
@@ -84,7 +84,7 @@ export function useConversations(scope: AiScope | null, context?: BrowserContext
         if (!controller.signal.aborted) setListLoading(false);
       }
     },
-    [scope],
+    [scope, listEnabled],
   );
 
   const select = useCallback(

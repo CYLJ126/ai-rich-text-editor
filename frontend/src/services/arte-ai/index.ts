@@ -2,6 +2,8 @@ export {getBudget, pendingReconciliations, confirmReconciliation, reconciliation
 export {discoverChatOptions} from './configuration';
 export {turnsForChat, regenerateChat} from './chat';
 export {
+  createDefaultConversation, getConversationMetadata, queryConversationWindow, listConversationsCursor,
+  changeConversationMetadata, getMetadataCommandReceipt,
   createConversation,
   getConversation,
   listConversations,

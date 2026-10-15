@@ -30,7 +30,7 @@ vi.mock('@/services/platform/workspace', async original => ({
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
   discoverChatOptions: vi.fn(),
-  listConversations: vi.fn(),
+  queryConversationWindow: vi.fn(),
   getConversation: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   getBudget: vi.fn(),
@@ -80,6 +80,18 @@ const page = <T, >(records: T[] = []) => ({
   httpStatus: 200,
   body: {success: true as const, code: '200', desc: 'OK', records, current: 1, size: 20, total: records.length}
 });
+const windowReply = (records: api.ConversationResponse[] = []) => reply({
+  pinned: {records: [], nextCursor: null, hasMore: false, total: 0},
+  normal: {
+    records: records.map(record => ({
+      conversationId: record.conversationId, title: record.title,
+      metadataVersion: 0, pinned: false, titleManuallyEdited: false, autoTitleResolved: false,
+      previewText: null, userMessageCount: 0, lastMessageGeneratedAt: null, sortActivityAt: record.createdAt,
+      createdAt: record.createdAt, statisticsReady: true
+    })), nextCursor: null, hasMore: false, total: records.length
+  },
+  anchorConversationId: null, anchorFallback: false,
+});
 beforeEach(() => {
   vi.clearAllMocks();
   state.userId = `workspace-integration-${++userSequence}`;
@@ -114,7 +126,7 @@ beforeEach(() => {
   localStorage.clear();
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
   vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
-  vi.mocked(api.listConversations).mockResolvedValue(page([conversation]));
+  vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply([conversation]));
   vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
     const status = (await api.getInvocationStatus(query, options)).body.data;
     const result = status.resultAvailable && query.knownResultVersion !== status.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state)
@@ -141,21 +153,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function chooseConversation() {
-  if (!screen.queryByRole('button', {name: '我的会话'})) fireEvent.click(await screen.findByRole('button', {name: '会话列表'}));
-  fireEvent.click(await screen.findByRole('button', {name: '我的会话'}));
+  if (!screen.queryByRole('button', {name: '打开会话：我的会话'})) fireEvent.click(await screen.findByRole('button', {name: '会话列表'}));
+  fireEvent.click(await screen.findByRole('button', {name: '打开会话：我的会话'}));
   await screen.findByLabelText('输入问题');
 }
 
 it('reuses the workspace model directory when switching conversations', async () => {
   const other = {...conversation, conversationId: 'other-conversation', title: '另一个会话'};
-  vi.mocked(api.listConversations).mockResolvedValue(page([conversation, other]));
+  vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply([conversation, other]));
   vi.mocked(api.getConversation).mockImplementation(async request => reply(request.conversationId === other.conversationId ? other : conversation));
   app();
   await chooseConversation();
   await waitFor(() => expect(api.getBudget).toHaveBeenCalled());
   const directoryReads = vi.mocked(api.discoverChatOptions).mock.calls.length;
-  if (!screen.queryByRole('button', {name: other.title})) fireEvent.click(screen.getByRole('button', {name: '会话列表'}));
-  fireEvent.click(await screen.findByRole('button', {name: other.title}));
+  if (!screen.queryByRole('button', {name: `打开会话：${other.title}`})) fireEvent.click(screen.getByRole('button', {name: '会话列表'}));
+  fireEvent.click(await screen.findByRole('button', {name: `打开会话：${other.title}`}));
   await waitFor(() => expect(api.queryTurnsOfConversation).toHaveBeenLastCalledWith(expect.objectContaining({conversationId: other.conversationId}), expect.anything()));
   expect(api.discoverChatOptions).toHaveBeenCalledTimes(directoryReads);
 });
@@ -186,7 +198,7 @@ it('protects unapplied chat configuration when selecting a space from the global
 });
 it('isolates scope, drafts and uncertain writes when switching away and back through the header', async () => {
   vi.mocked(api.discoverChatOptions).mockImplementation(async request => reply({options: request.scope.workspaceId === scope.workspaceId ? [model] : []}));
-  vi.mocked(api.listConversations).mockImplementation(async request => page(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
+  vi.mocked(api.queryConversationWindow).mockImplementation(async request => windowReply(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
   app();
   await chooseConversation();
   fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '原空间问题'}});
@@ -217,7 +229,7 @@ it('uses the unified scope for discovery, conversations, history, budgets and su
   await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).toBeEnabled());
   fireEvent.click(screen.getByRole('button', {name: '发送'}));
   await screen.findByText('重试确认原提交');
-  for (const method of [api.discoverChatOptions, api.listConversations, api.getConversation, api.queryTurnsOfConversation, api.getBudget, api.turnsForChat]) {
+  for (const method of [api.discoverChatOptions, api.queryConversationWindow, api.getConversation, api.queryTurnsOfConversation, api.getBudget, api.turnsForChat]) {
     expect(method).toHaveBeenCalled();
     for (const [request] of vi.mocked(method).mock.calls) expect(request.scope).toEqual(otherScope);
   }
@@ -267,7 +279,7 @@ it('restores the current space, original pending request and independent draft w
 });
 
 it('returns to chat with the space selected in another module and keeps the old chat draft isolated', async () => {
-  vi.mocked(api.listConversations).mockImplementation(async request => page(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
+  vi.mocked(api.queryConversationWindow).mockImplementation(async request => windowReply(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
   const renderModule = (chat: boolean) => <><WorkspacePicker userId={state.userId}/>{chat ? <ChatNewPage/> :
     <main>其他模块</main>}</>;
   const view = render(renderModule(true));
@@ -277,7 +289,7 @@ it('returns to chat with the space selected in another module and keeps the old 
   await selectFromHeader('空间B');
   await waitFor(() => expect(screen.getAllByLabelText('选择工作空间')[0]).toHaveTextContent('空间B'));
   view.rerender(renderModule(true));
-  await waitFor(() => expect(api.listConversations).toHaveBeenLastCalledWith(expect.objectContaining({scope: otherScope}), expect.anything()));
+  await waitFor(() => expect(api.queryConversationWindow).toHaveBeenLastCalledWith(expect.objectContaining({scope: otherScope}), expect.anything()));
   expect(screen.queryByLabelText('输入问题')).not.toBeInTheDocument();
   await selectFromHeader('空间A');
   await waitFor(() => expect(screen.getByLabelText('输入问题')).toHaveValue('空间A的草稿'));
@@ -326,7 +338,7 @@ it('never sends AI requests to an inaccessible startup preference before falling
   app();
   await chooseConversation();
   expect(platform.getWorkspace).toHaveBeenCalledWith(otherScope, expect.anything());
-  for (const method of [api.discoverChatOptions, api.listConversations, api.getConversation, api.queryTurnsOfConversation, api.getBudget]) {
+  for (const method of [api.discoverChatOptions, api.queryConversationWindow, api.getConversation, api.queryTurnsOfConversation, api.getBudget]) {
     for (const [request] of vi.mocked(method).mock.calls) expect(request.scope).toEqual(scope);
   }
   fireEvent.click(screen.getAllByLabelText('选择工作空间')[0]);
@@ -359,15 +371,15 @@ it.each(['resolve', 'reject'])('aborts old model and conversation reads and igno
       finishModels = () => outcome === 'resolve' ? resolve(reply({options: [model]})) : reject(new api.AiApiError(403, {code: '205001'}));
     })
     : Promise.resolve(reply({options: []})));
-  vi.mocked(api.listConversations).mockImplementation(request => request.scope.workspaceId === scope.workspaceId
+  vi.mocked(api.queryConversationWindow).mockImplementation(request => request.scope.workspaceId === scope.workspaceId
     ? new Promise((resolve, reject) => {
-      finishList = () => outcome === 'resolve' ? resolve(page([conversation])) : reject(new api.AiApiError(403, {code: '205001'}));
+      finishList = () => outcome === 'resolve' ? resolve(windowReply([conversation])) : reject(new api.AiApiError(403, {code: '205001'}));
     })
-    : Promise.resolve(page()));
+    : Promise.resolve(windowReply()));
   app();
   await waitFor(() => expect(finishModels).toBeTypeOf('function'));
   const modelSignal = vi.mocked(api.discoverChatOptions).mock.calls[0][1]?.signal;
-  const listSignal = vi.mocked(api.listConversations).mock.calls[0][1]?.signal;
+  const listSignal = vi.mocked(api.queryConversationWindow).mock.calls[0][1]?.signal;
   await selectFromHeader('空间B');
   await screen.findByText('此空间尚无可用 AI 模型或兼容预算。');
   expect(modelSignal?.aborted).toBe(true);
@@ -439,7 +451,7 @@ it('aborts the old history and budget reads even when the target space has the s
 });
 
 it('cancels the old invocation observer on switching and resumes only the original scope on returning', async () => {
-  vi.mocked(api.listConversations).mockImplementation(async request => page(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
+  vi.mocked(api.queryConversationWindow).mockImplementation(async request => windowReply(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
   vi.mocked(api.turnsForChat).mockResolvedValue({
     ...reply({
       invocationId: 'accepted-in-A', conversationId: conversation.conversationId,
@@ -477,17 +489,17 @@ it('opens the real workspace picker from a denied AI state and recovers in anoth
     if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});
     return reply({options: [model]});
   });
-  vi.mocked(api.listConversations).mockImplementation(async request => {
+  vi.mocked(api.queryConversationWindow).mockImplementation(async request => {
     if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});
-    return page([conversation]);
+    return windowReply([conversation]);
   });
   app();
   await screen.findByText('此空间的 AI 功能暂不可用');
   fireEvent.click(screen.getByRole('button', {name: '切换工作空间'}));
   fireEvent.click(await screen.findByRole('button', {name: '空间B'}));
-  await screen.findByRole('button', {name: '我的会话'});
+  await screen.findByRole('button', {name: '打开会话：我的会话'});
   expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
   expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();
-  expect(api.listConversations).toHaveBeenLastCalledWith(expect.objectContaining({scope: otherScope}), expect.anything());
+  expect(api.queryConversationWindow).toHaveBeenLastCalledWith(expect.objectContaining({scope: otherScope}), expect.anything());
   expect(api.turnsForChat).not.toHaveBeenCalled();
 });

@@ -26,7 +26,7 @@ vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button t
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
   discoverChatOptions: vi.fn(),
-  listConversations: vi.fn(),
+  queryConversationWindow: vi.fn(),
   getConversation: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   getInvocationSnapshot: vi.fn(),
@@ -73,13 +73,25 @@ const page = <T, >(records: T[] = []) => ({
   httpStatus: 200,
   body: {success: true as const, code: '200', desc: 'OK', records, current: 1, size: 20, total: records.length}
 });
+const windowReply = (records: api.ConversationResponse[] = []) => reply({
+  pinned: {records: [], nextCursor: null, hasMore: false, total: 0},
+  normal: {
+    records: records.map(record => ({
+      conversationId: record.conversationId, title: record.title,
+      metadataVersion: 0, pinned: false, titleManuallyEdited: false, autoTitleResolved: false,
+      previewText: null, userMessageCount: 0, lastMessageGeneratedAt: null, sortActivityAt: record.createdAt,
+      createdAt: record.createdAt, statisticsReady: true
+    })), nextCursor: null, hasMore: false, total: records.length
+  },
+  anchorConversationId: null, anchorFallback: false,
+});
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   localStorage.clear();
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
   vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
-  vi.mocked(api.listConversations).mockResolvedValue(page([conversation]));
+  vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply([conversation]));
   vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
     const status = (await api.getInvocationStatus(query, options)).body.data;
     const result = status.resultAvailable && query.knownResultVersion !== status.version && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state)
@@ -103,8 +115,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function chooseConversation() {
-  if (!screen.queryByRole('button', {name: '我的会话'})) fireEvent.click(await screen.findByRole('button', {name: '会话列表'}));
-  fireEvent.click(await screen.findByRole('button', {name: '我的会话'}));
+  if (!screen.queryByRole('button', {name: '打开会话：我的会话'})) fireEvent.click(await screen.findByRole('button', {name: '会话列表'}));
+  fireEvent.click(await screen.findByRole('button', {name: '打开会话：我的会话'}));
   await screen.findByLabelText('输入问题');
 }
 
@@ -156,7 +168,7 @@ it('blocks writes in an archived workspace while preserving history access', asy
 it('shows one access state for generic 403 and offers guidance instead of failed loading', async () => {
   const denied = new api.AiApiError(403, {code: '200000', desc: '失败'});
   vi.mocked(api.discoverChatOptions).mockRejectedValue(denied);
-  vi.mocked(api.listConversations).mockRejectedValue(denied);
+  vi.mocked(api.queryConversationWindow).mockRejectedValue(denied);
   render(<ChatNewPage/>);
   await screen.findByText('此空间的 AI 功能暂不可用');
   expect(screen.getByText(/创建工作空间不会自动开通 AI 权限/)).toBeInTheDocument();
@@ -164,7 +176,7 @@ it('shows one access state for generic 403 and offers guidance instead of failed
   expect(screen.queryByText('会话列表暂时加载失败')).not.toBeInTheDocument();
   expect(screen.queryByText('创建或选择会话即可开始；模型配置不影响会话阅读。')).not.toBeInTheDocument();
   expect(screen.getByRole('button', {name: '新建会话'})).toBeDisabled();
-  expect(screen.getByLabelText('筛选本页会话')).toBeDisabled();
+  expect(screen.getByLabelText('搜索会话')).toBeDisabled();
   expect(screen.getByRole('button', {name: '切换工作空间'})).toBeEnabled();
   fireEvent.click(screen.getByRole('button', {name: '查看开通说明'}));
   await screen.findByText('如何开通此空间的 AI 功能', {}, {timeout: 5000});
@@ -176,23 +188,23 @@ it('shows one access state for generic 403 and offers guidance instead of failed
 it('rechecks both reads after access is granted without creating or sending automatically', async () => {
   const denied = new api.AiApiError(403, {code: '200000', desc: '失败'});
   vi.mocked(api.discoverChatOptions).mockRejectedValueOnce(denied);
-  vi.mocked(api.listConversations).mockRejectedValueOnce(denied);
+  vi.mocked(api.queryConversationWindow).mockRejectedValueOnce(denied);
   render(<ChatNewPage/>);
   await screen.findByText('此空间的 AI 功能暂不可用');
   await waitFor(() => expect(api.discoverChatOptions).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole('button', {name: '重新检查'}));
   await waitFor(() => expect(api.discoverChatOptions).toHaveBeenCalledTimes(2));
-  await screen.findByRole('button', {name: '我的会话'});
+  await screen.findByRole('button', {name: '打开会话：我的会话'});
   expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
   expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();
-  expect(api.listConversations).toHaveBeenCalledTimes(2);
+  expect(api.queryConversationWindow).toHaveBeenCalledTimes(2);
   expect(api.turnsForChat).not.toHaveBeenCalled();
 });
 
 it('offers login for 401 without suggesting configuration changes', async () => {
   const expired = new api.AiApiError(401, {code: '200000', desc: '失败'});
   vi.mocked(api.discoverChatOptions).mockRejectedValue(expired);
-  vi.mocked(api.listConversations).mockRejectedValue(expired);
+  vi.mocked(api.queryConversationWindow).mockRejectedValue(expired);
   render(<ChatNewPage/>);
   await screen.findByText('登录已失效，请重新登录');
   expect(screen.getByRole('link', {name: '重新登录'})).toHaveAttribute('href', '/user/login');
@@ -201,17 +213,17 @@ it('offers login for 401 without suggesting configuration changes', async () => 
 });
 
 it('keeps retry available for network failure without mislabelling it as access denial', async () => {
-  vi.mocked(api.listConversations).mockRejectedValueOnce(new TypeError('network'));
+  vi.mocked(api.queryConversationWindow).mockRejectedValueOnce(new TypeError('network'));
   render(<ChatNewPage/>);
   await screen.findByText('会话列表暂时加载失败');
   expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '重试加载'}));
-  await screen.findByRole('button', {name: '我的会话'});
-  expect(api.listConversations).toHaveBeenCalledTimes(2);
+  await screen.findByRole('button', {name: '打开会话：我的会话'});
+  expect(api.queryConversationWindow).toHaveBeenCalledTimes(2);
 });
 
 it('distinguishes an authorized empty space from denied access', async () => {
-  vi.mocked(api.listConversations).mockResolvedValue(page());
+  vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply());
   vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: []}));
   render(<ChatNewPage/>);
   await screen.findByText('此空间还没有会话，可以新建一个会话开始。');

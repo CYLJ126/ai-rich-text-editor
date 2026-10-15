@@ -55,6 +55,7 @@ function sharedRead<T>(key: string, signal: AbortSignal | undefined, run: (signa
 
 const readPaths = new Set([
   'configuration/discoverChatOptions', 'budget/getBudget',
+  'conversation/queryConversationWindow', 'conversation/listConversationsCursor', 'conversation/getConversationMetadata', 'conversation/getMetadataCommandReceipt',
   'conversation/getConversation', 'conversation/listConversations', 'conversation/queryTurnsOfConversation',
   'invocation/getInvocationStatus', 'invocation/getInvocationResult', 'invocation/getInvocationSnapshots',
 ]);

@@ -295,3 +295,155 @@
 .ainew-support-id {
   overflow-wrap: anywhere;
 }
+
+/* 目录仅保留最多 100 条真实行；关闭原生锚定，由窗口提交统一恢复滚动锚点。 */
+.ainew-directory {
+  box-sizing: border-box;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.ainew-directory-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+  padding-bottom: 44px;
+}
+
+.ainew-directory-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ainew-directory-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ainew-directory-row:hover {
+  background: var(--ant-color-fill-tertiary);
+}
+
+.ainew-directory-row.is-selected {
+  background: var(--ant-color-primary-bg);
+}
+
+.ainew-directory-avatar.ant-btn {
+  flex: 0 0 32px;
+  color: var(--ant-color-primary);
+  padding: 4px;
+}
+
+.ainew-directory-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ainew-directory-title {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 2px 0;
+  cursor: text;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ainew-directory-title:disabled {
+  cursor: default;
+}
+
+.ainew-directory-preview {
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  margin: 6px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ainew-directory-facts {
+  flex: 0 0 48px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-directory-facts > span {
+  display: block;
+  margin-top: 6px;
+}
+
+.ainew-directory-date {
+  position: relative;
+  height: 26px;
+}
+
+.ainew-directory-date time {
+  display: inline-block;
+  line-height: 26px;
+}
+
+.ainew-directory-date .ant-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  opacity: 0;
+}
+
+.ainew-directory-date:hover time, .ainew-directory-date:focus-within time, .ainew-directory-date.is-open time {
+  visibility: hidden;
+}
+
+.ainew-directory-date:hover .ant-btn, .ainew-directory-date:focus-within .ant-btn, .ainew-directory-date.is-open .ant-btn {
+  opacity: 1;
+}
+
+.ainew-directory-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ainew-directory-edit-error {
+  font-size: 12px;
+  color: var(--ant-color-error);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.ainew-directory-status {
+  padding: 12px 4px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.ainew-directory-backtop {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+}
+
+@media (hover: none) {
+  .ainew-directory-date time {
+    visibility: hidden;
+  }
+
+  .ainew-directory-date .ant-btn {
+    opacity: 1;
+  }
+}

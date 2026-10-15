@@ -1,6 +1,12 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {Alert, Button, Drawer, Empty, Input, Select, Tag} from 'antd';
-import {AiApiError, type ChatMessage, type ChatModelOption, type ConversationResponse} from '@/services/arte-ai';
+import {
+  AiApiError,
+  type ChatMessage,
+  type ChatModelOption,
+  type ConversationResponse,
+  type ConversationTitleMetadata
+} from '@/services/arte-ai';
 import {type ChatTestConfig, DEFAULT_CHAT_CONFIG, modelOptionKey} from './config';
 import {type BrowserContext} from './storage';
 import {type ConfigurationRejected} from './configurationInvalidation';
@@ -24,6 +30,7 @@ export default function BusinessChatPanel({
                                             options,
                                             t,
                                             onUpdated,
+                                            onTitleUpdated,
                                             onConfigurationRejected,
                                             onChooseModel,
                                             onInteraction,
@@ -31,12 +38,13 @@ export default function BusinessChatPanel({
                                           }: {
   config: ChatTestConfig | null; conversation: ConversationResponse; dirty: boolean; context: BrowserContext;
   options: ChatModelOption[]; t: (key: string) => string; onUpdated: (value: ConversationResponse) => void;
+  onTitleUpdated?: (conversationId: string, value: ConversationTitleMetadata) => void;
   onConfigurationRejected: ConfigurationRejected; onChooseModel: (key: string) => void;
   onInteraction: (state: ChatInteractionState) => void; writable?: boolean;
 }) {
   const readingConfig = config ?? {...DEFAULT_CHAT_CONFIG, ...context.scope, temperature: null, topP: null};
   const option = options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion);
-  const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable, writable);
+  const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable, writable, onTitleUpdated);
   const [viewed, setViewed] = useState<Record<string, string>>({});
   const [olderCache, setOlderCache] = useState<{
     version: number;

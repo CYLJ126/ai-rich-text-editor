@@ -50,6 +50,23 @@ const schemas = {
     timeoutSeconds: z.number().int().positive()
   }),
   stop: z.object({scope: scopeSchema, invocationId: id}),
+  'create-default': z.object({scope: scopeSchema}),
+  'conversation-metadata': z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('rename'),
+      scope: scopeSchema,
+      conversationId: id,
+      expectedMetadataVersion: version,
+      title: z.string().min(1).max(256)
+    }),
+    z.object({
+      kind: z.literal('pin'),
+      scope: scopeSchema,
+      conversationId: id,
+      expectedMetadataVersion: version,
+      pinned: z.boolean()
+    })
+  ]),
   create: z.object({scope: scopeSchema, title: z.string().min(1).max(256)}),
   reconcile: z.object({
     scope: scopeSchema, budgetRef: id, invocationId: id, invocationVersion: version,

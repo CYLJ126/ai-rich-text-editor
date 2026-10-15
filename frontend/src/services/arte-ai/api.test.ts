@@ -3,16 +3,21 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   AiApiError,
   cancelInvocation,
+  changeConversationMetadata,
   confirmReconciliation,
   createConversation,
+  createDefaultConversation,
   discoverChatOptions,
   getBudget,
   getConversation,
   getInvocationResult,
   getInvocationStatus,
+  getMetadataCommandReceipt,
   invocationEvent,
   listConversations,
+  listConversationsCursor,
   pendingReconciliations,
+  queryConversationWindow,
   queryTurnsOfConversation,
   regenerateChat,
   turnsForChat,
@@ -441,5 +446,78 @@ describe('重新生成和费用核对请求契约', () => {
       }
     }));
     expect(() => confirmReconciliation(data, '')).toThrow();
+  });
+});
+
+
+describe('会话目录游标与元数据契约', () => {
+  const item = {
+    conversationId: 'conversation-1', title: '名称', metadataVersion: 2, pinned: false,
+    titleManuallyEdited: true, autoTitleResolved: true, previewText: '摘要', userMessageCount: 3,
+    lastMessageGeneratedAt: '2026-10-15T01:00:00Z', sortActivityAt: '2026-10-15T01:00:00Z',
+    createdAt: '2026-10-15T00:00:00Z', statisticsReady: true
+  };
+  const page = {records: [item], nextCursor: 'opaque-cursor', hasMore: true, total: null};
+  it('uses ResultContext cursor/window reads with the original opaque cursor and abort signal', async () => {
+    vi.mocked(request).mockResolvedValueOnce({status: 200, data: {...metadata, data: page}});
+    const signal = new AbortController().signal;
+    expect((await listConversationsCursor({
+      scope,
+      pinned: false,
+      size: 20,
+      cursor: 'original-cursor'
+    }, {signal})).body.data).toEqual(page);
+    expect(request).toHaveBeenLastCalledWith('/arte/ai-new/conversation/listConversationsCursor', expect.objectContaining({
+      data: {scope, pinned: false, size: 20, cursor: 'original-cursor'}, signal: expect.any(AbortSignal),
+    }));
+    const window = {
+      pinned: {...page, records: [], nextCursor: null, hasMore: false}, normal: page,
+      anchorConversationId: 'conversation-1', anchorFallback: false
+    };
+    vi.mocked(request).mockResolvedValueOnce({status: 200, data: {...metadata, data: window}});
+    expect((await queryConversationWindow({
+      scope,
+      normalSize: 93,
+      anchorConversationId: 'conversation-1'
+    })).body.data).toEqual(window);
+  });
+  it('sends explicit pin/name targets with a stable key and excludes the local command discriminator', async () => {
+    const saved = {
+      conversationId: 'conversation-1',
+      commandId: 'same-key',
+      conversation: item,
+      pinnedCount: 0,
+      changed: true
+    };
+    vi.mocked(request).mockResolvedValueOnce({status: 200, data: {...metadata, data: saved}});
+    await changeConversationMetadata({
+      scope,
+      kind: 'rename',
+      conversationId: 'conversation-1',
+      expectedMetadataVersion: 1,
+      title: '名称'
+    }, 'same-key');
+    expect(request).toHaveBeenLastCalledWith('/arte/ai-new/conversation/renameConversation', expect.objectContaining({
+      data: {scope, conversationId: 'conversation-1', expectedMetadataVersion: 1, title: '名称'},
+      headers: expect.objectContaining({'Idempotency-Key': 'same-key'}),
+    }));
+    const rejected = {commandId: 'same-key', outcome: 'VERSION_CONFLICT', receipt: null};
+    vi.mocked(request).mockResolvedValueOnce({status: 200, data: {...metadata, data: rejected}});
+    expect((await getMetadataCommandReceipt({scope, commandId: 'same-key'})).body.data).toEqual(rejected);
+  });
+  it('rejects malformed metadata/end-of-page responses instead of displaying fake completion or success', async () => {
+    vi.mocked(request).mockResolvedValueOnce({status: 200, data: {...metadata, data: {...page, nextCursor: null}}});
+    await expect(listConversationsCursor({scope, pinned: false, size: 20})).rejects.toBeInstanceOf(AiApiError);
+    vi.mocked(request).mockResolvedValueOnce({
+      status: 200,
+      data: {...metadata, data: {commandId: 'key', outcome: 'APPLIED', receipt: null}}
+    });
+    await expect(getMetadataCommandReceipt({scope, commandId: 'key'})).rejects.toBeInstanceOf(AiApiError);
+  });
+  it('creates default date names with only scope while keeping the caller original key', async () => {
+    await createDefaultConversation({scope}, 'date-key');
+    expect(request).toHaveBeenLastCalledWith('/arte/ai-new/conversation/createDefaultConversation', expect.objectContaining({
+      data: {scope}, headers: expect.objectContaining({'Idempotency-Key': 'date-key'}),
+    }));
   });
 });

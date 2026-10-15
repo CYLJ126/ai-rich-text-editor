@@ -114,6 +114,59 @@ export interface ConversationResponse {
   updatedAt: string;
 }
 
+/** 新列表投影与 Conversation.version 独立，不包含消息／资源快照。 */
+export interface ConversationTitleMetadata {
+  title: string;
+  metadataVersion: number;
+  titleManuallyEdited: boolean;
+  autoTitleResolved: boolean;
+}
+
+export interface ConversationListItem extends ConversationTitleMetadata {
+  conversationId: string;
+  pinned: boolean;
+  previewText: string | null;
+  userMessageCount: number | null;
+  lastMessageGeneratedAt: string | null;
+  sortActivityAt: string;
+  createdAt: string;
+  statisticsReady: boolean;
+}
+
+export interface ConversationCursorPage {
+  records: ConversationListItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  total: number | null;
+}
+
+export interface ConversationWindow {
+  pinned: ConversationCursorPage;
+  normal: ConversationCursorPage;
+  anchorConversationId: string | null;
+  anchorFallback: boolean;
+}
+
+export interface ConversationMetadataReceipt {
+  conversationId: string;
+  commandId: string;
+  conversation: ConversationListItem;
+  pinnedCount: number;
+  changed: boolean;
+}
+
+export type ConversationMetadataRequest =
+  { scope: AiScope; conversationId: string; expectedMetadataVersion: number }
+  & (
+  { kind: 'rename'; title: string } | { kind: 'pin'; pinned: boolean }
+  );
+
+export interface ConversationCommandResult {
+  commandId: string;
+  outcome: string;
+  receipt: ConversationMetadataReceipt | null;
+}
+
 export interface ArtifactRef {
   artifactId: string;
   version: string;
@@ -178,6 +231,7 @@ export interface ChatAcceptedResponse {
   conversationId: string;
   kind: 'INVOCATION';
   acceptedAt: string;
+  titleMetadata?: ConversationTitleMetadata | null;
 }
 
 export type CapabilityKind =
@@ -402,6 +456,7 @@ export interface RegenerateAcceptedResponse {
   executionId: string;
   kind: 'INVOCATION';
   acceptedAt: string;
+  titleMetadata?: ConversationTitleMetadata | null;
 }
 
 export interface PendingReconciliation {

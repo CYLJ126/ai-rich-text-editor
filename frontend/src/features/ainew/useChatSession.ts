@@ -100,11 +100,14 @@ export function useChatSession(
   context?: BrowserContext,
   sendingEnabled = true,
   writesAllowed = true,
+  onTitleUpdated?: (conversationId: string, value: import('@/services/arte-ai').ConversationTitleMetadata) => void,
 ) {
   const rejected = useRef(onConfigurationRejected);
   rejected.current = onConfigurationRejected;
   const settings = useRef(config);
   settings.current = config;
+  const titleUpdated = useRef(onTitleUpdated);
+  titleUpdated.current = onTitleUpdated;
   const updated = useRef(onUpdated);
   updated.current = onUpdated;
   const metadata = useRef(initial);
@@ -905,6 +908,7 @@ export function useChatSession(
       if (controller.signal.aborted || !alive.current) return;
       if (httpStatus !== 202 || !body.data.invocationId || body.data.conversationId !== snapshot.request.conversationId) throw new Error('Invalid chat acceptance; confirm the original request.');
       acceptedLatency(body.data.invocationId);
+      if (body.data.titleMetadata) titleUpdated.current?.(snapshot.request.conversationId, body.data.titleMetadata);
       persist('send', {...snapshot, acceptedId: body.data.invocationId});
       pendingRef.current = null;
       setPending(null);

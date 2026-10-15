@@ -133,7 +133,13 @@ describe('browser recovery uses original operations', () => {
         invocationId: 'accepted',
         conversationId: 'conversation',
         kind: 'INVOCATION',
-        acceptedAt: 'now'
+        acceptedAt: 'now',
+        titleMetadata: {
+          title: '首个问题的名称',
+          metadataVersion: 1,
+          titleManuallyEdited: false,
+          autoTitleResolved: true
+        }
       } as api.ChatAcceptedResponse), httpStatus: 202
     });
     vi.mocked(api.getInvocationStatus).mockResolvedValue(result({
@@ -150,11 +156,19 @@ describe('browser recovery uses original operations', () => {
       acceptedAt: 'now',
       updatedAt: 'now'
     }));
-    const hook = session();
+    const onTitle = vi.fn();
+    const hook = renderHook(() => useChatSession(config, conversation, vi.fn(), undefined, undefined, context, true, true, onTitle));
     await act(async () => {
       await hook.result.current.send();
     });
     expect(hook.result.current.draft).toBe('下一个问题');
+    expect(onTitle).toHaveBeenCalledWith('conversation', {
+      title: '首个问题的名称',
+      metadataVersion: 1,
+      titleManuallyEdited: false,
+      autoTitleResolved: true
+    });
+    expect(api.listConversations).not.toHaveBeenCalled();
     expect(readOperation<api.SubmitChatRequest>(context, 'send', 'conversation').value?.acceptedId).toBe('accepted');
   });
   it('does not release the original snapshot on an idempotency conflict', async () => {

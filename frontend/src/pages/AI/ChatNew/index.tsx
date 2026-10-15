@@ -1,11 +1,11 @@
 import {useConfigurationDiscovery} from '@/features/ainew/useConfigurationSelection';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
-import {Alert, Button, Drawer, Empty, Input, Modal, Pagination, Result, Splitter, Tabs, Tag} from 'antd';
+import {Alert, Button, Drawer, Empty, Input, Modal, Result, Splitter, Tabs, Tag} from 'antd';
 import {LockOutlined} from '@ant-design/icons';
 import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
-import type {AiScope, ChatModelOption, ConversationResponse} from '@/services/arte-ai';
-import {AiApiError, getConversation} from '@/services/arte-ai';
+import type {AiScope, ChatModelOption} from '@/services/arte-ai';
+import {AiApiError} from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
@@ -15,7 +15,9 @@ import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/ChatConfigurationForm';
 import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/BusinessChatPanel';
 import {chatConfigSchema, chatScopeSchema, type ChatTestConfig, modelOptionKey} from '@/features/ainew/config';
-import {useConversations} from '@/features/ainew/useConversations';
+import {useConversationDirectory} from '@/features/ainew/useConversationDirectory';
+import ConversationDirectoryList from '@/features/ainew/ConversationDirectoryList';
+import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
 import {type ConfigurationRejected} from '@/features/ainew/configurationInvalidation';
 import {
   type BrowserContext,
@@ -38,7 +40,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
   protectRef: React.RefObject<((proceed: () => void) => void) | null>;
 }) {
   const context = useMemo<BrowserContext>(() => ({userId, scope: workspace.scope}), [userId, workspace.scope]);
-  const conversations = useConversations(workspace.scope, context);
+  const conversations = useConversationDirectory(workspace.scope, context);
   const selectedId = conversations.selectedId ?? '';
   const [formDraft, setFormDraft] = useState<{ id: string; values: ConfigurationDraft } | null>(null);
   const [configState, setConfigState] = useState<{ id: string; config: ChatTestConfig } | null>(null);
@@ -78,9 +80,6 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
   const [listOpen, setListOpen] = useState(false);
   const [accessHelpOpen, setAccessHelpOpen] = useState(false);
   const [discoveryRefresh, setDiscoveryRefresh] = useState({id: '', revision: 0});
-  const [filter, setFilter] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState('新会话');
   const [interaction, setInteraction] = useState<ChatInteractionState>({pending: false, active: false});
   const [switchAction, setSwitchAction] = useState<(() => void) | null>(null);
   const afterApply = useRef<(() => void) | null>(null);
@@ -94,43 +93,6 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     };
   }, [selectedId, context]);
   const discovery = useConfigurationDiscovery();
-  const [pins, setPins] = useState<string[]>(() => {
-    const stored = readValue<unknown>(storageKey(context, 'pins'), true).value;
-    return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string').slice(0, 100) : [];
-  });
-  const [pinnedRecords, setPinnedRecords] = useState<Record<string, ConversationResponse | null>>({});
-  useEffect(() => {
-    const controller = new AbortController();
-    const available = new Map(conversations.records.map(record => [record.conversationId, record]));
-    if (conversations.selected) available.set(conversations.selected.conversationId, conversations.selected);
-    setPinnedRecords(previous => Object.fromEntries(pins.map(id => [id, available.get(id) ?? previous[id] ?? null])));
-    const pending = pins.filter(id => !available.has(id));
-    // 置顶上限 100，最多四个并行详情请求，避免占满浏览器连接和数据库线程。
-    const read = async () => {
-      while (pending.length && !controller.signal.aborted) {
-        const id = pending.shift()!;
-        try {
-          const {body} = await getConversation({
-            scope: workspace.scope,
-            conversationId: id
-          }, {signal: controller.signal});
-          if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: body.data}));
-        } catch {
-          if (!controller.signal.aborted) setPinnedRecords(previous => ({...previous, [id]: null}));
-        }
-      }
-    };
-    const workers = Math.min(4, pending.length);
-    for (let index = 0; index < workers; index++) void read();
-    return () => controller.abort();
-  }, [pins, context, conversations.records]);
-
-  function togglePin(id: string) {
-    const next = pins.includes(id) ? pins.filter(pin => pin !== id) : [...pins, id].slice(0, 100);
-    setPins(next);
-    if (!writeValue(storageKey(context, 'pins'), next, true)) setWarning(STORAGE_WARNING);
-  }
-
   function activate(value: ChatTestConfig, option: ChatModelOption) {
     if (interaction.unsafeToLeave) {
       setWarning('未确认操作未能保存，请先确认原操作后再应用其他配置。');
@@ -151,15 +113,18 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
   }
 
   function guard(proceed: () => void) {
-    if (aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave) {
-      setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
-      return;
-    }
-    if (dirty) {
-      setSwitchAction(() => proceed);
-      return;
-    }
-    proceed();
+    void conversations.finishEdit().then(ready => {
+      if (!ready) return;
+      if (aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave) {
+        setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
+        return;
+      }
+      if (dirty) {
+        setSwitchAction(() => proceed);
+        return;
+      }
+      proceed();
+    });
   }
 
   useEffect(() => {
@@ -225,7 +190,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
   const readBlocked = listAccessIssue != null;
 
   function recheckAccess() {
-    void conversations.loadPage(conversations.page);
+    void conversations.refreshFirst();
     setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
   }
 
@@ -236,54 +201,15 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
       <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
       <Button loading={conversations.listLoading} onClick={recheckAccess}>重新检查</Button>
     </>;
-  const list = <aside className="ainew-sidebar" aria-label="会话列表">
-    <Button block type="primary"
-            disabled={readBlocked || (workspace.state !== 0 && workspace.state !== null) || conversations.creating}
-            title={readBlocked ? '请先确认当前空间的 AI 访问权限' : undefined}
-            onClick={() => guard(() => {
-              setTitle(conversations.pendingTitle ?? '新会话');
-              setCreating(true);
-            })}>新建会话</Button>
-    <Input aria-label="筛选本页会话" placeholder="筛选本页会话" value={filter} disabled={readBlocked}
-           onChange={event => setFilter(event.target.value)}/>
-    {!readBlocked && <Button size="small" loading={conversations.listLoading}
-                             onClick={() => void conversations.loadPage(conversations.page)}>刷新列表</Button>}
-    {!readBlocked && pins.length > 0 &&
-      <section><h3>在此浏览器置顶</h3>{pins.map(id => <div className="ainew-conversation-row" key={id}>
-        <Button type="text" onClick={() => guard(() => {
-          void conversations.select(id);
-          setListOpen(false);
-        })}>{pinnedRecords[id]?.title ?? (pinnedRecords[id] === null ? '记录无法读取，可重试或移除' : '读取中…')}</Button>
-        <Button size="small" onClick={() => togglePin(id)}>取消置顶</Button>
-      </div>)}</section>}
-    {conversations.selected && !conversations.records.some(record => record.conversationId === conversations.selectedId) &&
-      <section><h3>当前会话</h3><p>{conversations.selected.title}</p><Button size="small"
-                                                                             onClick={() => togglePin(conversations.selectedId!)}>{pins.includes(conversations.selectedId!) ? '取消置顶' : '在此浏览器置顶'}</Button>
-      </section>}
-    {readBlocked ? <p className="ainew-muted" role="status">{listAccessIssue === 'login'
-        ? '重新登录后即可检查会话访问权限。' : '当前账号暂时无法读取此空间的会话列表。'}</p>
-      : conversations.listError != null && <Alert type="error" showIcon title="会话列表暂时加载失败"
-                                                  description="网络或服务暂时不可用，请稍后重试。" action={<Button
-      onClick={() => void conversations.loadPage(conversations.page)}>重试加载</Button>}/>}
-    {!conversations.listLoading && !conversations.listError && !conversations.records.filter(record => record.title.includes(filter)).length &&
-      <Empty description={filter ? '没有匹配的会话，请调整筛选内容。'
-        : conversations.total === 0 ? '此空间还没有会话。' : '当前页没有会话，可切换页面。'}/>}
-    <ul
-      className="ainew-conversations">{conversations.records.filter(record => record.title.includes(filter) && !pins.includes(record.conversationId)).map(record =>
-      <li key={record.conversationId}>
-        <Button block type={record.conversationId === conversations.selectedId ? 'primary' : 'text'}
-                onClick={() => guard(() => {
-                  void conversations.select(record.conversationId);
-                  setListOpen(false);
-                })}>{record.title}</Button>
-        <div className="ainew-conversation-row">
-          <time>{new Date(record.updatedAt).toLocaleString()}</time>
-          <Button size="small" onClick={() => togglePin(record.conversationId)}>置顶</Button></div>
-      </li>)}</ul>
-    {!conversations.listError &&
-      <Pagination simple hideOnSinglePage current={conversations.page} total={conversations.total} pageSize={20}
-                  showSizeChanger={false} onChange={page => void conversations.loadPage(page)}/>}
-  </aside>;
+  const list = <ConversationDirectoryList directory={conversations} readBlocked={readBlocked}
+                                          writable={workspace.state === 0 || workspace.state === null}
+                                          onCreate={() => guard(() => {
+                                            void conversations.create();
+                                          })}
+                                          onOpen={id => guard(() => {
+                                            void conversations.select(id);
+                                            setListOpen(false);
+                                          })}/>;
   const editor = <div className="ainew-settings" aria-label="辅助设置">
     <Tabs activeKey={tab} onChange={setTab} items={[
       {
@@ -320,7 +246,10 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
         label: '空间 AI 配置',
         children: <WorkspaceAiSettings scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
                                        onUpdated={() => {
-                                         recheckAccess();
+                                         setDiscoveryRefresh(value => ({
+                                           id: selectedId,
+                                           revision: value.id === selectedId ? value.revision + 1 : 1
+                                         }));
                                        }}/>
       },
       {key: 'assistants', label: '助手管理', children: <p>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</p>},
@@ -367,6 +296,9 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
                                                           })) : setListOpen(true)}>会话列表</Button>
       <div><h2>{conversations.selected?.title ?? 'AI 聊天（新版）'}</h2><span className="ainew-muted">通用文本聊天</span>
       </div>
+      <Button aria-label="刷新会话列表" icon={<DynamicIcon iconName="ReloadOutlined"/>}
+              loading={conversations.listLoading}
+              onClick={() => void conversations.refreshFirst()}>刷新会话列表</Button>
       <Button onClick={() => {
         setPanelOpen(value => !value);
         if (!config) setTab('models');
@@ -404,7 +336,8 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
         onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
         <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
                            options={options} dirty={dirty} conversation={conversations.selected}
-                           onUpdated={conversations.updateConversation} t={t}
+                           onUpdated={conversations.updateConversation} onTitleUpdated={conversations.onTitleUpdated}
+                           t={t}
                            onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
                            onInteraction={setInteraction} writable={workspace.state === 0 || workspace.state === null}/>
         : conversations.listLoading ? <div className="ainew-empty" role="status">正在读取会话列表…</div>
@@ -455,16 +388,6 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
         <p>{workspace.name}</p><p className="ainew-support-id">租户标识：{workspace.scope.tenantId}</p>
         <p className="ainew-support-id">空间标识：{workspace.scope.workspaceId}</p>
       </details>
-    </Modal>
-    <Modal title={conversations.pendingTitle ? '确认原创建操作' : '新建会话'} open={creating}
-           onCancel={() => setCreating(false)} confirmLoading={conversations.creating}
-           okButtonProps={{disabled: readBlocked || !title.trim() || (workspace.state !== 0 && workspace.state !== null)}}
-           onOk={async () => {
-             if (await conversations.create(title.trim())) setCreating(false);
-           }}>
-      <Input aria-label="会话标题" maxLength={256} value={conversations.pendingTitle ?? title}
-             disabled={!!conversations.pendingTitle} onChange={event => setTitle(event.target.value)}/>
-      {conversations.createError != null && <Alert type="error" title="创建结果未确认或被拒绝，请查看错误后处理。"/>}
     </Modal>
     <Modal title="有未应用配置" open={!!switchAction} footer={<>
       <Button onClick={() => {
