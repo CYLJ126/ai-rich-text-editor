@@ -193,19 +193,23 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 路径及页码排序保持兼容。新接口统一使用 `ResultContext<T>`（包括游标分页），失败也使用该信封。 所有路径仍以
 `/ai-new/conversation/` 开头，具有相同的登录、scope 解析及 owner 隔离；写入另执行真实写权限校验。 搜索、临时聊天、分组、归档、删除没有新增命令。
 
-| POST 路径 | 请求字段（均含 scope） | data |
-| --- | --- | --- |
-| createDefaultConversation | 仅 scope；Idempotency-Key 必填 | 旧 ConversationResponse |
-| getConversationMetadata | conversationId | Item |
-| renameConversation | conversationId、expectedMetadataVersion、title；Idempotency-Key 必填 | Receipt |
-| setConversationPinned | conversationId、expectedMetadataVersion、pinned；Idempotency-Key 必填 | Receipt |
-| getMetadataCommandReceipt | commandId | CommandResult |
-| listConversationsCursor | pinned、size（1～20）、可选 cursor/includeTotal | Page |
-| queryConversationWindow | normalSize（1～100）、可选 anchorConversationId | Window |
+| POST 路径                 | 请求字段（均含 scope）                                                | data                    |
+|---------------------------|-----------------------------------------------------------------------|-------------------------|
+| createDefaultConversation | scope、可选 localDate（yyyy-MM-dd）；Idempotency-Key 必填             | 旧 ConversationResponse |
+| getConversationMetadata   | conversationId                                                        | Item                    |
+| renameConversation        | conversationId、expectedMetadataVersion、title；Idempotency-Key 必填  | Receipt                 |
+| setConversationPinned     | conversationId、expectedMetadataVersion、pinned；Idempotency-Key 必填 | Receipt                 |
+| getMetadataCommandReceipt | commandId                                                             | CommandResult           |
+| listConversationsCursor   | pinned、size（1～20）、可选 cursor/includeTotal                       | Page                    |
+| queryConversationWindow   | normalSize（1～100）、可选 anchorConversationId                       | Window                  |
 
 `scope`、目标和写入版本不可省略。pinned 是明确目标状态，不能省略或用 toggle。 人工名称在提交前去首尾空格，服务端也执行同样规范化，并拒绝空白及超过
-256 UTF-16 单元的人工输入。 默认创建按 Asia/Shanghai 的当前日期生成 `新会话yyyyMMdd`；同一天允许多个同名会话。
-创建的摘要不包含服务器时钟，同一原键跨午夜重试仍返回首次会话 ID，不另建会话或报日期变化冲突。
+256 UTF-16 单元的人工输入。 默认创建按请求固定的上海日期生成 `新会话yyyyMMdd`；同一天允许多个同名会话。 新版页面在点击创建、异步编辑保护之前按
+Asia/Shanghai 固定 `localDate`（`yyyy-MM-dd`），随 scope
+和原幂等键保存。后台严格校验真实日期，生成“新会话yyyyMMdd”；日期参与请求摘要，同键改日期返回幂等冲突。首次到达／首次落库跨午夜仍使用点击日期，超时或页面恢复必须原日期、原键重试。
+
+兼容旧客户端及旧待确认请求：缺省 localDate 时保留服务端上海日期及原摘要（不含时钟）；前端不得向旧请求补日期。同一原键跨午夜重试仍返回首次会话
+ID，不另建会话或报日期变化冲突。
 旧创建接口允许自定义初始名；首次问题命名规则同新创建，已有旧数据迁移时采用保守保护（见下文）。
 
 ### 元数据与保存确认

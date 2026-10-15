@@ -258,6 +258,18 @@ public class ConversationHttpIntegrationTest {
     }
 
     @Test
+    public void defaultCreationBindsClientDateAndRejectsChangedOrInvalidDates() throws Exception {
+        var fields = "\"localDate\":\"2026-10-14\"";
+        var created = sidebar("createDefaultConversation", fields, "client-date", 200).path("data");
+        assertEquals("新会话20261014", created.path("title").asString());
+        assertEquals(created, sidebar("createDefaultConversation", fields, "client-date", 200).path("data"));
+        sidebar("createDefaultConversation", "\"localDate\":\"2026-10-15\"", "client-date", 409);
+        for (var invalid : List.of("2026-02-30", "2026-13-01", "2026-1-01", "0000-01-01", "")) {
+            sidebar("createDefaultConversation", "\"localDate\":\"" + invalid + "\"", "invalid-date", 400);
+        }
+    }
+
+    @Test
     public void defaultCreationReplayedAcrossMidnightKeepsFirstDateAndIdentity() {
         var resolver = new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(fixture.properties);
         var authorization = new com.arte.ainew.application.auth.AdmissionAuthorization(resolver, fixture.properties, java.time.Clock.systemUTC());
@@ -272,6 +284,12 @@ public class ConversationHttpIntegrationTest {
         var next = after.createDefault(fixture.context("alice", "next-day")).block();
         assertEquals("新会话20261015", next.title());
         assertNotEquals(one.conversationId(), next.conversationId());
+        // 首次到达／首次落库已经跨午夜，仍使用点击时固定的日期。
+        var delayed = after.createDefault("2026-10-14", fixture.context("alice", "delayed-client-date")).block();
+        assertEquals("新会话20261014", delayed.title());
+        assertEquals(delayed, after.createDefault("2026-10-14", fixture.context("alice", "delayed-client-date")).block());
+        assertThrows(AdmissionException.class, () -> after.createDefault("2026-10-15",
+                fixture.context("alice", "delayed-client-date")).block());
         var readOnly = fixture.context("alice", "read-only", java.util.Set.of("ai:read"));
         assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> before.createDefault(readOnly).block());
         var command = new com.arte.ainew.pojo.conversation.ConversationList.Command(one.conversationId(), 0, "不允许", null, "read-only");

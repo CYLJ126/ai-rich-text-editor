@@ -79,6 +79,12 @@ export interface PageQuery {
   size?: number;
 }
 
+export interface CreateDefaultConversationRequest {
+  scope: AiScope;
+  /** 点击创建时固定的上海日期（yyyy-MM-dd）；缺省仅兼容旧待确认请求。 */
+  localDate?: string;
+}
+
 export interface CreateConversationRequest {
   scope: AiScope;
   title: string;

@@ -18,6 +18,7 @@ import type {
   ConversationTurnResponse,
   ConversationWindow,
   CreateConversationRequest,
+  CreateDefaultConversationRequest,
   GetConversationRequest,
   ListConversationsRequest,
   QueryTurnsRequest,
@@ -71,7 +72,7 @@ export function queryTurnsOfConversation(
 }
 
 
-export function createDefaultConversation(data: { scope: AiScope }, key: string, options?: AiRequestOptions) {
+export function createDefaultConversation(data: CreateDefaultConversationRequest, key: string, options?: AiRequestOptions) {
   return postResult<ConversationResponse>('conversation/createDefaultConversation', data, options, requireIdempotencyKey(key));
 }
 

@@ -13,7 +13,7 @@
   Tab 重建。
 - 右侧包含工作空间、会话设置、模型管理、空间 AI 配置、助手与知识库 Tabs。工作空间管理改为内嵌面板，与左上快捷下拉共享账号目录、切换保护与原操作恢复。
 - ARTE 文字 Logo、空间下拉、四个图标入口和搜索 Input 已接入。图标采用 DynamicIcon；保留工作区当前 Avatar
-  外观，补回原生按钮、禁用／加载及键盘语义。当前工作区的置顶橙色／普通绿色 Avatar 与需求第3.2节“两区同色”仍有视觉差异，本次保留现有外观，不改写该需求。
+  外观，补回原生按钮、禁用／加载及键盘语义。当时记录的置顶橙色／普通绿色 Avatar 视觉差异，后经用户在专项 V1.10 确认为现行规则，保留代码外观。
 - 临时会话与分组菜单明确未开放；分组／归档／删除不执行业务动作，搜索不发检索请求。独立的平台配置、费用及核对面板仍保持各自既有呈现，不属于本次工作空间／会话设置
   Drawer 的替换范围。
 
@@ -154,3 +154,22 @@ ChatNew相关2个测试文件、27项通过；既有草稿保留用例改从空�
 ChatNew相关2个测试文件、27项通过。模拟浏览器实测：720px视口时页面top=33、height=687、bottom=720；500px视口时height=467、bottom=500；375×420px窄窗口时工具区换行使页面top=50，bottom=420。以上document.scrollHeight均等于视口高度，没有整页纵向溢出；外层border和radius均为0px，消息草稿在尺寸变化后保持。临时视口设置已恢复，未登录真实服务。
 
 ![无外框、自适应至页面底部（模拟接口验收）](../../../../../docs/public/assets/captures/ai-chat/sidebar-adaptive-height-20261015.jpg)
+
+## 2026-10-15 展示规则确认与点击日期固定
+
+按用户确认，专项 V1.10／总文档 V1.20 对齐现有展示：标题与摘要相同仍分别显示；Avatar 背景置顶橙色、普通绿色。此次未修改行渲染和配色代码。
+
+新版默认创建请求增加可选 `localDate`
+（yyyy-MM-dd），前端在点击时、等待名称保存等异步保护之前固定上海日期与独立操作键，保存原请求用于超时重试和页面恢复。服务端严格校验日期并按该日期生成标题，将日期绑定幂等摘要。旧的无日期待确认请求不补日期、不换键，继续使用原服务端日期／摘要语义。
+
+定向验证：
+
+-
+`npm test -- src/features/ainew/useConversationDirectory.test.tsx src/features/ainew/ConversationDirectoryList.test.tsx src/pages/AI/ChatNew src/services/arte-ai`
+：9 个文件、136 项通过。覆盖上海午夜前点击、超时后跨午夜重新挂载恢复、下一次新创建使用新日期、编辑保存等待跨午夜和旧无日期请求恢复。
+-
+`mvn -o -f backend/pom.xml -pl arte-ai -am -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 -Dtest=ConversationHttpIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test`
+：17 项通过，使用隔离 H2／MockMvc；覆盖首次服务端落库跨午夜、同键同日期重放、同键改日期拒绝及非法日期 400，并保留旧无日期跨午夜用例。
+- `npm run tsc`：仍有 106 项诊断，与此前记录数量一致，本次改动文件无诊断；不代表全量类型检查通过。
+
+本次未重新执行浏览器或真实服务联调，未部署、未运行数据库迁移；不需要数据库结构变更。上线时先更新后端接口，再更新前端，以确保服务端处理新日期字段。

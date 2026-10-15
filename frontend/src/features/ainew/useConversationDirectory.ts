@@ -9,6 +9,7 @@ import {
   type ConversationTitleMetadata,
   type ConversationWindow,
   createDefaultConversation,
+  type CreateDefaultConversationRequest,
   getConversationMetadata,
   getMetadataCommandReceipt,
   listConversationsCursor,
@@ -72,6 +73,14 @@ const mergeTitle = (incoming: ConversationListItem, existing?: ConversationTitle
   existing && existing.metadataVersion > incoming.metadataVersion ? {...incoming, ...titleFields(existing)} : incoming;
 const unique = (items: ConversationListItem[]) => Array.from(new Map(items.map(item => [item.conversationId, item])).values());
 
+function creationDate() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(value => value.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 function rejectMessage(error: unknown) {
   if (error instanceof AiApiError) {
     if (error.code === '205043') return '最多可置顶7个会话，请先取消一个。';
@@ -113,7 +122,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
   };
   const [restored] = useState(() => ({
     command: readOperation<ConversationMetadataRequest>(context, 'conversation-metadata', ''),
-    create: readOperation<{ scope: AiScope }>(context, 'create-default', ''),
+    create: readOperation<CreateDefaultConversationRequest>(context, 'create-default', ''),
     editor: (() => {
       const stored = readValue<TitleEditor>(storageKey(context, 'title-editor'));
       const v = stored.value;
@@ -577,6 +586,10 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
 
   async function create(): Promise<boolean> {
     if (creatingPromise.current) return creatingPromise.current;
+    // 在编辑保存等异步保护前固定点击时的日期；旧待确认请求不补日期、不换键。
+    const candidate = pendingCreate.current ?? {
+      key: crypto.randomUUID(), request: {scope, localDate: creationDate()}
+    };
     if (!await finishEdit() || pending.current || recoveryBlocked) return false;
     if (creatingPromise.current) return creatingPromise.current;
     const run = (async () => {
@@ -586,7 +599,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
         await readWindow(true, undefined, true);
         return true;
       }
-      const original = pendingCreate.current ?? {key: crypto.randomUUID(), request: {scope}};
+      const original = pendingCreate.current ?? candidate;
       pendingCreate.current = original;
       setHasPendingCreate(true);
       if (!saveOperation(context, 'create-default', '', original)) setStorageWarning(STORAGE_WARNING);

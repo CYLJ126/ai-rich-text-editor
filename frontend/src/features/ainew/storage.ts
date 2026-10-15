@@ -50,7 +50,7 @@ const schemas = {
     timeoutSeconds: z.number().int().positive()
   }),
   stop: z.object({scope: scopeSchema, invocationId: id}),
-  'create-default': z.object({scope: scopeSchema}),
+  'create-default': z.object({scope: scopeSchema, localDate: z.iso.date().optional()}),
   'conversation-metadata': z.discriminatedUnion('kind', [
     z.object({
       kind: z.literal('rename'),

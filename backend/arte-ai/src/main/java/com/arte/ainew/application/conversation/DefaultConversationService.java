@@ -74,12 +74,23 @@ public final class DefaultConversationService implements ConversationService {
     }
 
     @Override
-    public Mono<Conversation> createDefault(ExecutionContext context) {
-        var date = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("Asia/Shanghai"));
+    public Mono<Conversation> createDefault(String localDate, ExecutionContext context) {
+        java.time.LocalDate date;
+        try {
+            date = localDate == null
+                    ? java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("Asia/Shanghai"))
+                    : java.time.LocalDate.parse(localDate);
+        } catch (java.time.format.DateTimeParseException error) {
+            throw new IllegalArgumentException("localDate must be a valid yyyy-MM-dd date", error);
+        }
+        ContractChecks.require(localDate == null || (date.getYear() >= 1 && date.getYear() <= 9999
+                && date.toString().equals(localDate)), "localDate must be a valid yyyy-MM-dd date");
         var title = "新会话" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
-        // 未指定日期的请求摘要不含时钟；跨午夜同键重试仍返回首次日期名与 ID。
+        // 旧请求保留原摘要；新请求绑定点击日期，即使首次到达／首次落库已跨午夜也不变。
+        var digest = localDate == null ? List.of("create-default-conversation", "Asia/Shanghai")
+                : List.of("create-default-conversation", "Asia/Shanghai", localDate);
         return create(title, null, List.of(), context,
-                com.arte.ainew.serialization.CanonicalJson.digest(List.of("create-default-conversation", "Asia/Shanghai")));
+                com.arte.ainew.serialization.CanonicalJson.digest(digest));
     }
 
     @Override

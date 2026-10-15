@@ -32,7 +32,8 @@ public final class ConversationRequests {
                          DefinitionRef chatProfile, @Size(max = 256) List<ResourceRef> resources) {
     }
 
-    public record CreateDefault(@NotNull @Valid Scope scope) {
+    public record CreateDefault(@NotNull @Valid Scope scope,
+                                @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}") String localDate) {
     }
 
     public record Rename(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String conversationId,

@@ -73,7 +73,10 @@ beforeEach(() => {
   vi.mocked(api.changeConversationMetadata).mockImplementation(async (r, key) => reply(receipt(r, key)));
   vi.mocked(api.createDefaultConversation).mockResolvedValue(reply(detail('new')));
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 async function loaded(pins = 0) {
   vi.mocked(api.queryConversationWindow).mockResolvedValue(reply(windowData(0, pins)));
@@ -413,6 +416,8 @@ it('does not confuse the retention limit or malformed empty continuation with th
   expect(h.result.current.records).toHaveLength(100);
 });
 it('creates a date-named conversation without a form, restores its timeout key, and refreshes only on success', async () => {
+  vi.useFakeTimers({toFake: ['Date']});
+  vi.setSystemTime(new Date('2026-10-14T15:59:59Z'));
   const h = await loaded();
   vi.mocked(api.createDefaultConversation).mockRejectedValueOnce(new Error('timeout'));
   await act(async () => {
@@ -420,7 +425,11 @@ it('creates a date-named conversation without a form, restores its timeout key, 
   });
   expect(api.createDefaultConversation).toHaveBeenCalledTimes(1);
   const original = vi.mocked(api.createDefaultConversation).mock.calls[0].slice(0, 2);
+  expect(original[0]).toEqual({scope, localDate: '2026-10-14'});
+  expect(readOperation<api.CreateDefaultConversationRequest>(context, 'create-default', '').value?.request)
+    .toEqual({scope, localDate: '2026-10-14'});
   h.unmount();
+  vi.setSystemTime(new Date('2026-10-14T16:00:01Z'));
   const next = await loaded();
   expect(api.createDefaultConversation).toHaveBeenCalledTimes(1);
   await act(async () => {
@@ -430,6 +439,45 @@ it('creates a date-named conversation without a form, restores its timeout key, 
   expect(api.createConversation).not.toHaveBeenCalled();
   expect(api.queryConversationWindow).toHaveBeenCalledTimes(3);
   expect(next.result.current.selectedId).toBe('new');
+  await act(async () => {
+    await next.result.current.create();
+  });
+  const fresh = vi.mocked(api.createDefaultConversation).mock.calls[2];
+  expect(fresh[0]).toEqual({scope, localDate: '2026-10-15'});
+  expect(fresh[1]).not.toBe(original[1]);
+});
+
+it('captures the click date before waiting for an existing title save across midnight', async () => {
+  vi.useFakeTimers({toFake: ['Date']});
+  vi.setSystemTime(new Date('2026-10-14T15:59:59Z'));
+  const h = await loaded();
+  await edit(h);
+  const save = deferred<ReturnType<typeof reply<api.ConversationMetadataReceipt>>>();
+  vi.mocked(api.changeConversationMetadata).mockReturnValueOnce(save.promise);
+  let creation!: Promise<boolean>;
+  act(() => {
+    creation = h.result.current.create();
+  });
+  await waitFor(() => expect(api.changeConversationMetadata).toHaveBeenCalledTimes(1));
+  expect(api.createDefaultConversation).not.toHaveBeenCalled();
+  vi.setSystemTime(new Date('2026-10-14T16:00:01Z'));
+  await act(async () => {
+    const [request, key] = vi.mocked(api.changeConversationMetadata).mock.calls[0];
+    save.resolve(reply(receipt(request, key)));
+    await creation;
+  });
+  expect(vi.mocked(api.createDefaultConversation).mock.calls[0][0]).toEqual({scope, localDate: '2026-10-14'});
+});
+
+it('replays legacy pending default creation without adding a date or changing its key', async () => {
+  const original = {key: 'legacy-default', request: {scope}};
+  saveOperation(context, 'create-default', '', original);
+  const h = await loaded();
+  await act(async () => {
+    await h.result.current.create();
+  });
+  expect(vi.mocked(api.createDefaultConversation).mock.calls[0].slice(0, 2))
+    .toEqual([original.request, original.key]);
 });
 it('starts a new generation after creation even if an older initial read is still pending', async () => {
   const d = deferred<ReturnType<typeof reply<api.ConversationWindow>>>();

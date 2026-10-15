@@ -41,14 +41,25 @@ public interface ConversationService {
     Mono<Conversation> create(String title, DefinitionRef chatProfile, List<ResourceRef> resources, ExecutionContext context);
 
     /**
-     * 创建默认会话，标题按 Asia/Shanghai 本地日期生成，格式为“新会话yyyyMMdd”。
-     * 不关联聊天配置或资料；请求摘要不含日期，同键跨午夜重试仍返回首次创建的会话。
+     * 兼容旧调用：按服务端 Asia/Shanghai 日期生成标题，请求摘要不含日期。
      *
      * @param context 可信执行上下文，不能为 null；须包含 ai:conversation 权限、有效截止时间及创建操作幂等键，
      *                写入前重新校验当前授权
      * @return 新建默认会话或幂等重放会话的当前快照；授权失败、期限超时或幂等冲突时通过错误信号失败
      */
-    Mono<Conversation> createDefault(ExecutionContext context);
+    default Mono<Conversation> createDefault(ExecutionContext context) {
+        return createDefault(null, context);
+    }
+
+    /**
+     * 使用客户端在点击时固定的上海日期创建“新会话yyyyMMdd”，不关联配置或资料。
+     * 日期参与幂等摘要，重试必须保持原日期与原键；缺省时兼容旧请求的服务端日期与摘要。
+     *
+     * @param localDate 点击时固定的 yyyy-MM-dd 日期，null 仅用于兼容旧请求
+     * @param context   可信执行上下文，写入前校验当前授权
+     * @return 新建会话或原操作回执；日期无效、授权失败或同键内容变化时拒绝
+     */
+    Mono<Conversation> createDefault(String localDate, ExecutionContext context);
 
     /**
      * 轻量读取当前归属下指定活跃会话的列表元数据，不刷新目录或改变会话选择。

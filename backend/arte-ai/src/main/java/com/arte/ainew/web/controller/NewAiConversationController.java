@@ -45,7 +45,8 @@ public class NewAiConversationController {
     @PostMapping("/createDefaultConversation")
     public Mono<ResultContext<ConversationResponse>> createDefaultConversation(@Valid @RequestBody ConversationRequests.CreateDefault request,
                                                                                @RequestHeader("Idempotency-Key") String key, Locale locale) {
-        return conversationHttpContext.create(request.scope(), key).flatMap(conversationService::createDefault)
+        return conversationHttpContext.create(request.scope(), key)
+                .flatMap(context -> conversationService.createDefault(request.localDate(), context))
                 .map(value -> ResultContext.success(ConversationResponse.from(value), ResultCodeEnum.SUCCESS, locale));
     }
 
