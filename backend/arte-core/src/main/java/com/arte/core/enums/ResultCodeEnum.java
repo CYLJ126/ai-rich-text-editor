@@ -182,6 +182,10 @@ public enum ResultCodeEnum {
      */
     AI_CURRENCY_MISMATCH("205036", "result.ai.admission.currencyMismatch"),
     /**
+     * 当前主体在工作空间中最多置顶 7 个会话。
+     */
+    AI_PIN_LIMIT_REACHED("205043", "result.ai.admission.conversationPinLimit"),
+    /**
      * 事件游标已过保留范围。
      */
     AI_CURSOR_EXPIRED("205037", "result.ai.admission.cursorExpired"),

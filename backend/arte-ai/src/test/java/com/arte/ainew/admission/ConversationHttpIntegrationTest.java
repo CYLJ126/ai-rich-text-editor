@@ -44,7 +44,9 @@ import static org.junit.Assert.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-/** 真实 MVC 参数绑定、响应序列化、认证上下文与隔离数据库分页；不调用外部模型。 */
+/**
+ * 真实 MVC 参数绑定、响应序列化、认证上下文与隔离数据库分页；不调用外部模型。
+ */
 public class ConversationHttpIntegrationTest {
     private static final String ROOT = "/ai-new/conversation/";
     private static final String SCOPE = "\"scope\":{\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"}";
@@ -198,12 +200,90 @@ public class ConversationHttpIntegrationTest {
                 + "\",\"expectedVersion\":" + version + ",\"page\":{\"current\":" + current + ",\"size\":" + size + "}}"), status));
     }
 
+    private JsonNode sidebar(String path, String fields, String key, int status) throws Exception {
+        var request = post(ROOT + path).content("{" + SCOPE + (fields.isEmpty() ? "" : "," + fields) + "}");
+        if (key != null) request.header("Idempotency-Key", key);
+        return body(send(request, status));
+    }
+
+    @Test
+    public void sidebarCommandsUseIndependentVersionsAndDurableReceipts() throws Exception {
+        var created = sidebar("createDefaultConversation", "", "default", 200).path("data");
+        String id = created.path("conversationId").asString();
+        assertEquals("新会话" + java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE), created.path("title").asString());
+        assertEquals(id, sidebar("createDefaultConversation", "", "default", 200).path("data").path("conversationId").asString());
+        String target = "\"conversationId\":\"" + id + "\"";
+        var renamed = sidebar("renameConversation", target + ",\"expectedMetadataVersion\":0,\"title\":\"我的会话\"", "rename", 200).path("data");
+        assertTrue(renamed.path("conversation").path("titleManuallyEdited").asBoolean());
+        assertEquals(1, renamed.path("conversation").path("metadataVersion").asLong());
+        var pinned = sidebar("setConversationPinned", target + ",\"expectedMetadataVersion\":1,\"pinned\":true", "pin", 200).path("data");
+        assertEquals(1, pinned.path("pinnedCount").asLong());
+        var detail = sidebar("getConversation", target, null, 200).path("data");
+        assertEquals(0, detail.path("version").asLong());
+        assertEquals("我的会话", detail.path("title").asString());
+        var receipt = sidebar("getMetadataCommandReceipt", "\"commandId\":\"rename\"", null, 200).path("data");
+        assertEquals("APPLIED", receipt.path("outcome").asString());
+        assertEquals(renamed, receipt.path("receipt"));
+        sidebar("renameConversation", target + ",\"expectedMetadataVersion\":0,\"title\":\"冲突\"", "stale", 409);
+        var rejection = sidebar("getMetadataCommandReceipt", "\"commandId\":\"stale\"", null, 200).path("data");
+        assertEquals("VERSION_CONFLICT", rejection.path("outcome").asString());
+        assertTrue(rejection.path("receipt").isNull());
+        sidebar("renameConversation", target + ",\"expectedMetadataVersion\":2,\"title\":\"变更原请求\"", "stale", 409);
+        sidebar("renameConversation", target + ",\"title\":\"缺版本\"", "invalid", 400);
+        sidebar("getMetadataCommandReceipt", "\"commandId\":\"pending\"", null, 404);
+        login("bob");
+        sidebar("getConversationMetadata", target, null, 404);
+        sidebar("setConversationPinned", target + ",\"expectedMetadataVersion\":2,\"pinned\":false", "foreign", 404);
+        sidebar("getMetadataCommandReceipt", "\"commandId\":\"rename\"", null, 404);
+    }
+
+    @Test
+    public void sidebarCursorAndWindowHaveLightweightScopedShapesAndValidateBounds() throws Exception {
+        for (int i = 0; i < 8; i++) sidebar("createDefaultConversation", "", "c" + i, 200);
+        var page = sidebar("listConversationsCursor", "\"pinned\":false,\"size\":3,\"includeTotal\":true", null, 200).path("data");
+        assertEquals(8, page.path("total").asLong());
+        assertEquals(3, page.path("records").size());
+        assertFalse(page.path("records").get(0).has("resources"));
+        assertEquals(0, page.path("records").get(0).path("userMessageCount").asLong());
+        var next = sidebar("listConversationsCursor", "\"pinned\":false,\"size\":3,\"cursor\":\"" + page.path("nextCursor").asString() + "\"", null, 200).path("data");
+        assertTrue(next.path("total").isNull());
+        var window = sidebar("queryConversationWindow", "\"normalSize\":100", null, 200).path("data");
+        assertEquals(8, window.path("normal").path("records").size());
+        assertEquals(0, window.path("pinned").path("records").size());
+        sidebar("listConversationsCursor", "\"pinned\":false,\"size\":21", null, 400);
+        sidebar("listConversationsCursor", "\"pinned\":false,\"size\":3,\"cursor\":\"broken\"", null, 400);
+        sidebar("queryConversationWindow", "\"normalSize\":101", null, 400);
+        login("bob");
+        sidebar("listConversationsCursor", "\"pinned\":false,\"size\":3,\"cursor\":\"" + page.path("nextCursor").asString() + "\"", null, 400);
+    }
+
+    @Test
+    public void defaultCreationReplayedAcrossMidnightKeepsFirstDateAndIdentity() {
+        var resolver = new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(fixture.properties);
+        var authorization = new com.arte.ainew.application.auth.AdmissionAuthorization(resolver, fixture.properties, java.time.Clock.systemUTC());
+        var before = new com.arte.ainew.application.conversation.DefaultConversationService(fixture.executions, authorization,
+                java.time.Clock.fixed(Instant.parse("2026-10-14T15:59:59Z"), java.time.ZoneOffset.UTC));
+        var after = new com.arte.ainew.application.conversation.DefaultConversationService(fixture.executions, authorization,
+                java.time.Clock.fixed(Instant.parse("2026-10-14T16:00:01Z"), java.time.ZoneOffset.UTC));
+        var one = before.createDefault(fixture.context("alice", "midnight")).block();
+        var two = after.createDefault(fixture.context("alice", "midnight")).block();
+        assertEquals("新会话20261014", one.title());
+        assertEquals(one, two);
+        var next = after.createDefault(fixture.context("alice", "next-day")).block();
+        assertEquals("新会话20261015", next.title());
+        assertNotEquals(one.conversationId(), next.conversationId());
+        var readOnly = fixture.context("alice", "read-only", java.util.Set.of("ai:read"));
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> before.createDefault(readOnly).block());
+        var command = new com.arte.ainew.pojo.conversation.ConversationList.Command(one.conversationId(), 0, "不允许", null, "read-only");
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> before.changeMetadata(command, readOnly).block());
+    }
+
     @Test
     public void allHttpEndpointsDeclareAuthentication() {
         // 授权可以声明在方法或 Controller 类上；URL 分类由 arte-app 的安全配置测试验证。
         var methods = Arrays.stream(NewAiConversationController.class.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(org.springframework.web.bind.annotation.PostMapping.class)).toList();
-        assertEquals(4, methods.size());
+        assertEquals(11, methods.size());
         for (var method : methods) {
             var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
             if (authorization == null) {
@@ -230,7 +310,9 @@ public class ConversationHttpIntegrationTest {
 
     @Test
     public void paginationUsesDatabaseScopeAndPreservesEmptyPageMetadata() throws Exception {
-        for (int index = 0; index < 3; index++) { createId("alice-" + index, "create-" + index); }
+        for (int index = 0; index < 3; index++) {
+            createId("alice-" + index, "create-" + index);
+        }
         login("bob");
         createId("bob", "create-bob");
         login("alice");

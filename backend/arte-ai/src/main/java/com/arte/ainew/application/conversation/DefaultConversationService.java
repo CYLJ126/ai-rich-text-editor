@@ -11,6 +11,7 @@ import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
@@ -44,6 +45,11 @@ public final class DefaultConversationService implements ConversationService {
 
     @Override
     public Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources, ExecutionContext context) {
+        return create(title, profile, resources, context, AdmissionDigests.conversation(title, profile, resources));
+    }
+
+    private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources,
+                                      ExecutionContext context, String digest) {
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
             var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
@@ -54,7 +60,7 @@ public final class DefaultConversationService implements ConversationService {
             var now = clock.instant();
             var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwner.from(current), title, 0, null,
                     selections, Conversation.State.ACTIVE, now, now);
-            return admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), AdmissionDigests.conversation(title, profile, selections))
+            return admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
                     .map(outcome -> {
                         if (!outcome.successful()) {
                             log.warn("AI conversation creation rejected, invocationId={}, traceId={}, code={}", current.executionId(), current.traceId(), outcome.code());
@@ -65,6 +71,56 @@ public final class DefaultConversationService implements ConversationService {
                         return outcome.value();
                     });
         });
+    }
+
+    @Override
+    public Mono<Conversation> createDefault(ExecutionContext context) {
+        var date = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("Asia/Shanghai"));
+        var title = "新会话" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        // 未指定日期的请求摘要不含时钟；跨午夜同键重试仍返回首次日期名与 ID。
+        return create(title, null, List.of(), context,
+                com.arte.ainew.serialization.CanonicalJson.digest(List.of("create-default-conversation", "Asia/Shanghai")));
+    }
+
+    @Override
+    public Mono<ConversationList.Item> metadata(String id, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION)
+                .flatMap(current -> admissionCatalogStore.conversationMetadata(ExecutionOwner.from(current), id))
+                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
+    }
+
+    @Override
+    public Mono<ConversationList.Page> listCursor(ConversationList.Query query, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION)
+                .flatMap(current -> admissionCatalogStore.conversationList(ExecutionOwner.from(current), query));
+    }
+
+    @Override
+    public Mono<ConversationList.Window> listWindow(ConversationList.WindowQuery query, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION)
+                .flatMap(current -> admissionCatalogStore.conversationWindow(ExecutionOwner.from(current), query));
+    }
+
+    @Override
+    public Mono<ConversationList.Receipt> changeMetadata(ConversationList.Command command, ExecutionContext context) {
+        ContractChecks.require(command.idempotencyKey().equals(context.idempotencyKey()), "Command key must match context");
+        return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION)
+                .flatMap(current -> admissionCatalogStore.changeConversationMetadata(ExecutionOwner.from(current), command))
+                .map(outcome -> {
+                    if (!outcome.successful()) {
+                        if (outcome.code() == com.arte.ainew.pojo.execution.StoreOutcome.Code.NOT_FOUND)
+                            throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND);
+                        throw AdmissionException.fromStoreRejection(outcome.code());
+                    }
+                    return outcome.value();
+                });
+    }
+
+    @Override
+    public Mono<ConversationList.CommandResult> metadataReceipt(String commandId, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION)
+                .flatMap(current -> admissionCatalogStore.conversationMetadataReceipt(ExecutionOwner.from(current), commandId))
+                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)));
     }
 
     @Override

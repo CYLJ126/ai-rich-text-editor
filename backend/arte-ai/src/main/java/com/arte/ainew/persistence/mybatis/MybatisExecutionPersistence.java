@@ -9,6 +9,7 @@ import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OperationRow;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
@@ -49,6 +50,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
+    private final ConversationMetadataPersistence conversationMetadata;
     private final BudgetMapper budget;
     private final EventMapper event;
     private final OutboxMapper outbox;
@@ -56,6 +58,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final PayloadMapper payload;
     private final TransactionTemplate transaction;
     private final TransactionTemplate readTransaction;
+    private final TransactionTemplate metadataTransaction;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
 
@@ -87,20 +90,29 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.payload = sessions.getMapper(PayloadMapper.class);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
+        this.metadataTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        this.metadataTransaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
+        this.metadataTransaction.setTimeout(30);
         this.readTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.readTransaction.setReadOnly(true);
         this.readTransaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.readTransaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
+        this.conversationMetadata = new ConversationMetadataPersistence(sessions.getMapper(ConversationMetadataMapper.class),
+                admission, execution, event, codec, this::lock, this::now);
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
     private <T> Mono<T> tx(Supplier<T> work) {
+        return tx(transaction, work);
+    }
+
+    private <T> Mono<T> tx(TransactionTemplate template, Supplier<T> work) {
         return Mono.fromCallable(() -> {
             if (Schedulers.isInNonBlockingThread()) {
                 throw new IllegalStateException("Blocking persistence requires a bounded JDBC worker Scheduler");
             }
-            return transaction.execute(status -> work.get());
+            return template.execute(status -> work.get());
         }).subscribeOn(scheduler);
     }
 
@@ -143,6 +155,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     private static String ownerKey(ExecutionOwner owner) {
         return hash(owner.tenantId(), owner.workspaceId(), owner.subjectId());
+    }
+
+    private Instant conversationUpdateTime(Conversation conversation) {
+        var at = now();
+        return at.isBefore(conversation.updatedAt()) ? conversation.updatedAt() : at;
     }
 
     private Instant now() {
@@ -242,6 +259,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         Objects.requireNonNull(conversation, "conversation");
         return tx(() -> {
             admission.insertConversation(hash(conversation.conversationId()), ownerKey(conversation.owner()), conversation.version(), codec.encode(conversation));
+            conversationMetadata.initialize(conversation, true);
             return true;
         }).then();
     }
@@ -264,6 +282,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(original);
             }
             admission.insertConversation(hash(conversation.conversationId()), owner, 0, codec.encode(conversation));
+            conversationMetadata.initialize(conversation, true);
             admission.insertConversationCreation(owner, key, requestDigest, hash(conversation.conversationId()));
             return StoreOutcome.applied(conversation);
         });
@@ -294,6 +313,39 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             budget.insertAccount(hash(account.budgetRef()), ownerKey(account.owner()), codec.encode(account));
             return true;
         }).then();
+    }
+
+    @Override
+    public Mono<StoreOutcome<ConversationList.Receipt>> changeConversationMetadata(
+            ExecutionOwner owner, ConversationList.Command command) {
+        Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(command, "command");
+        return tx(metadataTransaction, () -> conversationMetadata.change(owner, command));
+    }
+
+    @Override
+    public Mono<ConversationList.CommandResult> conversationMetadataReceipt(ExecutionOwner owner, String commandId) {
+        return tx(() -> conversationMetadata.receipt(owner, commandId));
+    }
+
+    @Override
+    public Mono<ConversationList.Item> conversationMetadata(ExecutionOwner owner, String conversationId) {
+        return tx(() -> conversationMetadata.find(owner, conversationId));
+    }
+
+    @Override
+    public Mono<ConversationList.Page> conversationList(ExecutionOwner owner, ConversationList.Query query) {
+        return tx(readTransaction, () -> conversationMetadata.list(owner, query));
+    }
+
+    @Override
+    public Mono<ConversationList.Window> conversationWindow(ExecutionOwner owner, ConversationList.WindowQuery query) {
+        return tx(readTransaction, () -> conversationMetadata.window(owner, query));
+    }
+
+    @Override
+    public Mono<ConversationList.BackfillProgress> backfillConversationMetadata(int limit) {
+        return tx(metadataTransaction, () -> conversationMetadata.backfill(limit));
     }
 
     @Override
@@ -451,9 +503,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                             ? oldTurn.selectedInvocationId() : oldTurn.invocationIds().getLast()), VERSION_CONFLICT);
                     admission.saveTurn(codec.encode(turn), hash(turn.turnId()));
                 }
-                var updatedConversation = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
+                var title = oldTurn == null ? conversationMetadata.userMessage(conversation, turn) : conversation.title();
+                var updatedConversation = new Conversation(conversation.conversationId(), conversation.owner(), title,
                         Math.addExact(link.conversationVersion(), 1), conversation.chatProfile(), conversation.resources(),
-                        conversation.state(), conversation.createdAt(), now());
+                        conversation.state(), conversation.createdAt(), conversationUpdateTime(conversation));
                 admission.advanceConversation(updatedConversation.version(), hash(id(candidate)), codec.encode(updatedConversation), hash(link.conversationId()));
             }
             var acceptedAt = now();
@@ -1024,7 +1077,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 turn.createdAt(), now())), hash(turn.turnId()));
         var updated = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
                 conversation.version() + 1, conversation.chatProfile(), conversation.resources(), conversation.state(),
-                conversation.createdAt(), now());
+                conversation.createdAt(), conversationUpdateTime(conversation));
         admission.advanceConversation(updated.version(), admission.conversationGate(hash(link.conversationId())).activeInvocation(),
                 codec.encode(updated), hash(link.conversationId()));
     }
@@ -1114,6 +1167,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             for (int i = 0; i < saved.size(); i++) {
                 persistEvent(invocation, saved.get(i), encoded.get(i));
             }
+            conversationMetadata.assistantMessage(invocation, saved);
             event.addWrittenBytes(bytes, hash(id(invocation)));
             execution.insertAppend(hash(id(invocation)), key, digest, saved.getFirst().sequence(), saved.size());
             return StoreOutcome.applied(List.copyOf(saved));

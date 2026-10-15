@@ -110,7 +110,7 @@ public class ChatHttpIntegrationTest {
                         new NewAiConfigurationController(discovery, httpContext, fixture.properties),
                         new NewAiConversationController(fixture.conversations, new ConversationHttpContext(httpContext, fixture.properties)),
                         new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties,
-                                executionBeans.getBeanProvider(com.arte.ainew.config.NewAiExecutionProperties.class)))
+                                executionBeans.getBeanProvider(com.arte.ainew.config.NewAiExecutionProperties.class), fixture.conversations))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -213,6 +213,10 @@ public class ChatHttpIntegrationTest {
         var data = response.path("data");
         assertEquals(id, data.path("conversationId").asString());
         assertEquals("INVOCATION", data.path("kind").asString());
+        assertEquals("你好 世界\n  保留空白  ", data.path("titleMetadata").path("title").asString());
+        assertEquals(1, data.path("titleMetadata").path("metadataVersion").asLong());
+        assertTrue(data.path("titleMetadata").path("autoTitleResolved").asBoolean());
+        assertFalse(data.path("titleMetadata").has("previewText"));
         assertFalse(data.has("owner"));
         assertFalse(data.has("context"));
         assertFalse(data.has("state"));

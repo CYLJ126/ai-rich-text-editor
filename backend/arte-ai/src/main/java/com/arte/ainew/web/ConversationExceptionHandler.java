@@ -66,7 +66,8 @@ public class ConversationExceptionHandler {
             status = switch (code) {
                 case AI_CONVERSATION_NOT_FOUND, AI_TURN_NOT_FOUND, AI_NOT_FOUND, AI_BUDGET_NOT_AVAILABLE ->
                         HttpStatus.NOT_FOUND;
-                case AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY, AI_RESULT_NOT_AVAILABLE ->
+                case AI_PIN_LIMIT_REACHED, AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY,
+                     AI_RESULT_NOT_AVAILABLE ->
                         HttpStatus.CONFLICT;
                 case AI_CURSOR_EXPIRED -> HttpStatus.GONE;
                 case AI_DEADLINE_EXCEEDED -> HttpStatus.GATEWAY_TIMEOUT;

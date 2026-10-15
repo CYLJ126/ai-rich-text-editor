@@ -11,8 +11,18 @@ import java.time.Instant;
  * @since 2026/10/7 16:28 ✾
  */
 public record ChatAcceptedResponse(String invocationId, String conversationId, AcceptedExecution.Kind kind,
-                                   Instant acceptedAt) {
+                                   Instant acceptedAt, TitleMetadata titleMetadata) {
+
+    public record TitleMetadata(String title, long metadataVersion, boolean titleManuallyEdited,
+                                boolean autoTitleResolved) {
+    }
+
+    public ChatAcceptedResponse withTitle(com.arte.ainew.pojo.conversation.ConversationList.Item item) {
+        return new ChatAcceptedResponse(invocationId, conversationId, kind, acceptedAt,
+                new TitleMetadata(item.title(), item.metadataVersion(), item.titleManuallyEdited(), item.autoTitleResolved()));
+    }
+
     public static ChatAcceptedResponse from(String conversationId, AcceptedExecution accepted) {
-        return new ChatAcceptedResponse(accepted.executionId(), conversationId, accepted.kind(), accepted.acceptedAt());
+        return new ChatAcceptedResponse(accepted.executionId(), conversationId, accepted.kind(), accepted.acceptedAt(), null);
     }
 }

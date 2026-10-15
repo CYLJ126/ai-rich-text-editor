@@ -74,4 +74,11 @@
         SELECT workspace_snapshot FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
         ORDER BY sequence_no ASC LIMIT #{limit} OFFSET #{offset}
     </select>
+    <select id="turnsAfter" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_turn WHERE conversation_key=#{conversationKey} AND sequence_no&gt;#{afterSequence}
+        ORDER BY sequence_no LIMIT #{limit}
+    </select>
+    <select id="conversationGateCurrent" resultMap="ConversationGateRow" useCache="false">
+        SELECT version_no,active_invocation FROM arte_ai_conversation_new WHERE id_key=#{idKey} FOR UPDATE
+    </select>
 </mapper>

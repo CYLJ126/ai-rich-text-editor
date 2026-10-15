@@ -52,6 +52,15 @@ import java.time.Clock;
 public class NewAiAdmissionConfiguration {
 
     /**
+     * 显式开启后分批重建旧会话目录；不自动执行迁移 DDL。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.ai-new.conversation-metadata-backfill", name = "enabled", havingValue = "true")
+    ConversationMetadataBackfill conversationMetadataBackfill(MybatisExecutionPersistence store) {
+        return new ConversationMetadataBackfill(store);
+    }
+
+    /**
      * 应用层统一使用的 UTC 时钟，用于执行期限、上下文有效期及对象时间戳。
      * 可用同名 Bean 替换，便于测试；分布式租约仲裁仍使用存储层的数据库时钟。
      */

@@ -16,6 +16,7 @@ import java.util.Set;
  * @since 2026/10/4 22:01 ✾
  */
 public final class ContractChecks {
+
     public static final int MAX_TEXT_CHARS = 1_000_000;
     public static final int MAX_ITEMS = 256;
     public static final int MAX_PARTS = 64;

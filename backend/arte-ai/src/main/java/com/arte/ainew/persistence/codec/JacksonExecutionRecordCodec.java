@@ -5,6 +5,7 @@ import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.embedding.EmbeddingRequest;
 import com.arte.ainew.pojo.execution.*;
@@ -44,6 +45,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             Map.entry(Reconciliation.Receipt.class, "reconciliation-receipt"),
             Map.entry(RetrySchedule.class, "retry-schedule"), Map.entry(ControlReceipt.class, "control-receipt"), Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
+            Map.entry(ConversationList.CommandResult.class, "conversation-metadata-command"),
+            Map.entry(ConversationList.Receipt.class, "conversation-metadata-receipt"),
             Map.entry(Turn.class, "turn"), Map.entry(BudgetCommands.Account.class, "budget-account"),
             Map.entry(BudgetReservation.class, "budget-reservation"), Map.entry(BudgetSettlement.class, "budget-settlement"),
             Map.entry(ContextSnapshot.class, "context-snapshot"), Map.entry(InvocationResult.class, "invocation-result"));

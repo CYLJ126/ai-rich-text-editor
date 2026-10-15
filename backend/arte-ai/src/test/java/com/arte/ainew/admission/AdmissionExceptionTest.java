@@ -71,6 +71,7 @@ public class AdmissionExceptionTest {
                 Map.entry(StoreOutcome.Code.INSUFFICIENT_BUDGET, "205035"),
                 Map.entry(StoreOutcome.Code.CURRENCY_MISMATCH, "205036"),
                 Map.entry(StoreOutcome.Code.RATE_MISMATCH, "205026"),
+                Map.entry(StoreOutcome.Code.PIN_LIMIT_REACHED, "205043"),
                 Map.entry(StoreOutcome.Code.CURSOR_EXPIRED, "205037"));
         for (var outcome : StoreOutcome.Code.values()) {
             if (outcome == StoreOutcome.Code.APPLIED || outcome == StoreOutcome.Code.REPLAYED) { continue; }

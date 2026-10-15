@@ -174,6 +174,7 @@
                 <includes>
                     <include>arte-ai-new-ddl-mysql.sql</include>
                     <include>arte-ai-new-settlement-snapshot-migration.sql</include>
+                    <include>arte-ai-new-conversation-metadata-migration.sql</include>
                 </includes>
             </testResource>
         </testResources>

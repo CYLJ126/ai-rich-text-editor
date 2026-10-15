@@ -45,6 +45,7 @@ public final class AdmissionException extends CommonException {
             case INSUFFICIENT_BUDGET -> ResultCodeEnum.AI_INSUFFICIENT_BUDGET;
             case CURRENCY_MISMATCH -> ResultCodeEnum.AI_CURRENCY_MISMATCH;
             case RATE_MISMATCH -> ResultCodeEnum.AI_RATE_MISMATCH;
+            case PIN_LIMIT_REACHED -> ResultCodeEnum.AI_PIN_LIMIT_REACHED;
             case CURSOR_EXPIRED -> ResultCodeEnum.AI_CURSOR_EXPIRED;
             case APPLIED, REPLAYED ->
                     throw new IllegalArgumentException("Successful store outcome cannot become an admission exception");

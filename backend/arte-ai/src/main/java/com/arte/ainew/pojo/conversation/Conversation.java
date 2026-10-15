@@ -24,7 +24,8 @@ public record Conversation(String conversationId, ExecutionOwner owner, String t
     public Conversation {
         ContractChecks.id(conversationId, "conversationId");
         Objects.requireNonNull(owner, "owner");
-        ContractChecks.text(title, "title", 256);
+        // 自动标题按字素簇截取，20 个 emoji 可能超过 256 个 UTF-16 单元；HTTP 人工输入仍限 256。
+        ContractChecks.text(title, "title", ContractChecks.MAX_TEXT_CHARS + ContractChecks.MAX_PARTS + 2);
         ContractChecks.range(version, "version", 0, Long.MAX_VALUE);
         if (chatProfile != null) {
             chatProfile.requireType("chat-profile");

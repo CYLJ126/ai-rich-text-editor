@@ -4,10 +4,7 @@ import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.core.pojo.PageParam;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,6 +30,28 @@ public final class ConversationRequests {
      */
     public record Create(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String title,
                          DefinitionRef chatProfile, @Size(max = 256) List<ResourceRef> resources) {
+    }
+
+    public record CreateDefault(@NotNull @Valid Scope scope) {
+    }
+
+    public record Rename(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String conversationId,
+                         @NotNull @Min(0) Long expectedMetadataVersion, @NotBlank @Size(max = 256) String title) {
+    }
+
+    public record SetPinned(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String conversationId,
+                            @NotNull @Min(0) Long expectedMetadataVersion, @NotNull Boolean pinned) {
+    }
+
+    public record ReceiptQuery(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String commandId) {
+    }
+
+    public record CursorQuery(@NotNull @Valid Scope scope, @NotNull Boolean pinned,
+                              @Min(1) @Max(20) int size, @Size(max = 2048) String cursor, Boolean includeTotal) {
+    }
+
+    public record WindowQuery(@NotNull @Valid Scope scope, @Min(1) @Max(100) int normalSize,
+                              @Size(max = 256) String anchorConversationId) {
     }
 
     public record Find(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String conversationId) {

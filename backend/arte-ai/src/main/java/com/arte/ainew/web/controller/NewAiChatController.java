@@ -1,10 +1,12 @@
 package com.arte.ainew.web.controller;
 
 import com.arte.ainew.api.control.BindingManager;
+import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
+import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
@@ -48,6 +50,7 @@ public class NewAiChatController {
 
     private final NewAiExecutionProperties executionProperties;
     private final ChatService chatService;
+    private final ConversationService conversationService;
     private final BindingManager bindingManager;
     private final NewAiHttpContext httpContext;
     private final NewAiProperties properties;
@@ -62,10 +65,17 @@ public class NewAiChatController {
         this(chatService, bindingManager, httpContext, properties, null);
     }
 
-    @Autowired
     public NewAiChatController(ChatService chatService, BindingManager bindingManager, NewAiHttpContext httpContext,
                                NewAiProperties properties,
                                ObjectProvider<NewAiExecutionProperties> executionProperties) {
+        this(chatService, bindingManager, httpContext, properties, executionProperties, null);
+    }
+
+    @Autowired
+    public NewAiChatController(ChatService chatService, BindingManager bindingManager, NewAiHttpContext httpContext,
+                               NewAiProperties properties, ObjectProvider<NewAiExecutionProperties> executionProperties,
+                               ConversationService conversationService) {
+        this.conversationService = conversationService;
         this.executionProperties = executionProperties == null ? null : executionProperties.getIfAvailable();
         this.chatService = chatService;
         this.bindingManager = bindingManager;
@@ -87,10 +97,19 @@ public class NewAiChatController {
                         executionContext -> bindingManager.resolve(request.binding(), request.capability(), executionContext)
                         .flatMap(binding -> chatService.submit(chatRequest(request, binding, executionContext, timeout), executionContext)
                                 .doOnNext(accepted -> new InvocationTiming(accepted.executionId(), executionContext.traceId(), null, started)
-                                        .mark("CHAT_ACCEPTED"))))
+                                        .mark("CHAT_ACCEPTED"))
+                                .flatMap(accepted -> titleReceipt(request.conversationId(), accepted, executionContext))))
                 .timeout(timeout)
-                .map(accepted -> ResultContext.success(ChatAcceptedResponse.from(request.conversationId(), accepted),
+                .map(accepted -> ResultContext.success(accepted,
                         ResultCodeEnum.SUCCESS, locale));
+    }
+
+    private Mono<ChatAcceptedResponse> titleReceipt(String conversationId, AcceptedExecution accepted, ExecutionContext context) {
+        var response = ChatAcceptedResponse.from(conversationId, accepted);
+        if (conversationService == null) return Mono.just(response);
+        // 只查目标轻量元数据并返回名称字段；辅助读取失败不能把已提交的消息受理伪装成失败。
+        return conversationService.metadata(conversationId, context).map(response::withTitle)
+                .timeout(Duration.ofMillis(500)).onErrorReturn(response).defaultIfEmpty(response);
     }
 
     @PostMapping("/regenerate")

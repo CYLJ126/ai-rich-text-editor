@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper">
+    <resultMap id="Row" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$Row">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="metadata_version" javaType="_long"/>
+            <arg column="pinned" javaType="_boolean"/>
+            <arg column="title_manually_edited" javaType="_boolean"/>
+            <arg column="auto_title_resolved" javaType="_boolean"/>
+            <arg column="preview_text" javaType="java.lang.String"/>
+            <arg column="user_message_count" javaType="java.lang.Long"/>
+            <arg column="last_message_micros" javaType="java.lang.Long"/>
+            <arg column="sort_micros" javaType="_long"/>
+            <arg column="created_micros" javaType="_long"/>
+            <arg column="statistics_ready" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+    <sql id="columns">id_key,owner_key,conversation_id,title,metadata_version,pinned,title_manually_edited,
+        auto_title_resolved,preview_text,user_message_count,last_message_micros,sort_micros,created_micros,statistics_ready
+    </sql>
+    <select id="find" resultMap="Row" useCache="false">
+        SELECT
+        <include refid="columns"/>
+        FROM arte_ai_conversation_metadata WHERE id_key=#{idKey} AND owner_key=#{ownerKey} AND active=true
+    </select>
+    <insert id="insert">
+        INSERT INTO arte_ai_conversation_metadata (<include refid="columns"/>,active) VALUES
+        (#{r.idKey},#{r.ownerKey},#{r.conversationId},#{r.title},#{r.metadataVersion},#{r.pinned},#{r.titleManuallyEdited},
+        #{r.autoTitleResolved},#{r.previewText},#{r.userMessageCount},#{r.lastMessageMicros},#{r.sortMicros},#{r.createdMicros},#{r.statisticsReady},#{active})
+    </insert>
+    <update id="saveMetadata">
+        UPDATE arte_ai_conversation_metadata SET
+        title=#{r.title},metadata_version=#{r.metadataVersion},pinned=#{r.pinned},
+        title_manually_edited=#{r.titleManuallyEdited},auto_title_resolved=#{r.autoTitleResolved} WHERE
+        id_key=#{r.idKey}
+    </update>
+    <update id="saveStatistics">
+        UPDATE arte_ai_conversation_metadata SET preview_text=#{r.previewText},user_message_count=#{r.userMessageCount},
+        last_message_micros=#{r.lastMessageMicros},sort_micros=#{r.sortMicros},statistics_ready=#{r.statisticsReady}
+        WHERE id_key=#{r.idKey}
+    </update>
+    <select id="count" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*) FROM arte_ai_conversation_metadata WHERE owner_key=#{ownerKey} AND pinned=#{pinned} AND
+        active=true
+    </select>
+    <select id="list" resultMap="Row" useCache="false">
+        SELECT
+        <include refid="columns"/>
+        FROM arte_ai_conversation_metadata WHERE owner_key=#{ownerKey} AND pinned=#{pinned} AND active=true
+        <if test="sortMicros != null">
+            AND (sort_micros &lt; #{sortMicros} OR (sort_micros=#{sortMicros} AND conversation_id
+            <choose>
+                <when test="inclusive">&lt;=</when>
+                <otherwise>&lt;</otherwise>
+            </choose>
+            #{conversationId}))
+        </if>
+        ORDER BY sort_micros DESC,conversation_id DESC LIMIT #{limit}
+    </select>
+    <resultMap id="CommandRow" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$CommandRow">
+        <constructor>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="workspace_snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="command" resultMap="CommandRow" useCache="false">
+        SELECT request_digest,workspace_snapshot FROM arte_ai_conversation_metadata_command WHERE owner_key=#{ownerKey}
+        AND command_key=#{commandKey}
+    </select>
+    <insert id="insertCommand">
+        INSERT INTO arte_ai_conversation_metadata_command(owner_key,command_key,request_digest,workspace_snapshot)
+        VALUES (#{ownerKey},#{commandKey},#{digest},#{workspaceSnapshot})
+    </insert>
+    <select id="fact" resultType="java.lang.Long" useCache="false">
+        SELECT generated_micros FROM arte_ai_conversation_message_fact WHERE conversation_key=#{conversationKey} AND
+        fact_key=#{factKey}
+    </select>
+    <insert id="insertFact">
+        INSERT INTO arte_ai_conversation_message_fact(conversation_key,fact_key,message_role,generated_micros) VALUES
+        (#{conversationKey},#{factKey},#{role},#{generatedMicros})
+    </insert>
+    <resultMap id="LegacyRow" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$LegacyRow">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+            <arg column="workspace_snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="missing" resultMap="LegacyRow" useCache="false">
+        SELECT c.id_key,c.workspace_snapshot FROM arte_ai_conversation_new c
+        WHERE NOT EXISTS (SELECT 1 FROM arte_ai_conversation_metadata m WHERE m.id_key=c.id_key)
+        <if test="afterKey != null">AND c.id_key &gt; #{afterKey}</if>
+        ORDER BY c.id_key LIMIT #{limit}
+    </select>
+    <select id="findCurrent" resultMap="Row" useCache="false">
+        SELECT
+        <include refid="columns"/>
+        FROM arte_ai_conversation_metadata WHERE id_key=#{idKey} AND owner_key=#{ownerKey} FOR UPDATE
+    </select>
+    <select id="factCurrent" resultType="java.lang.Long" useCache="false">
+        SELECT generated_micros FROM arte_ai_conversation_message_fact WHERE conversation_key=#{conversationKey} AND
+        fact_key=#{factKey} FOR UPDATE
+    </select>
+    <insert id="enqueue">
+        INSERT INTO arte_ai_conversation_projection_job(id_key,turn_sequence,invocation_index,event_sequence,incomplete)
+        VALUES (#{idKey},0,0,0,false)
+    </insert>
+    <resultMap id="Job" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$Job">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+            <arg column="turn_sequence" javaType="_long"/>
+            <arg column="invocation_index" javaType="_int"/>
+            <arg column="event_sequence" javaType="_long"/>
+            <arg column="incomplete" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+    <select id="jobs" resultMap="Job" useCache="false">
+        SELECT id_key,turn_sequence,invocation_index,event_sequence,incomplete FROM arte_ai_conversation_projection_job
+        ORDER BY id_key LIMIT #{limit}
+    </select>
+    <select id="job" resultMap="Job" useCache="false">
+        SELECT id_key,turn_sequence,invocation_index,event_sequence,incomplete FROM arte_ai_conversation_projection_job
+        WHERE id_key=#{idKey} FOR UPDATE
+    </select>
+    <update id="saveJob">
+        UPDATE arte_ai_conversation_projection_job SET
+        turn_sequence=#{j.turnSequence},invocation_index=#{j.invocationIndex},
+        event_sequence=#{j.eventSequence},incomplete=#{j.incomplete} WHERE id_key=#{j.idKey}
+    </update>
+    <delete id="finishJob">DELETE FROM arte_ai_conversation_projection_job WHERE id_key=#{idKey}</delete>
+    <select id="userFacts" resultType="java.lang.Long" useCache="false">
+        SELECT COUNT(*) FROM arte_ai_conversation_message_fact WHERE conversation_key=#{idKey} AND message_role='USER'
+    </select>
+    <select id="lastFact" resultType="java.lang.Long" useCache="false">
+        SELECT MAX(generated_micros) FROM arte_ai_conversation_message_fact WHERE conversation_key=#{idKey}
+    </select>
+    <update id="savePreviewSequence">
+        UPDATE arte_ai_conversation_metadata SET preview_sequence=#{sequence} WHERE id_key=#{idKey}
+    </update>
+    <update id="backfillPreview">
+        UPDATE arte_ai_conversation_metadata SET preview_text=#{preview},preview_sequence=#{sequence}
+        WHERE id_key=#{idKey} AND preview_sequence &lt; #{sequence}
+    </update>
+</mapper>

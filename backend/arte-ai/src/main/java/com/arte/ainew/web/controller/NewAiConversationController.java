@@ -1,6 +1,7 @@
 package com.arte.ainew.web.controller;
 
 import com.arte.ainew.api.conversation.ConversationService;
+import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.ConversationRequestDiagnostics;
@@ -39,6 +40,55 @@ public class NewAiConversationController {
     public NewAiConversationController(ConversationService conversationService, ConversationHttpContext conversationHttpContext) {
         this.conversationService = conversationService;
         this.conversationHttpContext = conversationHttpContext;
+    }
+
+    @PostMapping("/createDefaultConversation")
+    public Mono<ResultContext<ConversationResponse>> createDefaultConversation(@Valid @RequestBody ConversationRequests.CreateDefault request,
+                                                                               @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        return conversationHttpContext.create(request.scope(), key).flatMap(conversationService::createDefault)
+                .map(value -> ResultContext.success(ConversationResponse.from(value), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getConversationMetadata")
+    public Mono<ResultContext<ConversationList.Item>> getConversationMetadata(@Valid @RequestBody ConversationRequests.Find request, Locale locale) {
+        return conversationHttpContext.read(request.scope(), context -> conversationService.metadata(request.conversationId(), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/listConversationsCursor")
+    public Mono<ResultContext<ConversationList.Page>> listConversationsCursor(@Valid @RequestBody ConversationRequests.CursorQuery request, Locale locale) {
+        return conversationHttpContext.read(request.scope(), context -> conversationService.listCursor(
+                        new ConversationList.Query(request.pinned(), request.size(), request.cursor(), Boolean.TRUE.equals(request.includeTotal())), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/queryConversationWindow")
+    public Mono<ResultContext<ConversationList.Window>> queryConversationWindow(@Valid @RequestBody ConversationRequests.WindowQuery request, Locale locale) {
+        return conversationHttpContext.read(request.scope(), context -> conversationService.listWindow(
+                        new ConversationList.WindowQuery(request.normalSize(), request.anchorConversationId()), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/renameConversation")
+    public Mono<ResultContext<ConversationList.Receipt>> renameConversation(@Valid @RequestBody ConversationRequests.Rename request,
+                                                                            @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        return conversationHttpContext.create(request.scope(), key).flatMap(context -> conversationService.changeMetadata(
+                        new ConversationList.Command(request.conversationId(), request.expectedMetadataVersion(), request.title(), null, key), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/setConversationPinned")
+    public Mono<ResultContext<ConversationList.Receipt>> setConversationPinned(@Valid @RequestBody ConversationRequests.SetPinned request,
+                                                                               @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        return conversationHttpContext.create(request.scope(), key).flatMap(context -> conversationService.changeMetadata(
+                        new ConversationList.Command(request.conversationId(), request.expectedMetadataVersion(), null, request.pinned(), key), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getMetadataCommandReceipt")
+    public Mono<ResultContext<ConversationList.CommandResult>> getMetadataCommandReceipt(@Valid @RequestBody ConversationRequests.ReceiptQuery request, Locale locale) {
+        return conversationHttpContext.read(request.scope(), context -> conversationService.metadataReceipt(request.commandId(), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/createConversation")
