@@ -27,11 +27,25 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
                               Persistence persistence, Limits limits, List<Grant> grants,
                               List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                               List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets,
-                              String configurationMode) {
+                              String configurationMode, ConversationMetadataBackfill conversationMetadataBackfill) {
     public NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef, Persistence persistence, Limits limits,
                            List<Grant> grants, List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                            List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets) {
         this(enabled, dataSourceBean, releaseRef, persistence, limits, grants, capabilities, bindings, connections, rates, budgets, "FIXED");
+    }
+
+    public NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef, Persistence persistence, Limits limits,
+                           List<Grant> grants, List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
+                           List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets,
+                           String configurationMode) {
+        this(enabled, dataSourceBean, releaseRef, persistence, limits, grants, capabilities, bindings, connections, rates, budgets,
+                configurationMode, null);
+    }
+
+    /**
+     * 会话目录历史数据回填开关；默认关闭，仅在显式完成表结构迁移后由运维开启。
+     */
+    public record ConversationMetadataBackfill(boolean enabled) {
     }
 
     public record Persistence(int threads, int queuedTasks) {
@@ -100,6 +114,7 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
     @ConstructorBinding
     public NewAiProperties {
         configurationMode = configurationMode == null ? "FIXED" : configurationMode;
+        conversationMetadataBackfill = conversationMetadataBackfill == null ? new ConversationMetadataBackfill(false) : conversationMetadataBackfill;
         ContractChecks.require(Set.of("FIXED", "DATABASE").contains(configurationMode), "Unknown AI configuration mode");
         dataSourceBean = dataSourceBean == null ? "appDataSource" : ContractChecks.id(dataSourceBean, "dataSourceBean");
         persistence = persistence == null ? new Persistence(4, 256) : persistence;

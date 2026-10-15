@@ -324,6 +324,7 @@ public class MybatisExecutionPersistenceTest {
             jdbc.execute("DROP TABLE " + table);
         new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-conversation-metadata-migration.sql")).execute(dataSource);
         assertEquals(before, second.findConversation(OWNER, "pruned").block());
+        assertTrue(second.conversationWindow(OWNER, new ConversationList.WindowQuery(20, null)).block().normal().records().isEmpty());
         var progress = first.backfillConversationMetadata(1).block();
         for (int i = 0; i < 10 && progress.hasMore(); i++) progress = second.backfillConversationMetadata(1).block();
         assertFalse(progress.hasMore());
@@ -332,6 +333,9 @@ public class MybatisExecutionPersistenceTest {
         assertNull(result.lastMessageGeneratedAt());
         assertFalse(result.statisticsReady());
         assertEquals("只有真实问题时间", result.previewText());
+        var window = second.conversationWindow(OWNER, new ConversationList.WindowQuery(20, null)).block();
+        assertEquals(List.of("pruned"), window.normal().records().stream().map(ConversationList.Item::conversationId).toList());
+        assertEquals(before, second.findConversation(OWNER, "pruned").block());
     }
 
     @Test

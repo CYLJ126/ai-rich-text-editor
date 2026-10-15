@@ -111,4 +111,28 @@ public class ProfileConfigurationTest {
         assertTrue("Legacy key must stay a runtime environment reference", text.contains("${ARTE_DEEPSEEK_API_KEY}"));
         assertFalse("Credential values must not enter application resource", Pattern.compile("sk-[a-zA-Z0-9]{20,}").matcher(text).find());
     }
+
+    @Test
+    public void metadataBackfillSwitchReachesRuntimeWithSafeDefaultAndLocalOverride() throws Exception {
+        String key = "arte.ai-new.conversation-metadata-backfill.enabled";
+        var template = Files.readString(Path.of("src/main/resources/" + RESOURCE));
+        assertTrue("The documented app.properties switch must reach Spring", template.contains(key + "=@" + key + "@"));
+        var defaults = new Properties();
+        try (var reader = Files.newBufferedReader(Path.of("../profile/common.properties"), StandardCharsets.UTF_8)) {
+            defaults.load(reader);
+        }
+        assertEquals("false", defaults.getProperty(key));
+        var example = new Properties();
+        try (var reader = Files.newBufferedReader(Path.of("../profile/app.properties.example"), StandardCharsets.UTF_8)) {
+            example.load(reader);
+        }
+        assertEquals("false", example.getProperty(key));
+        var source = new Properties();
+        source.load(new java.io.StringReader(new ClassPathResource(RESOURCE).getContentAsString(StandardCharsets.UTF_8)));
+        var configured = new Properties(defaults);
+        try (var reader = Files.newBufferedReader(Path.of("../profile/app.properties"), StandardCharsets.UTF_8)) {
+            configured.load(reader);
+        }
+        assertEquals(configured.getProperty(key), source.getProperty(key));
+    }
 }
