@@ -1,5 +1,5 @@
 import React, {memo, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {Alert, Avatar, Button, Dropdown, Empty, Input} from 'antd';
+import {Alert, Avatar, Button, Dropdown, Empty, Flex, Input, Spin, Typography} from 'antd';
 import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
 import type {ConversationListItem} from '@/services/arte-ai';
 import type {ConversationDirectory, DirectoryAnchor, TitleEditor} from './useConversationDirectory';
@@ -44,12 +44,13 @@ const DirectoryRow = memo(function DirectoryRow({
     if (editor && editor.status !== 'saving') input.current?.focus({preventScroll: true});
   }, [!!editor, editor?.status, editor?.error]);
 
-  return <li className={`ainew-directory-row${selected ? ' is-selected' : ''}`}
-             data-conversation-id={item.conversationId} data-normal-id={item.pinned ? undefined : item.conversationId}
-             aria-current={selected ? 'true' : undefined}
-             onClick={() => actions.current.open(item.conversationId)}>
+  return <Flex component="li" align="flex-start" gap={8}
+               className={`ainew-directory-row${selected ? ' is-selected' : ''}`}
+               data-conversation-id={item.conversationId} data-normal-id={item.pinned ? undefined : item.conversationId}
+               aria-current={selected ? 'true' : undefined}
+               onClick={() => actions.current.open(item.conversationId)}>
     {/* 会话图标 */}
-    <button type="button" className="ainew-directory-icon" aria-label={`打开会话：${item.title}`}
+    <Button type="text" shape="circle" className="ainew-directory-icon" aria-label={`打开会话：${item.title}`}
             onClick={event => {
               event.stopPropagation();
               actions.current.open(item.conversationId);
@@ -62,7 +63,7 @@ const DirectoryRow = memo(function DirectoryRow({
           fontSize: 16,
         }}
       />
-    </button>
+    </Button>
     {/* 会话标题 */}
     <div className="ainew-directory-text">
       {editor ? <div className="ainew-directory-edit" onClick={event => event.stopPropagation()}>
@@ -88,25 +89,29 @@ const DirectoryRow = memo(function DirectoryRow({
                    actions.current.save(true);
                  }
                }} onBlur={() => actions.current.save(false)}/>
-        {editor.error && <div className="ainew-directory-edit-error" role="alert">{editor.error}
-          {editor.ready && <div>当前名称：{editor.target.title}</div>}</div>}
-        {editor.status === 'saving' ? <span role="status">正在保存…</span> : editor.status !== 'uncertain' &&
-          <div className="ainew-directory-edit-actions">
+        {editor.error && <Flex vertical className="ainew-directory-edit-error" role="alert">
+          <Typography.Text type="danger">{editor.error}</Typography.Text>
+          {editor.ready && <Typography.Text type="danger">当前名称：{editor.target.title}</Typography.Text>}
+        </Flex>}
+        {editor.status === 'saving' ? <Flex align="center" gap={6} role="status">
+          <Spin size="small"/><Typography.Text>正在保存…</Typography.Text>
+        </Flex> : editor.status !== 'uncertain' &&
+          <Flex gap={6} className="ainew-directory-edit-actions">
             <Button size="small" onMouseDown={event => event.preventDefault()}
                     onClick={() => actions.current.save(true)}>
               {editor.status === 'error' ? '重新保存' : '保存'}</Button>
             <Button size="small" onMouseDown={event => event.preventDefault()}
                     onClick={() => actions.current.cancel()}>取消</Button>
-          </div>}
-      </div> : <button type="button" className="ainew-directory-title" disabled={!writable}
+          </Flex>}
+      </div> : <Button type="text" block autoInsertSpace={false} className="ainew-directory-title" disabled={!writable}
                        aria-label={`修改会话名称：${item.title}`} title={item.title}
                        onClick={event => {
                          event.stopPropagation();
                          actions.current.edit(item.conversationId);
-                       }}>{item.title}</button>}
+                       }}>{item.title}</Button>}
       {/* 会话摘要（一般截取最后一条用户消息适当字数） */}
-      <p
-        className="ainew-directory-preview">{item.previewText || (item.userMessageCount === 0 ? '暂无消息……' : '—')}</p>
+      <Typography.Paragraph ellipsis={{rows: 1}}
+                            className="ainew-directory-preview">{item.previewText || (item.userMessageCount === 0 ? '暂无消息……' : '—')}</Typography.Paragraph>
     </div>
     <div className="ainew-directory-facts">
       <div className={`ainew-directory-date${menuOpen ? ' is-open' : ''}`} onClick={event => event.stopPropagation()}>
@@ -137,7 +142,7 @@ const DirectoryRow = memo(function DirectoryRow({
       {/* 会话轮数 */}
       <span>{item.userMessageCount == null ? '—' : `${item.userMessageCount}轮`}</span>
     </div>
-  </li>;
+  </Flex>;
 });
 
 export default function ConversationDirectoryList({directory, writable, readBlocked, onOpen, onCreate, header}: {
@@ -216,24 +221,28 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                                                                   pinFull={directory.pinned.length >= 7}
                                                                   menuOpen={menu === item.conversationId}
                                                                   onMenu={onMenu}/>;
-  return <aside className="ainew-sidebar ainew-directory" aria-label="会话列表">
+  return <Flex component="aside" vertical gap={12} className="ainew-sidebar ainew-directory" aria-label="会话列表">
+    {/* 新建会话 */}
     {header ?? <Button block type="primary" disabled={readBlocked || !writable || directory.creating}
                        loading={directory.creating}
                        onClick={onCreate}>{directory.hasPendingCreate ? '确认原创建操作' : '新建会话'}</Button>}
-
+    {/* 搜索框 */}
     <Input aria-label="搜索会话" placeholder="搜索（暂未开放）" value={search} disabled={readBlocked}
            allowClear prefix={<DynamicIcon iconName="SearchOutlined"/>}
            onChange={event => setSearch(event.target.value)}/>
 
-    {directory.createError != null && <Alert type="error" title="创建结果未确认或被拒绝，请确认原创建操作。"/>}
-    {directory.pendingCommand && <Alert type="warning"
-                                        title={directory.pendingCommand.request.kind === 'rename' ? '名称保存结果待确认' : '置顶结果待确认'}
-                                        action={<Button size="small" loading={directory.commandBusy}
-                                                        onClick={() => void directory.confirmCommand()}>确认原操作</Button>}/>}
+    {directory.createError != null
+      && <Alert type="error" title="创建结果未确认或被拒绝，请确认原创建操作。"/>}
+    {directory.pendingCommand
+      && <Alert type="warning"
+                title={directory.pendingCommand.request.kind === 'rename' ? '名称保存结果待确认' : '置顶结果待确认'}
+                action={<Button size="small" loading={directory.commandBusy}
+                                onClick={() => void directory.confirmCommand()}>确认原操作</Button>}/>}
     {directory.commandError && !directory.editor && <Alert type="error" title={directory.commandError}/>}
+    {/* 会话名称 */}
     {directory.editor && !directory.records.some(item => item.conversationId === directory.editor?.target.conversationId) &&
-      <section aria-label="恢复名称编辑" onClick={event => event.stopPropagation()}>
-        <p>恢复的名称草稿</p>
+      <Flex component="section" vertical gap={8} aria-label="恢复名称编辑" onClick={event => event.stopPropagation()}>
+        <Typography.Text>恢复的名称草稿</Typography.Text>
         <Input aria-label={`会话名称：${directory.editor.target.conversationId}`} value={directory.editor.draft}
                maxLength={256}
                readOnly={directory.editor.status === 'uncertain' || directory.editor.status === 'saving'}
@@ -249,48 +258,54 @@ export default function ConversationDirectoryList({directory, writable, readBloc
             void directory.finishEdit(true);
           }
         }}/>
-        {directory.editor.error && <p role="alert">{directory.editor.error}</p>}
-        {!directory.pendingCommand && <><Button loading={directory.commandBusy}
-                                                onMouseDown={event => event.preventDefault()}
-                                                onClick={() => void directory.finishEdit(true)}>保存草稿</Button>
-          <Button onMouseDown={event => event.preventDefault()} onClick={directory.cancelEdit}>取消编辑</Button></>}
-      </section>}
+        {directory.editor.error && <Alert type="error" title={directory.editor.error}/>}
+        {!directory.pendingCommand
+          && <Flex gap={6} wrap>
+            <Button loading={directory.commandBusy}
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => void directory.finishEdit(true)}>保存草稿</Button>
+            <Button onMouseDown={event => event.preventDefault()}
+                    onClick={directory.cancelEdit}>取消编辑</Button>
+          </Flex>}
+      </Flex>}
 
     {!readBlocked && directory.listError != null
       && <Alert type="error" title="会话列表暂时加载失败" description="已有会话仍然保留，请重试读取。"
                 action={<Button onClick={() => void directory.refreshFirst()}>重试加载</Button>}/>}
 
-    {readBlocked && <p className="ainew-muted" role="status">当前账号暂时无法读取此空间的会话列表。</p>}
-    {/* biome-ignore lint/a11y/noNoninteractiveTabindex: 命名滚动区域需支持键盘方向键及 Home/End。 */}
-    <section ref={scroller} className="ainew-directory-scroll" aria-label="会话滚动列表" tabIndex={0}
-             onWheel={event => {
-               intent.current = true;
-               programmatic.current = false;
-               if (event.deltaY < 0 && event.currentTarget.scrollTop <= 1 && directory.headEvicted) {
-                 intent.current = false;
-                 void directory.refreshFirst();
-               }
-             }}
-             onTouchMove={() => {
-               intent.current = true;
-               programmatic.current = false;
-             }}
-             onPointerDown={event => {
-               if (event.target === event.currentTarget) {
-                 intent.current = true;
-                 programmatic.current = false;
-               }
-             }}
-             onKeyDown={event => {
-               if (event.target === event.currentTarget && ['Home', 'PageUp', 'ArrowUp', 'PageDown', 'ArrowDown', 'End'].includes(event.key)) {
-                 intent.current = true;
-                 programmatic.current = false;
-                 if (event.key === 'Home' && directory.headEvicted && event.currentTarget.scrollTop === 0) {
-                   event.preventDefault();
-                   void directory.refreshFirst();
-                 }
-               }
-             }} onScroll={event => {
+    {readBlocked && <Typography.Text type="secondary" className="ainew-muted"
+                                     role="status">当前账号暂时无法读取此空间的会话列表。</Typography.Text>}
+    {/* 保留 section 语义和真实滚动节点，支持键盘方向键及 Home/End。 */}
+    <Flex component="section" vertical gap={0} ref={scroller} className="ainew-directory-scroll"
+          aria-label="会话滚动列表" tabIndex={0}
+          onWheel={event => {
+            intent.current = true;
+            programmatic.current = false;
+            if (event.deltaY < 0 && event.currentTarget.scrollTop <= 1 && directory.headEvicted) {
+              intent.current = false;
+              void directory.refreshFirst();
+            }
+          }}
+          onTouchMove={() => {
+            intent.current = true;
+            programmatic.current = false;
+          }}
+          onPointerDown={event => {
+            if (event.target === event.currentTarget) {
+              intent.current = true;
+              programmatic.current = false;
+            }
+          }}
+          onKeyDown={event => {
+            if (event.target === event.currentTarget && ['Home', 'PageUp', 'ArrowUp', 'PageDown', 'ArrowDown', 'End'].includes(event.key)) {
+              intent.current = true;
+              programmatic.current = false;
+              if (event.key === 'Home' && directory.headEvicted && event.currentTarget.scrollTop === 0) {
+                event.preventDefault();
+                void directory.refreshFirst();
+              }
+            }
+          }} onScroll={event => {
       setMenu(null);
       const root = event.currentTarget, top = root.scrollTop;
       if (root.clientHeight <= 0 || root.closest('[hidden]') || programmatic.current) return;
@@ -300,21 +315,29 @@ export default function ConversationDirectoryList({directory, writable, readBloc
       } else if (root.scrollHeight - root.clientHeight - top < 100 && !directory.listLoading && !directory.listError) void directory.loadMore();
       previousTop.current = top;
     }}>
-      <ul className="ainew-directory-rows" aria-label="置顶会话">{directory.pinned.map(renderRow)}</ul>
-      <ul className="ainew-directory-rows" aria-label="普通会话">{directory.normal.map(renderRow)}</ul>
+      <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
+            aria-label="置顶会话">{directory.pinned.map(renderRow)}</Flex>
+      <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
+            aria-label="普通会话">{directory.normal.map(renderRow)}</Flex>
       {!readBlocked && !directory.listLoading && !directory.listError && directory.records.length === 0 &&
         <Empty description="此空间还没有会话。"/>}
-      {directory.listLoading && <p role="status" className="ainew-directory-status">正在读取会话列表…</p>}
-      {directory.loadingMore && <p role="status" className="ainew-directory-status">正在加载下一页…</p>}
-      {directory.paused && <p role="status" className="ainew-directory-status">请先完成当前名称编辑，再加载后续会话。</p>}
-      {directory.moreError && <div className="ainew-directory-status" role="alert">{directory.moreError}
-        <Button size="small" onClick={() => void directory.loadMore(true)}>重试下一页</Button></div>}
+      {(directory.listLoading || directory.loadingMore)
+        && <Flex align="center" justify="center" gap={8} role="status" className="ainew-directory-status">
+          <Spin size="small"/>
+          <Typography.Text>{directory.listLoading ? '正在读取会话列表…' : '正在加载下一页…'}</Typography.Text>
+        </Flex>}
+      {directory.paused && <Typography.Paragraph role="status"
+                                                 className="ainew-directory-status">请先完成当前名称编辑，再加载后续会话。 </Typography.Paragraph>}
+      {directory.moreError && <Alert type="error" className="ainew-directory-more-error" title={directory.moreError}
+                                     action={<Button size="small"
+                                                     onClick={() => void directory.loadMore(true)}>重试下一页</Button>}/>}
       {!readBlocked && !directory.listLoading && !directory.listError && !directory.hasMore && directory.records.length > 0 &&
-        <p className="ainew-directory-status">— 已加载全部 —</p>}
-      {directory.headEvicted && <p className="ainew-directory-status ainew-muted">前部会话可返回顶部重新读取。</p>}
-    </section>
+        <Typography.Paragraph className="ainew-directory-status">— 已加载全部 —</Typography.Paragraph>}
+      {directory.headEvicted && <Typography.Paragraph type="secondary"
+                                                      className="ainew-directory-status ainew-muted">前部会话可返回顶部重新读取。</Typography.Paragraph>}
+    </Flex>
     <Button className="ainew-directory-backtop" shape="circle" aria-label="返回会话顶部" loading={directory.listLoading}
             icon={<DynamicIcon iconName="VerticalAlignTopOutlined" size={20}/>}
             onClick={() => void directory.refreshFirst()}/>
-  </aside>;
+  </Flex>;
 }
