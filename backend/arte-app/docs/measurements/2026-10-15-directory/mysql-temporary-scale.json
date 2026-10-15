@@ -1,0 +1,168 @@
+{
+  "temporaryTableOnly": true,
+  "loopbackMySqlOnly": true,
+  "httpOrAuthorizationMeasured": false,
+  "messageBodiesCreated": false,
+  "cases": [
+    {
+      "rows": 1000,
+      "pins": 0,
+      "projectedUserMessagesPerConversation": 0,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 1.554,
+        "p95Ms": 1.803,
+        "maxMs": 2.208
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.466,
+        "p95Ms": 0.555,
+        "maxMs": 0.558
+      }
+    },
+    {
+      "rows": 1000,
+      "pins": 0,
+      "projectedUserMessagesPerConversation": 10000,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 1.370,
+        "p95Ms": 1.664,
+        "maxMs": 1.707
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.401,
+        "p95Ms": 0.516,
+        "maxMs": 0.517
+      }
+    },
+    {
+      "rows": 1000,
+      "pins": 7,
+      "projectedUserMessagesPerConversation": 0,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 1.347,
+        "p95Ms": 1.546,
+        "maxMs": 1.693
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.575,
+        "p95Ms": 2.170,
+        "maxMs": 5.003
+      }
+    },
+    {
+      "rows": 1000,
+      "pins": 7,
+      "projectedUserMessagesPerConversation": 10000,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 1.288,
+        "p95Ms": 1.987,
+        "maxMs": 3.843
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.337,
+        "p95Ms": 1.587,
+        "maxMs": 1.713
+      }
+    },
+    {
+      "rows": 10000,
+      "pins": 0,
+      "projectedUserMessagesPerConversation": 0,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 5.596,
+        "p95Ms": 13.226,
+        "maxMs": 15.578
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 1.101,
+        "p95Ms": 3.219,
+        "maxMs": 3.553
+      }
+    },
+    {
+      "rows": 10000,
+      "pins": 0,
+      "projectedUserMessagesPerConversation": 10000,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 2.808,
+        "p95Ms": 3.013,
+        "maxMs": 3.197
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.337,
+        "p95Ms": 0.399,
+        "maxMs": 0.419
+      }
+    },
+    {
+      "rows": 10000,
+      "pins": 7,
+      "projectedUserMessagesPerConversation": 0,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 2.752,
+        "p95Ms": 3.840,
+        "maxMs": 3.916
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.321,
+        "p95Ms": 0.391,
+        "maxMs": 0.398
+      }
+    },
+    {
+      "rows": 10000,
+      "pins": 7,
+      "projectedUserMessagesPerConversation": 10000,
+      "firstWindowSqlStatements": 4,
+      "continuationSqlStatements": 1,
+      "index": "idx_ai_conversation_list",
+      "firstWindow": {
+        "samples": 30,
+        "p50Ms": 2.728,
+        "p95Ms": 2.982,
+        "maxMs": 3.237
+      },
+      "continuation": {
+        "samples": 30,
+        "p50Ms": 0.315,
+        "p95Ms": 0.375,
+        "maxMs": 0.381
+      }
+    }
+  ]
+}

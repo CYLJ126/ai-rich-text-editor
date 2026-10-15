@@ -1,0 +1,94 @@
+{
+  "source": "application observation log during read-only HTTP baseline",
+  "containsCredentials": false,
+  "groups": {
+    "firstWindow": {
+      "sequential": {
+        "samples": 30,
+        "sqlCountMin": 16,
+        "sqlCountMax": 16,
+        "mvcTotalMs": {
+          "p50": 1099.528,
+          "p95": 1540.284
+        },
+        "sqlExecuteMs": {
+          "p50": 572.222,
+          "p95": 626.131
+        },
+        "initialAuthorizationMs": {
+          "p50": 654.839,
+          "p95": 840.559
+        },
+        "connectionAcquireMs": {
+          "p50": 0.012,
+          "p95": 0.039
+        }
+      },
+      "concurrent8": {
+        "samples": 30,
+        "sqlCountMin": 16,
+        "sqlCountMax": 16,
+        "mvcTotalMs": {
+          "p50": 2145.593,
+          "p95": 3317.429
+        },
+        "sqlExecuteMs": {
+          "p50": 562.725,
+          "p95": 664.434
+        },
+        "initialAuthorizationMs": {
+          "p50": 1171.937,
+          "p95": 1932.139
+        },
+        "connectionAcquireMs": {
+          "p50": 0.011,
+          "p95": 38.674
+        }
+      }
+    },
+    "continuation": {
+      "sequential": {
+        "samples": 30,
+        "sqlCountMin": 13,
+        "sqlCountMax": 13,
+        "mvcTotalMs": {
+          "p50": 1125.611,
+          "p95": 1200.355
+        },
+        "sqlExecuteMs": {
+          "p50": 534.812,
+          "p95": 545.865
+        },
+        "initialAuthorizationMs": {
+          "p50": 747.243,
+          "p95": 772.619
+        },
+        "connectionAcquireMs": {
+          "p50": 0.011,
+          "p95": 0.021
+        }
+      },
+      "concurrent8": {
+        "samples": 30,
+        "sqlCountMin": 13,
+        "sqlCountMax": 13,
+        "mvcTotalMs": {
+          "p50": 2023.369,
+          "p95": 3132.945
+        },
+        "sqlExecuteMs": {
+          "p50": 498.826,
+          "p95": 527.441
+        },
+        "initialAuthorizationMs": {
+          "p50": 966.187,
+          "p95": 1652.173
+        },
+        "connectionAcquireMs": {
+          "p50": 0.01,
+          "p95": 0.023
+        }
+      }
+    }
+  }
+}

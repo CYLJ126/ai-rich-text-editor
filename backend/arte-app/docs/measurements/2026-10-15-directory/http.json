@@ -1,0 +1,45 @@
+{
+  "readOnly": true,
+  "includesProxyAndHttp": true,
+  "modelCalls": 0,
+  "firstPinnedRows": 1,
+  "firstNormalRows": 3,
+  "normalTotal": 3,
+  "realContinuationAvailable": true,
+  "cases": {
+    "firstWindow": {
+      "sequential": {
+        "samples": 30,
+        "p50Ms": 1111.743,
+        "p95Ms": 1562.185,
+        "maxMs": 1610.248,
+        "maxResponseBytes": 2635
+      },
+      "concurrent": {
+        "concurrency": 8,
+        "samples": 30,
+        "p50Ms": 2149.404,
+        "p95Ms": 3323.6,
+        "maxMs": 3504.285,
+        "maxResponseBytes": 2635
+      }
+    },
+    "continuation": {
+      "sequential": {
+        "samples": 30,
+        "p50Ms": 1136.39,
+        "p95Ms": 1226.175,
+        "maxMs": 1259.49,
+        "maxResponseBytes": 1246
+      },
+      "concurrent": {
+        "concurrency": 8,
+        "samples": 30,
+        "p50Ms": 2026.982,
+        "p95Ms": 3138.463,
+        "maxMs": 3415.184,
+        "maxResponseBytes": 1246
+      }
+    }
+  }
+}

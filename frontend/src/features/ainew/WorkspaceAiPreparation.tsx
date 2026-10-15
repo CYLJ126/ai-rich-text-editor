@@ -13,7 +13,8 @@ export default function WorkspaceAiPreparation({
                                                  legacy,
                                                  children,
                                                  refreshRevision = 0,
-                                                 onUnsafeChange
+                                                 onUnsafeChange,
+                                                 fallback
                                                }: {
   scope: WorkspaceScope;
   context: BrowserContext;
@@ -21,6 +22,7 @@ export default function WorkspaceAiPreparation({
   children: React.ReactNode;
   refreshRevision?: number;
   onUnsafeChange?: (unsafe: boolean) => void;
+  fallback?: React.ReactNode;
 }) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'import' | 'error'>(legacy ? 'ready' : 'loading');
@@ -49,9 +51,10 @@ export default function WorkspaceAiPreparation({
     return () => controller.abort();
   }, [scope, legacy, revision, refreshRevision]);
   if (state === 'ready') return <>{children}</>;
-  if (state === 'loading') return <p role="status">正在准备空间 AI 配置…</p>;
-  if (state === 'import') return <WorkspaceAiSettings scope={scope} context={context} onUnsafeChange={onUnsafeChange}
-                                                      onUpdated={() => setRevision(value => value + 1)}/>;
-  return <Alert type="info" title={error}
-                action={<Button onClick={() => setRevision(value => value + 1)}>重新检查</Button>}/>;
+  const status = state === 'loading' ? <p role="status">正在准备空间 AI 配置…</p>
+    : state === 'import' ? <WorkspaceAiSettings scope={scope} context={context} onUnsafeChange={onUnsafeChange}
+                                                onUpdated={() => setRevision(value => value + 1)}/>
+      : <Alert type="info" title={error}
+               action={<Button onClick={() => setRevision(value => value + 1)}>重新检查</Button>}/>;
+  return <div className="ainew-bootstrap">{status}{fallback}</div>;
 }

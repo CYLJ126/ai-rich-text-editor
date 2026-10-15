@@ -245,3 +245,18 @@ it('uses blur submission for a recovered draft outside the current window', asyn
   expect(screen.getAllByRole('listitem')).toHaveLength(20);
   expect(api.queryConversationWindow).toHaveBeenCalledTimes(1);
 });
+
+
+it('does not page a hidden Splitter region when collapse resets its scroll position', async () => {
+  await load();
+  const root = screen.getByLabelText('会话滚动列表');
+  Object.defineProperty(root, 'clientHeight', {configurable: true, value: 180});
+  Object.defineProperty(root, 'scrollHeight', {configurable: true, value: 180});
+  root.hidden = true;
+  fireEvent.scroll(root);
+  expect(api.listConversationsCursor).not.toHaveBeenCalled();
+  root.hidden = false;
+  Object.defineProperty(root, 'clientHeight', {configurable: true, value: 0});
+  fireEvent.scroll(root);
+  expect(api.listConversationsCursor).not.toHaveBeenCalled();
+});

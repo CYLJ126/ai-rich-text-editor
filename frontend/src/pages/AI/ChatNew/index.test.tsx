@@ -23,6 +23,10 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
   })
 }));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button type="button">公共空间选择器</button>}));
+vi.mock('@/features/workspace/WorkspaceQuickSelect', () => ({
+  default: ({onManage}: { onManage: () => void }) =>
+    <button type="button" onClick={onManage}>空间快捷选择</button>
+}));
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
   discoverChatOptions: vi.fn(),
@@ -115,7 +119,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function chooseConversation() {
-  if (!screen.queryByRole('button', {name: '打开会话：我的会话'})) fireEvent.click(await screen.findByRole('button', {name: '会话列表'}));
+  await waitFor(() => expect(screen.queryByRole('button', {name: '收起会话列表'})
+    ?? screen.queryByRole('button', {name: '展开会话列表'})).not.toBeNull());
+  const expandList = screen.queryByRole('button', {name: '展开会话列表'});
+  if (expandList) fireEvent.click(expandList);
   fireEvent.click(await screen.findByRole('button', {name: '打开会话：我的会话'}));
   await screen.findByLabelText('输入问题');
 }
@@ -230,4 +237,27 @@ it('distinguishes an authorized empty space from denied access', async () => {
   expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();
   expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
   expect(screen.queryByText('会话列表暂时加载失败')).not.toBeInTheDocument();
+});
+
+it('keeps the chat draft and single configuration form when collapsing regions and changing right-side tabs', async () => {
+  render(<ChatNewPage/>);
+  await chooseConversation();
+  const composer = screen.getByLabelText('输入问题');
+  fireEvent.change(composer, {target: {value: '切换布局后保留'}});
+  const reads = vi.mocked(api.queryConversationWindow).mock.calls.length;
+  fireEvent.click(screen.getByRole('button', {name: '收起会话列表'}));
+  fireEvent.click(screen.getByRole('button', {name: '展开会话列表'}));
+  fireEvent.click(screen.getByRole('button', {name: '空间快捷选择'}));
+  await screen.findByRole('tab', {name: '工作空间', selected: true});
+  expect(screen.getByRole('button', {name: '公共空间选择器'})).toBeVisible();
+  fireEvent.click(screen.getByRole('tab', {name: '会话设置'}));
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
+  fireEvent.click(screen.getByRole('button', {name: '收起设置侧栏'}));
+  fireEvent.click(screen.getByRole('button', {name: '展开设置侧栏'}));
+  expect(screen.getByLabelText('输入问题')).toBe(composer);
+  expect(composer).toHaveValue('切换布局后保留');
+  expect(document.querySelectorAll('form#ai-new-chat-config')).toHaveLength(1);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.querySelector('.ant-drawer-open')).toBeNull();
+  expect(api.queryConversationWindow).toHaveBeenCalledTimes(reads);
 });

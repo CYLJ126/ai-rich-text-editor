@@ -1,13 +1,14 @@
 import {useConfigurationDiscovery} from '@/features/ainew/useConfigurationSelection';
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
-import {Alert, Button, Drawer, Empty, Input, Modal, Result, Splitter, Tabs, Tag} from 'antd';
+import {Alert, Button, Drawer, Empty, Input, Modal, Result, Tabs, Tag} from 'antd';
 import {LockOutlined} from '@ant-design/icons';
 import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
 import type {AiScope, ChatModelOption} from '@/services/arte-ai';
 import {AiApiError} from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
 import WorkspaceAiSettings from '@/features/ainew/WorkspaceAiSettings';
 import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/useWorkspace';
@@ -17,6 +18,10 @@ import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/Bus
 import {chatConfigSchema, chatScopeSchema, type ChatTestConfig, modelOptionKey} from '@/features/ainew/config';
 import {useConversationDirectory} from '@/features/ainew/useConversationDirectory';
 import ConversationDirectoryList from '@/features/ainew/ConversationDirectoryList';
+import ConversationDirectoryHeader from '@/features/ainew/ConversationDirectoryHeader';
+import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
+import {useChatLayout} from '@/features/ainew/useChatLayout';
+import {useComponentHeight} from '@/utils/useDynamicHeight';
 import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
 import {type ConfigurationRejected} from '@/features/ainew/configurationInvalidation';
 import {
@@ -25,15 +30,28 @@ import {
   readValue,
   removeValue,
   sameScope,
-  STORAGE_WARNING,
   storageKey,
   writeValue
 } from '@/features/ainew/storage';
 import './style.css';
 
-function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWorkspace}: {
+function WorkspaceChat({
+                         userId,
+                         workspace,
+                         t,
+                         translate,
+                         protectRef,
+                         onChooseWorkspace,
+                         workspaceManager,
+                         workspaceRevision,
+                         onConnect,
+                         onPlatformConfig
+                       }: {
   userId: string;
+  workspaceManager: React.ReactNode;
+  workspaceRevision: number;
   onChooseWorkspace: () => void;
+  onConnect: () => void; onPlatformConfig: () => void;
   workspace: Pick<WorkspaceView, 'scope' | 'name'> & { state: WorkspaceView['state'] | null };
   t: (key: string) => string;
   translate: (id: string) => string;
@@ -75,9 +93,14 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     setInvalidation(0);
     setExternalModel(undefined);
   }, [selectedId]);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [tab, setTab] = useState('settings');
-  const [listOpen, setListOpen] = useState(false);
+  const layout = useChatLayout();
+  const [tab, setTab] = useState('models');
+  useEffect(() => {
+    if (workspaceRevision > 0) {
+      setTab('workspace');
+      layout.open('settings');
+    }
+  }, [workspaceRevision, layout.open]);
   const [accessHelpOpen, setAccessHelpOpen] = useState(false);
   const [discoveryRefresh, setDiscoveryRefresh] = useState({id: '', revision: 0});
   const [interaction, setInteraction] = useState<ChatInteractionState>({pending: false, active: false});
@@ -151,7 +174,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     // A choice requiring a budget stays a draft; all entry points use this same application flow.
     setExternalModel({key, revision: (externalModel?.revision ?? 0) + 1});
     setTab('models');
-    setPanelOpen(true);
+    layout.open('settings');
   }
 
   function cancel() {
@@ -161,30 +184,6 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     afterApply.current = null;
   }
 
-  const [layout] = useState(() => readValue<{
-    left: number;
-    right: number
-  }>(storageKey(context, 'layout'), true).value);
-  const [widths, setWidths] = useState({
-    left: Number.isFinite(layout?.left) ? layout!.left : 260,
-    right: Number.isFinite(layout?.right) ? layout!.right : 320
-  });
-  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1280px)').matches);
-  const [wideList, setWideList] = useState(() => window.matchMedia('(min-width: 768px)').matches);
-  useEffect(() => {
-    const wide = window.matchMedia('(min-width: 1280px)');
-    const medium = window.matchMedia('(min-width: 768px)');
-    const update = () => {
-      setDesktop(wide.matches);
-      setWideList(medium.matches);
-    };
-    wide.addEventListener('change', update);
-    medium.addEventListener('change', update);
-    return () => {
-      wide.removeEventListener('change', update);
-      medium.removeEventListener('change', update);
-    };
-  }, []);
   const listAccessIssue = aiReadAccessIssue(conversations.listError);
   const modelsAccessIssue = aiReadAccessIssue(optionsState?.id === selectedId ? optionsState.error : null);
   const readBlocked = listAccessIssue != null;
@@ -201,17 +200,41 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
       <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
       <Button loading={conversations.listLoading} onClick={recheckAccess}>重新检查</Button>
     </>;
+  const createConversation = () => guard(() => {
+    void conversations.create().then(created => {
+      if (created) layout.open('chat');
+    });
+  });
   const list = <ConversationDirectoryList directory={conversations} readBlocked={readBlocked}
                                           writable={workspace.state === 0 || workspace.state === null}
-                                          onCreate={() => guard(() => {
-                                            void conversations.create();
-                                          })}
+                                          onCreate={createConversation}
+                                          header={<ConversationDirectoryHeader userId={userId} scope={workspace.scope}
+                                                                               name={workspace.name}
+                                                                               writable={!readBlocked && (workspace.state === 0 || workspace.state === null)}
+                                                                               creating={conversations.creating}
+                                                                               pendingCreate={conversations.hasPendingCreate}
+                                                                               onCreate={createConversation}
+                                                                               refreshing={conversations.listLoading}
+                                                                               onRefresh={() => void conversations.refreshFirst()}
+                                                                               onConnect={onConnect}
+                                                                               onPlatformConfig={onPlatformConfig}
+                                                                               onCollapse={() => layout.close('list')}
+                                                                               onManage={() => {
+                                                                                 setTab('workspace');
+                                                                                 layout.open('settings');
+                                                                               }}/>}
                                           onOpen={id => guard(() => {
-                                            void conversations.select(id);
-                                            setListOpen(false);
+                                            void conversations.select(id).then(opened => {
+                                              if (opened) layout.open('chat');
+                                            });
                                           })}/>;
-  const editor = <div className="ainew-settings" aria-label="辅助设置">
-    <Tabs activeKey={tab} onChange={setTab} items={[
+
+  const editor = <aside className="ainew-settings" aria-label="辅助设置">
+    <header className="ainew-settings-header"><strong>设置与管理</strong>
+      <Button type="text" aria-label="收起设置侧栏" icon={<DynamicIcon iconName="MenuFoldOutlined"/>}
+              onClick={() => layout.close('settings')}/></header>
+    <Tabs activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
+      {key: 'workspace', label: '工作空间', forceRender: true, children: workspaceManager},
       {
         key: 'settings',
         label: '会话设置',
@@ -287,22 +310,12 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
       }}
                              t={t} translate={translate}/>
     </div>
-  </div>;
+  </aside>;
   const content = <section className="ainew-main">
-    <header className="ainew-conversation-header"><Button className="ainew-list-toggle"
-                                                          onClick={() => wideList ? setWidths(previous => ({
-                                                            ...previous,
-                                                            left: previous.left ? 0 : layout?.left ?? 260
-                                                          })) : setListOpen(true)}>会话列表</Button>
-      <div><h2>{conversations.selected?.title ?? 'AI 聊天（新版）'}</h2><span className="ainew-muted">通用文本聊天</span>
-      </div>
-      <Button aria-label="刷新会话列表" icon={<DynamicIcon iconName="ReloadOutlined"/>}
-              loading={conversations.listLoading}
-              onClick={() => void conversations.refreshFirst()}>刷新会话列表</Button>
-      <Button onClick={() => {
-        setPanelOpen(value => !value);
-        if (!config) setTab('models');
-      }}>设置</Button></header>
+    <header className="ainew-conversation-header">
+      <div><h2>{conversations.selected?.title ?? 'AI 聊天（新版）'}</h2>
+        <span className="ainew-muted">通用文本聊天</span></div>
+    </header>
     {(warning || conversations.storageWarning || conversations.selectionNotice) &&
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
     {!readBlocked && optionsState?.id === selectedId && !optionsState.loading && !options.length &&
@@ -321,7 +334,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
                : modelsAccessIssue === 'forbidden' ?
                  <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
                  : <Button onClick={() => {
-                   setPanelOpen(true);
+                   layout.open('settings');
                    setTab('models');
                  }}>查看模型设置</Button>}/>}
     {(workspace.state !== 0 && workspace.state !== null) && <Alert type="info" title="当前空间只读，历史仍按授权读取。"/>}
@@ -346,34 +359,14 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
             : <div className="ainew-empty"><Empty description={conversations.total === 0
               ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
           onClick={() => {
-            setPanelOpen(true);
+            layout.open('settings');
             setTab('models');
           }}>查看可用模型</Button></div>}
   </section>;
-  return <>
-    <div className="ainew-layout"><Splitter onResize={sizes => setWidths(previous => ({
-      left: wideList ? sizes[0] : previous.left,
-      right: desktop && panelOpen ? sizes[2] : previous.right
-    }))} onResizeEnd={sizes => {
-      if (!writeValue(storageKey(context, 'layout'), {
-        left: wideList ? sizes[0] : layout?.left ?? 260,
-        right: desktop && panelOpen ? sizes[2] : layout?.right ?? 320
-      }, true)) setWarning(STORAGE_WARNING);
-    }}>
-      <Splitter.Panel defaultSize={layout?.left ?? 260} size={wideList ? widths.left : 0} min={wideList ? 200 : 0}
-                      max="35%" resizable={wideList} collapsible={wideList}>
-        {wideList ? list :
-          <Drawer title="会话列表" open={listOpen} forceRender getContainer={false} onClose={() => setListOpen(false)}
-                  rootStyle={{position: 'fixed'}} styles={{body: {padding: 0}}}>{list}</Drawer>}
-      </Splitter.Panel>
-      <Splitter.Panel min={280}>{content}</Splitter.Panel>
-      <Splitter.Panel defaultSize={layout?.right ?? 320} size={desktop && panelOpen ? widths.right : 0}
-                      min={desktop && panelOpen ? 280 : 0} max="40%" resizable={desktop && panelOpen}>
-        {desktop ? <aside hidden={!panelOpen} style={{height: '100%'}}>{editor}</aside> :
-          <Drawer title="聊天设置" open={panelOpen} forceRender getContainer={false} onClose={() => setPanelOpen(false)}
-                  rootStyle={{position: 'fixed'}} styles={{body: {padding: 0}}}>{editor}</Drawer>}
-      </Splitter.Panel>
-    </Splitter></div>
+  return <div className="ainew-workspace bg-(var(--ant-bg-container))">
+    <ChatWorkspaceLayout layout={layout} list={list} settings={editor}>
+      {content}
+    </ChatWorkspaceLayout>
     <Modal title="如何开通此空间的 AI 功能" open={accessHelpOpen}
            onCancel={() => setAccessHelpOpen(false)}
            footer={<Button onClick={() => setAccessHelpOpen(false)}>知道了</Button>}>
@@ -403,7 +396,7 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
       <Button type="primary" onClick={() => {
         afterApply.current = switchAction;
         setSwitchAction(null);
-        setPanelOpen(true);
+        layout.open('settings');
         setTab('models');
         setApplyRevision(value => value + 1);
       }}>应用并切换</Button>
@@ -413,12 +406,32 @@ function WorkspaceChat({userId, workspace, t, translate, protectRef, onChooseWor
     }}>
       <p>配置草稿需要先应用或放弃。{interaction.pending ? '未确认写操作已按原会话保存，返回后确认原操作。' : ''}切换不会停止后端执行。</p>
     </Modal>
-  </>;
+  </div>;
 }
 
 export default function ChatNewPage() {
   const {initialState} = useModel('@@initialState');
   const userId = String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '');
+  const pageRef = useRef<HTMLElement>(null);
+  const [pageTop, setPageTop] = useState(0);
+  const pageHeight = useComponentHeight(pageTop, 0);
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const measureTop = () => {
+      // 缓存页隐藏时不采用零坐标；全局标签栏变化后重新测量实际占用。
+      if (page.getClientRects().length) setPageTop(Math.max(0, page.getBoundingClientRect().top));
+    };
+    measureTop();
+    const observer = new ResizeObserver(measureTop);
+    observer.observe(page);
+    if (page.parentElement) observer.observe(page.parentElement);
+    window.addEventListener('resize', measureTop);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measureTop);
+    };
+  }, [userId]);
   const intl = useIntl();
   const translate = (id: string) => intl.formatMessage({
     id,
@@ -428,7 +441,7 @@ export default function ChatNewPage() {
   const current = useCurrentWorkspace(userId);
   const protect = useRef<((proceed: () => void) => void) | null>(null);
   const [connectionOpen, setConnectionOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogUnsafe, setCatalogUnsafe] = useState(false);
   const [preparationUnsafe, setPreparationUnsafe] = useState(false);
@@ -474,12 +487,17 @@ export default function ChatNewPage() {
     previousAccount.current = userId;
   }, [userId]);
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
-  return <main className="ainew-page" aria-label="AI 聊天（新版）">
-    <header className="ainew-page-header"><WorkspacePicker key={userId} userId={userId} open={pickerOpen}
-                                                           onOpenChange={setPickerOpen}/><Tag>AI 聊天（新版）</Tag><Button
-      type="text"
-                                                                                               onClick={() => setConnectionOpen(true)}>连接已有
-      AI 工作空间</Button><Button onClick={() => setCatalogOpen(true)}>平台 AI 配置</Button></header>
+  // 空间尚未就绪时列表未挂载，保留同一菜单作为连接固定授权空间的入口。
+  const workspaceFallback = <>
+    <div className="ainew-bootstrap-workspace"><WorkspaceQuickSelect userId={userId} scope={workspace?.scope}
+                                                                     name={workspace?.name}
+                                                                     onManage={() => setWorkspaceRevision(value => value + 1)}
+                                                                     onConnect={() => setConnectionOpen(true)}
+                                                                     onPlatformConfig={() => setCatalogOpen(true)}/>
+    </div>
+    <WorkspacePicker userId={userId} presentation="inline"/>
+  </>;
+  return <main ref={pageRef} className="ainew-page" style={{height: pageHeight}} aria-label="AI 聊天（新版）">
     {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
     <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} width={640}>
       <WorkspaceAiSettings key={userId} scope={catalogContext.scope} context={catalogContext} adminOnly
@@ -492,12 +510,16 @@ export default function ChatNewPage() {
     {workspace ?
       <WorkspaceAiPreparation key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
                               context={{userId, scope: workspace.scope}} legacy={workspace.state === null}
-                              refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}>
+                              refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}
+                              fallback={workspaceFallback}>
         <WorkspaceChat userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}
-                       onChooseWorkspace={() => setPickerOpen(true)}/>
+                       onChooseWorkspace={() => setWorkspaceRevision(value => value + 1)}
+                       workspaceRevision={workspaceRevision}
+                       onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => setCatalogOpen(true)}
+                       workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
       </WorkspaceAiPreparation>
-      : <div className="ainew-empty"><Empty
-        description="请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。"/></div>}
+      : <div className="ainew-bootstrap"><p>请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。</p>
+        {workspaceFallback}</div>}
     <Modal title="连接已有 AI 工作空间" open={connectionOpen} onCancel={() => setConnectionOpen(false)}
            okButtonProps={{disabled: !chatScopeSchema.safeParse({tenantId, workspaceId}).success}} onOk={() => {
       const scope = chatScopeSchema.parse({tenantId, workspaceId});

@@ -1,29 +1,27 @@
 .ainew-page {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 100px);
-  min-height: 540px;
+  min-height: 0;
+  box-sizing: border-box;
   gap: 12px;
   color: var(--ant-color-text);
+  min-width: 300px;
+  overflow: hidden;
 }
 
-.ainew-page-header, .ainew-conversation-header, .ainew-chat-tools, .ainew-compose-actions, .ainew-answer-heading, .ainew-answer-actions, .ainew-conversation-row {
+.ainew-conversation-header, .ainew-chat-tools, .ainew-compose-actions, .ainew-answer-heading, .ainew-answer-actions, .ainew-conversation-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.ainew-page-header {
-  padding: 8px 16px;
-}
-
 .ainew-layout {
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  border: 1px solid var(--ant-color-border);
-  border-radius: 12px;
+  min-width: 0;
+  position: relative;
 }
 
 .ainew-compact {
@@ -87,9 +85,197 @@
 }
 
 .ainew-settings {
-  padding: 16px;
+  box-sizing: border-box;
+  padding: 12px;
   overflow: auto;
   height: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ainew-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  background: var(--ant-color-bg-container);
+}
+
+.ainew-workspace-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 8px;
+}
+
+.ainew-settings-header, .ainew-directory-header, .ainew-directory-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ainew-settings-header {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ainew-region {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ainew-region[hidden] {
+  display: none;
+}
+
+.ainew-region-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.ainew-region-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ainew-return-chat {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--ant-color-border-secondary, var(--ant-color-border));
+}
+
+.ainew-splitter > .ant-splitter-panel {
+  overflow: hidden;
+}
+
+.ainew-edge-expand.ant-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 28px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--ant-color-border-secondary, var(--ant-color-border));
+  background: var(--ant-color-bg-elevated);
+  color: var(--ant-color-text-secondary);
+  box-shadow: var(--ant-box-shadow-secondary, 0 4px 14px #0002);
+}
+
+.ainew-edge-expand.ant-btn.is-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 28px 28px 0;
+}
+
+.ainew-edge-expand.ant-btn.is-right {
+  right: 0;
+  border-right: 0;
+  border-radius: 28px 0 0 28px;
+}
+
+.ainew-edge-expand.ant-btn:hover {
+  color: var(--ant-color-primary);
+  background: var(--ant-color-fill-tertiary);
+}
+
+.ainew-edge-expand.ant-btn:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: -3px;
+}
+
+.ainew-bootstrap {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.ainew-bootstrap-workspace {
+  display: flex;
+  max-width: 300px;
+  margin-bottom: 12px;
+}
+
+.workspace-inline {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace-inline .ant-alert {
+  flex-wrap: wrap;
+}
+
+.workspace-inline .ant-alert-section {
+  min-width: 0;
+  flex-basis: 100%;
+}
+
+.workspace-inline .ant-alert-actions {
+  margin-inline-start: 0;
+  margin-top: 8px;
+}
+
+.workspace-inline li > .ant-btn {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+
+.ainew-width-notice {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 20px;
+  background: var(--ant-color-bg-container);
+  z-index: 5;
+}
+
+.ainew-logo {
+  flex: 0 0 42px;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #81D3F8;
+  border-radius: 5px;
+}
+
+.ainew-workspace-select.ant-btn {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding-inline: 5px;
+}
+
+.ainew-workspace-select.ant-btn > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ainew-directory-tools {
+  gap: 0;
+  flex: none;
+}
+
+.ainew-directory-tools .ant-btn {
+  width: 28px;
+  padding-inline: 0;
+  flex: 0 0 28px;
+}
+
+.ainew-settings .ant-tabs-nav {
+  max-width: 100%;
 }
 
 .ainew-model-card {
@@ -248,27 +434,15 @@
   .ainew-list-toggle {
     display: inline-flex;
   }
-
-  .ainew-page {
-    min-height: 460px;
-  }
 }
 
 @media (max-width: 767px) {
-  .ainew-page {
-    height: calc(100dvh - 80px);
-  }
-
   .ainew-messages {
     padding: 12px;
   }
 
   .ainew-composer {
     padding: 12px;
-  }
-
-  .ainew-page-header {
-    padding: 4px;
   }
 
   .ainew-compose-actions .ant-select {
@@ -340,6 +514,23 @@
   flex: 0 0 32px;
   color: var(--ant-color-primary);
   padding: 4px;
+}
+
+.ainew-directory-icon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ainew-directory-icon:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 3px;
 }
 
 .ainew-directory-text {

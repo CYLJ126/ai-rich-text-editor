@@ -1,5 +1,5 @@
 import React, {memo, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {Alert, Button, Dropdown, Empty, Input} from 'antd';
+import {Alert, Avatar, Button, Dropdown, Empty, Input} from 'antd';
 import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
 import type {ConversationListItem} from '@/services/arte-ai';
 import type {ConversationDirectory, DirectoryAnchor, TitleEditor} from './useConversationDirectory';
@@ -43,16 +43,27 @@ const DirectoryRow = memo(function DirectoryRow({
   useEffect(() => {
     if (editor && editor.status !== 'saving') input.current?.focus({preventScroll: true});
   }, [!!editor, editor?.status, editor?.error]);
+
   return <li className={`ainew-directory-row${selected ? ' is-selected' : ''}`}
              data-conversation-id={item.conversationId} data-normal-id={item.pinned ? undefined : item.conversationId}
              aria-current={selected ? 'true' : undefined}
              onClick={() => actions.current.open(item.conversationId)}>
-    <Button type="text" className="ainew-directory-avatar" aria-label={`打开会话：${item.title}`}
-            icon={<DynamicIcon iconName="CommentOutlined" size={22}/>}
+    {/* 会话图标 */}
+    <button type="button" className="ainew-directory-icon" aria-label={`打开会话：${item.title}`}
             onClick={event => {
               event.stopPropagation();
               actions.current.open(item.conversationId);
-            }}/>
+            }}>
+      <Avatar
+        icon={<DynamicIcon iconName="MessageOutlined" size={16}/>}
+        size={36}
+        style={{
+          background: item.pinned ? 'var(--color-chinese-orange)' : 'var(--color-chinese-green)',
+          fontSize: 16,
+        }}
+      />
+    </button>
+    {/* 会话标题 */}
     <div className="ainew-directory-text">
       {editor ? <div className="ainew-directory-edit" onClick={event => event.stopPropagation()}>
         <Input ref={input} aria-label={`会话名称：${item.conversationId}`} autoFocus
@@ -88,17 +99,20 @@ const DirectoryRow = memo(function DirectoryRow({
                     onClick={() => actions.current.cancel()}>取消</Button>
           </div>}
       </div> : <button type="button" className="ainew-directory-title" disabled={!writable}
-                       aria-label={`修改会话名称：${item.title}`}
+                       aria-label={`修改会话名称：${item.title}`} title={item.title}
                        onClick={event => {
                          event.stopPropagation();
                          actions.current.edit(item.conversationId);
                        }}>{item.title}</button>}
-      {item.previewText !== item.title && <p
-        className="ainew-directory-preview">{item.previewText || (item.userMessageCount === 0 ? '暂无消息……' : '—')}</p>}
+      {/* 会话摘要（一般截取最后一条用户消息适当字数） */}
+      <p
+        className="ainew-directory-preview">{item.previewText || (item.userMessageCount === 0 ? '暂无消息……' : '—')}</p>
     </div>
     <div className="ainew-directory-facts">
       <div className={`ainew-directory-date${menuOpen ? ' is-open' : ''}`} onClick={event => event.stopPropagation()}>
+        {/* 会话日期 */}
         <time dateTime={item.lastMessageGeneratedAt ?? undefined}>{dateLabel(item.lastMessageGeneratedAt)}</time>
+        {/* 会话下拉操作列表 */}
         <Dropdown trigger={['click']} open={menuOpen} onOpenChange={open => onMenu(open ? item.conversationId : null)}
                   menu={{
                     items: [
@@ -115,18 +129,20 @@ const DirectoryRow = memo(function DirectoryRow({
                       if (key === 'pin') actions.current.pin(item);
                     }
                   }}>
+          {/* 会话操作...图标，悬浮展示下拉操作列表 */}
           <Button type="text" size="small" aria-label={`会话操作：${item.title}`}
                   icon={<DynamicIcon iconName="MoreOutlined" size={18}/>}/>
         </Dropdown>
       </div>
+      {/* 会话轮数 */}
       <span>{item.userMessageCount == null ? '—' : `${item.userMessageCount}轮`}</span>
     </div>
   </li>;
 });
 
-export default function ConversationDirectoryList({directory, writable, readBlocked, onOpen, onCreate}: {
+export default function ConversationDirectoryList({directory, writable, readBlocked, onOpen, onCreate, header}: {
   directory: ConversationDirectory; writable: boolean; readBlocked: boolean;
-  onOpen: (id: string) => void; onCreate: () => void;
+  onOpen: (id: string) => void; onCreate: () => void; header?: React.ReactNode;
 }) {
   const scroller = useRef<HTMLElement>(null);
   const latest = useRef(directory);
@@ -201,11 +217,14 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                                                                   menuOpen={menu === item.conversationId}
                                                                   onMenu={onMenu}/>;
   return <aside className="ainew-sidebar ainew-directory" aria-label="会话列表">
-    <Button block type="primary" disabled={readBlocked || !writable || directory.creating}
-            loading={directory.creating}
-            onClick={onCreate}>{directory.hasPendingCreate ? '确认原创建操作' : '新建会话'}</Button>
+    {header ?? <Button block type="primary" disabled={readBlocked || !writable || directory.creating}
+                       loading={directory.creating}
+                       onClick={onCreate}>{directory.hasPendingCreate ? '确认原创建操作' : '新建会话'}</Button>}
+
     <Input aria-label="搜索会话" placeholder="搜索（暂未开放）" value={search} disabled={readBlocked}
-           prefix={<DynamicIcon iconName="SearchOutlined"/>} onChange={event => setSearch(event.target.value)}/>
+           allowClear prefix={<DynamicIcon iconName="SearchOutlined"/>}
+           onChange={event => setSearch(event.target.value)}/>
+
     {directory.createError != null && <Alert type="error" title="创建结果未确认或被拒绝，请确认原创建操作。"/>}
     {directory.pendingCommand && <Alert type="warning"
                                         title={directory.pendingCommand.request.kind === 'rename' ? '名称保存结果待确认' : '置顶结果待确认'}
@@ -236,9 +255,11 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                                                 onClick={() => void directory.finishEdit(true)}>保存草稿</Button>
           <Button onMouseDown={event => event.preventDefault()} onClick={directory.cancelEdit}>取消编辑</Button></>}
       </section>}
-    {!readBlocked && directory.listError != null && <Alert type="error" title="会话列表暂时加载失败"
-                                                           description="已有会话仍然保留，请重试读取。" action={<Button
-      onClick={() => void directory.refreshFirst()}>重试加载</Button>}/>}
+
+    {!readBlocked && directory.listError != null
+      && <Alert type="error" title="会话列表暂时加载失败" description="已有会话仍然保留，请重试读取。"
+                action={<Button onClick={() => void directory.refreshFirst()}>重试加载</Button>}/>}
+
     {readBlocked && <p className="ainew-muted" role="status">当前账号暂时无法读取此空间的会话列表。</p>}
     {/* biome-ignore lint/a11y/noNoninteractiveTabindex: 命名滚动区域需支持键盘方向键及 Home/End。 */}
     <section ref={scroller} className="ainew-directory-scroll" aria-label="会话滚动列表" tabIndex={0}
@@ -272,6 +293,7 @@ export default function ConversationDirectoryList({directory, writable, readBloc
              }} onScroll={event => {
       setMenu(null);
       const root = event.currentTarget, top = root.scrollTop;
+      if (root.clientHeight <= 0 || root.closest('[hidden]') || programmatic.current) return;
       if (directory.headEvicted && top <= 1 && intent.current && !programmatic.current && top < previousTop.current) {
         intent.current = false;
         void directory.refreshFirst();

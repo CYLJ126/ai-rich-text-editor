@@ -1,0 +1,248 @@
+{
+  "layoutChecks": [
+    {
+      "mode": "single",
+      "regions": [
+        {
+          "hidden": true,
+          "region": "list",
+          "width": 0
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 300
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 300
+    },
+    {
+      "mode": "two",
+      "regions": [
+        {
+          "hidden": false,
+          "region": "list",
+          "width": 300
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 600
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 900
+    },
+    {
+      "mode": "three",
+      "regions": [
+        {
+          "hidden": false,
+          "region": "list",
+          "width": 300
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 600
+        },
+        {
+          "hidden": false,
+          "region": "settings",
+          "width": 300
+        }
+      ],
+      "width": 1200
+    },
+    {
+      "mode": "single",
+      "regions": [
+        {
+          "hidden": true,
+          "region": "list",
+          "width": 0
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 375
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 375
+    },
+    {
+      "mode": "three",
+      "regions": [
+        {
+          "hidden": false,
+          "region": "list",
+          "width": 300
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 480
+        },
+        {
+          "hidden": false,
+          "region": "settings",
+          "width": 300
+        }
+      ],
+      "width": 1080
+    },
+    {
+      "mode": "two",
+      "regions": [
+        {
+          "hidden": false,
+          "region": "list",
+          "width": 300
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 480
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 780
+    },
+    {
+      "mode": "single",
+      "regions": [
+        {
+          "hidden": true,
+          "region": "list",
+          "width": 0
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 600
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 600
+    },
+    {
+      "mode": "two",
+      "regions": [
+        {
+          "hidden": false,
+          "region": "list",
+          "width": 300
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 779
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 1079
+    },
+    {
+      "mode": "single",
+      "regions": [
+        {
+          "hidden": true,
+          "region": "list",
+          "width": 0
+        },
+        {
+          "hidden": false,
+          "region": "chat",
+          "width": 779
+        },
+        {
+          "hidden": true,
+          "region": "settings",
+          "width": 0
+        }
+      ],
+      "width": 779
+    }
+  ],
+  "scrollChecks": [
+    {
+      "draft": "滚动一千条后保留这份草稿",
+      "firstNormal": "demo-14",
+      "last": "demo-106",
+      "metrics": "{\"metrics\":{\"getWorkspacePreference\":1,\"browseAccessibleWorkspaces\":1,\"getWorkspace\":1,\"checkWorkspaceAccess\":2,\"ensure\":1,\"getConversation\":1,\"queryConversationWindow\":1,\"discoverChatOptions\":1,\"queryTurnsOfConversation\":1,\"getBudget\":1,\"listConversationsCursor\":4},\"commits\":61,\"maxCommitMs\":47.8,\"longTasks\":2,\"maxTaskMs\":165,\"heapMiB\":82.7}",
+      "rows": 100
+    },
+    {
+      "draft": "滚动一千条后保留这份草稿",
+      "firstNormal": "demo-414",
+      "last": "demo-506",
+      "metrics": "{\"metrics\":{\"getWorkspacePreference\":1,\"browseAccessibleWorkspaces\":1,\"getWorkspace\":1,\"checkWorkspaceAccess\":2,\"ensure\":1,\"getConversation\":1,\"queryConversationWindow\":1,\"discoverChatOptions\":1,\"queryTurnsOfConversation\":1,\"getBudget\":1,\"listConversationsCursor\":23},\"commits\":137,\"maxCommitMs\":47.8,\"longTasks\":2,\"maxTaskMs\":165,\"heapMiB\":174.7}",
+      "rows": 100
+    },
+    {
+      "draft": "滚动一千条后保留这份草稿",
+      "firstNormal": "demo-914",
+      "last": "demo-1006",
+      "metrics": "{\"metrics\":{\"getWorkspacePreference\":1,\"browseAccessibleWorkspaces\":1,\"getWorkspace\":1,\"checkWorkspaceAccess\":2,\"ensure\":1,\"getConversation\":1,\"queryConversationWindow\":1,\"discoverChatOptions\":1,\"queryTurnsOfConversation\":1,\"getBudget\":1,\"listConversationsCursor\":46},\"commits\":231,\"maxCommitMs\":47.8,\"longTasks\":2,\"maxTaskMs\":165,\"heapMiB\":157.4}",
+      "rows": 100
+    }
+  ],
+  "dragWidths": [
+    400,
+    500,
+    300
+  ],
+  "dragClampedWidths": [
+    420,
+    480,
+    300
+  ],
+  "restoredLeftWidth": 420,
+  "narrowContainer": 300,
+  "narrowHeaderClientWidth": 276,
+  "narrowHeaderScrollWidth": 276,
+  "notes": [
+    "真实业务组件与模拟接口；不是生产容量证书",
+    "堆数值为开发模式近似采样，包含模拟后端数据与浏览器开销"
+  ],
+  "nativeDividerTwoRegionSwap": [
+    {
+      "list": 0,
+      "chat": 600,
+      "settings": 300
+    },
+    {
+      "list": 300,
+      "chat": 600,
+      "settings": 0
+    }
+  ],
+  "nativeDividerDirectoryRefreshes": 0,
+  "observedRetainedPins": 7
+}

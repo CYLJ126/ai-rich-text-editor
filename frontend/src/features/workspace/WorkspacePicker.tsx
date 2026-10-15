@@ -5,8 +5,15 @@ import {sameScope} from '@/features/ainew/storage';
 import {protectWorkspaceChange, useWorkspaceDirectory} from './useWorkspace';
 import {getWorkspace, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
 
-export default function WorkspacePicker({userId, beforeSelect, open: controlledOpen, onOpenChange}: {
+export default function WorkspacePicker({
+                                          userId,
+                                          beforeSelect,
+                                          open: controlledOpen,
+                                          onOpenChange,
+                                          presentation = 'drawer'
+                                        }: {
   userId: string;
+  presentation?: 'drawer' | 'inline';
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   beforeSelect?: (scope: WorkspaceScope, proceed: () => void) => void;
@@ -74,14 +81,7 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
 
   const visible = directory.records;
   const error = directory.error instanceof Error ? directory.error.message : '空间读取失败，请重试。';
-  return <>
-    <Button onClick={() => setOpen(true)} loading={directory.loading && !directory.current}
-            aria-label="选择工作空间" style={{maxWidth: 'min(280px, 70vw)'}}>
-      <span title={directory.current?.name}
-            style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-        {directory.current?.name ?? '选择工作空间'}</span> ▾</Button>
-    <Drawer title="工作空间" open={open} onClose={() => setOpen(false)}>
-      <Space orientation="vertical" style={{width: '100%'}}>
+  const panel = <Space orientation="vertical" style={{width: '100%'}}>
         {directory.warning && <Alert type="warning" title={directory.warning}/>}
         {directory.error != null && <Alert type="error" title={error}/>}
         {editorError && <Alert type="error" title={editorError}/>}
@@ -157,8 +157,16 @@ export default function WorkspacePicker({userId, beforeSelect, open: controlledO
             <p style={{overflowWrap: 'anywhere'}}>操作编号：{directory.lastReceipt.operationId}</p></details>
         </>}
         <p>邀请、成员管理及空间关闭将在对应能力接入后开放。模型和预算在进入聊天后检查。</p>
-      </Space>
-    </Drawer>
+  </Space>;
+  return <>
+    {presentation === 'drawer' &&
+      <Button onClick={() => setOpen(true)} loading={directory.loading && !directory.current}
+              aria-label="选择工作空间" style={{maxWidth: 'min(280px, 70vw)'}}>
+      <span title={directory.current?.name}
+            style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+        {directory.current?.name ?? '选择工作空间'}</span> ▾</Button>}
+    {presentation === 'inline' ? <section className="workspace-inline" aria-label="工作空间管理">{panel}</section>
+      : <Drawer title="工作空间" open={open} onClose={() => setOpen(false)}>{panel}</Drawer>}
     <Modal title={editor?.kind === 'rename' ? '修改空间信息' : '新建工作空间'} open={!!editor} okText="保存"
            cancelText="取消"
            onCancel={() => {

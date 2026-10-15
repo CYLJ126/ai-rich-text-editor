@@ -1,0 +1,36 @@
+{
+  "readOnly": true,
+  "metadataTablePresent": true,
+  "measured": true,
+  "metadataRows": 9,
+  "largestActiveOwnerRows": 5,
+  "selection": "largest_active_owner",
+  "jdbcIncludesNetwork": true,
+  "pooledAcquisitionMeasured": false,
+  "firstPageSql": {
+    "samples": 30,
+    "p50Ms": 32.235,
+    "p95Ms": 33.438,
+    "maxMs": 33.821
+  },
+  "continuationSql": {
+    "samples": 30,
+    "p50Ms": 31.581,
+    "p95Ms": 32.122,
+    "maxMs": 32.468
+  },
+  "plans": [
+    {
+      "type": "ref",
+      "key": "idx_ai_conversation_list",
+      "estimatedRows": 5,
+      "extra": "Using index condition"
+    },
+    {
+      "type": "range",
+      "key": "idx_ai_conversation_list",
+      "estimatedRows": 6,
+      "extra": "Using index condition"
+    }
+  ]
+}
