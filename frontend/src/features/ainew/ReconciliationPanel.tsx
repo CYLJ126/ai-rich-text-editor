@@ -1,4 +1,18 @@
-import {Alert, Button, Checkbox, Drawer, Empty, Input, Pagination, Space, Tag,} from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Drawer,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Pagination,
+  Tag,
+  Typography
+} from 'antd';
 import React, {useEffect, useId, useRef, useState} from 'react';
 import {
   AiApiError,
@@ -11,6 +25,7 @@ import {
 } from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
 import {type BrowserContext, readOperation, saveOperation, STORAGE_WARNING} from './storage';
+import '../aiManagement.css';
 
 /** 由后端授权决定能否核对；未知费用只接受管理员核实的实际账单，不填估算默认值。 */
 export default function ReconciliationPanel({
@@ -250,15 +265,17 @@ export default function ReconciliationPanel({
         onClose={() => setOpen(false)}
         size="large"
       >
-        <Space orientation="vertical" style={{width: '100%'}}>
+        <Flex vertical gap={12} className="ai-management-panel">
           <Alert type="info" title={t('reconciliation.help')}/>
           {storageWarning && <Alert type="warning" title={storageWarning}/>}
-          {pending && <section aria-label="恢复原核对操作">
-            <p>待确认原核对：{pending.request.actualCharge} {pending.request.currency} · {pending.request.invocationId}</p>
+          {pending && <Flex component="section" vertical gap={8} aria-label="恢复原核对操作">
+            <Typography.Paragraph>待确认原核对：{pending.request.actualCharge} {pending.request.currency} · {pending.request.invocationId}</Typography.Paragraph>
+            <Flex gap={8} wrap>
             <Button disabled={saving} onClick={() => void findReceipt()}>查询原核对回执</Button>
             {!selected && <Button disabled={!writable || !!restored.warning} loading={saving}
                                   onClick={() => void confirm()}>{t('reconciliation.retry')}</Button>}
-          </section>}
+            </Flex>
+          </Flex>}
           <Button loading={loading} onClick={() => void load(page)}>
             {t('refreshBudget')}
           </Button>
@@ -278,33 +295,37 @@ export default function ReconciliationPanel({
           {!canReconcile && records.length > 0 && (
             <Alert type="info" title={t('reconciliation.permission')}/>
           )}
-          <ol className="m-0 list-none space-y-3 p-0">
+          <Flex component="ol" vertical gap={12} className="ai-management-list">
             {records.map((item) => (
-              <li
+              <Flex component="li" vertical
                 key={item.reservationId}
-                className="rounded border border-solid border-[var(--ant-color-border)] p-3"
               >
-                <p className="break-all">
-                  {t('invocationId')}：{item.invocationId}
-                </p>
-                <p>
-                  <Tag>{t(`execution.${item.state}`)}</Tag>
-                  {t('budgetHeld')}：{item.reserved.amount}{' '}
-                  {item.reserved.currency}
-                </p>
-                {item.remoteRequestId && (
-                  <p className="break-all">
-                    {t('reconciliation.remoteId')}：{item.remoteRequestId}
-                  </p>
-                )}
+                <Card size="small" styles={{body: {padding: 12}}}>
+                  <Flex vertical gap={8}>
+                    <Descriptions column={1} size="small" className="ai-management-info" items={[
+                      {key: 'invocation', label: t('invocationId'), children: item.invocationId},
+                      {key: 'state', label: '执行状态', children: <Tag>{t(`execution.${item.state}`)}</Tag>},
+                      {
+                        key: 'reserved',
+                        label: t('budgetHeld'),
+                        children: `${item.reserved.amount} ${item.reserved.currency}`
+                      },
+                      ...(item.remoteRequestId ? [{
+                        key: 'remote',
+                        label: t('reconciliation.remoteId'),
+                        children: item.remoteRequestId
+                      }] : []),
+                    ]}/>
                 {canReconcile && (
-                  <Button disabled={frozen} onClick={() => choose(item)}>
+                  <Button style={{alignSelf: 'flex-start'}} disabled={frozen} onClick={() => choose(item)}>
                     {t('reconciliation.review')}
                   </Button>
                 )}
-              </li>
+                  </Flex>
+                </Card>
+              </Flex>
             ))}
-          </ol>
+          </Flex>
           <Pagination
             current={page}
             total={total}
@@ -315,12 +336,13 @@ export default function ReconciliationPanel({
             onChange={(value) => void load(value)}
           />
           {selected && (
-            <section aria-label={t('reconciliation.review')}>
-              <p className="break-all">
-                {t('invocationId')}：{selected.invocationId}
-              </p>
-              <label htmlFor={`${formId}-amount`}>
-                {t('reconciliation.amount')} ({selected.reserved.currency})
+            <Flex component="section" vertical gap={8} aria-label={t('reconciliation.review')}>
+              <Descriptions column={1} size="small" className="ai-management-info" items={[
+                {key: 'invocation', label: t('invocationId'), children: selected.invocationId},
+              ]}/>
+              <Form component="div" layout="vertical" className="ai-management-form">
+                <Form.Item htmlFor={`${formId}-amount`}
+                           label={`${t('reconciliation.amount')} (${selected.reserved.currency})`} required>
                 <Input
                   id={`${formId}-amount`}
                   value={amount}
@@ -330,9 +352,8 @@ export default function ReconciliationPanel({
                   inputMode="decimal"
                   maxLength={39}
                 />
-              </label>
-              <label htmlFor={`${formId}-evidence`}>
-                {t('reconciliation.evidence')}
+                </Form.Item>
+                <Form.Item htmlFor={`${formId}-evidence`} label={t('reconciliation.evidence')} required>
                 <Input
                   id={`${formId}-evidence`}
                   value={evidence}
@@ -341,9 +362,8 @@ export default function ReconciliationPanel({
                   aria-label={t('reconciliation.evidence')}
                   maxLength={256}
                 />
-              </label>
-              <label htmlFor={`${formId}-note`}>
-                {t('reconciliation.note')}
+                </Form.Item>
+                <Form.Item htmlFor={`${formId}-note`} label={t('reconciliation.note')} required>
                 <Input.TextArea
                   id={`${formId}-note`}
                   value={note}
@@ -352,7 +372,8 @@ export default function ReconciliationPanel({
                   aria-label={t('reconciliation.note')}
                   maxLength={2000}
                 />
-              </label>
+                </Form.Item>
+              </Form>
               <Checkbox
                 checked={ended}
                 disabled={frozen}
@@ -365,6 +386,7 @@ export default function ReconciliationPanel({
               )}
               <Button
                 type="primary"
+                style={{alignSelf: 'flex-start'}}
                 loading={saving}
                 onClick={() => void confirm()}
                 aria-label={t(
@@ -386,31 +408,30 @@ export default function ReconciliationPanel({
                     : 'reconciliation.confirm',
                 )}
               </Button>
-            </section>
+            </Flex>
           )}
           {receipt && (
             <Alert
               type="success"
               title={t('reconciliation.done')}
               description={
-                <>
-                  <p>
-                    {receipt.charge.amount} {receipt.charge.currency} ·{' '}
-                    {receipt.reviewer.subjectName} · {receipt.confirmedAt}
-                  </p>
-                  <p>
-                    {t('reconciliation.evidence')}：{receipt.evidenceRef}
-                  </p>
-                  <p>{receipt.note}</p>
-                  <p className="break-all">
-                    {t('invocationId')}：{receipt.invocationId} ·{' '}
-                    {t('reconciliation.key')}：{receipt.key}
-                  </p>
-                </>
+                <Descriptions column={1} size="small" className="ai-management-info" items={[
+                  {
+                    key: 'charge',
+                    label: t('reconciliation.amount'),
+                    children: `${receipt.charge.amount} ${receipt.charge.currency}`
+                  },
+                  {key: 'reviewer', label: '审核人', children: receipt.reviewer.subjectName},
+                  {key: 'time', label: '确认时间', children: receipt.confirmedAt},
+                  {key: 'evidence', label: t('reconciliation.evidence'), children: receipt.evidenceRef},
+                  {key: 'note', label: t('reconciliation.note'), children: receipt.note},
+                  {key: 'invocation', label: t('invocationId'), children: receipt.invocationId},
+                  {key: 'key', label: t('reconciliation.key'), children: receipt.key},
+                ]}/>
               }
             />
           )}
-        </Space>
+        </Flex>
       </Drawer>
     </>
   );

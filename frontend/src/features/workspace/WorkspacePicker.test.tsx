@@ -76,7 +76,7 @@ async function open() {
 
 it('shows real roles and searches the authorized directory without an exact total', async () => {
   await open();
-  expect(screen.getByText('所属租户：tenant-b')).toBeInTheDocument();
+  expect(screen.getByRole('cell', {name: /所属租户.*tenant-b/})).toBeInTheDocument();
   expect(screen.getAllByText('负责人')).toHaveLength(2);
   expect(screen.queryByRole('button', {name: '管理成员'})).not.toBeInTheDocument();
   vi.mocked(api.browseAccessibleWorkspaces).mockResolvedValueOnce(reply({

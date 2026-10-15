@@ -1,10 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, Button} from 'antd';
+import {Alert, Button, Flex, Spin, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {ensureWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import type {BrowserContext} from './storage';
 import WorkspaceAiSettings from './WorkspaceAiSettings';
+import '../aiManagement.css';
 
 /** 空间准备完成后才挂载聊天请求，避免新空间的授权和预算创建与首次发现竞争。 */
 export default function WorkspaceAiPreparation({
@@ -51,10 +52,12 @@ export default function WorkspaceAiPreparation({
     return () => controller.abort();
   }, [scope, legacy, revision, refreshRevision]);
   if (state === 'ready') return <>{children}</>;
-  const status = state === 'loading' ? <p role="status">正在准备空间 AI 配置…</p>
+  const status = state === 'loading' ? <Flex align="center" gap={8} role="status">
+      <Spin size="small"/><Typography.Text>正在准备空间 AI 配置…</Typography.Text>
+    </Flex>
     : state === 'import' ? <WorkspaceAiSettings scope={scope} context={context} onUnsafeChange={onUnsafeChange}
                                                 onUpdated={() => setRevision(value => value + 1)}/>
       : <Alert type="info" title={error}
                action={<Button onClick={() => setRevision(value => value + 1)}>重新检查</Button>}/>;
-  return <div className="ainew-bootstrap">{status}{fallback}</div>;
+  return <Flex vertical gap={12} className="ainew-bootstrap ai-preparation-panel">{status}{fallback}</Flex>;
 }

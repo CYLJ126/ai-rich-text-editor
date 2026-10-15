@@ -240,7 +240,7 @@ describe('配置发现与选择', () => {
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
     expect(
-      await screen.findByText('预算余额：99.876543210987654322 CNY'),
+      await screen.findByRole('cell', {name: /预算余额.*99\.876543210987654322 CNY/}),
     ).toBeInTheDocument();
     expect(localStorage.getItem(CHAT_CONFIG_STORAGE_KEY)).toBeNull();
     expect(screen.queryByLabelText('Binding ID')).not.toBeInTheDocument();

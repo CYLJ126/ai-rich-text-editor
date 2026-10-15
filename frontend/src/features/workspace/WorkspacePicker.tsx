@@ -1,9 +1,24 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Drawer, Empty, Input, Modal, Space, Tag} from 'antd';
+import React, {useEffect, useId, useRef, useState} from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Descriptions,
+  Drawer,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Modal,
+  Tag,
+  Typography
+} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {sameScope} from '@/features/ainew/storage';
 import {protectWorkspaceChange, useWorkspaceDirectory} from './useWorkspace';
 import {getWorkspace, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
+import '../aiManagement.css';
 
 export default function WorkspacePicker({
                                           userId,
@@ -19,6 +34,7 @@ export default function WorkspacePicker({
   beforeSelect?: (scope: WorkspaceScope, proceed: () => void) => void;
 }) {
   const directory = useWorkspaceDirectory(userId);
+  const formId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
 
@@ -81,7 +97,7 @@ export default function WorkspacePicker({
 
   const visible = directory.records;
   const error = directory.error instanceof Error ? directory.error.message : '空间读取失败，请重试。';
-  const panel = <Space orientation="vertical" style={{width: '100%'}}>
+  const panel = <Flex vertical gap={12} className="ai-management-panel">
         {directory.warning && <Alert type="warning" title={directory.warning}/>}
         {directory.error != null && <Alert type="error" title={error}/>}
         {editorError && <Alert type="error" title={editorError}/>}
@@ -101,31 +117,39 @@ export default function WorkspacePicker({
                                                        tenantId: '',
                                                        workspaceId: ''
                                                      }, () => void directory.retry())}>重试确认原操作</Button>}/>}
-        {directory.current && <section aria-label="当前空间信息">
-          <strong>当前空间：{directory.current.name}</strong>
-          <p style={{overflowWrap: 'anywhere'}}>所属租户：{directory.current.scope.tenantId}</p>
-          <p>{directory.current.description || '暂无描述'}</p>
+    {directory.current && <Flex component="section" vertical gap={8} align="flex-start" aria-label="当前空间信息">
+      <Typography.Text strong>当前空间：{directory.current.name}</Typography.Text>
+      <Descriptions column={1} size="small" className="ai-management-info" items={[
+        {key: 'tenant', label: '所属租户', children: directory.current.scope.tenantId},
+        {key: 'description', label: '描述', children: directory.current.description || '暂无描述'},
+      ]}/>
           {directory.canRename &&
             <Button disabled={locked} loading={detailLoading} onClick={() => void editCurrent()}>修改空间信息</Button>}
-        </section>}
+    </Flex>}
         <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
                       maxLength={100} allowClear enterButton="搜索" disabled={directory.saving}
                       onChange={event => setFilter(event.target.value)}
                       onSearch={value => void directory.setSearch(value)}/>
-        <ul className="m-0 list-none space-y-3 p-0">
-          {visible.map(item => <li key={JSON.stringify(item.scope)}
-                                   className="rounded border border-solid border-[var(--ant-color-border)] p-3">
-            <Button type={sameScope(item.scope, directory.current?.scope) ? 'primary' : 'default'}
+    <Flex component="ul" vertical gap={12} className="ai-management-list">
+      {visible.map(item => <Flex component="li" vertical key={JSON.stringify(item.scope)}>
+        <Card size="small" styles={{body: {padding: 12}}}>
+          <Flex vertical gap={8} align="flex-start">
+            <Button className="workspace-picker-name"
+                    type={sameScope(item.scope, directory.current?.scope) ? 'primary' : 'default'}
                     disabled={directory.selecting || directory.unsafeToLeave || directory.recoveryBlocked || unavailable}
                     onClick={() => protect(item.scope, () => {
                       void directory.select(item.scope).then(selected => {
                         if (selected) setOpen(false);
                       });
                     })}>{item.name}</Button>
-            <p style={{overflowWrap: 'anywhere'}}>所属租户：{item.scope.tenantId}</p>
-            <p><Tag>{role[item.currentRole]}</Tag><Tag>{state[item.state]}</Tag>{item.defaultWorkspace &&
+            <Descriptions column={1} size="small" className="ai-management-info" items={[
+              {key: 'tenant', label: '所属租户', children: item.scope.tenantId},
+            ]}/>
+            <Flex gap={4}
+                  wrap><Tag>{role[item.currentRole]}</Tag><Tag>{state[item.state]}</Tag>{item.defaultWorkspace &&
               <Tag>个人默认空间</Tag>}
-              {directory.favorite(item.scope) && <Tag>已收藏</Tag>}</p>
+              {directory.favorite(item.scope) && <Tag>已收藏</Tag>}</Flex>
+            <Flex gap={8} wrap>
             <Button size="small" disabled={!directory.preference || locked}
                     onClick={() => void directory.updatePreference({
                       favorites: directory.favorite(item.scope)
@@ -134,8 +158,11 @@ export default function WorkspacePicker({
                     })}>{directory.favorite(item.scope) ? '取消收藏' : '收藏'}</Button>
             <Button size="small" disabled={!directory.preference || locked}
                     onClick={() => void directory.updatePreference({startupScope: item.scope})}>{sameScope(item.scope, directory.preference?.startupScope) ? '已设为启动空间' : '设为启动空间'}</Button>
-          </li>)}
-        </ul>
+            </Flex>
+          </Flex>
+        </Card>
+      </Flex>)}
+    </Flex>
         {!directory.loading && !directory.error && !visible.length &&
           <Empty description={directory.exhausted ? '没有匹配的工作空间。' : '暂未找到匹配空间，可以继续查找。'}/>}
         {!directory.exhausted && directory.nextCursor && !directory.cursorExpired &&
@@ -151,21 +178,25 @@ export default function WorkspacePicker({
           setDescription('');
           setEditorError(null);
         }}>新建工作空间</Button>}
-        {directory.lastReceipt && <><p role="status">空间操作已保存。</p>
-          <details>
-            <summary>查看操作回执</summary>
-            <p style={{overflowWrap: 'anywhere'}}>操作编号：{directory.lastReceipt.operationId}</p></details>
+    {directory.lastReceipt && <><Typography.Text role="status">空间操作已保存。</Typography.Text>
+      <Collapse ghost size="small" styles={{header: {padding: '8px 0'}, body: {padding: '0 0 8px'}}}
+                items={[{
+                  key: 'receipt', label: '查看操作回执', children:
+                    <Descriptions column={1} size="small" className="ai-management-info" items={[
+                      {key: 'operation', label: '操作编号', children: directory.lastReceipt.operationId},
+                    ]}/>
+                }]}/>
         </>}
-        <p>邀请、成员管理及空间关闭将在对应能力接入后开放。模型和预算在进入聊天后检查。</p>
-  </Space>;
+    <Typography.Paragraph>邀请、成员管理及空间关闭将在对应能力接入后开放。模型和预算在进入聊天后检查。</Typography.Paragraph>
+  </Flex>;
   return <>
     {presentation === 'drawer' &&
       <Button onClick={() => setOpen(true)} loading={directory.loading && !directory.current}
-              aria-label="选择工作空间" style={{maxWidth: 'min(280px, 70vw)'}}>
-      <span title={directory.current?.name}
-            style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-        {directory.current?.name ?? '选择工作空间'}</span> ▾</Button>}
-    {presentation === 'inline' ? <section className="workspace-inline" aria-label="工作空间管理">{panel}</section>
+              aria-label="选择工作空间" className="workspace-picker-trigger" style={{maxWidth: 'min(280px, 70vw)'}}>
+        <Typography.Text ellipsis title={directory.current?.name}>
+          {directory.current?.name ?? '选择工作空间'}</Typography.Text> ▾</Button>}
+    {presentation === 'inline' ?
+      <Flex component="section" vertical className="workspace-inline" aria-label="工作空间管理">{panel}</Flex>
       : <Drawer title="工作空间" open={open} onClose={() => setOpen(false)}>{panel}</Drawer>}
     <Modal title={editor?.kind === 'rename' ? '修改空间信息' : '新建工作空间'} open={!!editor} okText="保存"
            cancelText="取消"
@@ -187,9 +218,9 @@ export default function WorkspacePicker({
       if (target.kind === 'create' && directory.current) protect(directory.current.scope, () => void submit());
       else void submit();
     }}>
-      <p
+      <Typography.Paragraph
         style={{overflowWrap: 'anywhere'}}>保存到租户：{editor?.kind === 'create' ? editor.tenantId : editor?.view.scope.tenantId}。
-        {editor?.kind === 'create' ? '创建空间不需要先配置模型或预算。' : '只修改名称与描述，不改变归属。'}</p>
+        {editor?.kind === 'create' ? '创建空间不需要先配置模型或预算。' : '只修改名称与描述，不改变归属。'}</Typography.Paragraph>
       {directory.error != null && <Alert type="error" title={error}/>}
       {directory.pending && <Alert type="warning" title="原操作结果待确认，表单内容保留。"
                                    action={<Button loading={directory.saving} disabled={directory.recoveryBlocked}
@@ -202,11 +233,19 @@ export default function WorkspacePicker({
                                                      if (directory.pending?.kind === 'create' && directory.current) protect(directory.current.scope, retry);
                                                      else retry();
                                                    }}>重试确认原操作</Button>}/>}
-      <Input aria-label="空间名称" placeholder="空间名称" maxLength={100} disabled={locked} value={name}
+      <Form component="div" layout="vertical" className="ai-management-form">
+        <Form.Item label="空间名称" htmlFor={`${formId}-name`} required>
+          <Input id={`${formId}-name`} aria-label="空间名称" placeholder="空间名称" maxLength={100} disabled={locked}
+                 value={name}
              onChange={event => setName(event.target.value)}/>
-      <Input.TextArea aria-label="空间描述" placeholder="描述（可选）" maxLength={1000} disabled={locked}
+        </Form.Item>
+        <Form.Item label="空间描述" htmlFor={`${formId}-description`}>
+          <Input.TextArea id={`${formId}-description`} aria-label="空间描述" placeholder="描述（可选）" maxLength={1000}
+                          disabled={locked}
                       value={description}
                       onChange={event => setDescription(event.target.value)}/>
+        </Form.Item>
+      </Form>
     </Modal>
   </>;
 }

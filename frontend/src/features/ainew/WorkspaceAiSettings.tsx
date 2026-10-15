@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Form, Input, InputNumber, Modal, Select, Switch} from 'antd';
+import {Alert, Button, Divider, Flex, Form, Input, InputNumber, Modal, Select, Switch, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {
   type AiPreset,
@@ -14,6 +14,7 @@ import {
 } from '@/services/platform/ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import {type BrowserContext, readOperation, saveOperation} from './storage';
+import '../aiManagement.css';
 
 export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafeChange, adminOnly = false}: {
   scope: WorkspaceScope;
@@ -145,8 +146,8 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     });
   }
 
-  return <section aria-label="空间 AI 配置">
-    <p>在当前空间选择已发布模型并维护独立预算。新空间按已发布默认模板自动准备，已有空间不会被模板更新覆盖。</p>
+  return <Flex component="section" vertical gap={12} className="ai-management-panel" aria-label="空间 AI 配置">
+    <Typography.Paragraph>在当前空间选择已发布模型并维护独立预算。新空间按已发布默认模板自动准备，已有空间不会被模板更新覆盖。</Typography.Paragraph>
     {unsafe && <Alert type="warning" title="配置操作无法保存到当前浏览器，请保留本页并确认原操作后再切换。"/>}
     {error && <Alert type="warning" showIcon title={error}/>}
     {uncertain && <Button loading={saving}
@@ -177,20 +178,23 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
           })}/>
         </Form.Item>)}
       </Form>
-      <p>调整额度会保留已预留金额和已计费用；提高已批准额度需平台管理员权限。额度低于已占用金额时，会阻止新的调用。</p>
+      <Typography.Paragraph>调整额度会保留已预留金额和已计费用；提高已批准额度需平台管理员权限。额度低于已占用金额时，会阻止新的调用。</Typography.Paragraph>
+      <Flex gap={8} wrap>
       <Button type="primary" loading={saving} disabled={!canEdit} onClick={() => void run('workspace', {
         scope, expectedVersion: view.configuration!.version,
         expectedWorkspaceVersion: view.workspaceVersion, preset
       })}>保存空间 AI 配置</Button>
       <Button disabled={saving || uncertain || unsafe}
               onClick={() => void reload().catch(() => setError('最新配置读取失败，请重试。'))}>重新读取配置</Button>
+      </Flex>
     </>}
-    <hr/>
+    <Divider className="ai-management-divider"/>
     <Button disabled={saving || uncertain || unsafe}
             onClick={() => void readCatalog()}>维护已发布模型与默认模板</Button>
     {catalogEditable && catalog?.catalog && <>
-      <p>发布版本：{catalog.version}。新增模型使用已审核连接、能力及费率，不修改历史版本。</p>
+      <Typography.Paragraph>发布版本：{catalog.version}。新增模型使用已审核连接、能力及费率，不修改历史版本。</Typography.Paragraph>
       <Button disabled={saving || uncertain || unsafe} onClick={() => setModelOpen(true)}>发布新模型</Button>
+      <Form component="div" layout="vertical" className="ai-management-form">
       <Form.Item label="新空间自动启用 AI"><Switch aria-label="新空间自动启用 AI"
                                                    disabled={saving || uncertain || unsafe}
                                                    checked={catalog.catalog.defaults.enabled}
@@ -243,6 +247,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
           }
         })}/>
       </Form.Item>)}
+      </Form>
       <Button loading={saving} disabled={uncertain || unsafe} onClick={() => void run('publish', {
         expectedVersion: catalog.version,
         catalog: catalog.catalog
@@ -290,5 +295,5 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
           }))}/></Form.Item>
       </Form>
     </Modal>
-  </section>;
+  </Flex>;
 }

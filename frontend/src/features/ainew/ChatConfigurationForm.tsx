@@ -1,4 +1,18 @@
-import {Alert, Button, Collapse, Form, Input, InputNumber, Select,} from 'antd';
+import {
+  Alert,
+  Button,
+  Col,
+  Collapse,
+  Descriptions,
+  Flex,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Spin,
+  Typography
+} from 'antd';
 import React, {useEffect, useRef, useState} from 'react';
 import {AiApiError, type ChatModelOption} from '@/services/arte-ai';
 import {
@@ -13,6 +27,7 @@ import {
 import {useConfigurationDiscovery, useSelectedBudget,} from './useConfigurationSelection';
 import {hasAvailableBudget} from './useChatSession';
 import {aiReadAccessIssue} from './accessFeedback';
+import '../aiManagement.css';
 
 export type ConfigurationDraft = ChatConfigValues & { modelKey?: string };
 type Values = ChatConfigValues & { modelKey?: string };
@@ -246,8 +261,8 @@ export default function ChatConfigurationForm({
     max: number,
     optional = false,
   ) => (
+    <Col key={name} span={12}>
     <Form.Item
-      key={name}
       name={name}
       label={t(`field.${name}`)}
       required={!optional}
@@ -262,12 +277,14 @@ export default function ChatConfigurationForm({
         placeholder={optional ? t('samplingDefault') : undefined}
       />
     </Form.Item>
+    </Col>
   );
 
   return (
     <Form
       form={form}
       name="ai-new-chat-config"
+      className="ai-chat-configuration-form"
       aria-label={t('configuration')}
       layout="vertical"
       initialValues={{...DEFAULT_CHAT_CONFIG, ...fixedScope, ...restored, ...draftValues}}
@@ -287,14 +304,16 @@ export default function ChatConfigurationForm({
         }
       }}
     >
-      {!fixedScope && <h2 className="text-sm font-semibold">{t('scope')}</h2>}
-      <div hidden={!!fixedScope} className="grid grid-cols-2 gap-x-3">
+      {!fixedScope && <Typography.Title level={2} className="ai-management-title">{t('scope')}</Typography.Title>}
+      <Row gutter={12} hidden={!!fixedScope} style={{display: fixedScope ? 'none' : undefined}}>
         {(['tenantId', 'workspaceId'] as const).map((name) => (
-          <Form.Item key={name} name={name} label={t(`field.${name}`)} required>
+          <Col key={name} span={12}>
+            <Form.Item name={name} label={t(`field.${name}`)} required>
             <Input maxLength={256}/>
           </Form.Item>
+          </Col>
         ))}
-      </div>
+      </Row>
       <Button
         className="mb-3"
         loading={discovery.loading}
@@ -303,7 +322,9 @@ export default function ChatConfigurationForm({
         {t('loadOptions')}
       </Button>
       {errorAlert(discovery.error, 'configuration')}
-      {discovery.loading && <p role="status">{t('loadingOptions')}</p>}
+      {discovery.loading && <Flex align="center" gap={8} role="status" className="ai-management-loading">
+        <Spin size="small"/><Typography.Text>{t('loadingOptions')}</Typography.Text>
+      </Flex>}
       {discovery.scope &&
         !discovery.loading &&
         !discovery.error &&
@@ -365,14 +386,14 @@ export default function ChatConfigurationForm({
         />
       </Form.Item>
       {selected && (
-        <p className="text-xs text-[var(--ant-color-text-secondary)]">
+        <Typography.Paragraph type="secondary" className="ai-management-muted">
           {t('contextWindow')}：{selected.contextWindowTokens} Token ·{' '}
           {t('inputByteLimit')}：{selected.limits.maxInputBytes} B
-        </p>
+        </Typography.Paragraph>
       )}
       {budgetRef && selected && (
-        <section
-          className="mb-3 space-y-2"
+        <Flex component="section" vertical gap={8}
+              className="ai-configuration-budget"
           aria-label={t('selectedBudget')}
           aria-live="polite"
         >
@@ -383,25 +404,28 @@ export default function ChatConfigurationForm({
           >
             {t('refreshBudget')}
           </Button>
-          {budget.loading && <p role="status">{t('loadingBudget')}</p>}
+          {budget.loading && <Flex align="center" gap={8} role="status">
+            <Spin size="small"/><Typography.Text>{t('loadingBudget')}</Typography.Text>
+          </Flex>}
           {errorAlert(budget.error)}
           {budget.account && (
             <>
-              <p className="m-0">
-                {t('budgetAvailable')}：{budget.account.available}{' '}
-                {budget.account.currency}
-              </p>
-              <p className="m-0 text-xs">
-                {t('budgetLimit')}：{budget.account.limit} · {t('budgetHeld')}：
-                {budget.account.held} · {t('budgetCharged')}：
-                {budget.account.charged}
-              </p>
+              <Descriptions column={1} size="small" className="ai-management-info" items={[
+                {
+                  key: 'available',
+                  label: t('budgetAvailable'),
+                  children: `${budget.account.available} ${budget.account.currency}`
+                },
+                {key: 'limit', label: t('budgetLimit'), children: budget.account.limit},
+                {key: 'held', label: t('budgetHeld'), children: budget.account.held},
+                {key: 'charged', label: t('budgetCharged'), children: budget.account.charged},
+              ]}/>
               {!hasAvailableBudget(budget.account.available) && (
                 <Alert type="warning" title={t('insufficientBudget')}/>
               )}
             </>
           )}
-        </section>
+        </Flex>
       )}
       <Collapse
         className="mb-3"
@@ -412,7 +436,7 @@ export default function ChatConfigurationForm({
             forceRender: true,
             children: (
               <>
-                <p className="text-xs">{t('contextWindowHint')}</p>
+                <Typography.Paragraph className="ai-management-muted">{t('contextWindowHint')}</Typography.Paragraph>
                 <Button
                   className="mb-3"
                   disabled={!selected || discovery.loading}
@@ -434,7 +458,7 @@ export default function ChatConfigurationForm({
                 >
                   {t('useRecommendedLimits')}
                 </Button>
-                <div className="grid grid-cols-2 gap-x-3">
+                <Row gutter={12}>
                   {numberField(
                     'maxInputTokens',
                     1,
@@ -450,18 +474,18 @@ export default function ChatConfigurationForm({
                     1,
                     selected?.limits.maxTimeoutSeconds ?? 3600,
                   )}
-                </div>
-                <h2 className="text-sm font-semibold">{t('sampling')}</h2>
-                <div className="grid grid-cols-2 gap-x-3">
+                </Row>
+                <Typography.Title level={2} className="ai-management-title">{t('sampling')}</Typography.Title>
+                <Row gutter={12}>
                   {numberField('temperature', 0, 2, true)}
                   {numberField('topP', 0, 1, true)}
-                </div>
+                </Row>
               </>
             ),
           },
         ]}
       />
-      <div className="flex flex-wrap gap-2">
+      <Flex gap={8} wrap>
         {onCancel && <Button onClick={onCancel}>取消修改</Button>}
         <Button
           type="primary"
@@ -485,7 +509,7 @@ export default function ChatConfigurationForm({
         >
           {t('reset')}
         </Button>
-      </div>
+      </Flex>
     </Form>
   );
 }

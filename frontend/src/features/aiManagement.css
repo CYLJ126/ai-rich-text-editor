@@ -1,0 +1,127 @@
+.ai-management-panel.ant-flex,
+.ai-chat-configuration-form,
+.ai-management-form,
+.workspace-inline.ant-flex {
+  width: 100%;
+  min-width: 0;
+}
+
+.ai-management-panel > * {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.ai-management-panel > .ant-btn,
+.ai-configuration-budget > .ant-btn {
+  align-self: flex-start;
+}
+
+.ai-management-panel .ant-typography,
+.ai-preparation-panel .ant-typography {
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+
+.ai-management-panel div.ant-typography {
+  margin: 0;
+}
+
+.ai-management-list.ant-flex {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-management-list > li,
+.ai-management-list .ant-card,
+.ai-management-list .ant-card-body {
+  min-width: 0;
+}
+
+.ai-management-info.ant-descriptions {
+  width: 100%;
+  min-width: 0;
+}
+
+.ai-management-info .ant-descriptions-item-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ai-management-info .ant-descriptions-item-label {
+  white-space: nowrap;
+}
+
+.ai-management-form .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.ai-management-panel .ant-alert {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.ai-management-panel .ant-alert-section {
+  min-width: 0;
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.ai-management-panel .ant-alert-actions {
+  margin-inline-start: 0;
+}
+
+.workspace-picker-name.ant-btn {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.workspace-picker-trigger > .ant-typography {
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+}
+
+h2.ai-management-title.ant-typography {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.ai-management-muted.ant-typography {
+  font-size: 12px;
+}
+
+.ai-management-loading,
+.ai-configuration-budget {
+  margin-bottom: 12px;
+}
+
+.ai-chat-configuration-form .ant-input-number {
+  width: 100%;
+}
+
+.ai-chat-configuration-form .ant-col {
+  min-width: 0;
+}
+
+.ai-management-divider.ant-divider {
+  margin: 0;
+}
+
+.ai-preparation-panel.ant-flex {
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.ai-preparation-panel > * {
+  flex-shrink: 0;
+}
+
+.ai-preparation-panel > .ainew-bootstrap-workspace {
+  margin-bottom: 0;
+}
