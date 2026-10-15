@@ -133,6 +133,8 @@ arte.platform.workspace.enabled=true
 # Switch to DATABASE after applying the AI control migration; then import the reviewed deployment seed in the page.
 arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
+# Set true for the first upgraded startup after applying the metadata migration.
+arte.ai-new.conversation-metadata-backfill.enabled=false
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1
 arte.ai-new.persistence.threads=4

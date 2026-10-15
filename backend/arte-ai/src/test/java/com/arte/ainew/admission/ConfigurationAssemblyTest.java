@@ -8,6 +8,7 @@ import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
+import com.arte.ainew.config.ConversationMetadataBackfill;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
@@ -91,6 +92,54 @@ public class ConfigurationAssemblyTest {
             assertNotNull(context.getBean(ChatConfigurationQueryService.class));
             assertNotNull(context.getBean(NewAiConfigurationController.class));
             assertTrue(context.getBeansOfType(ModelGateway.class).isEmpty());
+        }
+    }
+
+    @Test
+    public void metadataBackfillIsDisabledWhenSwitchIsAbsent() {
+        verifyMetadataBackfillSwitch(null);
+    }
+
+    @Test
+    public void metadataBackfillCanBeExplicitlyDisabledWithoutBindingFailure() {
+        verifyMetadataBackfillSwitch(false);
+    }
+
+    @Test
+    public void metadataBackfillCanBeExplicitlyEnabledWithoutAccessingDatabaseAtAssembly() {
+        verifyMetadataBackfillSwitch(true);
+    }
+
+    private void verifyMetadataBackfillSwitch(Boolean enabled) {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            var values = new LinkedHashMap<String, Object>();
+            flatten("arte.ai-new", AdmissionFixture.properties(), values);
+            String key = "arte.ai-new.conversation-metadata-backfill.enabled";
+            values.remove(key);
+            if (enabled != null) values.put(key, enabled.toString());
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("backfill-switch", values));
+            context.registerBean("appDataSource", DataSource.class, () -> forbidden("backfill assembly datasource"));
+            context.register(NewAiAdmissionConfiguration.class);
+            context.refresh();
+            assertEquals(Boolean.TRUE.equals(enabled), !context.getBeansOfType(ConversationMetadataBackfill.class).isEmpty());
+            assertEquals(Boolean.TRUE.equals(enabled), context.getBean(NewAiProperties.class).conversationMetadataBackfill().enabled());
+            assertNotNull(context.getBean(ChatService.class));
+        }
+    }
+
+    @Test
+    public void unknownAdmissionPropertyStillFailsBinding() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            var values = new LinkedHashMap<String, Object>();
+            flatten("arte.ai-new", AdmissionFixture.properties(), values);
+            values.put("arte.ai-new.conversation-metadata-backfill.enabld", "false");
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("unknown-backfill-property", values));
+            context.registerBean("appDataSource", DataSource.class, () -> forbidden("invalid configuration datasource"));
+            context.register(NewAiAdmissionConfiguration.class);
+            var error = assertThrows(org.springframework.beans.BeansException.class, context::refresh);
+            assertTrue(error.getMostSpecificCause() instanceof
+                    org.springframework.boot.context.properties.bind.UnboundConfigurationPropertiesException);
+            assertTrue(error.getMostSpecificCause().getMessage().contains("arte.ai-new.conversation-metadata-backfill.enabld"));
         }
     }
 
