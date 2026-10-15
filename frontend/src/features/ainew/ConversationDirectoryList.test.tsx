@@ -4,7 +4,7 @@ import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/arte-ai';
 import {saveOperation, storageKey, writeValue} from './storage';
 import {type ConversationDirectory, useConversationDirectory} from './useConversationDirectory';
-import ConversationDirectoryList from './ConversationDirectoryList';
+import ConversationDirectorySidebar from './ConversationDirectorySidebar';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/components/DynamicIcon', () => ({
@@ -46,7 +46,7 @@ function Harness({writable = true}: { writable?: boolean }) {
     <button onClick={() => void directory.refreshFirst()}>刷新会话列表</button>
     <button onClick={() => void directory.loadMore(true)}>续页</button>
     <span data-testid="selected">{directory.selectedId}</span><textarea aria-label="聊天草稿" defaultValue="保持草稿"/>
-    <ConversationDirectoryList directory={directory} writable={writable} readBlocked={false}
+    <ConversationDirectorySidebar directory={directory} writable={writable} readBlocked={false}
                                onOpen={id => {
                                  void directory.select(id);
                                }} onCreate={() => {

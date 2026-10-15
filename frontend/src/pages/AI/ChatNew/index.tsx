@@ -34,7 +34,7 @@ import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/C
 import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/BusinessChatPanel';
 import {chatConfigSchema, chatScopeSchema, type ChatTestConfig, modelOptionKey} from '@/features/ainew/config';
 import {useConversationDirectory} from '@/features/ainew/useConversationDirectory';
-import ConversationDirectoryList from '@/features/ainew/ConversationDirectoryList';
+import ConversationDirectorySidebar from '@/features/ainew/ConversationDirectorySidebar';
 import ConversationDirectoryHeader from '@/features/ainew/ConversationDirectoryHeader';
 import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
 import {useChatLayout} from '@/features/ainew/useChatLayout';
@@ -223,7 +223,7 @@ function WorkspaceChat({
       if (created) layout.open('chat');
     });
   });
-  const list = <ConversationDirectoryList directory={conversations} readBlocked={readBlocked}
+  const list = <ConversationDirectorySidebar directory={conversations} readBlocked={readBlocked}
                                           writable={workspace.state === 0 || workspace.state === null}
                                           onCreate={createConversation}
                                           header={<ConversationDirectoryHeader userId={userId} scope={workspace.scope}

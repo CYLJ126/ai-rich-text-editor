@@ -145,14 +145,13 @@ const DirectoryRow = memo(function DirectoryRow({
   </Flex>;
 });
 
-export default function ConversationDirectoryList({directory, writable, readBlocked, onOpen, onCreate, header}: {
+export default function ConversationDirectoryList({directory, writable, readBlocked, onOpen}: {
   directory: ConversationDirectory; writable: boolean; readBlocked: boolean;
-  onOpen: (id: string) => void; onCreate: () => void; header?: React.ReactNode;
+  onOpen: (id: string) => void;
 }) {
   const scroller = useRef<HTMLElement>(null);
   const latest = useRef(directory);
   latest.current = directory;
-  const [search, setSearch] = useState('');
   const [menu, setMenu] = useState<string | null>(null);
   const onMenu = React.useCallback((id: string | null) => setMenu(id), []);
   const handlers: RowActions = {
@@ -221,16 +220,7 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                                                                   pinFull={directory.pinned.length >= 7}
                                                                   menuOpen={menu === item.conversationId}
                                                                   onMenu={onMenu}/>;
-  return <Flex component="aside" vertical gap={12} className="ainew-sidebar ainew-directory" aria-label="会话列表">
-    {/* 新建会话 */}
-    {header ?? <Button block type="primary" disabled={readBlocked || !writable || directory.creating}
-                       loading={directory.creating}
-                       onClick={onCreate}>{directory.hasPendingCreate ? '确认原创建操作' : '新建会话'}</Button>}
-    {/* 搜索框 */}
-    <Input aria-label="搜索会话" placeholder="搜索（暂未开放）" value={search} disabled={readBlocked}
-           allowClear prefix={<DynamicIcon iconName="SearchOutlined"/>}
-           onChange={event => setSearch(event.target.value)}/>
-
+  return <Flex vertical gap={12} className="ainew-directory-content">
     {directory.createError != null
       && <Alert type="error" title="创建结果未确认或被拒绝，请确认原创建操作。"/>}
     {directory.pendingCommand
@@ -239,7 +229,7 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                 action={<Button size="small" loading={directory.commandBusy}
                                 onClick={() => void directory.confirmCommand()}>确认原操作</Button>}/>}
     {directory.commandError && !directory.editor && <Alert type="error" title={directory.commandError}/>}
-    {/* 会话名称 */}
+    {/* 会话名称修改 */}
     {directory.editor && !directory.records.some(item => item.conversationId === directory.editor?.target.conversationId) &&
       <Flex component="section" vertical gap={8} aria-label="恢复名称编辑" onClick={event => event.stopPropagation()}>
         <Typography.Text>恢复的名称草稿</Typography.Text>
@@ -315,8 +305,10 @@ export default function ConversationDirectoryList({directory, writable, readBloc
       } else if (root.scrollHeight - root.clientHeight - top < 100 && !directory.listLoading && !directory.listError) void directory.loadMore();
       previousTop.current = top;
     }}>
+      {/* 置顶会话列表 */}
       <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
             aria-label="置顶会话">{directory.pinned.map(renderRow)}</Flex>
+      {/* 普通会话列表 */}
       <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
             aria-label="普通会话">{directory.normal.map(renderRow)}</Flex>
       {!readBlocked && !directory.listLoading && !directory.listError && directory.records.length === 0 &&
@@ -336,6 +328,7 @@ export default function ConversationDirectoryList({directory, writable, readBloc
       {directory.headEvicted && <Typography.Paragraph type="secondary"
                                                       className="ainew-directory-status ainew-muted">前部会话可返回顶部重新读取。</Typography.Paragraph>}
     </Flex>
+    {/* 返回顶部按钮 */}
     <Button className="ainew-directory-backtop" shape="circle" aria-label="返回会话顶部" loading={directory.listLoading}
             icon={<DynamicIcon iconName="VerticalAlignTopOutlined" size={20}/>}
             onClick={() => void directory.refreshFirst()}/>
