@@ -252,6 +252,14 @@ it('keeps the chat draft and single configuration form when collapsing regions a
   expect(screen.getByRole('button', {name: '公共空间选择器'})).toBeVisible();
   fireEvent.click(screen.getByRole('tab', {name: '会话设置'}));
   fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
+  fireEvent.click(screen.getByRole('button', {name: '高级参数'}));
+  const outputLimit = screen.getByRole('spinbutton', {name: /最大输出 Token/});
+  fireEvent.change(outputLimit, {target: {value: '1024'}});
+  fireEvent.click(screen.getByRole('tab', {name: '会话设置'}));
+  expect(outputLimit).not.toBeVisible();
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
+  expect(screen.getByRole('spinbutton', {name: /最大输出 Token/})).toBe(outputLimit);
+  expect(outputLimit).toHaveValue('1024');
   fireEvent.click(screen.getByRole('button', {name: '收起设置侧栏'}));
   fireEvent.click(screen.getByRole('button', {name: '展开设置侧栏'}));
   expect(screen.getByLabelText('输入问题')).toBe(composer);

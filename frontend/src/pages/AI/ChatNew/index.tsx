@@ -1,7 +1,24 @@
 import {useConfigurationDiscovery} from '@/features/ainew/useConfigurationSelection';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useIntl, useModel} from '@umijs/max';
-import {Alert, Button, Drawer, Empty, Input, Modal, Result, Tabs, Tag} from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Descriptions,
+  Drawer,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Modal,
+  Result,
+  Spin,
+  Tabs,
+  Tag,
+  Typography
+} from 'antd';
 import {LockOutlined} from '@ant-design/icons';
 import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
 import type {AiScope, ChatModelOption} from '@/services/arte-ai';
@@ -116,6 +133,7 @@ function WorkspaceChat({
     };
   }, [selectedId, context]);
   const discovery = useConfigurationDiscovery();
+
   function activate(value: ChatTestConfig, option: ChatModelOption) {
     if (interaction.unsafeToLeave) {
       setWarning('未确认操作未能保存，请先确认原操作后再应用其他配置。');
@@ -195,11 +213,11 @@ function WorkspaceChat({
 
   const accessActions = listAccessIssue === 'login'
     ? <Button type="primary" href="/user/login">重新登录</Button>
-    : <>
+    : <Flex justify="center" gap={8} wrap>
       <Button type="primary" onClick={onChooseWorkspace}>切换工作空间</Button>
       <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
       <Button loading={conversations.listLoading} onClick={recheckAccess}>重新检查</Button>
-    </>;
+    </Flex>;
   const createConversation = () => guard(() => {
     void conversations.create().then(created => {
       if (created) layout.open('chat');
@@ -229,40 +247,79 @@ function WorkspaceChat({
                                             });
                                           })}/>;
 
-  const editor = <aside className="ainew-settings" aria-label="辅助设置">
-    <header className="ainew-settings-header"><strong>设置与管理</strong>
+  const editor = <Flex component="aside" vertical className="ainew-settings" aria-label="辅助设置">
+    <Flex component="header" align="center" justify="space-between" gap={4}
+          className="ainew-settings-header"><Typography.Text strong>设置与管理</Typography.Text>
       <Button type="text" aria-label="收起设置侧栏" icon={<DynamicIcon iconName="MenuFoldOutlined"/>}
-              onClick={() => layout.close('settings')}/></header>
+              onClick={() => layout.close('settings')}/></Flex>
     <Tabs activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
       {key: 'workspace', label: '工作空间', forceRender: true, children: workspaceManager},
       {
         key: 'settings',
         label: '会话设置',
         children: <>
-          <p>当前：{options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion)?.displayName ?? '尚未应用模型'}</p>
-          <p>预算：{config?.budgetRef ?? '尚未选择'}</p><Button
+          <Descriptions column={1} size="small" className="ainew-info" items={[
+            {
+              key: 'model',
+              label: '当前',
+              children: options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion)?.displayName ?? '尚未应用模型'
+            },
+            {key: 'budget', label: '预算', children: config?.budgetRef ?? '尚未选择'},
+          ]}/><Button
           onClick={() => setTab('models')}>选择模型与生成参数</Button>
-          <p>应用后用于此会话之后的新消息；保存在当前浏览器。已发送消息保留原配置。</p>{conversations.selected && <details>
-          <summary>会话信息</summary>
-          <p>{conversations.selected.conversationId} · 版本 {conversations.selected.version}</p>
-          <p>创建：{conversations.selected.createdAt}</p><p>更新：{conversations.selected.updatedAt}</p></details>}</>
+          <Typography.Paragraph>应用后用于此会话之后的新消息；保存在当前浏览器。已发送消息保留原配置。</Typography.Paragraph>
+          {conversations.selected && <Collapse ghost size="small" className="ainew-info-collapse"
+                                               styles={{header: {padding: '8px 0'}, body: {padding: '0 0 8px'}}}
+                                               items={[{
+                                                 key: 'conversation', label: '会话信息', children:
+                                                   <Descriptions column={1} size="small" className="ainew-info" items={[
+                                                     {
+                                                       key: 'id',
+                                                       label: '会话',
+                                                       children: conversations.selected.conversationId
+                                                     },
+                                                     {
+                                                       key: 'version',
+                                                       label: '版本',
+                                                       children: conversations.selected.version
+                                                     },
+                                                     {
+                                                       key: 'created',
+                                                       label: '创建',
+                                                       children: conversations.selected.createdAt
+                                                     },
+                                                     {
+                                                       key: 'updated',
+                                                       label: '更新',
+                                                       children: conversations.selected.updatedAt
+                                                     },
+                                                   ]}/>
+                                               }]}/>}</>
       },
       {
         key: 'models',
         label: '模型管理',
-        children: <><p>当前可用目录；连接和发布配置由服务器维护。</p>{!options.length &&
-          <p>{optionsState?.loading ? '正在加载可用模型…' : modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
+        children: <>
+          <Typography.Paragraph>当前可用目录；连接和发布配置由服务器维护。</Typography.Paragraph>{!options.length &&
+          (optionsState?.loading ? <Flex align="center" gap={8} role="status" className="ainew-loading">
+            <Spin size="small"/><Typography.Text>正在加载可用模型…</Typography.Text>
+          </Flex> : <Typography.Paragraph>{modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
             : modelsAccessIssue === 'login' ? '请重新登录后查看可用模型。'
               : optionsState?.error ? '可用模型暂时无法读取，请重新加载。'
-                : '此空间尚无可用 AI 配置，请联系管理员确认模型和预算配置。'}</p>}{options.map(item => <article
-          className="ainew-model-card" key={modelOptionKey(item)}>
-          <strong>{item.displayName}</strong><p className="ainew-muted">文本／流式
-          · {item.binding.id}@{item.binding.version}</p>
-          <p className="ainew-muted">窗口 {item.contextWindowTokens} Token · 输出上限 {item.limits.maxOutputTokens} ·
-            兼容预算 {item.budgetRefs.length} 个</p>
-          <Button size="small"
-                  onClick={() => chooseModel(modelOptionKey(item))}>{config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}</Button>
-        </article>)}</>
+                : '此空间尚无可用 AI 配置，请联系管理员确认模型和预算配置。'}</Typography.Paragraph>)}{options.map(item =>
+          <Card
+            size="small" className="ainew-model-card" key={modelOptionKey(item)} styles={{body: {padding: 12}}}>
+            <Flex vertical gap={8} align="flex-start">
+              <Typography.Text strong>{item.displayName}</Typography.Text><Typography.Paragraph type="secondary"
+                                                                                                className="ainew-muted">文本／流式
+              · {item.binding.id}@{item.binding.version}</Typography.Paragraph>
+              <Typography.Paragraph type="secondary" className="ainew-muted">窗口 {item.contextWindowTokens} Token ·
+                输出上限 {item.limits.maxOutputTokens} ·
+                兼容预算 {item.budgetRefs.length} 个</Typography.Paragraph>
+              <Button size="small"
+                      onClick={() => chooseModel(modelOptionKey(item))}>{config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}</Button>
+            </Flex>
+          </Card>)}</>
       },
       {
         key: 'workspace-ai',
@@ -275,14 +332,18 @@ function WorkspaceChat({
                                          }));
                                        }}/>
       },
-      {key: 'assistants', label: '助手管理', children: <p>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</p>},
+      {
+        key: 'assistants',
+        label: '助手管理',
+        children: <Typography.Paragraph>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</Typography.Paragraph>
+      },
       {
         key: 'knowledge',
         label: '知识库引用',
-        children: <p>知识库引用将在后续版本开放，当前回答不会从文章知识库检索。</p>
+        children: <Typography.Paragraph>知识库引用将在后续版本开放，当前回答不会从文章知识库检索。</Typography.Paragraph>
       },
     ]}/>
-    <div hidden={tab !== 'models'}>
+    <Flex vertical className="ainew-configuration" hidden={tab !== 'models'}>
       {dirty && <Tag color="orange">有未应用更改</Tag>}
       {cache.warning && <Alert type="warning" title={cache.warning}/>}
       <ChatConfigurationForm sharedDiscovery={discovery} key={selectedId}
@@ -309,13 +370,14 @@ function WorkspaceChat({
         removeValue(storageKey(context, 'configuration', selectedId), true);
       }}
                              t={t} translate={translate}/>
-    </div>
-  </aside>;
-  const content = <section className="ainew-main">
-    <header className="ainew-conversation-header">
-      <div><h2>{conversations.selected?.title ?? 'AI 聊天（新版）'}</h2>
-        <span className="ainew-muted">通用文本聊天</span></div>
-    </header>
+    </Flex>
+  </Flex>;
+  const content = <Flex component="section" vertical className="ainew-main">
+    <Flex component="header" align="center" justify="space-between" gap={8} wrap className="ainew-conversation-header">
+      <Flex vertical className="ainew-conversation-heading"><Typography.Title
+        level={2}>{conversations.selected?.title ?? 'AI 聊天（新版）'}</Typography.Title>
+        <Typography.Text type="secondary" className="ainew-muted">通用文本聊天</Typography.Text></Flex>
+    </Flex>
     {(warning || conversations.storageWarning || conversations.selectionNotice) &&
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
     {!readBlocked && optionsState?.id === selectedId && !optionsState.loading && !options.length &&
@@ -338,51 +400,69 @@ function WorkspaceChat({
                    setTab('models');
                  }}>查看模型设置</Button>}/>}
     {(workspace.state !== 0 && workspace.state !== null) && <Alert type="info" title="当前空间只读，历史仍按授权读取。"/>}
-    {readBlocked && !conversations.selected ? <div className="ainew-empty" aria-label="AI 访问提示">
-      <Result className="ainew-access-state" icon={<LockOutlined/>}
-              title={listAccessIssue === 'login' ? '登录已失效，请重新登录' : '此空间的 AI 功能暂不可用'}
-              subTitle={listAccessIssue === 'login' ? '重新登录后，可以继续检查当前空间的会话和 AI 使用权限。'
-                : `当前账号暂时无法访问「${workspace.name}」的 AI 功能。创建工作空间不会自动开通 AI 权限，请联系管理员确认。`}
-              extra={accessActions}/>
-    </div> : conversations.detailLoading ? <p role="status">正在读取会话…</p> : conversations.detailError ?
-      <Alert type="error" title="会话详情读取失败" action={<Button
-        onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
-        <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
-                           options={options} dirty={dirty} conversation={conversations.selected}
-                           onUpdated={conversations.updateConversation} onTitleUpdated={conversations.onTitleUpdated}
-                           t={t}
-                           onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
-                           onInteraction={setInteraction} writable={workspace.state === 0 || workspace.state === null}/>
-        : conversations.listLoading ? <div className="ainew-empty" role="status">正在读取会话列表…</div>
-          : conversations.listError ?
-            <div className="ainew-empty"><Empty description="暂时无法加载会话，请稍后重试。"/></div>
-            : <div className="ainew-empty"><Empty description={conversations.total === 0
-              ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
-          onClick={() => {
-            layout.open('settings');
-            setTab('models');
-          }}>查看可用模型</Button></div>}
-  </section>;
-  return <div className="ainew-workspace bg-(var(--ant-bg-container))">
+    {readBlocked && !conversations.selected ?
+      <Flex vertical align="center" justify="center" gap={16} className="ainew-empty" aria-label="AI 访问提示">
+        <Result className="ainew-access-state" icon={<LockOutlined/>}
+                title={listAccessIssue === 'login' ? '登录已失效，请重新登录' : '此空间的 AI 功能暂不可用'}
+                subTitle={listAccessIssue === 'login' ? '重新登录后，可以继续检查当前空间的会话和 AI 使用权限。'
+                  : `当前账号暂时无法访问「${workspace.name}」的 AI 功能。创建工作空间不会自动开通 AI 权限，请联系管理员确认。`}
+                extra={accessActions}/>
+      </Flex> : conversations.detailLoading ?
+        <Flex vertical align="center" justify="center" gap={16} className="ainew-empty" role="status">
+          <Spin size="small"/><Typography.Text>正在读取会话…</Typography.Text>
+        </Flex> : conversations.detailError ?
+          <Alert type="error" title="会话详情读取失败" action={<Button
+            onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
+            <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
+                               options={options} dirty={dirty} conversation={conversations.selected}
+                               onUpdated={conversations.updateConversation}
+                               onTitleUpdated={conversations.onTitleUpdated}
+                               t={t}
+                               onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
+                               onInteraction={setInteraction}
+                               writable={workspace.state === 0 || workspace.state === null}/>
+            : conversations.listLoading ?
+              <Flex vertical align="center" justify="center" gap={16} className="ainew-empty" role="status">
+                <Spin size="small"/><Typography.Text>正在读取会话列表…</Typography.Text></Flex>
+              : conversations.listError ?
+                <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
+                  description="暂时无法加载会话，请稍后重试。"/></Flex>
+                : <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
+                  description={conversations.total === 0
+                    ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
+                  onClick={() => {
+                    layout.open('settings');
+                    setTab('models');
+                  }}>查看可用模型</Button></Flex>}
+  </Flex>;
+  return <Flex vertical className="ainew-workspace">
     <ChatWorkspaceLayout layout={layout} list={list} settings={editor}>
       {content}
     </ChatWorkspaceLayout>
     <Modal title="如何开通此空间的 AI 功能" open={accessHelpOpen}
            onCancel={() => setAccessHelpOpen(false)}
            footer={<Button onClick={() => setAccessHelpOpen(false)}>知道了</Button>}>
-      <p>创建工作空间后，AI 使用权限需要单独开通。空间负责人身份也不代表已获得 AI 使用权限。</p>
-      <ol>
-        <li>联系管理员，确认当前账号在此空间的 AI 使用权限与会话访问权限。</li>
-        <li>由管理员检查此空间是否已配置可用模型和预算。</li>
-        <li>开通后点击“重新检查”；也可从顶部选择已有 AI 权限的工作空间。</li>
-      </ol>
-      <details>
-        <summary>提供给管理员的空间信息</summary>
-        <p>{workspace.name}</p><p className="ainew-support-id">租户标识：{workspace.scope.tenantId}</p>
-        <p className="ainew-support-id">空间标识：{workspace.scope.workspaceId}</p>
-      </details>
+      <Typography.Paragraph>创建工作空间后，AI 使用权限需要单独开通。空间负责人身份也不代表已获得 AI
+        使用权限。</Typography.Paragraph>
+      <Typography className="ainew-access-instructions">
+        <ol>
+          <li>联系管理员，确认当前账号在此空间的 AI 使用权限与会话访问权限。</li>
+          <li>由管理员检查此空间是否已配置可用模型和预算。</li>
+          <li>开通后点击“重新检查”；也可从顶部选择已有 AI 权限的工作空间。</li>
+        </ol>
+      </Typography>
+      <Collapse ghost size="small" className="ainew-info-collapse"
+                styles={{header: {padding: '8px 0'}, body: {padding: '0 0 8px'}}}
+                items={[{
+                  key: 'support', label: '提供给管理员的空间信息', children:
+                    <Descriptions column={1} size="small" className="ainew-info" items={[
+                      {key: 'name', label: '空间', children: workspace.name},
+                      {key: 'tenant', label: '租户标识', children: workspace.scope.tenantId},
+                      {key: 'workspace', label: '空间标识', children: workspace.scope.workspaceId},
+                    ]}/>
+                }]}/>
     </Modal>
-    <Modal title="有未应用配置" open={!!switchAction} footer={<>
+    <Modal title="有未应用配置" open={!!switchAction} footer={<Flex justify="flex-end" gap={8} wrap>
       <Button onClick={() => {
         setSwitchAction(null);
         afterApply.current = null;
@@ -400,13 +480,13 @@ function WorkspaceChat({
         setTab('models');
         setApplyRevision(value => value + 1);
       }}>应用并切换</Button>
-    </>} onCancel={() => {
+    </Flex>} onCancel={() => {
       setSwitchAction(null);
       afterApply.current = null;
     }}>
-      <p>配置草稿需要先应用或放弃。{interaction.pending ? '未确认写操作已按原会话保存，返回后确认原操作。' : ''}切换不会停止后端执行。</p>
+      <Typography.Paragraph>配置草稿需要先应用或放弃。{interaction.pending ? '未确认写操作已按原会话保存，返回后确认原操作。' : ''}切换不会停止后端执行。</Typography.Paragraph>
     </Modal>
-  </div>;
+  </Flex>;
 }
 
 export default function ChatNewPage() {
@@ -489,23 +569,27 @@ export default function ChatNewPage() {
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
   // 空间尚未就绪时列表未挂载，保留同一菜单作为连接固定授权空间的入口。
   const workspaceFallback = <>
-    <div className="ainew-bootstrap-workspace"><WorkspaceQuickSelect userId={userId} scope={workspace?.scope}
-                                                                     name={workspace?.name}
-                                                                     onManage={() => setWorkspaceRevision(value => value + 1)}
-                                                                     onConnect={() => setConnectionOpen(true)}
-                                                                     onPlatformConfig={() => setCatalogOpen(true)}/>
-    </div>
+    <Flex className="ainew-bootstrap-workspace"><WorkspaceQuickSelect userId={userId} scope={workspace?.scope}
+                                                                      name={workspace?.name}
+                                                                      onManage={() => setWorkspaceRevision(value => value + 1)}
+                                                                      onConnect={() => setConnectionOpen(true)}
+                                                                      onPlatformConfig={() => setCatalogOpen(true)}/>
+    </Flex>
     <WorkspacePicker userId={userId} presentation="inline"/>
   </>;
-  return <main ref={pageRef} className="ainew-page" style={{height: pageHeight}} aria-label="AI 聊天（新版）">
+  return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
+               aria-label="AI 聊天（新版）">
     {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
-    <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} width={640}>
+    <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} size={640}>
       <WorkspaceAiSettings key={userId} scope={catalogContext.scope} context={catalogContext} adminOnly
                            onUnsafeChange={setCatalogUnsafe}
                            onUpdated={() => setAiPreparationRevision(value => value + 1)}/>
     </Drawer>
     {legacy?.userId === userId && <Alert type="info" title="当前使用手动指定的已有 AI scope" description={<>
-      <div style={{overflowWrap: 'anywhere'}}>租户：{legacy.scope.tenantId} · 空间：{legacy.scope.workspaceId}</div>
+      <Descriptions column={1} size="small" className="ainew-info" items={[
+        {key: 'tenant', label: '租户', children: legacy.scope.tenantId},
+        {key: 'workspace', label: '空间', children: legacy.scope.workspaceId},
+      ]}/>
       用于固定授权过渡。公共默认空间不会自动继承此处模型、预算和历史；后端仍检查当前账号授权。</>}/>}
     {workspace ?
       <WorkspaceAiPreparation key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
@@ -518,8 +602,9 @@ export default function ChatNewPage() {
                        onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => setCatalogOpen(true)}
                        workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
       </WorkspaceAiPreparation>
-      : <div className="ainew-bootstrap"><p>请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。</p>
-        {workspaceFallback}</div>}
+      : <Flex vertical className="ainew-bootstrap"><Typography.Paragraph>请选择或初始化个人默认空间；也可连接当前账号已有的合法
+        AI 工作空间。</Typography.Paragraph>
+        {workspaceFallback}</Flex>}
     <Modal title="连接已有 AI 工作空间" open={connectionOpen} onCancel={() => setConnectionOpen(false)}
            okButtonProps={{disabled: !chatScopeSchema.safeParse({tenantId, workspaceId}).success}} onOk={() => {
       const scope = chatScopeSchema.parse({tenantId, workspaceId});
@@ -530,11 +615,20 @@ export default function ChatNewPage() {
       };
       if (catalogUnsafe || preparationUnsafe) return;
       if (protect.current) protect.current(proceed); else proceed();
-    }}><p>填写当前账号已有授权的真实范围。发现、会话及发送仍由后端授权检查。</p><Input aria-label="已有 AI 租户 ID"
-                                                                                    placeholder="租户 ID"
-                                                                                    maxLength={256} value={tenantId}
-                                                                                    onChange={event => setTenantId(event.target.value)}/><Input
-      aria-label="已有 AI 空间 ID" placeholder="工作空间 ID" maxLength={256} value={workspaceId}
-      onChange={event => setWorkspaceId(event.target.value)}/></Modal>
-  </main>;
+    }}>
+      <Typography.Paragraph>填写当前账号已有授权的真实范围。发现、会话及发送仍由后端授权检查。</Typography.Paragraph>
+      <Form layout="vertical" name="ai-new-workspace-connection" component="div" className="ainew-connection-form">
+        <Form.Item label="租户 ID" htmlFor="ai-new-tenant-id" required>
+          <Input id="ai-new-tenant-id" aria-label="已有 AI 租户 ID" placeholder="租户 ID" maxLength={256}
+                 value={tenantId}
+                 onChange={event => setTenantId(event.target.value)}/>
+        </Form.Item>
+        <Form.Item label="工作空间 ID" htmlFor="ai-new-workspace-id" required>
+          <Input id="ai-new-workspace-id" aria-label="已有 AI 空间 ID" placeholder="工作空间 ID" maxLength={256}
+                 value={workspaceId}
+                 onChange={event => setWorkspaceId(event.target.value)}/>
+        </Form.Item>
+      </Form>
+    </Modal>
+  </Flex>;
 }

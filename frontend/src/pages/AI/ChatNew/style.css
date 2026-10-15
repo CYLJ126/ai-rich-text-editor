@@ -47,15 +47,21 @@
   min-width: 0;
 }
 
-.ainew-conversation-header {
+.ainew-conversation-header.ant-flex {
   padding: 12px 20px;
   border-bottom: 1px solid var(--ant-color-border);
   justify-content: space-between;
 }
 
-.ainew-conversation-header h2 {
+.ainew-conversation-header h2.ant-typography {
   margin: 0;
   font-size: 18px;
+}
+
+.ainew-conversation-heading {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ainew-conversations {
@@ -84,13 +90,48 @@
   justify-content: space-between;
 }
 
-.ainew-settings {
+.ainew-settings.ant-flex {
   box-sizing: border-box;
   padding: 12px;
   overflow: auto;
   height: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.ainew-settings > * {
+  flex-shrink: 0;
+}
+
+.ainew-configuration {
+  min-width: 0;
+}
+
+/* 配置表单保持挂载；显式隐藏，避免 Flex 的 display 覆盖 hidden。 */
+.ainew-configuration.ant-flex[hidden] {
+  display: none;
+}
+
+.ainew-configuration > .ant-tag {
+  align-self: flex-start;
+}
+
+.ainew-info .ant-descriptions-item-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ainew-info .ant-descriptions-item-label {
+  white-space: nowrap;
+}
+
+.ainew-loading {
+  margin-bottom: 12px;
+}
+
+.ainew-main > .ant-alert,
+.ainew-conversation-header {
+  flex-shrink: 0;
 }
 
 .ainew-workspace {
@@ -118,7 +159,7 @@
   min-width: 0;
 }
 
-.ainew-settings-header {
+.ainew-settings-header.ant-flex {
   justify-content: space-between;
   margin-bottom: 8px;
 }
@@ -192,13 +233,18 @@
   outline-offset: -3px;
 }
 
-.ainew-bootstrap {
+.ainew-bootstrap,
+.ainew-bootstrap.ant-flex {
   min-height: 0;
   overflow: auto;
   padding: 12px;
 }
 
-.ainew-bootstrap-workspace {
+.ainew-bootstrap.ant-flex > * {
+  flex-shrink: 0;
+}
+
+.ainew-bootstrap-workspace.ant-flex {
   display: flex;
   max-width: 300px;
   margin-bottom: 12px;
@@ -278,12 +324,31 @@
   max-width: 100%;
 }
 
-.ainew-model-card {
+.ainew-model-card.ant-card {
   margin-bottom: 12px;
-  padding: 12px;
+  min-width: 0;
   border: 1px solid var(--ant-color-border);
   border-radius: 8px;
   overflow-wrap: anywhere;
+}
+
+.ainew-model-card .ant-typography {
+  margin: 0;
+}
+
+.ainew-settings .ant-typography,
+.ainew-conversation-heading .ant-typography {
+  font-family: inherit;
+}
+
+.ainew-connection-form .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.ainew-access-instructions ol {
+  margin: 0 0 12px;
+  padding-inline-start: 24px;
+  list-style: decimal;
 }
 
 .ainew-chat {
