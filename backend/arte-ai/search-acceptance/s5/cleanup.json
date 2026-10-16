@@ -1,0 +1,10 @@
+{
+  "checkedAtUnix": 1792158060,
+  "extraIsolatedDatabasesCleaned": [
+    "arte_search_s3_fb358637756448bd8bc7bec9d11596bc",
+    "arte_search_s2_e93cb4cff4e346e79fc40eacef02968c"
+  ],
+  "remainingTestDatabases": 0,
+  "remainingTestIndices": 0,
+  "remainingTestRedisKeys": 0
+}

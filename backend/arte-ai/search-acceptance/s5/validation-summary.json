@@ -1,0 +1,32 @@
+{
+  "s5Script": {
+    "tests": 62,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "parts": [
+      21,
+      41
+    ]
+  },
+  "s3Regression": {
+    "tests": 205,
+    "passed": 201,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4,
+    "skipReason": "Existing Redis notification tests require their separate environment flags"
+  },
+  "appCompile": {
+    "modules": "arte-app -am",
+    "skipTests": true,
+    "offline": true,
+    "result": "PASS"
+  },
+  "frontendScope": "S5 real HTTP browser interaction passed; S4 159 unit tests and production build not repeated in S5",
+  "businessDeployment": false,
+  "businessMigration": false,
+  "queryEnabledByDefault": false,
+  "freshnessGate": "User questions and title updates exceed 30s candidate target in both runs"
+}

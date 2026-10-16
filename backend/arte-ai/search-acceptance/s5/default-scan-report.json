@@ -1,0 +1,3655 @@
+{
+  "startedAt": "2026-10-16T13:21:48.275425Z",
+  "corpusVersion": "s5-labels-v1",
+  "corpusSha256": "aa6d170085a58d2ac64587b47d247099a4f18c37504323c89992090d5263a99b",
+  "server": "9.4.2",
+  "indexRules": "v2",
+  "isolatedResources": {
+    "redisNamespace": "arte:search:s5it:1c513ec0da334930be963e584e7e0b07",
+    "database": "arte_search_s5_fa99d70ebae7488aa4cdb59ddfa41823",
+    "index": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01"
+  },
+  "sync": {
+    "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+    "tick": "PT0.25S",
+    "batchSize": 20,
+    "workPerTick": 10,
+    "lease": "PT1M",
+    "reconcileInterval": "PT1H",
+    "retryInitial": "PT2S",
+    "retryMax": "PT5M",
+    "errorThreshold": 10,
+    "tickBudget": "PT2S"
+  },
+  "shards": 2,
+  "runtime": {
+    "os": "Mac OS X",
+    "mysqlPoolMax": 8,
+    "java": "21.0.8",
+    "cpu": 12,
+    "arch": "aarch64"
+  },
+  "monitor": [
+    {
+      "elapsedMs": 1474,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "NOT_READY",
+        "pending": 0,
+        "failures": 0,
+        "entries": 0,
+        "completedRounds": 0,
+        "lastSuccessAt": null,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 2643,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 2,
+        "failures": 0,
+        "entries": 18,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156910652,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 3663,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 20,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156911363,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 4673,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 30,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156912923,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 5680,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 40,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156913864,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 6684,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 54,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156914942,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 7696,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 70,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156915712,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 8710,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 90,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156916799,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 9723,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 100,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156917758,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 10734,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 120,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156918855,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 11745,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 130,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156919808,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 12754,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 150,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156920911,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 13762,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 1,
+        "failures": 0,
+        "entries": 169,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156922029,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 14769,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 11,
+        "failures": 0,
+        "entries": 180,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156923025,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 15784,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 194,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156924030,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 16851,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 200,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156924735,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 17872,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 210,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156926095,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 18881,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 220,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156927055,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 19889,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 239,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156928146,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 20896,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 250,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156929145,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 21905,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 2,
+        "failures": 0,
+        "entries": 269,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156930158,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 22910,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 286,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156931167,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 23916,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 14,
+        "failures": 0,
+        "entries": 297,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156932156,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 24922,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 15,
+        "failures": 0,
+        "entries": 315,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156933190,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 25930,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 330,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156934191,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 26934,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 346,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156935189,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 27939,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 8,
+        "failures": 0,
+        "entries": 363,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156936189,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 28992,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 370,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156936878,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 30001,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 370,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156938133,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 31016,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 380,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156938988,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 32028,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 400,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156940068,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 33037,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 410,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156941020,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 34046,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 430,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156942115,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 35056,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 450,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156943207,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 36066,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 460,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156944221,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 37074,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 11,
+        "failures": 0,
+        "entries": 479,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156945341,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 38079,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 490,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156946317,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 39085,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 510,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156947348,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 40092,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 2,
+        "failures": 0,
+        "entries": 529,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156948350,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 41141,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 532,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156949190,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 42217,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 541,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156949805,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 43284,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 7,
+        "failures": 0,
+        "entries": 544,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156951263,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 44331,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 4,
+        "failures": 0,
+        "entries": 546,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156952536,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 45352,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 18,
+        "failures": 0,
+        "entries": 552,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156953603,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 46364,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 560,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156954395,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 47375,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 570,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156955644,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 48386,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 580,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156956611,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 49392,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 599,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156957634,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 50399,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 610,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156958659,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 51404,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 2,
+        "failures": 0,
+        "entries": 629,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156959651,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 52410,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 6,
+        "failures": 0,
+        "entries": 644,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156960670,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 53418,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 655,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156961666,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 54462,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 670,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156962370,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 55475,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 674,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156963543,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 56500,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 679,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156964608,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 57534,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 4,
+        "failures": 0,
+        "entries": 687,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156965576,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 58543,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 1,
+        "failures": 0,
+        "entries": 690,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156966807,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 59549,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 706,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156967800,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 60558,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 720,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156968557,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 61568,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 730,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156969557,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 62575,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 750,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156970754,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 63583,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 6,
+        "failures": 0,
+        "entries": 764,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156971834,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 64592,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 775,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156972834,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 65601,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 792,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156973854,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 66611,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 810,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156974660,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 67619,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 820,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156975613,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 68675,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 840,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156976745,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 69713,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 8,
+        "failures": 0,
+        "entries": 843,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156977818,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 70720,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 850,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156978979,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 71732,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 3,
+        "failures": 0,
+        "entries": 868,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156979981,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 72738,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 885,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156981005,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 73743,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 14,
+        "failures": 0,
+        "entries": 897,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156981988,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 74751,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 914,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156983010,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 75763,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 9,
+        "failures": 0,
+        "entries": 930,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156984017,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 76773,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 7,
+        "failures": 0,
+        "entries": 944,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156985026,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 77781,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 8,
+        "failures": 0,
+        "entries": 962,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156986047,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 78794,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 970,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156986824,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 79803,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 990,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156987943,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 80813,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1010,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156989077,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 81852,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1010,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156989488,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 82876,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 15,
+        "failures": 0,
+        "entries": 1015,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156991106,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 83883,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1030,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156991885,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 84895,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1050,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156992992,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 85902,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1060,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156993940,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 86912,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1080,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156995021,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 87920,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1090,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156995996,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 88933,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1110,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156997061,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 89945,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1126,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156998031,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 90954,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 40,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156998866,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 91960,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792156999940,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 92970,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 23,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157001204,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 94024,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157002230,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 95097,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 8,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157003290,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 96108,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157004336,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 97114,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157005368,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 98126,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 33,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157006378,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 99134,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157007327,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 100145,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157008291,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 101156,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157009224,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 102164,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157010420,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 103178,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 37,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157011430,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 104185,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157012450,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 105203,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157013371,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 106213,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157014273,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 107251,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157015073,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 108290,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 9,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157016415,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 109341,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157017517,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 110354,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157018550,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 111364,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157019439,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 112378,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157020423,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 113393,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 40,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157021334,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 114401,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157022618,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 115409,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157023651,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 116427,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157024635,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 117442,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157025601,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 118459,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157026505,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 119468,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157027710,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 120504,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157028380,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 121540,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 36,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157029742,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 122603,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 31,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157030667,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 123624,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 21,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157031738,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 124639,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 1,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157032629,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 125653,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 13,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157033913,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 126669,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157034832,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 127683,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157035783,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 128699,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157036824,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 129710,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157037698,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 130726,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157038986,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 131739,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157039987,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 132750,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157040863,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 133765,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157041938,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 134808,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157042946,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 135880,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157043914,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 136889,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157045146,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 137904,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157045917,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 138917,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 16,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157047173,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 139924,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157047875,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 140938,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 18,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157049201,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 141953,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 21,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157050199,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 142970,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157051156,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 143986,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157051978,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 144996,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 40,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157052941,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 146006,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157054270,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 147016,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157055262,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 148085,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157055835,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 149104,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 35,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157057282,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 150112,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157058368,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 151125,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 32,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157059388,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 152142,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157060340,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 153151,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157061195,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 154165,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157062223,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 155175,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 15,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157063427,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 156182,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 37,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157064442,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 157195,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 14,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157065455,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 158209,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157066330,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 159219,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157067325,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 160247,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 22,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157068499,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 161280,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157069309,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 162308,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157069987,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 163322,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157071473,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 164331,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157072437,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 165343,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157073294,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 166355,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157074354,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 167362,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 11,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157075631,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 168376,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 34,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157076626,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 169387,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157077594,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 170403,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157078467,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 171412,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157079461,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 172419,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 15,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157080687,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 173426,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 2,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157081682,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 174494,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 35,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157082641,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 175532,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157083537,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 176539,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 18,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157084510,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 177552,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157085778,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 178569,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157086753,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 179583,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157087851,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 180592,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157088691,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 181601,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 19,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157089849,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 182613,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 29,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157090883,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 183628,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157091596,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 184637,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157092609,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 185642,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157093906,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 186658,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 32,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157094896,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 187718,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 24,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157095869,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 188731,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 17,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157096981,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 189743,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 3,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157098003,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 190751,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157099017,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 191765,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157099942,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 192780,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157100852,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 193795,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157101790,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 194809,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 4,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157103072,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 195819,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 11,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157104088,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 196833,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157105042,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 197850,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157105909,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 198859,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 30,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157106914,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 199876,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 10,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157107898,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 200924,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 5,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157108918,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 201935,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 20,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157110178,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 202949,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 9,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 0,
+        "lastSuccessAt": 1792157111206,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 203954,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "SCANNING",
+        "pending": 12,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 1,
+        "lastSuccessAt": 1792157112218,
+        "missingResults": 0
+      }
+    },
+    {
+      "elapsedMs": 204969,
+      "status": {
+        "generation": "arte-search-s5-1c513ec0da334930be963e584e7e0b07-g01",
+        "state": "READY",
+        "pending": 0,
+        "failures": 0,
+        "entries": 1132,
+        "completedRounds": 1,
+        "lastSuccessAt": 1792157113040,
+        "missingResults": 0
+      }
+    }
+  ],
+  "elapsedMs": 492924,
+  "initialBackfillMs": 204991,
+  "initialIndexedDocuments": 1132,
+  "queries": [
+    {
+      "id": "T01-1",
+      "pages": 1,
+      "actual": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "expected": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T01-2",
+      "pages": 1,
+      "actual": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "expected": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T01-3",
+      "pages": 1,
+      "actual": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "expected": [
+        "7f48e66c207b9625c86f95c9531f613a585b667d3c30a2fce7c3420b9b1892c6"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T02-1",
+      "pages": 1,
+      "actual": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "expected": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T02-2",
+      "pages": 1,
+      "actual": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "expected": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T02-3",
+      "pages": 1,
+      "actual": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "expected": [
+        "1716fbb5cfeaeeffb0e3de461e79a07b69eb89616cbd8667c6712e4d8e85426f"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T03-1",
+      "pages": 1,
+      "actual": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "expected": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T03-2",
+      "pages": 1,
+      "actual": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "expected": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T03-3",
+      "pages": 1,
+      "actual": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "expected": [
+        "3ea14ea7e7f1472b65d80635122522f8c3bdc7b4ff586cf231fcf8073ecadf64"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T04-1",
+      "pages": 1,
+      "actual": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "expected": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T04-2",
+      "pages": 1,
+      "actual": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "expected": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T04-3",
+      "pages": 1,
+      "actual": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "expected": [
+        "081a07c7a4b6f0ffc1e5a184f4655b7106147fc88cef8c19d637441910998195"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T05-1",
+      "pages": 1,
+      "actual": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "expected": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T05-2",
+      "pages": 1,
+      "actual": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "expected": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T05-3",
+      "pages": 1,
+      "actual": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "expected": [
+        "a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T06-1",
+      "pages": 1,
+      "actual": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "expected": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T06-2",
+      "pages": 1,
+      "actual": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "expected": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T06-3",
+      "pages": 1,
+      "actual": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "expected": [
+        "3fc90d82fab1790ef96085a3b9d8406b425f98957f7c0411830ddc0c49f078ce"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T07-1",
+      "pages": 1,
+      "actual": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "expected": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T07-2",
+      "pages": 1,
+      "actual": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "expected": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T07-3",
+      "pages": 1,
+      "actual": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "expected": [
+        "abebe537c6bebecb29111c7a5b3070830b71388b22404e5e1e8a25365746646b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T08-1",
+      "pages": 1,
+      "actual": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "expected": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T08-2",
+      "pages": 1,
+      "actual": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "expected": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "count": 1
+    },
+    {
+      "id": "T08-3",
+      "pages": 1,
+      "actual": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "expected": [
+        "236cd00bf7d31299dbae9a22b2f9718f58cf18de23980a5a4389ae3df4013b06"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U01-1",
+      "pages": 1,
+      "actual": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "expected": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U01-2",
+      "pages": 1,
+      "actual": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "expected": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U01-3",
+      "pages": 1,
+      "actual": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "expected": [
+        "9716392367a6c821d64051fcb55f9e185e2d65dc7696d1a287144e452db3d826"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U02-1",
+      "pages": 1,
+      "actual": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "expected": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U02-2",
+      "pages": 1,
+      "actual": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "expected": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U02-3",
+      "pages": 1,
+      "actual": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "expected": [
+        "8bf1e74ce9d8c4baf93df453b5790876cdc3c6f21a23e6c3f667e9ed6d08b61a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U03-1",
+      "pages": 1,
+      "actual": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "expected": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U03-2",
+      "pages": 1,
+      "actual": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "expected": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U03-3",
+      "pages": 1,
+      "actual": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "expected": [
+        "4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U04-1",
+      "pages": 1,
+      "actual": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "expected": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U04-2",
+      "pages": 1,
+      "actual": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "expected": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U04-3",
+      "pages": 1,
+      "actual": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "expected": [
+        "b3dc3ac2db7560301673221eeb54ee2646d46a884270b98ab79a83609cb19fca"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U05-1",
+      "pages": 1,
+      "actual": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "expected": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U05-2",
+      "pages": 1,
+      "actual": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "expected": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U05-3",
+      "pages": 1,
+      "actual": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "expected": [
+        "b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U06-1",
+      "pages": 1,
+      "actual": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "expected": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U06-2",
+      "pages": 1,
+      "actual": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "expected": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U06-3",
+      "pages": 1,
+      "actual": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "expected": [
+        "3229bc3c0523c988d1b28e5f388eb65d56af422e793f1a415770aa5230c7a9ad"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U07-1",
+      "pages": 1,
+      "actual": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "expected": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U07-2",
+      "pages": 1,
+      "actual": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "expected": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U07-3",
+      "pages": 1,
+      "actual": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "expected": [
+        "4d12d48a0c3553a0305711e37df3831fd538a1f976e427f87e10fe2fbaed9798"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U08-1",
+      "pages": 1,
+      "actual": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "expected": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U08-2",
+      "pages": 1,
+      "actual": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "expected": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "U08-3",
+      "pages": 1,
+      "actual": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "expected": [
+        "a1367621144ff64c75335881de658dc44132392f160d6864b8b9c4fb96a4f13b"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A01-1",
+      "pages": 1,
+      "actual": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "expected": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A01-2",
+      "pages": 1,
+      "actual": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "expected": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A01-3",
+      "pages": 1,
+      "actual": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "expected": [
+        "140473c8c4b7b8ca78fd756c3bb83f35a146a6355285f3aaac78a2b01e1807a5"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A02-1",
+      "pages": 1,
+      "actual": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "expected": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A02-2",
+      "pages": 1,
+      "actual": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "expected": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A02-3",
+      "pages": 1,
+      "actual": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "expected": [
+        "54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A03-1",
+      "pages": 1,
+      "actual": [
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+      ],
+      "expected": [
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95",
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583"
+      ],
+      "count": 2
+    },
+    {
+      "id": "A03-2",
+      "pages": 1,
+      "actual": [
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+      ],
+      "expected": [
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95",
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583"
+      ],
+      "count": 2
+    },
+    {
+      "id": "A03-3",
+      "pages": 1,
+      "actual": [
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+      ],
+      "expected": [
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95",
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583"
+      ],
+      "count": 2
+    },
+    {
+      "id": "A04-1",
+      "pages": 1,
+      "actual": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "expected": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A04-2",
+      "pages": 1,
+      "actual": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "expected": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A04-3",
+      "pages": 1,
+      "actual": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "expected": [
+        "51c9b08ec6690a99ab8253e7aebd0ab0f97ad4c53981e91a54d00c28af1d9f63"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A05-1",
+      "pages": 1,
+      "actual": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "expected": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A05-2",
+      "pages": 1,
+      "actual": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "expected": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A05-3",
+      "pages": 1,
+      "actual": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "expected": [
+        "c9793b0d0bb1eec5d032bde7144a9788bdfccbdbc2d4715168ce337b15f9f039"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A06-1",
+      "pages": 1,
+      "actual": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "expected": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A06-2",
+      "pages": 1,
+      "actual": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "expected": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A06-3",
+      "pages": 1,
+      "actual": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "expected": [
+        "3a959baaf73dac14ba497905afc070c4e666bac4892a7d427b83236de6d3b29a"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A07-1",
+      "pages": 1,
+      "actual": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "expected": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A07-2",
+      "pages": 1,
+      "actual": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "expected": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A07-3",
+      "pages": 1,
+      "actual": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "expected": [
+        "0f948fa312893b1a83872c24dfe1cdfb8c011c1ebe5b4199a97d92297c671965"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A08-1",
+      "pages": 1,
+      "actual": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "expected": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A08-2",
+      "pages": 1,
+      "actual": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "expected": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "count": 1
+    },
+    {
+      "id": "A08-3",
+      "pages": 1,
+      "actual": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "expected": [
+        "bacf3d2f19e699085cecab34c8e9fb3f37b2326f30187aa8e074c8065427e2f1"
+      ],
+      "count": 1
+    },
+    {
+      "id": "B01",
+      "invalidRejected": true
+    },
+    {
+      "id": "B02",
+      "invalidRejected": true
+    },
+    {
+      "id": "B03",
+      "invalidRejected": true
+    },
+    {
+      "id": "B04",
+      "invalidRejected": true
+    },
+    {
+      "id": "B05",
+      "pages": 1,
+      "actual": [],
+      "expected": [],
+      "count": 0
+    },
+    {
+      "id": "B06",
+      "pages": 1,
+      "actual": [],
+      "expected": [],
+      "count": 0
+    },
+    {
+      "id": "B07",
+      "pages": 3,
+      "actual": [
+        "03a71eafa62e3bc17fb89aa17143e728526792a3aa46bf8a973b5e5a5949a87c",
+        "0c1179830a4597ed876696a59d2286bd916cf100983c4747f17919db6dc4a305",
+        "331ca4e8c6d645fef6d854295502518d9d6c9dbfe843e9f949338093734c3dea",
+        "3705db50a769c03858ea84f03240a19aec0156c2bfa82d562b8abf93c24b244e",
+        "44270e54e015af9823908614f2687b930eda67ce5a2e510983dc1561f10f7629",
+        "5b50b6cc1ed07085f72804dddd6c3339562848f9d75097d70e4d118be6bdb3f6",
+        "64b57437eab179bcda341a4fa9ad0126e7c28e23b728f709b026f9d0ac4ae172",
+        "971c7d55b95febd09d363f87d0232007ab3af4e309b2b02325f5b99bdbde592c",
+        "a2e4554fd866261c07f03e390c79f1dc836908ab5bbb444c544b0289a1984df4",
+        "b353bf9b35ac2dd7842a7d17804836ecef2125e779547ab605090f2ba37148d2",
+        "b3b0663f3c50658cdbbcf77115a1f716efb082680f3624a1d86d80eab0af001b",
+        "be03de5f02f83a1406844f5aded8a141a23fce427f0c0fdbe0b7098bf769fdad",
+        "bf5fc3d3bf0412c096fff7cbbad2d32ea429316ea2772462e9da3aaba5b284a8",
+        "ce0a846a0840f860e5f4f6fc0a809ccd39d116d1f907f358a5d401dec284213a",
+        "ddf4f8901019ff088d297783c7a9cf227b0813a1cb6abbbd084f8ea744219580",
+        "de76f612e188edd293b44412d95c226dcc14abe1b0ed3f406eb49ab8016fcd11",
+        "e99a7aa11b0d36911c49e36f3bd3186678f0bbeb26e87ef8f5cac479fee7a20e",
+        "f94780cde0261bfdea12ff3f9a581db5fb2d144524db5b1d98077a8438304fb2",
+        "fc076885c39d52cefa398d59efb0cecc7646e76b2ee9bda0ca251e2d586d2604",
+        "fda2295df50ab447fec1471ad54f009ca3741581fca05a11eca768c6dc063676",
+        "02e0db7e65baeb282ba69415a534d8f1e9e8b56dd20b1ff838bb4b9787c7c640",
+        "2f06abeac84563dbc333fa0113cf41d5b9ea679619b55e6f12101a5cd01f5a74",
+        "3178588bf201a3282a76702c4d050603cf1621207585201a70a9f3340fde3e56",
+        "370b2423782fab6ae334ef5a3a512f04a9dcd6da3ede0d31ee6cb5e86b3f53f5",
+        "52baa6cd4f4a096a0e5b3d479583710605d2daaa3ac227c0437a96e03f5daa58",
+        "5b9fc06d372d33237f576b99b99d64528b963e2f99d278df09a68d832729e277",
+        "61cfc19d9221b314e6c7f123d8c347eb73db408ebf772f457f96309360d6d9a5",
+        "6661e084c81a9b791f386c28138cb5059764167103f094ac7667b0fa03d06f0f",
+        "6e8dbd283ad0e07a2cb719098955a6e24b2f56e4b79d51dc0bcd32f8e3f6fad1",
+        "95bbe2eb8ebf5953a2f2c5afec4f47531edd49410aeb965b64ee5453bc5104d8",
+        "a6cddb672ead214c2cdbdb106a610aac1bee1077db811549a18364a42d9618e4",
+        "a71f458b583209f9a3e13b546c0b5615eeacdf6fbcc85076c02f3e3e0c5c3927",
+        "a9075b09ce5e28a42edf0d21b9987c41a62bef971694df124dba129dc49eb993",
+        "aa000c2ff44e9af9e245ab354bdbf175d1e5683c13b1b749bdeb0f22757e17e7",
+        "b5b7a6e9496aca6f94c16563f117872ecdfe16cb8c612caf5a0cf42361b72f7d",
+        "b6d528ed8f5275ce601613266fe530d1c0bb8cbebbf389583e860a5511aa4e8f",
+        "bda32b1061752e412c9d79a172f8999e5366899f75fde8754aae5fb2e3641119",
+        "bf4deb2b14ec2d6d183a263241f17afa4b8b1b1c5a008d4fd2881e0caf8fcb57",
+        "da7e45c76353d8641f776aeb88048ca9dd99978b220e167e7f01fb321fde1c10",
+        "e9ab7079d333a1469d1e15a00d3e3fc5c1ec50181cad527b657d09e76f49bc45"
+      ],
+      "expected": [
+        "03a71eafa62e3bc17fb89aa17143e728526792a3aa46bf8a973b5e5a5949a87c",
+        "ddf4f8901019ff088d297783c7a9cf227b0813a1cb6abbbd084f8ea744219580",
+        "52baa6cd4f4a096a0e5b3d479583710605d2daaa3ac227c0437a96e03f5daa58",
+        "bda32b1061752e412c9d79a172f8999e5366899f75fde8754aae5fb2e3641119",
+        "a6cddb672ead214c2cdbdb106a610aac1bee1077db811549a18364a42d9618e4",
+        "a2e4554fd866261c07f03e390c79f1dc836908ab5bbb444c544b0289a1984df4",
+        "a71f458b583209f9a3e13b546c0b5615eeacdf6fbcc85076c02f3e3e0c5c3927",
+        "b3b0663f3c50658cdbbcf77115a1f716efb082680f3624a1d86d80eab0af001b",
+        "0c1179830a4597ed876696a59d2286bd916cf100983c4747f17919db6dc4a305",
+        "331ca4e8c6d645fef6d854295502518d9d6c9dbfe843e9f949338093734c3dea",
+        "6661e084c81a9b791f386c28138cb5059764167103f094ac7667b0fa03d06f0f",
+        "44270e54e015af9823908614f2687b930eda67ce5a2e510983dc1561f10f7629",
+        "61cfc19d9221b314e6c7f123d8c347eb73db408ebf772f457f96309360d6d9a5",
+        "64b57437eab179bcda341a4fa9ad0126e7c28e23b728f709b026f9d0ac4ae172",
+        "b6d528ed8f5275ce601613266fe530d1c0bb8cbebbf389583e860a5511aa4e8f",
+        "971c7d55b95febd09d363f87d0232007ab3af4e309b2b02325f5b99bdbde592c",
+        "e9ab7079d333a1469d1e15a00d3e3fc5c1ec50181cad527b657d09e76f49bc45",
+        "e99a7aa11b0d36911c49e36f3bd3186678f0bbeb26e87ef8f5cac479fee7a20e",
+        "da7e45c76353d8641f776aeb88048ca9dd99978b220e167e7f01fb321fde1c10",
+        "de76f612e188edd293b44412d95c226dcc14abe1b0ed3f406eb49ab8016fcd11",
+        "6e8dbd283ad0e07a2cb719098955a6e24b2f56e4b79d51dc0bcd32f8e3f6fad1",
+        "3178588bf201a3282a76702c4d050603cf1621207585201a70a9f3340fde3e56",
+        "bf5fc3d3bf0412c096fff7cbbad2d32ea429316ea2772462e9da3aaba5b284a8",
+        "aa000c2ff44e9af9e245ab354bdbf175d1e5683c13b1b749bdeb0f22757e17e7",
+        "b5b7a6e9496aca6f94c16563f117872ecdfe16cb8c612caf5a0cf42361b72f7d",
+        "ce0a846a0840f860e5f4f6fc0a809ccd39d116d1f907f358a5d401dec284213a",
+        "fc076885c39d52cefa398d59efb0cecc7646e76b2ee9bda0ca251e2d586d2604",
+        "370b2423782fab6ae334ef5a3a512f04a9dcd6da3ede0d31ee6cb5e86b3f53f5",
+        "5b50b6cc1ed07085f72804dddd6c3339562848f9d75097d70e4d118be6bdb3f6",
+        "a9075b09ce5e28a42edf0d21b9987c41a62bef971694df124dba129dc49eb993",
+        "f94780cde0261bfdea12ff3f9a581db5fb2d144524db5b1d98077a8438304fb2",
+        "3705db50a769c03858ea84f03240a19aec0156c2bfa82d562b8abf93c24b244e",
+        "bf4deb2b14ec2d6d183a263241f17afa4b8b1b1c5a008d4fd2881e0caf8fcb57",
+        "5b9fc06d372d33237f576b99b99d64528b963e2f99d278df09a68d832729e277",
+        "95bbe2eb8ebf5953a2f2c5afec4f47531edd49410aeb965b64ee5453bc5104d8",
+        "b353bf9b35ac2dd7842a7d17804836ecef2125e779547ab605090f2ba37148d2",
+        "be03de5f02f83a1406844f5aded8a141a23fce427f0c0fdbe0b7098bf769fdad",
+        "02e0db7e65baeb282ba69415a534d8f1e9e8b56dd20b1ff838bb4b9787c7c640",
+        "2f06abeac84563dbc333fa0113cf41d5b9ea679619b55e6f12101a5cd01f5a74",
+        "fda2295df50ab447fec1471ad54f009ca3741581fca05a11eca768c6dc063676"
+      ],
+      "count": 40
+    },
+    {
+      "id": "B08",
+      "pages": 1,
+      "actual": [
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+      ],
+      "expected": [
+        "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95",
+        "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583"
+      ],
+      "count": 2
+    }
+  ],
+  "mismatches": [],
+  "rankedQueries": 74,
+  "top5Queries": 74,
+  "locationChecks": 93,
+  "realDependencyHttpAndOwnerMatrix": "PASS; test authorization resolver, not production RBAC certification",
+  "freshness": {
+    "user": {
+      "p95Ms": 75093,
+      "samplesMs": [
+        5402,
+        14431,
+        24329,
+        29101,
+        55285,
+        63200,
+        65413,
+        67570,
+        69253,
+        75093
+      ],
+      "maxMs": 75093
+    },
+    "assistant": {
+      "p95Ms": 2238,
+      "samplesMs": [
+        1108,
+        1064,
+        1053,
+        1074,
+        2217,
+        2228,
+        2207,
+        2232,
+        2238,
+        2197
+      ],
+      "maxMs": 2238
+    },
+    "title": {
+      "p95Ms": 61551,
+      "samplesMs": [
+        3302,
+        15481,
+        15477,
+        15455,
+        15446,
+        20548,
+        28054,
+        39075,
+        54224,
+        61551
+      ],
+      "maxMs": 61551
+    }
+  },
+  "freshnessTargetMs": 30000,
+  "freshnessTargetMet": false,
+  "freshnessSamplePattern": "10 conversation groups, 30 committed events in one burst; 2 concurrent search clients",
+  "freshnessLoad": {
+    "manualRefresh": false,
+    "concurrentBackgroundQueries": 2,
+    "queries": 273,
+    "errors": 0,
+    "elapsedMs": 75387
+  },
+  "queryLatency": {
+    "includesClose": true,
+    "p95Ms": 103,
+    "samples": 273
+  },
+  "browserBridge": "Completed; fixed test identity + MVC controllers + real dependencies",
+  "dependencyIsolation": "PASS: missing read alias and closed dedicated Redis client; ordinary MySQL detail unaffected",
+  "finishedAt": "2026-10-16T13:30:01.199650Z"
+}

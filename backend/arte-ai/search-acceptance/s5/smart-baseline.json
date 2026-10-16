@@ -1,0 +1,28 @@
+{
+  "startedAt": "2026-10-16T12:57:35.881033Z",
+  "corpusVersion": "s5-labels-v1",
+  "server": "9.4.2",
+  "shards": 2,
+  "runtime": {
+    "os": "Mac OS X",
+    "arch": "aarch64",
+    "cpu": 12,
+    "java": "21.0.8",
+    "mysqlPoolMax": 8
+  },
+  "initialBackfillMs": 137105,
+  "initialIndexedDocuments": 1132,
+  "rankedQueries": 74,
+  "top5Queries": 68,
+  "locationChecks": 88,
+  "mismatches": [
+    "T05-3: expected=[a7a2ad05928b8dab0d0055a474c14e582bccebb9e04e2a5e4ea6543dfb4e1553], actual=[]",
+    "U03-1: expected=[4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96], actual=[]",
+    "U03-2: expected=[4f92ca2e41508a3dbe89594ec8d3cf46a7d524fb8e41e1414ab7396013a5cb96], actual=[]",
+    "U05-3: expected=[b8489202b120aacd5212df6664792e8bdd54e2c5af564588b5764c842f1a5c29], actual=[]",
+    "A02-1: expected=[54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8], actual=[]",
+    "A02-3: expected=[54b8a40a206b800c4b26cc19991f1dc7d2f98b29c75b1a4ffb3b484069726cc8], actual=[]"
+  ],
+  "rule": "v1: smart primary + identifiers",
+  "note": "Fixed queries/expected identities kept unchanged for v2; only corpus rules metadata changed."
+}

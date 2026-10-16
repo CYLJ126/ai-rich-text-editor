@@ -1,0 +1,39 @@
+{
+  "before": {
+    "keys": [
+      "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+      "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+    ],
+    "query": "端口冲突"
+  },
+  "upper": {
+    "historyMode": true,
+    "keys": [
+      "9056c019181e5c792678afe9e2e0abc15d60a9e3ab7548b2c6986aedf0fa4583",
+      "ebd81c8477a299aa26bc4d499a1c119e5e967d0ab2275205829c2a9bc0d89c95"
+    ],
+    "messages": [
+      "user-turn-A03",
+      "answer-A03"
+    ],
+    "query": "端口冲突"
+  },
+  "lower": {
+    "query": "",
+    "searchRows": 0,
+    "temporaryRows": 1,
+    "defaultRows": 20,
+    "messages": [
+      "user-turn-A03",
+      "answer-latest-A03"
+    ],
+    "historyMode": 0
+  },
+  "recall": {
+    "query": "返回 空值",
+    "snippet": "get_user_by_id 返回空值怎么处理？",
+    "highlights": [
+      "返回空值"
+    ]
+  }
+}
