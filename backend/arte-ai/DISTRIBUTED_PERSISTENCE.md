@@ -1,5 +1,10 @@
 # AI 执行存储与预算事务契约 v1
 
+> 2026-10-17 TOOL 评审设计关联：[AI TOOL 专项 V0.2](../../ARTE%20AI%20TOOL%20需求及设计.md)§4.6、§6.7、§8.8、§13.7
+> 规定免费／付费派发、Run 额度与账户预留同库事务、业务结果证据、workClass 领取及版本切换。当前原子派发要求费用预留，Outbox
+> 仍按现有类型领取；新契约尚未实现。新增持锁顺序保持 Invocation 在前，再按需锁 Outbox、Run 预算、Account、Reservation；Run
+> 控制不反向持锁等待子 Invocation。不得以两个独立提交的 Store 操作模拟原子预算，也不得把 Run ID 填入 invocationId。
+
 ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。受理及字节存储见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)；受控供应商交互、Worker 与生成闭环现已接入，见 [第 5～6 步实现说明](EXECUTION_IMPLEMENTATION.md)。各阶段显式开启，对外控制器尚未实现。
 
 ## 1. 原子边界

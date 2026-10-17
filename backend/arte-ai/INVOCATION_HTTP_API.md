@@ -1,5 +1,9 @@
 # 新 AI 执行查询与停止 HTTP 接口
 
+> 2026-10-17 TOOL 评审设计关联：[AI TOOL 专项 V0.2](../../ARTE%20AI%20TOOL%20需求及设计.md)计划复用本说明的单 Invocation
+> 查询与取消，新增工具业务结果检查／证据确认及独立 Run 查询。当前核对实现不能直接处理免费 TOOL 结果；业务成功、费用结算和取消确认分别表达。UNKNOWN
+> 界面应展示已知／未知事实、核对时间与责任方，不能提供盲重试；相关新 API 尚未实现。
+
 `NewAiInvocationController` 提供停止生成、执行状态、结果、单页耐久事件重放和 SSE 通知，沿用已有新 AI Controller 的 POST、
 `@Valid`、
 `Mono<ResultContext<...>>` 和请求 Locale。只有 `arte.ai-new.enabled=true` 与 `arte.ai-new-execution.enabled=true`

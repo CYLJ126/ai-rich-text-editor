@@ -1,5 +1,12 @@
 # AI 调用接口契约
 
+> 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)作为本项目新增 TOOL 功能基线。现有
+> ToolGateway.invoke (GatewayCall<ToolInvocation>) 和 BusinessToolAdapter 已有类型化方法，但目录、绑定管理、TOOL
+> 受理／派发和聊天循环尚无完整实现。计划以统一协调链路接入单次工具，使用 ToolResult 保留最终副作用与错误事实；人工等待和多步
+> Run 分别扩展对应状态与契约，不向 Gateway 增加模型继续决策职责。本说明现有接口不因文档更新自动获得新能力。
+> TOOL 评审修订 V0.2：专项 §4.6 列出本地目标、免费派发、子预算、审批状态、Turn 与 Outbox
+> 的契约变更。ToolOutcomeQueryAdapter／核对证据提交是计划端口，不能把当前 invoke 或生成账单核对用作工具结果确认；所有新状态、计划和证据须通过版本化白名单与当前授权。
+
 适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)
 。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)
 。第 5～6 步的

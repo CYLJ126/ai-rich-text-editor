@@ -1,5 +1,13 @@
 # 第 4 步：单次 DeepSeek 文本交互
 
+> 2026-10-17 TOOL 设计关联：当前模型适配仍拒绝工具描述、TOOL
+> 消息和工具提议；本文的文本交互验收不覆盖工具调用。[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)第 10
+> 章另行规划工具 Schema 映射、工具参数增量组装、结束语义、结果配对、上下文容量及持久化循环。ModelGateway
+> 继续只处理一次生成，后续工具选择／执行／继续生成由 ToolChatRun 协调；本次没有放开现有协议限制。
+> TOOL 评审修订 V0.2：专项的 Run 费用上限须包含每个模型 Attempt
+> 的在途预留，未知费用不释放。工具聊天重新生成按“只重写／重新读取／重新执行”区分并记录资料新鲜度；不改变本说明当前纯文本协议。受控模型的性能样本只用于测平台开销，不作为真实供应商
+> TTFT 或可用性结论。
+
 已实现受控 WebClient／Reactor Netty HTTP 客户端、Spring SSE codec、DeepSeek 专有 DTO 与平台生成信号映射。新链路不经过 Spring AI 的 DeepSeekChatModel、DeepSeekApi、ChatClient 或 Advisor；不增加框架自动重试、工具执行或记忆注入。
 
 本步验收范围是一次内部 `ModelGateway.generate` 订阅。`ChatService.submit` 仍只可靠受理；Worker、`InvocationCoordinator.dispatch`、Attempt／预算生命周期及终态提交现已由 [第 5～6 步](EXECUTION_IMPLEMENTATION.md) 接入并使用独立开关。只开启本步配置不会自动发送已受理请求。

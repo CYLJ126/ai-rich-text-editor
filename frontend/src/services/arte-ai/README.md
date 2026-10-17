@@ -1,5 +1,13 @@
 # 新 AI 前端接口
 
+> 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../../../ARTE%20AI%20TOOL%20需求及设计.md)规划在本目录按现有
+> request、ResultContext、Scope、幂等和取消规范增加工具服务。当前没有 TOOL 管理／调用或 ToolChatRun 导出函数；单次工具拟扩展通用
+> Invocation 查询，工具聊天使用 kind=RUN 和独立游标。实现时须扩展状态与结果判别、带类型的回答候选、工作空间隔离及过程展示，不能把
+> runId 传给 Invocation 查询或直接拼接子调用游标。本次没有新增前端代码。
+> TOOL 评审修订 V0.2：计划增加默认绑定准备、调用预览摘要及 UNKNOWN
+> 核对进度，普通页隐藏版本／重试等高级字段。工具聊天的三种重新生成意图、历史资料时刻和实际审批到期必须明确展示；轮询采用有界退避，空间切换／失权停止刷新。上述均为未来
+> TOOL API，不是本目录当前导出函数。
+
 S3 提供 `searchConversations`、`closeSearch`、`queryTurnsAround`，S4 已接入页面双入口，后端部署配置现默认开启搜索查询和后台同步。搜索返回
 `body.data.records` 与不透明游标，不使用普通页码分页包装；不带 cursor 会新建 PIT，进行中的同词请求由搜索界面合并。
 `closeSearch` 允许成功包装中的空 data。历史定位独立于原搜索 PIT，助手正文通过 `getInvocationSnapshot` 辅助函数调用既有批量

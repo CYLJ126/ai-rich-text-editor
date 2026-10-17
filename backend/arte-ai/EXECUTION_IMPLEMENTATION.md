@@ -1,5 +1,14 @@
 # 第 5～6 步：异步派发与最小生成闭环
 
+> 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)规划在本执行基础上新增 TOOL
+> 准入与按能力派发。当前 AdmissionInvocationCoordinator／GenerationDispatcher 仍限制生成输入，不能直接受理工具。单次工具计划复用
+> Invocation／Attempt、Outbox、结果、事件及 fencing，审批等待须新增非终态并在获批前不创建 Attempt；免费工具不产生虚构模型费用。工具聊天由独立
+> ToolChatRun 协调子 Invocation，不把多次业务操作合并为单次模型 Attempt。本说明的已实现保证和测试记录仅适用于各自原验收范围，本次未实现
+> TOOL。
+> TOOL 评审修订 V0.2：专项 §6.7 将 Run 额度、账户预留、Attempt 和派发事实规定为同库短事务，免费派发使用明确 FREE 分支；§8.8
+> 将业务结果核对与费用核对分离。首版同构执行节点，§13.7 要求按 workClass 和容量领取，当前 claim／Worker 仍须扩展；§14.5
+> 的性能指标是待压测目标，当前实现和历史测试不证明达到。
+
 已实现 Service 层完整链路：创建会话 → ChatService.submit 可靠受理 → Worker 领取 DISPATCH Outbox → Attempt／预算预留／发送标记 → ModelGateway 单次生成 → 输出事件／结果字节 → 耐久终态 → 预算结算 → 状态、结果及事件重放查询。新增运行实现均在 `com.arte.ainew`，复用前 4 步的控制面、字节存储及受控连接。
 
 **图 1：会话创建与可靠受理**

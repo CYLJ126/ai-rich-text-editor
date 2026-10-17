@@ -1,5 +1,12 @@
 # 最小 AI 数据契约 v1
 
+> 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)以现有
+> ToolInvocation、ToolResult、DefinitionRef 和通用执行契约为基础规划新功能。工具目录／绑定修订、类型化本地执行目标、Invocation.WAITING_APPROVAL、ToolChatRun、带类型的
+> Turn 回答候选及 Run 事件／工作项均为计划扩展，当前 v1 类型和存储编码尚未实现这些变化；实施时须同步状态校验、codec、事务、查询和前端类型。ToolResult
+> 仍只表达 SUCCEEDED／FAILED／UNKNOWN，受理与审批等待不作为最终结果变体。
+> TOOL 评审修订 V0.2：专项 §4.6 明确现有契约影响；FREE／CHARGE 派发、受信子预算选择、Run C／H 费用占用、核对证据和带类型候选都需要新增类型／codec
+> 与历史解码。ExecutionContext.child () 当前仍继承单一 budgetRef，不具备账户切换能力；现有数据声明不因设计更新自动获得这些能力。
+
 日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 
 ## 1. 所有权、关系与实现范围
