@@ -49,6 +49,8 @@ public interface SearchSyncMapper {
 
     List<Work> pending(@Param("g") String generation, @Param("now") long now, @Param("size") int size);
 
+    Long nextWorkAt(@Param("g") String generation);
+
     int complete(@Param("g") String generation, @Param("task") String task, @Param("tenant") String tenant,
                  @Param("space") String space, @Param("subject") String subject, @Param("conv") String conversation, @Param("owner") String owner);
 

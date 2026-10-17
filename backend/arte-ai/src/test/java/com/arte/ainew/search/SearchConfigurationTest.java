@@ -55,6 +55,7 @@ public class SearchConfigurationTest {
             assertEquals(3, p.session().maxPerSubject().intValue());
             assertFalse(p.diagnostics().sqlEnabled());
             assertEquals(Duration.ofMillis(500), p.diagnostics().slowSqlThreshold());
+            assertEquals(Duration.ofSeconds(5), p.sync().idleMax());
         }
     }
 
@@ -69,6 +70,16 @@ public class SearchConfigurationTest {
             assertEquals(Duration.ofSeconds(2), p.diagnostics().slowSqlThreshold());
         }
         assertThrows(IllegalArgumentException.class, () -> new NewAiSearchProperties.Diagnostics(false, Duration.ZERO));
+    }
+
+    @Test
+    public void idleBackoffBindsAndCannotBeShorterThanActiveTick() {
+        try (var c = context(Map.of("arte.ai-new.enabled", true, "arte.ai-new-search.sync.idle-max", "2s"))) {
+            c.refresh();
+            assertEquals(Duration.ofSeconds(2), c.getBean(NewAiSearchProperties.class).sync().idleMax());
+        }
+        assertThrows(IllegalArgumentException.class, () -> new NewAiSearchProperties.Sync(null, null, null, null, null,
+                null, null, null, null, null, Duration.ofMillis(249)));
     }
 
     @Test

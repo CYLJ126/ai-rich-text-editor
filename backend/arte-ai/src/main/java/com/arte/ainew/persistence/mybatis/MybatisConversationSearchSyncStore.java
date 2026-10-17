@@ -170,6 +170,14 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
         });
     }
 
+    @Override
+    public Long nextWorkAt(Lease l) {
+        return transaction(() -> {
+            guard(l);
+            return mapper.nextWorkAt(l.generation());
+        });
+    }
+
     private Entry entry(SearchSyncMapper.Entry r) {
         return new Entry(r.entryKey(), new Unit(Kind.valueOf(r.kind()), r.sourceKey()), new Scope(new ExecutionOwner(r.tenantId(), r.workspaceId(), r.subjectId()), r.conversationId()),
                 r.identityJson(), r.fingerprint(), r.revision(), r.acknowledged(), Desired.valueOf(r.desired()));

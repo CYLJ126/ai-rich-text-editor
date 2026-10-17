@@ -8,6 +8,6 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 backend_dir="$(cd -- "$script_dir/../.." && pwd)"
 mvn -f "$backend_dir/pom.xml" -pl arte-ai -am \
-  -Dtest=SearchSyncWorkerTest,SearchSyncPollingTest,SearchSyncInfrastructureIntegrationTest,SearchConfigurationTest,SearchContractsTest,ExecutionSqlSessionFactoryTest,MybatisExecutionPersistenceTest,ConversationHttpIntegrationTest,ConfigurationAssemblyTest \
+  -Dtest=SearchSyncWorkerTest,SearchSyncPollingTest,ConversationSearchPollingTest,SearchSyncInfrastructureIntegrationTest,SearchConfigurationTest,SearchContractsTest,ExecutionSqlSessionFactoryTest,MybatisExecutionPersistenceTest,ConversationHttpIntegrationTest,ConfigurationAssemblyTest \
   -Dsurefire.failIfNoSpecifiedTests=false \
   -Dlog4j.configurationFile="$script_dir/../src/test/resources/search-s1-log4j2.xml" "$@" test

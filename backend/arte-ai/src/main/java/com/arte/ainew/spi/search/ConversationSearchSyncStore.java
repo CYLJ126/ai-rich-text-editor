@@ -44,6 +44,11 @@ public interface ConversationSearchSyncStore {
 
     List<Work> pending(Lease lease, int size);
 
+    /**
+     * 最早待处理任务的数据库 next_at，包含尚在退避的任务；无任务时返回 null。
+     */
+    Long nextWorkAt(Lease lease);
+
     List<Entry> entries(Lease lease, Unit unit);
 
     Entry stage(Lease lease, Work work, Scope scope, String identity, String fingerprint, Desired desired);

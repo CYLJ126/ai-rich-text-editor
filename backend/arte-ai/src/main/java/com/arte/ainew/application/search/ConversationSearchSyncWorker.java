@@ -44,15 +44,24 @@ public final class ConversationSearchSyncWorker {
     /**
      * 单轮内存观测；changed 为持久同步版本变化数，written 为已写入并确认的 bulk 条目数。
      */
-    public record TickResult(long elapsedMs, boolean acquired, int scanned, int processed, int changed, int written) {
+    public record TickResult(long elapsedMs, boolean acquired, int scanned, int processed, int changed, int written,
+                             Polling polling) {
+    }
+
+    /**
+     * 完成通道位图只含本轮确实扫描到尾部的 C/T/I；等待时间以本轮结束时的数据库时钟计算。
+     */
+    public record Polling(int completedLanes, int failed, Long nextWorkDelayMs, Long nextScanDelayMs) {
     }
 
     private static final class TickMetrics {
         final long started = System.nanoTime();
         int scanned, processed, changed, written;
+        int completedLanes, failed;
+        Polling polling;
 
         TickResult result(boolean acquired) {
-            return new TickResult((System.nanoTime() - started) / 1_000_000, acquired, scanned, processed, changed, written);
+            return new TickResult((System.nanoTime() - started) / 1_000_000, acquired, scanned, processed, changed, written, polling);
         }
     }
 
@@ -94,6 +103,7 @@ public final class ConversationSearchSyncWorker {
                     var found = source.scan(kind, cp.cursor(), config.sync().batchSize());
                     metrics.scanned += found.size();
                     boolean end = found.size() < config.sync().batchSize();
+                    if (end) metrics.completedLanes |= 1 << kind.ordinal();
                     var pause = config.scanEnabled() ? config.sync().tick() : config.sync().reconcileInterval();
                     store.discovered(lease, kind.name(), found, found.isEmpty() ? cp.cursor() : found.getLast().key(), end, pause);
                 }
@@ -118,6 +128,7 @@ public final class ConversationSearchSyncWorker {
                 } catch (LostLease lost) {
                     throw lost;
                 } catch (Exception error) {
+                    metrics.failed++;
                     long multiplier = 1L << Math.min(work.failures(), 20);
                     long delay = Math.min(config.sync().retryMax().toMillis(), config.sync().retryInitial().toMillis() * multiplier);
                     String code = error instanceof MissingResult ? "MISSING_RESULT" : error instanceof EligibilityUnavailable ? "ARCHIVE_READ_FAILED" : error instanceof Retry retry ? retry.code : "SYNC_FAILED";
@@ -127,6 +138,21 @@ public final class ConversationSearchSyncWorker {
                     store.fail(lease, work, code, Duration.ofMillis(delay));
                 }
             }
+            // 读实际持久化的重试时间，不用 pending=0 推断空闲，也不混用应用主机的 epoch。
+            Long nextWorkAt = store.nextWorkAt(lease);
+            long now = store.now();
+            Long nextScanAt = null;
+            for (var k : Kind.values()) {
+                var cp = checkpoints.get(k.name());
+                if (cp.rounds() == 0 || config.scanEnabled() || config.reconcileEnabled())
+                    nextScanAt = nextScanAt == null ? cp.nextAt() : Math.min(nextScanAt, cp.nextAt());
+            }
+            var sweep = checkpoints.get("E");
+            if (initialDone && (sweep.rounds() == 0 || config.reconcileEnabled()))
+                nextScanAt = nextScanAt == null ? sweep.nextAt() : Math.min(nextScanAt, sweep.nextAt());
+            metrics.polling = new Polling(metrics.completedLanes, metrics.failed,
+                    nextWorkAt == null ? null : Math.max(0, nextWorkAt - now),
+                    nextScanAt == null ? null : Math.max(0, nextScanAt - now));
         } finally {
             try {
                 store.release(lease);

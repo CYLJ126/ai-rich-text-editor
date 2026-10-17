@@ -61,13 +61,14 @@ public record NewAiSearchProperties(boolean enabled, boolean queryEnabled, boole
 
     public record Sync(String generation, Duration tick, Integer batchSize, Integer workPerTick, Duration lease,
                        Duration reconcileInterval, Duration retryInitial, Duration retryMax, Integer errorThreshold,
-                       Duration tickBudget) {
+                       Duration tickBudget, Duration idleMax) {
         @ConstructorBinding
         public Sync {
             generation = generation == null || generation.isBlank() ? null : generation;
             ContractChecks.require(generation == null || generation.matches("[a-z][a-z0-9_-]{0,127}"), "Invalid physical generation");
             tickBudget = duration(tickBudget, Duration.ofSeconds(2), Duration.ofMillis(100), Duration.ofSeconds(30));
             tick = duration(tick, Duration.ofMillis(250), Duration.ofMillis(100), Duration.ofMinutes(1));
+            idleMax = duration(idleMax, tick.compareTo(Duration.ofSeconds(5)) > 0 ? tick : Duration.ofSeconds(5), tick, Duration.ofMinutes(1));
             batchSize = batchSize == null ? 20 : batchSize;
             workPerTick = workPerTick == null ? 10 : workPerTick;
             errorThreshold = errorThreshold == null ? 10 : errorThreshold;
@@ -78,6 +79,11 @@ public record NewAiSearchProperties(boolean enabled, boolean queryEnabled, boole
             reconcileInterval = duration(reconcileInterval, Duration.ofHours(1), Duration.ofSeconds(1), Duration.ofDays(7));
             retryInitial = duration(retryInitial, Duration.ofSeconds(2), Duration.ofMillis(100), Duration.ofMinutes(5));
             retryMax = duration(retryMax, Duration.ofMinutes(5), retryInitial, Duration.ofHours(1));
+        }
+
+        public Sync(String generation, Duration tick, Integer batchSize, Integer workPerTick, Duration lease,
+                    Duration reconcileInterval, Duration retryInitial, Duration retryMax, Integer errorThreshold, Duration tickBudget) {
+            this(generation, tick, batchSize, workPerTick, lease, reconcileInterval, retryInitial, retryMax, errorThreshold, tickBudget, null);
         }
 
         public Sync(String generation, Duration tick, Integer batchSize, Integer workPerTick, Duration lease,

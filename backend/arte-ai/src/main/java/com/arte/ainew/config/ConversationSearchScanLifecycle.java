@@ -10,6 +10,8 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
+import java.time.Duration;
+
 /**
  * 管理会话搜索初始化及后台扫描的启停，应用就绪后运行，销毁时停止任务。
  * <p>
@@ -25,11 +27,14 @@ public final class ConversationSearchScanLifecycle {
     private final NewAiSearchProperties properties;
     private final Scheduler scheduler;
     private final ConversationSearchBootstrap bootstrap;
+    private final ConversationSearchPolling polling;
+    private Duration nextDelay;
     private Disposable running;
     private long lastReport;
     private String lastState;
     private volatile boolean completed;
     private int initializationFailures;
+    private int scanFailures;
     private long ticks, leaseSkips, tickElapsedMs, scanned, processed, changed, written;
 
     public ConversationSearchScanLifecycle(ConversationSearchSyncWorker worker, NewAiSearchProperties properties, Scheduler scheduler) {
@@ -42,6 +47,8 @@ public final class ConversationSearchScanLifecycle {
         this.properties = properties;
         this.scheduler = scheduler;
         this.bootstrap = bootstrap;
+        this.polling = new ConversationSearchPolling(properties.sync());
+        this.nextDelay = properties.sync().tick();
     }
 
     /**
@@ -55,6 +62,9 @@ public final class ConversationSearchScanLifecycle {
         if (properties.initializeOnStartup() && bootstrap == null)
             throw new IllegalStateException("Search initializer is required");
         completed = false;
+        polling.reset();
+        scanFailures = 0;
+        nextDelay = properties.sync().tick();
         running = Mono.defer(() -> Mono.fromRunnable(() -> {
                             if (bootstrap != null && !bootstrap.isReady()) {
                                 try {
@@ -71,6 +81,8 @@ public final class ConversationSearchScanLifecycle {
                                 return;
                             }
                             var tick = worker.tick(properties.sync().generation());
+                            scanFailures = 0;
+                            nextDelay = polling.next(tick);
                             ticks++;
                             if (!tick.acquired()) leaseSkips++;
                             tickElapsedMs += tick.elapsedMs();
@@ -85,26 +97,28 @@ public final class ConversationSearchScanLifecycle {
                                 log.info("AI search scan generation={}, state={}, pending={}, failures={}, missing={}, rounds={}, ticks={}, leaseSkips={}, tickElapsedMs={}, lastTickMs={}, scanned={}, processed={}, changed={}, written={}, nextDelayMs={}, nextRunAt={}",
                                         status.generation(), status.state(), status.pending(), status.failures(), status.missingResults(), status.completedRounds(),
                                         ticks, leaseSkips, tickElapsedMs, tick.elapsedMs(), scanned, processed, changed, written,
-                                        completed ? null : properties.sync().tick().toMillis(), completed ? null : java.time.Instant.now().plus(properties.sync().tick()));
+                                        completed ? null : nextDelay.toMillis(), completed ? null : java.time.Instant.now().plus(nextDelay));
                                 ticks = leaseSkips = tickElapsedMs = scanned = processed = changed = written = 0;
                                 lastReport = System.currentTimeMillis();
                                 lastState = status.state();
                             }
                         }).subscribeOn(scheduler)
                         .onErrorResume(error -> {
+                            polling.reset();
+                            int failures = initializationFailures > 0 ? initializationFailures : (scanFailures = Math.min(30, scanFailures + 1));
+                            nextDelay = Duration.ofMillis(Math.min(properties.sync().retryMax().toMillis(),
+                                    properties.sync().retryInitial().toMillis() * (1L << (failures - 1))));
                             if (System.currentTimeMillis() - lastReport >= 60000 || !"ERROR".equals(lastState)) {
                                 Throwable cause = error.getCause() == null ? error : error.getCause();
                                 String code = cause instanceof ConversationSearchBootstrap.InitializationFailure ? cause.getMessage() : cause.getClass().getSimpleName();
-                                log.warn("AI search {} failed generation={}, code={}", bootstrap != null && !bootstrap.isReady() ? "initialization" : "scan tick",
-                                        properties.sync().generation(), code);
+                                log.warn("AI search {} failed generation={}, code={}, nextDelayMs={}", bootstrap != null && !bootstrap.isReady() ? "initialization" : "scan tick",
+                                        properties.sync().generation(), code, nextDelay.toMillis());
                                 lastReport = System.currentTimeMillis();
                                 lastState = "ERROR";
                             }
                             return Mono.empty();
                         })
-                        .then(Mono.defer(() -> Mono.delay(initializationFailures == 0 ? properties.sync().tick() :
-                                java.time.Duration.ofMillis(Math.min(properties.sync().retryMax().toMillis(),
-                                        properties.sync().retryInitial().toMillis() * (1L << (initializationFailures - 1))))))))
+                        .then(Mono.defer(() -> completed ? Mono.empty() : Mono.delay(nextDelay))))
                 .repeat(() -> !completed).subscribe();
     }
 

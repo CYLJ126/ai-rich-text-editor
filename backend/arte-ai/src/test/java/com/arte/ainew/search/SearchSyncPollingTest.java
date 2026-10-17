@@ -3,7 +3,9 @@ package com.arte.ainew.search;
 import com.arte.ainew.application.search.ConversationSearchSyncWorker;
 import com.arte.ainew.persistence.mybatis.MybatisConversationSearchSyncStore;
 import com.arte.ainew.pojo.search.SearchSync.Checkpoint;
+import com.arte.ainew.pojo.search.SearchSync.Kind;
 import com.arte.ainew.pojo.search.SearchSync.LostLease;
+import com.arte.ainew.pojo.search.SearchSync.Unit;
 import com.arte.ainew.spi.search.ConversationSearchSyncStore;
 import org.junit.After;
 import org.junit.Before;
@@ -137,7 +139,7 @@ public class SearchSyncPollingTest {
     }
 
     @Test
-    public void steadyIdleTickExecutesEighteenStatementsWithOneCheckpointReadAndNoRegistration() {
+    public void steadyIdleTickIncludesQueueDeadlineReadWithOneCheckpointReadAndNoRegistration() {
         var dataSource = new CountingDataSource();
         var store = new MybatisConversationSearchSyncStore(dataSource);
         var worker = worker(store);
@@ -145,9 +147,108 @@ public class SearchSyncPollingTest {
         f.jdbc.update("UPDATE arte_ai_search_checkpoint SET rounds=1,next_at=? WHERE generation=?", Long.MAX_VALUE, G);
         dataSource.sql.clear();
         worker.tick(G);
-        assertEquals(dataSource.sql.toString(), 18, dataSource.sql.size());
+        assertEquals(dataSource.sql.toString(), 22, dataSource.sql.size());
         assertEquals(1, dataSource.sql.stream().filter(sql -> sql.contains("lane IN ('C','T','I','E')")).count());
         assertTrue(dataSource.sql.stream().noneMatch(sql -> sql.startsWith("INSERT IGNORE")));
+    }
+
+    @Test
+    public void retryDeadlineIncludesFutureWorkAndIgnoresCompletedTasks() {
+        f.store.register(G, "v2");
+        var lease = f.store.acquire(G, "deadline", Duration.ofSeconds(60));
+        assertNull(f.store.nextWorkAt(lease));
+        var units = List.of(new Unit(Kind.C, "a".repeat(64)), new Unit(Kind.C, "b".repeat(64)));
+        f.store.discovered(lease, "C", units, units.getLast().key(), false, Duration.ZERO);
+        var pending = f.store.pending(lease, 2);
+        f.store.fail(lease, pending.getFirst(), "TEST_RETRY", Duration.ofSeconds(10));
+        f.store.fail(lease, pending.getLast(), "TEST_RETRY", Duration.ofSeconds(20));
+        assertTrue(f.store.pending(lease, 2).isEmpty());
+        long first = f.store.nextWorkAt(lease);
+        assertTrue(first > f.store.now());
+        f.store.complete(lease, pending.getFirst(), null);
+        assertTrue(f.store.nextWorkAt(lease) > first);
+        f.store.release(lease);
+        assertThrows(LostLease.class, () -> f.store.nextWorkAt(lease));
+    }
+
+    @Test
+    public void lifecycleUsesTheLongerDelayOnlyAfterACompleteQuietRound() {
+        var clock = reactor.test.scheduler.VirtualTimeScheduler.getOrSet();
+        var lifecycle = new com.arte.ainew.config.ConversationSearchScanLifecycle(worker(probe.store), properties("search-test", G),
+                reactor.core.scheduler.Schedulers.immediate());
+        try {
+            lifecycle.start();
+            assertEquals(1, probe.calls("acquire"));
+            clock.advanceTimeBy(Duration.ofMillis(100));
+            assertEquals(2, probe.calls("acquire"));
+            clock.advanceTimeBy(Duration.ofMillis(100));
+            assertEquals(3, probe.calls("acquire"));
+            clock.advanceTimeBy(Duration.ofMillis(199));
+            assertEquals(3, probe.calls("acquire"));
+            f.conversation("after-idle", "new title");
+            f.due();
+            clock.advanceTimeBy(Duration.ofMillis(1));
+            assertEquals(4, probe.calls("acquire"));
+            assertEquals(Long.valueOf(1), f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_search_entry", Long.class));
+            clock.advanceTimeBy(Duration.ofMillis(99));
+            assertEquals(4, probe.calls("acquire"));
+            clock.advanceTimeBy(Duration.ofMillis(1));
+            assertEquals(5, probe.calls("acquire"));
+            lifecycle.stop();
+            clock.advanceTimeBy(Duration.ofSeconds(10));
+            assertEquals(5, probe.calls("acquire"));
+        } finally {
+            lifecycle.stop();
+            reactor.test.scheduler.VirtualTimeScheduler.reset();
+        }
+    }
+
+    @Test
+    public void lifecycleBacksOffFailedTicksAndResumesAtActiveIntervalAfterRecovery() {
+        var clock = reactor.test.scheduler.VirtualTimeScheduler.getOrSet();
+        probe.registrationFailures.set(2);
+        var lifecycle = new com.arte.ainew.config.ConversationSearchScanLifecycle(worker(probe.store), properties("search-test", G),
+                reactor.core.scheduler.Schedulers.immediate());
+        try {
+            lifecycle.start();
+            assertEquals(1, probe.calls("register"));
+            clock.advanceTimeBy(Duration.ofMillis(99));
+            assertEquals(1, probe.calls("register"));
+            clock.advanceTimeBy(Duration.ofMillis(1));
+            assertEquals(2, probe.calls("register"));
+            clock.advanceTimeBy(Duration.ofMillis(199));
+            assertEquals(2, probe.calls("register"));
+            clock.advanceTimeBy(Duration.ofMillis(1));
+            assertEquals(3, probe.calls("register"));
+            assertEquals(1, probe.calls("acquire"));
+            clock.advanceTimeBy(Duration.ofMillis(100));
+            assertEquals(2, probe.calls("acquire"));
+            assertEquals(3, probe.calls("register"));
+        } finally {
+            lifecycle.stop();
+            reactor.test.scheduler.VirtualTimeScheduler.reset();
+        }
+    }
+
+    @Test
+    public void backfillOnlyLifecycleStopsWhenAllCheckpointsAndWorkAreComplete() {
+        var clock = reactor.test.scheduler.VirtualTimeScheduler.getOrSet();
+        var base = properties("search-test", G);
+        var config = new com.arte.ainew.config.NewAiSearchProperties(true, false, false, true, false, base.index(), null, null, base.sync());
+        var worker = new ConversationSearchSyncWorker(f.source, probe.store, new SearchSyncWorkerTest.MemoryWriter(), config);
+        var lifecycle = new com.arte.ainew.config.ConversationSearchScanLifecycle(worker, config, reactor.core.scheduler.Schedulers.immediate());
+        try {
+            lifecycle.start();
+            clock.advanceTimeBy(Duration.ofSeconds(5));
+            int ticks = probe.calls("acquire");
+            assertTrue(ticks >= 4);
+            assertEquals("READY", f.store.status(G).state());
+            clock.advanceTimeBy(Duration.ofSeconds(10));
+            assertEquals(ticks, probe.calls("acquire"));
+        } finally {
+            lifecycle.stop();
+            reactor.test.scheduler.VirtualTimeScheduler.reset();
+        }
     }
 
     private final class StoreProbe {

@@ -91,6 +91,9 @@
     <select id="pending" resultMap="Work" useCache="false">SELECT * FROM arte_ai_search_work WHERE generation=#{g} AND
         pending=TRUE AND next_at &lt;= #{now} ORDER BY next_at,task_key LIMIT #{size}
     </select>
+    <select id="nextWorkAt" resultType="java.lang.Long" useCache="false">
+        SELECT MIN(next_at) FROM arte_ai_search_work WHERE generation=#{g} AND pending=TRUE
+    </select>
     <update id="complete">UPDATE arte_ai_search_work SET
         pending=FALSE,force_write=FALSE,failures=0,error_code=NULL,next_at=0,tenant_id=#{tenant},workspace_id=#{space},subject_id=#{subject},conversation_id=#{conv},owner_key=#{owner}
         WHERE generation=#{g} AND task_key=#{task}
