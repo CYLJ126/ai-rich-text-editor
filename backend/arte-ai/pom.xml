@@ -20,6 +20,11 @@
     </properties>
 
     <dependencies>
+        <!-- 将 ES 编码高亮转换为纯文本与区间，不把原始 HTML 返回界面。 -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+        </dependency>
         <!-- 新模型交互显式依赖响应式 HTTP 客户端，不启用 WebFlux 服务端。 -->
         <dependency>
             <groupId>org.springframework</groupId>
@@ -175,6 +180,7 @@
                     <include>arte-ai-new-ddl-mysql.sql</include>
                     <include>arte-ai-new-settlement-snapshot-migration.sql</include>
                     <include>arte-ai-new-conversation-metadata-migration.sql</include>
+                    <include>arte-ai-new-search-sync-migration.sql</include>
                 </includes>
             </testResource>
         </testResources>

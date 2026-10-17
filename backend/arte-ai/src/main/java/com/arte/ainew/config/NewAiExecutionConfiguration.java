@@ -68,8 +68,8 @@ public class NewAiExecutionConfiguration {
     }
 
     @Bean("newAiExecutionEventService")
-    ExecutionEventService events(AdmissionAuthorization authorization, MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, LocalExecutionEventNotifier notifier, @Qualifier("newAiClock") Clock clock, InvocationBudgetStatusResolver budgetStatus, LiveTextNotifier liveText) {
-        return new DefaultExecutionEventService(authorization, executions, executions, payloads, notifier, clock, budgetStatus, liveText);
+    ExecutionEventService events(AdmissionAuthorization authorization, MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, LocalExecutionEventNotifier notifier, @Qualifier("newAiClock") Clock clock, InvocationBudgetStatusResolver budgetStatus, LiveTextNotifier liveText, org.springframework.beans.factory.ObjectProvider<com.arte.ainew.spi.conversation.ConversationContentVisibility> visibility) {
+        return new DefaultExecutionEventService(authorization, executions, executions, payloads, notifier, clock, budgetStatus, liveText, visibility.getIfAvailable());
     }
 
     @Bean(name = "newAiWorkerScheduler", destroyMethod = "dispose")

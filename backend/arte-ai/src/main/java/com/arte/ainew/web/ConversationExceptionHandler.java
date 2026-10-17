@@ -34,7 +34,7 @@ import java.util.Locale;
  * @since 2026/10/7 15:38 ✾
  */
 @RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class,
-        NewAiInvocationController.class, NewAiBudgetController.class, NewAiReconciliationController.class, NewAiConfigurationController.class})
+        NewAiInvocationController.class, NewAiConversationSearchController.class, NewAiBudgetController.class, NewAiReconciliationController.class, NewAiConfigurationController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ConversationExceptionHandler {
@@ -43,6 +43,25 @@ public class ConversationExceptionHandler {
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
         var status = HttpStatus.INTERNAL_SERVER_ERROR;
         ResultCodeEnum code = null;
+        if (exception instanceof com.arte.ainew.common.search.SearchFailure search) {
+            status = switch (search.code()) {
+                case SEARCH_EXPIRED -> HttpStatus.GONE;
+                case SEARCH_LIMIT_REACHED -> HttpStatus.TOO_MANY_REQUESTS;
+                case SEARCH_BUSY -> HttpStatus.CONFLICT;
+                case INVALID_CURSOR, GROUP_FILTER_NOT_AVAILABLE -> HttpStatus.BAD_REQUEST;
+                default -> HttpStatus.SERVICE_UNAVAILABLE;
+            };
+            code = switch (search.code()) {
+                case SEARCH_EXPIRED -> ResultCodeEnum.AI_SEARCH_EXPIRED;
+                case SEARCH_LIMIT_REACHED -> ResultCodeEnum.AI_SEARCH_LIMIT_REACHED;
+                case SEARCH_BUSY -> ResultCodeEnum.AI_SEARCH_BUSY;
+                case INVALID_CURSOR -> ResultCodeEnum.AI_SEARCH_INVALID_CURSOR;
+                case GROUP_FILTER_NOT_AVAILABLE -> ResultCodeEnum.AI_SEARCH_GROUP_NOT_AVAILABLE;
+                default -> ResultCodeEnum.AI_SEARCH_UNAVAILABLE;
+            };
+            var body = ResultContext.fail(code, locale);
+            return ResponseEntity.status(status).body(body);
+        }
         if (exception instanceof java.util.concurrent.TimeoutException
                 || exception instanceof AsyncRequestTimeoutException) {
             status = HttpStatus.GATEWAY_TIMEOUT;
@@ -67,8 +86,7 @@ public class ConversationExceptionHandler {
                 case AI_CONVERSATION_NOT_FOUND, AI_TURN_NOT_FOUND, AI_NOT_FOUND, AI_BUDGET_NOT_AVAILABLE ->
                         HttpStatus.NOT_FOUND;
                 case AI_PIN_LIMIT_REACHED, AI_VERSION_CONFLICT, AI_IDEMPOTENCY_CONFLICT, AI_CONVERSATION_BUSY,
-                     AI_RESULT_NOT_AVAILABLE ->
-                        HttpStatus.CONFLICT;
+                     AI_RESULT_NOT_AVAILABLE -> HttpStatus.CONFLICT;
                 case AI_CURSOR_EXPIRED -> HttpStatus.GONE;
                 case AI_DEADLINE_EXCEEDED -> HttpStatus.GATEWAY_TIMEOUT;
                 default -> HttpStatus.BAD_REQUEST;

@@ -14,6 +14,7 @@ import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
@@ -36,11 +37,18 @@ public final class DefaultConversationService implements ConversationService {
     private final AdmissionCatalogStore admissionCatalogStore;
     private final AdmissionAuthorization authorization;
     private final Clock clock;
+    private final ConversationArchiveReader archives;
 
     public DefaultConversationService(AdmissionCatalogStore admissionCatalogStore, AdmissionAuthorization authorization, Clock clock) {
+        this(admissionCatalogStore, authorization, clock, null);
+    }
+
+    public DefaultConversationService(AdmissionCatalogStore admissionCatalogStore, AdmissionAuthorization authorization, Clock clock,
+                                      ConversationArchiveReader archives) {
         this.admissionCatalogStore = admissionCatalogStore;
         this.authorization = authorization;
         this.clock = clock;
+        this.archives = archives;
     }
 
     @Override
@@ -48,8 +56,7 @@ public final class DefaultConversationService implements ConversationService {
         return create(title, profile, resources, context, AdmissionDigests.conversation(title, profile, resources));
     }
 
-    private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources,
-                                      ExecutionContext context, String digest) {
+    private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources, ExecutionContext context, String digest) {
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
             var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
@@ -136,8 +143,13 @@ public final class DefaultConversationService implements ConversationService {
 
     @Override
     public Mono<Conversation> find(String id, ExecutionContext context) {
+        // 搜索的普通打开入口复用详情，归档资格不能只在 PIT 或消息定位路径校验。
         return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwner.from(current), id))
+                        .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwner.from(current), id)
+                                .flatMap(value -> archives == null ? Mono.just(value)
+                                        : archives.findArchivedConversationIds(ExecutionOwner.from(current), java.util.Set.of(id))
+                                        .switchIfEmpty(Mono.error(new IllegalStateException("Archive qualification is unavailable")))
+                                        .flatMap(excluded -> excluded.contains(id) ? Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)) : Mono.just(value))))
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND))),
                 context, "getConversation", id, null, null);
     }

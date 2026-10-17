@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper">
+    <!-- 数值 epoch 不经过 JDBC Timestamp 时区解释；先转 DECIMAL 避免 H2 的 int 秒乘法溢出。 -->
+    <select id="databaseTimeMillis" resultType="_long" useCache="false">
+        SELECT CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) AS DECIMAL(20,3)) * 1000
+    </select>
+    <resultMap id="Generation" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Generation">
+        <constructor>
+            <arg column="generation" javaType="java.lang.String"/>
+            <arg column="rules_version" javaType="java.lang.String"/>
+            <arg column="worker" javaType="java.lang.String"/>
+            <arg column="fence" javaType="_long"/>
+            <arg column="lease_until" javaType="_long"/>
+            <arg column="last_success_at" javaType="java.lang.Long"/>
+            <arg column="validation_epoch" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Checkpoint" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Checkpoint">
+        <constructor>
+            <arg column="lane" javaType="java.lang.String"/>
+            <arg column="cursor_key" javaType="java.lang.String"/>
+            <arg column="rounds" javaType="_long"/>
+            <arg column="next_at" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Work" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Work">
+        <constructor>
+            <arg column="task_key" javaType="java.lang.String"/>
+            <arg column="kind" javaType="java.lang.String"/>
+            <arg column="source_key" javaType="java.lang.String"/>
+            <arg column="tenant_id" javaType="java.lang.String"/>
+            <arg column="workspace_id" javaType="java.lang.String"/>
+            <arg column="subject_id" javaType="java.lang.String"/>
+            <arg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="force_write" javaType="_boolean"/>
+            <arg column="failures" javaType="_int"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Entry" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Entry">
+        <constructor>
+            <arg column="entry_key" javaType="java.lang.String"/>
+            <arg column="kind" javaType="java.lang.String"/>
+            <arg column="source_key" javaType="java.lang.String"/>
+            <arg column="tenant_id" javaType="java.lang.String"/>
+            <arg column="workspace_id" javaType="java.lang.String"/>
+            <arg column="subject_id" javaType="java.lang.String"/>
+            <arg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="identity_json" javaType="java.lang.String"/>
+            <arg column="fingerprint" javaType="java.lang.String"/>
+            <arg column="revision" javaType="_long"/>
+            <arg column="acknowledged" javaType="_long"/>
+            <arg column="desired" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="register">INSERT IGNORE INTO
+        arte_ai_search_generation(generation,rules_version,worker,fence,lease_until) VALUES(#{g},#{rules},NULL,0,0)
+    </insert>
+    <select id="generation" resultMap="Generation" useCache="false">SELECT * FROM arte_ai_search_generation WHERE
+        generation=#{g}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <update id="lease">UPDATE arte_ai_search_generation SET worker=#{worker},fence=#{fence},lease_until=#{until} WHERE
+        generation=#{g}
+    </update>
+    <update id="success">UPDATE arte_ai_search_generation SET last_success_at=#{now} WHERE generation=#{g}</update>
+    <insert id="ensureCheckpoint">INSERT IGNORE INTO
+        arte_ai_search_checkpoint(generation,lane,cursor_key,rounds,next_at) VALUES(#{g},#{lane},'',0,0)
+    </insert>
+    <select id="checkpoint" resultMap="Checkpoint" useCache="false">SELECT * FROM arte_ai_search_checkpoint WHERE
+        generation=#{g} AND lane=#{lane}
+    </select>
+    <update id="checkpointSave">UPDATE arte_ai_search_checkpoint SET
+        cursor_key=#{cursor},rounds=#{rounds},next_at=#{next} WHERE generation=#{g} AND lane=#{lane}
+    </update>
+    <insert id="enqueue">INSERT IGNORE INTO
+        arte_ai_search_work(generation,task_key,kind,source_key,pending,force_write,failures,next_at)
+        VALUES(#{g},#{task},#{kind},#{key},TRUE,#{force},0,0)
+    </insert>
+    <update id="requeue">UPDATE arte_ai_search_work SET pending=TRUE,force_write=(force_write OR #{force}) WHERE
+        generation=#{g} AND task_key=#{task}
+    </update>
+    <select id="known" resultMap="Work" useCache="false">SELECT * FROM arte_ai_search_work WHERE generation=#{g} AND
+        task_key &gt; #{after} ORDER BY task_key LIMIT #{size}
+    </select>
+    <select id="pending" resultMap="Work" useCache="false">SELECT * FROM arte_ai_search_work WHERE generation=#{g} AND
+        pending=TRUE AND next_at &lt;= #{now} ORDER BY next_at,task_key LIMIT #{size}
+    </select>
+    <update id="complete">UPDATE arte_ai_search_work SET
+        pending=FALSE,force_write=FALSE,failures=0,error_code=NULL,next_at=0,tenant_id=#{tenant},workspace_id=#{space},subject_id=#{subject},conversation_id=#{conv},owner_key=#{owner}
+        WHERE generation=#{g} AND task_key=#{task}
+    </update>
+    <update id="fail">UPDATE arte_ai_search_work SET pending=TRUE,failures=failures+1,error_code=#{code},next_at=#{next}
+        WHERE generation=#{g} AND task_key=#{task}
+    </update>
+    <select id="entries" resultMap="Entry" useCache="false">SELECT * FROM arte_ai_search_entry WHERE generation=#{g} AND
+        task_key=#{task} ORDER BY entry_key
+    </select>
+    <select id="entry" resultMap="Entry" useCache="false">SELECT * FROM arte_ai_search_entry WHERE generation=#{g} AND
+        entry_key=#{id}
+    </select>
+    <insert id="insertEntry">INSERT INTO
+        arte_ai_search_entry(generation,entry_key,task_key,kind,source_key,owner_key,tenant_id,workspace_id,subject_id,conversation_id,identity_json,fingerprint,revision,acknowledged,desired)
+        VALUES(#{g},#{r.entryKey},#{task},#{r.kind},#{r.sourceKey},#{owner},#{r.tenantId},#{r.workspaceId},#{r.subjectId},#{r.conversationId},#{r.identityJson},#{r.fingerprint},#{r.revision},#{r.acknowledged},#{r.desired})
+    </insert>
+    <update id="updateEntry">UPDATE arte_ai_search_entry SET
+        identity_json=#{r.identityJson},fingerprint=#{r.fingerprint},revision=#{r.revision},desired=#{r.desired} WHERE
+        generation=#{g} AND entry_key=#{r.entryKey}
+    </update>
+    <update id="acknowledge">UPDATE arte_ai_search_entry SET acknowledged=#{rev} WHERE generation=#{g} AND
+        entry_key=#{id} AND revision=#{rev}
+    </update>
+    <select id="pendingCount" resultType="long" useCache="false">SELECT COUNT(*) FROM arte_ai_search_work WHERE
+        generation=#{g}
+        <if test="owner != null">AND owner_key=#{owner}</if>
+        <choose>
+            <when test="errors">AND failures &gt; 0</when>
+            <otherwise>AND pending=TRUE</otherwise>
+        </choose>
+    </select>
+    <select id="entryCount" resultType="long" useCache="false">SELECT COUNT(*) FROM arte_ai_search_entry WHERE
+        generation=#{g}
+        <if test="owner != null">AND owner_key=#{owner}</if>
+    </select>
+    <select id="maxFailures" resultType="long" useCache="false">SELECT COALESCE(MAX(failures),0) FROM
+        arte_ai_search_work WHERE generation=#{g}
+        <if test="owner != null">AND owner_key=#{owner}</if>
+    </select>
+    <update id="bindScope">UPDATE arte_ai_search_work SET
+        source_state=COALESCE(#{state},source_state),tenant_id=#{tenant},workspace_id=#{space},subject_id=#{subject},conversation_id=#{conv},owner_key=#{owner}
+        WHERE generation=#{g} AND task_key=#{task}
+    </update>
+    <update id="validation">UPDATE arte_ai_search_generation SET validation_epoch=#{epoch} WHERE generation=#{g}
+    </update>
+    <select id="missingCount" resultType="long" useCache="false">SELECT COUNT(*) FROM arte_ai_search_work WHERE
+        generation=#{g} AND error_code='MISSING_RESULT'
+        <if test="owner != null">AND owner_key=#{owner}</if>
+    </select>
+    <update id="continueWork">UPDATE arte_ai_search_work SET pending=TRUE,failures=0,error_code=NULL,next_at=#{next}
+        WHERE generation=#{g} AND task_key=#{task}
+    </update>
+</mapper>

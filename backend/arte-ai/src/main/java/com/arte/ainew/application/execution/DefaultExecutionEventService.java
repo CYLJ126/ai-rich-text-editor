@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationBudgetState;
 import com.arte.ainew.pojo.execution.InvocationResult;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.spi.conversation.ConversationContentVisibility;
 import com.arte.ainew.spi.persistence.ExecutionEventStore;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
@@ -24,6 +25,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -75,6 +77,8 @@ public final class DefaultExecutionEventService implements ExecutionEventService
 
     private final LiveTextNotifier liveTextNotifier;
 
+    private final ConversationContentVisibility contentVisibility;
+
     /**
      * 实时订阅每次重放的最大事件数；满页连续读取下一页，与通知次数或 SSE 帧大小无关。
      */
@@ -110,6 +114,14 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                                         ExecutionEventStore executionEventStore, ExecutionResultStore executionResultStore,
                                         LocalExecutionEventNotifier localExecutionEventNotifier, Clock clock, InvocationBudgetStatusResolver budgetStatus,
                                         LiveTextNotifier liveTextNotifier) {
+        this(authorization, executionStore, executionEventStore, executionResultStore, localExecutionEventNotifier, clock, budgetStatus, liveTextNotifier, null);
+    }
+
+    public DefaultExecutionEventService(AdmissionAuthorization authorization, ExecutionStore executionStore, ExecutionEventStore executionEventStore,
+                                        ExecutionResultStore executionResultStore, LocalExecutionEventNotifier localExecutionEventNotifier, Clock clock,
+                                        InvocationBudgetStatusResolver budgetStatus, LiveTextNotifier liveTextNotifier,
+                                        com.arte.ainew.spi.conversation.ConversationContentVisibility contentVisibility) {
+        this.contentVisibility = contentVisibility;
         this.liveTextNotifier = liveTextNotifier;
         this.budgetStatus = budgetStatus;
         this.localExecutionEventNotifier = localExecutionEventNotifier;
@@ -121,17 +133,17 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     }
 
     @Override
-    public Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, ExecutionContext context) {
-        return snapshots(ids, java.util.Map.of(), context);
+    public Mono<List<InvocationSnapshot>> snapshots(List<String> ids, ExecutionContext context) {
+        return snapshots(ids, Map.of(), context);
     }
 
     @Override
-    public Mono<java.util.List<InvocationSnapshot>> snapshots(java.util.List<String> ids, java.util.Map<String, Long> knownResultVersions, ExecutionContext context) {
+    public Mono<List<InvocationSnapshot>> snapshots(List<String> ids, Map<String, Long> knownResultVersions, ExecutionContext context) {
         com.arte.ainew.common.validation.ContractChecks.require(!ids.isEmpty() && ids.size() <= 20, "Batch requires 1 to 20 IDs");
         var distinct = ids.stream().distinct().toList();
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
             var owner = ExecutionOwner.from(current);
-            Mono<java.util.List<com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>> snapshots;
+            Mono<List<com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>> snapshots;
             if (executionStore instanceof com.arte.ainew.spi.persistence.ExecutionReadStore batch)
                 snapshots = batch.snapshots(owner, distinct);
             else
@@ -139,24 +151,33 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                         (budgetStatus == null ? Mono.just(InvocationBudgetState.NOT_RESERVED) : budgetStatus.resolve(invocation))
                                 .map(state -> new com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot(invocation, state)))).collectList();
             return snapshots.flatMap(values -> {
-                var byId = new java.util.HashMap<String, com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>();
-                var references = new java.util.HashMap<String, com.arte.ainew.pojo.execution.ResultRef>();
-                values.forEach(value -> {
-                    var id = value.invocation().request().context().executionId();
-                    byId.put(id, value);
-                    if (value.invocation().result() != null && value.invocation().state().terminal()
-                            && !java.util.Objects.equals(knownResultVersions.get(id), value.invocation().version()))
-                        references.put(id, value.invocation().result());
+                var all = new HashMap<String, Invocation>();
+                values.forEach(value -> all.put(value.invocation().request().context().executionId(), value.invocation()));
+                return readable(owner, all).flatMap(allowed -> {
+                    var byId = new HashMap<String, com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>();
+                    var references = new HashMap<String, com.arte.ainew.pojo.execution.ResultRef>();
+                    values.stream().filter(value -> allowed.contains(value.invocation().request().context().executionId())).forEach(value -> {
+                        var id = value.invocation().request().context().executionId();
+                        byId.put(id, value);
+                        if (value.invocation().result() != null && value.invocation().state().terminal()
+                                && !Objects.equals(knownResultVersions.get(id), value.invocation().version()))
+                            references.put(id, value.invocation().result());
+                    });
+                    return executionResultStore.findAll(owner, references).flatMap(results -> readable(owner, all).map(confirmed -> distinct.stream().map(id -> {
+                        var value = byId.get(id);
+                        if (value == null || !confirmed.contains(id))
+                            return new InvocationSnapshot(id, null, null, null);
+                        if (references.containsKey(id) && !results.containsKey(id))
+                            throw new IllegalStateException("Committed result bytes are missing");
+                        return new InvocationSnapshot(id, value.invocation(), value.budgetState(), results.get(id));
+                    }).toList()));
                 });
-                return executionResultStore.findAll(owner, references).map(results -> distinct.stream().map(id -> {
-                    var value = byId.get(id);
-                    if (value == null) return new InvocationSnapshot(id, null, null, null);
-                    if (references.containsKey(id) && !results.containsKey(id))
-                        throw new IllegalStateException("Committed result bytes are missing");
-                    return new InvocationSnapshot(id, value.invocation(), value.budgetState(), results.get(id));
-                }).toList());
             });
         });
+    }
+
+    private Mono<Set<String>> readable(ExecutionOwner owner, Map<String, Invocation> invocations) {
+        return contentVisibility == null ? Mono.just(Set.copyOf(invocations.keySet())) : contentVisibility.readableInvocations(owner, Map.copyOf(invocations));
     }
 
     @Override
@@ -276,9 +297,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     public Mono<StoreOutcome<ExecutionEventStore.Page>> replay(ExecutionEvent.Cursor cursor, int limit, ExecutionContext context) {
         // 权限通过后再按完整归属定位调用，不能仅凭客户端提供的 executionId 读取事件。
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current ->
-                executionStore.find(ExecutionOwner.from(current), cursor.executionId())
-                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                        .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)))
+                        executionStore.find(ExecutionOwner.from(current), cursor.executionId())
+                                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                                .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)))
                 .doOnNext(outcome -> {
                     if (!outcome.successful())
                         log.warn("AI event replay rejected, invocationId={}, traceId={}, afterSequence={}, code={}",
@@ -446,9 +467,14 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                         if (invocation.result() == null) {
                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_RESULT_NOT_AVAILABLE));
                         }
-                        return executionResultStore.find(owner, invocationId, invocation.result())
-                                // 有可信引用却无对应内容属于异常，不能降级成普通“结果尚未就绪”。
-                                .switchIfEmpty(Mono.error(new IllegalStateException("Committed result bytes are missing")));
+                        var one = Map.of(invocationId, invocation);
+                        return readable(owner, one).flatMap(allowed -> {
+                            if (!allowed.contains(invocationId))
+                                return Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND));
+                            return executionResultStore.find(owner, invocationId, invocation.result())
+                                    .switchIfEmpty(Mono.error(new IllegalStateException("Committed result bytes are missing")))
+                                    .flatMap(result -> readable(owner, one).flatMap(confirmed -> confirmed.contains(invocationId) ? Mono.just(result) : Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))));
+                        });
                     });
         });
     }

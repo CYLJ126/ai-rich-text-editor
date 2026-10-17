@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper">
+    <sql id="table">
+        <choose>
+            <when test='kind == "C"'>arte_ai_conversation_new</when>
+            <when test='kind == "T"'>arte_ai_turn</when>
+            <otherwise>arte_ai_invocation</otherwise>
+        </choose>
+    </sql>
+    <select id="keys" resultType="java.lang.String" useCache="false">SELECT id_key FROM
+        <include refid="table"/>
+        WHERE id_key &gt; #{after} ORDER BY id_key LIMIT #{size}
+    </select>
+    <select id="snapshot" resultType="java.lang.String" useCache="false">SELECT workspace_snapshot FROM
+        <include refid="table"/>
+        WHERE id_key=#{key}
+    </select>
+    <resultMap id="Metadata" type="com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper$Metadata">
+        <constructor>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="active" javaType="_boolean"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="conversation_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="metadata" resultMap="Metadata" useCache="false">SELECT title,active,owner_key,conversation_id FROM
+        arte_ai_conversation_metadata WHERE id_key=#{key}
+    </select>
+    <select id="generatedMicros" resultType="java.lang.Long" useCache="false">SELECT generated_micros FROM
+        arte_ai_conversation_message_fact WHERE conversation_key=#{conversation} AND fact_key=#{fact}
+    </select>
+</mapper>

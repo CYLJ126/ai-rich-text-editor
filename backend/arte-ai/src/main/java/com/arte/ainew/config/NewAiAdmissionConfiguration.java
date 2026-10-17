@@ -23,6 +23,7 @@ import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import org.springframework.beans.factory.ListableBeanFactory;
@@ -229,8 +230,9 @@ public class NewAiAdmissionConfiguration {
      * 使用新会话存储；当前不支持历史选择、ChatProfile 或资源配置。
      */
     @Bean("newAiConversationService")
-    ConversationService conversationService(MybatisExecutionPersistence store, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock) {
-        return new DefaultConversationService(store, authorization, clock);
+    ConversationService conversationService(MybatisExecutionPersistence store, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
+                                            ObjectProvider<ConversationArchiveReader> archives) {
+        return new DefaultConversationService(store, authorization, clock, archives.getIfAvailable());
     }
 
     /**

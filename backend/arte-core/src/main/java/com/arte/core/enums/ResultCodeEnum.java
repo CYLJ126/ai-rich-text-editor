@@ -214,6 +214,13 @@ public enum ResultCodeEnum {
      */
     AI_ADMISSION_EXCEPTION("305001", "result.ai.admission.admissionException"),
 
+    AI_SEARCH_EXPIRED("205044", "result.ai.search.expired"),
+    AI_SEARCH_LIMIT_REACHED("205045", "result.ai.search.limitReached"),
+    AI_SEARCH_BUSY("205046", "result.ai.search.busy"),
+    AI_SEARCH_INVALID_CURSOR("205047", "result.ai.search.invalidCursor"),
+    AI_SEARCH_UNAVAILABLE("205048", "result.ai.search.unavailable"),
+    AI_SEARCH_GROUP_NOT_AVAILABLE("205049", "result.ai.search.groupNotAvailable"),
+
     UNKNOWN("400000", "result.unknown");
 
     private final String code;
