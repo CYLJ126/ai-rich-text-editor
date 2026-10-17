@@ -136,6 +136,133 @@ it('removes A immediately, closes late A, and never restores A on B failure', as
   expect(h.result.current.loading).toBe(false);
   expect(api.closeSearch).toHaveBeenCalledWith({scope: context.scope, searchSessionId: 'old'});
 });
+it('retains the creating request for cleanup and starts only the latest query after the old session closes', async () => {
+  const a = deferred<ReturnType<typeof response>>();
+  const closed = deferred<Awaited<ReturnType<typeof api.closeSearch>>>();
+  vi.mocked(api.searchConversations).mockImplementationOnce((_query, options) => {
+    options?.signal?.addEventListener('abort', () => a.reject(new DOMException('Aborted', 'AbortError')));
+    return a.promise;
+  });
+  vi.mocked(api.closeSearch).mockReturnValueOnce(closed.promise);
+  const h = renderHook(() => useConversationSearch(context, options()));
+  let first!: Promise<void>;
+  await act(async () => {
+    first = h.result.current.submit('A');
+  });
+  act(() => h.result.current.change('B'));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300);
+  });
+  act(() => h.result.current.change('C'));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300);
+  });
+  expect(api.searchConversations).toHaveBeenCalledOnce();
+  expect(h.result.current.rows).toEqual([]);
+  await act(async () => {
+    a.resolve(response({...page(), searchSessionId: 'old'}));
+  });
+  expect(api.closeSearch).toHaveBeenCalledWith({scope: context.scope, searchSessionId: 'old'});
+  expect(api.searchConversations).toHaveBeenCalledOnce();
+  await act(async () => {
+    closed.resolve({httpStatus: 200, body: {success: true, code: '0', desc: 'ok'}});
+    await first;
+  });
+  expect(api.searchConversations).toHaveBeenCalledTimes(2);
+  expect(api.searchConversations).toHaveBeenLastCalledWith(expect.objectContaining({query: 'C'}));
+  expect(h.result.current.query).toBe('C');
+  expect(h.result.current.rows).toHaveLength(20);
+});
+it('waits for known-session release and retries failed release before allocating another slot', async () => {
+  const h = renderHook(() => useConversationSearch(context, options()));
+  await act(async () => {
+    await h.result.current.submit('A');
+  });
+  vi.mocked(api.closeSearch).mockRejectedValue(new Error('offline'));
+  act(() => h.result.current.change('B'));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300);
+  });
+  expect(api.searchConversations).toHaveBeenCalledOnce();
+  expect(h.result.current.loading).toBe(false);
+  expect(h.result.current.error).toBeTruthy();
+  const closed = deferred<Awaited<ReturnType<typeof api.closeSearch>>>();
+  vi.mocked(api.closeSearch).mockReturnValueOnce(closed.promise);
+  let retry!: Promise<void>;
+  await act(async () => {
+    retry = h.result.current.submit('B');
+  });
+  expect(api.searchConversations).toHaveBeenCalledOnce();
+  await act(async () => {
+    closed.resolve({httpStatus: 200, body: {success: true, code: '0', desc: 'ok'}});
+    await retry;
+  });
+  expect(api.searchConversations).toHaveBeenCalledTimes(2);
+  expect(h.result.current.error).toBe('');
+});
+it('replaces searches without hitting the three-session cap when two other searches are active', async () => {
+  let active = 2, created = 0;
+  let release = deferred<void>();
+  vi.mocked(api.searchConversations).mockImplementation(async () => {
+    if (active >= 3) throw new api.AiApiError(429, {code: '205045'});
+    active++;
+    return response({...page(), searchSessionId: `session-${++created}`});
+  });
+  vi.mocked(api.closeSearch).mockImplementation(async () => {
+    await release.promise;
+    active--;
+    return {httpStatus: 200, body: {success: true, code: '0', desc: 'ok'}};
+  });
+  const h = renderHook(() => useConversationSearch(context, options()));
+  await act(async () => {
+    await h.result.current.submit('q0');
+  });
+  for (let n = 1; n <= 4; n++) {
+    let next!: Promise<void>;
+    await act(async () => {
+      next = h.result.current.submit(`q${n}`);
+    });
+    expect(created).toBe(n);
+    expect(active).toBe(3);
+    await act(async () => {
+      release.resolve();
+      await next;
+    });
+    expect(created).toBe(n + 1);
+    expect(active).toBe(3);
+    expect(h.result.current.error).toBe('');
+    release = deferred<void>();
+  }
+  h.unmount();
+  await act(async () => {
+    release.resolve();
+  });
+  expect(active).toBe(2);
+});
+it.each(['exit', 'unmount', 'scope'] as const)('closes a late initial response after %s without restoring results', async mode => {
+  const pending = deferred<ReturnType<typeof response>>();
+  vi.mocked(api.searchConversations).mockImplementationOnce((_query, options) => {
+    options?.signal?.addEventListener('abort', () => pending.reject(new DOMException('Aborted', 'AbortError')));
+    return pending.promise;
+  });
+  const h = renderHook(() => useConversationSearch(context, options()));
+  let first!: Promise<void>;
+  await act(async () => {
+    first = h.result.current.submit('A');
+  });
+  if (mode === 'unmount') h.unmount();
+  else if (mode === 'exit') await act(async () => {
+    await h.result.current.exit();
+  });
+  else act(() => h.result.current.invalidate({kind: 'scope'}));
+  await act(async () => {
+    pending.resolve(response({...page(), searchSessionId: 'late'}));
+    await first;
+  });
+  expect(api.closeSearch).toHaveBeenCalledWith({scope: context.scope, searchSessionId: 'late'});
+  expect(api.searchConversations).toHaveBeenCalledOnce();
+  expect(h.result.current.rows).toEqual([]);
+});
 it('exits on invisible Enter or explicit clear, never persists query or fragments', async () => {
   const o = options(), h = renderHook(() => useConversationSearch(context, o));
   await act(async () => {

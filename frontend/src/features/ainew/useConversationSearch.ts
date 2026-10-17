@@ -40,7 +40,7 @@ const initial = () => ({
 function errorMessage(error: unknown) {
   if (error instanceof AiApiError) {
     if (error.httpStatus === 410) return '搜索已过期，按 Enter 重新搜索';
-    if (error.httpStatus === 429) return '活动搜索已达上限，请先关闭另一个标签页或设备上的搜索。';
+    if (error.httpStatus === 429) return '活动搜索已达上限，请关闭不再使用的搜索后重试。';
     if (error.httpStatus === 401) return '登录已失效，请重新登录。';
     if (error.httpStatus === 403) return '当前没有读取此范围内容的权限。';
     if (error.httpStatus === 409 && error.code === '205030') return '会话历史仍在变化，请再次打开目标。';
@@ -61,6 +61,8 @@ export function useConversationSearch(context: BrowserContext, options: {
   const alive = useRef(true), generation = useRef(0), composing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const request = useRef<AbortController | null>(null), navigation = useRef<AbortController | null>(null);
+  const creating = useRef<Promise<void> | null>(null);
+  const releases = useRef(new Map<string, { scope: BrowserContext['scope']; pending: Promise<void> | null }>());
   const pendingKey = useRef<string | null>(null);
   const placementCapture = useRef<() => void>(() => {
   });
@@ -76,8 +78,23 @@ export function useConversationSearch(context: BrowserContext, options: {
     if (alive.current) setState(value);
   };
   const close = (id: string) => {
-    if (id) void closeSearch({scope: context.scope, searchSessionId: id}).catch(() => {
+    if (!id) return Promise.resolve();
+    let release = releases.current.get(id);
+    if (!release) {
+      release = {scope: context.scope, pending: null};
+      releases.current.set(id, release);
+    }
+    const entry = release;
+    if (!entry.pending) entry.pending = closeSearch({scope: entry.scope, searchSessionId: id}).then(() => {
+      releases.current.delete(id);
+    }, error => {
+      // 保留关闭失败的会话；下次显式搜索先重试释放，不能继续累积名额。
+      entry.pending = null;
+      throw error;
     });
+    void entry.pending.catch(() => {
+    });
+    return entry.pending;
   };
 
   function cancel() {
@@ -147,27 +164,47 @@ export function useConversationSearch(context: BrowserContext, options: {
         return;
       }
       handlers.current.onEnter();
-      const controller = new AbortController();
-      request.current = controller;
-      const {body} = await searchConversations({
-        scope: context.scope,
-        query: parsed.query,
-        groupIds: [],
-        size: 20
-      }, {signal: controller.signal});
-      if (batch !== generation.current || controller.signal.aborted || !alive.current) {
-        close(body.data.searchSessionId);
-        return;
-      }
-      validate(body.data);
-      publish({
-        ...current.current,
-        pages: [body.data],
-        session: body.data.searchSessionId,
-        loading: false,
-        partial: body.data.partialPage,
-        revision: current.current.revision + 1
+      // 首次请求会分配服务端会话，不能 abort 后丢失用于回收的 ID。
+      // 等旧创建及关闭完成，只让最新批次继续；输入和聊天不受等待影响。
+      await creating.current;
+      if (batch !== generation.current || !alive.current) return;
+      await Promise.all([...releases.current.keys()].map(close));
+      if (batch !== generation.current || !alive.current) return;
+      const pending = (async () => {
+        const {body} = await searchConversations({
+          scope: context.scope,
+          query: parsed.query,
+          groupIds: [],
+          size: 20
+        });
+        if (batch !== generation.current || !alive.current) {
+          await close(body.data.searchSessionId);
+          return;
+        }
+        try {
+          validate(body.data);
+        } catch (error) {
+          await close(body.data.searchSessionId);
+          throw error;
+        }
+        publish({
+          ...current.current,
+          pages: [body.data],
+          session: body.data.searchSessionId,
+          loading: false,
+          partial: body.data.partialPage,
+          revision: current.current.revision + 1
+        });
+      })();
+      // 旧查询失败不阻止新查询；关闭失败单独保留在 releases 中。
+      const settled = pending.then(() => {
+      }, () => {
       });
+      creating.current = settled;
+      void settled.then(() => {
+        if (creating.current === settled) creating.current = null;
+      });
+      await pending;
     } catch (error) {
       if (batch !== generation.current || !alive.current) return;
       if (error instanceof AiApiError && [401, 403].includes(error.httpStatus)) {
