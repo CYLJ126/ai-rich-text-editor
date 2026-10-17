@@ -1,6 +1,8 @@
 spring:
   config:
-    import: classpath:ainew/config/application.properties
+    import:
+      - classpath:ainew/config/application.properties
+      - classpath:ainew/config/conversation-search.properties
   autoconfigure:
     exclude:
       - @spring.ai.embedding.exclude@

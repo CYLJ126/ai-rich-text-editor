@@ -1,3 +1,7 @@
 com.arte.ainew.config.NewAiAdmissionConfiguration
 com.arte.ainew.config.NewAiGenerationConfiguration
 com.arte.ainew.config.NewAiExecutionConfiguration
+com.arte.ainew.config.NewAiSearchConfiguration
+
+com.arte.ainew.config.NewAiSearchSyncConfiguration
+com.arte.ainew.config.NewAiSearchQueryConfiguration
