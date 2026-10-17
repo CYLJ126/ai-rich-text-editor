@@ -35,6 +35,8 @@ public interface SearchSyncMapper {
 
     Checkpoint checkpoint(@Param("g") String generation, @Param("lane") String lane);
 
+    List<Checkpoint> checkpoints(@Param("g") String generation);
+
     int checkpointSave(@Param("g") String generation, @Param("lane") String lane, @Param("cursor") String cursor,
                        @Param("rounds") long rounds, @Param("next") long next);
 

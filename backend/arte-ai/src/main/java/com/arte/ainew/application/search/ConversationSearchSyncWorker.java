@@ -30,6 +30,16 @@ public final class ConversationSearchSyncWorker {
     private final JsonMapper json = JsonMapper.builder().build();
     private final String worker = UUID.randomUUID().toString();
     private final java.util.concurrent.atomic.AtomicInteger lane = new java.util.concurrent.atomic.AtomicInteger();
+    private String initializedGeneration;
+
+    /**
+     * 只缓存最近一个成功登记的代际；不缓存租约，切代际或重建 Worker 时重新校验。
+     */
+    private synchronized void ensureRegistered(String generation) {
+        if (initializedGeneration != null && initializedGeneration.equals(generation)) return;
+        store.register(generation, config.index().rulesVersion());
+        initializedGeneration = generation;
+    }
 
     /**
      * 单轮内存观测；changed 为持久同步版本变化数，written 为已写入并确认的 bulk 条目数。
@@ -63,20 +73,22 @@ public final class ConversationSearchSyncWorker {
     public TickResult tick(String generation) {
         var metrics = new TickMetrics();
         if (!(config.scanEnabled() || config.backfillEnabled() || config.reconcileEnabled())) return metrics.result(false);
-        store.register(generation, config.index().rulesVersion());
+        ensureRegistered(generation);
         var lease = store.acquire(generation, worker, config.sync().lease());
         if (lease == null) return metrics.result(false);
         long started = System.nanoTime();
         try {
             long databaseNow = store.now();
+            // 单轮只读一次；下一轮重新领取租约并读取，不能跨轮复用进度。
+            var checkpoints = store.checkpoints(lease);
             boolean initialDone = true;
-            for (var k : Kind.values()) if (store.checkpoint(lease, k.name()).rounds() == 0) initialDone = false;
+            for (var k : Kind.values()) if (checkpoints.get(k.name()).rounds() == 0) initialDone = false;
             // 先排空当前可执行批次，再发现下一批；否则 batch > work 时持续重扫会让校准永远无法静止。
             // 尚在退避的失败不阻止新发现，身份及 next_at 仍由队列保留。
             boolean canDiscover = store.pending(lease, 1).isEmpty();
             if (canDiscover) {
                 var kind = Kind.values()[Math.floorMod(lane.getAndIncrement(), 3)];
-                var cp = store.checkpoint(lease, kind.name());
+                var cp = checkpoints.get(kind.name());
                 boolean continuous = config.scanEnabled() || config.reconcileEnabled();
                 if ((cp.rounds() == 0 || continuous) && cp.nextAt() <= databaseNow) {
                     var found = source.scan(kind, cp.cursor(), config.sync().batchSize());
@@ -87,7 +99,7 @@ public final class ConversationSearchSyncWorker {
                 }
             }
             if (initialDone && canDiscover) {
-                var cp = store.checkpoint(lease, "E");
+                var cp = checkpoints.get("E");
                 if ((cp.rounds() == 0 || config.reconcileEnabled()) && cp.nextAt() <= databaseNow) {
                     var known = store.known(lease, cp.cursor(), config.sync().batchSize());
                     metrics.scanned += known.size();

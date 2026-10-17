@@ -74,6 +74,10 @@
     <update id="checkpointSave">UPDATE arte_ai_search_checkpoint SET
         cursor_key=#{cursor},rounds=#{rounds},next_at=#{next} WHERE generation=#{g} AND lane=#{lane}
     </update>
+    <select id="checkpoints" resultMap="Checkpoint" useCache="false">
+        SELECT lane,cursor_key,rounds,next_at FROM arte_ai_search_checkpoint
+        WHERE generation=#{g} AND lane IN ('C','T','I','E') ORDER BY lane
+    </select>
     <insert id="enqueue">INSERT IGNORE INTO
         arte_ai_search_work(generation,task_key,kind,source_key,pending,force_write,failures,next_at)
         VALUES(#{g},#{task},#{kind},#{key},TRUE,#{force},0,0)

@@ -14,8 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import javax.sql.DataSource;
 import java.time.Duration;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -118,6 +117,19 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
             guard(l);
             var r = mapper.checkpoint(l.generation(), lane);
             return new Checkpoint(r.lane(), r.cursorKey(), r.rounds(), r.nextAt());
+        });
+    }
+
+    @Override
+    public Map<String, Checkpoint> checkpoints(Lease l) {
+        return transaction(() -> {
+            guard(l);
+            var checkpoints = new HashMap<String, Checkpoint>();
+            for (var r : mapper.checkpoints(l.generation()))
+                checkpoints.put(r.lane(), new Checkpoint(r.lane(), r.cursorKey(), r.rounds(), r.nextAt()));
+            if (!checkpoints.keySet().equals(Set.of("C", "T", "I", "E")))
+                throw new IllegalStateException("Incomplete search checkpoints");
+            return Map.copyOf(checkpoints);
         });
     }
 

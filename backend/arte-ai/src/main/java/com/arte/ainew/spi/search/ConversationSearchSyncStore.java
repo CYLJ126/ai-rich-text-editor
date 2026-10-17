@@ -5,6 +5,7 @@ import com.arte.ainew.pojo.search.SearchSync.*;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 会话搜索后台同步状态的持久化接口
@@ -31,6 +32,11 @@ public interface ConversationSearchSyncStore {
     void release(Lease lease);
 
     Checkpoint checkpoint(Lease lease, String lane);
+
+    /**
+     * 在一次租约校验保护的短事务内读取完整 C/T/I/E 检查点；缺项明确失败。仅供当前轮使用。
+     */
+    Map<String, Checkpoint> checkpoints(Lease lease);
 
     void discovered(Lease lease, String lane, List<Unit> units, String cursor, boolean end, Duration pause);
 
