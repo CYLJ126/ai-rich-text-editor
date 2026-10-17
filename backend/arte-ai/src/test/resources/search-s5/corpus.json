@@ -1,0 +1,1518 @@
+{
+  "version": "s5-labels-v1",
+  "rules": "v2",
+  "analyzer": "ik_smart + lowercase; IK max_word recall; literal phrase; identifiers",
+  "owner": {
+    "tenantId": "search-tenant",
+    "workspaceId": "search-space",
+    "subjectId": "search-subject"
+  },
+  "sources": [
+    {
+      "id": "T01",
+      "kind": "TITLE",
+      "text": "空会话：旅行行程规划",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T02",
+      "kind": "TITLE",
+      "text": "数据库迁移检查清单",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T03",
+      "kind": "TITLE",
+      "text": "周末登山装备准备",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T04",
+      "kind": "TITLE",
+      "text": "Redis 缓存失效策略",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T05",
+      "kind": "TITLE",
+      "text": "Vue 组件单元测试",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T06",
+      "kind": "TITLE",
+      "text": "订单退款流程设计",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T07",
+      "kind": "TITLE",
+      "text": "上海咖啡地图收藏",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "T08",
+      "kind": "TITLE",
+      "text": "家庭烘焙蛋糕配方",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U01",
+      "kind": "USER",
+      "text": "如何处理 MySQL 死锁和事务回滚？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U02",
+      "kind": "USER",
+      "text": "Python 虚拟环境依赖冲突应该怎样排查？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U03",
+      "kind": "USER",
+      "text": "北京地铁换乘路线如何查询？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U04",
+      "kind": "USER",
+      "text": "请解释 HTTP 429 限流与重试间隔。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U05",
+      "kind": "USER",
+      "text": "get_user_by_id 返回空值怎么处理？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U06",
+      "kind": "USER",
+      "text": "错误 ERR_CONNECTION_RESET 导致连接被重置。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U07",
+      "kind": "USER",
+      "text": "工单 ARTE-2048 的权限审批进度在哪里查看？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "U08",
+      "kind": "USER",
+      "text": "CSS flex-shrink: 0 会影响侧栏宽度吗？",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A01",
+      "kind": "ASSISTANT",
+      "text": "使用指数退避和随机抖动控制重连，防止重试风暴。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A02",
+      "kind": "ASSISTANT",
+      "text": "身份证号码属于敏感信息，日志必须进行脱敏。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A03",
+      "kind": "ASSISTANT",
+      "text": "端口冲突 EADDRINUSE，可检查监听进程并更换绑定端口。",
+      "twins": true,
+      "partial": true
+    },
+    {
+      "id": "A04",
+      "kind": "ASSISTANT",
+      "text": "浮点误差来自二进制表示，金额计算建议采用 BigDecimal。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A05",
+      "kind": "ASSISTANT",
+      "text": "早餐可以搭配燕麦牛奶和水果，补充膳食纤维。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A06",
+      "kind": "ASSISTANT",
+      "text": "Git rebase 之前先保存工作区，解决合并冲突后继续变基。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A07",
+      "kind": "ASSISTANT",
+      "text": "脚本示例 <script>alert(1)</script> 仅作为纯文本展示，避免跨站脚本攻击。",
+      "twins": false,
+      "partial": false
+    },
+    {
+      "id": "A08",
+      "kind": "ASSISTANT",
+      "text": "背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。背景材料仅用于验证超长回答的片段截取。极光摄影需要三脚架并调整曝光时间。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。补充说明应保留独立消息定位。",
+      "twins": false,
+      "partial": true
+    }
+  ],
+  "queries": [
+    {
+      "id": "T01-1",
+      "query": "旅行 行程",
+      "owner": "alice",
+      "expected": [
+        "T01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T01-2",
+      "query": "空会话 旅行",
+      "owner": "alice",
+      "expected": [
+        "T01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T01-3",
+      "query": "行程规划",
+      "owner": "alice",
+      "expected": [
+        "T01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T02-1",
+      "query": "数据库 迁移",
+      "owner": "alice",
+      "expected": [
+        "T02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T02-2",
+      "query": "迁移 检查清单",
+      "owner": "alice",
+      "expected": [
+        "T02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T02-3",
+      "query": "数据库 清单",
+      "owner": "alice",
+      "expected": [
+        "T02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T03-1",
+      "query": "登山 装备",
+      "owner": "alice",
+      "expected": [
+        "T03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T03-2",
+      "query": "周末 登山",
+      "owner": "alice",
+      "expected": [
+        "T03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T03-3",
+      "query": "装备 准备",
+      "owner": "alice",
+      "expected": [
+        "T03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T04-1",
+      "query": "Redis 缓存",
+      "owner": "alice",
+      "expected": [
+        "T04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T04-2",
+      "query": "缓存 失效",
+      "owner": "alice",
+      "expected": [
+        "T04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T04-3",
+      "query": "REDIS 策略",
+      "owner": "alice",
+      "expected": [
+        "T04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T05-1",
+      "query": "Vue 组件",
+      "owner": "alice",
+      "expected": [
+        "T05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T05-2",
+      "query": "组件 单元测试",
+      "owner": "alice",
+      "expected": [
+        "T05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T05-3",
+      "query": "VUE 测试",
+      "owner": "alice",
+      "expected": [
+        "T05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T06-1",
+      "query": "订单 退款",
+      "owner": "alice",
+      "expected": [
+        "T06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T06-2",
+      "query": "退款 流程",
+      "owner": "alice",
+      "expected": [
+        "T06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T06-3",
+      "query": "订单 设计",
+      "owner": "alice",
+      "expected": [
+        "T06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T07-1",
+      "query": "上海 咖啡",
+      "owner": "alice",
+      "expected": [
+        "T07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T07-2",
+      "query": "咖啡 地图",
+      "owner": "alice",
+      "expected": [
+        "T07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T07-3",
+      "query": "地图 收藏",
+      "owner": "alice",
+      "expected": [
+        "T07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T08-1",
+      "query": "烘焙 蛋糕",
+      "owner": "alice",
+      "expected": [
+        "T08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T08-2",
+      "query": "家庭 烘焙",
+      "owner": "alice",
+      "expected": [
+        "T08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "T08-3",
+      "query": "蛋糕 配方",
+      "owner": "alice",
+      "expected": [
+        "T08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "T08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U01-1",
+      "query": "MySQL 死锁",
+      "owner": "alice",
+      "expected": [
+        "U01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U01-2",
+      "query": "死锁 回滚",
+      "owner": "alice",
+      "expected": [
+        "U01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U01-3",
+      "query": "MYSQL 事务",
+      "owner": "alice",
+      "expected": [
+        "U01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U02-1",
+      "query": "Python 虚拟环境",
+      "owner": "alice",
+      "expected": [
+        "U02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U02-2",
+      "query": "依赖 冲突",
+      "owner": "alice",
+      "expected": [
+        "U02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U02-3",
+      "query": "PYTHON 排查",
+      "owner": "alice",
+      "expected": [
+        "U02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U03-1",
+      "query": "北京 地铁",
+      "owner": "alice",
+      "expected": [
+        "U03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U03-2",
+      "query": "地铁 换乘",
+      "owner": "alice",
+      "expected": [
+        "U03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U03-3",
+      "query": "换乘 路线",
+      "owner": "alice",
+      "expected": [
+        "U03"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U03"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U04-1",
+      "query": "HTTP 429",
+      "owner": "alice",
+      "expected": [
+        "U04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U04-2",
+      "query": "限流 重试",
+      "owner": "alice",
+      "expected": [
+        "U04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U04-3",
+      "query": "429 间隔",
+      "owner": "alice",
+      "expected": [
+        "U04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U05-1",
+      "query": "get_user_by_id",
+      "owner": "alice",
+      "expected": [
+        "U05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U05-2",
+      "query": "GET_USER_BY_ID",
+      "owner": "alice",
+      "expected": [
+        "U05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U05-3",
+      "query": "返回 空值",
+      "owner": "alice",
+      "expected": [
+        "U05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U06-1",
+      "query": "ERR_CONNECTION_RESET",
+      "owner": "alice",
+      "expected": [
+        "U06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U06-2",
+      "query": "err_connection_reset",
+      "owner": "alice",
+      "expected": [
+        "U06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U06-3",
+      "query": "连接 重置",
+      "owner": "alice",
+      "expected": [
+        "U06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U07-1",
+      "query": "ARTE-2048",
+      "owner": "alice",
+      "expected": [
+        "U07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U07-2",
+      "query": "arte-2048",
+      "owner": "alice",
+      "expected": [
+        "U07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U07-3",
+      "query": "工单 审批",
+      "owner": "alice",
+      "expected": [
+        "U07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U08-1",
+      "query": "flex-shrink",
+      "owner": "alice",
+      "expected": [
+        "U08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U08-2",
+      "query": "CSS 侧栏",
+      "owner": "alice",
+      "expected": [
+        "U08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "U08-3",
+      "query": "侧栏 宽度",
+      "owner": "alice",
+      "expected": [
+        "U08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "U08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A01-1",
+      "query": "指数 退避",
+      "owner": "alice",
+      "expected": [
+        "A01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A01-2",
+      "query": "随机 抖动",
+      "owner": "alice",
+      "expected": [
+        "A01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A01-3",
+      "query": "重试 风暴",
+      "owner": "alice",
+      "expected": [
+        "A01"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A01"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A02-1",
+      "query": "身份证 脱敏",
+      "owner": "alice",
+      "expected": [
+        "A02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A02-2",
+      "query": "敏感信息 日志",
+      "owner": "alice",
+      "expected": [
+        "A02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A02-3",
+      "query": "号码 日志",
+      "owner": "alice",
+      "expected": [
+        "A02"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A02"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A03-1",
+      "query": "端口 冲突",
+      "owner": "alice",
+      "expected": [
+        "A03",
+        "A03-twin"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A03",
+        "A03-twin"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A03-2",
+      "query": "EADDRINUSE",
+      "owner": "alice",
+      "expected": [
+        "A03",
+        "A03-twin"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A03",
+        "A03-twin"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A03-3",
+      "query": "监听 进程",
+      "owner": "alice",
+      "expected": [
+        "A03",
+        "A03-twin"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A03",
+        "A03-twin"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A04-1",
+      "query": "浮点 误差",
+      "owner": "alice",
+      "expected": [
+        "A04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A04-2",
+      "query": "金额 BigDecimal",
+      "owner": "alice",
+      "expected": [
+        "A04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A04-3",
+      "query": "BIGDECIMAL 计算",
+      "owner": "alice",
+      "expected": [
+        "A04"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A04"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A05-1",
+      "query": "燕麦 牛奶",
+      "owner": "alice",
+      "expected": [
+        "A05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A05-2",
+      "query": "水果 纤维",
+      "owner": "alice",
+      "expected": [
+        "A05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A05-3",
+      "query": "早餐 搭配",
+      "owner": "alice",
+      "expected": [
+        "A05"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A05"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A06-1",
+      "query": "Git rebase",
+      "owner": "alice",
+      "expected": [
+        "A06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A06-2",
+      "query": "工作区 保存",
+      "owner": "alice",
+      "expected": [
+        "A06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A06-3",
+      "query": "变基 冲突",
+      "owner": "alice",
+      "expected": [
+        "A06"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A06"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A07-1",
+      "query": "跨站 脚本",
+      "owner": "alice",
+      "expected": [
+        "A07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A07-2",
+      "query": "script alert",
+      "owner": "alice",
+      "expected": [
+        "A07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A07-3",
+      "query": "纯文本 展示",
+      "owner": "alice",
+      "expected": [
+        "A07"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A07"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A08-1",
+      "query": "极光 摄影",
+      "owner": "alice",
+      "expected": [
+        "A08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A08-2",
+      "query": "三脚架 曝光",
+      "owner": "alice",
+      "expected": [
+        "A08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "A08-3",
+      "query": "摄影 时间",
+      "owner": "alice",
+      "expected": [
+        "A08"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A08"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "B01",
+      "query": " ",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [],
+      "invalid": true
+    },
+    {
+      "id": "B02",
+      "query": "​",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [],
+      "invalid": true
+    },
+    {
+      "id": "B03",
+      "query": "⁠",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [],
+      "invalid": true
+    },
+    {
+      "id": "B04",
+      "query": " ",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [],
+      "invalid": true
+    },
+    {
+      "id": "B05",
+      "query": "永不存在的星际菠萝ZXQ987",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [],
+      "top": [],
+      "invalid": false
+    },
+    {
+      "id": "B06",
+      "query": "!!!",
+      "owner": "alice",
+      "expected": [],
+      "forbidden": [],
+      "top": [],
+      "invalid": false
+    },
+    {
+      "id": "B07",
+      "query": "灰度验收",
+      "owner": "alice",
+      "expected": [
+        "page-00",
+        "page-01",
+        "page-02",
+        "page-03",
+        "page-04",
+        "page-05",
+        "page-06",
+        "page-07",
+        "page-08",
+        "page-09",
+        "page-10",
+        "page-11",
+        "page-12",
+        "page-13",
+        "page-14",
+        "page-15",
+        "page-16",
+        "page-17",
+        "page-18",
+        "page-19",
+        "page-20",
+        "page-21",
+        "page-22",
+        "page-23",
+        "page-24",
+        "page-25",
+        "page-26",
+        "page-27",
+        "page-28",
+        "page-29",
+        "page-30",
+        "page-31",
+        "page-32",
+        "page-33",
+        "page-34",
+        "page-35",
+        "page-36",
+        "page-37",
+        "page-38",
+        "page-39"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "page-00",
+        "page-01",
+        "page-02",
+        "page-03",
+        "page-04",
+        "page-05",
+        "page-06",
+        "page-07",
+        "page-08",
+        "page-09",
+        "page-10",
+        "page-11",
+        "page-12",
+        "page-13",
+        "page-14",
+        "page-15",
+        "page-16",
+        "page-17",
+        "page-18",
+        "page-19",
+        "page-20",
+        "page-21",
+        "page-22",
+        "page-23",
+        "page-24",
+        "page-25",
+        "page-26",
+        "page-27",
+        "page-28",
+        "page-29",
+        "page-30",
+        "page-31",
+        "page-32",
+        "page-33",
+        "page-34",
+        "page-35",
+        "page-36",
+        "page-37",
+        "page-38",
+        "page-39"
+      ],
+      "invalid": false
+    },
+    {
+      "id": "B08",
+      "query": "端口冲突",
+      "owner": "alice",
+      "expected": [
+        "A03",
+        "A03-twin"
+      ],
+      "forbidden": [
+        "foreign-user",
+        "foreign-space"
+      ],
+      "top": [
+        "A03",
+        "A03-twin"
+      ],
+      "invalid": false
+    }
+  ]
+}
