@@ -57,6 +57,62 @@ public class SearchSyncWorkerTest {
     }
 
     @Test
+    public void tickMetricsDistinguishChangedEntriesFromUnchangedReconciliationWrites() {
+        f.conversation("metrics", "title");
+        var first = worker.tick(G);
+        assertTrue(first.acquired());
+        assertEquals(1, first.scanned());
+        assertEquals(1, first.processed());
+        assertEquals(1, first.changed());
+        assertEquals(1, first.written());
+        int written = 0;
+        for (int i = 0; i < 6; i++) {
+            f.due();
+            var next = worker.tick(G);
+            assertEquals(0, next.changed());
+            written += next.written();
+        }
+        assertTrue("Full reconciliation may rewrite unchanged entries without reporting source changes", written > 0);
+    }
+
+    @Test
+    public void lifecycleReportsTickCountersAndNextRunWithoutChangingSchedule() {
+        f.conversation("report", "title");
+        var events = new java.util.concurrent.CopyOnWriteArrayList<org.apache.logging.log4j.core.LogEvent>();
+        var logger = (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(
+                com.arte.ainew.config.ConversationSearchScanLifecycle.class);
+        var previous = logger.getLevel();
+        var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("scan-report-test", null, null, false,
+                org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override
+            public void append(org.apache.logging.log4j.core.LogEvent event) {
+                events.add(event.toImmutable());
+            }
+        };
+        var lifecycle = new com.arte.ainew.config.ConversationSearchScanLifecycle(worker, properties("search-test", G),
+                reactor.core.scheduler.Schedulers.immediate());
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(org.apache.logging.log4j.Level.INFO);
+        try {
+            lifecycle.start();
+            lifecycle.stop();
+            var messages = events.stream().map(event -> event.getMessage().getFormattedMessage()).toList();
+            assertEquals(1, messages.size());
+            String report = messages.getFirst();
+            assertTrue(report, report.contains("ticks=1, leaseSkips=0"));
+            assertTrue(report, report.contains("scanned=1, processed=1, changed=1, written=1"));
+            assertTrue(report, report.contains("nextDelayMs=100, nextRunAt="));
+            assertFalse(report, report.contains("nextRunAt=null"));
+        } finally {
+            lifecycle.stop();
+            logger.removeAppender(appender);
+            logger.setLevel(previous);
+            appender.stop();
+        }
+    }
+
+    @Test
     public void discoveryBatchLargerThanProcessingBudgetStillReachesAQuiescentCheckpoint() {
         var p = properties("search-test", G);
         var limited = new com.arte.ainew.config.NewAiSearchProperties(true, false, true, true, true, p.index(), null, null,

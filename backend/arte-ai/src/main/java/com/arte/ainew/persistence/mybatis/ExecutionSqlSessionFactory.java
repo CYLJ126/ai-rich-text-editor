@@ -23,11 +23,15 @@ public final class ExecutionSqlSessionFactory {
     private ExecutionSqlSessionFactory() { }
 
     public static SqlSessionFactory create(DataSource dataSource) {
+        return create(dataSource, new ExecutionSqlDiagnostics());
+    }
+
+    static SqlSessionFactory create(DataSource dataSource, ExecutionSqlDiagnostics diagnostics) {
         var configuration = new Configuration(new Environment("ainew",
                 new SpringManagedTransactionFactory(), Objects.requireNonNull(dataSource, "dataSource")));
         // 内部快照包含输入及授权信息，避免全局 SQL debug 将参数写入日志。
         configuration.setLogImpl(org.apache.ibatis.logging.nologging.NoLoggingImpl.class);
-        configuration.addInterceptor(new ExecutionSqlDiagnostics());
+        configuration.addInterceptor(diagnostics);
         configuration.setCacheEnabled(false);
         configuration.setLocalCacheScope(LocalCacheScope.STATEMENT);
         configuration.setDefaultExecutorType(ExecutorType.SIMPLE);

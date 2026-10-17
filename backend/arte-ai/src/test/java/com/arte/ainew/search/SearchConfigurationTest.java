@@ -53,7 +53,22 @@ public class SearchConfigurationTest {
             assertEquals(Duration.ofMinutes(10), p.session().idleTimeout());
             assertEquals(Duration.ofMinutes(30), p.session().maxLifetime());
             assertEquals(3, p.session().maxPerSubject().intValue());
+            assertFalse(p.diagnostics().sqlEnabled());
+            assertEquals(Duration.ofMillis(500), p.diagnostics().slowSqlThreshold());
         }
+    }
+
+    @Test
+    public void backgroundSqlDiagnosticsBindSeparatelyAndRejectInvalidThreshold() {
+        try (var c = context(Map.of("arte.ai-new.enabled", true,
+                "arte.ai-new-search.diagnostics.sql-enabled", true,
+                "arte.ai-new-search.diagnostics.slow-sql-threshold", "2s"))) {
+            c.refresh();
+            var p = c.getBean(NewAiSearchProperties.class);
+            assertTrue(p.diagnostics().sqlEnabled());
+            assertEquals(Duration.ofSeconds(2), p.diagnostics().slowSqlThreshold());
+        }
+        assertThrows(IllegalArgumentException.class, () -> new NewAiSearchProperties.Diagnostics(false, Duration.ZERO));
     }
 
     @Test
@@ -74,6 +89,8 @@ public class SearchConfigurationTest {
             assertTrue(actual.scanEnabled());
             assertTrue(actual.backfillEnabled());
             assertTrue(actual.reconcileEnabled());
+            assertFalse(actual.diagnostics().sqlEnabled());
+            assertEquals(Duration.ofMillis(500), actual.diagnostics().slowSqlThreshold());
         }
     }
 

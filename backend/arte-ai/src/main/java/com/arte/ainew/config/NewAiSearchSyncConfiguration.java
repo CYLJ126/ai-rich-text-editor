@@ -46,14 +46,14 @@ public class NewAiSearchSyncConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ConversationSearchSource.class)
-    ConversationSearchSource searchSource(NewAiProperties p, ListableBeanFactory beans, ExecutionRecordCodec codec, ConversationArchiveReader archives) {
-        return new MybatisConversationSearchSource(beans.getBean(p.dataSourceBean(), DataSource.class), codec, archives);
+    ConversationSearchSource searchSource(NewAiProperties p, NewAiSearchProperties search, ListableBeanFactory beans, ExecutionRecordCodec codec, ConversationArchiveReader archives) {
+        return new MybatisConversationSearchSource(beans.getBean(p.dataSourceBean(), DataSource.class), codec, archives, search.diagnostics());
     }
 
     @Bean
     @ConditionalOnMissingBean(ConversationSearchSyncStore.class)
     ConversationSearchSyncStore searchSyncStore(NewAiProperties p, NewAiSearchProperties search, ListableBeanFactory beans) {
-        return new MybatisConversationSearchSyncStore(beans.getBean(p.dataSourceBean(), DataSource.class), search.sync().errorThreshold());
+        return new MybatisConversationSearchSyncStore(beans.getBean(p.dataSourceBean(), DataSource.class), search.sync().errorThreshold(), search.diagnostics());
     }
 
     @Bean

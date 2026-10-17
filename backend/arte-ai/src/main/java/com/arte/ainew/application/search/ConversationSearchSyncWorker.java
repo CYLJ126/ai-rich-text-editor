@@ -31,6 +31,21 @@ public final class ConversationSearchSyncWorker {
     private final String worker = UUID.randomUUID().toString();
     private final java.util.concurrent.atomic.AtomicInteger lane = new java.util.concurrent.atomic.AtomicInteger();
 
+    /**
+     * 单轮内存观测；changed 为持久同步版本变化数，written 为已写入并确认的 bulk 条目数。
+     */
+    public record TickResult(long elapsedMs, boolean acquired, int scanned, int processed, int changed, int written) {
+    }
+
+    private static final class TickMetrics {
+        final long started = System.nanoTime();
+        int scanned, processed, changed, written;
+
+        TickResult result(boolean acquired) {
+            return new TickResult((System.nanoTime() - started) / 1_000_000, acquired, scanned, processed, changed, written);
+        }
+    }
+
     public Status status(String generation) {
         return store.status(generation);
     }
@@ -45,11 +60,12 @@ public final class ConversationSearchSyncWorker {
     /**
      * 一次有界推进；只由后台调度器或显式运维调用。
      */
-    public void tick(String generation) {
-        if (!(config.scanEnabled() || config.backfillEnabled() || config.reconcileEnabled())) return;
+    public TickResult tick(String generation) {
+        var metrics = new TickMetrics();
+        if (!(config.scanEnabled() || config.backfillEnabled() || config.reconcileEnabled())) return metrics.result(false);
         store.register(generation, config.index().rulesVersion());
         var lease = store.acquire(generation, worker, config.sync().lease());
-        if (lease == null) return;
+        if (lease == null) return metrics.result(false);
         long started = System.nanoTime();
         try {
             long databaseNow = store.now();
@@ -64,6 +80,7 @@ public final class ConversationSearchSyncWorker {
                 boolean continuous = config.scanEnabled() || config.reconcileEnabled();
                 if ((cp.rounds() == 0 || continuous) && cp.nextAt() <= databaseNow) {
                     var found = source.scan(kind, cp.cursor(), config.sync().batchSize());
+                    metrics.scanned += found.size();
                     boolean end = found.size() < config.sync().batchSize();
                     var pause = config.scanEnabled() ? config.sync().tick() : config.sync().reconcileInterval();
                     store.discovered(lease, kind.name(), found, found.isEmpty() ? cp.cursor() : found.getLast().key(), end, pause);
@@ -73,6 +90,7 @@ public final class ConversationSearchSyncWorker {
                 var cp = store.checkpoint(lease, "E");
                 if ((cp.rounds() == 0 || config.reconcileEnabled()) && cp.nextAt() <= databaseNow) {
                     var known = store.known(lease, cp.cursor(), config.sync().batchSize());
+                    metrics.scanned += known.size();
                     boolean end = known.size() < config.sync().batchSize();
                     store.reconcileDiscovered(lease, known, known.isEmpty() ? cp.cursor() : known.getLast().unit().taskKey(), end, config.sync().reconcileInterval());
                 }
@@ -82,8 +100,9 @@ public final class ConversationSearchSyncWorker {
             for (var work : pending) {
                 if (System.nanoTime() - started >= config.sync().tickBudget().toNanos()) break;
                 store.renew(lease, config.sync().lease());
+                metrics.processed++;
                 try {
-                    process(lease, work, readBatch);
+                    process(lease, work, readBatch, metrics);
                 } catch (LostLease lost) {
                     throw lost;
                 } catch (Exception error) {
@@ -101,23 +120,26 @@ public final class ConversationSearchSyncWorker {
                 store.release(lease);
             } catch (LostLease ignored) {/* 新领取者持有状态 */}
         }
+        return metrics.result(true);
     }
 
-    private void process(Lease lease, Work work, ConversationSearchSource.ReadBatch readBatch) throws Exception {
+    private void process(Lease lease, Work work, ConversationSearchSource.ReadBatch readBatch, TickMetrics metrics) throws Exception {
         var snapshot = readBatch.read(work.unit(), work.scope());
         store.observe(lease, work, snapshot.scope(), snapshot.disposition());
         var old = store.entries(lease, work.unit());
+        var previous = new HashMap<String, Entry>();
+        for (var entry : old) previous.put(entry.entryKey(), entry);
         var scope = snapshot.scope() != null ? snapshot.scope() : old.isEmpty() ? work.scope() : old.getFirst().scope();
         var desired = new LinkedHashMap<String, SearchIndexRecord>();
         for (var r : snapshot.records())
             if (desired.put(r.entryKey(), r) != null) throw new IllegalStateException("Duplicate extracted identity");
         var staged = new LinkedHashMap<String, Entry>();
         var mutations = new ArrayList<Mutation>();
-        for (var r : desired.values()) stage(lease, work, r, Desired.LIVE, staged, mutations);
+        for (var r : desired.values()) stage(lease, work, r, Desired.LIVE, staged, mutations, previous.get(r.entryKey()), metrics);
         for (var e : old)
             if (!desired.containsKey(e.entryKey())) {
                 var identity = json.readValue(e.identity(), SearchIndexRecord.class);
-                stage(lease, work, identity, snapshot.disposition() == Disposition.ARCHIVED ? Desired.DELETE : Desired.TOMBSTONE, staged, mutations);
+                stage(lease, work, identity, snapshot.disposition() == Disposition.ARCHIVED ? Desired.DELETE : Desired.TOMBSTONE, staged, mutations, e, metrics);
             }
         // 重试重新抽取当前源；发送前再读一次，避免重放已改变／归档的旧正文。
         var current = readBatch.read(work.unit(), scope);
@@ -131,7 +153,10 @@ public final class ConversationSearchSyncWorker {
             for (int n = 0; n < batch.size(); n++) {
                 var result = results.get(n);
                 if (!result.entryKey().equals(batch.get(n).record().entryKey())) throw new Retry("INCOMPLETE_BULK");
-                if (result.success()) store.acknowledge(lease, staged.get(result.entryKey()));
+                if (result.success()) {
+                    store.acknowledge(lease, staged.get(result.entryKey()));
+                    metrics.written++;
+                }
                 else failed = true;
             }
             if (failed) throw new Retry("ES_ITEM_FAILED");
@@ -154,10 +179,12 @@ public final class ConversationSearchSyncWorker {
         if (!snapshotFingerprint(expected).equals(snapshotFingerprint(current))) throw new Retry("SOURCE_CHANGED");
     }
 
-    private void stage(Lease l, Work w, SearchIndexRecord r, Desired desired, Map<String, Entry> staged, List<Mutation> mutations) {
+    private void stage(Lease l, Work w, SearchIndexRecord r, Desired desired, Map<String, Entry> staged, List<Mutation> mutations,
+                       Entry previous, TickMetrics metrics) {
         var identity = copy(r, 1, false);
         String fingerprint = CanonicalJson.sha256(CanonicalJson.encode(Map.of("desired", desired.name(), "source", r.source())));
         var entry = store.stage(l, w, new Scope(r.owner(), r.conversationId()), json.writeValueAsString(identity), fingerprint, desired);
+        if (previous == null || entry.revision() != previous.revision()) metrics.changed++;
         staged.put(entry.entryKey(), entry);
         if (w.forceWrite() || desired == Desired.DELETE || entry.acknowledged() != entry.revision())
             mutations.add(new Mutation(copy(r, entry.revision(), desired == Desired.LIVE), desired));

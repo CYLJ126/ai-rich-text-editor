@@ -16,10 +16,11 @@ import java.time.Duration;
 public record NewAiSearchProperties(boolean enabled, boolean queryEnabled, boolean scanEnabled,
                                     boolean backfillEnabled, boolean reconcileEnabled,
                                     Index index, Session session, Limits limits, Sync sync,
-                                    boolean initializeOnStartup) {
+                                    boolean initializeOnStartup, Diagnostics diagnostics) {
 
     @ConstructorBinding
     public NewAiSearchProperties {
+        diagnostics = diagnostics == null ? new Diagnostics(null, null) : diagnostics;
         sync = sync == null ? new Sync(null, null, null, null, null, null, null, null, null) : sync;
         ContractChecks.require(!(initializeOnStartup || scanEnabled || backfillEnabled || reconcileEnabled) || sync.generation() != null, "Search initialization/background work requires a fixed physical generation");
         index = index == null ? new Index(null, null, null, null, null, null, null, null, null, null) : index;
@@ -29,6 +30,22 @@ public record NewAiSearchProperties(boolean enabled, boolean queryEnabled, boole
         limits = limits == null ? new Limits(null, null, null, null, null, null, null) : limits;
         ContractChecks.require(enabled || !(initializeOnStartup || queryEnabled || scanEnabled || backfillEnabled || reconcileEnabled),
                 "Search master switch must be enabled before sub-switches");
+    }
+
+    public NewAiSearchProperties(boolean enabled, boolean queryEnabled, boolean scanEnabled, boolean backfillEnabled,
+                                 boolean reconcileEnabled, Index index, Session session, Limits limits, Sync sync,
+                                 boolean initializeOnStartup) {
+        this(enabled, queryEnabled, scanEnabled, backfillEnabled, reconcileEnabled, index, session, limits, sync, initializeOnStartup, null);
+    }
+
+    /**
+     * 仅控制搜索后台工厂；成功 SQL 默认静默，失败和慢 SQL 始终保留。
+     */
+    public record Diagnostics(Boolean sqlEnabled, Duration slowSqlThreshold) {
+        public Diagnostics {
+            sqlEnabled = Boolean.TRUE.equals(sqlEnabled);
+            slowSqlThreshold = duration(slowSqlThreshold, Duration.ofMillis(500), Duration.ofMillis(1), Duration.ofMinutes(1));
+        }
     }
 
     public NewAiSearchProperties(boolean enabled, boolean queryEnabled, boolean scanEnabled, boolean backfillEnabled,

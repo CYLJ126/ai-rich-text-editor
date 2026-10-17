@@ -1,5 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
+import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.SearchReadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper;
@@ -21,7 +22,15 @@ public final class SearchSqlSessionFactory {
     }
 
     public static SqlSessionFactory create(DataSource dataSource) {
-        var factory = ExecutionSqlSessionFactory.create(dataSource);
+        return create(dataSource, null);
+    }
+
+    /**
+     * 后台源读取和进度存储传入独立日志策略；前台搜索读取沿用原诊断。
+     */
+    public static SqlSessionFactory create(DataSource dataSource, NewAiSearchProperties.Diagnostics diagnostics) {
+        var factory = diagnostics == null ? ExecutionSqlSessionFactory.create(dataSource)
+                : ExecutionSqlSessionFactory.create(dataSource, new ExecutionSqlDiagnostics(diagnostics));
         for (var type : new Class<?>[]{SearchSourceMapper.class, SearchSyncMapper.class, SearchReadMapper.class}) {
             String path = "ainew/persistence/" + type.getSimpleName() + ".xml";
             try (var input = new ClassPathResource(path).getInputStream()) {

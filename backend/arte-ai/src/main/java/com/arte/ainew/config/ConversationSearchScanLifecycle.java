@@ -3,8 +3,7 @@ package com.arte.ainew.config;
 import com.arte.ainew.application.search.ConversationSearchSyncWorker;
 import com.arte.ainew.infrastructure.search.ConversationSearchBootstrap;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import reactor.core.Disposable;
@@ -19,9 +18,9 @@ import reactor.core.scheduler.Scheduler;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/17 07:25 ✾
  */
+@Slf4j
 public final class ConversationSearchScanLifecycle {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ConversationSearchScanLifecycle.class);
     private final ConversationSearchSyncWorker worker;
     private final NewAiSearchProperties properties;
     private final Scheduler scheduler;
@@ -31,6 +30,7 @@ public final class ConversationSearchScanLifecycle {
     private String lastState;
     private volatile boolean completed;
     private int initializationFailures;
+    private long ticks, leaseSkips, tickElapsedMs, scanned, processed, changed, written;
 
     public ConversationSearchScanLifecycle(ConversationSearchSyncWorker worker, NewAiSearchProperties properties, Scheduler scheduler) {
         this(worker, properties, scheduler, null);
@@ -60,7 +60,7 @@ public final class ConversationSearchScanLifecycle {
                                 try {
                                     bootstrap.initialize();
                                     initializationFailures = 0;
-                                    LOG.info("AI search initialization ready generation={}", properties.sync().generation());
+                                    log.info("AI search initialization ready generation={}", properties.sync().generation());
                                 } catch (Exception failure) {
                                     initializationFailures = Math.min(30, initializationFailures + 1);
                                     throw new IllegalStateException(failure);
@@ -70,13 +70,23 @@ public final class ConversationSearchScanLifecycle {
                                 completed = true;
                                 return;
                             }
-                            worker.tick(properties.sync().generation());
+                            var tick = worker.tick(properties.sync().generation());
+                            ticks++;
+                            if (!tick.acquired()) leaseSkips++;
+                            tickElapsedMs += tick.elapsedMs();
+                            scanned += tick.scanned();
+                            processed += tick.processed();
+                            changed += tick.changed();
+                            written += tick.written();
                             boolean backfillOnly = properties.backfillEnabled() && !properties.scanEnabled() && !properties.reconcileEnabled();
                             if (backfillOnly && "READY".equals(worker.status(properties.sync().generation()).state())) completed = true;
                             if (System.currentTimeMillis() - lastReport >= 60000) {
                                 var status = worker.status(properties.sync().generation());
-                                LOG.info("AI search scan generation={}, state={}, pending={}, failures={}, missing={}, rounds={}",
-                                        status.generation(), status.state(), status.pending(), status.failures(), status.missingResults(), status.completedRounds());
+                                log.info("AI search scan generation={}, state={}, pending={}, failures={}, missing={}, rounds={}, ticks={}, leaseSkips={}, tickElapsedMs={}, lastTickMs={}, scanned={}, processed={}, changed={}, written={}, nextDelayMs={}, nextRunAt={}",
+                                        status.generation(), status.state(), status.pending(), status.failures(), status.missingResults(), status.completedRounds(),
+                                        ticks, leaseSkips, tickElapsedMs, tick.elapsedMs(), scanned, processed, changed, written,
+                                        completed ? null : properties.sync().tick().toMillis(), completed ? null : java.time.Instant.now().plus(properties.sync().tick()));
+                                ticks = leaseSkips = tickElapsedMs = scanned = processed = changed = written = 0;
                                 lastReport = System.currentTimeMillis();
                                 lastState = status.state();
                             }
@@ -85,7 +95,7 @@ public final class ConversationSearchScanLifecycle {
                             if (System.currentTimeMillis() - lastReport >= 60000 || !"ERROR".equals(lastState)) {
                                 Throwable cause = error.getCause() == null ? error : error.getCause();
                                 String code = cause instanceof ConversationSearchBootstrap.InitializationFailure ? cause.getMessage() : cause.getClass().getSimpleName();
-                                LOG.warn("AI search {} failed generation={}, code={}", bootstrap != null && !bootstrap.isReady() ? "initialization" : "scan tick",
+                                log.warn("AI search {} failed generation={}, code={}", bootstrap != null && !bootstrap.isReady() ? "initialization" : "scan tick",
                                         properties.sync().generation(), code);
                                 lastReport = System.currentTimeMillis();
                                 lastState = "ERROR";

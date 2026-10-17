@@ -49,6 +49,26 @@ v2；部署应按实际固定版本配置。副本数可由运维调整，不作
 已有活动别名时，如果 `sync.generation` 指向另一个代际，该目标必须已显式创建且兼容。初始化只核验和登记目标，保持读／写别名原指向。升级与回退仍使用
 `ConversationSearchMaintenance.create / prepareActivation / activate` 流程，不以重启替代校准和切换。
 
+## 后台日志
+
+后台源读取（含耐久结果读取）和同步进度 SQL 默认不输出逐条 started/completed；SQL 失败保留 ERROR，耗时达到阈值的成功 SQL 保留
+WARN。 前台搜索／聊天查询继续使用原 SQL 诊断策略，日志只输出参数化 SQL，不输出绑定参数或快照正文。
+
+```properties
+arte.ai-new-search.diagnostics.sql-enabled=false
+arte.ai-new-search.diagnostics.slow-sql-threshold=500ms
+```
+
+环境变量分别为 `ARTE_AI_NEW_SEARCH_SQL_ENABLED` 和 `ARTE_AI_NEW_SEARCH_SLOW_SQL_THRESHOLD`；开启逐条日志还需要
+`ExecutionSqlDiagnostics` 的日志级别允许 DEBUG。阈值允许 1ms～1m，失败日志不受这两个参数抑制。配置在构建并启动后生效，无需数据库迁移。
+
+`AI search scan` 在首次成功 tick 后输出摘要，之后约每分钟汇总自上次摘要以来的成功 tick：`ticks` 为轮询次数，`leaseSkips`
+为未取得租约次数，
+`tickElapsedMs` 为累计耗时，`lastTickMs` 为最近一轮耗时；`scanned` 包括 C/T/I 发现及 E 校准候选，`processed` 为尝试处理的任务数。
+`changed` 为本轮处理中新建或推进同步版本的条目数；`written` 为成功执行 bulk 并确认的条目数，包含同版本的强制校准写入，不包含独立归档清理的删除量。
+两者均为处理次数，不跨轮去重。`pending/failures/missing/rounds` 仍是持久状态快照；`nextDelayMs` 和 `nextRunAt`
+为当前计划的等待时间及预计唤醒时间，实际运行受调度队列影响。 本次只增加日志和内存计数，SQL 执行次数、250ms 轮询间隔及租约语义保持原样。
+
 ## 失败恢复与部署约束
 
 - 创建后登记失败、登记后别名未完成：修复依赖后自动重试，补齐缺失步骤。

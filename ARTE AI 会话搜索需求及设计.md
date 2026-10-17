@@ -717,6 +717,10 @@ queryTurnsAround 及调用快照读取不要求原 searchSessionId 仍活动；�
 四张后台表、参数、状态口径、迁移和运维方法见第二阶段交付记录。默认 tick 250ms、发现批次 20、处理项 10、项间预算 2s、校准间隔
 1h；这是节流配置，不是生产吞吐或新鲜度指标。
 
+后台 SQL 逐条成功日志由 `diagnostics.sql-enabled` 单独控制，默认 false；失败保留 ERROR，成功慢 SQL 按
+`diagnostics.slow-sql-threshold`（默认 500ms）输出 WARN。周期摘要汇总扫描、处理、同步版本变化、确认写入及耗时，并给出当前计划的下一次运行时间；字段口径及环境变量见
+`backend/arte-ai/CONVERSATION_SEARCH_INITIALIZATION.md` 的“后台日志”。日志降噪不改变扫描频率、数据库时钟或租约校验。
+
 ### B.2 并发、乱序与删除
 
 源身份和索引 _id 固定。标题可核对原元数据版本，用户消息及助手耐久结果使用不可变身份／引用和指纹；不同类型的业务版本不拼成一个序列。后台对每个

@@ -1,6 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper;
 import com.arte.ainew.pojo.search.SearchIndexRecord;
 import com.arte.ainew.pojo.search.SearchSync.*;
@@ -36,8 +37,12 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     }
 
     public MybatisConversationSearchSyncStore(DataSource dataSource, int errorThreshold) {
+        this(dataSource, errorThreshold, new NewAiSearchProperties.Diagnostics(null, null));
+    }
+
+    public MybatisConversationSearchSyncStore(DataSource dataSource, int errorThreshold, NewAiSearchProperties.Diagnostics diagnostics) {
         this.errorThreshold = errorThreshold;
-        var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource));
+        var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource, diagnostics));
         mapper = sessions.getMapper(SearchSyncMapper.class);
         tx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         tx.setTimeout(30);

@@ -1,6 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper;
 import com.arte.ainew.pojo.conversation.Conversation;
@@ -40,7 +41,12 @@ public final class MybatisConversationSearchSource implements ConversationSearch
     private final ConversationArchiveReader archives;
 
     public MybatisConversationSearchSource(DataSource dataSource, ExecutionRecordCodec codec, ConversationArchiveReader archives) {
-        var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource));
+        this(dataSource, codec, archives, new NewAiSearchProperties.Diagnostics(null, null));
+    }
+
+    public MybatisConversationSearchSource(DataSource dataSource, ExecutionRecordCodec codec, ConversationArchiveReader archives,
+                                           NewAiSearchProperties.Diagnostics diagnostics) {
+        var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource, diagnostics));
         source = sessions.getMapper(SearchSourceMapper.class);
         payloads = sessions.getMapper(PayloadMapper.class);
         this.codec = Objects.requireNonNull(codec);
