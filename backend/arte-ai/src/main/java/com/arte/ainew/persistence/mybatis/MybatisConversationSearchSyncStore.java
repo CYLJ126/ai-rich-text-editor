@@ -15,6 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 import javax.sql.DataSource;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -30,6 +31,7 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     private final SearchSyncMapper mapper;
     private final TransactionTemplate tx;
     private final JsonMapper json = JsonMapper.builder().build();
+    private final LongSupplier nanoTime;
 
     public MybatisConversationSearchSyncStore(DataSource dataSource) {
         this(dataSource, 10);
@@ -40,7 +42,12 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     }
 
     public MybatisConversationSearchSyncStore(DataSource dataSource, int errorThreshold, NewAiSearchProperties.Diagnostics diagnostics) {
+        this(dataSource, errorThreshold, diagnostics, System::nanoTime);
+    }
+
+    MybatisConversationSearchSyncStore(DataSource dataSource, int errorThreshold, NewAiSearchProperties.Diagnostics diagnostics, LongSupplier nanoTime) {
         this.errorThreshold = errorThreshold;
+        this.nanoTime = nanoTime;
         var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource, diagnostics));
         mapper = sessions.getMapper(SearchSyncMapper.class);
         tx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
@@ -61,9 +68,27 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
             throw new IllegalArgumentException("Invalid physical generation");
     }
 
+    private record LockRead(SearchSyncMapper.Generation row, long elapsedMs) {
+    }
+
+    private LockRead lock(String generation) {
+        long started = nanoTime.getAsLong();
+        var row = mapper.generation(generation, true);
+        return new LockRead(row, Math.max(0, nanoTime.getAsLong() - started) / 1_000_000 + 1);
+    }
+
+    private long databaseNow(LockRead read) {
+        var row = read.row();
+        // CURRENT_TIMESTAMP 固定在语句开始；客户端单调耗时只用于判断采样可能过旧，不能作为数据库 epoch。
+        // 若等待可能跨过到期点，在已经持锁的事务中重新取数据库时间，避免旧采样放行过期租约。
+        long remaining = row.leaseUntil() - row.databaseNow();
+        return remaining > 0 && remaining <= read.elapsedMs() ? now() : row.databaseNow();
+    }
+
     private SearchSyncMapper.Generation guard(Lease l) {
-        var r = mapper.generation(l.generation(), true);
-        if (r == null || !Objects.equals(r.worker(), l.worker()) || r.fence() != l.fence() || r.leaseUntil() <= now())
+        var read = lock(l.generation());
+        var r = read.row();
+        if (r == null || !Objects.equals(r.worker(), l.worker()) || r.fence() != l.fence() || r.leaseUntil() <= databaseNow(read))
             throw new LostLease();
         return r;
     }
@@ -83,12 +108,13 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     @Override
     public Lease acquire(String g, String worker, Duration duration) {
         return transaction(() -> {
-            var r = mapper.generation(g, true);
+            var read = lock(g);
+            var r = read.row();
             if (r == null) throw new IllegalStateException("Register physical generation before scanning");
-            long time = now();
+            long time = databaseNow(read);
             if (r.leaseUntil() > time) return null;
             long fence = Math.incrementExact(r.fence());
-            mapper.lease(g, worker, fence, Math.addExact(time, duration.toMillis()));
+            mapper.extendLease(g, worker, fence, duration.toMillis());
             return new Lease(g, worker, fence);
         });
     }
@@ -97,7 +123,7 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     public void renew(Lease l, Duration d) {
         transaction(() -> {
             guard(l);
-            mapper.lease(l.generation(), l.worker(), l.fence(), Math.addExact(now(), d.toMillis()));
+            mapper.extendLease(l.generation(), l.worker(), l.fence(), d.toMillis());
             return null;
         });
     }
@@ -166,15 +192,15 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     public List<Work> pending(Lease l, int size) {
         return transaction(() -> {
             guard(l);
-            return mapper.pending(l.generation(), now(), size).stream().map(this::work).toList();
+            return mapper.pending(l.generation(), size).stream().map(this::work).toList();
         });
     }
 
     @Override
-    public Long nextWorkAt(Lease l) {
+    public Schedule schedule(Lease l) {
         return transaction(() -> {
             guard(l);
-            return mapper.nextWorkAt(l.generation());
+            return mapper.schedule(l.generation());
         });
     }
 
@@ -261,7 +287,7 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
         transaction(() -> {
             guard(l);
             mapper.complete(l.generation(), w.unit().taskKey(), scope == null ? null : scope.owner().tenantId(), scope == null ? null : scope.owner().workspaceId(), scope == null ? null : scope.owner().subjectId(), scope == null ? null : scope.conversationId(), scope == null ? null : ownerKey(scope.owner()));
-            mapper.success(l.generation(), now());
+            mapper.success(l.generation());
             return null;
         });
     }
@@ -270,7 +296,7 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     public void fail(Lease l, Work w, String code, Duration delay) {
         transaction(() -> {
             guard(l);
-            mapper.fail(l.generation(), w.unit().taskKey(), code, Math.addExact(now(), delay.toMillis()));
+            mapper.fail(l.generation(), w.unit().taskKey(), code, delay.toMillis());
             return null;
         });
     }
@@ -279,18 +305,16 @@ public final class MybatisConversationSearchSyncStore implements ConversationSea
     public void continueWork(Lease l, Work w, Duration delay) {
         transaction(() -> {
             guard(l);
-            mapper.continueWork(l.generation(), w.unit().taskKey(), Math.addExact(now(), delay.toMillis()));
+            mapper.continueWork(l.generation(), w.unit().taskKey(), delay.toMillis());
             return null;
         });
     }
 
     private void sweepComplete(Lease l, String cursor, boolean end, Duration pause) {
-        transaction(() -> {
-            guard(l);
-            var old = mapper.checkpoint(l.generation(), "E");
-            mapper.checkpointSave(l.generation(), "E", end ? "" : cursor, old.rounds() + (end ? 1 : 0), end ? Math.addExact(now(), pause.toMillis()) : 0);
-            return null;
-        });
+        // 复用调用方短事务，但入队可能耗时，保存检查点前仍须重新校验有效期。
+        guard(l);
+        var old = mapper.checkpoint(l.generation(), "E");
+        mapper.checkpointSave(l.generation(), "E", end ? "" : cursor, old.rounds() + (end ? 1 : 0), end ? Math.addExact(now(), pause.toMillis()) : 0);
     }
 
     /**

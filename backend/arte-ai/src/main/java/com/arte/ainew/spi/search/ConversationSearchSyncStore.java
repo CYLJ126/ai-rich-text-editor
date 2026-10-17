@@ -47,7 +47,14 @@ public interface ConversationSearchSyncStore {
     /**
      * 最早待处理任务的数据库 next_at，包含尚在退避的任务；无任务时返回 null。
      */
-    Long nextWorkAt(Lease lease);
+    default Long nextWorkAt(Lease lease) {
+        return schedule(lease).nextWorkAt();
+    }
+
+    /**
+     * 同一次数据库采样取得最早重试时间与时钟，避免为调度再单独取时。
+     */
+    Schedule schedule(Lease lease);
 
     List<Entry> entries(Lease lease, Unit unit);
 

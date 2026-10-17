@@ -139,8 +139,9 @@ public final class ConversationSearchSyncWorker {
                 }
             }
             // 读实际持久化的重试时间，不用 pending=0 推断空闲，也不混用应用主机的 epoch。
-            Long nextWorkAt = store.nextWorkAt(lease);
-            long now = store.now();
+            var schedule = store.schedule(lease);
+            Long nextWorkAt = schedule.nextWorkAt();
+            long now = schedule.databaseNow();
             Long nextScanAt = null;
             for (var k : Kind.values()) {
                 var cp = checkpoints.get(k.name());

@@ -2,8 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper">
     <!-- 数值 epoch 不经过 JDBC Timestamp 时区解释；先转 DECIMAL 避免 H2 的 int 秒乘法溢出。 -->
-    <select id="databaseTimeMillis" resultType="_long" useCache="false">
-        SELECT CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) AS DECIMAL(20,3)) * 1000
+    <sql id="databaseMillis">CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) AS DECIMAL(20,3)) * 1000</sql>
+    <select id="databaseTimeMillis" resultType="_long" useCache="false">SELECT
+        <include refid="databaseMillis"/>
     </select>
     <resultMap id="Generation" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Generation">
         <constructor>
@@ -14,6 +15,13 @@
             <arg column="lease_until" javaType="_long"/>
             <arg column="last_success_at" javaType="java.lang.Long"/>
             <arg column="validation_epoch" javaType="_long"/>
+            <arg column="database_now" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Schedule" type="com.arte.ainew.pojo.search.SearchSync$Schedule">
+        <constructor>
+            <arg column="database_now" javaType="_long"/>
+            <arg column="next_at" javaType="java.lang.Long"/>
         </constructor>
     </resultMap>
     <resultMap id="Checkpoint" type="com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper$Checkpoint">
@@ -57,14 +65,23 @@
     <insert id="register">INSERT IGNORE INTO
         arte_ai_search_generation(generation,rules_version,worker,fence,lease_until) VALUES(#{g},#{rules},NULL,0,0)
     </insert>
-    <select id="generation" resultMap="Generation" useCache="false">SELECT * FROM arte_ai_search_generation WHERE
+    <select id="generation" resultMap="Generation" useCache="false">SELECT *,
+        <include refid="databaseMillis"/>
+        AS database_now FROM arte_ai_search_generation WHERE
         generation=#{g}
         <if test="lock">FOR UPDATE</if>
     </select>
     <update id="lease">UPDATE arte_ai_search_generation SET worker=#{worker},fence=#{fence},lease_until=#{until} WHERE
         generation=#{g}
     </update>
-    <update id="success">UPDATE arte_ai_search_generation SET last_success_at=#{now} WHERE generation=#{g}</update>
+    <update id="extendLease">UPDATE arte_ai_search_generation SET worker=#{worker},fence=#{fence},lease_until=(<include
+            refid="databaseMillis"/>) + #{duration}
+        WHERE generation=#{g}
+    </update>
+    <update id="success">UPDATE arte_ai_search_generation SET last_success_at=
+        <include refid="databaseMillis"/>
+        WHERE generation=#{g}
+    </update>
     <insert id="ensureCheckpoint">INSERT IGNORE INTO
         arte_ai_search_checkpoint(generation,lane,cursor_key,rounds,next_at) VALUES(#{g},#{lane},'',0,0)
     </insert>
@@ -89,16 +106,20 @@
         task_key &gt; #{after} ORDER BY task_key LIMIT #{size}
     </select>
     <select id="pending" resultMap="Work" useCache="false">SELECT * FROM arte_ai_search_work WHERE generation=#{g} AND
-        pending=TRUE AND next_at &lt;= #{now} ORDER BY next_at,task_key LIMIT #{size}
+        pending=TRUE AND next_at &lt;= (<include refid="databaseMillis"/>) ORDER BY next_at,task_key LIMIT #{size}
     </select>
-    <select id="nextWorkAt" resultType="java.lang.Long" useCache="false">
-        SELECT MIN(next_at) FROM arte_ai_search_work WHERE generation=#{g} AND pending=TRUE
+    <select id="schedule" resultMap="Schedule" useCache="false">
+        SELECT
+        <include refid="databaseMillis"/>
+        AS database_now, MIN(next_at) AS next_at
+        FROM arte_ai_search_work WHERE generation=#{g} AND pending=TRUE
     </select>
     <update id="complete">UPDATE arte_ai_search_work SET
         pending=FALSE,force_write=FALSE,failures=0,error_code=NULL,next_at=0,tenant_id=#{tenant},workspace_id=#{space},subject_id=#{subject},conversation_id=#{conv},owner_key=#{owner}
         WHERE generation=#{g} AND task_key=#{task}
     </update>
-    <update id="fail">UPDATE arte_ai_search_work SET pending=TRUE,failures=failures+1,error_code=#{code},next_at=#{next}
+    <update id="fail">UPDATE arte_ai_search_work SET pending=TRUE,failures=failures+1,error_code=#{code},next_at=(
+        <include refid="databaseMillis"/>) + #{delay}
         WHERE generation=#{g} AND task_key=#{task}
     </update>
     <select id="entries" resultMap="Entry" useCache="false">SELECT * FROM arte_ai_search_entry WHERE generation=#{g} AND
@@ -144,7 +165,8 @@
         generation=#{g} AND error_code='MISSING_RESULT'
         <if test="owner != null">AND owner_key=#{owner}</if>
     </select>
-    <update id="continueWork">UPDATE arte_ai_search_work SET pending=TRUE,failures=0,error_code=NULL,next_at=#{next}
+    <update id="continueWork">UPDATE arte_ai_search_work SET pending=TRUE,failures=0,error_code=NULL,next_at=(<include
+            refid="databaseMillis"/>) + #{delay}
         WHERE generation=#{g} AND task_key=#{task}
     </update>
 </mapper>

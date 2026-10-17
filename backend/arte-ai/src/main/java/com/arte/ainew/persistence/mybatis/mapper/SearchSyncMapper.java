@@ -1,5 +1,6 @@
 package com.arte.ainew.persistence.mybatis.mapper;
 
+import com.arte.ainew.pojo.search.SearchSync.Schedule;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -8,7 +9,7 @@ public interface SearchSyncMapper {
     long databaseTimeMillis();
 
     record Generation(String generation, String rulesVersion, String worker, long fence, long leaseUntil,
-                      Long lastSuccessAt, long validationEpoch) {
+                      Long lastSuccessAt, long validationEpoch, long databaseNow) {
     }
 
     record Checkpoint(String lane, String cursorKey, long rounds, long nextAt) {
@@ -29,7 +30,9 @@ public interface SearchSyncMapper {
 
     int lease(@Param("g") String generation, @Param("worker") String worker, @Param("fence") long fence, @Param("until") long until);
 
-    int success(@Param("g") String generation, @Param("now") long now);
+    int extendLease(@Param("g") String generation, @Param("worker") String worker, @Param("fence") long fence, @Param("duration") long duration);
+
+    int success(@Param("g") String generation);
 
     int ensureCheckpoint(@Param("g") String generation, @Param("lane") String lane);
 
@@ -47,16 +50,16 @@ public interface SearchSyncMapper {
 
     List<Work> known(@Param("g") String generation, @Param("after") String after, @Param("size") int size);
 
-    List<Work> pending(@Param("g") String generation, @Param("now") long now, @Param("size") int size);
+    List<Work> pending(@Param("g") String generation, @Param("size") int size);
 
-    Long nextWorkAt(@Param("g") String generation);
+    Schedule schedule(@Param("g") String generation);
 
     int complete(@Param("g") String generation, @Param("task") String task, @Param("tenant") String tenant,
                  @Param("space") String space, @Param("subject") String subject, @Param("conv") String conversation, @Param("owner") String owner);
 
-    int continueWork(@Param("g") String generation, @Param("task") String task, @Param("next") long next);
+    int continueWork(@Param("g") String generation, @Param("task") String task, @Param("delay") long delay);
 
-    int fail(@Param("g") String generation, @Param("task") String task, @Param("code") String code, @Param("next") long next);
+    int fail(@Param("g") String generation, @Param("task") String task, @Param("code") String code, @Param("delay") long delay);
 
     List<Entry> entries(@Param("g") String generation, @Param("task") String task);
 

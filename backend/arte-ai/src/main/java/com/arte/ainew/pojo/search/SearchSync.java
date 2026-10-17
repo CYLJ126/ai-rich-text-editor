@@ -81,6 +81,12 @@ public final class SearchSync {
     }
 
     /**
+     * 同一 SQL 采样的数据库时间和最早任务时间；无待处理任务时 nextWorkAt 为 null。
+     */
+    public record Schedule(long databaseNow, Long nextWorkAt) {
+    }
+
+    /**
      * 扫描或校准通道的检查点，保存游标、已完成轮数及下次执行时间。
      */
     public record Checkpoint(String lane, String cursor, long rounds, long nextAt) {

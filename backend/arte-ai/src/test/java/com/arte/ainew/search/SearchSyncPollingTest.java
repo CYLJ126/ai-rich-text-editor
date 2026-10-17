@@ -147,7 +147,7 @@ public class SearchSyncPollingTest {
         f.jdbc.update("UPDATE arte_ai_search_checkpoint SET rounds=1,next_at=? WHERE generation=?", Long.MAX_VALUE, G);
         dataSource.sql.clear();
         worker.tick(G);
-        assertEquals(dataSource.sql.toString(), 22, dataSource.sql.size());
+        assertEquals(dataSource.sql.toString(), 13, dataSource.sql.size());
         assertEquals(1, dataSource.sql.stream().filter(sql -> sql.contains("lane IN ('C','T','I','E')")).count());
         assertTrue(dataSource.sql.stream().noneMatch(sql -> sql.startsWith("INSERT IGNORE")));
     }
