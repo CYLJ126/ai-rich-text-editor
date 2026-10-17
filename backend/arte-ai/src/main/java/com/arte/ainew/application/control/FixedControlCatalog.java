@@ -64,6 +64,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                     && capability.features().contains(CapabilityDescriptor.Feature.TEXT_INPUT), "Unsupported advertised capability features");
         }
         for (var binding : bindings.values()) {
+            ContractChecks.require(binding.target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote,
+                    "Fixed generation catalog requires remote bindings");
             ContractChecks.require(binding.capability().equals(capabilities.get(binding.capability().definition()))
                     && connections.containsKey(binding.connection()) && binding.rate() != null && rates.containsKey(binding.rate()), "Unresolved binding dependency");
         }

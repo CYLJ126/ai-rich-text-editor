@@ -31,7 +31,8 @@ public interface BindingManager {
      * @param binding    用户选择的绑定及版本
      * @param capability 本次要使用的能力及版本
      * @param context    执行上下文，当前可信身份、空间、权限和执行期限
-     * @return 解析后的绑定信息，包含能力描述、连接引用、远端模型名称、上下文容量和费率引用
+     * @return 固定绑定及类型化执行目标；远端包含连接／操作，本地 TOOL 包含适配版本引用。
+     *         现有固定生成控制面仍只解析远端模型，TOOL 管理接线另行实现。
      */
     Mono<ResolvedBinding> resolve(DefinitionRef binding, DefinitionRef capability, ExecutionContext context);
 }

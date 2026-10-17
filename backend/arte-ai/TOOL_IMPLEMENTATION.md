@@ -3,7 +3,7 @@
 日期：2026-10-17。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02。S1 整体尚未完成，TOOL 尚未开放使用。
+当前完成：S1-01、S1-02、S1-03。S1 整体尚未完成，TOOL 尚未开放使用。
 
 ## 1. S1-01：定义、风险、能力与默认策略
 
@@ -179,4 +179,100 @@ JSON 接口。Schema 引用查找、checksum 计算与防漂移、缓存／发�
 本批未新增 SQL、配置、权限、菜单、运行时接线或前端。没有启动应用、连接数据库、调用工具／模型；未运行全量测试、生产性能、多实例或浏览器验收。原有
 Maven 依赖／资源编码及旧代码编译提示仍存在。
 
-下一批 S1-03：本地／远端类型化执行目标及兼容验证。本次停在 S1-02。
+S1-02 完成时的下一批为 S1-03；实际结果见下节。
+
+## 3. S1-03：本地／远端类型化执行目标
+
+状态：目标契约、绑定兼容、调用结构检查及编码边界完成；TOOL 目录、适配注册和实际调用仍未开放。
+
+### 3.1 模型与运行边界
+
+| 类型／位置                               | 已完成内容                                                                                        |
+|------------------------------------------|---------------------------------------------------------------------------------------------------|
+| pojo.control.ExecutionTarget             | sealed Local／Remote 值对象，只持有受管固定引用                                                   |
+| ExecutionTarget.Local                    | adapter 必须为 type=tool-adapter 的固定版本；不持有 Bean、类名、脚本、回调或连接                  |
+| ExecutionTarget.Remote                   | connection 为固定连接引用，operation 为有界操作键；不携带地址或凭据                               |
+| ResolvedBinding                          | 组件改为 definition、capability、target、contextWindowTokens、rate，只有 target 保存执行位置事实  |
+| GatewayCall                              | 本地目标必须配 ToolInvocation；继续核对固定绑定／能力、可执行性、主体／scopes、期限及耐久派发身份 |
+| FixedControlCatalog／DefaultModelGateway | 现有目录仍只接生成；明确拒绝本地目标，模型发现对本地 TOOL 返回不支持                              |
+
+本地目标只适用于 TOOL，contextWindowTokens 必须为空；rate 可空，不伪造模型费率。远端生成仍必须声明有效窗口，rate
+的现有格式校验不变。声明本地适配引用不等于已注册实现，不得按引用字符串反射加载或选择任意
+Bean；真实注册、固定工具映射、当前授权和发布校验留给后续目录批次。
+
+保留原六参数 ResolvedBinding 构造器，将 connection／remoteOperation 单向转为 Remote；两个旧访问器从目标投影。对本地目标调用这些访问器明确抛出
+IllegalStateException，不返回 null 或占位连接。既有生成调用方式可继续使用，新增代码使用五参数类型化构造器。
+
+为保持现有 Spring 固定配置，兼容六参数构造器使用 ConstructorBinding 元数据；arte.ai-new.bindings 仍严格接受原六字段，新增
+target 配置字段会被拒绝。没有关闭未知属性校验，也没有新增配置项或装配 TOOL Bean。未来 TOOL 配置须在自己的控制面中显式解析目标。
+
+本地调用仍须提供 Attempt 已持久化的派发身份；当前字段名 remoteRequestId
+沿用，代表该次操作身份，不用本地目标绕过该检查。免费派发、预算资格、审批、结果核对及业务幂等未在本批实现。
+
+### 3.2 编码与旧数据兼容
+
+新增 `serialization.ResolvedBindingJson` 显式编解码模块，使用封闭 LOCAL／REMOTE 映射，不启用按 Java 类名的默认多态。分别注册到执行快照
+mapper 和平台 PlatformJson，不修改应用全局 mapper。
+
+| 入口／格式                 | 读取                                                 | 写入                                           |
+|----------------------------|------------------------------------------------------|------------------------------------------------|
+| 旧平面绑定 body            | connection／remoteOperation 映射为 Remote            | 平台固定生成目录及管理响应继续保留原六字段     |
+| resolved-binding 根别名 v1 | 仅兼容旧平面远端 body                                | 新内部写入不再选 v1                            |
+| resolved-binding 根别名 v2 | body.target.kind=LOCAL／REMOTE，按各自字段白名单读取 | 新内部绑定快照统一写 v2                        |
+| 其他内部根记录             | 保持已有 v1 规则                                     | Invocation、Attempt、结果、事件、账本等仍写 v1 |
+
+v2 示例（省略 capability 等共同字段）：
+
+```json
+{"schemaVersion":2,"type":"resolved-binding","body":{"target":{"kind":"LOCAL","adapter":{"type":"tool-adapter","id":"text-counter","version":"v1"}}}}
+```
+
+远端 target 为
+`{ "kind": "REMOTE", "connection": { "type": "connection", "id": "model", "version": "v1" }, "operation": "test-model" }`
+。平台生成目录兼容模式拒绝写 Local，不能悄悄生成伪远端数据。未知 kind／版本、非整数或溢出版本、新旧字段混合、版本与形状不一致、错误引用／类型和越界窗口均拒绝。
+
+此前 JacksonExecutionRecordCodec 未登记 ResolvedBinding 根别名；v1 读取分支表示对旧字段形状的显式兼容能力，不表示历史
+Invocation 已经持久化这种根记录。数据库模型目录原本由 PlatformJson 保存旧平面形状，已用真实平台 mapper
+验证往返；本批不读写实际目录数据库、不批量重写记录。未来首次启用新根记录消费前，须先升级所有读端；旧程序不认识新别名，不能宣称可与旧节点混用。
+
+### 3.3 验证证据
+
+代码版本：基于 `4d420f0d1cc8b3008867f7c796817f8642dcd4a2` 的当前未提交工作区。环境：本地 JDK 21.0.8、Maven 3.9.16。
+
+新增 25 项：ExecutionTargetContractsTest 8 项、ResolvedBindingCodecTest 13 项、PlatformBindingJsonTest 3
+项、ConfigurationAssemblyTest 新增严格拒绝 target 配置 1 项。既有 GenerationAssemblyTest 补充真实装配的模型网关拒绝本地
+TOOL 的断言。
+
+执行以下有针对性的兼容回归（仓库根目录）：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+PATH="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin:$PATH" \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.persistence.ResolvedBindingCodecTest,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.ainew.persistence.MybatisExecutionPersistenceTest,com.arte.app.platform.persistence.PlatformBindingJsonTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS；arte-ai 228 项、arte-app 3 项，共 231 项，失败／错误／跳过均为 0。Reactor
+编译通过；覆盖旧构造器、严格固定配置、嵌套目录、版本化目标往返、类型／字段防混用、空或非对象 body 拒绝、模型发现、真实本机
+HTTP／SSE 交互、生成派发及预算／H2 存储回归。初次沙箱执行的本机端口绑定报 Socket Operation not
+permitted；获得本机绑定能力后重跑上述最终命令通过。测试 H2 不是生产 MySQL 语义证明，受控 HTTP 不是实际供应商验收。
+
+另行运行 ProfileConfigurationTest：4 项中 1 项通过、1 项失败、2 项错误。两个装配用例缺少
+ExecutionAuthorizationResolver；一个资源用例期望根 spring.config.import 但当前未找到。已在临时副本中还原本批修改前的
+ResolvedBinding、固定目录、网关、GatewayCall、codec 及配置测试，移除新增目标／编解码模块后独立复跑，复现完全相同的 3 处问题。因此未将
+profile 套件标为通过，也未为本批改写既有授权／profile 行为。
+
+需求追踪：FR-04.3／FR-20.3 的契约及兼容验证完成；AC-04 的完整绑定管理、AC-28 的部署切换及 AC-30 的产品回归门槛仍随实际功能开放继续验收。构建既有
+H2 重复依赖、资源编码、旧代码弃用和本地 DNS 库回退提示未在本批调整。
+
+### 3.4 当前边界
+
+没有新增部署 SQL、配置项、菜单、权限数据、前端或业务工具实现。没有实现 TOOL 目录、类型路由、真实适配注册、Schema
+发布接线、绑定策略／配置合并、工具受理／派发、免费／付费工具预算或模型工具循环。新绑定根编解码器已具备，但尚无 TOOL
+业务流程将其持久化并恢复执行。
+
+没有启动完整应用、连接配置中的业务数据库／Redis、执行部署迁移、调用真实模型／远端工具或进行浏览器验收；未运行全量、生产性能和多节点部署验证。用户已有其他工作区改动保持原样。本次停在
+S1-03，S1 整体未完成。

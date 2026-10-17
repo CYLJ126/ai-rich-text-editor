@@ -101,6 +101,19 @@ public class ConfigurationAssemblyTest {
     }
 
     @Test
+    public void fixedGenerationConfigurationDoesNotSilentlyAcceptNewTargetFields() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            var values = new LinkedHashMap<String, Object>();
+            flatten("arte.ai-new", AdmissionFixture.properties(), values);
+            values.put("arte.ai-new.bindings[0].target.kind", "REMOTE");
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("unsupported-target", values));
+            context.registerBean("appDataSource", DataSource.class, () -> forbidden("strict target configuration"));
+            context.register(NewAiAdmissionConfiguration.class);
+            assertThrows(org.springframework.beans.BeansException.class, context::refresh);
+        }
+    }
+
+    @Test
     public void metadataBackfillCanBeExplicitlyDisabledWithoutBindingFailure() {
         verifyMetadataBackfillSwitch(false);
     }
@@ -194,7 +207,15 @@ public class ConfigurationAssemblyTest {
         if (value == null) {
             return;
         }
-        if (value instanceof Collection<?> collection) {
+        if (value instanceof com.arte.ainew.pojo.control.ResolvedBinding binding) {
+            // 固定生成配置保持旧六字段格式，不能把新目标的 Java 结构当作已开放的配置格式。
+            flatten(prefix + ".definition", binding.definition(), result);
+            flatten(prefix + ".capability", binding.capability(), result);
+            flatten(prefix + ".connection", binding.connection(), result);
+            flatten(prefix + ".remote-operation", binding.remoteOperation(), result);
+            flatten(prefix + ".context-window-tokens", binding.contextWindowTokens(), result);
+            flatten(prefix + ".rate", binding.rate(), result);
+        } else if (value instanceof Collection<?> collection) {
             int index = 0;
             for (var item : collection) {
                 flatten(prefix + "[" + index++ + "]", item, result);

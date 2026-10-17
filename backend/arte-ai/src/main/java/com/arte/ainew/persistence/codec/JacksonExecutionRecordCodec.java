@@ -4,6 +4,7 @@ import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -15,6 +16,7 @@ import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.media.MediaRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
 import com.arte.ainew.pojo.tool.ToolInvocation;
+import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -24,7 +26,8 @@ import tools.jackson.databind.jsontype.NamedType;
 import java.util.Map;
 
 /**
- * 隔离的内部快照 v1 编码器。稳定别名白名单，不复用应用全局 ObjectMapper。
+ * 隔离的内部快照编码器：现有类型保持 v1，resolved-binding 写 v2 并兼容旧远端形状。
+ * 稳定别名白名单，不复用应用全局 ObjectMapper。
  * StructuredValue 在此使用显式类型包装的内部格式；HTTP 标准 JSON 编码另由传输适配器负责。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -42,6 +45,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ResolvedBinding.class, "resolved-binding"),
             Map.entry(Reconciliation.Receipt.class, "reconciliation-receipt"),
             Map.entry(RetrySchedule.class, "retry-schedule"), Map.entry(ControlReceipt.class, "control-receipt"), Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
             Map.entry(ExecutionEvent.class, "execution-event"), Map.entry(Conversation.class, "conversation"),
@@ -54,6 +58,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
 
     public JacksonExecutionRecordCodec() {
         var builder = JsonMapper.builder();
+        builder.addModule(ResolvedBindingJson.module(true));
         builder.addMixIn(Money.class, MoneyShape.class);
         for (var base : new Class<?>[]{CapabilityInput.class, ChatMessage.ContentPart.class,
                 GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class,
@@ -93,7 +98,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered snapshot type");
         }
         var node = mapper.createObjectNode();
-        node.put("schemaVersion", 1).put("type", alias);
+        node.put("schemaVersion", value instanceof ResolvedBinding ? 2 : 1).put("type", alias);
         node.set("body", mapper.valueToTree(value));
         var json = mapper.writeValueAsString(node);
         if (json.length() > 4_000_000) {
@@ -109,10 +114,19 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered or oversized snapshot");
         }
         var node = mapper.readTree(json);
-        if (node.path("schemaVersion").asInt() != 1 || !alias.equals(node.path("type").asString())) {
+        int version = node.path("schemaVersion").asInt();
+        if (expectedType == ResolvedBinding.class && (!node.path("schemaVersion").isIntegralNumber()
+                || !node.path("schemaVersion").canConvertToInt()))
+            throw new IllegalArgumentException("Binding snapshot version must be an integer");
+        if ((version != 1 && !(expectedType == ResolvedBinding.class && version == 2))
+                || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
-        var value = mapper.treeToValue(node.required("body"), expectedType);
+        var body = node.required("body");
+        if (expectedType == ResolvedBinding.class
+                && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
+            throw new IllegalArgumentException("Binding snapshot shape does not match version");
+        var value = mapper.treeToValue(body, expectedType);
         validate(value);
         return value;
     }

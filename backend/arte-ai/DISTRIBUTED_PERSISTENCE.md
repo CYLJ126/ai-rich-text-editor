@@ -98,7 +98,15 @@ MybatisExecutionPersistence 显式创建独立 ExecutionSqlSessionFactory 和 Sq
 
 这是 Reactor 接口下的 MyBatis／JDBC 阻塞隔离适配器，数据库事务仍是阻塞调用；Mono 为冷执行，整个事务在同一个 Scheduler 工作线程内完成。误用 Reactor 非阻塞线程 Scheduler 会在开始数据库工作前报错；需要全链路非阻塞时另实现同契约的 R2DBC 适配器。所有端口必须共享同一权威 DataSource，不能将某个写端口替换到另一数据库后仍宣称原子提交。数据库与 JDBC 会话时区统一 UTC；租约／受理／更新时间使用数据库时钟，不用各 Worker 的本地时间仲裁。
 
-内部快照采用独立 Jackson mapper、schemaVersion=1 和稳定类型别名白名单，拒绝任意类名及未登记输入／事件版本，不使用 Java 原生反序列化。StructuredValue 在内部快照使用显式类型包装；传输层标准 JSON DTO 和 Schema 升级迁移仍须单独实现。
+内部快照采用独立 Jackson mapper 和稳定类型别名白名单，拒绝任意类名及未登记输入／事件版本，不使用 Java 原生反序列化。现有执行、结果和事件保持
+schemaVersion=1；S1-03 新增 resolved-binding 根别名写 v2，读取 v1 旧远端字段形状及 v2
+类型化目标。此前未登记该根别名，当前新增编解码不表示已将绑定实体写入执行存储。StructuredValue 保持原显式类型包装；传输层标准
+JSON DTO 和其他 Schema 升级迁移仍须单独实现。
+
+ResolvedBindingJson 只映射 LOCAL／REMOTE 及固定引用，拒绝版本／字段形状不符和新旧字段混合；不注册任意 Java
+子类型。平台数据库生成目录使用兼容写入模式，保持原 connection／remoteOperation 字段，不写入本地 TOOL
+目标。实际启用新绑定快照消费前，所有读端必须先支持新别名／版本，不能让旧节点读取后猜测执行目标。S1-03
+的兼容回归和基线失败见 [TOOL 实施记录](TOOL_IMPLEMENTATION.md)。
 
 目前已提供权威存储、账本、固定控制面授权、可靠受理、不可变结果字节存储、受控供应商适配、Worker、生成终态与预算协调及结果查询。EVENT 发布／实时订阅、远端核对以及实际 MySQL 部署验证仍需后续完成。
 

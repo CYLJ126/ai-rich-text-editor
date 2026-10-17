@@ -4,7 +4,9 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.tool.ToolInvocation;
 
 import java.util.Objects;
 
@@ -27,6 +29,8 @@ public record GatewayCall<I extends CapabilityInput>(InvocationRequest<I> reques
                 && request.kind() == binding.capability().kind(), "Resolved binding does not match request");
         ContractChecks.require(binding.capability().availability() == CapabilityDescriptor.Availability.EXECUTABLE,
                 "Capability is not executable");
+        ContractChecks.require(!(binding.target() instanceof ExecutionTarget.Local) || request.input() instanceof ToolInvocation,
+                "Local tool target requires a typed tool invocation");
         ContractChecks.require(attempt.invocationId().equals(request.context().executionId())
                 && runtime.execution().executionId().equals(attempt.invocationId()), "Execution identity mismatch");
         ContractChecks.require(ExecutionOwner.from(request.context()).equals(ExecutionOwner.from(runtime.execution())),

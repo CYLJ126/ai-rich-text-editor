@@ -6,6 +6,8 @@
 > Run 分别扩展对应状态与契约，不向 Gateway 增加模型继续决策职责。本说明现有接口不因文档更新自动获得新能力。
 > TOOL 评审修订 V0.2：专项 §4.6 列出本地目标、免费派发、子预算、审批状态、Turn 与 Outbox
 > 的契约变更。ToolOutcomeQueryAdapter／核对证据提交是计划端口，不能把当前 invoke 或生成账单核对用作工具结果确认；所有新状态、计划和证据须通过版本化白名单与当前授权。
+> S1-03 已完成本地／远端目标契约及编码兼容：ResolvedBinding.target 为唯一执行位置，本地目标只用于 TOOL；GatewayCall 还要求
+> ToolInvocation 和已有耐久派发身份。原生成路径、费用预留和状态机未放宽；本批不提供 TOOL 受理、免费派发或实际适配器执行。
 
 适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)
 。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)

@@ -1,7 +1,7 @@
 # 最小 AI 数据契约 v1
 
 > 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)以现有
-> ToolInvocation、ToolResult、DefinitionRef 和通用执行契约为基础规划新功能。工具目录／绑定修订、类型化本地执行目标、Invocation.WAITING_APPROVAL、ToolChatRun、带类型的
+> ToolInvocation、ToolResult、DefinitionRef 和通用执行契约为基础规划新功能。工具目录／绑定修订、Invocation.WAITING_APPROVAL、ToolChatRun、带类型的
 > Turn 回答候选及 Run 事件／工作项均为计划扩展，当前 v1 类型和存储编码尚未实现这些变化；实施时须同步状态校验、codec、事务、查询和前端类型。ToolResult
 > 仍只表达 SUCCEEDED／FAILED／UNKNOWN，受理与审批等待不作为最终结果变体。
 > TOOL 评审修订 V0.2：专项 §4.6 明确现有契约影响；FREE／CHARGE 派发、受信子预算选择、Run C／H 费用占用、核对证据和带类型候选都需要新增类型／codec
@@ -12,6 +12,9 @@
 > S1-02 实施同步：application.tool.schema.ToolSchemaValidator 已实现 urn:arte:ai-tool:schema:v1
 > 子集的固定引用编译、输入／配置对象根、嵌套值验证、default 声明校验、资源限额及错误定位。它接收 StructuredValue，不补值、不解析远端
 > Schema；尚未接入公开入口、工具目录、发布或 Gateway，也未增加存储编码。ToolDefinition 构造器仍只保存 Schema 引用。
+> S1-03 实施同步：ResolvedBinding 使用唯一 ExecutionTarget.Local／Remote；本地仅 TOOL，原六参数生成构造／固定配置及远端访问器兼容。新
+> resolved-binding 根别名写 v2，旧远端字段形状可读；其他执行快照保持 v1。平台生成目录继续写旧六字段格式，不接受本地目标写入。TOOL
+> 目录／执行尚未接线，格式与验证范围见 [实施记录](TOOL_IMPLEMENTATION.md)。
 
 日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 

@@ -1,5 +1,6 @@
 package com.arte.app.platform.persistence;
 
+import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.app.platform.ai.AiControlData;
 import com.arte.core.pojo.platform.CommandIdentity;
 import com.arte.core.pojo.platform.CommandReceipt;
@@ -24,6 +25,7 @@ public final class PlatformJson {
 
     private final JsonMapper mapper = SerializerFactory.buildJsonMapperWithoutTypeProperty()
             .rebuild()
+            .addModule(ResolvedBindingJson.module(false))
             .disable(SerializationFeature.INDENT_OUTPUT)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
