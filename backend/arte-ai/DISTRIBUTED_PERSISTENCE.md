@@ -4,6 +4,8 @@
 > 规定免费／付费派发、Run 额度与账户预留同库事务、业务结果证据、workClass 领取及版本切换。当前原子派发要求费用预留，Outbox
 > 仍按现有类型领取；新契约尚未实现。新增持锁顺序保持 Invocation 在前，再按需锁 Outbox、Run 预算、Account、Reservation；Run
 > 控制不反向持锁等待子 Invocation。不得以两个独立提交的 Store 操作模拟原子预算，也不得把 Run ID 填入 invocationId。
+> S1-04 新增 ToolCatalogStore／MybatisToolCatalogStore，为提供者、Schema、工具定义修订提供不可变版本登记及一个批次内的跨表事务。三个新工具根别名使用
+> v1；不会改写现有执行快照，也不开放 TOOL 执行。DDL 已交付并用临时 H2 验证，配置中的业务数据库未执行本批增量。
 
 ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。受理及字节存储见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)；受控供应商交互、Worker 与生成闭环现已接入，见 [第 5～6 步实现说明](EXECUTION_IMPLEMENTATION.md)。各阶段显式开启，对外控制器尚未实现。
 
@@ -111,6 +113,12 @@ ResolvedBindingJson 只映射 LOCAL／REMOTE 及固定引用，拒绝版本／�
 目前已提供权威存储、账本、固定控制面授权、可靠受理、不可变结果字节存储、受控供应商适配、Worker、生成终态与预算协调及结果查询。EVENT 发布／实时订阅、远端核对以及实际 MySQL 部署验证仍需后续完成。
 
 ## 6. 验证
+
+S1-04
+的新环境工具表已合入完整基线，已有执行存储环境使用 [arte-ai-tool-catalog-migration.sql](scripts/arte-ai-tool-catalog-migration.sql)
+单独新增三张表。脚本不随运行时自动执行；须停写、备份、确认目标表不存在并核对 MySQL 8 的真实约束／锁语义。新增 mapper
+仍仅登记在隔离工厂，复用物理数据源、有界调度器和 Spring
+事务；构造不连接数据库。完整契约、基线／增量测试及本批未运行项见 [TOOL 实施记录](TOOL_IMPLEMENTATION.md)。
 
 从 backend 执行：
 

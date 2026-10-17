@@ -3,7 +3,10 @@
 日期：2026-10-17。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02、S1-03。S1 整体尚未完成，TOOL 尚未开放使用。
+当前完成：S1-01、S1-02、S1-03、S1-04。S1 整体尚未完成，TOOL 尚未开放使用；S1-04 增量尚未在配置中的业务数据库部署。
+
+S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
+管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
 
 ## 1. S1-01：定义、风险、能力与默认策略
 
@@ -276,3 +279,105 @@ H2 重复依赖、资源编码、旧代码弃用和本地 DNS 库回退提示未
 
 没有启动完整应用、连接配置中的业务数据库／Redis、执行部署迁移、调用真实模型／远端工具或进行浏览器验收；未运行全量、生产性能和多节点部署验证。用户已有其他工作区改动保持原样。本次停在
 S1-03，S1 整体未完成。
+
+## 4. S1-04：工具定义、Schema、提供者存储
+
+状态：必要 SPI、MyBatis 持久化、基线／增量 DDL 及版本／事务验证完成；实际业务数据库尚未部署增量。没有实现 S1-05 的本地登记发现或其他后续功能。
+
+### 4.1 类型、职责及接线
+
+| 类型／位置                                  | 已完成职责                                                                        |
+|---------------------------------------------|-----------------------------------------------------------------------------------|
+| pojo.tool.ToolProviderDefinition            | 固定 tool-provider 引用、LOCAL／HTTP／MCP、提供者适配固定引用及可选连接           |
+| pojo.tool.ToolSchemaDefinition              | 固定 schema 引用、不可变 JSON 原文、真实 checksum                                 |
+| pojo.tool.ToolDefinitionRevision            | 冻结 ToolDefinition、固定提供者引用及本地／远端执行目标                           |
+| spi.persistence.ToolCatalogStore            | 三类精确版本读取、有限游标列表、跨表原子批量登记                                  |
+| persistence.mybatis.MybatisToolCatalogStore | 独立工厂、固定 SQL、事务锁、完整性核对及数据库失败传播                            |
+| serialization.ToolCatalogDigests            | Schema 标准 JSON 摘要、工具产品契约摘要 v1                                        |
+| NewAiAdmissionConfiguration                 | newAiToolCatalogStore 复用既有物理数据源、内部 codec、有界数据库调度器及 UTC 时钟 |
+
+目录定义沿用专项 §3.2 的平台受管范围，底层存储不另建租户／工作空间认证授权体系，也不提供公开
+API。当前空间可见性、工具使用资格、资源权限仍须由后续管理／调用边界通过既有授权实现；直接获得 SPI 对象不是产品使用许可。
+
+提供者适配引用 type=tool-provider-adapter，代表受管的定义来源／协议接入契约，区别于单工具执行目标 Local.adapter 的
+tool-adapter。LOCAL 提供者没有 connection，HTTP／MCP
+使用固定连接引用；本批不解析连接、凭据或实际适配实现。提供者当前启停、活跃版本选择、同步结果及草稿／发布状态不是不可变历史版本的职责，后续批次另行完成。
+
+### 4.2 存储契约与完整性
+
+`put(Batch)` 是冷 Mono：订阅后在有界数据库线程进行基础校验／编码，再在一个 Spring 事务中锁定版本及依赖、检查冲突与关联并写入三张表。只保存不可变固定引用，不做覆盖
+UPDATE、原地编辑或 latest 选择。
+
+- 同引用、同内容返回 REPLAYED；存在新事实返回 APPLIED。判断重放使用解码后的值，避免 Set 编码顺序导致跨进程误冲突；重放保留原创建时间。
+- 同引用异内容返回 IDEMPOTENCY_CONFLICT；缺少固定依赖返回 NOT_FOUND；提供者与目标类别／连接不匹配返回
+  INVALID_STATE，均不提交部分业务记录。
+- 输入结构／checksum 错误及非法 Schema 通过 onError 拒绝。数据库、编码、约束或事务失败同样传播
+  onError，整批回滚，不捕获为伪成功或伪冲突；未增加透明重试。
+- 提供者、Schema 及工具引用用类型／ID／版本的长度前缀 SHA-256 定位，稳定
+  ID／版本另有唯一投影；读取后还要核对原始引用、快照摘要和依赖投影。版本标签区分大小写，不按字符串或创建时刻判断新旧。
+- 复用 arte_ai_lock，所有批次按确定顺序锁定目标和依赖。目录锁使用 INSERT … ON DUPLICATE KEY UPDATE 的排他锁路径，再执行 FOR
+  UPDATE 核实；不以 INSERT IGNORE 的共享锁升级作为目录并发保证。该模式仍需生产 MySQL 下验证，测试不构成“绝不会死锁”的承诺。
+- 工具对固定提供者及三个 Schema 有数据库外键。写入时验证 input／configuration 为对象根，output 符合支持子集，默认配置符合固定配置
+  Schema；本地／远端目标与提供者类型一致，远端连接精确一致。
+- 时间按公共 PlatformTimes 策略截断到微秒，存为 UTC Unix 微秒；仅记录首次登记时刻，不把时间当作发布版本或全局提交顺序。
+
+Schema checksum 覆盖标准 JSON 文档；工具 checksum 覆盖产品契约并排除 checksum 自身，集合排序、JSON
+数组保序、十进制保持精确。固定提供者版本和执行目标由 ToolDefinitionRevision
+的不可变版本及内部字节完整性保护。它们都不替代后续包含配置、当前使用范围和实际执行选择的计划／发布摘要。
+
+新增根别名 tool-provider、tool-schema、tool-definition-revision 均为 schemaVersion=1，目标使用显式
+target-local／target-remote 白名单；原 resolved-binding v2 的 kind 格式和所有既有执行／结果编码保持原义。自定义
+ExecutionRecordCodec 须同步这些新别名并验证往返，不支持时明确失败；不能开启任意 Java 类名多态或原生反序列化。
+
+容量：每批最多 32 个提供者、128 个 Schema、128 个工具；单条内部快照 UTF-8 上限 1,000,000 字节，整批上限 8 MiB。Schema 还须满足
+S1-02 更低的运行限额；元数据分页最多 100 条，按索引主键游标返回 nextCursor。该分页不是已授权空间目录，也不提供跨页的完整同步快照或语义版本排序。
+
+### 4.3 DDL 与环境交付
+
+新增三张表：arte_ai_tool_provider、arte_ai_tool_schema、arte_ai_tool_definition。主键、精确版本唯一性、定义依赖外键、提供者查询索引、快照摘要、内部数据列和微秒创建时间均有
+DDL 及中文注释。
+
+- 新环境：使用更新后的 [arte-ai-new-ddl-mysql.sql](scripts/arte-ai-new-ddl-mysql.sql)，已包含工具表。
+- 已有基线环境：执行 [arte-ai-tool-catalog-migration.sql](scripts/arte-ai-tool-catalog-migration.sql)，仅新增工具表并复用原
+  arte_ai_lock。
+- 执行前停写、备份并核对三张工具表不存在；出现同名表须先核对实际结构，不能重复运行完整基线，也不通过 IF NOT EXISTS 掩盖漂移。
+- 脚本只作为部署文件和测试资源，不进入运行时 JAR；Bean 构造不访问数据库、不执行
+  DDL、不登记或发布工具。未部署时旧生成路径不因构造该存储而主动访问新表，工具存储实际调用会明确报缺表错误。
+
+本批只在临时 H2 MySQL 模式执行基线、移除测试工具表后再执行增量，验证已有基线场景；测试还核对两个脚本的工具建表段完全一致。配置中的业务数据库／MySQL
+未执行本批 DDL，也未检查或改动其中的数据；其他环境仍需按上面步骤独立部署。
+
+### 4.4 验证证据与未完成项
+
+代码版本：基于 `d9e7cc2851f914a74118bcc7688a2bed4335f399` 的当前未提交工作区。本地 JDK 21.0.8、Maven 3.9.16。
+
+新增 ToolCatalogStoreTest 29 项：两独立适配器读取、同版本重放／漂移、精确大小写版本、目标／提供者冻结、跨表缺依赖、SQL
+中途故障回滚、两实例及多订阅者并发、反向输入顺序、数据库唯一性／外键、伪造
+checksum、Schema／默认值、远端声明、快照／索引损坏、分页、错误传播、UTF-8／批次上限、白名单编码及基线／增量一致性。既有装配测试补充默认关闭和新存储构造零
+SQL 验证；工厂显式 Mapper 数量由 9 更新为 10。
+
+最终兼容回归命令（仓库根目录）：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+PATH="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin:$PATH" \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.app.platform.persistence.PlatformBindingJsonTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS；arte-ai 262 项、arte-app 3 项，共 265 项，失败／错误／跳过均为 0，Reactor 编译通过，新增存储测试 29 项全部通过。受控
+HTTP 测试使用本机临时端口，需允许本机绑定；H2 中的故障注入产生预期 SQL 错误日志，不输出输入／配置参数。该结果不是全量测试或
+MySQL／生产性能验收。既有 ProfileConfigurationTest 的三处基线问题见 S1-03 记录，本批未重跑该套件，不列为已通过。
+
+FR-01.3 对应本批固定版本原子登记；FR-07.3／07.4 的组件已用于存储校验，但发布、实际参数／结果验证和前端验收仍未完成。当前 put
+只保证目录事实的事务；管理命令回执、当前授权及审计一致提交仍是 S1-08 接线门槛，不能把后续独立 Store 调用简单串联就宣称已满足专项
+§13.3。
+
+没有实现本地来源注册、自动发现、同步快照激活、草稿／发布／停用、绑定及修订、管理
+API、工具执行或前端；未新增权限初始化数据、其他运行开关或真实业务工具。没有连接真实供应商或配置中的业务数据库，也未运行生产
+MySQL 隔离／锁竞争、多节点、压测、浏览器或完整应用验收。
+
+本次停在 S1-04；下一批是 S1-05：本地工具登记与发现。代码和脚本完成不代表工具已开放或数据库已部署。

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolCatalogMapper">
+    <insert id="ensureCatalogLock">
+        INSERT INTO arte_ai_lock(lock_key) VALUES (#{key}) ON DUPLICATE KEY UPDATE lock_key=lock_key
+    </insert>
+    <resultMap id="row" type="com.arte.ainew.persistence.mybatis.mapper.ToolCatalogMapper$Row">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+            <arg column="identity_key" javaType="java.lang.String"/>
+            <arg column="version_key" javaType="java.lang.String"/>
+            <arg column="provider_key" javaType="java.lang.String"/>
+            <arg column="input_schema_key" javaType="java.lang.String"/>
+            <arg column="output_schema_key" javaType="java.lang.String"/>
+            <arg column="configuration_schema_key" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="workspace_snapshot" javaType="java.lang.String"/>
+            <arg column="created_micros" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <sql id="baseColumns">id_key, identity_key, version_key, payload_digest, workspace_snapshot, created_micros</sql>
+    <sql id="noDependencies">NULL AS provider_key, NULL AS input_schema_key, NULL AS output_schema_key, NULL AS
+        configuration_schema_key
+    </sql>
+    <sql id="dependencies">provider_key, input_schema_key, output_schema_key, configuration_schema_key</sql>
+    <select id="provider" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="noDependencies"/>
+        FROM arte_ai_tool_provider WHERE id_key=#{id}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <select id="schema" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="noDependencies"/>
+        FROM arte_ai_tool_schema WHERE id_key=#{id}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <select id="tool" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="dependencies"/>
+        FROM arte_ai_tool_definition WHERE id_key=#{id}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <insert id="insertProvider">
+        INSERT INTO
+        arte_ai_tool_provider(id_key,identity_key,version_key,payload_digest,workspace_snapshot,created_micros)
+        VALUES(#{r.idKey},#{r.identityKey},#{r.versionKey},#{r.payloadDigest},#{r.workspaceSnapshot},#{r.createdMicros})
+    </insert>
+    <insert id="insertSchema">
+        INSERT INTO
+        arte_ai_tool_schema(id_key,identity_key,version_key,payload_digest,workspace_snapshot,created_micros)
+        VALUES(#{r.idKey},#{r.identityKey},#{r.versionKey},#{r.payloadDigest},#{r.workspaceSnapshot},#{r.createdMicros})
+    </insert>
+    <insert id="insertTool">
+        INSERT INTO
+        arte_ai_tool_definition(id_key,identity_key,version_key,provider_key,input_schema_key,output_schema_key,
+        configuration_schema_key,payload_digest,workspace_snapshot,created_micros)
+        VALUES(#{r.idKey},#{r.identityKey},#{r.versionKey},#{r.providerKey},#{r.inputSchemaKey},#{r.outputSchemaKey},
+        #{r.configurationSchemaKey},#{r.payloadDigest},#{r.workspaceSnapshot},#{r.createdMicros})
+    </insert>
+    <select id="providers" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="noDependencies"/>
+        FROM arte_ai_tool_provider
+        <if test="after != null">WHERE id_key &gt; #{after}</if>
+        ORDER BY id_key LIMIT #{limit}
+    </select>
+    <select id="tools" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="dependencies"/>
+        FROM arte_ai_tool_definition WHERE provider_key=#{provider}
+        <if test="after != null">AND id_key &gt; #{after}</if>
+        ORDER BY id_key LIMIT #{limit}
+    </select>
+</mapper>

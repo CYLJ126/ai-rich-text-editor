@@ -17,11 +17,11 @@ create table arte_ai_invocation
         primary key,
     owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
     workspace_snapshot longtext not null comment '逻辑调用权威快照，包含状态、版本及执行上下文',
-    next_attempt   int    not null comment '最近已分配的尝试序号，初始为 0',
-    next_fence     bigint not null comment '最近已分配的 fencing token，初始为 0',
-    next_sequence  bigint not null comment '最近已提交的事件序号，初始为 0',
-    retained_after bigint not null comment '已裁剪事件的最大序号，初始为 0',
-    written_bytes  bigint not null comment '累计输出批次编码字节数，裁剪事件不减少该值'
+    next_attempt   int      not null comment '最近已分配的尝试序号，初始为 0',
+    next_fence     bigint   not null comment '最近已分配的 fencing token，初始为 0',
+    next_sequence  bigint   not null comment '最近已提交的事件序号，初始为 0',
+    retained_after bigint   not null comment '已裁剪事件的最大序号，初始为 0',
+    written_bytes  bigint   not null comment '累计输出批次编码字节数，裁剪事件不减少该值'
 ) engine = InnoDB comment '新 AI 逻辑调用表';
 
 create table arte_ai_acceptance
@@ -35,12 +35,12 @@ create table arte_ai_acceptance
 
 create table arte_ai_attempt
 (
-    id_key         char(64) not null comment '执行尝试 ID 哈希'
+    id_key             char(64)    not null comment '执行尝试 ID 哈希'
         primary key,
-    invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
-    attempt_number int      not null comment '该调用内的尝试序号，从 1 开始递增',
-    purpose        varchar(16) not null comment '租约用途：EXECUTE-执行；RECONCILE-核对',
-    workspace_snapshot longtext not null comment '执行尝试快照，包含版本、Worker、租约及 fencing token',
+    invocation_key     char(64)    not null comment '所属逻辑调用 ID 哈希',
+    attempt_number     int         not null comment '该调用内的尝试序号，从 1 开始递增',
+    purpose            varchar(16) not null comment '租约用途：EXECUTE-执行；RECONCILE-核对',
+    workspace_snapshot longtext    not null comment '执行尝试快照，包含版本、Worker、租约及 fencing token',
     constraint uk_arte_ai_attempt_number
         unique (invocation_key, attempt_number)
 ) engine = InnoDB comment '新 AI 执行尝试表';
@@ -48,7 +48,7 @@ create table arte_ai_attempt
 create table arte_ai_event
 (
     invocation_key char(64) not null comment '所属逻辑调用 ID 哈希',
-    sequence_no bigint not null comment '调用内连续递增的事件序号，从 1 开始',
+    sequence_no    bigint   not null comment '调用内连续递增的事件序号，从 1 开始',
     workspace_snapshot longtext not null comment '已提交事件快照，包含有界输出批次、状态或终态',
     primary key (invocation_key, sequence_no)
 ) engine = InnoDB comment '新 AI 耐久执行事件表';
@@ -92,7 +92,7 @@ create table arte_ai_conversation_new
     id_key            char(64) not null comment '会话 ID 哈希'
         primary key,
     owner_key         char(64) not null comment '租户、工作空间、主体组成的归属哈希',
-    version_no bigint not null comment '会话版本，受理新调用时递增',
+    version_no        bigint   not null comment '会话版本，受理新调用时递增',
     active_invocation char(64) null comment '当前活跃调用 ID 哈希；已知终态释放，UNKNOWN 保留',
     workspace_snapshot longtext not null comment '会话权威快照'
 ) engine = InnoDB comment '新 AI 独立会话表';
@@ -102,7 +102,7 @@ create table arte_ai_turn
     id_key           char(64) not null comment '交流轮次 ID 哈希'
         primary key,
     conversation_key char(64) not null comment '所属会话 ID 哈希',
-    sequence_no bigint not null comment '会话内连续递增的轮次序号，从 1 开始',
+    sequence_no      bigint   not null comment '会话内连续递增的轮次序号，从 1 开始',
     workspace_snapshot longtext not null comment '轮次快照，包含固定用户输入、历史路径及调用候选',
     constraint uk_arte_ai_turn_sequence
         unique (conversation_key, sequence_no)
@@ -130,13 +130,13 @@ create table arte_ai_reservation
 
 create table arte_ai_settlement
 (
-    reservation_key char(64) not null comment '所属预算预留 ID 哈希',
-    settlement_key  char(64) not null comment '结算业务防重键哈希',
-    digest          char(64) not null comment '结算内容及证据组成的摘要',
-    workspace_snapshot longtext not null comment '首次提交的结算事实快照',
-    result_snapshot longtext not null comment '该次结算首次提交的预留快照，用于幂等重放',
-    evidence_kind   varchar(32) not null comment '证据类型：UNKNOWN_COST；PROVIDER_BILL；PROVEN_NOT_DISPATCHED',
-    evidence_ref    varchar(256) null comment '可信账单或未发送证据引用',
+    reservation_key    char(64)    not null comment '所属预算预留 ID 哈希',
+    settlement_key     char(64)    not null comment '结算业务防重键哈希',
+    digest             char(64)    not null comment '结算内容及证据组成的摘要',
+    workspace_snapshot longtext    not null comment '首次提交的结算事实快照',
+    result_snapshot    longtext    not null comment '该次结算首次提交的预留快照，用于幂等重放',
+    evidence_kind      varchar(32) not null comment '证据类型：UNKNOWN_COST；PROVIDER_BILL；PROVEN_NOT_DISPATCHED',
+    evidence_ref       varchar(256) null comment '可信账单或未发送证据引用',
     primary key (reservation_key, settlement_key)
 ) engine = InnoDB comment '新 AI 预算结算事实表';
 
@@ -160,17 +160,17 @@ create table arte_ai_context_snapshot
 
 create table arte_ai_result
 (
-    id_key         char(64) not null comment '归属、调用、尝试及结果防重键组成的哈希，同时作为 ResultRef ID'
+    id_key             char(64)    not null comment '归属、调用、尝试及结果防重键组成的哈希，同时作为 ResultRef ID'
         primary key,
-    owner_key      char(64) not null comment '租户、工作空间、主体组成的归属哈希',
-    invocation_key char(64) not null comment '结果所属调用 ID 哈希',
-    attempt_key    char(64) not null comment '结果所属尝试 ID 哈希',
-    result_key     char(64) not null comment '同一尝试内的结果防重键哈希',
-    result_type    varchar(64) not null comment '受信结果类型别名，不使用 Java 类名',
-    schema_version int      not null comment '结果字节编码版本',
-    partial        int      not null comment '是否部分结果：0-完整；1-部分或失败结果',
-    payload_digest char(64) not null comment '实际存储 JSON 字节的 SHA-256',
-    workspace_snapshot longtext not null comment '不可变的专有结果类型信封',
+    owner_key          char(64)    not null comment '租户、工作空间、主体组成的归属哈希',
+    invocation_key     char(64)    not null comment '结果所属调用 ID 哈希',
+    attempt_key        char(64)    not null comment '结果所属尝试 ID 哈希',
+    result_key         char(64)    not null comment '同一尝试内的结果防重键哈希',
+    result_type        varchar(64) not null comment '受信结果类型别名，不使用 Java 类名',
+    schema_version     int         not null comment '结果字节编码版本',
+    partial            int         not null comment '是否部分结果：0-完整；1-部分或失败结果',
+    payload_digest     char(64)    not null comment '实际存储 JSON 字节的 SHA-256',
+    workspace_snapshot longtext    not null comment '不可变的专有结果类型信封',
     constraint uk_arte_ai_result_operation
         unique (owner_key, invocation_key, attempt_key, result_key)
 ) engine = InnoDB comment '新 AI 专有结果字节表';
@@ -261,3 +261,46 @@ create table arte_ai_conversation_projection_job
     event_sequence   bigint   not null comment '当前调用已扫描的事件序号，初始为 0，切换调用或轮次后重置为 0',
     incomplete       boolean  not null comment '历史统计是否存在缺失：0-未发现；1-调用缺失或事件已裁剪，生成时间无法完整恢复'
 ) engine=InnoDB comment '新 AI 会话历史消息统计可恢复回填任务表';
+
+-- AI TOOL S1-04：与 arte-ai-tool-catalog-migration.sql 的建表段保持一致。
+create table arte_ai_tool_provider
+(
+    id_key             char(64) not null comment '固定类型、ID、版本的长度前缀 SHA-256' primary key,
+    identity_key       char(64) not null comment '类型与稳定 ID 的 SHA-256，不受数据库文本大小写规则影响',
+    version_key        char(64) not null comment '精确版本标签的 SHA-256，不表示新旧关系',
+    payload_digest     char(64) not null comment '实际内部快照字节的 SHA-256，读取时重新验证',
+    workspace_snapshot longtext not null comment '白名单 schemaVersion=1 的不可变内部快照，不是公共工作空间数据',
+    created_micros     bigint   not null comment '首次登记时的 UTC Unix 微秒，重放不改写',
+    constraint uk_tool_provider_version unique (identity_key, version_key)
+) engine=InnoDB comment 'AI TOOL 提供者不可变固定版本表';
+
+create table arte_ai_tool_schema
+(
+    id_key             char(64) not null comment '固定类型、ID、版本的长度前缀 SHA-256' primary key,
+    identity_key       char(64) not null comment '类型与稳定 ID 的 SHA-256，不受数据库文本大小写规则影响',
+    version_key        char(64) not null comment '精确版本标签的 SHA-256，不表示新旧关系',
+    payload_digest     char(64) not null comment '实际内部快照字节的 SHA-256，读取时重新验证',
+    workspace_snapshot longtext not null comment '白名单 schemaVersion=1 的不可变内部快照，不是公共工作空间数据',
+    created_micros     bigint   not null comment '首次登记时的 UTC Unix 微秒，重放不改写',
+    constraint uk_tool_schema_version unique (identity_key, version_key)
+) engine=InnoDB comment 'AI TOOL Schema不可变固定版本表';
+
+create table arte_ai_tool_definition
+(
+    id_key                   char(64) not null comment '固定类型、ID、版本的长度前缀 SHA-256' primary key,
+    identity_key             char(64) not null comment '类型与稳定 ID 的 SHA-256，不受数据库文本大小写规则影响',
+    version_key              char(64) not null comment '精确版本标签的 SHA-256，不表示新旧关系',
+    provider_key             char(64) not null comment '固定提供者版本主键',
+    input_schema_key         char(64) not null comment '固定输入 Schema 版本主键',
+    output_schema_key        char(64) not null comment '固定输出 Schema 版本主键',
+    configuration_schema_key char(64) not null comment '固定配置 Schema 版本主键',
+    payload_digest           char(64) not null comment '实际内部快照字节的 SHA-256，读取时重新验证',
+    workspace_snapshot       longtext not null comment '白名单 schemaVersion=1 的不可变内部快照，不是公共工作空间数据',
+    created_micros           bigint   not null comment '首次登记时的 UTC Unix 微秒，重放不改写',
+    constraint uk_tool_definition_version unique (identity_key, version_key),
+    index                    ix_tool_definition_provider (provider_key, id_key),
+    constraint fk_tool_definition_provider foreign key (provider_key) references arte_ai_tool_provider (id_key),
+    constraint fk_tool_definition_input foreign key (input_schema_key) references arte_ai_tool_schema (id_key),
+    constraint fk_tool_definition_output foreign key (output_schema_key) references arte_ai_tool_schema (id_key),
+    constraint fk_tool_definition_config foreign key (configuration_schema_key) references arte_ai_tool_schema (id_key)
+) engine=InnoDB comment 'AI TOOL 工具定义不可变固定版本表';

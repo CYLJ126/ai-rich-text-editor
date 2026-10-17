@@ -181,6 +181,7 @@
                     <include>arte-ai-new-settlement-snapshot-migration.sql</include>
                     <include>arte-ai-new-conversation-metadata-migration.sql</include>
                     <include>arte-ai-new-search-sync-migration.sql</include>
+                    <include>arte-ai-tool-catalog-migration.sql</include>
                 </includes>
             </testResource>
         </testResources>

@@ -4,6 +4,7 @@ import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
@@ -15,7 +16,10 @@ import com.arte.ainew.pojo.generation.GenerationEvent;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.media.MediaRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
+import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolInvocation;
+import com.arte.ainew.pojo.tool.ToolProviderDefinition;
+import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
 import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -45,6 +49,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolProviderDefinition.class, "tool-provider"),
+            Map.entry(ToolSchemaDefinition.class, "tool-schema"),
+            Map.entry(ToolDefinitionRevision.class, "tool-definition-revision"),
             Map.entry(ResolvedBinding.class, "resolved-binding"),
             Map.entry(Reconciliation.Receipt.class, "reconciliation-receipt"),
             Map.entry(RetrySchedule.class, "retry-schedule"), Map.entry(ControlReceipt.class, "control-receipt"), Map.entry(Invocation.class, "invocation"), Map.entry(Attempt.class, "attempt"),
@@ -62,10 +69,12 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         builder.addMixIn(Money.class, MoneyShape.class);
         for (var base : new Class<?>[]{CapabilityInput.class, ChatMessage.ContentPart.class,
                 GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class,
-                InvocationResult.class}) {
+                InvocationResult.class, ExecutionTarget.class}) {
             builder.addMixIn(base, Named.class);
         }
         builder.registerSubtypes(
+                new NamedType(ExecutionTarget.Local.class, "target-local"),
+                new NamedType(ExecutionTarget.Remote.class, "target-remote"),
                 new NamedType(InvocationResult.Generation.class, "result-generation"),
                 new NamedType(InvocationResult.Embedding.class, "result-embedding"),
                 new NamedType(InvocationResult.Tool.class, "result-tool"),

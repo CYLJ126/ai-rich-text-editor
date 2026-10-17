@@ -15,6 +15,10 @@
 > S1-03 实施同步：ResolvedBinding 使用唯一 ExecutionTarget.Local／Remote；本地仅 TOOL，原六参数生成构造／固定配置及远端访问器兼容。新
 > resolved-binding 根别名写 v2，旧远端字段形状可读；其他执行快照保持 v1。平台生成目录继续写旧六字段格式，不接受本地目标写入。TOOL
 > 目录／执行尚未接线，格式与验证范围见 [实施记录](TOOL_IMPLEMENTATION.md)。
+> S1-04 实施同步：新增 ToolProviderDefinition、ToolSchemaDefinition、ToolDefinitionRevision，内部别名
+> tool-provider／tool-schema／tool-definition-revision 使用 v1；后者嵌套的封闭目标别名为 target-local／target-remote，不改变
+> resolved-binding v2 的 kind 格式。ToolCatalogStore 原子保存固定版本，存储边界校验真实
+> checksum、Schema、默认配置及依赖；提供者当前启停、发现／发布、绑定及权限入口仍未实现。
 
 日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 
