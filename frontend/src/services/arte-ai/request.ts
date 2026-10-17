@@ -177,6 +177,11 @@ export async function postResult<T>(
   return response;
 }
 
+/** 关闭等无返回数据的操作仍验证统一响应包装，允许 data 为空。 */
+export function postEmpty(path: string, data: unknown, options?: AiRequestOptions): Promise<AiHttpResponse<AiResultMetadata>> {
+  return post<AiResultMetadata>(path, data, options);
+}
+
 export async function postPage<T>(
   path: string,
   data: unknown,

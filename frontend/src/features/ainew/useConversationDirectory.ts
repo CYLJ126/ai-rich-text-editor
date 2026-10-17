@@ -6,6 +6,7 @@ import {
   type ConversationListItem,
   type ConversationMetadataReceipt,
   type ConversationMetadataRequest,
+  type ConversationResponse,
   type ConversationTitleMetadata,
   type ConversationWindow,
   createDefaultConversation,
@@ -38,6 +39,7 @@ export interface DirectoryAnchor {
 }
 
 interface WindowState {
+  temporary: ConversationListItem | null;
   pinned: ConversationListItem[];
   normal: ConversationListItem[];
   cursor: string | null;
@@ -45,7 +47,7 @@ interface WindowState {
   total: number | null;
   headEvicted: boolean;
   revision: number;
-  placement: { top: boolean; anchor: DirectoryAnchor | null };
+  placement: { top: boolean; anchor: DirectoryAnchor | null; locateId?: string };
 }
 
 export interface TitleEditor {
@@ -58,7 +60,7 @@ export interface TitleEditor {
 }
 
 const emptyWindow = (): WindowState => ({
-  pinned: [], normal: [], cursor: null, hasMore: false, total: null,
+  temporary: null, pinned: [], normal: [], cursor: null, hasMore: false, total: null,
   headEvicted: false, revision: 0, placement: {top: true, anchor: null}
 });
 const knownFailure = (e: unknown) => e instanceof AiApiError && e.httpStatus >= 400 && e.httpStatus < 500
@@ -108,6 +110,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
   selectionRef.current = selection;
   const [state, setState] = useState<WindowState>(emptyWindow);
   const current = useRef(state);
+  const suspended = useRef(false);
   const replace = (next: WindowState) => {
     current.current = next;
     setState(next);
@@ -204,7 +207,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
   const captureAnchor = useCallback((fn: (excludeId?: string) => DirectoryAnchor | null) => {
     capture.current = fn;
   }, []);
-  const row = (id: string) => [...current.current.pinned, ...current.current.normal].find(item => item.conversationId === id);
+  const row = (id: string) => [current.current.temporary, ...current.current.pinned, ...current.current.normal].find(item => item?.conversationId === id) ?? undefined;
 
   function patchTitle(id: string, metadata: ConversationTitleMetadata) {
     if (typeof metadata.title !== 'string' || !Number.isSafeInteger(metadata.metadataVersion) || metadata.metadataVersion < 0) return;
@@ -212,8 +215,10 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
     const patch = (item: ConversationListItem) => item.conversationId === id && metadata.metadataVersion >= item.metadataVersion
       ? {...item, ...titleFields(metadata)} : item;
     const pinned = value.pinned.map(patch), normal = value.normal.map(patch);
-    if (pinned.some((item, i) => item !== value.pinned[i]) || normal.some((item, i) => item !== value.normal[i])) replace({
+    const temporary = value.temporary ? patch(value.temporary) : null;
+    if (temporary !== value.temporary || pinned.some((item, i) => item !== value.pinned[i]) || normal.some((item, i) => item !== value.normal[i])) replace({
       ...value,
+      temporary,
       pinned,
       normal
     });
@@ -235,6 +240,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
     const ids = new Set(pinned.map(item => item.conversationId));
     const normal = unique(value.normal.records).filter(item => !ids.has(item.conversationId)).map(merge).slice(0, DIRECTORY_LIMIT - pinned.length);
     replace({
+      temporary: null,
       pinned,
       normal,
       cursor: value.normal.nextCursor,
@@ -275,7 +281,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
           ...(anchor ? {anchorConversationId: anchor.id} : {})
         }, {signal: controller.signal});
         if (!alive.current || controller.signal.aborted || batch !== generation.current) return false;
-        applyWindow(body.data, anchor, fromFirst);
+        if (!suspended.current) applyWindow(body.data, anchor, fromFirst);
         return true;
       } catch (error) {
         if (alive.current && !controller.signal.aborted && batch === generation.current) setListError(error);
@@ -292,6 +298,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
   }
 
   async function loadMore(manual = false): Promise<boolean> {
+    if (suspended.current) return false;
     if (readingMore.current) return readingMore.current;
     const before = current.current;
     if (!before.hasMore || !before.cursor || readingWindow.current || (!manual && (moreFailure.current || pausedRef.current))) return false;
@@ -321,16 +328,19 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
           throw new Error('Invalid continuation');
         const value = current.current;
         const ids = new Set([...value.pinned, ...value.normal].map(item => item.conversationId));
-        const added = unique(page.records).filter(item => !ids.has(item.conversationId));
+        const added = unique(page.records).filter(item => !ids.has(item.conversationId)).map(item => mergeTitle(item,
+          item.conversationId === value.temporary?.conversationId ? value.temporary
+            : item.conversationId === selectedNameRef.current?.conversationId ? selectedNameRef.current : undefined));
         if (!added.length && page.hasMore) throw new Error('Empty continuation');
         const combined = [...value.normal, ...added];
-        const remove = Math.max(0, combined.length - (DIRECTORY_LIMIT - value.pinned.length));
+        const temporary = value.temporary && !combined.some(item => item.conversationId === value.temporary?.conversationId) ? value.temporary : null;
+        const remove = Math.max(0, combined.length - (DIRECTORY_LIMIT - value.pinned.length - (temporary ? 1 : 0)));
         if (editing.current && combined.slice(0, remove).some(item => item.conversationId === editing.current?.target.conversationId)) {
           setPaused(true);
           return false;
         }
         replace({
-          ...value, normal: combined.slice(remove), cursor: page.nextCursor, hasMore: page.hasMore,
+          ...value, temporary, normal: combined.slice(remove), cursor: page.nextCursor, hasMore: page.hasMore,
           headEvicted: value.headEvicted || remove > 0, revision: value.revision + 1,
           placement: {top: false, anchor: capture.current()}
         });
@@ -581,6 +591,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
 
   async function refreshFirst() {
     if (!await finishEdit() || pending.current) return false;
+    suspended.current = false;
     return readWindow(true);
   }
 
@@ -596,7 +607,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
       // 升级前遗留的创建请求只能确认原请求，不能换成新的默认命名请求。
       if (selectionRef.current.pendingTitle != null) {
         if (!await selectionRef.current.create(selectionRef.current.pendingTitle)) return false;
-        await readWindow(true, undefined, true);
+        if (!suspended.current) await readWindow(true, undefined, true);
         return true;
       }
       const original = pendingCreate.current ?? candidate;
@@ -614,7 +625,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
         setHasPendingCreate(false);
         if (!saveOperation(context, 'create-default', '', null)) setStorageWarning(STORAGE_WARNING);
         void select(body.data.conversationId);
-        await readWindow(true, undefined, true);
+        if (!suspended.current) await readWindow(true, undefined, true);
         return true;
       } catch (error) {
         if (!alive.current || controller.signal.aborted) return false;
@@ -639,10 +650,47 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
 
   async function select(id: string) {
     if (!await finishEdit()) return false;
+    if (current.current.temporary && current.current.temporary.conversationId !== id) replace({
+      ...current.current,
+      temporary: null
+    });
     const metadata = row(id);
     setName(metadata ? {conversationId: id, ...titleFields(metadata)} : null);
     await selectionRef.current.select(id);
     return true;
+  }
+
+  function releaseRows() {
+    suspended.current = true;
+    generation.current++;
+    windowRead.current?.abort();
+    continuation.current?.abort();
+    readingWindow.current = null;
+    readingMore.current = null;
+    setLoading(false);
+    setLoadingMore(false);
+    setListError(null);
+    setMoreError(null);
+    replace({...emptyWindow(), revision: current.current.revision + 1});
+  }
+
+  function openPrepared(detail: ConversationResponse, window?: ConversationWindow, metadata?: ConversationListItem) {
+    if (window) {
+      validWindow(window);
+      if (!metadata || metadata.conversationId !== detail.conversationId) throw new Error('Missing target metadata');
+      suspended.current = false;
+      applyWindow(window, null, true);
+      const s = current.current;
+      const found = [...s.pinned, ...s.normal].some(item => item.conversationId === detail.conversationId);
+      replace({
+        ...s,
+        temporary: found ? null : metadata,
+        normal: s.normal.slice(0, DIRECTORY_LIMIT - s.pinned.length - (found ? 0 : 1)),
+        placement: {top: false, anchor: null, locateId: detail.conversationId}
+      });
+      setName({conversationId: detail.conversationId, ...titleFields(metadata)});
+    } else setName(null);
+    selectionRef.current.commitSelection(detail);
   }
 
   useEffect(() => {
@@ -675,7 +723,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
     ? {...selection.selected, title: selectedName.title} : selection.selected, [selection.selected, selectedName]);
   return {
     ...selection, ...state,
-    records: [...state.pinned, ...state.normal],
+    records: [...(state.temporary ? [state.temporary] : []), ...state.pinned, ...state.normal],
     selected,
     total: (state.total ?? state.normal.length) + state.pinned.length,
     listLoading: loading,
@@ -686,6 +734,8 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
     loadMore,
     refreshFirst,
     captureAnchor,
+    releaseRows,
+    openPrepared,
     select,
     create,
     creating: creating || selection.creating,

@@ -13,6 +13,8 @@ import {type ConfigurationRejected} from './configurationInvalidation';
 import {hasAvailableBudget, isActive, isUserStoppedGeneration, useChatSession} from './useChatSession';
 import MarkdownText, {copyText} from './MarkdownText';
 import ReconciliationPanel from './ReconciliationPanel';
+import {useLocatedHistory} from './useLocatedHistory';
+import type {LocatedHistory} from './searchNavigation';
 
 const messageText = (message: ChatMessage) => message.content.map(part => 'text' in part ? part.text : `[${part.modality}]`).join('\n');
 
@@ -34,17 +36,23 @@ export default function BusinessChatPanel({
                                             onConfigurationRejected,
                                             onChooseModel,
                                             onInteraction,
-                                            writable = true
+                                            writable = true,
+                                            location,
+                                            onReturnLatest,
+                                            onLocationInvalidated
                                           }: {
   config: ChatTestConfig | null; conversation: ConversationResponse; dirty: boolean; context: BrowserContext;
   options: ChatModelOption[]; t: (key: string) => string; onUpdated: (value: ConversationResponse) => void;
   onTitleUpdated?: (conversationId: string, value: ConversationTitleMetadata) => void;
   onConfigurationRejected: ConfigurationRejected; onChooseModel: (key: string) => void;
   onInteraction: (state: ChatInteractionState) => void; writable?: boolean;
+  location?: LocatedHistory | null; onReturnLatest?: () => void;
+  onLocationInvalidated?: (error: unknown, target: LocatedHistory) => void;
 }) {
   const readingConfig = config ?? {...DEFAULT_CHAT_CONFIG, ...context.scope, temperature: null, topP: null};
   const option = options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion);
   const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable, writable, onTitleUpdated);
+  const located = useLocatedHistory(location, conversation, context.scope, (error, target) => onLocationInvalidated?.(error, target));
   const [viewed, setViewed] = useState<Record<string, string>>({});
   const [olderCache, setOlderCache] = useState<{
     version: number;
@@ -72,7 +80,56 @@ export default function BusinessChatPanel({
       unsafeToLeave: unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
     });
   }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation]);
-  const allTurns = [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
+  const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
+  const visibleViews = located.active ? located.views : chat.invocations;
+  const locatedAnchor = useRef<{ id: string; offset: number } | null>(null);
+  const positioned = useRef<string | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
+
+  function captureLocatedAnchor() {
+    const node = scroll.current;
+    if (!node) return;
+    const top = node.getBoundingClientRect().top;
+    const turn = [...node.querySelectorAll<HTMLElement>('[data-turn-id]')].find(value => value.getBoundingClientRect().bottom > top);
+    if (turn) {
+      locatedAnchor.current = {id: turn.dataset.turnId!, offset: turn.getBoundingClientRect().top - top};
+      located.anchor(turn.dataset.turnId!);
+    }
+  }
+
+  useLayoutEffect(() => {
+    const node = scroll.current;
+    if (!node || !located.active || !location) return;
+    following.current = false;
+    if (positioned.current !== location.id) {
+      const target = [...node.querySelectorAll<HTMLElement>('[data-message-id]')].find(value => value.dataset.messageId === location.messageId);
+      if (target) {
+        node.scrollTop += target.getBoundingClientRect().top - node.getBoundingClientRect().top - 20;
+        positioned.current = location.id;
+        setHighlight(location.messageId);
+        captureLocatedAnchor();
+      }
+    } else if (locatedAnchor.current) {
+      const saved = locatedAnchor.current;
+      const turn = [...node.querySelectorAll<HTMLElement>('[data-turn-id]')].find(value => value.dataset.turnId === saved.id);
+      if (turn) node.scrollTop += turn.getBoundingClientRect().top - node.getBoundingClientRect().top - saved.offset;
+    }
+  }, [location?.id, located.revision, located.active]);
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = setTimeout(() => setHighlight(null), 2400);
+    return () => clearTimeout(timer);
+  }, [highlight, location?.id]);
+  const wasLocated = useRef(located.active);
+  useEffect(() => {
+    if (wasLocated.current && !located.active) {
+      following.current = true;
+      positioned.current = null;
+      setHighlight(null);
+      void chat.loadHistory();
+    }
+    wasLocated.current = located.active;
+  }, [located.active]);
   useEffect(() => {
     if (lastVersion.current !== conversation.version) {
       lastVersion.current = conversation.version;
@@ -83,13 +140,17 @@ export default function BusinessChatPanel({
   useLayoutEffect(() => {
     const node = scroll.current;
     if (!node) return;
+    if (located.active) {
+      setNewContent(true);
+      return;
+    }
     if (anchor.current && !chat.historyLoading) {
       node.scrollTop = anchor.current.top + node.scrollHeight - anchor.current.height;
       anchor.current = null;
     } else if (following.current) {
       node.scrollTop = node.scrollHeight;
     } else setNewContent(true);
-  }, [chat.turns, chat.invocations, chat.historyLoading]);
+  }, [chat.turns, chat.invocations, chat.historyLoading, located.active]);
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
@@ -97,40 +158,64 @@ export default function BusinessChatPanel({
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">
-      <Button loading={chat.historyLoading} onClick={() => {
+      <Button loading={located.active ? located.loading : chat.historyLoading} onClick={() => {
+        if (located.active) {
+          captureLocatedAnchor();
+          void located.rebuild();
+          return;
+        }
         setOlderCache({version: conversation.version, turns: []});
         void chat.loadHistory();
       }}>刷新历史</Button>
       <Button onClick={() => setFees(true)}>查看费用</Button>
       <Typography.Text>{chat.budget ? `可用余额 ${chat.budget.available} ${chat.budget.currency}` : '可用余额待查询'}</Typography.Text>
     </Flex>
+    {located.active && <Alert type="info" title="正在浏览定位的历史消息" action={<Button onClick={() => {
+      located.dismiss();
+      onReturnLatest?.();
+    }}>返回最新聊天</Button>}/>}
     <Flex vertical ref={scroll} className="ainew-messages" aria-label="消息历史" onScroll={() => {
       const node = scroll.current!;
+      if (located.active) {
+        following.current = false;
+        captureLocatedAnchor();
+        return;
+      }
       following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
       if (following.current) setNewContent(false);
     }}>
-      {chat.page > 1 && <Button disabled={chat.historyLoading} onClick={() => {
+      {located.active && located.before && <Button loading={located.loading} onClick={() => {
+        captureLocatedAnchor();
+        void located.load('before');
+      }}>加载定位历史的较早消息</Button>}
+      {located.active && error(located.error, () => {
+        captureLocatedAnchor();
+        void located.rebuild();
+      })}
+      {!located.active && chat.page > 1 && <Button disabled={chat.historyLoading} onClick={() => {
         setOlderCache({version: conversation.version, turns: allTurns.slice(0, 90)});
         if (scroll.current) anchor.current = {height: scroll.current.scrollHeight, top: scroll.current.scrollTop};
         following.current = false;
         void chat.loadHistory(chat.page - 1);
       }}>加载较早消息</Button>}
-      {error(chat.historyError, () => void chat.loadHistory())}
-      {chat.historyLoading && <Flex align="center" gap={8} role="status" className="ainew-loading">
-        <Spin size="small"/><Typography.Text>正在读取历史…</Typography.Text>
-      </Flex>}
+      {!located.active && error(chat.historyError, () => void chat.loadHistory())}
+      {(located.active ? located.loading : chat.historyLoading) &&
+        <Flex align="center" gap={8} role="status" className="ainew-loading">
+          <Spin size="small"/><Typography.Text>正在读取历史…</Typography.Text>
+        </Flex>}
       {!chat.historyLoading && !chat.historyError && !allTurns.length && <Empty description="开始你的第一个问题"/>}
       {allTurns.map(turn => {
         const latestId = turn.invocationIds.at(-1);
-        const latest = latestId ? chat.invocations[latestId]?.status : undefined;
-        const id = viewed[turn.turnId] ?? (latest && isActive(latest) ? latestId : turn.selectedInvocationId ?? latestId);
-        const invocation = id ? chat.invocations[id] : undefined;
+        const latest = latestId ? visibleViews[latestId]?.status : undefined;
+        const id = (located.active ? located.viewed[turn.turnId] : viewed[turn.turnId]) ?? (latest && isActive(latest) ? latestId : turn.selectedInvocationId ?? latestId);
+        const invocation = id ? visibleViews[id] : undefined;
         const result = invocation?.result?.kind === 'GENERATION' ? invocation.result.result.value : null;
         const text = result ? result.outputs.map(messageText).join('\n\n') : invocation?.streamText ?? '';
-        const regenerate = turn.sequence === chat.total && latest && !isActive(latest) && (latest.state !== 'UNKNOWN' || isUserStoppedGeneration(latest));
+        const regenerate = !located.active && turn.sequence === chat.total && latest && !isActive(latest) && (latest.state !== 'UNKNOWN' || isUserStoppedGeneration(latest));
         const waitingForReply = !invocation?.status ? chat.historyLoading : isActive(invocation.status);
-        return <Flex component="article" vertical className="ainew-turn" key={turn.turnId}>
-          <Flex vertical className="ainew-user"><Typography.Text>你</Typography.Text>
+        return <Flex component="article" vertical className="ainew-turn" key={turn.turnId} data-turn-id={turn.turnId}>
+          <Flex vertical className={`ainew-user${highlight === turn.userMessage.messageId ? ' is-search-target' : ''}`}
+                data-message-id={turn.userMessage.messageId}><Typography.Text>你</Typography.Text>
             <Typography.Paragraph>{messageText(turn.userMessage)}</Typography.Paragraph></Flex>
           <Flex vertical className="ainew-answer">
             <Flex align="center" gap={8} wrap className="ainew-answer-heading"><Typography.Text
@@ -143,11 +228,18 @@ export default function BusinessChatPanel({
                                                           value: candidate,
                                                           label: `回复 ${index + 1}${candidate === turn.selectedInvocationId ? ' · 后续上下文采用' : ''}`
                                                         }))} onChange={candidate => {
+                if (located.active) {
+                  void located.choose(turn.turnId, candidate);
+                  return;
+                }
                 setViewed(previous => ({...previous, [turn.turnId]: candidate}));
                 void chat.inspectCandidate(candidate);
               }}/>}
             </Flex>
-            {text ? <MarkdownText text={text} streaming={!result} invocationId={id}/> :
+            {result ? result.outputs.map(message => <div key={message.messageId} data-message-id={message.messageId}
+                                                         className={highlight === message.messageId ? 'is-search-target' : undefined}>
+              <MarkdownText text={messageText(message)} invocationId={id}/></div>) : text ?
+              <MarkdownText text={text} streaming invocationId={id}/> :
               <Flex align="center" gap={8} className="ainew-reply-placeholder"
                     role={waitingForReply ? 'status' : undefined}>
                 {waitingForReply && <Spin size="small"/>}
@@ -197,13 +289,17 @@ export default function BusinessChatPanel({
           </Flex>
         </Flex>;
       })}
-      {current?.streamText && !allTurns.some(turn => chat.invocationId && turn.invocationIds.includes(chat.invocationId)) &&
+      {located.active && located.after && <Button loading={located.loading} onClick={() => {
+        captureLocatedAnchor();
+        void located.load('after');
+      }}>加载定位历史的较晚消息</Button>}
+      {!located.active && current?.streamText && !allTurns.some(turn => chat.invocationId && turn.invocationIds.includes(chat.invocationId)) &&
         <Flex component="article" vertical className="ainew-answer"><Typography.Text strong>助手 ·
           生成中</Typography.Text><MarkdownText text={current.streamText}
                                                 invocationId={chat.invocationId ?? undefined}
                                                 streaming/></Flex>}
     </Flex>
-    {newContent && <Button className="ainew-follow" onClick={() => {
+    {!located.active && newContent && <Button className="ainew-follow" onClick={() => {
       following.current = true;
       if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
       setNewContent(false);

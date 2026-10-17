@@ -9,6 +9,131 @@
   overflow: hidden;
 }
 
+.ainew-search-content.ant-flex {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+
+.ainew-search-scroll {
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overscroll-behavior: contain;
+}
+
+.ainew-search-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ainew-search-row {
+  display: flex;
+  gap: 8px;
+  min-height: 128px;
+  box-sizing: border-box;
+  padding: 10px 4px;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.ainew-search-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ainew-search-title, .ainew-search-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 20px;
+}
+
+.ainew-search-title {
+  -webkit-line-clamp: 2;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.ainew-search-snippet {
+  -webkit-line-clamp: 3;
+  border: 0;
+  padding: 0;
+  width: 100%;
+  background: transparent;
+  color: var(--ant-color-text-secondary);
+  text-align: left;
+  font: inherit;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.ainew-search-snippet:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 2px;
+}
+
+.ainew-search-actions {
+  flex-shrink: 0;
+}
+
+.ainew-search-actions .ant-btn {
+  color: var(--ant-color-primary);
+}
+
+.ainew-search-content mark, .ainew-search-preview mark {
+  background: var(--ant-color-warning-bg);
+  color: var(--ant-color-text);
+  border-radius: 2px;
+}
+
+.ainew-search-preview {
+  max-width: min(480px, calc(100vw - 56px));
+  max-height: min(360px, calc(100dvh - 80px));
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ant-color-text);
+}
+
+.ainew-search-popover.is-narrow {
+  left: 16px !important;
+  width: calc(100vw - 32px);
+  max-width: calc(100vw - 32px);
+}
+
+.ainew-search-popover.is-narrow .ainew-search-preview {
+  max-width: 100%;
+}
+
+.ainew-search-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--ant-color-bg-container) 85%, transparent);
+}
+
+.ainew-search-row.is-unavailable {
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ant-color-text-tertiary);
+}
+
+.is-search-target {
+  background: var(--ant-color-warning-bg);
+  box-shadow: 0 0 0 3px var(--ant-color-warning-border);
+  border-radius: 6px;
+}
+
 .ainew-conversation-header, .ainew-chat-tools, .ainew-compose-actions, .ainew-answer-heading, .ainew-answer-actions, .ainew-conversation-row {
   display: flex;
   align-items: center;

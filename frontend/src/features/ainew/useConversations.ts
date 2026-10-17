@@ -187,6 +187,23 @@ export function useConversations(scope: AiScope | null, context?: BrowserContext
     [],
   );
 
+  /** 搜索跳转先完成全部读取，再提交真实详情，失败时不拆掉当前聊天。 */
+  const commitSelection = (value: ConversationResponse) => {
+    detailRequest.current?.abort();
+    setSelectedId(value.conversationId);
+    setSelected(value);
+    setDetailError(null);
+    setDetailLoading(false);
+    setSelectionNotice(null);
+    if (context && !writeValue(storageKey(context, 'selectedConversation'), value.conversationId)) setStorageWarning(STORAGE_WARNING);
+  };
+  const invalidateSelection = () => {
+    detailRequest.current?.abort();
+    setSelected(null);
+    setDetailLoading(false);
+    setSelectionNotice('目标内容已不可访问，请重新选择会话。');
+  };
+
   useEffect(() => {
     void loadPage(1);
     const selected = context ? readValue<string>(storageKey(context, 'selectedConversation')) : null;
@@ -218,5 +235,7 @@ export function useConversations(scope: AiScope | null, context?: BrowserContext
     pendingTitle,
     create,
     updateConversation,
+    commitSelection,
+    invalidateSelection,
   };
 }

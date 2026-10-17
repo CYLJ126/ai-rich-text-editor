@@ -549,3 +549,53 @@ it('rejects a mismatched target read without retargeting the draft or issuing a 
   });
   expect(api.changeConversationMetadata).not.toHaveBeenCalled();
 });
+
+it('releases ordinary row caches for search and resumes once after a successful new conversation', async () => {
+  const h = await loaded(7);
+  await advance(h, 4);
+  expect(h.result.current.records).toHaveLength(100);
+  act(() => h.result.current.releaseRows());
+  expect(h.result.current.records).toEqual([]);
+  const reads = vi.mocked(api.queryConversationWindow).mock.calls.length;
+  await act(async () => {
+    expect(await h.result.current.loadMore()).toBe(false);
+    expect(await h.result.current.create()).toBe(true);
+  });
+  expect(h.result.current.records).toEqual([]);
+  expect(api.queryConversationWindow).toHaveBeenCalledTimes(reads);
+  await act(async () => {
+    await h.result.current.refreshFirst();
+  });
+  expect(h.result.current.records).toHaveLength(27);
+  expect(api.queryConversationWindow).toHaveBeenCalledTimes(reads + 1);
+});
+it('inserts only a real target beside the default window and deduplicates it when its ordinary page arrives', async () => {
+  const h = await loaded(7), target = item(999);
+  act(() => {
+    h.result.current.releaseRows();
+    h.result.current.openPrepared(detail('c999'), windowData(0, 7), target);
+  });
+  expect(h.result.current.records[0]).toEqual(target);
+  expect(h.result.current.pinned).toHaveLength(7);
+  expect(h.result.current.total).toBe(1007);
+  expect(h.result.current.selectedId).toBe('c999');
+  act(() => h.result.current.onTitleUpdated('c999', {
+    title: '真实新标题',
+    metadataVersion: 2,
+    titleManuallyEdited: true,
+    autoTitleResolved: true
+  }));
+  expect(h.result.current.temporary?.title).toBe('真实新标题');
+  vi.mocked(api.listConversationsCursor).mockResolvedValueOnce(reply(page([target, item(1000)], 'next-real-page')));
+  await act(async () => {
+    await h.result.current.loadMore(true);
+  });
+  expect(h.result.current.temporary).toBeNull();
+  expect(h.result.current.records.filter(row => row.conversationId === 'c999')).toHaveLength(1);
+  expect(h.result.current.cursor).toBe('next-real-page');
+  await act(async () => {
+    await h.result.current.refreshFirst();
+  });
+  expect(h.result.current.records.some(row => row.conversationId === 'c999')).toBe(false);
+  expect(h.result.current.selectedId).toBe('c999');
+});

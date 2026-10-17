@@ -25,3 +25,5 @@ export {watchInvocation} from './invocationStream';
 export type {AiRequestOptions} from './request';
 export {AiApiError} from './request';
 export type * from './types';
+export type * from './conversation-search-contract';
+export {searchConversations, closeSearch, queryTurnsAround} from './conversation-search';

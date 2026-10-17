@@ -183,7 +183,10 @@ export default function ConversationDirectoryList({directory, writable, readBloc
     if (!root) return;
     programmatic.current = true;
     intent.current = false;
-    if (directory.placement.top) root.scrollTop = 0;
+    if (directory.placement.locateId) {
+      const row = Array.from(root.querySelectorAll<HTMLElement>('[data-conversation-id]')).find(node => node.dataset.conversationId === directory.placement.locateId);
+      if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top;
+    } else if (directory.placement.top) root.scrollTop = 0;
     else if (directory.placement.anchor) {
       const anchor = directory.placement.anchor;
       const row = Array.from(root.querySelectorAll<HTMLElement>('[data-normal-id]')).find(node => node.dataset.normalId === anchor.id);
@@ -305,6 +308,8 @@ export default function ConversationDirectoryList({directory, writable, readBloc
       } else if (root.scrollHeight - root.clientHeight - top < 100 && !directory.listLoading && !directory.listError) void directory.loadMore();
       previousTop.current = top;
     }}>
+      {directory.temporary && <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
+                                    aria-label="定位的会话">{renderRow(directory.temporary)}</Flex>}
       {/* 置顶会话列表 */}
       <Flex component="ul" vertical gap={0} className="ainew-directory-rows"
             aria-label="置顶会话">{directory.pinned.map(renderRow)}</Flex>

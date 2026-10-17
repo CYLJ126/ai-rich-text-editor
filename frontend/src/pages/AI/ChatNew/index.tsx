@@ -22,7 +22,12 @@ import {
 import {LockOutlined} from '@ant-design/icons';
 import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
 import type {AiScope, ChatModelOption} from '@/services/arte-ai';
-import {AiApiError} from '@/services/arte-ai';
+import {
+  AiApiError,
+  type ConversationSearchItem,
+  getConversationMetadata,
+  queryConversationWindow
+} from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
@@ -34,6 +39,13 @@ import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/C
 import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/BusinessChatPanel';
 import {chatConfigSchema, chatScopeSchema, type ChatTestConfig, modelOptionKey} from '@/features/ainew/config';
 import {useConversationDirectory} from '@/features/ainew/useConversationDirectory';
+import {
+  type SearchInvalidation,
+  SearchNavigationCancelled,
+  SearchTargetUnavailable,
+  useConversationSearch
+} from '@/features/ainew/useConversationSearch';
+import {currentConversation, type LocatedHistory, locateSearchMessage} from '@/features/ainew/searchNavigation';
 import ConversationDirectorySidebar from '@/features/ainew/ConversationDirectorySidebar';
 import ConversationDirectoryHeader from '@/features/ainew/ConversationDirectoryHeader';
 import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
@@ -122,6 +134,8 @@ function WorkspaceChat({
   const [discoveryRefresh, setDiscoveryRefresh] = useState({id: '', revision: 0});
   const [interaction, setInteraction] = useState<ChatInteractionState>({pending: false, active: false});
   const [switchAction, setSwitchAction] = useState<(() => void) | null>(null);
+  const cancelSwitch = useRef<(() => void) | null>(null);
+  const [location, setLocation] = useState<LocatedHistory | null>(null);
   const afterApply = useRef<(() => void) | null>(null);
   const cache = useMemo(() => {
     const saved = readValue<ChatTestConfig>(storageKey(context, 'configuration', selectedId), true);
@@ -150,23 +164,38 @@ function WorkspaceChat({
       || !writeValue(storageKey(context, 'recentConfiguration'), value, true)) setWarning('已应用，本地保存失败，刷新后可能需要重设。');
     const next = afterApply.current;
     afterApply.current = null;
+    cancelSwitch.current = null;
     next?.();
   }
 
-  function guard(proceed: () => void) {
+  const guardState = useRef({
+    dirty,
+    unsafe: aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
+  });
+  guardState.current = {dirty, unsafe: aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave};
+
+  function guard(proceed: () => void, onCancel?: () => void, isCurrent = () => true) {
     void conversations.finishEdit().then(ready => {
-      if (!ready) return;
-      if (aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave) {
-        setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
+      if (!ready || !isCurrent()) {
+        onCancel?.();
         return;
       }
-      if (dirty) {
+      if (guardState.current.unsafe) {
+        setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
+        onCancel?.();
+        return;
+      }
+      if (guardState.current.dirty) {
+        cancelSwitch.current = onCancel ?? null;
         setSwitchAction(() => proceed);
         return;
       }
       proceed();
     });
   }
+
+  const latestGuard = useRef(guard);
+  latestGuard.current = guard;
 
   useEffect(() => {
     protectRef.current = guard;
@@ -196,6 +225,10 @@ function WorkspaceChat({
   }
 
   function cancel() {
+    if (afterApply.current) {
+      cancelSwitch.current?.();
+      cancelSwitch.current = null;
+    }
     setFormDraft(null);
     setDirtyState({id: selectedId, dirty: false});
     setCancelRevision(value => value + 1);
@@ -220,32 +253,112 @@ function WorkspaceChat({
     </Flex>;
   const createConversation = () => guard(() => {
     void conversations.create().then(created => {
-      if (created) layout.open('chat');
+      if (created) {
+        void search.exit(search.active);
+        setLocation(null);
+        layout.open('chat');
+      }
     });
   });
+
+  function invalidated(value: SearchInvalidation) {
+    if (value.kind === 'scope' || value.kind === 'conversation' && value.conversationId === selectedId
+      || value.kind === 'entry' && location?.entryKey === value.entryKey) {
+      setLocation(null);
+      conversations.invalidateSelection();
+    }
+  }
+
+  const search = useConversationSearch(context, {
+    beforeEnter: async () => !conversations.creating && !conversations.pendingCommand && await conversations.finishEdit(),
+    onEnter: conversations.releaseRows, onExit: conversations.refreshFirst, onInvalidated: invalidated,
+  });
+
+  function guardedSearch(signal: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        signal.removeEventListener('abort', abort);
+        if (cancelSwitch.current === abort) {
+          setSwitchAction(null);
+          afterApply.current = null;
+          cancelSwitch.current = null;
+        }
+        reject(new SearchNavigationCancelled());
+      };
+      if (signal.aborted) {
+        abort();
+        return;
+      }
+      signal.addEventListener('abort', abort, {once: true});
+      latestGuard.current(() => {
+        signal.removeEventListener('abort', abort);
+        signal.aborted ? abort() : resolve();
+      }, abort, () => !signal.aborted);
+    });
+  }
+
+  function openSearch(item: ConversationSearchItem, mode: 'message' | 'conversation') {
+    void search.open(item, mode, async signal => {
+      await guardedSearch(signal);
+      if (mode === 'message') {
+        const prepared = await locateSearchMessage(workspace.scope, item, signal);
+        await guardedSearch(signal);
+        return () => {
+          conversations.openPrepared(prepared.conversation);
+          setLocation(prepared);
+          layout.open('chat');
+        };
+      }
+      const detail = await currentConversation(workspace.scope, item.conversationId, signal);
+      const [window, metadata] = await Promise.all([
+        queryConversationWindow({scope: workspace.scope, normalSize: 20}, {signal}),
+        getConversationMetadata({
+          scope: workspace.scope,
+          conversationId: item.conversationId
+        }, {signal}).catch(error => {
+          if (error instanceof AiApiError && [403, 404].includes(error.httpStatus)) throw new SearchTargetUnavailable('conversation');
+          throw error;
+        }),
+      ]);
+      const confirmed = await currentConversation(workspace.scope, detail.conversationId, signal);
+      await guardedSearch(signal);
+      return () => {
+        conversations.openPrepared(confirmed, window.body.data, metadata.body.data);
+        setLocation(null);
+        layout.open('chat');
+      };
+    });
+  }
+
   const list = <ConversationDirectorySidebar directory={conversations} readBlocked={readBlocked}
-                                          writable={workspace.state === 0 || workspace.state === null}
-                                          onCreate={createConversation}
-                                          header={<ConversationDirectoryHeader userId={userId} scope={workspace.scope}
-                                                                               name={workspace.name}
-                                                                               writable={!readBlocked && (workspace.state === 0 || workspace.state === null)}
-                                                                               creating={conversations.creating}
-                                                                               pendingCreate={conversations.hasPendingCreate}
-                                                                               onCreate={createConversation}
-                                                                               refreshing={conversations.listLoading}
-                                                                               onRefresh={() => void conversations.refreshFirst()}
-                                                                               onConnect={onConnect}
-                                                                               onPlatformConfig={onPlatformConfig}
-                                                                               onCollapse={() => layout.close('list')}
-                                                                               onManage={() => {
-                                                                                 setTab('workspace');
-                                                                                 layout.open('settings');
-                                                                               }}/>}
-                                          onOpen={id => guard(() => {
-                                            void conversations.select(id).then(opened => {
-                                              if (opened) layout.open('chat');
-                                            });
-                                          })}/>;
+                                             search={search} onSearchOpen={openSearch}
+                                             writable={workspace.state === 0 || workspace.state === null}
+                                             onCreate={createConversation}
+                                             header={<ConversationDirectoryHeader userId={userId}
+                                                                                  scope={workspace.scope}
+                                                                                  name={workspace.name}
+                                                                                  writable={!readBlocked && (workspace.state === 0 || workspace.state === null)}
+                                                                                  creating={conversations.creating}
+                                                                                  pendingCreate={conversations.hasPendingCreate}
+                                                                                  onCreate={createConversation}
+                                                                                  refreshing={conversations.listLoading}
+                                                                                  searching={search.active}
+                                                                                  onRefresh={() => void conversations.refreshFirst()}
+                                                                                  onConnect={onConnect}
+                                                                                  onPlatformConfig={onPlatformConfig}
+                                                                                  onCollapse={() => layout.close('list')}
+                                                                                  onManage={() => {
+                                                                                    setTab('workspace');
+                                                                                    layout.open('settings');
+                                                                                  }}/>}
+                                             onOpen={id => guard(() => {
+                                               void conversations.select(id).then(opened => {
+                                                 if (opened) {
+                                                   setLocation(null);
+                                                   layout.open('chat');
+                                                 }
+                                               });
+                                             })}/>;
 
   const editor = <Flex component="aside" vertical className="ainew-settings" aria-label="辅助设置">
     <Flex component="header" align="center" justify="space-between" gap={4}
@@ -414,6 +527,13 @@ function WorkspaceChat({
           <Alert type="error" title="会话详情读取失败" action={<Button
             onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
             <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
+                               location={location?.conversationId === selectedId ? location : null}
+                               onReturnLatest={() => setLocation(null)}
+                               onLocationInvalidated={(error, target) => search.invalidate({
+                                 kind: error instanceof SearchTargetUnavailable ? error.kind : error instanceof AiApiError && [401, 403].includes(error.httpStatus) ? 'scope' : 'entry',
+                                 conversationId: target.conversationId,
+                                 entryKey: target.entryKey
+                               })}
                                options={options} dirty={dirty} conversation={conversations.selected}
                                onUpdated={conversations.updateConversation}
                                onTitleUpdated={conversations.onTitleUpdated}
@@ -428,7 +548,7 @@ function WorkspaceChat({
                 <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
                   description="暂时无法加载会话，请稍后重试。"/></Flex>
                 : <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
-                  description={conversations.total === 0
+                  description={search.active ? '从搜索结果打开会话或查看命中消息。' : conversations.total === 0
                     ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
                   onClick={() => {
                     layout.open('settings');
@@ -464,11 +584,14 @@ function WorkspaceChat({
     </Modal>
     <Modal title="有未应用配置" open={!!switchAction} footer={<Flex justify="flex-end" gap={8} wrap>
       <Button onClick={() => {
+        cancelSwitch.current?.();
+        cancelSwitch.current = null;
         setSwitchAction(null);
         afterApply.current = null;
       }}>留在当前会话</Button>
       <Button onClick={() => {
         const next = switchAction;
+        cancelSwitch.current = null;
         cancel();
         setSwitchAction(null);
         next?.();
@@ -481,6 +604,8 @@ function WorkspaceChat({
         setApplyRevision(value => value + 1);
       }}>应用并切换</Button>
     </Flex>} onCancel={() => {
+      cancelSwitch.current?.();
+      cancelSwitch.current = null;
       setSwitchAction(null);
       afterApply.current = null;
     }}>

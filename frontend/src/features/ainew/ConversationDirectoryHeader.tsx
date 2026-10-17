@@ -12,6 +12,7 @@ export default function ConversationDirectoryHeader({
                                                       creating,
                                                       pendingCreate,
                                                       refreshing,
+                                                      searching = false,
                                                       onRefresh,
                                                       onCreate,
                                                       onCollapse,
@@ -21,6 +22,7 @@ export default function ConversationDirectoryHeader({
                                                     }: {
   userId: string; scope: AiScope; name: string; writable: boolean; creating: boolean; pendingCreate: boolean;
   refreshing: boolean; onRefresh: () => void;
+  searching?: boolean;
   onCreate: () => void; onCollapse: () => void; onManage: () => void;
   onConnect: () => void; onPlatformConfig: () => void;
 }) {
@@ -31,8 +33,8 @@ export default function ConversationDirectoryHeader({
       <WorkspaceQuickSelect userId={userId} scope={scope} name={name} onManage={onManage}
                             onConnect={onConnect} onPlatformConfig={onPlatformConfig}/>
       <div className="ainew-directory-tools">
-        <Tooltip title="刷新会话列表">
-          <Button type="text" size="small" aria-label="刷新会话列表" loading={refreshing}
+        <Tooltip title={searching ? '按 Enter 重新搜索' : '刷新会话列表'}>
+          <Button type="text" size="small" aria-label="刷新会话列表" loading={refreshing} disabled={searching}
                   icon={<DynamicIcon iconName="ReloadOutlined" size={18} color="var(--ant-color-text-tertiary)"/>}
                   onClick={onRefresh}/>
         </Tooltip>

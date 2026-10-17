@@ -1,5 +1,11 @@
 # 新 AI 前端接口
 
+S3 提供 `searchConversations`、`closeSearch`、`queryTurnsAround`，S4 已接入页面双入口，后端搜索开关仍默认关闭。搜索返回
+`body.data.records` 与不透明游标，不使用普通页码分页包装；不带 cursor 会新建 PIT，进行中的同词请求由搜索界面合并。
+`closeSearch` 允许成功包装中的空 data。历史定位独立于原搜索 PIT，助手正文通过 `getInvocationSnapshot` 辅助函数调用既有批量
+`getInvocationSnapshots` HTTP。详见[第三阶段](../../../../backend/arte-ai/CONVERSATION_SEARCH_S3_ACCEPTANCE.md)
+和[第四阶段验收](../../pages/AI/ChatNew/CONVERSATION_SEARCH_S4_ACCEPTANCE.md)。
+
 本目录手写维护，通过 `@umijs/max` 的 request 复用登录 Token 和当前语言，调用 `/arte/ai-new/` 的 JSON POST 接口。页面位于
 `src/pages/AI/ChatNew`（旧测试入口仍位于 `src/pages/AI/Chat`）；SSE 单独使用 fetch，显式携带相同的 Bearer Token 和当前语言。
 
