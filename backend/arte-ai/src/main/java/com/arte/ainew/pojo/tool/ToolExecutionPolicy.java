@@ -22,7 +22,11 @@ import java.util.Objects;
 public record ToolExecutionPolicy(Duration timeout, int maxAttempts, Duration retryBackoff,
                                   long maxInputBytes, long maxOutputBytes,
                                   ApprovalMode approvalMode) implements Serializable {
+    /**
+     * 编码后输入的结构上限：1,000,000 字节；具体执行策略可以进一步收紧。
+     */
     public static final long MAX_INPUT_BYTES = 1_000_000;
+    /** 编码后输出的结构上限：32 MiB；结果保存时仍须校验实际大小。 */
     public static final long MAX_OUTPUT_BYTES = 32L * 1024 * 1024;
 
     /**

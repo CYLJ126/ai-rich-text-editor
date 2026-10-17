@@ -23,7 +23,27 @@ import java.util.Set;
 public record ToolRiskProfile(CapabilityDescriptor.SideEffect sideEffect, boolean destructive,
                               Idempotency idempotency, Set<String> requiredScopes,
                               Set<URI> allowedNetworkOrigins) implements Serializable {
-    public enum Idempotency {UNVERIFIED, NONE, DOMAIN_OPERATION_KEY, REMOTE_OPERATION_KEY}
+    /**
+     * 幂等保证的声明依据；声明须经核实，不能单独作为超时后自动重试的依据。
+     */
+    public enum Idempotency {
+        /**
+         * 幂等能力尚未核实，不能按已具备幂等保证处理。
+         */
+        UNVERIFIED,
+        /**
+         * 明确不具备幂等保证，重试前须确认原操作未生效。
+         */
+        NONE,
+        /**
+         * 领域服务按稳定操作键防重，重试须沿用原领域操作键。
+         */
+        DOMAIN_OPERATION_KEY,
+        /**
+         * 远端服务按稳定操作键防重，重试须沿用原远端操作键。
+         */
+        REMOTE_OPERATION_KEY
+    }
 
     public ToolRiskProfile {
         Objects.requireNonNull(sideEffect, "sideEffect");

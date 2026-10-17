@@ -12,6 +12,9 @@ import java.util.Objects;
  * <p>
  * 构造只做结构检查，存储边界验证子集和摘要真实性。
  *
+ * @param definition 类型为 schema 的固定版本引用，包含稳定标识和版本。
+ * @param document   不可变的 Schema 原文；支持的 Schema 子集由校验器检查。
+ * @param checksum   标准 JSON 原文规范化后的 SHA-256 摘要；构造校验格式，存储时重算核对。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/17 13:52 ✾
  */
