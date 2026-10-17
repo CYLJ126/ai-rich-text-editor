@@ -1,13 +1,15 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-17。
-> 文档版本：V0.2（评审修订，S1-01 实施同步）。状态：S1-01 值对象及契约测试已完成，其余批次待实现、待性能基线验证；本文给出的性能数值是验收目标，不是实测结果。
+> 文档版本：V0.2（评审修订，S1-02 实施同步）。状态：S1-01 值对象及 S1-02 Schema
+> 校验器与针对性测试已完成，其余批次待实现、待性能基线验证；本文给出的性能数值是验收目标，不是实测结果。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。S1-01
-> 仅实现工具定义、风险、能力及默认执行策略的值对象和针对性测试，未开放工具功能，未执行 SQL
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01／S1-02
+> 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。当前已实现工具定义、风险、能力、默认执行策略值对象，以及独立 Schema
+> 编译与值校验器和针对性测试，未开放工具功能，未执行 SQL
 > 或完成环境验收。参考项目只用于理解功能，不构成本功能的架构、数据或接口兼容要求。
 
 ## 目录
@@ -53,16 +55,16 @@ Agent／Workflow 引擎、Skill 平台、远程应用平台和通用 Secret 管�
 
 ### 1.3 arte_dev 现有基础及本功能增量
 
-| 领域           | 现有基础                                                                                                        | 本功能所需增量                                             |
-|----------------|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
-| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S1-01 新增定义／风险／能力／默认策略值对象 | 定义与配置管理、网关实现及本地／远端适配                   |
-| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog                       | TOOL Schema、目录及绑定解析；按能力区分生成与工具校验      |
-| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                          | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
-| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                           | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
-| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                        | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
-| 预算与费用     | 账户、预留、结算、待核对及预算查询                                                                              | 区分免费本地工具与付费工具；多次模型调用累计计费           |
-| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
-| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                   | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
+| 领域           | 现有基础                                                                                                                 | 本功能所需增量                                             |
+|----------------|--------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S1-01 新增定义／风险／能力／默认策略值对象          | 定义与配置管理、网关实现及本地／远端适配                   |
+| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog；S1-02 独立 TOOL Schema 校验器 | Schema 目录接线及绑定解析；按能力区分生成与工具校验        |
+| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                                   | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
+| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                                    | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
+| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                                 | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
+| 预算与费用     | 账户、预留、结算、待核对及预算查询                                                                                       | 区分免费本地工具与付费工具；多次模型调用累计计费           |
+| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                         | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
+| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                            | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
 
 现有 DeepSeek 适配器、固定控制目录及生成终态校验仍限制工具；ChatHistoryLoader 当前加载纯文本回答。本文不会因为存在 TOOL
 枚举、结果编码或接口而宣称这些限制已经解除。
@@ -191,8 +193,8 @@ callId，也通过所属轮次与子 Invocation 隔离。
 
 ### 3.2 TOOL 模型及实施状态
 
-以下为逻辑模型及名称。S1-01 已实现 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy
-的不可变值对象；其余类型及管理、发布、存储和执行行为仍为计划设计。
+以下为逻辑模型及名称。S1-01 已实现 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy 的不可变值对象；S1-02
+已实现 application.tool.schema.ToolSchemaValidator 独立校验组件。其余类型及管理、发布、存储和执行行为仍为计划设计。
 
 | 对象                   | 责任与主要字段                                                                                   |
 |------------------------|--------------------------------------------------------------------------------------------------|
@@ -387,13 +389,32 @@ Bean 后自动发布。
 | 数组       | items（单一 Schema）、minItems、maxItems                                                   |
 | 字符串     | minLength、maxLength，按 Unicode 码点计数                                                  |
 | 数值       | minimum、maximum、exclusiveMinimum、exclusiveMaximum                                       |
-| 文档元信息 | 固定 dialect 标识；不执行元信息中的外部地址                                                |
+| 文档元信息 | 根 $schema 固定为 urn:arte:ai-tool:schema:v1；不执行元信息中的外部地址                     |
 
 所有对象默认拒绝未知属性；明确 additionalProperties=true 才允许额外字段，额外值仍受结构和字节限制。数值使用有限十进制语义，拒绝
 NaN／Infinity。缺失与显式 null 区分，后者须通过 null 类型或对应约束。
 
 首版拒绝 $ref、oneOf、anyOf、allOf、not、pattern、format、条件 Schema 及远程解析；不能接受后静默忽略。校验器遍历 Schema 关键字时区分
 properties 中的业务字段名，不能把业务字段名误判为关键字。结构遵守现有 StructuredValue 深度／节点上限，并执行更低的运行限额。
+
+**S1-02 已实现规则**：ToolSchemaValidator.compile 接收固定 schema 引用、不可变 ObjectValue 文档和
+INPUT／CONFIGURATION／OUTPUT 用途，返回可跨线程复用的编译计划。输入及配置根须显式 type=object；输出可声明单一类型，或省略 type
+使用通用约束。非根 Schema 不重复声明 $schema，不支持布尔 Schema。省略 type 时，类型专属约束只作用于对应实例类型；对象仍默认关闭额外属性。此项目
+dialect 的关闭规则及关键字拒绝策略与完整 JSON Schema 不同，不能直接标为标准 2020-12；导入流程仍须审核并规范化源文档。
+
+编译时验证关键字形状、枚举非空及语义去重、非负整数计数、上下界一致性，以及 default 是否符合所在 Schema；关闭对象的 required
+名称须在 properties 中声明，开放对象允许要求未显式声明的字段。default 校验不表示执行时补值。整数按数学整数识别，有限数值沿用
+StructuredValue 的精度／scale 上限；字符串长度按 Unicode 码点计算，不归一化文本；拒绝孤立代理项，避免编码歧义。
+
+默认运行限额为：Schema 深度 16、节点 2048、紧凑 JSON UTF-8 大小 256 KiB；实例深度 24、节点 8192，字节上限由调用策略传入且不得超过校验器上限
+32 MiB；最多返回 32 个错误，截断须显式标记。Schema 字面数据、允许的额外字段均参与容量检查。上述运行深度／节点低于公共结构上限；调用方可通过
+Limits 设置更低限额，尚未新增服务器配置项。
+
+结果返回稳定错误码、实例 JSON Pointer 和 Schema JSON Pointer，不回显提交值。字节检查统计不可变值对应的紧凑 JSON（含
+UTF-8、必要转义、键和标点），不建立完整编码副本；它不等于原始请求字节数。后续传输层仍须限制原始字节，并在严格解析时拒绝重复键、尾随内容及非法数值，持久化边界仍须限制实际编码大小。
+
+本批未将校验器接入目录、发布、TOOL 网关或配置管理，也未实现 Schema 引用解析、摘要真实性或前端表单；FR-07.1／AC-03
+的端到端门槛仍待后续接线。实现及测试清单见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)。
 
 ### 5.4 受控 HTTP 工具
 
@@ -1303,13 +1324,16 @@ DefinitionRef、StructuredValue、CapabilityDescriptor 和 ContractChecks。
 - 只读不能同时为破坏性操作；写入／外部副作用至少本人确认，破坏性或未知风险至少独立审批；发布策略仍需识别重要外部副作用并提高要求，未知风险不因满足结构约束而可执行。
 - 工具仅声明适用的通用能力；ASYNC_TASK 必须同时支持 TASK_QUERY。业务结果核对与远端任务查询分别表达。
 - 策略使用有界总期限、尝试次数、退避和字节限制；尝试上限不授予安全重试资格，当前授权、剩余期限及实际派发事实仍由后续运行时检查。
-- Schema 仅保存固定引用；checksum 仅校验 SHA-256 声明格式，未验证内容、默认配置或摘要真实性。
+- ToolDefinition 本身仅保存 Schema 固定引用；checksum 仅校验 SHA-256 声明格式，构造器不验证 Schema 内容、默认配置或摘要真实性。
 
 验证：使用 JDK 21 完成模块编译及 com.arte.ainew.contract.*Test 共 37 项测试（新增 18 项、既有 19
 项），全部通过。没有运行全量测试、启动应用、连接数据库、调用模型／工具或完成性能、浏览器及生产环境验收。命令和完整边界见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)。
 
-本批没有新增配置、SQL、菜单、权限数据或前端代码，也未更改现有 TOOL 输入／结果、生成和内部存储编码。S1-02（Schema 校验）及以后批次仍待实现；S1
-阶段整体尚未完成。
+S1-02 已完成独立 ToolSchemaValidator 的受限编译、用途根约束、Schema／值结构及字节限额、嵌套校验、安全错误定位和并发复用测试，具体规则见
+§5.3。新增 30 项测试与既有 37 项契约测试共 67 项全部通过，JDK 21 模块编译通过；未运行全量及环境验收。
+
+两个批次均未新增配置、SQL、菜单、权限数据或前端代码，也未更改现有 TOOL 输入／结果、生成和内部存储编码。S1-03（本地／远端类型化执行目标）及以后批次仍待实现；Schema
+校验器尚未接入实际调用，S1 阶段整体尚未完成。
 
 ### 15.5 原子需求与双向追踪
 
@@ -1317,50 +1341,52 @@ FR-01—FR-20 是功能分组，不能把一个分组当作一条测试。以下
 可反向定位。需求变化应同时更新本表及相应 API／状态／验收，不仅修改一处叙述。设计章节中的新增规范性规则必须归入相应子需求或
 NF，并在实施任务中落实负责人。
 
-| 原子编号 | 单一要求                                 | 用户任务     | 设计         | 接口／契约              | 验收                | 阶段   |
-|----------|------------------------------------------|--------------|--------------|-------------------------|---------------------|--------|
-| FR-01.1  | 发现的新版本只能进入草稿                 | UT-07        | §5.6         | syncProvider            | AC-01               | S1     |
-| FR-01.2  | 同步失败必须保留完整旧快照               | UT-07        | §5.6         | ToolProviderDefinition  | AC-01               | S1     |
-| FR-02.1  | 目录只返回当前空间可见的工具             | UT-01        | §3.2、§9.2   | listTools               | AC-02、AC-06        | S1     |
-| FR-02.2  | 固定版本详情必须展示实际能力及副作用     | UT-01        | §3.3         | getTool                 | AC-02               | S1     |
-| FR-03.1  | 发布前必须校验真实执行适配存在           | UT-07        | §7.2         | publishTool             | AC-02               | S1     |
-| FR-03.2  | 停用必须阻止下一敏感执行边界             | UT-07        | §7.4         | setToolState            | AC-02、AC-17        | S2     |
-| FR-04.1  | 绑定更新必须产生不可变修订               | UT-07        | §3.4、§6.2   | saveBinding             | AC-04               | S1     |
-| FR-04.2  | 并发准备默认绑定只能产生一个默认实例     | UT-01        | §2.5、§11.2  | ensureDefaultBinding    | AC-37               | S2     |
-| FR-05.1  | 自动升级只能沿已审核兼容链选择           | UT-01        | §7.3         | upgradeBinding          | AC-05               | S1     |
-| FR-05.2  | 重放必须使用原受理固定版本               | UT-02        | §3.4、§8.4   | ToolExecutionSnapshot   | AC-05、AC-08        | S2     |
-| FR-06.1  | 受理回执只能在耐久记录提交后返回         | UT-02        | §8.1、§13.3  | invokeTool              | AC-08               | S2     |
-| FR-06.2  | TOOL 必须按能力进入工具派发分支          | UT-02        | §4.6、§8.3   | InvocationCoordinator   | AC-09               | S2     |
-| FR-07.1  | 服务端必须独立验证输入和输出 Schema      | UT-02        | §5.3、§9.4   | ToolGateway             | AC-03               | S2     |
-| FR-07.2  | 产物不可访问时不得展示可用下载入口       | UT-02        | §1.2、§11.3  | ArtifactRef             | AC-23               | S2     |
-| FR-08.1  | 审批只能对固定摘要作一次有效决定         | UT-03、UT-04 | §8.5—8.6     | decideApproval          | AC-11、AC-12        | S3     |
-| FR-08.2  | 实际审批窗口必须与预览一致               | UT-03、UT-04 | §8.5         | previewInvocation       | AC-38               | S3     |
-| FR-09.1  | 取消意图必须耐久保存                     | UT-02        | §8.7         | cancelInvocation        | AC-17               | S2     |
-| FR-09.2  | 失租执行者不得提交终态                   | UT-02        | §8.3、§8.7   | fencing／Completion     | AC-14               | S2     |
-| FR-09.3  | 重试和恢复不得延长原总期限               | UT-02        | §8.4         | ExecutionOptions        | AC-16               | S2     |
-| FR-10.1  | 相同键但不同语义必须冲突                 | UT-02        | §8.4         | Idempotency-Key         | AC-08               | S2     |
-| FR-10.2  | 可能生效且未确认的操作不得重新派发       | UT-06        | §8.7—8.8     | UNKNOWN／QueryOutcome   | AC-13、AC-33、AC-34 | S3     |
-| FR-11.1  | 业务写入必须通过领域当前权限和版本检查   | UT-03        | §9.3         | BusinessToolAdapter     | AC-07               | S3     |
-| FR-11.2  | 外发必须使用当前有权的连接和凭据范围     | UT-02        | §9.5         | 受控连接／SecretRef     | AC-06、AC-22、AC-23 | S5     |
-| FR-12.1  | 模型工具名只能解析到本轮固定映射         | UT-05        | §10.1、§10.4 | ToolSetSnapshot         | AC-18               | S4     |
-| FR-12.2  | 不完整的模型参数不得派发工具             | UT-05        | §10.4        | ToolCallDelta／ToolCall | AC-18               | S4     |
-| FR-13.1  | Run 恢复必须重用已存在的子执行映射       | UT-05        | §10.5        | ToolChatRun／Step       | AC-19               | S4     |
-| FR-13.2  | Turn 必须区分普通调用与工具聊天回答候选  | UT-05        | §10.3        | 带类型候选              | AC-20、AC-25        | S4     |
-| FR-13.3  | 每次继续生成必须重新校验实际上下文容量   | UT-05        | §10.6        | ContextSnapshot         | AC-21               | S4     |
-| FR-14.1  | 允许集合不得包含跨范围绑定               | UT-05        | §10.1        | resolveToolSet          | AC-06、AC-18        | S4     |
-| FR-14.2  | 重新生成必须遵守用户选择的新鲜度意图     | UT-05        | §10.8        | ToolChatRun.submit      | AC-39               | S4     |
-| FR-15.1  | 只允许调用已验收的远端协议能力           | UT-07        | §5.4—5.5     | HTTP／MCP 适配          | AC-22               | S5     |
-| FR-15.2  | 远端结果查询不得重发原业务调用           | UT-06        | §8.8         | ToolOutcomeQueryAdapter | AC-33               | S5     |
-| FR-16.1  | 工作流逻辑步骤必须保存原 Invocation 身份 | UT-07        | §10.7        | 工作流消费契约          | AC-26               | S6     |
-| FR-16.2  | 工作流调度恢复不得重做未知写入           | UT-06        | §10.7        | 原结果／UNKNOWN         | AC-13、AC-26        | S6     |
-| FR-17.1  | Run 派发必须原子占用费用上界             | UT-05        | §6.7         | RunBudgetAllocation     | AC-10、AC-31、AC-32 | S4     |
-| FR-17.2  | 队列和执行容量必须遵守受信分类配额       | UT-02        | §13.7        | workClass／claim        | AC-35、AC-36        | S2     |
-| FR-18.1  | 统计必须区分调用、尝试与未知事实         | UT-07        | §14.2        | getStatistics           | AC-27               | S6     |
-| FR-18.2  | 成功终态必须引用已持久化的完整结果       | UT-02        | §8.3、§13.3  | getInvocationResult     | AC-15               | S2     |
-| FR-19.1  | 普通用户必须能完成默认工具首次使用       | UT-01        | §11.2、§11.6 | 默认使用流程            | AC-37、AC-40        | S2     |
-| FR-19.2  | 切换空间后的迟到响应不得更新新空间状态   | UT-02        | §11.4        | 前端 scope 隔离         | AC-24               | S2     |
-| FR-20.1  | 未支持新消息类型的节点不得参与领取       | UT-07        | §4.6、§13.4  | codec／Outbox           | AC-28、AC-29        | S2／S4 |
-| FR-20.2  | 新阶段开放前必须通过受影响既有功能回归   | UT-07        | §15.1、§15.3 | 原文本／搜索／预算接口  | AC-30               | 每阶段 |
+| 原子编号 | 单一要求                                 | 用户任务     | 设计         | 接口／契约                  | 验收                | 阶段      |
+|----------|------------------------------------------|--------------|--------------|-----------------------------|---------------------|-----------|
+| FR-01.1  | 发现的新版本只能进入草稿                 | UT-07        | §5.6         | syncProvider                | AC-01               | S1        |
+| FR-01.2  | 同步失败必须保留完整旧快照               | UT-07        | §5.6         | ToolProviderDefinition      | AC-01               | S1        |
+| FR-02.1  | 目录只返回当前空间可见的工具             | UT-01        | §3.2、§9.2   | listTools                   | AC-02、AC-06        | S1        |
+| FR-02.2  | 固定版本详情必须展示实际能力及副作用     | UT-01        | §3.3         | getTool                     | AC-02               | S1        |
+| FR-03.1  | 发布前必须校验真实执行适配存在           | UT-07        | §7.2         | publishTool                 | AC-02               | S1        |
+| FR-03.2  | 停用必须阻止下一敏感执行边界             | UT-07        | §7.4         | setToolState                | AC-02、AC-17        | S2        |
+| FR-04.1  | 绑定更新必须产生不可变修订               | UT-07        | §3.4、§6.2   | saveBinding                 | AC-04               | S1        |
+| FR-04.2  | 并发准备默认绑定只能产生一个默认实例     | UT-01        | §2.5、§11.2  | ensureDefaultBinding        | AC-37               | S2        |
+| FR-05.1  | 自动升级只能沿已审核兼容链选择           | UT-01        | §7.3         | upgradeBinding              | AC-05               | S1        |
+| FR-05.2  | 重放必须使用原受理固定版本               | UT-02        | §3.4、§8.4   | ToolExecutionSnapshot       | AC-05、AC-08        | S2        |
+| FR-06.1  | 受理回执只能在耐久记录提交后返回         | UT-02        | §8.1、§13.3  | invokeTool                  | AC-08               | S2        |
+| FR-06.2  | TOOL 必须按能力进入工具派发分支          | UT-02        | §4.6、§8.3   | InvocationCoordinator       | AC-09               | S2        |
+| FR-07.1  | 服务端必须独立验证输入和输出 Schema      | UT-02        | §5.3、§9.4   | ToolGateway                 | AC-03               | S2        |
+| FR-07.2  | 产物不可访问时不得展示可用下载入口       | UT-02        | §1.2、§11.3  | ArtifactRef                 | AC-23               | S2        |
+| FR-07.3  | Schema 编译须拒绝子集外关键字和错误定义  | UT-07        | §5.3         | ToolSchemaValidator.compile | AC-03               | S1-02     |
+| FR-07.4  | 值校验须有界且不补值，并返回安全错误位置 | UT-02        | §5.3         | CompiledSchema.validate     | AC-03               | S1-02／S2 |
+| FR-08.1  | 审批只能对固定摘要作一次有效决定         | UT-03、UT-04 | §8.5—8.6     | decideApproval              | AC-11、AC-12        | S3        |
+| FR-08.2  | 实际审批窗口必须与预览一致               | UT-03、UT-04 | §8.5         | previewInvocation           | AC-38               | S3        |
+| FR-09.1  | 取消意图必须耐久保存                     | UT-02        | §8.7         | cancelInvocation            | AC-17               | S2        |
+| FR-09.2  | 失租执行者不得提交终态                   | UT-02        | §8.3、§8.7   | fencing／Completion         | AC-14               | S2        |
+| FR-09.3  | 重试和恢复不得延长原总期限               | UT-02        | §8.4         | ExecutionOptions            | AC-16               | S2        |
+| FR-10.1  | 相同键但不同语义必须冲突                 | UT-02        | §8.4         | Idempotency-Key             | AC-08               | S2        |
+| FR-10.2  | 可能生效且未确认的操作不得重新派发       | UT-06        | §8.7—8.8     | UNKNOWN／QueryOutcome       | AC-13、AC-33、AC-34 | S3        |
+| FR-11.1  | 业务写入必须通过领域当前权限和版本检查   | UT-03        | §9.3         | BusinessToolAdapter         | AC-07               | S3        |
+| FR-11.2  | 外发必须使用当前有权的连接和凭据范围     | UT-02        | §9.5         | 受控连接／SecretRef         | AC-06、AC-22、AC-23 | S5        |
+| FR-12.1  | 模型工具名只能解析到本轮固定映射         | UT-05        | §10.1、§10.4 | ToolSetSnapshot             | AC-18               | S4        |
+| FR-12.2  | 不完整的模型参数不得派发工具             | UT-05        | §10.4        | ToolCallDelta／ToolCall     | AC-18               | S4        |
+| FR-13.1  | Run 恢复必须重用已存在的子执行映射       | UT-05        | §10.5        | ToolChatRun／Step           | AC-19               | S4        |
+| FR-13.2  | Turn 必须区分普通调用与工具聊天回答候选  | UT-05        | §10.3        | 带类型候选                  | AC-20、AC-25        | S4        |
+| FR-13.3  | 每次继续生成必须重新校验实际上下文容量   | UT-05        | §10.6        | ContextSnapshot             | AC-21               | S4        |
+| FR-14.1  | 允许集合不得包含跨范围绑定               | UT-05        | §10.1        | resolveToolSet              | AC-06、AC-18        | S4        |
+| FR-14.2  | 重新生成必须遵守用户选择的新鲜度意图     | UT-05        | §10.8        | ToolChatRun.submit          | AC-39               | S4        |
+| FR-15.1  | 只允许调用已验收的远端协议能力           | UT-07        | §5.4—5.5     | HTTP／MCP 适配              | AC-22               | S5        |
+| FR-15.2  | 远端结果查询不得重发原业务调用           | UT-06        | §8.8         | ToolOutcomeQueryAdapter     | AC-33               | S5        |
+| FR-16.1  | 工作流逻辑步骤必须保存原 Invocation 身份 | UT-07        | §10.7        | 工作流消费契约              | AC-26               | S6        |
+| FR-16.2  | 工作流调度恢复不得重做未知写入           | UT-06        | §10.7        | 原结果／UNKNOWN             | AC-13、AC-26        | S6        |
+| FR-17.1  | Run 派发必须原子占用费用上界             | UT-05        | §6.7         | RunBudgetAllocation         | AC-10、AC-31、AC-32 | S4        |
+| FR-17.2  | 队列和执行容量必须遵守受信分类配额       | UT-02        | §13.7        | workClass／claim            | AC-35、AC-36        | S2        |
+| FR-18.1  | 统计必须区分调用、尝试与未知事实         | UT-07        | §14.2        | getStatistics               | AC-27               | S6        |
+| FR-18.2  | 成功终态必须引用已持久化的完整结果       | UT-02        | §8.3、§13.3  | getInvocationResult         | AC-15               | S2        |
+| FR-19.1  | 普通用户必须能完成默认工具首次使用       | UT-01        | §11.2、§11.6 | 默认使用流程                | AC-37、AC-40        | S2        |
+| FR-19.2  | 切换空间后的迟到响应不得更新新空间状态   | UT-02        | §11.4        | 前端 scope 隔离             | AC-24               | S2        |
+| FR-20.1  | 未支持新消息类型的节点不得参与领取       | UT-07        | §4.6、§13.4  | codec／Outbox               | AC-28、AC-29        | S2／S4    |
+| FR-20.2  | 新阶段开放前必须通过受影响既有功能回归   | UT-07        | §15.1、§15.3 | 原文本／搜索／预算接口      | AC-30               | 每阶段    |
 
 NF-01／02 对应 AC-35／36，NF-03 对应 AC-31／32，NF-04 对应 AC-33／34，NF-05 对应 AC-37／40，NF-06 对应 AC-08／13／19，NF-07 对应
 AC-28／35。所有验收编号都必须在实际验证记录中注明对应需求、设计版本、执行环境、结果和未覆盖范围。

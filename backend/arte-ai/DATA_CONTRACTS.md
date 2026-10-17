@@ -9,6 +9,9 @@
 > S1-01 实施同步：已新增 pojo.tool 下的 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy
 > 不可变值对象及结构／跨字段契约测试。Schema 仍为固定引用，checksum
 > 仅作格式校验；尚未接入目录、发布、执行或内部白名单存储编码。实际字段及验证范围见 [TOOL 实施记录](TOOL_IMPLEMENTATION.md)。
+> S1-02 实施同步：application.tool.schema.ToolSchemaValidator 已实现 urn:arte:ai-tool:schema:v1
+> 子集的固定引用编译、输入／配置对象根、嵌套值验证、default 声明校验、资源限额及错误定位。它接收 StructuredValue，不补值、不解析远端
+> Schema；尚未接入公开入口、工具目录、发布或 Gateway，也未增加存储编码。ToolDefinition 构造器仍只保存 Schema 引用。
 
 日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 

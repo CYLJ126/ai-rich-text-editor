@@ -3,6 +3,8 @@
 日期：2026-10-17。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
+当前完成：S1-01、S1-02。S1 整体尚未完成，TOOL 尚未开放使用。
+
 ## 1. S1-01：定义、风险、能力与默认策略
 
 状态：完成值对象及契约测试，S1 阶段整体未完成。代码位于 `src/main/java/com/arte/ainew/pojo/tool`，复用现有公共引用、JSON
@@ -88,7 +90,93 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 
 ### 1.5 后续批次与未运行项
 
-下一批 S1-02：实现需求 §5.3 的 Schema 子集校验及相应测试；本批仅保留固定引用。
+S1-01 完成时的下一批为 S1-02；该批实际结果见下节。S1-01 的值对象本身仅保留 Schema 固定引用。
 
 本批未实现目录／发现／发布、Schema 内容校验、摘要真实性、类型化本地执行目标、绑定及策略合并、持久化编码、TOOL
 受理与派发、审批、业务核对、预算、模型工具轮次或前端。没有新增 SQL、权限或菜单数据；没有启动应用、连接数据库、调用模型／工具，也没有执行全量、性能、多实例或浏览器验收。
+
+## 2. S1-02：Schema 子集编译与值校验
+
+状态：独立校验组件及针对性测试完成，尚未接入目录、发布、配置或实际 TOOL 调用。
+
+生产代码：`src/main/java/com/arte/ainew/application/tool/schema/ToolSchemaValidator.java`；测试：
+`src/test/java/com/arte/ainew/tool/schema/ToolSchemaValidatorTest.java`。不新增依赖或 Spring Bean，不改变现有生成校验和持久化编码。
+
+### 2.1 使用与固定语义
+
+```java
+var validator = new ToolSchemaValidator();
+var plan = validator.compile(schemaRef, schemaDocument, ToolSchemaValidator.Purpose.INPUT);
+var result = plan.validate(arguments, effectiveMaxInputBytes);
+// result.valid()；失败查看 violations() 中的 code、instancePointer、schemaPointer。
+// 调用方应显式拒绝失败；本组件不派发工具、不发布能力、不授予权限。
+```
+
+- compile 接收 type=schema 的固定 DefinitionRef 和
+  StructuredValue.ObjectValue；编译计划保留固定引用、不可变文档与用途，可跨线程复用，每次值校验使用独立预算和错误集合。
+- 文档根必须声明 `$schema: urn:arte:ai-tool:schema:v1`。本地识别标识，不执行网络解析；不接受其他 dialect 或子 Schema
+  重声明。平台采用受限子集及默认关闭对象规则，不宣称完整兼容标准 2020-12。
+- INPUT 和 CONFIGURATION 根显式为 object；OUTPUT 可为 object、array、string、number、integer、boolean、null，或省略 type。type
+  只允许单一字符串。省略 type 时，专属约束只匹配相应值类型；所有对象默认拒绝未声明属性。
+- 支持 enum、const、title、description、default；properties、required、布尔 additionalProperties；单 Schema
+  items、minItems、maxItems；minLength、maxLength；minimum、maximum、数值 exclusiveMinimum／exclusiveMaximum。title／description
+  仅接受字符串；不支持布尔 Schema、联合 type、引用、组合、正则、format 或其他未声明关键字。
+- 在 properties 值及 items 处编译子 Schema；不把 properties 中的业务字段名或 enum／const／default
+  中的字面对象当作关键字。未知关键字、形状错误、枚举为空或存在语义重复、计数越界、上下界冲突均在编译时拒绝。
+- 计数关键字必须是 0 至 Integer.MAX_VALUE 的数学整数；关闭对象的 required 名称必须已在 properties
+  中声明，additionalProperties=true 时允许要求未声明字段。
+- default 须符合所在 Schema，编译时验证；不会合并、补写或转换输入。ToolDefinition.defaultConfiguration
+  仍需后续调用方用对应配置计划显式校验，本批未接入其发布流程。
+- 数值复用有界 BigDecimal，不经过 double；1 与 1.0 在 enum／const 比较中相同，数学整数包含 1.0。精度及 scale 仍受
+  StructuredValue 限制。字符串按 Unicode 码点计数，不做归一化；拒绝孤立 UTF-16 代理项。
+
+数值、枚举及字符串长度语义参考 [JSON Schema 验证规范](https://json-schema.org/draft/2020-12/json-schema-validation)
+；对象默认关闭、未知关键字拒绝、显式根用途及 default 必须有效是本项目的额外约束。
+
+### 2.2 资源边界与错误契约
+
+| 维度              | 默认值与规则                                                                 |
+|-------------------|------------------------------------------------------------------------------|
+| Schema 深度／节点 | 16／2048；包括元信息和所有字面数据                                           |
+| Schema 字节       | 256 KiB 的紧凑 JSON UTF-8；配置绝对上限 1,000,000 字节                       |
+| 实例深度／节点    | 24／8192；包括允许的额外字段                                                 |
+| 实例字节          | validate 必须传入已收紧上限；不得超过 Limits.valueBytes，默认绝对上限 32 MiB |
+| 错误数            | 默认 32，可配置 1—64；超过时 truncated=true，不能当作完整错误集合            |
+
+可通过不可变 Limits 降低限额；深度和节点配置始终低于公共 StructuredValue 上限。先执行整值容量检查，失败直接返回；通过后才进入
+Schema 匹配。预检累计 UTF-8、必要 JSON 转义、键及标点，不分配完整 JSON 副本。字节口径为紧凑
+JSON，不包含原请求空白，也不表示任意传输／存储编码大小；后续边界必须限制实际原始字节和实际保存字节。
+
+编译错误抛出 InvalidSchemaException，携带错误码及 Schema Pointer；值错误返回不可变 ValidationResult。错误包含稳定 Code、实例和
+Schema 的 JSON Pointer（根为空字符串），对 `/`、`~` 正确转义，遍历顺序固定；不回显实际值、候选值或配置内容。LIMIT_EXCEEDED
+表达容量不足，INVALID_UNICODE 表达非法代理项；TYPE、REQUIRED、ADDITIONAL_PROPERTY 等区分业务输入问题，供后续 HTTP／表单做安全翻译。
+
+### 2.3 验证证据与追踪
+
+代码版本：基于 `0eb34b929afcd3265b14d59613dc359a7adf5541` 的当前未提交工作区。环境：本地 JDK 21.0.8、Maven 3.9.16。
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+PATH="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin:$PATH" \
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS；Schema 新增 30 项、既有契约 37 项，共 67 项，失败／错误／跳过均为 0，模块生产代码和测试代码编译通过。覆盖七类类型、嵌套对象／数组、缺失与
+null、关闭／开放对象、额外字段限额、unsupported 关键字、业务字段名、默认值、精确数值、枚举／const、码点、字节／深度／节点限额、安全错误及并发复用。字节边界用现有
+JSON 库的编码结果作对照，不以字符数自证。
+
+需求追踪：FR-07.3 对应编译拒绝及发布前置校验组件，FR-07.4 对应值校验组件；FR-07.1／AC-03 仍需后续 TOOL
+受理、派发、结果及前端接线验证，不能因组件测试通过而标为端到端完成。
+
+### 2.4 当前边界与下一批
+
+Schema 已解析为 StructuredValue 后才进入本组件。原始 JSON 的严格有界解析、重复键／尾随内容／NaN／Infinity 拒绝须由后续传输适配实现；本批没有公开
+JSON 接口。Schema 引用查找、checksum 计算与防漂移、缓存／发布管理、有效配置／策略合并及前端表单均未实现。
+
+本批未新增 SQL、配置、权限、菜单、运行时接线或前端。没有启动应用、连接数据库、调用工具／模型；未运行全量测试、生产性能、多实例或浏览器验收。原有
+Maven 依赖／资源编码及旧代码编译提示仍存在。
+
+下一批 S1-03：本地／远端类型化执行目标及兼容验证。本次停在 S1-02。

@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  * @param definition           type=tool，稳定 ID 使用 namespace.name，版本由 DefinitionRef 固定。
  * @param providerId           受管定义来源，不表示进程内已有真实执行实现。
  * @param capability           对应的通用能力固定引用；Schema、特性和副作用由本对象单向投影。
- * @param inputSchema          输入 Schema 固定引用，本批不加载或执行 Schema。
+ * @param inputSchema          输入 Schema 固定引用，内容由独立校验器验证。
  * @param outputSchema         输出 Schema 固定引用。
  * @param configurationSchema  非敏感配置的独立 Schema 固定引用。
  * @param defaultConfiguration 默认非敏感配置；使用有界、深度不可变的 JSON 值对象。
