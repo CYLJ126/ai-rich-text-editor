@@ -28,13 +28,13 @@ import java.util.concurrent.TimeUnit;
 public final class RedisConversationSearchSessions implements ConversationSearchSessions {
 
     private final RedissonClient redis;
-    private final NewAiSearchProperties p;
+    private final NewAiSearchProperties properties;
     private final String script;
     private final JsonMapper json = JsonMapper.builder().build();
 
     public RedisConversationSearchSessions(RedissonClient redis, NewAiSearchProperties properties) {
         this.redis = Objects.requireNonNull(redis);
-        this.p = Objects.requireNonNull(properties);
+        this.properties = Objects.requireNonNull(properties);
         try {
             script = new ClassPathResource("ainew/search/session.lua").getContentAsString(StandardCharsets.UTF_8);
         } catch (java.io.IOException failure) {
@@ -45,12 +45,12 @@ public final class RedisConversationSearchSessions implements ConversationSearch
     private List<Object> keys(ExecutionOwner owner, String id) {
         if (id == null || !id.matches("[a-f0-9-]{36}")) throw new SearchFailure(SearchFailure.Code.INVALID_CURSOR);
         String tag = CanonicalJson.key(owner.tenantId(), owner.subjectId());
-        String prefix = p.session().namespace() + ":{" + tag + "}:";
+        String prefix = properties.session().namespace() + ":{" + tag + "}:";
         return List.of(prefix + "active", prefix + id);
     }
 
     private long timeout(Duration remaining) {
-        long ms = Math.min(p.session().redisTimeout().toMillis(), remaining.toMillis());
+        long ms = Math.min(properties.session().redisTimeout().toMillis(), remaining.toMillis());
         if (ms < 1) throw new SearchFailure(SearchFailure.Code.DEPENDENCY_UNAVAILABLE);
         return ms;
     }
@@ -70,8 +70,9 @@ public final class RedisConversationSearchSessions implements ConversationSearch
     private SearchSession call(String operation, ExecutionOwner owner, String id, Map<String, Object> payload, Duration timeout) {
         payload.put("id", id);
         payload.put("ownerKey", SearchCursor.owner(owner));
-        long lease = Math.max(30000, p.limits().requestTimeout().toMillis() + p.session().redisTimeout().toMillis() * 2);
-        String result = eval(script, keys(owner, id), timeout, operation, json.writeValueAsString(payload), lease, p.session().idleTimeout().toMillis(), p.session().maxLifetime().toMillis(), p.session().maxPerSubject());
+        long lease = Math.max(30000, properties.limits().requestTimeout().toMillis() + properties.session().redisTimeout().toMillis() * 2);
+        String result = eval(script, keys(owner, id), timeout, operation, json.writeValueAsString(payload), lease,
+                properties.session().idleTimeout().toMillis(), properties.session().maxLifetime().toMillis(), properties.session().maxPerSubject());
         if (result == null || result.isEmpty()) return null;
         if (result.startsWith("!")) throw new SearchFailure(switch (result) {
             case "!LIMIT" -> SearchFailure.Code.SEARCH_LIMIT_REACHED;
@@ -140,6 +141,6 @@ public final class RedisConversationSearchSessions implements ConversationSearch
     @Override
     public String historySigningKey(Duration timeout) {
         return eval("local k=redis.call('GET',KEYS[1]);if not k then redis.call('SET',KEYS[1],ARGV[1]);k=ARGV[1] end;return k",
-                List.of(p.session().namespace() + ":history-signing:v1"), timeout, SearchCursor.randomKey());
+                List.of(properties.session().namespace() + ":history-signing:v1"), timeout, SearchCursor.randomKey());
     }
 }

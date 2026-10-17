@@ -50,7 +50,8 @@ public class NewAiConversationSearchController {
      */
     @PostMapping("/searchConversations")
     public Mono<ResultContext<ConversationSearch.Page>> search(@Valid @RequestBody ConversationSearchRequests.Search request, Locale locale) {
-        return http.read(request.scope(), Set.of(AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), timeout, false, context -> service.search(request.toQuery(), context))
+        return http.read(request.scope(), Set.of(AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ), timeout, false,
+                        context -> service.search(request.toQuery(), context))
                 .map(page -> ResultContext.success(page, ResultCodeEnum.SUCCESS, locale));
     }
 
