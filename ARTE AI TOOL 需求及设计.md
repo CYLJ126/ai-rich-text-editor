@@ -1,13 +1,14 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-17。
-> 文档版本：V0.2（评审修订）。状态：待实现、待性能基线验证；本文给出的性能数值是验收目标，不是实测结果。
+> 文档版本：V0.2（评审修订，S1-01 实施同步）。状态：S1-01 值对象及契约测试已完成，其余批次待实现、待性能基线验证；本文给出的性能数值是验收目标，不是实测结果。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线，除明确标记“现有基础”的内容外，新增类型、状态、接口、配置、表及页面均为计划设计。本次只调整文档，没有实现代码、执行
-> SQL、运行测试或完成环境验收。参考项目只用于理解功能，不构成本功能的架构、数据或接口兼容要求。
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。S1-01
+> 仅实现工具定义、风险、能力及默认执行策略的值对象和针对性测试，未开放工具功能，未执行 SQL
+> 或完成环境验收。参考项目只用于理解功能，不构成本功能的架构、数据或接口兼容要求。
 
 ## 目录
 
@@ -52,16 +53,16 @@ Agent／Workflow 引擎、Skill 平台、远程应用平台和通用 Secret 管�
 
 ### 1.3 arte_dev 现有基础及本功能增量
 
-| 领域           | 现有基础                                                                                  | 本功能所需增量                                             |
-|----------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------|
-| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter                       | 定义与配置管理、网关实现及本地／远端适配                   |
-| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog | TOOL Schema、目录及绑定解析；按能力区分生成与工具校验      |
-| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                    | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
-| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                     | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
-| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                  | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
-| 预算与费用     | 账户、预留、结算、待核对及预算查询                                                        | 区分免费本地工具与付费工具；多次模型调用累计计费           |
-| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                          | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
-| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                             | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
+| 领域           | 现有基础                                                                                                        | 本功能所需增量                                             |
+|----------------|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S1-01 新增定义／风险／能力／默认策略值对象 | 定义与配置管理、网关实现及本地／远端适配                   |
+| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog                       | TOOL Schema、目录及绑定解析；按能力区分生成与工具校验      |
+| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                          | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
+| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                           | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
+| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                        | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
+| 预算与费用     | 账户、预留、结算、待核对及预算查询                                                                              | 区分免费本地工具与付费工具；多次模型调用累计计费           |
+| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
+| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                   | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
 
 现有 DeepSeek 适配器、固定控制目录及生成终态校验仍限制工具；ChatHistoryLoader 当前加载纯文本回答。本文不会因为存在 TOOL
 枚举、结果编码或接口而宣称这些限制已经解除。
@@ -188,14 +189,18 @@ NF-05 是可用性验证目标，不将没有配置权限、外部服务故障�
 callId 不充当平台幂等键或 Invocation 主键。直接调用由服务端分配 callId；模型调用保留经过校验的模型 callId。不同模型轮次即使出现相同
 callId，也通过所属轮次与子 Invocation 隔离。
 
-### 3.2 计划新增的 TOOL 模型
+### 3.2 TOOL 模型及实施状态
 
-以下是逻辑模型及拟议名称，当前并不存在这些实现。
+以下为逻辑模型及名称。S1-01 已实现 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy
+的不可变值对象；其余类型及管理、发布、存储和执行行为仍为计划设计。
 
 | 对象                   | 责任与主要字段                                                                                   |
 |------------------------|--------------------------------------------------------------------------------------------------|
 | ToolProviderDefinition | providerId、受管范围、接入类型、执行适配标识、可选连接引用、启停及同步结果                       |
 | ToolDefinition         | 固定 tool 引用、名称、描述、Schema 引用、默认配置／策略、风险和能力、checksum                    |
+| ToolRiskProfile        | sideEffect、destructive、幂等依据、必要 scopes 及允许网络 origin；不代表当前授权                 |
+| ToolCapabilities       | 工具适用的通用 features 与业务结果核对能力；不把平台异步排队算作工具远端异步能力                 |
+| ToolExecutionPolicy    | 总期限、含首次的尝试上限、最低退避、输入／输出字节上限及最低人工控制模式                         |
 | ToolRelease            | 工具版本发布状态、兼容基准、说明及审计；不承载本次调用参数                                       |
 | ToolBindingDefinition  | 稳定 bindingId、真实 Scope 与主体、基准工具版本、版本策略、非敏感配置、Secret 引用、策略及行版本 |
 | ToolExecutionSnapshot  | 受理时的实际工具／绑定引用、有效配置、策略、Schema 摘要、适配与连接版本及请求摘要                |
@@ -209,6 +214,9 @@ callId，也通过所属轮次与子 Invocation 隔离。
 ToolDefinition 和 CapabilityDescriptor 分工：前者保存 TOOL 专属产品契约，后者用于通用发现与准入。二者通过固定引用关联，不复制维护两份不同的
 Schema 或副作用结论。
 
+S1-01 的 ToolDefinition.discoveredCapability () 从工具定义单向派生通用描述，可用性固定为 DISCOVERED；不会因为值对象构造成功就声明
+EXECUTABLE。实际字段、结构上限及尚未实现的验证见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)。
+
 首版工具定义及提供者由平台受管目录统一登记，稳定身份在目录内唯一；哪些已发布工具对某空间可见、可绑定、可执行，由当前受信配置及授权决定。使用绑定、审批及执行仍保留真实
 Scope 和主体。用户私有定义、跨租户分发及工具市场另行设计，不以目录可见代替空间使用许可。
 
@@ -219,7 +227,8 @@ Scope 和主体。用户私有定义、跨租户分发及工具市场另行设�
 - 输入 Schema 根必须为 object；输出可为受支持 JSON 类型。业务配置拥有独立 configurationSchema。
 - Schema 为不可变版本化对象；内容与引用、checksum 一致，发布后不得原地修改。
 - 定义的副作用使用现有 READ_ONLY／RESOURCE_WRITE／EXTERNAL_EFFECT／UNKNOWN 分类。
-- 补充 destructive、idempotencySupport、cancellationSupport、queryOutcomeSupport 和允许外发范围。readOnly
+- 补充 destructive、幂等依据、取消能力、业务结果核对能力和允许外发范围。S1-01 分别使用
+  ToolRiskProfile.idempotency、ToolCapabilities.features 中的 CANCEL、outcomeQuerySupported 表达，不额外维护重复布尔字段。readOnly
   不代表无外发；幂等必须说明由领域防重还是远端操作键保证。
 - 未知风险按受限处理；只有通过本地审核的风险画像参与执行策略，远端注解不能自动降低风险。
 
@@ -1285,10 +1294,22 @@ S2 开放前必须关闭 FREE 派发、同构节点约束、分类领取／容�
 - 前端验证：请求／状态测试、真实浏览器流程、工作空间隔离、流式与滚动验收。
 - 每阶段记录代码版本、环境、执行命令、通过范围及未运行项；文档中的测试计划不计作通过。
 
-### 15.4 本次文档调整范围
+### 15.4 当前实施范围与批次验收
 
-本次仅形成新功能需求与设计，并在相关文档加入一致的范围说明。没有新增
-Java／TypeScript、配置、SQL、菜单或权限数据；没有启动应用、连接数据库、调用模型／工具或执行测试。所有 S1—S6 仍待实现与验收。
+S1-01 已完成四类工具值对象及契约测试，代码位于 backend/arte-ai/src/main/java/com/arte/ainew/pojo/tool，复用现有
+DefinitionRef、StructuredValue、CapabilityDescriptor 和 ContractChecks。
+
+- 固定引用类型、稳定工具 ID、声明长度和集合上限；集合及配置树不可变。
+- 只读不能同时为破坏性操作；写入／外部副作用至少本人确认，破坏性或未知风险至少独立审批；发布策略仍需识别重要外部副作用并提高要求，未知风险不因满足结构约束而可执行。
+- 工具仅声明适用的通用能力；ASYNC_TASK 必须同时支持 TASK_QUERY。业务结果核对与远端任务查询分别表达。
+- 策略使用有界总期限、尝试次数、退避和字节限制；尝试上限不授予安全重试资格，当前授权、剩余期限及实际派发事实仍由后续运行时检查。
+- Schema 仅保存固定引用；checksum 仅校验 SHA-256 声明格式，未验证内容、默认配置或摘要真实性。
+
+验证：使用 JDK 21 完成模块编译及 com.arte.ainew.contract.*Test 共 37 项测试（新增 18 项、既有 19
+项），全部通过。没有运行全量测试、启动应用、连接数据库、调用模型／工具或完成性能、浏览器及生产环境验收。命令和完整边界见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)。
+
+本批没有新增配置、SQL、菜单、权限数据或前端代码，也未更改现有 TOOL 输入／结果、生成和内部存储编码。S1-02（Schema 校验）及以后批次仍待实现；S1
+阶段整体尚未完成。
 
 ### 15.5 原子需求与双向追踪
 
@@ -1364,7 +1385,8 @@ AC-28／35。所有验收编号都必须在实际验证记录中注明对应需�
 | [通用调用 HTTP](backend/arte-ai/INVOCATION_HTTP_API.md)                                                             | 状态、结果、取消、事件与快照查询                 |
 | [ToolGateway](backend/arte-ai/src/main/java/com/arte/ainew/spi/gateway/ToolGateway.java)                            | 现有单次工具网关契约                             |
 | [BusinessToolAdapter](backend/arte-ai/src/main/java/com/arte/ainew/spi/adapter/BusinessToolAdapter.java)            | 现有领域工具适配契约                             |
-| [TOOL 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/tool)                                               | 现有 ToolInvocation 和 ToolResult                |
+| [TOOL 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/tool)                                               | 调用／结果及 S1-01 新增的定义、风险、能力与策略  |
+| [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)                                                             | 各批次实际完成范围、验证证据及未运行项           |
 | [控制面值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/control)                                           | 能力、绑定和 HTTP 连接的当前结构                 |
 | [受理实现](backend/arte-ai/src/main/java/com/arte/ainew/application/execution/AdmissionInvocationCoordinator.java)  | 当前生成专属准入限制                             |
 | [生成派发](backend/arte-ai/src/main/java/com/arte/ainew/application/execution/GenerationDispatcher.java)            | 当前生成执行与输出限制                           |
