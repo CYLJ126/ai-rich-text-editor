@@ -57,7 +57,7 @@ public class SearchConfigurationTest {
     }
 
     @Test
-    public void shippedPropertiesEnableInitializationWithoutEnablingQueriesOrScanning() throws Exception {
+    public void shippedPropertiesEnableInitializationQueriesAndSynchronization() throws Exception {
         var properties = new java.util.Properties();
         try (var stream = getClass().getResourceAsStream("/ainew/config/conversation-search.properties")) {
             properties.load(stream);
@@ -70,10 +70,10 @@ public class SearchConfigurationTest {
             assertTrue(actual.enabled());
             assertTrue(actual.initializeOnStartup());
             assertEquals("conversation-search-v2-g01", actual.sync().generation());
-            assertFalse(actual.queryEnabled());
-            assertFalse(actual.scanEnabled());
-            assertFalse(actual.backfillEnabled());
-            assertFalse(actual.reconcileEnabled());
+            assertTrue(actual.queryEnabled());
+            assertTrue(actual.scanEnabled());
+            assertTrue(actual.backfillEnabled());
+            assertTrue(actual.reconcileEnabled());
         }
     }
 

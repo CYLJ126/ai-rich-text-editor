@@ -1,15 +1,19 @@
 # 会话搜索启动初始化
 
-MySQL 四表迁移需先执行；应用不执行 SQL DDL。用户已确认执行该脚本，本轮未复核业务库。正式 ES 索引、业务回填及查询未在本轮自动启用。
+MySQL 四表迁移需先执行；应用不执行 SQL DDL。用户已确认执行该脚本，本轮未复核业务库。当前部署配置默认开启初始化、查询和后台同步，重新构建并启动后生效；本次配置修改未重启业务实例。
 
 ## 首次初始化
 
-`backend/profile/app.properties` 和 `.example` 已默认开启搜索主开关及启动初始化，默认物理代际为
-`conversation-search-v2-g01`；修改后需重新构建资源并启动应用。查询／扫描开关保持 false。以下环境变量可覆盖部署配置：
+`backend/profile/app.properties` 和 `.example` 已默认开启搜索主开关、启动初始化、查询、扫描、历史回填和定期校准，默认物理代际为
+`conversation-search-v2-g01`；修改后需重新构建资源并启动应用。以下环境变量可覆盖部署配置：
 
 ```bash
 export ARTE_AI_NEW_SEARCH_ENABLED=true
 export ARTE_AI_NEW_SEARCH_INITIALIZE_ON_STARTUP=true
+export ARTE_AI_NEW_SEARCH_QUERY_ENABLED=true
+export ARTE_AI_NEW_SEARCH_SCAN_ENABLED=true
+export ARTE_AI_NEW_SEARCH_BACKFILL_ENABLED=true
+export ARTE_AI_NEW_SEARCH_RECONCILE_ENABLED=true
 export ARTE_AI_NEW_SEARCH_GENERATION=conversation-search-v2-g01
 ```
 
@@ -22,10 +26,10 @@ AI 主开关 `arte.ai-new.enabled` 也须已开启；依赖使用现有的 Elast
 arte.ai-new-search.enabled=true
 arte.ai-new-search.initialize-on-startup=true
 arte.ai-new-search.sync.generation=conversation-search-v2-g01
-arte.ai-new-search.query-enabled=false
-arte.ai-new-search.scan-enabled=false
-arte.ai-new-search.backfill-enabled=false
-arte.ai-new-search.reconcile-enabled=false
+arte.ai-new-search.query-enabled=true
+arte.ai-new-search.scan-enabled=true
+arte.ai-new-search.backfill-enabled=true
+arte.ai-new-search.reconcile-enabled=true
 ```
 
 ApplicationReady 后后台依次核验／创建索引、登记 MySQL 代际和检查点、补齐别名。成功日志为
@@ -38,7 +42,7 @@ v2；部署应按实际固定版本配置。副本数可由运维调整，不作
 
 ## 初始化后
 
-需要持续同步时按部署配置开启 `scan-enabled=true` 和 `reconcile-enabled=true`；如仅做一次历史回填，可单独开启
+当前默认通过 `scan-enabled=true` 和 `reconcile-enabled=true` 持续同步；如仅做一次历史回填，可关闭扫描和校准并单独开启
 `backfill-enabled=true`，完成后自动停止。初始化先完成，扫描才启动。查询开关单独控制，开放前按 S5
 部署交接验证灰度范围、权限及新鲜度；搜索不等待全历史回填。
 
@@ -56,7 +60,7 @@ v2；部署应按实际固定版本配置。副本数可由运维调整，不作
 - ES 权限须覆盖版本与节点插件信息读取、索引定义读取、创建索引及维护别名；MySQL 账号需能使用命名锁并读写已迁移的四表。初始化不执行表结构迁移。
 
 部署文件中的主／初始化开关现已默认开启，可由对应环境变量覆盖；Java
-配置类型的缺省值仍为关闭。查询和扫描开关保持独立关闭；本轮未重启正式实例，代码变更和隔离验证不等于正式部署或搜索灰度完成。
+配置类型的缺省值仍为关闭。查询和后台同步开关独立配置，部署默认开启；本轮未重启正式实例，代码变更和隔离验证不等于正式部署或搜索灰度完成。
 
 ## 验证入口
 

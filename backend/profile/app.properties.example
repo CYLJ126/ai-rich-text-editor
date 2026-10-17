@@ -272,8 +272,12 @@ arte.ai-new-execution.retry.max-attempts=3
 arte.ai-new-execution.retry.initial-backoff=1s
 arte.ai-new-execution.retry.max-backoff=10s
 
-# Conversation search startup initialization. Apply the search MySQL migration before startup.
-# Query and background scan switches are controlled separately in conversation-search.properties.
+# Conversation search. Apply the search MySQL migration before startup.
+# Initialize the index, expose queries, and keep historical/new conversations synchronized.
 arte.ai-new-search.enabled=${ARTE_AI_NEW_SEARCH_ENABLED:true}
 arte.ai-new-search.initialize-on-startup=${ARTE_AI_NEW_SEARCH_INITIALIZE_ON_STARTUP:true}
+arte.ai-new-search.query-enabled=${ARTE_AI_NEW_SEARCH_QUERY_ENABLED:true}
+arte.ai-new-search.scan-enabled=${ARTE_AI_NEW_SEARCH_SCAN_ENABLED:true}
+arte.ai-new-search.backfill-enabled=${ARTE_AI_NEW_SEARCH_BACKFILL_ENABLED:true}
+arte.ai-new-search.reconcile-enabled=${ARTE_AI_NEW_SEARCH_RECONCILE_ENABLED:true}
 arte.ai-new-search.sync.generation=${ARTE_AI_NEW_SEARCH_GENERATION:conversation-search-v2-g01}
