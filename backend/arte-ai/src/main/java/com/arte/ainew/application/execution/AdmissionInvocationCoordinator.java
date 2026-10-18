@@ -27,12 +27,15 @@ import java.util.List;
 
 /**
  * 第 1～3 步的可靠受理协调；只在真实受理事务成功后返回回执，派发／控制尚未启用。
+ * <p>
+ * admission 意为“准入与可靠受理”。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
 @Slf4j
 public final class AdmissionInvocationCoordinator implements InvocationCoordinator {
+
     private final AdmissionAuthorization admissionAuthorization;
     private final CapabilityCatalog capabilityCatalog;
     private final BindingManager bindingManager;
