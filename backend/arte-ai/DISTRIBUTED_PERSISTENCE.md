@@ -38,6 +38,16 @@ UNKNOWN 继续占据门闩直至核对收敛。有耐久用户取消标记的 GE
 只释放会话，结果及预算继续待对账；旧门闩由下一轮受理事务核对后清理。释放按原 activeInvocation 条件更新，旧调用的迟到完成不能解除新调用。
 `findConversation` 和 `findTurn` 提供当前受理快照，不替代完整会话编辑／删除服务。
 
+S2-03 新增 `MybatisToolAdmissionStore`：编码及 8 MiB 快照字节检查在持锁前完成，写事务中先执行当前宿主资格复核， 再锁
+owner＋稳定绑定＋幂等键，复核工具／绑定治理，调用同步同事务的通用 accept，最后写一对一快照。 通用受理的 Invocation、capability
+防重索引、首事件、DISPATCH／EVENT Outbox 与 TOOL 快照共用同一物理 DataSource 和工作线程， 不得用两个异步 Store
+提交模拟原子性；构造时拒绝不同数据源。快照失败全部回滚，原事件与派发唤醒仅在外层事务提交后触发。
+新受理固定总期限，持锁等待计入总期限；快照、字节／元数据／执行摘要损坏均 onError，不降级为空或重新受理。
+
+额外 owner＋稳定绑定＋key 索引用于先找到原快照，避免 follow-compatible 选版或改配置后同意图重放冲突；不改变原
+owner＋capability.id＋key 防重围栏。重放重新检查当前宿主资格和原固定方案治理，不写第二条快照或 Outbox，也不重置原期限。
+当前宿主权限端口没有默认允许实现，内部受理不自动装配；Worker TOOL 路由尚未接线，不能向当前生成 Worker 投递这类工作项。
+
 ## 2. Worker 与崩溃恢复
 
 1. 准入层完成当前授权、Schema、固定引用、上下文快照与规范化摘要验证，调用 accept。成功提交后才生成 AcceptedExecution。
@@ -136,3 +146,10 @@ mvn -o -pl arte-ai -am \
 新测试使用两个独立适配器共享 H2 MySQL 模式数据库，覆盖并发受理、会话门闩／重新生成、CAS、过期 Worker、安全重试／未知结果核对、跨实例事件序号、输出上限、第二条事件写入失败回滚、终态／结果／Outbox 回滚、发布者崩溃重领、游标过期、预算并发不足、待对账、重复结算、超额实费及账本故障回滚。另有独立工厂隔离、同事务多 Mapper 回滚、数据库时钟／锁查询不走缓存和错误 Scheduler 拒绝测试；旧插件测试验证 JDBC 实际绑定、多行 INSERT、BATCH／REUSE、忽略作用域、解析失败、创建人写保护及 MyBatis-Plus 分页／乐观锁兼容性。MyBatis 迁移阶段的 77 项相关回归及应用编译已通过；本次 DDL 调整验证了 26 项存储测试，包括装配阶段不访问数据库、不执行 DDL 的验证。H2 契约测试不能替代部署环境中的 MySQL 驱动、隔离级别、锁竞争和故障切换验证。
 
 旧业务插件的策略、兼容性变化及使用示例见 [MyBatis 拦截器说明](../arte-core/MYBATIS_INTERCEPTORS.md)。新 AI 的 owner 校验和数据库并发协议不依赖这些旧插件。
+
+S2-03 新环境已合入基线，已有 S1 工具及通用执行表的环境使用
+[arte-ai-tool-admission-migration.sql](scripts/arte-ai-tool-admission-migration.sql) 新增一张快照表。 表的 `snapshot`
+／Java `snapshot` 沿用 S1 TOOL 表命名，非生成 `workspace_snapshot`／`contextSnapshotId`；根别名为
+`tool-execution-snapshot` v1。运行时不执行 DDL，脚本仅复制到测试资源；部署须停写、备份、确认目标表不存在及 MySQL 8 的
+FK／唯一键／锁语义。
+本批未连接或修改业务数据库，不能直接开启生产调用。验证和明确的未实现项见 [TOOL 实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。

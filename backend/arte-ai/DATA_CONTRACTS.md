@@ -29,6 +29,13 @@
 
 日期：2026-10-04。适用于 `com.arte.ainew` 的首批数据声明；存储和预算方法及 MyBatis 事务实现见 [分布式存储与预算契约](DISTRIBUTED_PERSISTENCE.md)，调用方法声明见 [AI 调用接口契约](INVOCATION_API_CONTRACTS.md)，模型调用及 HTTP API 尚未接入。
 
+S2-03 实施同步：新增 `ToolAdmissionInput` 和耐久 `ToolExecutionSnapshot`，新增根别名
+`tool-execution-snapshot`（严格整数 schemaVersion=1），不改变旧执行／生成快照的编码。 v1
+仅表达独立本地免费只读调用：原始意图、实际请求、固定绑定方案、完整收紧策略、最多三份去重 Schema 原文及接收时刻；无运行资源／Secret
+值。 快照按 Invocation ID 一对一保存，不使用生成专属 `Invocation.contextSnapshotId`。完整载荷摘要保护原期限与身份；
+意图摘要排除当前配置及随机身份，执行摘要固定实际版本／配置／Schema／权限上限／相对超时策略。 当前授权与治理仍须重验，快照不授予执行权。内部受理尚未接入
+HTTP／Worker，详见 [实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+
 ## 1. 所有权、关系与实现范围
 
 ```text

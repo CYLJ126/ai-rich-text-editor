@@ -56,6 +56,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
         ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore {
 
+    private final DataSource dataSource;
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
@@ -86,6 +87,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler,
                                        Runnable eventWakeup, Runnable dispatchWakeup) {
+        this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.eventWakeup = Objects.requireNonNull(eventWakeup, "eventWakeup");
         this.dispatchWakeup = Objects.requireNonNull(dispatchWakeup, "dispatchWakeup");
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(Objects.requireNonNull(dataSource, "dataSource")));
@@ -129,7 +131,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return tx(work).onErrorResume(Rejected.class, e -> Mono.just(StoreOutcome.rejected(e.code)));
     }
 
-    private static final class Rejected extends RuntimeException {
+    static final class Rejected extends RuntimeException {
         final StoreOutcome.Code code;
 
         Rejected(StoreOutcome.Code code) {
@@ -445,91 +447,106 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     @Override
     public Mono<StoreOutcome<Invocation>> accept(Accept command) {
         Objects.requireNonNull(command, "command");
-        return outcome(() -> {
-            var candidate = command.invocation();
-            var owner = ExecutionOwner.from(candidate.request().context());
-            var capability = candidate.request().capability();
-            var scope = hash(ownerKey(owner), capability.id());
-            var key = hash(candidate.request().context().idempotencyKey());
-            lock(hash("acceptance", scope, key));
-            var existing = execution.acceptance(scope, key);
-            if (!existing.isEmpty()) {
-                require(candidate.requestDigest().equals(existing.getFirst().requestDigest()), IDEMPOTENCY_CONFLICT);
-                return StoreOutcome.replayed(workspaceSnapshot(execution.invocationSnapshot(existing.getFirst().invocationKey(), false), Invocation.class));
-            }
-            require(candidate.request().options().deadline().isAfter(now()), INVALID_STATE);
-            lock(hash("invocation-id", id(candidate)));
-            require(workspaceSnapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
-            var link = candidate.conversation();
-            if (link != null) {
-                var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
-                require(conversation != null, NOT_FOUND);
-                require(conversation.owner().equals(owner), OWNER_MISMATCH);
-                require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
-                var row = admission.conversationGate(hash(link.conversationId()));
-                require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
-                if (row.activeInvocation() != null) {
-                    // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
-                    var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
-                    require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
-                            && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
-                            && userStoppedGeneration(stopped), CONVERSATION_BUSY);
-                    require(admission.releaseConversation(hash(link.conversationId()), row.activeInvocation()) == 1, CONVERSATION_BUSY);
-                }
-                var turn = command.turn();
-                lock(hash("turn-id", turn.turnId()));
-                var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), Turn.class);
-                if (oldTurn == null) {
-                    require(candidate.replacesInvocationId() == null, INVALID_STATE);
-                    require(turn.version() == 0 && turn.selectedInvocationId() == null
-                            && turn.invocationIds().equals(List.of(id(candidate))), VERSION_CONFLICT);
-                    long maximum = admission.maximumTurnSequence(hash(link.conversationId()));
-                    require(turn.sequence() == Math.addExact(maximum, 1), VERSION_CONFLICT);
-                    require(admission.countTurnSequence(hash(link.conversationId()), turn.sequence()) == 0, VERSION_CONFLICT);
-                    admission.insertTurn(hash(turn.turnId()), hash(link.conversationId()), turn.sequence(), codec.encode(turn));
-                } else {
-                    require(candidate.replacesInvocationId() != null
-                            && oldTurn.invocationIds().contains(candidate.replacesInvocationId())
-                            && oldTurn.sequence() == admission.maximumTurnSequence(hash(link.conversationId())), INVALID_STATE);
-                    var source = workspaceSnapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
-                    require(source != null && ExecutionOwner.from(source.request().context()).equals(owner)
-                                    && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
-                                    && source.conversation().conversationId().equals(link.conversationId())
-                                    && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN || userStoppedGeneration(source)),
-                            RECONCILIATION_REQUIRED);
-                    require(source.request().kind() == candidate.request().kind()
-                            && source.request().capability().equals(candidate.request().capability())
-                            && source.request().binding().equals(candidate.request().binding())
-                            && source.request().input().equals(candidate.request().input())
-                            && Objects.equals(source.request().context().budgetRef(), candidate.request().context().budgetRef()), INVALID_STATE);
-                    require(oldTurn.conversationId().equals(turn.conversationId()) && oldTurn.sequence() == turn.sequence()
-                            && turn.version() == oldTurn.version() + 1 && oldTurn.userMessage().equals(turn.userMessage())
-                            && Objects.equals(oldTurn.parentTurnId(), turn.parentTurnId())
-                            && Objects.equals(oldTurn.supersedesTurnId(), turn.supersedesTurnId())
-                            && turn.invocationIds().size() == oldTurn.invocationIds().size() + 1
-                            && turn.invocationIds().subList(0, oldTurn.invocationIds().size()).equals(oldTurn.invocationIds())
-                            && turn.invocationIds().getLast().equals(id(candidate))
-                            && turn.createdAt().equals(oldTurn.createdAt())
-                            && Objects.equals(turn.selectedInvocationId(), oldTurn.selectedInvocationId() != null
-                            ? oldTurn.selectedInvocationId() : oldTurn.invocationIds().getLast()), VERSION_CONFLICT);
-                    admission.saveTurn(codec.encode(turn), hash(turn.turnId()));
-                }
-                var title = oldTurn == null ? conversationMetadata.userMessage(conversation, turn) : conversation.title();
-                var updatedConversation = new Conversation(conversation.conversationId(), conversation.owner(), title,
-                        Math.addExact(link.conversationVersion(), 1), conversation.chatProfile(), conversation.resources(),
-                        conversation.state(), conversation.createdAt(), conversationUpdateTime(conversation));
-                admission.advanceConversation(updatedConversation.version(), hash(id(candidate)), codec.encode(updatedConversation), hash(link.conversationId()));
-            }
-            var acceptedAt = now();
-            var accepted = new Invocation(candidate.request(), candidate.requestDigest(), link, candidate.contextSnapshotId(),
-                    candidate.replacesInvocationId(), Invocation.State.ACCEPTED, 0, null, null, null, acceptedAt, acceptedAt);
-            execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted));
-            execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
-            event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
-            outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
-            return StoreOutcome.applied(accepted);
-        });
+        return outcome(() -> acceptLocked(command));
     }
+
+    /**
+     * 同库 TOOL 受理复用通用提交，不切线程、不另开事务；保留原生成受理与回滚语义。
+     */
+    StoreOutcome<Invocation> acceptInCurrentTransaction(Accept command) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.hasResource(dataSource))
+            throw new IllegalStateException("Acceptance requires its physical transaction");
+        return acceptLocked(command);
+    }
+
+    private StoreOutcome<Invocation> acceptLocked(Accept command) {
+        var candidate = command.invocation();
+        var owner = ExecutionOwner.from(candidate.request().context());
+        var capability = candidate.request().capability();
+        var scope = hash(ownerKey(owner), capability.id());
+        var key = hash(candidate.request().context().idempotencyKey());
+        lock(hash("acceptance", scope, key));
+        var existing = execution.acceptance(scope, key);
+        if (!existing.isEmpty()) {
+            require(candidate.requestDigest().equals(existing.getFirst().requestDigest()), IDEMPOTENCY_CONFLICT);
+            return StoreOutcome.replayed(workspaceSnapshot(execution.invocationSnapshot(existing.getFirst().invocationKey(), false), Invocation.class));
+        }
+        require(candidate.request().options().deadline().isAfter(now()), INVALID_STATE);
+        lock(hash("invocation-id", id(candidate)));
+        require(workspaceSnapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
+        var link = candidate.conversation();
+        if (link != null) {
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
+            require(conversation != null, NOT_FOUND);
+            require(conversation.owner().equals(owner), OWNER_MISMATCH);
+            require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
+            var row = admission.conversationGate(hash(link.conversationId()));
+            require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
+            if (row.activeInvocation() != null) {
+                // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
+                var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
+                require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
+                        && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
+                        && userStoppedGeneration(stopped), CONVERSATION_BUSY);
+                require(admission.releaseConversation(hash(link.conversationId()), row.activeInvocation()) == 1, CONVERSATION_BUSY);
+            }
+            var turn = command.turn();
+            lock(hash("turn-id", turn.turnId()));
+            var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), Turn.class);
+            if (oldTurn == null) {
+                require(candidate.replacesInvocationId() == null, INVALID_STATE);
+                require(turn.version() == 0 && turn.selectedInvocationId() == null
+                        && turn.invocationIds().equals(List.of(id(candidate))), VERSION_CONFLICT);
+                long maximum = admission.maximumTurnSequence(hash(link.conversationId()));
+                require(turn.sequence() == Math.addExact(maximum, 1), VERSION_CONFLICT);
+                require(admission.countTurnSequence(hash(link.conversationId()), turn.sequence()) == 0, VERSION_CONFLICT);
+                admission.insertTurn(hash(turn.turnId()), hash(link.conversationId()), turn.sequence(), codec.encode(turn));
+            } else {
+                require(candidate.replacesInvocationId() != null
+                        && oldTurn.invocationIds().contains(candidate.replacesInvocationId())
+                        && oldTurn.sequence() == admission.maximumTurnSequence(hash(link.conversationId())), INVALID_STATE);
+                var source = workspaceSnapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
+                require(source != null && ExecutionOwner.from(source.request().context()).equals(owner)
+                                && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
+                                && source.conversation().conversationId().equals(link.conversationId())
+                                && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN || userStoppedGeneration(source)),
+                        RECONCILIATION_REQUIRED);
+                require(source.request().kind() == candidate.request().kind()
+                        && source.request().capability().equals(candidate.request().capability())
+                        && source.request().binding().equals(candidate.request().binding())
+                        && source.request().input().equals(candidate.request().input())
+                        && Objects.equals(source.request().context().budgetRef(), candidate.request().context().budgetRef()), INVALID_STATE);
+                require(oldTurn.conversationId().equals(turn.conversationId()) && oldTurn.sequence() == turn.sequence()
+                        && turn.version() == oldTurn.version() + 1 && oldTurn.userMessage().equals(turn.userMessage())
+                        && Objects.equals(oldTurn.parentTurnId(), turn.parentTurnId())
+                        && Objects.equals(oldTurn.supersedesTurnId(), turn.supersedesTurnId())
+                        && turn.invocationIds().size() == oldTurn.invocationIds().size() + 1
+                        && turn.invocationIds().subList(0, oldTurn.invocationIds().size()).equals(oldTurn.invocationIds())
+                        && turn.invocationIds().getLast().equals(id(candidate))
+                        && turn.createdAt().equals(oldTurn.createdAt())
+                        && Objects.equals(turn.selectedInvocationId(), oldTurn.selectedInvocationId() != null
+                        ? oldTurn.selectedInvocationId() : oldTurn.invocationIds().getLast()), VERSION_CONFLICT);
+                admission.saveTurn(codec.encode(turn), hash(turn.turnId()));
+            }
+            var title = oldTurn == null ? conversationMetadata.userMessage(conversation, turn) : conversation.title();
+            var updatedConversation = new Conversation(conversation.conversationId(), conversation.owner(), title,
+                    Math.addExact(link.conversationVersion(), 1), conversation.chatProfile(), conversation.resources(),
+                    conversation.state(), conversation.createdAt(), conversationUpdateTime(conversation));
+            admission.advanceConversation(updatedConversation.version(), hash(id(candidate)), codec.encode(updatedConversation), hash(link.conversationId()));
+        }
+        var acceptedAt = now();
+        var accepted = new Invocation(candidate.request(), candidate.requestDigest(), link, candidate.contextSnapshotId(),
+                candidate.replacesInvocationId(), Invocation.State.ACCEPTED, 0, null, null, null, acceptedAt, acceptedAt);
+        execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted));
+        execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
+        event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
+        outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
+        return StoreOutcome.applied(accepted);
+    }
+
+    boolean uses(DataSource source) {
+        return dataSource == source; }
 
     @Override
     public Mono<List<ExecutionReadStore.Snapshot>> snapshots(ExecutionOwner owner, List<String> invocationIds) {

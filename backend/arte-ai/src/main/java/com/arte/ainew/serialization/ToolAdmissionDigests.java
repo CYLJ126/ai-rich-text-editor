@@ -1,0 +1,51 @@
+package com.arte.ainew.serialization;
+
+import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.pojo.tool.ToolAdmissionInput;
+import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
+import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+
+import java.util.Comparator;
+import java.util.TreeSet;
+
+/**
+ * TOOL 业务意图与实际执行材料分别求摘要；新 ID、trace、授权刷新及接收时刻不造成幂等冲突。
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/10/18 16:30 ✾
+ */
+public final class ToolAdmissionDigests {
+    private ToolAdmissionDigests() {
+    }
+
+    /**
+     * 重放定位后的语义比较不重新选择绑定版本，也不比较当前服务器默认策略。
+     */
+    public static String submission(ExecutionOwner owner, ToolAdmissionInput input) {
+        return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-submission-v1", "owner", owner,
+                "bindingId", input.bindingId(), "arguments", ToolCatalogDigests.configuration(input.arguments()),
+                "requestedTimeout", input.requestedTimeout(), "maxAttempts", input.maxAttempts(), "maxOutputBytes", input.maxOutputBytes()));
+    }
+
+    /**
+     * 固定实际版本、Schema、配置、策略及执行权限上限；绝对期限由快照载荷完整性保护。
+     */
+    public static String request(ToolExecutionSnapshot snapshot) {
+        var request = snapshot.request();
+        var plan = snapshot.binding();
+        return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-execution-v1",
+                "submission", submission(ExecutionOwner.from(request.context()), snapshot.input()),
+                "binding", plan.definition(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
+                "policy", snapshot.policy(), "target", plan.tool().target(), "capability", request.capability(),
+                "tool", request.input().tool(), "callId", request.input().callId(), "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
+                "schemas", snapshot.schemas().stream().sorted(Comparator.comparing((ToolSchemaDefinition s) -> s.definition().id())
+                                .thenComparing(s -> s.definition().version()))
+                        .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                "maxAttempts", request.options().maxAttempts(), "maxOutputBytes", request.options().maxOutputBytes(),
+                "timeout", request.options().requestedTimeout()));
+    }
+
+    public static String callId(ExecutionOwner owner, String bindingId, String idempotencyKey) {
+        return CanonicalJson.key("tool-call", owner.tenantId(), owner.workspaceId(), owner.subjectId(), bindingId, idempotencyKey);
+    }
+}

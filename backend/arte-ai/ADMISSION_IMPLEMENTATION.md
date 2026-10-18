@@ -7,6 +7,12 @@ Outbox。成功受理后状态为 ACCEPTED。第 4 步的模型网关可独立�
 Worker 和完整生成闭环另行开启，见 [异步执行](EXECUTION_IMPLEMENTATION.md)。对外入口见 [聊天 HTTP API](CHAT_HTTP_API.md)
 ，费用核对见 [预算 HTTP API](BUDGET_HTTP_API.md)。
 
+S2-03 新增内部 `ToolAdmissionService`：对独立本地免费只读工具执行固定解析、Schema 校验、当前宿主授权及可靠受理， 以同库事务提交
+TOOL 执行快照、通用 Invocation、首事件和 DISPATCH Outbox，支持基于原快照的幂等重放。 本组件没有自动装配或公开 HTTP；原生成协调器及
+Worker 仍只处理 GENERATION，尚不能对外调用 TOOL。 宿主须在现有身份／空间／权限基础上实现 `ToolAdmissionAccess`
+的预检和同事务复核，并在完成 TOOL 路由后接线。
+范围、部署与验证见 [TOOL 实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+
 ## TODO
 
 1. 后续把 arte.ai-new.grants 配置改到数据库配置，当前在配置文件中只是为了验证最小链路（不过配置文件也是能支持多主体的）。

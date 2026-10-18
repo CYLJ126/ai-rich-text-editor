@@ -22,6 +22,12 @@ Worker、派发与终态协调、预算生命周期、状态／结果／事件�
 ，执行状态／结果及单页事件重放见 [执行查询接口](INVOCATION_HTTP_API.md)，账户汇总见 [预算查询接口](BUDGET_HTTP_API.md)。实时
 watch、耐久控制及远端核对尚未实现。
 
+S2-03 新增内部 `ToolAdmissionService`：对独立本地免费只读工具执行固定解析、Schema 校验、当前宿主授权及可靠受理， 以同库事务提交
+TOOL 执行快照、通用 Invocation、首事件和 DISPATCH Outbox，支持基于原快照的幂等重放。 本组件没有自动装配或公开 HTTP；原生成协调器及
+Worker 仍只处理 GENERATION，尚不能对外调用 TOOL。 宿主须在现有身份／空间／权限基础上实现 `ToolAdmissionAccess`
+的预检和同事务复核，并在完成 TOOL 路由后接线。
+范围、部署与验证见 [TOOL 实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+
 ## 1. 最小生成链路
 
 ```text

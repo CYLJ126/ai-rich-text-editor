@@ -1,16 +1,16 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-18。
-> 文档版本：V0.2（评审修订，S2-02 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
-> 原子派发准备及 S2-02 本地只读网关完成。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
+> 文档版本：V0.2（评审修订，S2-03 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
+> 原子派发准备、S2-02 本地只读网关及 S2-03 内部可靠受理／执行快照完成。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
 > API；
 > 面向用户的 TOOL 受理／Worker 执行闭环、默认绑定、审批、工具聊天、远端治理和前端仍待后续批次。
-> 实际数据库未部署 S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义脚本；TOOL 默认关闭，性能数值是验收目标，不是实测结果。
+> 实际数据库未部署 S1-04／S1-06／S1-07／S1-08／S2-03 增量及 TOOL RBAC 定义脚本；TOOL 默认关闭，性能数值是验收目标，不是实测结果。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08、S2-01／02
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08、S2-01／02／03
 > 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。当前已有工具值对象、Schema
 > 校验、类型化目标、底层目录版本存储／部署脚本、显式本地发现、生命周期治理、私有绑定管理／固定解析和 16
 > 个管理接口；接口须两个开关共同开启，尚无实际工具执行入口。验证包含本机受控
@@ -59,16 +59,16 @@ Agent／Workflow 引擎、Skill 平台、远程应用平台和通用 Secret 管�
 
 ### 1.3 arte_dev 现有基础及本功能增量
 
-| 领域           | 现有基础                                                                                                                    | 本功能所需增量                                             |
-|----------------|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
-| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S2-02 新增本地只读 DefaultToolGateway 及 LocalToolCall | 可靠受理／派发接线、宿主执行授权、实际业务及远端适配       |
-| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog；S1-02 独立 TOOL Schema 校验器    | Schema 目录接线及绑定解析；按能力区分生成与工具校验        |
-| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                                      | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
-| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                                       | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
-| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                                    | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
-| 预算与费用     | 账户、预留、结算、待核对及预算查询；S2-01 增加 FREE／CHARGE 原子派发准备                                                    | 工具受理时解析可信计费策略；多次模型调用累计计费           |
-| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                            | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
-| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                               | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
+| 领域           | 现有基础                                                                                                                    | 本功能所需增量                                                   |
+|----------------|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
+| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S2-02 新增本地只读 DefaultToolGateway 及 LocalToolCall | S2-03 内部受理已实现；派发接线、宿主执行授权、实际业务及远端适配 |
+| 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog；S1-02 独立 TOOL Schema 校验器    | Schema 目录接线及绑定解析；按能力区分生成与工具校验              |
+| 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                                      | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调                  |
+| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                                       | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具       |
+| 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                                    | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查               |
+| 预算与费用     | 账户、预留、结算、待核对及预算查询；S2-01 增加 FREE／CHARGE 原子派发准备                                                    | 工具受理时解析可信计费策略；多次模型调用累计计费                 |
+| 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                            | 协议工具字段、增量参数组装、结果回传及多步持久化推进             |
+| 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                               | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪              |
 
 现有 DeepSeek 适配器、固定控制目录及生成终态校验仍限制工具；ChatHistoryLoader 当前加载纯文本回答。本文不会因为存在 TOOL
 枚举、结果编码或接口而宣称这些限制已经解除。
@@ -213,7 +213,7 @@ S1-08 已接入当前授权和本地管理 HTTP API。远端发现、提供者�
 | ToolExecutionPolicy    | 总期限、含首次的尝试上限、最低退避、输入／输出字节上限及最低人工控制模式                                  |
 | ToolRelease            | 已实现治理状态、乐观版本、不可变首次发布材料、兼容前驱及废弃截止；不承载本次调用参数                      |
 | ToolBindingDefinition  | 稳定 bindingId、真实 Scope 与主体、基准工具版本、版本策略、非敏感配置、Secret 引用、策略及行版本          |
-| ToolExecutionSnapshot  | 受理时的实际工具／绑定引用、有效配置、策略、Schema 摘要、适配与连接版本及请求摘要                         |
+| ToolExecutionSnapshot  | S2-03 已实现 v1 独立本地免费只读快照：原始意图、实际请求、固定绑定／配置／策略、Schema 原文及接收时刻     |
 | ToolApproval           | invocationId、操作摘要、模式、允许决策规则、决定者、状态、到期时间及版本                                  |
 | ToolSetSnapshot        | 当前任务允许的工具映射、配置引用及收紧策略；不含可执行回调或 Secret 值                                    |
 | ToolChatRun            | 工具聊天的多步推进、固定输入、模型与工具子 Invocation、检查点、期限、限额及最终回答引用                   |
@@ -261,9 +261,21 @@ S1-07 已实现两类不同的固定绑定引用：管理修订为 `binding/{bin
 解析材料为 `binding/{bindingId}/p1-{内容摘要}`，固定实际工具、提供方／执行目标、发布契约摘要、合并配置及摘要、有效策略和外发范围。
 同一修订与实际计划重复解析复用同一材料；新兼容版本或有效服务器约束改变时产生不同材料，不改变 rN。
 
-解析材料是可复用控制面工件，不包含 arguments、Invocation 身份、当前授权或费用资格，不能替代 S2 的 ToolExecutionSnapshot。 S2
-受理须把本次实际解析结果及参数固定到 Invocation；重放和派发只按原 p1 引用读取，不重新执行 follow-compatible。 固定读取仍检查当前
+解析材料是可复用控制面工件，不包含 arguments、Invocation 身份、当前授权或费用资格，不能替代 ToolExecutionSnapshot。 S2-03
+已将本次实际解析结果及参数固定到 Invocation 和一对一执行快照；重放和派发只按原 p1 引用读取，不重新执行 follow-compatible。
+固定读取仍检查当前
 owner、绑定启用、实际工具生命周期及当前服务器容量，不因工件存在而绕过撤销。
+
+S2-03 的 `ToolAdmissionInput` 只表达稳定 bindingId、原始参数及可选总时长／尝试数／输出上限；版本、配置和预算不能由调用方指定。
+`ToolExecutionSnapshot` v1 保存原始意图、实际 `InvocationRequest<ToolInvocation>`
+、完整固定绑定方案、当前受理上限求交后的完整策略（含输入上限和最低退避）、去重后的固定 Schema 原文／checksum 及
+receivedAt。独立免费只读资格由宿主 `ToolAdmissionAccess` 明确批准，不凭空 budgetRef 推断。 快照以 Invocation ID 一对一入库；
+`Invocation.contextSnapshotId` 保留生成上下文含义，TOOL 不占用它。
+
+幂等分为两种摘要：submissionDigest 比较 owner、稳定绑定、原始参数和请求上限；requestDigest 保护实际工具／p1 绑定、配置、策略、目标、
+Schema、权限上限及有效选项。随机 ID、trace、授权刷新时刻不造成冲突；完整载荷摘要另保护原绝对期限和所有已存字段。 重放先按
+owner＋稳定绑定＋key 定位原快照，当前授权通过后比较原始意图，再返回原 Invocation，不重新选版或延长期限。 通用
+owner＋capability.id＋key 的受理防重仍同时保留，换绑定不能绕开已有能力防重约束。
 
 ### 3.5 逻辑关系
 
@@ -365,7 +377,7 @@ S2-02 已实现内部本地只读网关：`GatewayCall<ToolInvocation>` → 当�
 | 现有不变量／代码位置                                                       | 计划变化与实施阶段                                     | 兼容及回归门槛                                                                                                      |
 |----------------------------------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | 原 ResolvedBinding 要求 connection；ConnectionDefinition 为 HTTP 连接      | S1-03 已完成类型化目标及兼容编码；目录接线仍待后续     | 生成保留原六字段配置及平台目录格式；旧远端形状解码为 REMOTE，新绑定快照显式 v2                                      |
-| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S1／S2 按 kind 分派 TOOL 控制及受理                    | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
+| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S2-03 独立 TOOL 内部受理；公开协调与路由待后续         | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
 | DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                     | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
 | ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                         | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
 | Invocation 当前无 WAITING_APPROVAL                                         | S3 增加非终态及 Attempt 前完成路径                     | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                                        |
@@ -756,8 +768,17 @@ S4，不在尚无允许集合时伪造影响清单。
 
 以上是语义顺序：新调用须完整预检；重放须重新检查当前读取与使用资格，并基于原快照比较请求语义，不因为后续兼容升级改变原请求。字段规范化不允许偷偷修改业务意图；需要人确认的规范化结果应在确认内容中展示。
 
-S2-02 不提供本节受理入口。后续受理须把 `ToolExecutionPolicy.timeout` 与入口上限求交，将包含排队／授权等待的总期限固定到
-`ExecutionOptions.deadline`；网关只收紧传入绝对期限，并附加从 Attempt 创建时刻计算的保护期限，不能据此宣称已完成受理总期限控制。
+S2-03 已实现内部 `ToolAdmissionService`／`ToolAdmissionStore`，仅受理独立、本地、免费、只读且无需审批的 TOOL。 参数／配置按固定
+Schema 验证，不补默认值；总期限从进入受理组件开始计算，取产品、当前服务器、请求时长及原上下文期限的交集， 预检、授权、持锁等待和后续队列／执行共用
+`ExecutionOptions.deadline`。新受理在事务内再次检查期限；历史回执重放保留原期限。 输入／输出及尝试数只可收紧，不创建 Attempt
+或预算预留，不执行工具。
+
+宿主许可须复用现有当前身份、空间、AI 使用资格、工具操作／资源权限与明确免费资格；预检后在同一物理写事务中再次检查并持有资格锁。
+同事务复核当前绑定／生命周期及实际选版，预检后选版或配置变化返回 `AI_TOOL_PLAN_CHANGED`；快照、通用受理索引、Invocation、
+ACCEPTED 事件和 DISPATCH／EVENT Outbox 一起提交，任何写入失败全部回滚，唤醒只发生在提交后。
+
+本批未提供宿主许可的默认允许实现，未自动装配受理服务或新增 HTTP，也未接入 Worker；当前 Worker 仍只处理 GENERATION。 后续必须先完成
+TOOL 能力路由和执行协调，再开放生产入口，避免已受理的 TOOL 被生成派发器消费。 网关保护期限继续只收紧已受理绝对期限，不能重新计时。
 
 ### 8.2 状态与结果
 
@@ -1275,34 +1296,36 @@ callId、traceId、观测时刻和后来产生的绝对到期时间。它只用�
 继续使用
 arte_ai_invocation、arte_ai_acceptance、arte_ai_attempt、arte_ai_result、arte_ai_event、arte_ai_operation、arte_ai_outbox，以及需要的预算和派发限额存储。
 
-审批等待、免费 TOOL、TOOL 结果及新事件均需补充对应存储约束和 codec；不复制工具专属执行租约和结果权威。列表投影可单独建索引，但必须能从权威记录重建。
+免费 TOOL 的派发准备、内部受理及快照已按 S2-01／03 扩展；审批等待、TOOL 结果及新事件仍需补充对应存储约束和
+codec；不复制工具专属执行租约和结果权威。列表投影可单独建索引，但必须能从权威记录重建。
 
 ### 13.2 必要新增存储计划
 
-S1-04 已交付三张目录表；S1-06 已交付两张治理表；S1-07 已交付四张绑定表；S1-08 已交付发现命令表及当前授权管理入口。其余为后续设计。脚本只在测试
+S1-04 已交付三张目录表；S1-06 已交付两张治理表；S1-07 已交付四张绑定表；S1-08 已交付发现命令表及当前授权管理入口；S2-03
+已交付内部执行快照表。其余为后续设计。脚本只在测试
 H2 执行，未在配置中的业务数据库创建表。
 
-| 候选表                              | 权威职责及必要约束                                                               |
-|-------------------------------------|----------------------------------------------------------------------------------|
-| arte_ai_tool_provider               | 已实现平台受管提供者不可变版本；身份及版本唯一。启停／同步权威待后续实现         |
-| arte_ai_tool_definition             | 固定工具定义、Schema 引用与执行适配；toolId + version 唯一、checksum 校验        |
-| arte_ai_tool_schema                 | 固定 Schema 内容、dialect、摘要及版本；引用唯一                                  |
-| arte_ai_tool_release                | 已实现当前生命周期、治理版本、首次发布材料和兼容前驱；条件更新及前驱唯一         |
-| arte_ai_tool_release_command        | 已实现管理防重及不可变审计回执；真实主体、原因、预检和原始领域决定同存           |
-| arte_ai_tool_binding                | 已实现私有 bindingId、真实 owner、当前修订、名称／启停投影及行版本，归属不可变   |
-| arte_ai_tool_binding_revision       | 已实现 binding/rN 的完整不可变配置、策略、启停及工具基线；只追加                 |
-| arte_ai_tool_binding_resolution     | 已实现 binding/p1-内容摘要固定解析材料，实际工具／配置／约束，不含调用参数       |
-| arte_ai_tool_binding_command        | 已实现 owner 范围管理防重及原始决定审计，与当前指针／修订原子提交                |
-| arte_ai_tool_discovery_command      | 已实现本地完整刷新防重及不可变审计，与本轮目录事实原子提交，不保存目录原文或秘密 |
-| arte_ai_tool_execution_snapshot     | invocationId、实际解析配置及摘要；同调用唯一、不可变                             |
-| arte_ai_tool_approval               | 调用、固定摘要、模式、决定、到期及版本；同调用同人工关卡唯一                     |
-| arte_ai_tool_chat_run               | 工具聊天的编排权威、版本、期限及推进租约                                         |
-| arte_ai_tool_chat_step              | Run 轮次／工具逻辑步骤及子 Invocation 映射，逻辑步骤唯一                         |
-| arte_ai_tool_chat_event             | Run 内连续 sequence 的耐久事件及唯一命令防重                                     |
-| arte_ai_tool_chat_budget            | runId + currency 的 L／C／H 和版本，必要时增加账户子上限                         |
-| arte_ai_tool_chat_budget_allocation | Run 子 Attempt 的唯一费用占用、预留及结算关联；原子防重                          |
-| arte_ai_tool_reconciliation         | 原 UNKNOWN 的查询次数、处理责任、状态及下一检查时间                              |
-| arte_ai_tool_outcome_evidence       | 原操作证据、结论、结果引用、审核及防重；不可原地覆盖                             |
+| 候选表                              | 权威职责及必要约束                                                                                         |
+|-------------------------------------|------------------------------------------------------------------------------------------------------------|
+| arte_ai_tool_provider               | 已实现平台受管提供者不可变版本；身份及版本唯一。启停／同步权威待后续实现                                   |
+| arte_ai_tool_definition             | 固定工具定义、Schema 引用与执行适配；toolId + version 唯一、checksum 校验                                  |
+| arte_ai_tool_schema                 | 固定 Schema 内容、dialect、摘要及版本；引用唯一                                                            |
+| arte_ai_tool_release                | 已实现当前生命周期、治理版本、首次发布材料和兼容前驱；条件更新及前驱唯一                                   |
+| arte_ai_tool_release_command        | 已实现管理防重及不可变审计回执；真实主体、原因、预检和原始领域决定同存                                     |
+| arte_ai_tool_binding                | 已实现私有 bindingId、真实 owner、当前修订、名称／启停投影及行版本，归属不可变                             |
+| arte_ai_tool_binding_revision       | 已实现 binding/rN 的完整不可变配置、策略、启停及工具基线；只追加                                           |
+| arte_ai_tool_binding_resolution     | 已实现 binding/p1-内容摘要固定解析材料，实际工具／配置／约束，不含调用参数                                 |
+| arte_ai_tool_binding_command        | 已实现 owner 范围管理防重及原始决定审计，与当前指针／修订原子提交                                          |
+| arte_ai_tool_discovery_command      | 已实现本地完整刷新防重及不可变审计，与本轮目录事实原子提交，不保存目录原文或秘密                           |
+| arte_ai_tool_execution_snapshot     | 已实现 invocation_key 一对一、owner＋稳定绑定＋key 唯一、意图／执行／载荷摘要及不可变快照；FK 关联通用调用 |
+| arte_ai_tool_approval               | 调用、固定摘要、模式、决定、到期及版本；同调用同人工关卡唯一                                               |
+| arte_ai_tool_chat_run               | 工具聊天的编排权威、版本、期限及推进租约                                                                   |
+| arte_ai_tool_chat_step              | Run 轮次／工具逻辑步骤及子 Invocation 映射，逻辑步骤唯一                                                   |
+| arte_ai_tool_chat_event             | Run 内连续 sequence 的耐久事件及唯一命令防重                                                               |
+| arte_ai_tool_chat_budget            | runId + currency 的 L／C／H 和版本，必要时增加账户子上限                                                   |
+| arte_ai_tool_chat_budget_allocation | Run 子 Attempt 的唯一费用占用、预留及结算关联；原子防重                                                    |
+| arte_ai_tool_reconciliation         | 原 UNKNOWN 的查询次数、处理责任、状态及下一检查时间                                                        |
+| arte_ai_tool_outcome_evidence       | 原操作证据、结论、结果引用、审核及防重；不可原地覆盖                                                       |
 
 S1-04 存储规则：固定类型／ID／版本经长度前缀 SHA-256 形成主键，稳定 ID
 与版本另设唯一投影，并逐次核对快照中的原始身份，避免数据库排序规则混淆大小写。定义对固定提供者、输入／输出／配置 Schema
@@ -1352,7 +1375,7 @@ S1-08 新增 `tool-discovery-receipt` v1 白名单根；同一真实主体／类
 目录列表一次有界读取后批量查询生命周期，避免按工具条数查询治理状态。
 
 已有环境按 S1-04 → S1-06 → S1-07 → [S1-08 增量](backend/arte-ai/scripts/arte-ai-tool-management-migration.sql)
-部署；新环境完整基线已含全部十张 TOOL 表。
+→ [S2-03 增量](backend/arte-ai/scripts/arte-ai-tool-admission-migration.sql) 部署；新环境完整基线已含全部十一张 TOOL 表。
 另需部署 [TOOL RBAC 定义增量](backend/arte-app/scripts/arte-ai-tool-rbac-dml-mysql.sql)，新环境 RBAC 基线 DML 已包含。
 执行前停写、备份、核对结构；权限授予通过既有 RBAC 管理按需完成。当前未连接、检查或修改配置中的业务数据库，未执行上述增量或授权。
 
@@ -1362,7 +1385,9 @@ Run 的可恢复工作项和事件通知优先扩展既有 Outbox 支持带类�
 ### 13.3 事务边界
 
 - 管理命令：当前公共身份／租户／空间和 RBAC 锁 → 管理命令／工具治理锁 → 定义／绑定／发布状态、防重及审计一致提交；来源元数据与预检不在锁事务内读取。
-- 普通调用：固定快照、通用受理、防重、Invocation、事件及 DISPATCH 一致提交。
+- 普通调用：S2-03 已实现本地免费只读受理；宿主当前资格锁 → 稳定绑定重放锁 → 当前工具／绑定治理 →
+  通用受理锁，固定快照、受理防重、Invocation、首事件及 Outbox 一致提交。全部依赖必须使用同一物理 DataSource，不能异步调用两个独立提交的
+  Store 代替事务。
 - 审批调用：快照、Invocation 等待状态、审批及事件一致提交；批准决定与排队 Outbox 一致提交。
 - 执行完成：有界结果字节先持久化，再以 fencing 校验原子提交结果引用、终态、事件与 Outbox；未引用的孤儿字节由安全清理处理。
 - 领域写入：领域结果和领域防重处于领域事务；平台结果通过明确回执关联，避免长跨域事务。
@@ -1635,6 +1660,12 @@ DDL／codec
 
 原始分批边界保持不变：S1-04 为存储；S1-05 本地登记与发现，S1-06 发布／废弃／停用，S1-07 绑定修订，S1-08 管理 API
 及当前授权接入。每次只验收一批，不把内部存储当作已授权产品入口。
+
+S2-03 已完成内部独立本地免费只读受理：固定原始意图、实际绑定／版本／配置、Schema 及总期限，当前资格与治理在写事务内复核，
+快照、Invocation、受理防重、首事件及 DISPATCH Outbox 同库提交；相同意图重放返回原身份及原材料。 新增
+`tool-execution-snapshot` v1 白名单根别名及单表增量，未修改原 GENERATION 受理语义，也未增加状态／审批或预算产品。
+验证证据见 [TOOL 实施记录 §11](backend/arte-ai/TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+本批不自动装配受理服务、不提供 HTTP／Worker 路由或宿主资源授权实现；未部署业务数据库，TOOL 仍关闭，不能视为 S2 产品闭环完成。
 
 ### 15.5 原子需求与双向追踪
 

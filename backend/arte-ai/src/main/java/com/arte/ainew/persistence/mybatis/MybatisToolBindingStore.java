@@ -22,6 +22,7 @@ import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.TrustedActor;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -42,7 +43,7 @@ import static com.arte.ainew.serialization.CanonicalJson.key;
  * 先锁绑定／命令，再锁稳定工具身份，与发布治理共用工具锁；不调用执行器或读取 Secret 值。
  *
  * @author CYLJ126 ≧◔◡◔≦
- * @since 2026/10/18 10:41
+ * @since 2026/10/18 10:41 ✾
  */
 public final class MybatisToolBindingStore implements ToolBindingStore {
     /**
@@ -53,6 +54,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
      * 与目录、发布材料一致的单条编码字节上限。
      */
     private static final int MAX_RECORD_BYTES = 1_000_000;
+    private final DataSource dataSource;
     private final ToolBindingMapper mapper;
     private final ToolCatalogMapper catalogMapper;
     private final SystemMapper locks;
@@ -67,6 +69,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
 
     public MybatisToolBindingStore(DataSource source, ExecutionRecordCodec codec, Scheduler scheduler, Clock clock,
                                    ToolExecutionPolicy serverLimits, MybatisToolCatalogStore catalog, MybatisToolReleaseStore releases) {
+        this.dataSource = Objects.requireNonNull(source);
         ContractChecks.require(catalog.uses(source) && releases.uses(source), "Binding dependencies must use the same physical DataSource");
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(source));
         mapper = sessions.getMapper(ToolBindingMapper.class);
@@ -80,6 +83,16 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         this.serverLimits = Objects.requireNonNull(serverLimits);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         transaction.setTimeout(30);
+    }
+
+    boolean uses(DataSource source) {
+        return dataSource == source;
+    }
+
+    private void requireTransaction() {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.hasResource(dataSource))
+            throw new IllegalStateException("Tool binding requires its physical transaction");
     }
 
     private <T> Mono<T> io(Supplier<T> operation) {
@@ -268,26 +281,37 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     @Override
     public Mono<ToolBindingResult<ToolBindingResolution>> resolve(ExecutionOwner owner, String bindingId) {
         require(owner, bindingId);
-        return io(() -> transaction.execute(status -> {
-            lock(bindingKey(bindingId));
-            var before = header(bindingId);
-            if (before == null || !before.owner().equals(owner)) return ToolBindingResult.rejected(NOT_FOUND, null);
-            lock(key("tool-release-identity", before.toolId()));
-            var revision = Objects.requireNonNull(readRevision(before.revision(), before), "Missing current binding revision");
-            try {
-                if (!before.enabled()) throw reject(BINDING_DISABLED);
-                var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock));
-                var row = mapper.toolBindingResolution(id(plan.definition()));
-                if (row == null) {
-                    if (mapper.insertToolBindingResolution(artifact(plan)) != 1)
-                        throw new IllegalStateException("Binding resolution was not recorded");
-                } else if (!decodeResolution(row).equals(plan))
-                    throw new IllegalStateException("Binding plan identity collision");
-                return ToolBindingResult.success(plan, before.version());
-            } catch (Rejected rejected) {
-                return ToolBindingResult.rejected(rejected.reason, before.version());
-            }
-        }));
+        return io(() -> transaction.execute(status -> resolveLocked(owner, bindingId)));
+    }
+
+    /**
+     * 同库受理事务的同步治理检查；调用方须使用本适配器的物理 DataSource，不运行执行器。
+     */
+    ToolBindingResult<ToolBindingResolution> resolveInCurrentTransaction(ExecutionOwner owner, String bindingId) {
+        requireTransaction();
+        return resolveLocked(owner, bindingId);
+    }
+
+    private ToolBindingResult<ToolBindingResolution> resolveLocked(ExecutionOwner owner, String bindingId) {
+        require(owner, bindingId);
+        lock(bindingKey(bindingId));
+        var before = header(bindingId);
+        if (before == null || !before.owner().equals(owner)) return ToolBindingResult.rejected(NOT_FOUND, null);
+        lock(key("tool-release-identity", before.toolId()));
+        var revision = Objects.requireNonNull(readRevision(before.revision(), before), "Missing current binding revision");
+        try {
+            if (!before.enabled()) throw reject(BINDING_DISABLED);
+            var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock));
+            var row = mapper.toolBindingResolution(id(plan.definition()));
+            if (row == null) {
+                if (mapper.insertToolBindingResolution(artifact(plan)) != 1)
+                    throw new IllegalStateException("Binding resolution was not recorded");
+            } else if (!decodeResolution(row).equals(plan))
+                throw new IllegalStateException("Binding plan identity collision");
+            return ToolBindingResult.success(plan, before.version());
+        } catch (Rejected rejected) {
+            return ToolBindingResult.rejected(rejected.reason, before.version());
+        }
     }
 
     @Override
@@ -295,35 +319,48 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         require(owner, Objects.requireNonNull(ref).id());
         ref.requireType("binding");
         ContractChecks.require(ref.version().matches("p1-[0-9a-f]{64}"), "Expected a fixed binding plan reference");
-        return io(() -> transaction.execute(status -> {
-            lock(bindingKey(ref.id()));
-            var before = header(ref.id());
-            if (before == null || !before.owner().equals(owner)) return ToolBindingResult.rejected(NOT_FOUND, null);
-            lock(key("tool-release-identity", before.toolId()));
-            var row = mapper.toolBindingResolution(id(ref));
-            if (row == null) return ToolBindingResult.rejected(NOT_FOUND, before.version());
-            var plan = decodeResolution(row);
-            if (!plan.definition().equals(ref) || !plan.owner().equals(owner) || !plan.tool().tool().definition().id().equals(before.toolId()))
-                throw new IllegalStateException("Fixed plan ownership mismatch");
-            try {
-                if (!before.enabled()) throw reject(BINDING_DISABLED);
-                if (!plan.secrets().isEmpty()) throw reject(SECRET_UNSUPPORTED);
-                var release = releases.currentForBinding(plan.tool().tool().definition());
-                if (release == null || !release.permitsExistingBinding(PlatformTimes.businessNow(clock)))
-                    throw reject(TOOL_UNAVAILABLE);
-                if (!release.publication().contractDigest().equals(plan.contractDigest()))
-                    throw new IllegalStateException("Fixed publication mismatch");
-                if (ToolCatalogDigests.configurationBytes(plan.effectiveConfiguration()) > serverLimits.maxInputBytes())
-                    throw reject(CONFIGURATION_INVALID);
-                if (!ToolBindingConstraints.intersect(plan.effectivePolicy(), serverLimits).equals(plan.effectivePolicy()))
-                    throw reject(POLICY_CONFLICT);
-                return ToolBindingResult.success(plan, before.version());
-            } catch (IllegalArgumentException conflict) {
-                return ToolBindingResult.rejected(POLICY_CONFLICT, before.version());
-            } catch (Rejected rejected) {
-                return ToolBindingResult.rejected(rejected.reason, before.version());
-            }
-        }));
+        return io(() -> transaction.execute(status -> fixedLocked(owner, ref)));
+    }
+
+    /**
+     * 同库受理事务的同步治理检查；调用方须使用本适配器的物理 DataSource，不运行执行器。
+     */
+    ToolBindingResult<ToolBindingResolution> fixedInCurrentTransaction(ExecutionOwner owner, DefinitionRef ref) {
+        requireTransaction();
+        return fixedLocked(owner, ref);
+    }
+
+    private ToolBindingResult<ToolBindingResolution> fixedLocked(ExecutionOwner owner, DefinitionRef ref) {
+        require(owner, Objects.requireNonNull(ref).id());
+        ref.requireType("binding");
+        ContractChecks.require(ref.version().matches("p1-[0-9a-f]{64}"), "Expected a fixed binding plan reference");
+        lock(bindingKey(ref.id()));
+        var before = header(ref.id());
+        if (before == null || !before.owner().equals(owner)) return ToolBindingResult.rejected(NOT_FOUND, null);
+        lock(key("tool-release-identity", before.toolId()));
+        var row = mapper.toolBindingResolution(id(ref));
+        if (row == null) return ToolBindingResult.rejected(NOT_FOUND, before.version());
+        var plan = decodeResolution(row);
+        if (!plan.definition().equals(ref) || !plan.owner().equals(owner) || !plan.tool().tool().definition().id().equals(before.toolId()))
+            throw new IllegalStateException("Fixed plan ownership mismatch");
+        try {
+            if (!before.enabled()) throw reject(BINDING_DISABLED);
+            if (!plan.secrets().isEmpty()) throw reject(SECRET_UNSUPPORTED);
+            var release = releases.currentForBinding(plan.tool().tool().definition());
+            if (release == null || !release.permitsExistingBinding(PlatformTimes.businessNow(clock)))
+                throw reject(TOOL_UNAVAILABLE);
+            if (!release.publication().contractDigest().equals(plan.contractDigest()))
+                throw new IllegalStateException("Fixed publication mismatch");
+            if (ToolCatalogDigests.configurationBytes(plan.effectiveConfiguration()) > serverLimits.maxInputBytes())
+                throw reject(CONFIGURATION_INVALID);
+            if (!ToolBindingConstraints.intersect(plan.effectivePolicy(), serverLimits).equals(plan.effectivePolicy()))
+                throw reject(POLICY_CONFLICT);
+            return ToolBindingResult.success(plan, before.version());
+        } catch (IllegalArgumentException conflict) {
+            return ToolBindingResult.rejected(POLICY_CONFLICT, before.version());
+        } catch (Rejected rejected) {
+            return ToolBindingResult.rejected(rejected.reason, before.version());
+        }
     }
 
     private ToolBindingResolution plan(ExecutionOwner owner, DefinitionRef revision, ToolBindingSettings settings, boolean creating, Instant now) {

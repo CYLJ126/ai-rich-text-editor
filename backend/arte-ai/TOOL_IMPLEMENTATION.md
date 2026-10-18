@@ -3,11 +3,12 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，以及 S2-02 内部本地只读网关；16 个管理 API
-与现有当前授权接线完成。 面向用户的 TOOL 受理／Worker 执行闭环仍待 S2 后续批次。TOOL
-默认关闭；S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
+当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关及 S2-03 内部可靠受理／执行快照；16
+个管理 API
+与现有当前授权接线完成。 面向用户的 TOOL 受理／Worker 执行闭环仍待 S2 后续批次。TOOL 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03
+增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
 
-§1—§9 保留各批完成时的范围与验证记录；管理入口及部署状态见 §8、派发准备见 §9，本批网关与验证状态见 §10。
+§1—§10 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10，本批受理与验证状态见 §11。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -1047,3 +1048,88 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 
 最终日志：`/tmp/arte-s202-regression.log`。新增 45 项包含在 625 项中，不重复累计。 这是组件与兼容回归，未运行全仓／arte-app
 全量、实际领域工具授权、MySQL／Redis 多节点、压力测试、浏览器或生产环境验收，不能视为 S2 产品闭环或性能目标达标。
+
+## 11. S2-03：内部可靠受理与固定执行快照
+
+状态：完成独立本地免费只读 TOOL 的内部受理组件及同库原子提交，不代表 S2 执行产品闭环完成。
+
+### 11.1 组件与固定材料
+
+| 组件                        | 职责                                                                                                 |
+|-----------------------------|------------------------------------------------------------------------------------------------------|
+| `ToolAdmissionInput`        | 稳定 bindingId、原始结构化参数、可选总时长／尝试数／结果字节上限；不接受客户端版本、适配器或预算账户 |
+| `ToolAdmissionService`      | 先定位重放；新调用按当前固定解析进行 Schema／策略校验和宿主授权，固定总期限后耐久受理                |
+| `ToolExecutionSnapshot`     | 原始意图、实际 `InvocationRequest<ToolInvocation>`、完整固定绑定及收紧策略、Schema 原文及接收时刻    |
+| `ToolAdmissionAccess`       | 宿主明确批准当前免费只读资格，并在真实写事务内再次复核身份、空间、AI 资格、工具及资源权限            |
+| `MybatisToolAdmissionStore` | 同一物理数据库事务提交快照、Invocation、受理防重、首事件与 DISPATCH／EVENT Outbox                    |
+| `ToolAdmissionDigests`      | 分离稳定意图与实际执行材料摘要，派生确定性 callId，避免随机身份／时刻造成重放冲突                    |
+
+Schema 按固定引用去重保存，最多三份；校验 checksum、输入／配置 Schema 及真实 UTF-8 容量，不补默认值，不执行业务预检副作用。
+实际请求的 attempts、outputBytes、timeout
+与产品／当前服务器／请求上限求交；输入上限和最低退避等完整策略也写入快照，供后续派发／重试读取；总期限从进入受理组件开始计算，预检、授权、锁等待及后续排队／执行共用。
+事务写入前和写完快照后再次检查新调用总期限，过期整体回滚。历史回执重放可以读取已经过期的原执行，不延长它，也不重新派发。
+
+当前只支持独立本地、只读、无审批／外发／Secret／协议特性／业务结果核对的调用；parentExecutionId 和 budgetRef 必须为空。
+免费资格来自受信宿主端口的明确批准，不能仅从预算引用为空推断。该端口无默认允许实现，也不能复用管理授权冒充调用授权。 受理不创建
+Attempt，不调用 Gateway／业务工具，不创建零金额预留或预算账户，不选择模型费率。
+
+### 11.2 事务、重放与治理
+
+大快照在持锁前编码；沿用 codec 的 4,000,000 字符上限，并增加 8 MiB UTF-8 存储上限。构造器不访问数据库，所有 JDBC 在有界调度器完成。
+
+写事务先复核并锁定当前宿主资格，再锁 owner＋稳定 bindingId＋key，复核绑定和工具生命周期，再复用通用受理的同步事务内方法。
+通用方法保留生成入口原行为，不通过异步端口拼接第二笔提交。快照、Invocation、capability 受理索引、首事件及两类 Outbox 共享同一物理
+DataSource 和工作线程；构造拒绝不同数据源，任一 SQL／完整性检查失败全部回滚，原唤醒回调只在外层提交后执行。
+快照读取重验字节摘要、owner／绑定／幂等投影、实际材料摘要及与 Invocation 的请求关系，损坏不能降级为空或新受理。
+
+- 新调用在写事务内重新按当前绑定及审核兼容链解析；预检后配置或实际选版变化返回 `AI_TOOL_PLAN_CHANGED`，不静默改用另一方案。
+- 重放先读原快照，再重新取得当前宿主许可并按原 p1 引用复核治理；submissionDigest 比较原参数与请求上限，不比较后来配置或新版本。
+- 同意图保留原 Invocation ID、acceptedAt、配置、版本及 deadline；不同意图返回 `AI_IDEMPOTENCY_CONFLICT`。
+- 并发输家对最终胜出的实际快照再次执行当前宿主事务资格检查，不能仅检查自己的候选。
+- 新增稳定绑定重放索引不替代原 owner＋capability.id＋key 围栏；不同绑定调用同一能力时使用相同键仍冲突。
+
+`Invocation.contextSnapshotId` 保持生成上下文原义，TOOL 为 null；快照按 Invocation ID 一对一关联，不增加另一套执行状态／租约权威。
+
+### 11.3 编码、部署与后续接线
+
+新增根别名 `tool-execution-snapshot`，严格整数 schemaVersion=1；v1 只表达当前独立本地免费只读范围。 原
+Invocation／Attempt／生成绑定与结果的编码不变；后续收费、子调用或审批须显式扩展并验证兼容，不能把当前空预算字段解释为任意模式。
+
+新环境完整 DDL 已包含 `arte_ai_tool_execution_snapshot`；已有通用执行和 S1 工具表的环境显式执行
+[arte-ai-tool-admission-migration.sql](scripts/arte-ai-tool-admission-migration.sql)。按 Invocation 外键及 owner＋稳定绑定＋key
+唯一键约束。 表内 `snapshot` 字段沿用 S1 TOOL 存储命名；脚本仅复制到测试资源，运行时不自动执行。 本批只在隔离 H2
+执行，未连接或部署配置中的业务数据库；其他环境部署前需停写、备份、核对先决表及 MySQL 8 的约束和锁语义。
+
+本组件暂不自动装配，不新增 HTTP／配置开关或默认授权。当前 `InvocationDispatchWorker`／生成协调器仍仅处理 GENERATION， 后续应先完成
+TOOL 路由、固定快照加载、当前宿主执行授权、FREE 派发准备及终态协调，再开放受理入口。
+默认绑定、工作分类／容量、审批／业务核对、付费／远端工具、实际领域工具和前端仍待后续批次，TOOL 默认关闭。
+
+### 11.4 验证证据
+
+新增 **33 项全部通过**：`ToolAdmissionContractTest` 5 项及 `ToolAdmissionIntegrationTest` 28 项。 覆盖真实 MyBatis／隔离 H2
+中的首次受理、Codec 往返／严格版本、相同键重放、不同意图冲突、兼容升级与改配置后原材料固定、
+并发跨实例唯一受理、宿主当前许可与事务内撤销、owner／scope 越界、空授权拒绝、治理竞态、参数与完整收紧策略、
+受理调度队列／预检／事务等待期限、过期历史回执、快照／DISPATCH 写入失败全回滚及提交后唤醒、损坏拒绝、跨 owner 隔离、跨绑定能力防重、
+数据源不一致拒绝，以及新环境／增量 DDL 一致性。测试适配器若被调用会直接失败，受理不执行业务工具。
+
+针对新测试及工厂／DDL 契约的 39 项全部通过，日志 `/tmp/arte-s203-targeted.log`。
+
+JDK 21 Reactor 主代码／测试代码编译通过；最终串行兼容回归共 **658 项，654 项通过、4 项跳过、0 失败／错误，BUILD SUCCESS**。 本批
+33 项包含在 658 项中，不重复累计。跳过项为缺少独立测试 Redis 的 ExecutionAssemblyTest 1 项及 InvocationHttpIntegrationTest
+3 项；未借用业务 Redis。沿用 S2-01／02 的选择范围，显式排除既有 ProfileConfigurationTest 的 4 项， 其已复现的基线配置问题未声称修复。测试的
+HTTP 仅使用本机受控服务，不访问外部模型。
+
+执行命令（仓库根目录，JDK 21）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.tool.gateway.*Test,com.arte.ainew.tool.admission.*Test,com.arte.ainew.admission.*Test,!com.arte.ainew.admission.ProfileConfigurationTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+最终日志 `/tmp/arte-s203-final-regression.log`。中间复验与编译重叠曾产生临时缺类错误，已单独串行重跑；最终结果以上述日志为准。
+`git diff --check` 通过；未运行全仓／arte-app 全量、实际宿主资源授权、MySQL／Redis 多节点、压力测试、浏览器或生产验收。 H2
+验证不能替代真实 MySQL 锁和部署验证，也不证明非功能性能目标达标。

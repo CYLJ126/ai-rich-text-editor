@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolAdmissionMapper">
+    <resultMap id="Row" type="com.arte.ainew.persistence.mybatis.mapper.ToolAdmissionMapper$Row">
+        <constructor>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="binding_key" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="submission_digest" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="toolSnapshot" resultMap="Row" useCache="false">
+        SELECT
+        invocation_key,owner_key,binding_key,idempotency_key,submission_digest,request_digest,payload_digest,snapshot
+        FROM arte_ai_tool_execution_snapshot WHERE invocation_key=#{invocation} AND owner_key=#{owner}
+    </select>
+    <select id="accepted" resultMap="Row" useCache="false">
+        SELECT
+        invocation_key,owner_key,binding_key,idempotency_key,submission_digest,request_digest,payload_digest,snapshot
+        FROM arte_ai_tool_execution_snapshot WHERE owner_key=#{owner} AND binding_key=#{binding} AND
+        idempotency_key=#{key}
+    </select>
+    <insert id="insertToolSnapshot">
+        INSERT INTO arte_ai_tool_execution_snapshot(invocation_key,owner_key,binding_key,idempotency_key,
+        submission_digest,request_digest,payload_digest,snapshot)
+        VALUES(#{r.invocationKey},#{r.ownerKey},#{r.bindingKey},#{r.idempotencyKey},
+        #{r.submissionDigest},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+</mapper>

@@ -47,6 +47,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolExecutionSnapshot.class, "tool-execution-snapshot"),
             Map.entry(ToolDiscoveryReceipt.class, "tool-discovery-receipt"),
             Map.entry(ToolBindingDefinition.class, "tool-binding"),
             Map.entry(ToolBindingRevision.class, "tool-binding-revision"),
@@ -132,7 +133,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         int version = node.path("schemaVersion").asInt();
         if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
                 || expectedType == ToolBindingDefinition.class || expectedType == ToolBindingRevision.class
-                || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class)
+                || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class)
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
