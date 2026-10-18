@@ -96,8 +96,7 @@ public final class ToolDispatcher {
                         verifyRuntime(invocation, runtime);
                         if (invocation.state().terminal()) return Mono.empty();
                         if (invocation.activeAttemptId() != null) {
-                            // live Attempt 的 stopExpired 会拒绝；过期可能执行的 Attempt 只收敛 UNKNOWN，绝不重发。
-                            return committed(executions.stopExpired(version(invocation))).then();
+                            return recover(message, invocation);
                         }
                         return preflight(invocation, runtime)
                                 .onErrorResume(error -> predictable(error)
@@ -111,6 +110,52 @@ public final class ToolDispatcher {
                                         }));
                     });
         }).subscribeOn(scheduler);
+    }
+
+    /**
+     * 原结果已经落库则校验并关联，不再订阅网关；没有结果时按原派发事实保守结束。
+     * 不复核新调用资格或当前绑定启用状态，关闭工具／撤权也不能阻断系统保存已发生的事实。
+     */
+    private Mono<Void> recover(OutboxMessage message, Invocation invocation) {
+        return executions.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
+                .switchIfEmpty(Mono.error(new IllegalStateException("Tool attempt is missing")))
+                .flatMap(attempt -> {
+                    if (attempt.leaseExpiresAt().isAfter(clock.instant()))
+                        return Mono.error(new AdmissionException(ResultCodeEnum.AI_LEASE_LOST));
+                    return results.staged(message.owner(), message.invocationId(), attempt.attemptId(), "tool-result")
+                            .flatMap(saved -> snapshots.snapshot(message.owner(), message.invocationId())
+                                    .switchIfEmpty(Mono.error(new IllegalStateException("Tool recovery snapshot is missing")))
+                                    .flatMap(snapshot -> {
+                                        if (!snapshot.request().equals(invocation.request()) || !snapshot.requestDigest().equals(invocation.requestDigest())
+                                                || !(saved.result() instanceof InvocationResult.Tool tool))
+                                            return Mono.error(new IllegalStateException("Tool recovery result mismatch"));
+                                        var result = tool.value();
+                                        var output = snapshot.schemas().stream().filter(value -> value.definition().equals(
+                                                snapshot.binding().tool().tool().outputSchema())).findFirst().orElseThrow();
+                                        var max = Math.min(snapshot.policy().maxOutputBytes(), invocation.request().options().maxOutputBytes());
+                                        if (!ToolCatalogDigests.schema(output.document()).equals(output.checksum())
+                                                || !result.callId().equals(snapshot.request().input().callId())
+                                                || result.sideEffect() != ExecutionError.SideEffect.NONE && result.outcome() != ToolResult.Outcome.UNKNOWN
+                                                || CanonicalJson.normalize(codec.encode(saved.result())).getBytes(StandardCharsets.UTF_8).length > max
+                                                || result.output() != null && !new ToolSchemaValidator().compile(output.definition(), output.document(),
+                                                ToolSchemaValidator.Purpose.OUTPUT).validate(result.output(), max).valid())
+                                            return Mono.error(new IllegalStateException("Tool recovery result is invalid"));
+                                        if (!(executions instanceof ToolRecoveryStore recovery))
+                                            return Mono.error(new IllegalStateException("Atomic tool recovery is unavailable"));
+                                        return committed(recovery.completeStoredToolResult(new ToolRecoveryStore.CompleteStored(version(invocation), message,
+                                                new ExecutionPayload.Terminal(terminalState(result), saved.reference(), result.error()))));
+                                    }))
+                            .switchIfEmpty(Mono.defer(() -> committed(executions.stopExpired(version(invocation))))).then();
+                });
+    }
+
+    private static Invocation.State terminalState(ToolResult result) {
+        return switch (result.outcome()) {
+            case SUCCEEDED -> Invocation.State.SUCCEEDED;
+            case UNKNOWN -> Invocation.State.UNKNOWN;
+            case FAILED -> result.error().code().equals("TOOL_DEADLINE_EXCEEDED") ? Invocation.State.TIMED_OUT
+                    : result.error().code().equals("TOOL_CANCELLED") ? Invocation.State.CANCELLED : Invocation.State.FAILED;
+        };
     }
 
     private Mono<Prepared> preflight(Invocation invocation, ExecutionRuntimeContext runtime) {
@@ -208,20 +253,32 @@ public final class ToolDispatcher {
         private Mono<Void> run() {
             var call = new GatewayCall<>(prepared.snapshot().request(), prepared.snapshot().binding().resolvedBinding(), claimed, prepared.runtime());
             var remaining = Duration.between(clock.instant(), prepared.runtime().execution().deadline());
-            var work = Mono.defer(() -> {
+            var invoke = Mono.defer(() -> {
                         if (!clock.instant().isBefore(prepared.runtime().execution().deadline()))
                             return Mono.just(notInvoked("TOOL_DEADLINE_EXCEEDED"));
                         if (prepared.runtime().cancellation().isCancelled()) return Mono.just(notInvoked("TOOL_CANCELLED"));
-                        return gateway.invoke(call);
+                        return Mono.firstWithSignal(gateway.invoke(call), prepared.runtime().cancellation().signal()
+                                .map(ignored -> unknown("TOOL_CANCELLED")));
                     }).switchIfEmpty(Mono.error(new IllegalStateException("Empty tool gateway result")))
                     .timeout(remaining.isNegative() || remaining.isZero() ? Duration.ofNanos(1) : remaining)
                     .onErrorResume(error -> Mono.just(unknown(error instanceof TimeoutException ? "TOOL_DEADLINE_EXCEEDED" : "TOOL_GATEWAY_FAILURE")))
                     .publishOn(scheduler).map(this::checked)
                     .onErrorResume(IllegalArgumentException.class, invalid -> Mono.just(unknown("TOOL_OUTPUT_INVALID"))).flatMap(this::finish);
+            // 准备后再读一次耐久停止意图；数据库故障不能被网关异常转换为已完成并 ACK。
+            var work = executions.cancellationRequested(message.owner(), message.invocationId())
+                    .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))
+                    .flatMap(requested -> requested ? finish(notInvoked("TOOL_CANCELLED")) : invoke);
             var heartbeat = Flux.interval(attemptLease.dividedBy(3)).concatMap(ignored -> completed.get() ? Mono.empty()
                     : load(message).flatMap(invocation -> invocation.state().terminal() ? Mono.empty()
                     : guarded(guard -> executions.renewLease(guard, attemptLease), 3).then()), 1).then();
-            return Mono.firstWithSignal(work, heartbeat).doOnError(error -> prepared.runtime().cancellation().cancel("TOOL_DISPATCH_INTERRUPTED"));
+            var cancellations = Flux.interval(Duration.ofMillis(200)).concatMap(ignored -> completed.get() ? Mono.empty()
+                    : executions.cancellationRequested(message.owner(), message.invocationId())
+                    .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))
+                    .doOnNext(requested -> {
+                        if (requested) prepared.runtime().cancellation().cancel("USER_CANCELLED");
+                    }).then(), 1).then();
+            return Mono.firstWithSignal(work, heartbeat, cancellations)
+                    .doOnError(error -> prepared.runtime().cancellation().cancel("TOOL_DISPATCH_INTERRUPTED"));
         }
 
         /**
@@ -261,12 +318,7 @@ public final class ToolDispatcher {
                     : committed(results.put(message.owner(), message.invocationId(), claimed.attemptId(), "tool-result", new InvocationResult.Tool(result)))
                     .map(Optional::of);
             return saved.flatMap(reference -> {
-                var state = switch (result.outcome()) {
-                    case SUCCEEDED -> Invocation.State.SUCCEEDED;
-                    case UNKNOWN -> Invocation.State.UNKNOWN;
-                    case FAILED -> result.error().code().equals("TOOL_DEADLINE_EXCEEDED") ? Invocation.State.TIMED_OUT
-                            : result.error().code().equals("TOOL_CANCELLED") ? Invocation.State.CANCELLED : Invocation.State.FAILED;
-                };
+                var state = terminalState(result);
                 return guarded(guard -> executions.commitCompletion(new ExecutionCommands.Complete(guard,
                         CanonicalJson.key(claimed.attemptId(), "tool-completion"), new ExecutionPayload.Terminal(state, reference.orElse(null), result.error()),
                         Usage.unknown(), null)), 3)

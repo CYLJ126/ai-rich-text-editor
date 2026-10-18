@@ -19,6 +19,39 @@ Worker、不调用模型，也不触发重新生成。停止接口提交耐久�
 
 `scope` 是选择范围，不是授权凭据。服务器在 MVC 请求线程捕获当前 Authentication，申请 `ai:read`，服务层再次检查当前授权及主体／空间归属；不接收客户端声明的 owner、权限或原执行上下文。每次读取使用新查询期限（30 秒与服务器 maximumTimeout 中较小值），允许读取已经超过原模型执行期限的记录。读取不需要 `Idempotency-Key` 或预算参数。
 
+## TOOL 查询与停止（S2-05）
+
+本地免费只读 TOOL 已复用本说明的状态、结果、批量快照、事件重放和 SSE。结果 kind 为 TOOL，使用已有 InvocationResult.Tool；
+未关联终态引用的暂存字节不可见。无费用预留时 budgetState 为 NOT_RESERVED，不伪造 Token、费率或零金额预留。 查询只读取原
+Invocation，刷新、重连和离开页面不会重发工具。UNKNOWN 保留不确定事实，不能通过换键或点击刷新重做。
+
+除当前 `ai:read` 与本人 owner 校验外，TOOL 每次读取还需 ToolInvocationAccess：公共平台验证当前稳定主体、空间 READ 及
+aiTool:list。 缺少端口拒绝访问；批量快照将无权项返回 missing，不泄露内容。SSE 建连、通知补读及每 10 秒的撤权检查均覆盖工具资格，权限撤回会终止订阅。
+核对完结果字节后还会再次确认读取资格。历史读取不要求工具／绑定仍启用，不使用原执行 deadline 授权本次查询。
+
+新增停止入口：
+
+```http
+POST /ai-new/tool/cancelToolInvocation
+Idempotency-Key: <本次停止命令固定键>
+Content-Type: application/json
+
+{"scope":{"tenantId":"...","workspaceId":"..."},"invocationId":"..."}
+```
+
+本次申请 ai:read 上下文，再单独检查 aiTool:invoke 和当前本人控制资格，取消不要求 aiTool:list；不能用于停止生成。 当前空间 AI
+已关闭或 TOOL 新调用开关关闭时，仍可按当前资格查询和停止已有记录。认证／执行基础开关必须开启。
+原控制写事务在锁内再次检查资格，首次与重放均不能绕过撤权。回执及 HTTP 202／200 与下文控制契约一致。
+
+TOOL Worker 每 200ms 串行读取耐久取消事实，支持 API／Worker 分处不同实例；此间隔不是生产端到端停止 SLA。 确定未进入业务时为
+CANCELLED；进入适配器后，取消订阅不足以证明停止，通常为 UNKNOWN。完成竞争保持真实成功，ACCEPTED 不保证最终 CANCELLED。
+
+重启恢复沿原 DISPATCH 工作项推进；已保存合法结果时只补交原 Attempt 的引用和终态，缺证据且可能执行时为
+UNKNOWN，损坏结果明确报故障并保留未 ACK。 这不提供外部业务查询或人工证据核对，§8.8 的业务核对仍属后续 S3；公开 TOOL
+调用提交、分类容量及前端不属于本批。
+
+新调用开关关闭时仍须保持通用执行装配可用；本批未改变至少需要一种派发器的启动约束。
+
 ## 停止生成
 
 ```http

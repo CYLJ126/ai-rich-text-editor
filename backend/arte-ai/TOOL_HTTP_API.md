@@ -14,9 +14,11 @@ S2-02 已新增内部本地只读网关，但本文件仍只有管理接口；�
 S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：同库可靠受理 → 原固定快照／当前资格 → FREE
 原子准备 → ToolGateway → 结果字节 → 终态／事件 → Worker ACK。通用协调器按权威 kind 路由，原生成 submit 语义不扩展为 TOOL。
 `arte.ai-new.enabled`、`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled` 三开关及显式宿主 `ToolAdmissionAccess`、
-`ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 当前仍没有公开
-TOOL 调用／查询／取消 HTTP；管理接口维持原范围。宿主真实权限及领域适配需由组合模块提供，不能直接绑定客户端 ExecutionContext。
-本批不部署数据库或开启 TOOL。范围与验证见 [TOOL 实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
+`ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 公开 TOOL
+提交仍未开放；S2-05 查询／快照／事件复用通用 Invocation HTTP，新增 `/ai-new/tool/cancelToolInvocation`。 ToolInvocationAccess
+复核当前读取／控制资格，公共平台已有稳定身份／空间／RBAC 适配；缺端口时拒绝工具访问。 新调用的真实受理／资源权限及领域适配仍须由组合模块提供，不能直接绑定客户端
+ExecutionContext。 本批不部署数据库或开启
+TOOL。范围与验证见 [TOOL 实施记录 §13](TOOL_IMPLEMENTATION.md#13-s2-05查询取消与本地恢复)。
 
 ## 当前权限
 
@@ -33,6 +35,20 @@ TOOL 调用／查询／取消 HTTP；管理接口维持原范围。宿主真实�
 DATABASE 模式读取现有空间 AI enabled 与公共 AI 使用资格，派生 `ai:read`／`ai:invoke`，不查询模型、费率或预算。 FIXED
 模式使用与稳定主体、账户、类别、Scope 匹配的启用 grant，其 scopes 决定资格，现有启动校验保持不变。 既有 `admin`
 操作标记不绕过账户、租户或空间规则；业务资源权限仍须在实际执行边界检查。
+
+## S2-05 查询与停止
+
+状态、结果、批量快照、单页事件和 SSE 使用 `/ai-new/invocation`
+既有接口，详见 [执行查询与停止](INVOCATION_HTTP_API.md#tool-查询与停止s2-05)。 TOOL 当前读取额外要求 `aiTool:list`；停止要求
+`aiTool:invoke`，两者均受本人归属及当前空间 READ 约束，不读取模型或预算目录。 新增 `POST /ai-new/tool/cancelToolInvocation`
+，正文 `{scope, invocationId}`，必须提供独立 `Idempotency-Key`。 该入口使用 `ai:read` 上下文及独立控制资格，空间 AI
+已关闭时仍可停止已有工具；不需要 aiTool:list，不能以此停止生成。 与通用查询相同，该收尾入口不依赖 TOOL
+新调用开关；当前授权端口缺失时拒绝，不提供默认放行。受理与真实执行端口依旧显式提供。
+
+返回 ACCEPTED／202 只表示取消命令已保存，同键重放返回原回执；终态只以调用查询为准。未执行取消没有 ToolResult，运行中取消可能为
+UNKNOWN。 默认绑定、公开调用提交及试用页面仍待后续，不能把本入口当作 invoke API。原 16 个管理接口范围不变。
+
+新调用开关关闭时仍须保持通用执行装配可用；本批未改变至少需要一种派发器的启动约束。
 
 ## 请求与分页约定
 
@@ -70,7 +86,7 @@ DATABASE 模式读取现有空间 AI enabled 与公共 AI 使用资格，派生 
 | getBindingHistory     | LIST                                    | bindingId、cursor／size；返回本人管理审计页                                                                        |
 
 普通目录展示已发布过且当前 requiredScopes 满足的版本，包括废弃／停用的生命周期提示，不展示草稿。
-`permitsNewBinding` 是生命周期判断，不代表已具备实际调用资格；实际执行尚未实现。
+`permitsNewBinding` 是生命周期判断，不代表已具备实际调用资格；执行还须满足独立受理及实际资源授权。
 
 `setToolState.action` 只支持 REENABLE／DEPRECATE／DISABLE；PUBLISH 必须使用独立审核入口。 DEPRECATE 可带 UTC Instant 格式的
 existingBindingsUntil；其他约束按生命周期模型验证。 管理历史回执中的状态只是原始决定，不能当作当前状态或执行凭据。

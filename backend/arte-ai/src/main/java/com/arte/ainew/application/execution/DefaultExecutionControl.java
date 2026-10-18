@@ -34,7 +34,8 @@ public final class DefaultExecutionControl implements ExecutionControl {
     @Override
     public Mono<Invocation> status(String invocationId, ExecutionContext context) {
         return admissionAuthorization.require(context, AdmissionAuthorization.READ)
-                .flatMap(current -> executionStore.find(ExecutionOwner.from(current), invocationId))
+                .flatMap(current -> executionStore.find(ExecutionOwner.from(current), invocationId)
+                        .flatMap(invocation -> admissionAuthorization.readInvocation(invocation, current)))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)));
     }
 

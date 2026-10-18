@@ -4,12 +4,13 @@
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
 当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关、S2-03 内部可靠受理／执行快照及
-S2-04 TOOL Worker 派发／完成；16
-个管理 API 与现有当前授权接线完成。 内部服务至 Worker 链路已实现；公开调用／查询／取消、分类容量与页面仍待后续批次。TOOL
+S2-04 TOOL Worker 派发／完成及 S2-05 查询／取消／本地恢复；16 个管理 API 与现有当前授权接线完成。 内部服务至 Worker
+链路及查询／停止入口已实现；公开调用提交、默认绑定、分类容量与页面仍待后续批次。TOOL
 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03
 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
 
-§1—§11 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11，本批派发及验证见 §12。
+§1—§12 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12，本批查询／取消及恢复见
+§13。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -1247,3 +1248,109 @@ Invocation.kind 后选择派发器。生成单独装配仍可将 ToolDispatcher 
 DispatchIntegrationTest、DispatchWorkerIntegrationTest、InvocationHttpIntegrationTest、ExecutionAssemblyTest 及
 `com.arte.ainew.tool.execution.*Test`： **131 项，127 项通过、4 项 Redis 相关跳过、0 失败／错误，BUILD SUCCESS**。 JDK 21
 主代码及测试代码编译通过，日志 `/tmp/arte-s204-coordinator-constructor.log`；本次未重跑上文 699 项兼容回归。
+
+## 13. S2-05：查询、取消与本地恢复
+
+状态：完成本地免费只读 TOOL 的通用查询接线、独立当前读取／控制资格、耐久停止传播及已保存结果恢复。 本批不实现公开 TOOL
+提交、默认绑定、分类容量／公平排队、前端、写工具或外部业务 UNKNOWN 核对，不表示整个 S2 已完成。
+
+### 13.1 查询与当前授权
+
+- 状态、结果、最多 20 条快照、单页事件与 SSE 继续复用 `/ai-new/invocation`。读取沿原 ID，不新建 Invocation 或 Attempt。
+- 增加 `ToolInvocationAccess`；通用 ai:read 后还要检查 TOOL 当前资格，缺少端口明确拒绝，不能通过通用查询绕过工具权限。
+- 状态和事件检查本人 owner；批量快照隐藏无权项，结果字节返回前再次确认读取资格。暂存结果未被权威 Invocation 引用前不可对外读取。
+- SSE 建连、通知补读和 10 秒撤权检查包含工具资格。单条连接只缓存不可变能力／归属，不缓存 Permit；关闭订阅不取消工具。
+- 读取使用本次查询 deadline，允许读取原执行期限已过的历史。预算状态沿原事实，无预留显示 NOT_RESERVED，不虚构模型 Token
+  或零金额费用预留。
+
+公共平台 `PlatformToolInvocationAccess` 复用当前稳定身份、账户状态、空间成员／WORKSPACE_READ 与实时 RBAC。 READ 对应 aiTool:
+list，CANCEL 对应 aiTool:invoke；两者独立，不从过期会话缓存取权限。FIXED 继续要求匹配当前稳定主体／Scope 的 grant， DATABASE
+不要求空间 AI 仍启用，也不加载模型目录、费率或预算。 实际领域工具及其受理／资源执行权限仍由组合模块明确提供；本批没有注册生产工具或开放真实领域查询。
+
+### 13.2 停止接口及事实
+
+新增 `POST /ai-new/tool/cancelToolInvocation`，只接收严格白名单 `{scope, invocationId}` 与 Idempotency-Key；scope
+的未知字段也拒绝。 本次创建 ai:read 上下文，按 TOOL 当前 CANCEL 资格提交，不能以此控制生成。缺少键为 400，失权为
+403，归属不符／不存在为 404。 READ／CANCEL 不互相授予；只有取消资格的本人无需 aiTool:list 即可停止。
+
+控制继续复用通用 requestControl。增加事务内授权回调：锁定本人执行后，重验并持有公共资格锁，随后保存命令、回执、取消标记及事件；
+重放也先重验权限，授权失败全部回滚。取消端口未实现同事务门控时明确失败，不退回到先授权、后独立写事务。
+
+无 Attempt 或已证明未派发时完成 CANCELLED；已可能执行时只记录停止意图。Worker 在准备后再读一次取消事实， 运行中每 200ms
+串行读取，并向本机取消信号传播；即使自定义网关忽略信号，也会终止其订阅并保守保存 UNKNOWN。 该间隔是检测策略，不是生产取消
+SLA；基础设施读取失败不伪造业务失败或 ACK。取消订阅不证明底层阻塞领域操作已停止。
+
+HTTP ACCEPTED／202 只证明命令已提交，同键重放原回执；ALREADY_TERMINAL／200 不覆盖已成功或 UNKNOWN。
+完成竞争按已知结果事实收敛，已保存成功不能因后来的取消意图变成 CANCELLED。 查询与 TOOL 停止端口不以新调用的 TOOL
+开关作为访问前提；仍须保持现有通用执行装配可用。 本批未改变“至少有一种派发器”的启动约束，不能据此承诺无派发器的 TOOL
+单独关闭部署可启动。
+
+### 13.3 结果保存与恢复事务
+
+`ExecutionResultStore.staged` 仅供内部恢复按原 owner／Invocation／Attempt／固定 resultKey 读取已存字节及真实引用；不授予浏览器可见性。
+TOOL 新增结果字节前持有 Invocation 行锁，并验证当前活跃 Attempt 及数据库时钟下的租约；同键同内容的既存字节仍可重放，不能藉此再派发。
+
+重领原 DISPATCH 后：
+
+| 耐久事实 | 处理 |
+|----------|------|
+| 已终态 | 直接完成工作项，不重新调用、不重复终态事件 |
+| 尚无 Attempt | 仍按原 deadline／快照走原预检及 FREE 准备，不分配新逻辑操作 |
+| 活跃 Attempt 租约未过 | 不接管、不启动第二次尝试 |
+| 过期 Attempt 且存在固定结果槽 | 校验原快照、callId、输出 Schema、字节限额、归属、摘要与 outcome，再提交恢复事务 |
+| 无结果且确定 NOT_STARTED | 已知 INTERRUPTED；有取消事实时为 CANCELLED |
+| 无结果且可能派发 | UNKNOWN，保留不确定事实，不调用网关或自动重试 |
+| 结果损坏或不匹配 | 明确基础设施故障，保留未 ACK，不丢弃证据或伪造失败 |
+
+新增内部 `ToolRecoveryStore.completeStoredToolResult`。在一个同库事务中锁 Invocation／Outbox／Attempt，
+复核工作项领取、owner、版本、过期租约及原固定 tool-result 槽，再核对真实结果字节，推进 fencing 并提交 Attempt、Invocation、
+结果引用、终态事件、EVENT Outbox 和证据引用。没有创建新 Attempt、租约派发许可、预算预留或业务调用。 事务故障整体回滚，重领仍沿原结果恢复；旧
+Guard 不能覆盖新终态。
+
+原 stopExpired 在同一 Invocation 锁下发现固定结果槽时拒绝丢弃证据；与新结果写入串行，避免“查无结果”后把并发成功丢为未知。
+保存已发生的结果不重新申请新调用资格，原 deadline 到期、工具／绑定停用或执行权限撤回不阻断系统收尾；对用户返回仍须当前 READ
+资格。 恢复保留原 deadline，不靠重计时获得执行资格。坏结果不会被公开，孤立字节的保留／清理策略仍按既有约束，未新增后台清理器。
+
+这只是平台内已存结果的恢复，不是 §8.8 ToolOutcomeQueryAdapter、自动业务查询、人工证据审查或 ToolReconciliationCase。 缺少业务证据的
+UNKNOWN 继续 UNKNOWN；免费没有预留也不能假定业务失败。本批没有复用生成账单核对来确认 TOOL。
+
+### 13.4 部署与验证
+
+没有新增 DDL、codec 类型／版本、状态、配置项或预算行为，TOOL 默认关闭保持不变。 未连接、修改或部署配置中的业务数据库；S1／S2-03
+既有增量和 RBAC 定义仍按原部署清单显式执行。
+
+新增测试覆盖见 ToolInvocationIntegrationTest 及 PlatformToolManagementAccessTest 中本批新增的 5 项：
+查询归属／撤权／无默认授权、暂存不可见、标准 HTTP／严格参数、取消重放及同事务撤权、运行中停止、完成竞争、派发前后崩溃、 已保存结果恢复、原
+deadline、停用后收尾、坏结果、事务回滚、旧 fencing、失租新字节拒绝及同内容重放。
+
+JDK 21 Reactor 主代码与选定测试源码编译通过。串行兼容回归：arte-ai **728 项，724 通过、4 跳过、0 失败／错误**； 宿主
+PlatformToolManagementAccessTest **26 项全部通过**，合计 **754 项，750 通过、4 跳过**。 日志
+`/tmp/arte-s205-final-verification.log`。该次已包含本批 29 项工具专项及 5 项宿主新增测试，不重复累计。 随后将 TOOL
+停止请求收紧为独立严格白名单，新增额外字段拒绝用例；最终 ToolInvocationIntegrationTest **30 项全部通过**， 日志
+`/tmp/arte-s205-final-http-validation.log`。最终新增共 35 项（工具 30、宿主 5）；最后参数校验改动未再次全跑 754 项。
+
+4 项跳过仍为缺少独立测试 Redis 的 ExecutionAssemblyTest 1 项与 InvocationHttpIntegrationTest 3 项，未借用业务 Redis。
+继续显式排除 ProfileConfigurationTest 的 4 项，沿用 S2-01 已复现的配置基线说明，不声称修复。 首轮受限沙箱中的 55 项受控
+HTTP 测试因本机端口绑定禁止失败，获本地监听权限后串行重跑通过；日志以最终两份为准。
+
+最终兼容命令（仓库根目录，JAVA_HOME／PATH 指向 JDK 21）：
+
+```bash
+mvn -o -f backend/pom.xml -pl arte-app -am -Pworkspace-baseline \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.tool.gateway.*Test,com.arte.ainew.tool.admission.*Test,com.arte.ainew.tool.execution.*Test,com.arte.ainew.admission.*Test,!com.arte.ainew.admission.ProfileConfigurationTest,PlatformToolManagementAccessTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+最后严格 HTTP 参数校验复验：
+
+```bash
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  -Dtest=ToolInvocationIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+`git diff --check` 通过；未运行全仓／arte-app 全量测试、真实 MySQL／Redis 多节点、实际领域资源权限、生产工具、 性能压测、浏览器或生产验收。H2
+和本机受控 HTTP 不证明生产数据库锁、完整故障矩阵或性能 SLA；未进入 S2-06。

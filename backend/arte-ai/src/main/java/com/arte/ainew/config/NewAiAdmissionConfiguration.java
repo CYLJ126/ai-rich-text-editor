@@ -23,6 +23,7 @@ import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -192,10 +193,10 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiAdmissionAuthorization")
     AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
-                                         ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+                                         ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                         ObjectProvider<ToolInvocationAccess> toolInvocations) {
         var source = sources.getIfAvailable();
-        return source == null ? new AdmissionAuthorization(resolver, properties, clock)
-                : new AdmissionAuthorization(resolver, properties, clock, source, scheduler);
+        return new AdmissionAuthorization(resolver, properties, clock, source, scheduler, toolInvocations.getIfAvailable());
     }
 
     /**

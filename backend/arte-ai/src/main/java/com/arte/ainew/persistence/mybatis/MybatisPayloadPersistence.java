@@ -7,6 +7,7 @@ import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.PayloadRow;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.CanonicalJson;
@@ -135,7 +136,7 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
         return tx(() -> {
             var id = key(ownerId, invocationId, attemptId, resultKey);
             lock(key("result-payload", id));
-            var invocationBytes = executionMapper.invocationSnapshot(key(invocationId), false);
+            var invocationBytes = executionMapper.invocationSnapshot(key(invocationId), true);
             var attemptBytes = executionMapper.attemptSnapshot(key(attemptId), false);
             if (invocationBytes == null || attemptBytes == null) {
                 return StoreOutcome.rejected(NOT_FOUND);
@@ -163,6 +164,11 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
                 return reference.equals(reference(id, existing))
                         ? StoreOutcome.replayed(reference) : StoreOutcome.rejected(IDEMPOTENCY_CONFLICT);
             }
+            // 已保存的同内容仍可重放，但失租／已终态者不能新增字节作为新的执行证据。
+            if (invocation.request().kind() == CapabilityDescriptor.Kind.TOOL
+                    && (invocation.state() != Invocation.State.RUNNING || !attemptId.equals(invocation.activeAttemptId())
+                    || !attempt.leaseExpiresAt().isAfter(systemMapper.databaseTime().toInstant())))
+                return StoreOutcome.rejected(LEASE_LOST);
             payloadMapper.insertResult(id, ownerId, key(invocationId), key(attemptId), key(resultKey), reference.resultType(),
                     reference.partial() ? 1 : 0, digest, encoded);
             return StoreOutcome.applied(reference);
@@ -180,6 +186,24 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
                 return null;
             }
             return verified(row, reference);
+        });
+    }
+
+    @Override
+    public Mono<StagedResult> staged(ExecutionOwner owner, String invocationId, String attemptId, String resultKey) {
+        var ownerId = ownerKey(owner);
+        ContractChecks.id(invocationId, "invocationId");
+        ContractChecks.id(attemptId, "attemptId");
+        ContractChecks.id(resultKey, "resultKey");
+        return tx(() -> {
+            var id = key(ownerId, invocationId, attemptId, resultKey);
+            var row = payloadMapper.result(id);
+            if (row == null) return null;
+            if (!row.ownerKey().equals(ownerId) || !row.invocationKey().equals(key(invocationId))
+                    || !row.attemptKey().equals(key(attemptId)))
+                throw new IllegalStateException("Staged result ownership mismatch");
+            var ref = reference(id, row);
+            return new StagedResult(ref, verified(row, ref));
         });
     }
 

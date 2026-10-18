@@ -34,7 +34,7 @@ import java.util.Locale;
  * @since 2026/10/7 15:38 ✾
  */
 @RestControllerAdvice(assignableTypes = {NewAiConversationController.class, NewAiChatController.class,
-        NewAiInvocationController.class, NewAiConversationSearchController.class, NewAiBudgetController.class, NewAiReconciliationController.class, NewAiConfigurationController.class})
+        NewAiInvocationController.class, NewAiToolInvocationController.class, NewAiConversationSearchController.class, NewAiBudgetController.class, NewAiReconciliationController.class, NewAiConfigurationController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ConversationExceptionHandler {

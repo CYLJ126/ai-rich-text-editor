@@ -41,6 +41,19 @@ public interface ExecutionStore {
     Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request);
 
     /**
+     * TOOL 停止在执行记录锁内重验宿主资格；不支持原子门控的实现必须拒绝，不能先授权再另开写事务。
+     * <ol>
+     * <li>CANCEL - 保存耐久取消请求，根据执行情况决定是否立即完成取消。分尚未执行、已经可能执行、已经终态三种情况</li>
+     * <li>PAUSE - 返回 UNSUPPORTED 回执，尚未实现暂停</li>
+     * <li>RESUME - 返回 UNSUPPORTED 回执，尚未实现继续执行</li>
+     * </ol>
+     * 在同一写事务中完成“再次确认当前控制权限＋耐久保存控制命令”。实际停止传播由 Worker 执行，费用由预算链路另行收敛。
+     */
+    default Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request, Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Atomic control authorization is required"));
+    }
+
+    /**
      * 耐久取消事实，不依赖通知、进程内对象或事件保留窗口。
      */
     Mono<Boolean> cancellationRequested(ExecutionOwner owner, String invocationId);

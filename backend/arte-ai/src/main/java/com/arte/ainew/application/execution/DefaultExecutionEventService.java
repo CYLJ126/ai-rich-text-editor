@@ -153,7 +153,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
             return snapshots.flatMap(values -> {
                 var all = new HashMap<String, Invocation>();
                 values.forEach(value -> all.put(value.invocation().request().context().executionId(), value.invocation()));
-                return readable(owner, all).flatMap(allowed -> {
+                return readable(owner, all, current).flatMap(allowed -> {
                     var byId = new HashMap<String, com.arte.ainew.spi.persistence.ExecutionReadStore.Snapshot>();
                     var references = new HashMap<String, com.arte.ainew.pojo.execution.ResultRef>();
                     values.stream().filter(value -> allowed.contains(value.invocation().request().context().executionId())).forEach(value -> {
@@ -163,7 +163,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                                 && !Objects.equals(knownResultVersions.get(id), value.invocation().version()))
                             references.put(id, value.invocation().result());
                     });
-                    return executionResultStore.findAll(owner, references).flatMap(results -> readable(owner, all).map(confirmed -> distinct.stream().map(id -> {
+                    return executionResultStore.findAll(owner, references).flatMap(results -> readable(owner, all, current).map(confirmed -> distinct.stream().map(id -> {
                         var value = byId.get(id);
                         if (value == null || !confirmed.contains(id))
                             return new InvocationSnapshot(id, null, null, null);
@@ -176,18 +176,34 @@ public final class DefaultExecutionEventService implements ExecutionEventService
         });
     }
 
-    private Mono<Set<String>> readable(ExecutionOwner owner, Map<String, Invocation> invocations) {
-        return contentVisibility == null ? Mono.just(Set.copyOf(invocations.keySet())) : contentVisibility.readableInvocations(owner, Map.copyOf(invocations));
+    private Mono<Set<String>> readable(ExecutionOwner owner, Map<String, Invocation> invocations, ExecutionContext context) {
+        return Flux.fromIterable(invocations.entrySet()).concatMap(entry -> authorization.readInvocation(entry.getValue(), context)
+                        .thenReturn(entry.getKey()).onErrorResume(org.springframework.security.access.AccessDeniedException.class, denied -> Mono.empty()))
+                .collect(java.util.stream.Collectors.toSet()).flatMap(tools -> {
+                    if (contentVisibility == null) return Mono.just(Set.copyOf(tools));
+                    return contentVisibility.readableInvocations(owner, Map.copyOf(invocations)).map(visible -> {
+                        tools.retainAll(visible);
+                        return Set.copyOf(tools);
+                    });
+                });
+    }
+
+    /**
+     * 每次事件授权同时复核 TOOL 当前资格，包含无通知期间的定时撤权检查。
+     */
+    private Mono<ExecutionContext> authorizeRead(String id, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.READ).flatMap(current ->
+                executionStore.find(ExecutionOwner.from(current), id)
+                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
+                        .flatMap(invocation -> authorization.readInvocation(invocation, current)).thenReturn(current));
     }
 
     @Override
     public Mono<WatchPreparation> prepareWatch(ExecutionEvent.Cursor cursor, ExecutionContext context) {
-        return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
+        return authorizeRead(cursor.executionId(), context).flatMap(current -> {
             var checkedAt = clock.instant();
             var owner = ExecutionOwner.from(current);
-            return executionStore.find(owner, cursor.executionId())
-                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                    .then(executionEventStore.replay(owner, cursor, 1))
+            return executionEventStore.replay(owner, cursor, 1)
                     .map(validation -> new WatchPreparation(validation,
                             combined(cursor, context, current, checkedAt)));
         });
@@ -209,7 +225,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
         return Flux.defer(() -> {
             if (prepared != null && !subscribed.compareAndSet(false, true))
                 return Flux.error(new IllegalStateException("Prepared watch already subscribed"));
-            var gate = new ConnectionAuthorization(context);
+            var gate = new ConnectionAuthorization(cursor.executionId(), context);
             var done = Sinks.<Void>one();
             var after = new AtomicLong(cursor.afterSequence());
             var outcomeDelivered = new AtomicBoolean();
@@ -245,16 +261,24 @@ public final class DefaultExecutionEventService implements ExecutionEventService
 
     private final class ConnectionAuthorization {
         private final ExecutionContext context;
+        private final String invocationId;
         private Mono<ExecutionContext> pending;
+        // 仅缓存同一连接内不可变的能力／归属；当前权限仍每次重新检查，不缓存 Permit。
+        private Invocation target;
 
-        private ConnectionAuthorization(ExecutionContext context) {
+        private ConnectionAuthorization(String invocationId, ExecutionContext context) {
+            this.invocationId = invocationId;
             this.context = context;
         }
 
         private synchronized Mono<ExecutionContext> check() {
             if (pending != null) return pending;
-            pending = authorization.require(context, AdmissionAuthorization.READ)
-                    .doFinally(ignored -> clear()).cache();
+            pending = authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
+                Mono<Invocation> found = target == null ? executionStore.find(ExecutionOwner.from(current), invocationId)
+                        .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))).doOnNext(value -> target = value)
+                        : Mono.just(target);
+                return found.flatMap(value -> authorization.readInvocation(value, current)).thenReturn(current);
+            }).doFinally(ignored -> clear()).cache();
             return pending;
         }
 
@@ -266,14 +290,14 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     @Override
     public Flux<LiveTextDelta> watchText(String invocationId, ExecutionContext context) {
         if (liveTextNotifier == null) return Flux.empty();
-        var preview = Flux.defer(() -> authorization.require(context, AdmissionAuthorization.READ).flatMapMany(current -> {
+        var preview = Flux.defer(() -> authorizeRead(invocationId, context).flatMapMany(current -> {
             var owner = ExecutionOwner.from(current);
             return executionStore.find(owner, invocationId)
                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                     .flatMapMany(ignored -> liveTextNotifier.watch(owner, invocationId).publishOn(Schedulers.parallel(), 1));
         }));
         var reauthorize = Flux.interval(REAUTHORIZE_INTERVAL)
-                .concatMap(ignored -> authorization.require(context, AdmissionAuthorization.READ), 1)
+                .concatMap(ignored -> authorizeRead(invocationId, context), 1)
                 .thenMany(Flux.<LiveTextDelta>never());
         return Flux.merge(1, preview, reauthorize).takeUntilOther(Mono.delay(Duration.between(clock.instant(), context.deadline()).isNegative()
                         ? Duration.ZERO : Duration.between(clock.instant(), context.deadline())))
@@ -296,10 +320,8 @@ public final class DefaultExecutionEventService implements ExecutionEventService
     @Override
     public Mono<StoreOutcome<ExecutionEventStore.Page>> replay(ExecutionEvent.Cursor cursor, int limit, ExecutionContext context) {
         // 权限通过后再按完整归属定位调用，不能仅凭客户端提供的 executionId 读取事件。
-        return authorization.require(context, AdmissionAuthorization.READ).flatMap(current ->
-                        executionStore.find(ExecutionOwner.from(current), cursor.executionId())
-                                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
-                                .flatMap(ignored -> executionEventStore.replay(ExecutionOwner.from(current), cursor, limit)))
+        return authorizeRead(cursor.executionId(), context).flatMap(current ->
+                        executionEventStore.replay(ExecutionOwner.from(current), cursor, limit))
                 .doOnNext(outcome -> {
                     if (!outcome.successful())
                         log.warn("AI event replay rejected, invocationId={}, traceId={}, afterSequence={}, code={}",
@@ -332,6 +354,7 @@ public final class DefaultExecutionEventService implements ExecutionEventService
         return Flux.defer(() -> {
             // 在实际订阅时创建状态，同一个 Flux 被多次订阅也不会共享游标或互相结束。
             // after 是本服务已向下游发出的序号，不代表浏览器已经收到或确认；重连位置由客户端提供。
+            var gate = new ConnectionAuthorization(cursor.executionId(), context);
             var after = new AtomicLong(cursor.afterSequence());
             log.debug("AI event subscription started, invocationId={}, traceId={}, afterSequence={}", cursor.executionId(), context.traceId(), after.get());
             // 单次完成信号，用于停止通知流和定时授权流，释放监听及调度资源。
@@ -341,9 +364,9 @@ public final class DefaultExecutionEventService implements ExecutionEventService
             Duration remaining = Duration.between(clock.instant(), context.deadline());
             if (remaining.isNegative() || remaining.isZero()) {
                 // 不建立监听；仍执行授权入口，使过期上下文按正常规则返回期限错误。
-                return authorization.require(context, AdmissionAuthorization.READ).thenMany(Flux.empty());
+                return gate.check().thenMany(Flux.empty());
             }
-            var live = authorization.require(context, AdmissionAuthorization.READ).flatMapMany(current -> {
+            var live = gate.check().flatMapMany(current -> {
                 var owner = ExecutionOwner.from(current);
                 // 确认调用归属后才注册监听；授权刷新不允许身份变化，因此后续可沿用此 owner。
                 return executionStore.find(owner, cursor.executionId())
@@ -355,12 +378,12 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                                 // 0L 要求主动补读；正数只用于过滤旧提示，不能用它跳过中间事件。
                                 .filter(hint -> hint == 0L || hint > after.get())
                                 // 每次补读前重新授权，concatMap 串行排空历史，防止并发读取同一游标。
-                                .concatMap(hint -> authorization.require(context, AdmissionAuthorization.READ)
+                                .concatMap(hint -> gate.check()
                                         .thenMany(drain(owner, cursor.executionId(), after, done, outcomeDelivered, false)), 1));
             });
             // 只重新检查授权，不定时读 Invocation/Event 表。连接租期结束后客户端重新认证连接。
             var reauthorize = Flux.interval(REAUTHORIZE_INTERVAL)
-                    .concatMap(ignored -> authorization.require(context, AdmissionAuthorization.READ), 1)
+                    .concatMap(ignored -> gate.check(), 1)
                     // 不把授权上下文转成业务事件；持续检查直到被取消，权限错误仍向合并流传播。
                     .thenMany(Flux.<ExecutionEvent<?>>never());
             // 完成各生产流，再让 merge 排空已缓冲的最后一个结算事件；不能在 merge 外用 done 截断慢订阅者。
@@ -468,12 +491,12 @@ public final class DefaultExecutionEventService implements ExecutionEventService
                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_RESULT_NOT_AVAILABLE));
                         }
                         var one = Map.of(invocationId, invocation);
-                        return readable(owner, one).flatMap(allowed -> {
+                        return readable(owner, one, current).flatMap(allowed -> {
                             if (!allowed.contains(invocationId))
                                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND));
                             return executionResultStore.find(owner, invocationId, invocation.result())
                                     .switchIfEmpty(Mono.error(new IllegalStateException("Committed result bytes are missing")))
-                                    .flatMap(result -> readable(owner, one).flatMap(confirmed -> confirmed.contains(invocationId) ? Mono.just(result) : Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))));
+                                    .flatMap(result -> readable(owner, one, current).flatMap(confirmed -> confirmed.contains(invocationId) ? Mono.just(result) : Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))));
                         });
                     });
         });

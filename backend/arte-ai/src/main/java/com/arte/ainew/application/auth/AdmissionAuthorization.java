@@ -5,8 +5,11 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiProperties.Grant;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -65,6 +68,7 @@ public final class AdmissionAuthorization {
     private final Clock clock;
     private AiControlConfigurationSource source;
     private Scheduler scheduler;
+    private ToolInvocationAccess toolInvocations;
 
     public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock) {
         this.resolver = Objects.requireNonNull(resolver);
@@ -77,6 +81,56 @@ public final class AdmissionAuthorization {
         this(resolver, properties, clock);
         this.source = source;
         this.scheduler = scheduler;
+    }
+
+    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock,
+                                  AiControlConfigurationSource source, Scheduler scheduler,
+                                  ToolInvocationAccess toolInvocations) {
+        this(resolver, properties, clock, source, scheduler);
+        this.toolInvocations = toolInvocations;
+    }
+
+    /**
+     * 通用 READ 不自动授予 TOOL 结果读取权；每次返回状态、结果、事件或刷新订阅时复核当前工具资格。
+     */
+    public Mono<Invocation> readInvocation(Invocation invocation, ExecutionContext context) {
+        if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL) {
+            return Mono.just(invocation);
+        }
+        return toolInvocation(invocation, context, ToolInvocationAccess.Operation.READ).thenReturn(invocation);
+    }
+
+    /**
+     * 校验宿主许可未更换主体／空间或扩大本次上下文；取消调用方仍须把许可交给写事务重验。
+     */
+    public Mono<ToolInvocationAccess.Permit> toolInvocation(Invocation invocation, ExecutionContext context,
+                                                            ToolInvocationAccess.Operation operation) {
+        return Mono.defer(() -> {
+            var remaining = Duration.between(clock.instant(), context.deadline());
+            if (remaining.isNegative() || remaining.isZero())
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+            if (!ExecutionOwner.from(invocation.request().context()).equals(ExecutionOwner.from(context)))
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND));
+            if (toolInvocations == null)
+                return Mono.error(new AccessDeniedException("Tool invocation access unavailable"));
+            return toolInvocations.authorize(invocation, context, operation)
+                    .timeout(remaining)
+                    .switchIfEmpty(Mono.error(new AccessDeniedException("Tool invocation access denied")))
+                    .map(permit -> {
+                        var current = Objects.requireNonNull(permit.authorization());
+                        var original = context.authorization();
+                        if (!clock.instant().isBefore(context.deadline()))
+                            throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
+                        if (original.principal().kind() != invocation.request().context().authorization().principal().kind()
+                                || !current.scopes().contains(operation == ToolInvocationAccess.Operation.READ ? READ
+                                : original.scopes().contains(READ) ? READ : INVOKE)
+                                || !current.principal().equals(original.principal()) || !current.tenantId().equals(original.tenantId())
+                                || !current.workspaceId().equals(original.workspaceId())
+                                || !original.scopes().containsAll(current.scopes()))
+                            throw new AccessDeniedException("Tool invocation authorization changed");
+                        return permit;
+                    });
+        });
     }
 
     /**

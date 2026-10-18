@@ -32,6 +32,13 @@ public final class InvocationRequests {
     }
 
     /**
+     * TOOL 停止使用严格白名单，身份、权限、预算和目标状态等额外字段明确拒绝。
+     */
+    public record ToolCancel(@NotNull @Valid ToolManagementRequests.ToolScope scope,
+                             @NotBlank @Size(max = 256) String invocationId) implements ToolManagementRequests.Strict {
+    }
+
+    /**
      * 从指定游标建立 SSE 订阅，先补读历史，再接收新提交事件的通知。
      * 游标低于历史裁剪边界时返回游标过期，需查询调用快照恢复；0 也可能过期。
      *

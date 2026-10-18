@@ -45,7 +45,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 查询执行状态、结果、耐久事件及 SSE 通知，后续增加取消
+ * 查询执行状态、结果、耐久事件及 SSE 通知，受理耐久取消命令；TOOL 另复核当前工具资格
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 21:38 ✾

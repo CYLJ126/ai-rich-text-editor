@@ -56,7 +56,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  */
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
-        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore {
+        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore, ToolRecoveryStore {
 
     private final DataSource dataSource;
     private final SystemMapper system;
@@ -805,12 +805,20 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request) {
+        return requestControl(owner, request, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<ControlReceipt>> requestControl(ExecutionOwner owner, ExecutionControlRequest request, Runnable authorization) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(authorization, "authorization");
         return outcome(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(request.invocationId()), true), Invocation.class);
             // 不存在和不属于当前主体均返回 NOT_FOUND，不泄露其他主体的执行记录。
             require(invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner), NOT_FOUND);
+            authorization.run();
             var key = hash("control", request.command().name(), request.commandKey());
             var digest = hash(ownerKey(owner), id(invocation), request.command().name());
             var previous = operation(invocation, key);
@@ -859,6 +867,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
             require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
             boolean uncertain = attempt.dispatch() != Attempt.Dispatch.NOT_STARTED;
+            if (invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && uncertain) {
+                // 与 TOOL 结果写入共用 Invocation 行锁，避免“查无结果”与并发保存成功事实交错丢失。
+                require(payload.result(CanonicalJson.key(ownerKey(target.owner()), id(invocation), attempt.attemptId(), "tool-result")) == null,
+                        VERSION_CONFLICT);
+            }
             var cancelled = operation(invocation, CANCEL_REQUEST_KEY) != null;
             var error = new ExecutionError(cancelled ? "INVOCATION_CANCELLED" : "WORKER_LEASE_EXPIRED", ExecutionError.Phase.DISPATCH, false,
                     uncertain ? ExecutionError.SideEffect.POSSIBLE : ExecutionError.SideEffect.NONE,
@@ -1105,6 +1118,47 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 selectCompletedCandidate(completed);
             }
             // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。
+            return StoreOutcome.applied(completed);
+        });
+    }
+
+    /**
+     * 恢复只关联原 Attempt 的固定结果槽；工作项、过期租约、fencing 与终态事件同事务收敛，不授予新派发权。
+     * 与取消串行：已经完成的工具事实保持原义，取消意图不能抹掉已保存的成功结果。
+     */
+    @Override
+    public Mono<StoreOutcome<Invocation>> completeStoredToolResult(ToolRecoveryStore.CompleteStored command) {
+        Objects.requireNonNull(command);
+        return outcome(() -> {
+            var invocation = invocation(command.invocation());
+            version(invocation, command.invocation());
+            require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.request().context().budgetRef() == null
+                    && !invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
+            var messages = outbox.lockMessage(command.claim().messageId());
+            require(!messages.isEmpty() && command.claim().kind() == OutboxMessage.Kind.DISPATCH
+                    && command.claim().owner().equals(command.invocation().owner())
+                    && command.claim().invocationId().equals(id(invocation)), INVALID_STATE);
+            claimed(command.claim(), messages.getFirst());
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            require(attempt != null && attempt.invocationId().equals(id(invocation)) && attempt.budgetReservationId() == null, INVALID_STATE);
+            require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+            require(attempt.dispatch() != Attempt.Dispatch.NOT_STARTED, INVALID_STATE);
+            var terminal = Objects.requireNonNull(command.terminal());
+            require(terminal.result() != null && terminal.result().resultId().equals(CanonicalJson.key(
+                    ownerKey(command.invocation().owner()), id(invocation), attempt.attemptId(), "tool-result"))
+                    && invocation.state().canTransitionTo(terminal.state()), INVALID_STATE);
+            verifyToolCompletion(invocation, attempt, terminal);
+            long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+            var completed = state(invocation, terminal.state(), attempt.attemptId(), terminal.result(), terminal.error());
+            save(changed(attempt, Attempt.State.valueOf(terminal.state().name()), terminal.state() == Invocation.State.SUCCEEDED
+                            ? Attempt.Dispatch.CONFIRMED : attempt.dispatch(), attempt.remoteRequestId(), null, attempt.usage(), terminal.error(),
+                    command.claim().workerId(), fence, attempt.leaseExpiresAt()));
+            execution.saveNextFence(fence, hash(id(invocation)));
+            save(completed);
+            var event = event(completed, attempt.attemptId(), terminal);
+            execution.insertVerifiedCompletion(hash(id(invocation)), operationKey("completion", "tool-stored-recovery"),
+                    hash(attempt.attemptId(), terminal.toString()), event.sequence(), 1, codec.encode(completed),
+                    "tool-result:" + terminal.result().resultId());
             return StoreOutcome.applied(completed);
         });
     }

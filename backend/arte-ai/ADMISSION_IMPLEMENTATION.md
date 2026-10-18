@@ -10,9 +10,11 @@ Worker 和完整生成闭环另行开启，见 [异步执行](EXECUTION_IMPLEMEN
 S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：同库可靠受理 → 原固定快照／当前资格 → FREE
 原子准备 → ToolGateway → 结果字节 → 终态／事件 → Worker ACK。通用协调器按权威 kind 路由，原生成 submit 语义不扩展为 TOOL。
 `arte.ai-new.enabled`、`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled` 三开关及显式宿主 `ToolAdmissionAccess`、
-`ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 当前仍没有公开
-TOOL 调用／查询／取消 HTTP；管理接口维持原范围。宿主真实权限及领域适配需由组合模块提供，不能直接绑定客户端 ExecutionContext。
-本批不部署数据库或开启 TOOL。范围与验证见 [TOOL 实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
+`ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 公开 TOOL
+提交仍未开放；S2-05 查询／快照／事件复用通用 Invocation HTTP，新增 `/ai-new/tool/cancelToolInvocation`。 ToolInvocationAccess
+复核当前读取／控制资格，公共平台已有稳定身份／空间／RBAC 适配；缺端口时拒绝工具访问。 新调用的真实受理／资源权限及领域适配仍须由组合模块提供，不能直接绑定客户端
+ExecutionContext。 本批不部署数据库或开启
+TOOL。范围与验证见 [TOOL 实施记录 §13](TOOL_IMPLEMENTATION.md#13-s2-05查询取消与本地恢复)。
 
 ## TODO
 

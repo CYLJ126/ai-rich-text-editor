@@ -1,5 +1,7 @@
 package com.arte.app.platform.persistence;
 
+import com.arte.ainew.common.execution.ExecutionAuthorization;
+import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -11,11 +13,16 @@ import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
 import com.arte.ainew.persistence.mybatis.MybatisToolReleaseStore;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
+import com.arte.ainew.pojo.execution.ExecutionOptions;
+import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolReleaseDigests;
+import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.app.platform.ai.AiControlData;
+import com.arte.app.platform.ai.PlatformToolInvocationAccess;
 import com.arte.app.platform.ai.PlatformToolManagementAccess;
 import com.arte.app.platform.identity.*;
 import com.arte.app.pojo.rbac.JwtUserDto;
@@ -355,6 +362,91 @@ class PlatformToolManagementAccessTest {
     void permissionReaderCannotUseAThreadLocalConnectionOrAnOrdinarySnapshot() {
         assertThrows(IllegalStateException.class, () -> permissions.current("alice"));
         assertTrue(f.tx.required(() -> permissions.current("alice")).contains("aiTool:invoke"));
+    }
+
+    @Test
+    void invocationHistoryAndCancellationRemainAvailableAfterAiIsDisabled() {
+        var context = invocationContext();
+        var invocation = invocation(context);
+        var access = invocationAdapter();
+        enabled(false);
+        assertNotNull(access.authorize(invocation, context, ToolInvocationAccess.Operation.READ).block(wait));
+        var permit = access.authorize(invocation, context, ToolInvocationAccess.Operation.CANCEL).block(wait);
+        assertNotNull(permit);
+        f.tx.required(() -> {
+            permit.requireInCurrentTransaction();
+            return true;
+        });
+    }
+
+    @Test
+    void invocationReadAndCancelCheckIndependentCurrentRbacOperations() {
+        var context = invocationContext();
+        var invocation = invocation(context);
+        var access = invocationAdapter();
+        revoke("aiTool:list");
+        assertThrows(RuntimeException.class, () -> access.authorize(invocation, context, ToolInvocationAccess.Operation.READ).block(wait));
+        assertNotNull(access.authorize(invocation, context, ToolInvocationAccess.Operation.CANCEL).block(wait));
+        grant("aiTool:list");
+        revoke("aiTool:invoke");
+        assertNotNull(access.authorize(invocation, context, ToolInvocationAccess.Operation.READ).block(wait));
+        assertThrows(RuntimeException.class, () -> access.authorize(invocation, context, ToolInvocationAccess.Operation.CANCEL).block(wait));
+    }
+
+    @Test
+    void invocationCancelPermitRequiresOriginalWriteTransactionAndCurrentPermission() {
+        var context = invocationContext();
+        var permit = invocationAdapter().authorize(invocation(context), context, ToolInvocationAccess.Operation.CANCEL).block(wait);
+        assertThrows(IllegalStateException.class, permit::requireInCurrentTransaction);
+        revoke("aiTool:invoke");
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            permit.requireInCurrentTransaction();
+            return true;
+        }));
+    }
+
+    @Test
+    void suspendedAccountInvalidatesInvocationReadAndExistingCancelPermit() {
+        var context = invocationContext();
+        var invocation = invocation(context);
+        var access = invocationAdapter();
+        var permit = access.authorize(invocation, context, ToolInvocationAccess.Operation.CANCEL).block(wait);
+        f.jdbc.update("UPDATE arte_rbac_user SET status=3 WHERE id=1");
+        assertThrows(RuntimeException.class, () -> access.authorize(invocation, context, ToolInvocationAccess.Operation.READ).block(wait));
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            permit.requireInCurrentTransaction();
+            return true;
+        }));
+    }
+
+    @Test
+    void invocationCannotBeReadUnderAForeignStableSubjectOrWorkspace() {
+        var context = invocationContext();
+        var invocation = invocation(context);
+        var changed = new ExecutionContext("query", "trace",
+                new ExecutionAuthorization(context.authorization().principal(), scope.tenantId(), "other", Set.of("ai:read"), "grant"),
+                context.deadline(), null, null, "release", "key");
+        assertThrows(RuntimeException.class, () -> invocationAdapter().authorize(invocation, changed,
+                ToolInvocationAccess.Operation.READ).block(wait));
+    }
+
+    private PlatformToolInvocationAccess invocationAdapter() {
+        return new PlatformToolInvocationAccess(identities, permissions, f.tx, f.services.writeGuard(),
+                properties(List.of()), true, scheduler, clock);
+    }
+
+    private ExecutionContext invocationContext() {
+        return new ExecutionContext("invocation", "trace",
+                new ExecutionAuthorization(new ExecutionPrincipal(f.actor.principal().subjectId(), "alice", ExecutionPrincipal.Kind.USER),
+                        scope.tenantId(), scope.workspaceId(), Set.of("ai:read"), "grant"), clock.instant().plusSeconds(30), null, null, "release", "key");
+    }
+
+    private Invocation invocation(ExecutionContext context) {
+        var request = new InvocationRequest<>(tool.tool().capability(), ref("binding", "test"), CapabilityDescriptor.Kind.TOOL,
+                new ToolInvocation("call", tool.tool().definition(), new StructuredValue.ObjectValue(Map.of())),
+                new ExecutionOptions(context.deadline(), 1, 4096, 0, 0), context);
+        return new Invocation(request, "1".repeat(64), null, null, null,
+                Invocation.State.ACCEPTED, 0, null, null, null, clock.instant(), clock.instant());
     }
 
     private PlatformToolManagementAccess adapter(boolean database, NewAiProperties properties) {
