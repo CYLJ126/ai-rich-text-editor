@@ -20,6 +20,12 @@ S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：
 ExecutionContext。 本批不部署数据库或开启
 TOOL。范围与验证见 [TOOL 实施记录 §13](TOOL_IMPLEMENTATION.md#13-s2-05查询取消与本地恢复)。
 
+S2-06 实施同步：分类调度默认关闭。显式部署 `scripts/arte-ai-dispatch-scheduling-migration.sql`，停止旧受理／消费者并排空旧
+DISPATCH 后， 统一启用 `arte.ai-new-execution.scheduling.enabled`，并使 concurrency 与类别槽位总数一致。生产新增 TOOL
+受理要求该门槛， Worker 按类别／空间轮转领取，并在数据库仲裁类别、空间和提供者许可；原生成预算／模型限流保持。
+队列准入、原排队期限、取消／终态释放及同构清单门控已接入，OUTCOME_CHECK 仅保留槽位，不冒充已有业务核对。
+详见 [TOOL 实施记录 §14](TOOL_IMPLEMENTATION.md#14-s2-06分类容量与排队)。未执行业务数据库部署、真实多节点或生产性能验收。
+
 ## 当前权限
 
 请求都必须带 `scope: {tenantId, workspaceId}`。Scope 是待验证选择，真实 owner、actor 和权限由服务端解析；白名单请求拒绝未知字段。
@@ -159,3 +165,10 @@ validateTool 与 previewBindingUpgrade 的领域预检失败使用 HTTP 200 + va
 
 当前没有 invokeTool、ensureDefaultBinding、resolveToolSet、审批、工具聊天等接口。 提供者单独 syncProvider／setProviderState
 须配合后续可变治理及远端接入实现；当前完整刷新不提供任意 URL 或客户端注册适配器的入口。
+
+## 分类调度拒绝（S2-06）
+
+受理队列满：HTTP 429，code=205056（AI_DISPATCH_QUEUE_FULL），Retry-After: 5。尚未受理，不产生 Invocation／Attempt 或费用预留；
+查询原幂等身份后使用同一业务键重试，不靠换键规避配额。相同请求已经受理时返回原回执，不重复占用队列。 调度权威、清单或配置不满足执行条件时：HTTP
+503，code=305003（AI_DISPATCH_UNAVAILABLE），不降级为无限并发。 当前仍没有公开 TOOL 提交 API；以上是内部受理错误及现有 HTTP
+错误适配的契约，后续提交入口复用它，不新增隐式调用路径。

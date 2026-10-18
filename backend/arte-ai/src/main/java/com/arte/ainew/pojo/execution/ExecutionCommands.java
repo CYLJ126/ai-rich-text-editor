@@ -21,7 +21,12 @@ public final class ExecutionCommands {
     /**
      * 初始 Invocation、可选 Turn 与派发 Outbox 同事务；幂等作用域由 owner + capability.id 固定导出，定义版本属于请求摘要。
      */
-    public record Accept(Invocation invocation, Turn turn) {
+    public record Accept(Invocation invocation, Turn turn, DispatchPlan dispatchPlan) {
+
+        public Accept(Invocation invocation, Turn turn) {
+            this(invocation, turn, null);
+        }
+
         public Accept {
             Objects.requireNonNull(invocation, "invocation");
             ContractChecks.require(invocation.state() == Invocation.State.ACCEPTED && invocation.version() == 0

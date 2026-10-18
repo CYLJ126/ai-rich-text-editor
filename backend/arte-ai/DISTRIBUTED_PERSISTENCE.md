@@ -11,6 +11,12 @@
 
 ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契约及 `ainew.persistence.mybatis.MybatisExecutionPersistence` 同库事务实现。所有新运行代码在 `com.arte.ainew`。受理及字节存储见 [第 1～3 步实现说明](ADMISSION_IMPLEMENTATION.md)；受控供应商交互、Worker 与生成闭环现已接入，见 [第 5～6 步实现说明](EXECUTION_IMPLEMENTATION.md)。各阶段显式开启，对外控制器尚未实现。
 
+S2-06 实施同步：分类调度默认关闭。显式部署 `scripts/arte-ai-dispatch-scheduling-migration.sql`，停止旧受理／消费者并排空旧
+DISPATCH 后， 统一启用 `arte.ai-new-execution.scheduling.enabled`，并使 concurrency 与类别槽位总数一致。生产新增 TOOL
+受理要求该门槛， Worker 按类别／空间轮转领取，并在数据库仲裁类别、空间和提供者许可；原生成预算／模型限流保持。
+队列准入、原排队期限、取消／终态释放及同构清单门控已接入，OUTCOME_CHECK 仅保留槽位，不冒充已有业务核对。
+详见 [TOOL 实施记录 §14](TOOL_IMPLEMENTATION.md#14-s2-06分类容量与排队)。未执行业务数据库部署、真实多节点或生产性能验收。
+
 ## 1. 原子边界
 
 | 操作                       | 一次事务中的保证                                                                                                                                                                     | 竞争／恢复结果                                                                                                                                   |
@@ -47,8 +53,8 @@ owner＋稳定绑定＋幂等键，复核工具／绑定治理，调用同步同
 额外 owner＋稳定绑定＋key 索引用于先找到原快照，避免 follow-compatible 选版或改配置后同意图重放冲突；不改变原
 owner＋capability.id＋key 防重围栏。重放重新检查当前宿主资格和原固定方案治理，不写第二条快照或 Outbox，也不重置原期限。
 当前宿主权限端口没有默认允许实现。S2-04 已在三个开关和显式宿主受理／执行授权下装配 TOOL 受理与派发，并通过权威 kind 路由； 缺
-TOOL 派发器的生成节点不会将 TOOL 改写为生成失败，工作项保留未 ACK。部署时仍须先升级全部消费者并保持同构能力，分类领取留在
-S2-06。
+TOOL 派发器的生成节点不会将 TOOL 改写为生成失败，工作项保留未 ACK。S2-06 已加入分类领取、耐久许可／队列计数和池摘要门控，
+须按本文开头链接部署增量并显式启用；不支持旧消费者混跑。各批次的历史验证范围以实施记录为准。
 
 ## 2. Worker 与崩溃恢复
 

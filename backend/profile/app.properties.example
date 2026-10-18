@@ -284,3 +284,29 @@ arte.ai-new-search.scan-enabled=${ARTE_AI_NEW_SEARCH_SCAN_ENABLED:true}
 arte.ai-new-search.backfill-enabled=${ARTE_AI_NEW_SEARCH_BACKFILL_ENABLED:true}
 arte.ai-new-search.reconcile-enabled=${ARTE_AI_NEW_SEARCH_RECONCILE_ENABLED:true}
 arte.ai-new-search.sync.generation=${ARTE_AI_NEW_SEARCH_GENERATION:conversation-search-v2-g01}
+
+# S2-06: deploy scheduling migration and drain legacy DISPATCH first; then enable on every worker.
+# When enabled set arte.ai-new-execution.concurrency=6 (2 generation + 2 short + 1 long + 1 reserved outcome).
+# tool-manifest is the reviewed LocalToolDiscovery snapshot SHA-256; empty means no TOOL readiness.
+arte.ai-new-execution.scheduling.enabled=false
+arte.ai-new-execution.scheduling.slots.generation=2
+arte.ai-new-execution.scheduling.slots.tool-short=2
+arte.ai-new-execution.scheduling.slots.tool-long=1
+arte.ai-new-execution.scheduling.slots.outcome-check=1
+arte.ai-new-execution.scheduling.generation-concurrency=16
+arte.ai-new-execution.scheduling.short-concurrency=16
+arte.ai-new-execution.scheduling.long-concurrency=8
+arte.ai-new-execution.scheduling.outcome-concurrency=4
+arte.ai-new-execution.scheduling.workspace-concurrency=2
+arte.ai-new-execution.scheduling.provider-concurrency=8
+arte.ai-new-execution.scheduling.max-queued=1000
+arte.ai-new-execution.scheduling.generation-queued=300
+arte.ai-new-execution.scheduling.short-queued=500
+arte.ai-new-execution.scheduling.long-queued=100
+arte.ai-new-execution.scheduling.outcome-queued=100
+arte.ai-new-execution.scheduling.workspace-queued=100
+arte.ai-new-execution.scheduling.subject-queued=20
+arte.ai-new-execution.scheduling.short-threshold=10s
+arte.ai-new-execution.scheduling.short-queue-timeout=10s
+arte.ai-new-execution.scheduling.long-queue-timeout=30s
+arte.ai-new-execution.scheduling.tool-manifest=

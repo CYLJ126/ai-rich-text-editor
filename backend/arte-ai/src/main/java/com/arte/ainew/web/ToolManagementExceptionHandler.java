@@ -1,5 +1,6 @@
 package com.arte.ainew.web;
 
+import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.web.controller.NewAiToolController;
 import com.arte.core.enums.ResultCodeEnum;
@@ -34,6 +35,13 @@ public class ToolManagementExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResultContext<Void>> handle(Exception error, HttpServletRequest request, Locale locale) {
+        if (error instanceof DispatchSchedulingException scheduling) {
+            boolean full = scheduling.reason() == DispatchSchedulingException.Reason.QUEUE_FULL;
+            var code = full ? ResultCodeEnum.AI_DISPATCH_QUEUE_FULL : ResultCodeEnum.AI_DISPATCH_UNAVAILABLE;
+            var response = ResponseEntity.status(full ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.SERVICE_UNAVAILABLE);
+            if (full) response.header("Retry-After", "5");
+            return response.body(ResultContext.fail(code, locale));
+        }
         HttpStatus status;
         ResultCodeEnum code = ResultCodeEnum.FAIL;
         if (error instanceof AuthenticationException) status = HttpStatus.UNAUTHORIZED;

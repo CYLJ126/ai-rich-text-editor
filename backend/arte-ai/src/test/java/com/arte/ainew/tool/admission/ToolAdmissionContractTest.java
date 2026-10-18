@@ -65,7 +65,8 @@ public class ToolAdmissionContractTest {
     public void baselineAndIncrementalDdlDescribeExactlyTheSameSnapshotTable() throws Exception {
         var baseline = Files.readString(Path.of("scripts/arte-ai-new-ddl-mysql.sql"));
         var incremental = Files.readString(Path.of("scripts/arte-ai-tool-admission-migration.sql"));
-        assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(),
-                baseline.substring(baseline.indexOf("create table arte_ai_tool_execution_snapshot\n")).trim());
+        int start = baseline.indexOf("create table arte_ai_tool_execution_snapshot\n");
+        int end = baseline.indexOf(';', start) + 1;
+        assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(), baseline.substring(start, end).trim());
     }
 }

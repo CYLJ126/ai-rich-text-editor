@@ -214,6 +214,9 @@ public enum ResultCodeEnum {
      */
     AI_ADMISSION_EXCEPTION("305001", "result.ai.admission.admissionException"),
 
+    AI_DISPATCH_QUEUE_FULL("205056", "result.ai.dispatch.queueFull"),
+    AI_DISPATCH_UNAVAILABLE("305003", "result.ai.dispatch.unavailable"),
+
     AI_TOOL_NOT_AVAILABLE("205050", "result.ai.tool.notAvailable"),
     AI_TOOL_CONFIGURATION_INVALID("205051", "result.ai.tool.configurationInvalid"),
     AI_TOOL_POLICY_DENIED("205052", "result.ai.tool.policyDenied"),

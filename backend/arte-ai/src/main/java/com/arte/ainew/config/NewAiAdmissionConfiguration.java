@@ -50,7 +50,7 @@ import java.time.Clock;
  */
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
-@EnableConfigurationProperties(NewAiProperties.class)
+@EnableConfigurationProperties({NewAiProperties.class, NewAiExecutionProperties.class})
 public class NewAiAdmissionConfiguration {
 
     /**
@@ -126,9 +126,9 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiExecutionPersistence")
     MybatisExecutionPersistence executionPersistence(NewAiProperties properties, ListableBeanFactory beans,
                                                      ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
-                                                     LocalExecutionEventNotifier notifier, LocalDispatchNotifier dispatchNotifier) {
+                                                     LocalExecutionEventNotifier notifier, LocalDispatchNotifier dispatchNotifier, NewAiExecutionProperties executionProperties) {
         return new MybatisExecutionPersistence(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler,
-                notifier::wakePublisher, dispatchNotifier::committed);
+                notifier::wakePublisher, dispatchNotifier::committed, executionProperties.scheduling(), true);
     }
 
     /**

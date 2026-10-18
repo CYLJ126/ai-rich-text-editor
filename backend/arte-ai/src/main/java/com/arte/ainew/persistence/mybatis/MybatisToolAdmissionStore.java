@@ -147,7 +147,8 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
             var now = candidate.receivedAt();
             var invocation = new Invocation(candidate.request(), candidate.requestDigest(), null, null, null,
                     Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-            var outcome = executions.acceptInCurrentTransaction(new ExecutionCommands.Accept(invocation, null));
+            var outcome = executions.acceptInCurrentTransaction(new ExecutionCommands.Accept(invocation, null, executions.toolDispatchPlan(candidate.binding().tool().tool().providerId(),
+                    candidate.binding().tool().tool().defaultPolicy().timeout())));
             if (outcome.code() != APPLIED)
                 throw new IllegalStateException("Generic acceptance has no matching tool snapshot");
             var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,

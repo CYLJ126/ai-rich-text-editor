@@ -144,7 +144,12 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                 }
                                 var candidate = new Invocation(request, digest, submission.conversation(), saved.value().snapshotId(), submission.replacesInvocationId(),
                                         Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-                                return executionStore.accept(new ExecutionCommands.Accept(candidate, turn));
+                                return configuration(request.context()).flatMap(configuration -> {
+                                    var provider = configuration.connections().stream().filter(connection -> connection.definition().equals(binding.connection()))
+                                            .findFirst().orElseThrow().providerId();
+                                    return executionStore.accept(new ExecutionCommands.Accept(candidate, turn,
+                                            new DispatchPlan(OutboxMessage.WorkClass.GENERATION, provider)));
+                                });
                             })
                             .map(accepted -> {
                                 if (!accepted.successful()) {

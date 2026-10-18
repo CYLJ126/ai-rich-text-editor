@@ -17,15 +17,23 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "arte.ai-new-execution", ignoreUnknownFields = false)
 public record NewAiExecutionProperties(boolean enabled, boolean workerEnabled, int concurrency,
                                        Duration pollInterval, Duration outboxLease, Duration attemptLease,
-                                       Duration reservationRetention, DispatchLimits dispatchLimits, Retry retry) {
+                                       Duration reservationRetention, DispatchLimits dispatchLimits, Retry retry,
+                                       NewAiSchedulingProperties scheduling) {
     public NewAiExecutionProperties(boolean enabled, boolean workerEnabled, int concurrency,
                                     Duration pollInterval, Duration outboxLease, Duration attemptLease,
                                     Duration reservationRetention) {
         this(enabled, workerEnabled, concurrency, pollInterval, outboxLease, attemptLease, reservationRetention, null, null);
     }
 
+    public NewAiExecutionProperties(boolean enabled, boolean workerEnabled, int concurrency,
+                                    Duration pollInterval, Duration outboxLease, Duration attemptLease, Duration reservationRetention,
+                                    DispatchLimits dispatchLimits, Retry retry) {
+        this(enabled, workerEnabled, concurrency, pollInterval, outboxLease, attemptLease, reservationRetention, dispatchLimits, retry, null);
+    }
+
     @ConstructorBinding
     public NewAiExecutionProperties {
+        scheduling = scheduling == null ? NewAiSchedulingProperties.disabled() : scheduling;
         dispatchLimits = dispatchLimits == null ? new DispatchLimits(null, 0, 0, 0, 0, 0, 0, 0, 0, null) : dispatchLimits;
         retry = retry == null ? new Retry(0, null, null) : retry;
         concurrency = concurrency == 0 ? 4 : concurrency;

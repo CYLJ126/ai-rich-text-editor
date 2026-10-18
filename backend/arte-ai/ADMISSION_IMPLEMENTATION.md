@@ -16,6 +16,12 @@ S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：
 ExecutionContext。 本批不部署数据库或开启
 TOOL。范围与验证见 [TOOL 实施记录 §13](TOOL_IMPLEMENTATION.md#13-s2-05查询取消与本地恢复)。
 
+S2-06 实施同步：分类调度默认关闭。显式部署 `scripts/arte-ai-dispatch-scheduling-migration.sql`，停止旧受理／消费者并排空旧
+DISPATCH 后， 统一启用 `arte.ai-new-execution.scheduling.enabled`，并使 concurrency 与类别槽位总数一致。生产新增 TOOL
+受理要求该门槛， Worker 按类别／空间轮转领取，并在数据库仲裁类别、空间和提供者许可；原生成预算／模型限流保持。
+队列准入、原排队期限、取消／终态释放及同构清单门控已接入，OUTCOME_CHECK 仅保留槽位，不冒充已有业务核对。
+详见 [TOOL 实施记录 §14](TOOL_IMPLEMENTATION.md#14-s2-06分类容量与排队)。未执行业务数据库部署、真实多节点或生产性能验收。
+
 ## TODO
 
 1. 后续把 arte.ai-new.grants 配置改到数据库配置，当前在配置文件中只是为了验证最小链路（不过配置文件也是能支持多主体的）。

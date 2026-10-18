@@ -1,5 +1,6 @@
 package com.arte.ainew.web;
 
+import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.web.controller.*;
 import com.arte.core.enums.ResultCodeEnum;
@@ -41,6 +42,13 @@ public class ConversationExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
+        if (exception instanceof DispatchSchedulingException scheduling) {
+            boolean full = scheduling.reason() == DispatchSchedulingException.Reason.QUEUE_FULL;
+            var code = full ? ResultCodeEnum.AI_DISPATCH_QUEUE_FULL : ResultCodeEnum.AI_DISPATCH_UNAVAILABLE;
+            var response = ResponseEntity.status(full ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.SERVICE_UNAVAILABLE);
+            if (full) response.header("Retry-After", "5");
+            return response.body(ResultContext.fail(code, locale));
+        }
         var status = HttpStatus.INTERNAL_SERVER_ERROR;
         ResultCodeEnum code = null;
         if (exception instanceof com.arte.ainew.common.search.SearchFailure search) {

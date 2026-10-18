@@ -13,8 +13,16 @@ import java.util.Objects;
  * @since 2026/10/4 23:30 ✾
  */
 public record OutboxMessage(String messageId, String invocationId, ExecutionOwner owner, Kind kind, long eventSequence,
-                            String workerId, long fencingToken, Instant leaseExpiresAt) {
+                            String workerId, long fencingToken, Instant leaseExpiresAt, WorkClass workClass) {
+
     public enum Kind {DISPATCH, EVENT}
+
+    public enum WorkClass {GENERATION, TOOL_SHORT, TOOL_LONG, OUTCOME_CHECK}
+
+    public OutboxMessage(String messageId, String invocationId, ExecutionOwner owner, Kind kind, long eventSequence,
+                         String workerId, long fencingToken, Instant leaseExpiresAt) {
+        this(messageId, invocationId, owner, kind, eventSequence, workerId, fencingToken, leaseExpiresAt, WorkClass.GENERATION);
+    }
 
     public OutboxMessage {
         ContractChecks.id(messageId, "messageId");
@@ -26,5 +34,6 @@ public record OutboxMessage(String messageId, String invocationId, ExecutionOwne
         ContractChecks.id(workerId, "workerId");
         ContractChecks.range(fencingToken, "fencingToken", 1, Long.MAX_VALUE);
         Objects.requireNonNull(leaseExpiresAt, "leaseExpiresAt");
+        Objects.requireNonNull(workClass, "workClass");
     }
 }

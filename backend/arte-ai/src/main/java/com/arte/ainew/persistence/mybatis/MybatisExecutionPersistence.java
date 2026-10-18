@@ -1,12 +1,14 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.api.execution.BudgetService;
+import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits;
+import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OperationRow;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow;
@@ -56,8 +58,11 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  */
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
-        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore, ToolRecoveryStore {
+        ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore, ToolRecoveryStore, DispatchSchedulingStore {
 
+    private final DispatchSchedulingPersistence scheduling;
+    private final SchedulingMapper schedulingMapper;
+    private final boolean requireClassifiedTools;
     private final DataSource dataSource;
     private final SystemMapper system;
     private final ExecutionMapper execution;
@@ -89,6 +94,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler,
                                        Runnable eventWakeup, Runnable dispatchWakeup) {
+        this(dataSource, codec, scheduler, eventWakeup, dispatchWakeup,
+                NewAiSchedulingProperties.disabled(), false);
+    }
+
+    public MybatisExecutionPersistence(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler,
+                                       Runnable eventWakeup, Runnable dispatchWakeup, NewAiSchedulingProperties schedulingPolicy,
+                                       boolean requireClassifiedTools) {
+        this.requireClassifiedTools = requireClassifiedTools;
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.eventWakeup = Objects.requireNonNull(eventWakeup, "eventWakeup");
         this.dispatchWakeup = Objects.requireNonNull(dispatchWakeup, "dispatchWakeup");
@@ -101,6 +114,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.outbox = sessions.getMapper(OutboxMapper.class);
         this.dispatchLimits = sessions.getMapper(DispatchLimitMapper.class);
         this.payload = sessions.getMapper(PayloadMapper.class);
+        this.schedulingMapper = sessions.getMapper(SchedulingMapper.class);
+        this.scheduling = new DispatchSchedulingPersistence(schedulingPolicy, schedulingMapper, outbox, system, this::now);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
         this.metadataTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
@@ -240,6 +255,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private void save(Invocation invocation) {
+        scheduling.finished(invocation);
         execution.saveInvocation(codec.encode(invocation), hash(id(invocation)));
     }
 
@@ -474,6 +490,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(candidate.requestDigest().equals(existing.getFirst().requestDigest()), IDEMPOTENCY_CONFLICT);
             return StoreOutcome.replayed(workspaceSnapshot(execution.invocationSnapshot(existing.getFirst().invocationKey(), false), Invocation.class));
         }
+        if (requireClassifiedTools && candidate.request().kind() == CapabilityDescriptor.Kind.TOOL && !scheduling.enabled())
+            throw new DispatchSchedulingException(DispatchSchedulingException.Reason.NODE_NOT_READY);
+        scheduling.admit(candidate, command.dispatchPlan());
         require(candidate.request().options().deadline().isAfter(now()), INVALID_STATE);
         lock(hash("invocation-id", id(candidate)));
         require(workspaceSnapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
@@ -544,7 +563,59 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
         event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
         outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
+        scheduling.classify(accepted, command.dispatchPlan());
         return StoreOutcome.applied(accepted);
+    }
+
+    DispatchPlan toolDispatchPlan(String provider, Duration declaredTimeout) {
+        return scheduling.toolPlan(provider, declaredTimeout);
+    }
+
+    @Override
+    public Mono<List<OutboxMessage>> claimClass(OutboxMessage.WorkClass type, String workerId, Duration lease, int limit, String manifest) {
+        Objects.requireNonNull(type);
+        ContractChecks.id(workerId, "workerId");
+        validLease(lease);
+        ContractChecks.range(limit, "limit", 1, 32);
+        return tx(() -> scheduling.claim(type, workerId, lease, limit, manifest));
+    }
+
+    /**
+     * 排队超时收尾不调用业务，不占用执行许可；版本竞争留给下一轮扫描，不覆盖已经开始的执行。
+     */
+    @Override
+    public Mono<Integer> expireQueued(int limit) {
+        ContractChecks.range(limit, "limit", 1, 256);
+        if (!scheduling.enabled()) return Mono.just(0);
+        return tx(() -> schedulingMapper.expiredQueue(now().toEpochMilli(), limit)).flatMapMany(reactor.core.publisher.Flux::fromIterable)
+                .concatMap(row -> outcome(() -> {
+                    var owner = new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject());
+                    var invocation = invocation(new Version(owner, row.invocationId(), 0));
+                    var meta = schedulingMapper.metadata(row.messageKey());
+                    if (invocation.state().terminal() || meta.queuePending() == 0
+                            || meta.queueDeadline() > now().toEpochMilli()) return StoreOutcome.replayed(invocation);
+                    Attempt queuedAttempt = null;
+                    if (invocation.activeAttemptId() != null) {
+                        queuedAttempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                        if (invocation.state() != Invocation.State.QUEUED || queuedAttempt == null
+                                || queuedAttempt.dispatch() != Attempt.Dispatch.NOT_STARTED && !safelyRejected(queuedAttempt))
+                            return StoreOutcome.replayed(invocation);
+                    }
+                    var error = new ExecutionError("DISPATCH_QUEUE_TIMEOUT", ExecutionError.Phase.DISPATCH, false,
+                            ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, invocation.request().context().traceId());
+                    if (queuedAttempt != null) {
+                        long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
+                        save(changed(queuedAttempt, Attempt.State.TIMED_OUT, queuedAttempt.dispatch(), queuedAttempt.remoteRequestId(),
+                                queuedAttempt.budgetReservationId(), queuedAttempt.usage(), error, queuedAttempt.workerId(), fence, queuedAttempt.leaseExpiresAt()));
+                        execution.saveNextFence(fence, hash(id(invocation)));
+                    }
+                    var completed = state(invocation, Invocation.State.TIMED_OUT, invocation.activeAttemptId(), null, error);
+                    save(completed);
+                    event(completed, completed.activeAttemptId(), new ExecutionPayload.Terminal(Invocation.State.TIMED_OUT, null, error));
+                    if (completed.conversation() != null)
+                        admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+                    return StoreOutcome.applied(completed);
+                })).count().map(Math::toIntExact);
     }
 
     boolean uses(DataSource source) {
@@ -682,6 +753,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private CreatedAttempt createAttemptLocked(CreateAttempt command, Invocation invocation) {
+        scheduling.beforeStart(invocation);
         version(invocation, command.invocation());
         require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
         require(!invocation.state().terminal() && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
@@ -716,6 +788,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var running = state(invocation, Invocation.State.RUNNING, attempt.attemptId(), null, null, createdAt);
         save(running);
         event(running, attempt.attemptId(), new ExecutionPayload.Status(Invocation.State.RUNNING), createdAt);
+        scheduling.started(running);
         return new CreatedAttempt(running, attempt);
     }
 
@@ -938,6 +1011,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         ContractChecks.require(backoff != null && !backoff.isNegative()
                 && backoff.compareTo(Duration.ofMinutes(1)) <= 0, "Invalid retry backoff");
         var queued = saveQueued(invocation);
+        scheduling.retry(queued);
         var schedule = new RetrySchedule(attemptId, now().plus(backoff));
         String encoded = codec.encode(schedule);
         execution.insertCompletion(hash(id(invocation)), operationKey("retry-schedule", attemptId), hash(encoded),
@@ -1321,6 +1395,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         ContractChecks.id(workerId, "workerId");
         validLease(lease);
         ContractChecks.range(limit, "limit", 1, 256);
+        if (kind == OutboxMessage.Kind.DISPATCH && scheduling.enabled())
+            return Mono.error(new IllegalStateException("Classified dispatch requires claimClass"));
         return tx(() -> {
             lock(hash("outbox", kind.name()));
             long current = now().toEpochMilli();
@@ -1353,7 +1429,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(message);
             }
             require(row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
+            scheduling.validate(message);
             outbox.deliverMessage(message.messageId());
+            scheduling.release(message);
             return StoreOutcome.applied(message);
         });
     }
@@ -1364,6 +1442,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()))
                 && message.kind().name().equals(row.kind()) && message.eventSequence() == row.sequenceNo()
                 && row.delivered() == 0 && row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
+        scheduling.validate(message);
     }
 
     @Override
@@ -1387,12 +1466,13 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             claimed(message, rows.getFirst());
             var expiry = now().plus(lease);
             outbox.claimMessage(message.workerId(), message.fencingToken(), expiry.toEpochMilli(), message.messageId());
+            scheduling.renew(message, expiry.toEpochMilli());
             // 限流表随 DDL 一起部署；不存在 Permit 时 UPDATE 不产生行。
             if (message.kind() == OutboxMessage.Kind.DISPATCH) {
                 dispatchLimits.renew(message.messageId(), message.fencingToken(), expiry.toEpochMilli());
             }
             return StoreOutcome.applied(new OutboxMessage(message.messageId(), message.invocationId(), message.owner(), message.kind(),
-                    message.eventSequence(), message.workerId(), message.fencingToken(), expiry));
+                    message.eventSequence(), message.workerId(), message.fencingToken(), expiry, message.workClass()));
         });
     }
 
@@ -1405,6 +1485,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(!rows.isEmpty(), NOT_FOUND);
             claimed(message, rows.getFirst());
             outbox.claimMessage(null, message.fencingToken(), now().plus(delay).toEpochMilli(), message.messageId());
+            scheduling.release(message);
             return StoreOutcome.applied(message);
         });
     }

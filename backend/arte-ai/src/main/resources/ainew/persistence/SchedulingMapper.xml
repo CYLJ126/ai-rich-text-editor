@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper">
+    <resultMap id="Queued" type="com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper$Queued">
+        <constructor>
+            <arg column="message_key" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="invocation_id" javaType="java.lang.String"/>
+            <arg column="owner_tenant" javaType="java.lang.String"/>
+            <arg column="owner_workspace" javaType="java.lang.String"/>
+            <arg column="owner_subject" javaType="java.lang.String"/>
+            <arg column="work_class" javaType="java.lang.String"/>
+            <arg column="provider_key" javaType="java.lang.String"/>
+            <arg column="space_key" javaType="java.lang.String"/>
+            <arg column="subject_key" javaType="java.lang.String"/>
+            <arg column="queued_at" javaType="_long"/>
+            <arg column="queue_deadline" javaType="_long"/>
+            <arg column="token" javaType="_long"/>
+            <arg column="queue_pending" javaType="_int"/>
+            <arg column="queue_reserved" javaType="_int"/>
+            <arg column="finished" javaType="_int"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Permit" type="com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper$Permit">
+        <constructor>
+            <arg column="message_key" javaType="java.lang.String"/>
+            <arg column="token" javaType="_long"/>
+            <arg column="work_class" javaType="java.lang.String"/>
+            <arg column="space_key" javaType="java.lang.String"/>
+            <arg column="provider_key" javaType="java.lang.String"/>
+            <arg column="lease_until" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Pool" type="com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper$Pool">
+        <constructor>
+            <arg column="policy_digest" javaType="java.lang.String"/>
+            <arg column="manifest_digest" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="queueCount" resultType="java.lang.Long">SELECT reservations FROM arte_ai_queue_capacity WHERE
+        counter_key=#{key} FOR UPDATE
+    </select>
+    <insert id="createQueueCount">INSERT INTO arte_ai_queue_capacity(counter_key,reservations) VALUES(#{key},0)</insert>
+    <update id="incrementQueueCount">UPDATE arte_ai_queue_capacity SET reservations=reservations+1 WHERE
+        counter_key=#{key}
+    </update>
+    <update id="decrementQueueCount">UPDATE arte_ai_queue_capacity SET reservations=reservations-1 WHERE
+        counter_key=#{key} AND reservations&gt;0
+    </update>
+    <select id="ready" resultMap="Queued">SELECT * FROM arte_ai_outbox WHERE kind='DISPATCH' AND work_class=#{type} AND
+        delivered=0 AND lease_until &lt;= #{now} ORDER BY queued_at,message_key LIMIT #{limit}
+    </select>
+    <select id="expiredQueue" resultMap="Queued">SELECT * FROM arte_ai_outbox WHERE kind='DISPATCH' AND delivered=0 AND
+        queue_pending=1 AND queue_deadline &lt;= #{now} ORDER BY queue_deadline,message_key LIMIT #{limit}
+    </select>
+    <select id="metadata" resultMap="Queued">SELECT * FROM arte_ai_outbox WHERE message_key=#{key}</select>
+    <update id="classify">UPDATE arte_ai_outbox SET
+        work_class=#{type},provider_key=#{provider},space_key=#{space},subject_key=#{subject},queued_at=#{queued},queue_deadline=#{deadline},queue_pending=1,queue_reserved=1
+        WHERE message_key=#{key}
+    </update>
+    <update id="started">UPDATE arte_ai_outbox SET queue_pending=0<if test="release">,queue_reserved=0</if> WHERE
+        invocation_key=#{invocation} AND kind='DISPATCH'
+    </update>
+    <update id="finish">UPDATE arte_ai_outbox SET queue_pending=0,queue_reserved=0,finished=1 WHERE
+        invocation_key=#{invocation} AND kind='DISPATCH'
+    </update>
+    <update id="requeue">UPDATE arte_ai_outbox SET queue_pending=1 WHERE invocation_key=#{invocation} AND
+        kind='DISPATCH' AND finished=0
+    </update>
+    <select id="permits" resultMap="Permit">SELECT * FROM arte_ai_scheduling_permit WHERE lease_until &gt; #{now}
+    </select>
+    <insert id="permit">INSERT INTO
+        arte_ai_scheduling_permit(message_key,token,work_class,space_key,provider_key,lease_until)
+        VALUES(#{key},#{token},#{type},#{space},#{provider},#{until})
+    </insert>
+    <update id="renew">UPDATE arte_ai_scheduling_permit SET lease_until=#{until} WHERE message_key=#{key} AND
+        token=#{token}
+    </update>
+    <delete id="release">DELETE FROM arte_ai_scheduling_permit WHERE message_key=#{key} AND token=#{token}</delete>
+    <select id="pool" resultMap="Pool">SELECT * FROM arte_ai_dispatch_pool WHERE pool_key='default' FOR UPDATE</select>
+    <insert id="createPool">INSERT INTO arte_ai_dispatch_pool(pool_key,policy_digest,manifest_digest)
+        VALUES('default',#{policy},#{manifest})
+    </insert>
+    <select id="cursor" resultType="java.lang.String">SELECT last_space FROM arte_ai_dispatch_cursor WHERE
+        work_class=#{type}
+    </select>
+    <insert id="createCursor">INSERT INTO arte_ai_dispatch_cursor(work_class,last_space) VALUES(#{type},#{space})
+    </insert>
+    <update id="saveCursor">UPDATE arte_ai_dispatch_cursor SET last_space=#{space} WHERE work_class=#{type}</update>
+</mapper>
