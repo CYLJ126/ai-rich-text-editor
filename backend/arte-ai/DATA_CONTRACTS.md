@@ -41,6 +41,11 @@ codec 版本。 结果字节先保存，完成事务校验其真实类型／归�
 新派发器只接受独立本地免费只读快照，不根据缺少 budgetRef 自动推断任意工具免费；资格由显式宿主端口重验。 已接入内部
 Worker，公开 HTTP 和分类调度仍待后续，见 [实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
 
+S2-07 编码同步：ToolBindingCommand 新增 ENSURE_DEFAULT；只有该动作的 tool-binding-receipt 写 schemaVersion=2。 原绑定定义／修订／解析及
+SAVE、UPGRADE、SET_ENABLED 回执仍写 v1；新 codec 兼容原回执，并严格拒绝动作与版本不匹配。 不改变 Invocation／Attempt／Turn
+或预算快照。先统一升级可读 v2 的管理节点再开放新命令，回退不能删除审计或伪改版本号。 HTTP 的 configurationJson／documentJson
+是精确标准 JSON 展示字段，不是内部多态信封；详见 TOOL_HTTP_API.md。
+
 ## 1. 所有权、关系与实现范围
 
 ```text

@@ -29,6 +29,7 @@ import java.util.Map;
 
 /**
  * 隔离的内部快照编码器：现有类型保持 v1，resolved-binding 写 v2 并兼容旧远端形状。
+ * 默认绑定 ENSURE_DEFAULT 回执单独写 v2，其他绑定回执保持 v1；两种形状严格匹配版本。
  * 稳定别名白名单，不复用应用全局 ObjectMapper。
  * StructuredValue 在此使用显式类型包装的内部格式；HTTP 标准 JSON 编码另由传输适配器负责。
  *
@@ -114,7 +115,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered snapshot type");
         }
         var node = mapper.createObjectNode();
-        node.put("schemaVersion", value instanceof ResolvedBinding ? 2 : 1).put("type", alias);
+        node.put("schemaVersion", value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
+                && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT ? 2 : 1).put("type", alias);
         node.set("body", mapper.valueToTree(value));
         var json = mapper.writeValueAsString(node);
         if (json.length() > 4_000_000) {
@@ -137,7 +139,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
-        if ((version != 1 && !(expectedType == ResolvedBinding.class && version == 2))
+        if ((version != 1 && !((expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class) && version == 2))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
@@ -146,6 +148,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");
         var value = mapper.treeToValue(body, expectedType);
+        if (value instanceof ToolBindingReceipt receipt && (version == 2)
+                != (receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT))
+            throw new IllegalArgumentException("Binding command does not match snapshot version");
         validate(value);
         return value;
     }

@@ -1,6 +1,6 @@
 # AI TOOL 管理 HTTP API
 
-更新：2026-10-18，S1-08。本接口提供本地目录、发布和当前空间内本人绑定管理。需求见
+更新：2026-10-19，S2-07。本接口提供本地目录、发布和当前空间内本人绑定管理。需求见
 [需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 ，实现与验证见 [实施记录 §8](TOOL_IMPLEMENTATION.md#8-s1-08管理-api-与现有当前授权)。
 
@@ -42,6 +42,28 @@ DATABASE 模式读取现有空间 AI enabled 与公共 AI 使用资格，派生 
 模式使用与稳定主体、账户、类别、Scope 匹配的启用 grant，其 scopes 决定资格，现有启动校验保持不变。 既有 `admin`
 操作标记不绕过账户、租户或空间规则；业务资源权限仍须在实际执行边界检查。
 
+## S2-07 目录与默认配置
+
+已新增 `/AI/Tools` 目录与本人配置页，管理入口总数为 17。页面不提供公开工具调用；S2-08 才接入调用预览／提交／结果，S2-09
+为只读集成验收。
+
+`listTools` 新增可选 `query`（名称／ID／用途，最多 200 字符）、`tag`（精确标签，100）、`providerId`（精确提供者 ID，256）、`state`。
+筛选在服务器有界候选页执行，并与主体、Scope、managed 和 provider 一起绑定游标；records 为空仍可能有 nextCursor，条件变化须重启分页。
+
+新增 `POST /ai-new/tool/prepareDefaultBinding`，需 LIST 和 WRITE 资格及 `Idempotency-Key`，正文
+`{scope, tool, configuration}`。 不接受客户端 owner、默认身份、版本策略、绑定 ID 或执行上下文；返回与 saveBinding 相同的
+BindingCommand 包装。 默认身份由真实 owner＋稳定 toolId 派生；缺失才创建 PINNED 修订。配置 `{}` 继承工具非敏感默认值；缺必填项返回
+422，填写业务字段并用新键提交修正意图。 已有默认绑定直接返回当前指针，不覆盖改名／配置／升级或恢复启用；同键返回原始回执，页面随后
+getBinding 读取当前内容。 命令、防重、指针、修订和审计使用原同库事务；没有新增表、工具执行、预算初始化或隐式默认授权。
+
+Schema 响应追加 `documentJson`，绑定 settings 和升级 proposed 追加 `configurationJson`。这是对应标准 JSON
+值的精确字符串，不是另一层业务配置。 保留原 document／configuration 字段兼容已有客户端；浏览器编辑／展示精确数值使用原文，提交仍是标准
+JSON configuration 对象，禁止 double 归一化。 配置字段应与 Schema 类型保持一致，secret 引用仍只按现有协议处理。
+
+`previewBindingUpgrade` 现允许未修改内容的只读预览，返回当前有效交集；相同基准按已有绑定生命周期校验，变更基准按新绑定校验。
+实际 saveBinding／upgradeBinding 仍拒绝 NO_CHANGE；预览不写库、不执行工具、不授予调用资格。新 ENSURE_DEFAULT 命令审计写
+tool-binding-receipt v2，部署兼容见实施记录 §15。
+
 ## S2-05 查询与停止
 
 状态、结果、批量快照、单页事件和 SSE 使用 `/ai-new/invocation`
@@ -59,8 +81,9 @@ UNKNOWN。 默认绑定、公开调用提交及试用页面仍待后续，不能
 ## 请求与分页约定
 
 - 全部 JSON POST。以下“额外字段”之外均须包含 scope；引用采用 `{type,id,version}`，不接受任意类型名或执行器定位。
-- 六个写入口必须提供 `Idempotency-Key`
-  ：refreshLocalCatalog、publishTool、setToolState、saveBinding、setBindingState、upgradeBinding；最长 256 字符。原因 reason
+- 七个写入口必须提供 `Idempotency-Key`
+  ：refreshLocalCatalog、publishTool、setToolState、saveBinding、prepareDefaultBinding、setBindingState、upgradeBinding；最长
+  256 字符。原因 reason
   必填，最长 1024 字符，不写日志。
 - expectedVersion 是十进制字符串。初次发布／新建绑定使用 `"0"`；已有对象必须使用当前版本，不能使用 JSON 数值或 latest。
 - 分页参数 cursor 可空、size 默认 20、范围 1—100；响应 data 为 `{records,nextCursor,scanned,exhausted}`。 scanned
@@ -86,6 +109,7 @@ UNKNOWN。 默认绑定、公开调用提交及试用页面仍待后续，不能
 | getBinding            | LIST                                    | bindingId；返回当前指针及完整修订                                                                                  |
 | getBindingRevision    | LIST                                    | revision 固定 binding/rN 引用；返回本人不可变修订                                                                  |
 | saveBinding           | WRITE                                   | bindingId 新建时省略、expectedVersion、reason、settings；返回创建／保存回执                                        |
+| prepareDefaultBinding | LIST 与 WRITE                           | tool、configuration；缺失才创建当前本人默认配置，不覆盖既有选择                                                    |
 | setBindingState       | enabled=true 为 WRITE，false 为 DISABLE | bindingId、expectedVersion、reason、enabled；返回新修订命令回执                                                    |
 | previewBindingUpgrade | WRITE                                   | bindingId、expectedVersion、settings；返回 valid、changes、compatible、proposed、digest，不写库                    |
 | upgradeBinding        | WRITE                                   | bindingId、expectedVersion、reason、settings、expectedPreviewDigest、acceptIncompatible 默认 false；重算后确认升级 |

@@ -7,11 +7,14 @@ import com.arte.ainew.web.controller.NewAiToolController;
 import org.junit.Test;
 import org.springframework.beans.BeansException;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.core.annotation.AnnotatedElementUtils;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.junit.Assert.*;
 
@@ -61,7 +64,8 @@ public class ToolManagementAssemblyTest {
         assertEquals("isAuthenticated()", AnnotatedElementUtils.findMergedAnnotation(NewAiToolController.class, PreAuthorize.class).value());
         var routes = Arrays.stream(NewAiToolController.class.getDeclaredMethods()).map(m -> m.getAnnotation(org.springframework.web.bind.annotation.PostMapping.class))
                 .filter(Objects::nonNull).flatMap(a -> Arrays.stream(a.value())).collect(java.util.stream.Collectors.toSet());
-        assertEquals(16, routes.size());
+        assertEquals(17, routes.size());
+        assertTrue(routes.contains("/prepareDefaultBinding"));
         assertTrue(routes.contains("/refreshLocalCatalog"));
         for (var future : List.of("/invokeTool", "/ensureDefaultBinding", "/resolveToolSet", "/setProviderState", "/syncProvider"))
             assertFalse(routes.contains(future));

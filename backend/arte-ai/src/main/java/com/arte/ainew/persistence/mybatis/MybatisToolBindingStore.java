@@ -154,7 +154,10 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         ContractChecks.require(actor.principal().status() == PrincipalStatusEnum.ACTIVE
                 && actor.principal().subjectId().equals(owner.subjectId()), "Only the active personal owner can manage bindings");
         String commandKey = commandKey(owner, actor.principal().kind().name(), command.idempotencyKey());
-        String bindingId = command.bindingId() == null ? "tool-" + commandKey : command.bindingId();
+        // 默认身份只含真实 owner 与稳定工具 ID；跨标签页、命令键及工具版本仍指向同一份配置。
+        boolean ensureDefault = command.action() == ToolBindingCommand.Action.ENSURE_DEFAULT;
+        String bindingId = ensureDefault ? "default-tool-" + key(ownerKey(owner), command.settings().tool().id())
+                : command.bindingId() == null ? "tool-" + commandKey : command.bindingId();
         String requestDigest = requestDigest(actor.principal().kind().name(), owner, command);
         // 先编码原命令，过大请求不能在写入指针后才成为可预期拒绝。
         ContractChecks.require(CanonicalJson.encode(command).getBytes(StandardCharsets.UTF_8).length <= MAX_RECORD_BYTES,
@@ -175,35 +178,40 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
             try {
                 if (before != null && !before.owner().equals(owner)) throw reject(OWNER_MISMATCH);
                 if (before == null && command.bindingId() != null) throw reject(NOT_FOUND);
-                if (before != null && before.version() != command.expectedVersion()) throw reject(VERSION_CONFLICT);
-                String toolId = before == null ? command.settings().tool().id() : before.toolId();
-                lock(key("tool-release-identity", toolId));
-                var prior = before == null ? null : Objects.requireNonNull(readRevision(before.revision(), before), "Missing current binding revision");
-                var settings = command.action() == ToolBindingCommand.Action.SET_ENABLED ? prior.settings().withEnabled(command.enabled()) : command.settings();
-                if (!settings.tool().id().equals(toolId)) throw reject(TOOL_ID_MISMATCH);
-                if (prior != null && command.action() == ToolBindingCommand.Action.SAVE && !settings.tool().equals(prior.settings().tool()))
-                    throw reject(USE_UPGRADE);
-                if (prior != null && settings.equals(prior.settings())) throw reject(NO_CHANGE);
-                long nextVersion = before == null ? 1 : before.version() + 1;
-                var ref = new DefinitionRef("binding", bindingId, "r" + nextVersion);
-                if (command.action() == ToolBindingCommand.Action.UPGRADE) {
-                    var preview = previewLocked(before, prior, command.expectedVersion(), settings, now);
-                    if (!preview.proposed().successful()) throw reject(preview.proposed().rejection());
-                    if (!preview.digest().equals(command.expectedPreviewDigest())) throw reject(PREVIEW_CHANGED);
-                    if (!preview.compatible() && !command.acceptIncompatible()) throw reject(INCOMPATIBLE);
-                } else if (command.action() != ToolBindingCommand.Action.SET_ENABLED || command.enabled()) {
-                    // 新建必须选择当前可新绑定版本；已有绑定只允许在废弃宽限期继续使用。
-                    plan(owner, ref, settings, before == null, now);
+                if (ensureDefault && before != null) {
+                    // 只返回已有指针；不覆盖改名／配置／升级，也不重新启用被用户停用的绑定。
+                    result = ToolBindingResult.success(before, before.version());
+                } else {
+                    if (before != null && before.version() != command.expectedVersion()) throw reject(VERSION_CONFLICT);
+                    String toolId = before == null ? command.settings().tool().id() : before.toolId();
+                    lock(key("tool-release-identity", toolId));
+                    var prior = before == null ? null : Objects.requireNonNull(readRevision(before.revision(), before), "Missing current binding revision");
+                    var settings = command.action() == ToolBindingCommand.Action.SET_ENABLED ? prior.settings().withEnabled(command.enabled()) : command.settings();
+                    if (!settings.tool().id().equals(toolId)) throw reject(TOOL_ID_MISMATCH);
+                    if (prior != null && command.action() == ToolBindingCommand.Action.SAVE && !settings.tool().equals(prior.settings().tool()))
+                        throw reject(USE_UPGRADE);
+                    if (prior != null && settings.equals(prior.settings())) throw reject(NO_CHANGE);
+                    long nextVersion = before == null ? 1 : before.version() + 1;
+                    var ref = new DefinitionRef("binding", bindingId, "r" + nextVersion);
+                    if (command.action() == ToolBindingCommand.Action.UPGRADE) {
+                        var preview = previewLocked(before, prior, command.expectedVersion(), settings, now);
+                        if (!preview.proposed().successful()) throw reject(preview.proposed().rejection());
+                        if (!preview.digest().equals(command.expectedPreviewDigest())) throw reject(PREVIEW_CHANGED);
+                        if (!preview.compatible() && !command.acceptIncompatible()) throw reject(INCOMPATIBLE);
+                    } else if (command.action() != ToolBindingCommand.Action.SET_ENABLED || command.enabled()) {
+                        // 新建必须选择当前可新绑定版本；已有绑定只允许在废弃宽限期继续使用。
+                        plan(owner, ref, settings, before == null, now);
+                    }
+                    var updated = new ToolBindingDefinition(bindingId, owner, toolId, nextVersion, settings.name(), settings.enabled(),
+                            before == null ? now : before.createdAt(), before != null && now.isBefore(before.updatedAt()) ? before.updatedAt() : now);
+                    var revision = new ToolBindingRevision(ref, owner, settings, updated.updatedAt());
+                    var row = row(updated);
+                    int affected = before == null ? mapper.insertToolBinding(row) : mapper.updateToolBinding(row, before.version());
+                    if (affected != 1) throw new IllegalStateException("Binding update was not applied");
+                    if (mapper.insertToolBindingRevision(artifact(revision)) != 1)
+                        throw new IllegalStateException("Binding revision was not recorded");
+                    result = ToolBindingResult.success(updated, nextVersion);
                 }
-                var updated = new ToolBindingDefinition(bindingId, owner, toolId, nextVersion, settings.name(), settings.enabled(),
-                        before == null ? now : before.createdAt(), before != null && now.isBefore(before.updatedAt()) ? before.updatedAt() : now);
-                var revision = new ToolBindingRevision(ref, owner, settings, updated.updatedAt());
-                var row = row(updated);
-                int affected = before == null ? mapper.insertToolBinding(row) : mapper.updateToolBinding(row, before.version());
-                if (affected != 1) throw new IllegalStateException("Binding update was not applied");
-                if (mapper.insertToolBindingRevision(artifact(revision)) != 1)
-                    throw new IllegalStateException("Binding revision was not recorded");
-                result = ToolBindingResult.success(updated, nextVersion);
             } catch (Rejected rejected) {
                 result = ToolBindingResult.rejected(rejected.reason, before == null || !before.owner().equals(owner) ? null : before.version());
             }
@@ -245,8 +253,9 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         try {
             if (before.version() != expectedVersion) throw reject(VERSION_CONFLICT);
             if (!settings.tool().id().equals(before.toolId())) throw reject(TOOL_ID_MISMATCH);
-            if (settings.equals(old)) throw reject(NO_CHANGE);
-            var plan = plan(before.owner(), new DefinitionRef("binding", before.bindingId(), "r" + (expectedVersion + 1)), settings, true, now);
+            // 只读预览允许查看未修改配置的有效交集；真正保存仍在 executeGuarded 拒绝 NO_CHANGE。
+            var plan = plan(before.owner(), new DefinitionRef("binding", before.bindingId(), "r" + (expectedVersion + 1)), settings,
+                    !settings.tool().equals(old.tool()), now);
             compatible = compatible(actual, plan.tool().tool().definition());
             var oldArtifacts = catalog.releaseArtifacts(actual);
             if (oldArtifacts != null) {

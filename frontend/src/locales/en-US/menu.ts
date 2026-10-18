@@ -1,4 +1,6 @@
 export default {
+  'menu.aiTool': 'AI Tools',
+  'menu.AI.Tools': 'AI Tools',
   'menu.ChatNew': 'AI Chat (New)',
   'menu.AI.ChatNew': 'AI Chat (New)',
   'menu.HomePage': 'Home Page',

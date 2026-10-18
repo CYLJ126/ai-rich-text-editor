@@ -6,6 +6,7 @@ import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.auth.ToolManagementAccess.Operation;
@@ -24,7 +25,7 @@ import java.util.*;
 
 /**
  * 对外 TOOL 管理用例：所有入口每次重查当前身份／Scope／权限，写入把最终门控传入原事务。
- * 只开放现有本地目录、发布和个人绑定；不创建默认绑定、不触发工具执行或预算初始化。
+ * 只开放现有本地目录、发布和个人绑定；默认绑定只在缺失时创建，不触发工具执行或预算初始化。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾
@@ -104,17 +105,36 @@ public final class ToolManagementService {
     }
 
     public Mono<Page<ToolView>> tools(Session session, Scope scope, boolean managed, DefinitionRef provider, String cursor, int limit) {
+        return tools(session, scope, managed, provider, cursor, limit, null, null, null, null);
+    }
+
+    /**
+     * 筛选条件绑定游标；在有界候选页上筛选，空可见页仍可继续，不伪造 total。
+     */
+    public Mono<Page<ToolView>> tools(Session session, Scope scope, boolean managed, DefinitionRef provider, String cursor, int limit,
+                                      String query, String tag, String providerId, ToolRelease.State state) {
         pageSize(limit);
         if (provider != null) provider.requireType("tool-provider");
         return session.authorize(scope, managed ? Operation.MANAGE : Operation.LIST).flatMap(permit -> {
-            String context = context(permit, "tools", String.valueOf(provider), Boolean.toString(managed));
-            var query = provider == null ? catalog.listTools(after(cursor, context), limit) : catalog.listTools(provider, after(cursor, context), limit);
-            return query.flatMap(page -> releases.findKnown(page.items().stream().map(revision -> revision.tool().definition()).toList())
+            String context = context(permit, "tools", String.valueOf(provider), Boolean.toString(managed),
+                    Objects.toString(query, ""), Objects.toString(tag, ""), Objects.toString(providerId, ""), Objects.toString(state, ""));
+            var candidates = provider == null ? catalog.listTools(after(cursor, context), limit) : catalog.listTools(provider, after(cursor, context), limit);
+            return candidates.flatMap(page -> releases.findKnown(page.items().stream().map(revision -> revision.tool().definition()).toList())
                     .map(states -> new Page<>(page.items().stream()
                             .filter(revision -> managed || permit.executionScopes().containsAll(revision.tool().risk().requiredScopes()))
                             .map(revision -> new ToolView(revision, Objects.requireNonNull(states.get(revision.tool().definition()))))
-                            .filter(view -> managed || view.release().publication() != null).toList(), next(page.nextCursor(), context), page.items().size())));
+                            .filter(view -> managed || view.release().publication() != null)
+                            .filter(view -> matches(view, query, tag, providerId, state)).toList(), next(page.nextCursor(), context), page.items().size())));
         });
+    }
+
+    private boolean matches(ToolView view, String query, String tag, String providerId, ToolRelease.State state) {
+        var tool = view.definition().tool();
+        String search = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
+        return (search.isEmpty() || (tool.title() + " " + tool.definition().id() + " " + tool.description()).toLowerCase(Locale.ROOT).contains(search))
+                && (tag == null || tag.isBlank() || tool.tags().contains(tag))
+                && (providerId == null || providerId.isBlank() || view.definition().provider().id().equals(providerId))
+                && (state == null || view.release().state() == state);
     }
 
     public Mono<ToolDetail> tool(Session session, Scope scope, boolean managed, DefinitionRef ref) {
@@ -176,6 +196,23 @@ public final class ToolManagementService {
 
     public Mono<ToolBindingRevision> revision(Session session, Scope scope, DefinitionRef ref) {
         return session.authorize(scope, Operation.LIST).flatMap(permit -> bindings.revision(permit.owner(), ref).switchIfEmpty(notFound()));
+    }
+
+    /**
+     * 显式准备本人默认绑定；固定版本和配置进入原始命令，存储按 owner＋工具身份原子去重。
+     * 已有默认绑定保持用户选择，不自动升级或恢复启用；每次及事务内仍复核当前 WRITE 资格。
+     */
+    public Mono<StoreOutcome<ToolBindingReceipt>> prepareDefault(Session session, Scope scope, DefinitionRef tool,
+                                                                 StructuredValue.ObjectValue configuration, String key) {
+        Objects.requireNonNull(tool).requireType("tool");
+        return tool(session, scope, false, tool).flatMap(detail -> {
+            var title = detail.tool().definition().tool().title();
+            var settings = new ToolBindingSettings(tool, ToolBindingSettings.VersionPolicy.PINNED,
+                    title.length() > 200 ? title.substring(0, 200) : title, true, configuration, Map.of(), null, null);
+            var command = new ToolBindingCommand(ToolBindingCommand.Action.ENSURE_DEFAULT, null, 0, key,
+                    "准备本人默认工具配置", settings, null, null, false);
+            return changeBinding(session, scope, command);
+        });
     }
 
     public Mono<StoreOutcome<ToolBindingReceipt>> changeBinding(Session session, Scope scope, ToolBindingCommand command) {

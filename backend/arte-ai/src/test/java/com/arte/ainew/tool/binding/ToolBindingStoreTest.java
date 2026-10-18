@@ -604,7 +604,7 @@ public class ToolBindingStoreTest {
         var settings = settings(v1, PINNED, "one", object());
         var one = create(settings, "create");
         assertEquals(NO_CHANGE, save(one, settings, "same").result().rejection());
-        assertEquals(NO_CHANGE, first.preview(owner, one.bindingId(), 1, settings).block(WAIT).proposed().rejection());
+        assertTrue(first.preview(owner, one.bindingId(), 1, settings).block(WAIT).proposed().successful());
         var missing = new ToolBindingCommand(ToolBindingCommand.Action.SAVE, "missing", 1, "missing", "reason", settings, null, null, false);
         assertEquals(NOT_FOUND, run(missing).result().rejection());
         assertEquals(1, count("binding_revision"));

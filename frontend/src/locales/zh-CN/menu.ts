@@ -1,4 +1,6 @@
 export default {
+  'menu.aiTool': 'AI 工具',
+  'menu.AI.Tools': 'AI 工具',
   'menu.ChatNew': 'AI 聊天（新版）',
   'menu.AI.ChatNew': 'AI 聊天（新版）',
   'menu.HomePage': '首页',

@@ -8,6 +8,13 @@
 > 核对进度，普通页隐藏版本／重试等高级字段。工具聊天的三种重新生成意图、历史资料时刻和实际审批到期必须明确展示；轮询采用有界退避，空间切换／失权停止刷新。上述均为未来
 > TOOL API，不是本目录当前导出函数。
 
+S2-07 已新增 `tool.ts`，覆盖目录筛选／详情、默认配置准备、本人配置读取／保存／启停／升级预览及历史。页面直接从
+`@/services/arte-ai/tool` 导入工具专属类型， 复用原 request／ResultContext／Scope，不修改纯文本聊天 API。精确配置使用
+configurationJson 原文及工具 JSON 编辑器，写命令仍发送标准 JSON configuration，版本始终为字符串。 页面 `/AI/Tools`
+只管理工具配置；不提供 invokeTool、预算、审批或
+ToolChatRun。当前范围与验证见 [S2-07 实施记录](../../../../backend/arte-ai/TOOL_IMPLEMENTATION.md#15-s2-07工具目录与绑定页面)。
+上方 2026-10-17 说明为规划时状态，当前实现以本段及实施记录为准。
+
 S3 提供 `searchConversations`、`closeSearch`、`queryTurnsAround`，S4 已接入页面双入口，后端部署配置现默认开启搜索查询和后台同步。搜索返回
 `body.data.records` 与不透明游标，不使用普通页码分页包装；不带 cursor 会新建 PIT，进行中的同词请求由搜索界面合并。
 `closeSearch` 允许成功包装中的空 data。历史定位独立于原搜索 PIT，助手正文通过 `getInvocationSnapshot` 辅助函数调用既有批量

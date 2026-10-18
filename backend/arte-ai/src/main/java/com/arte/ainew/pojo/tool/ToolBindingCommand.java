@@ -9,8 +9,8 @@ import java.util.Objects;
  * <p>
  * owner／actor 由可信入口分别提供。
  *
- * @param action                完整保存、启停或显式升级。
- * @param bindingId             创建 SAVE 时为空，由服务端按 owner／命令派生；其他情况为稳定 ID。
+ * @param action                完整保存、启停、显式升级或只在缺失时准备默认绑定。
+ * @param bindingId             创建 SAVE 或 ENSURE_DEFAULT 时为空，由服务端按 owner／命令派生；其他情况为稳定 ID。
  * @param expectedVersion       新建为 0，修改为当前治理版本，不静默覆盖。
  * @param idempotencyKey        真实 owner 及操作者范围内跨绑定／动作共享的命令键。
  * @param reason                审计原因，不写日志。
@@ -25,7 +25,7 @@ public record ToolBindingCommand(Action action, String bindingId, long expectedV
                                  String reason, ToolBindingSettings settings, Boolean enabled,
                                  String expectedPreviewDigest, boolean acceptIncompatible) {
 
-    public enum Action {SAVE, SET_ENABLED, UPGRADE}
+    public enum Action {SAVE, SET_ENABLED, UPGRADE, ENSURE_DEFAULT}
 
     public ToolBindingCommand {
         Objects.requireNonNull(action, "action");
@@ -33,8 +33,9 @@ public record ToolBindingCommand(Action action, String bindingId, long expectedV
         ContractChecks.id(idempotencyKey, "idempotencyKey");
         ContractChecks.text(reason, "reason", 1024);
         if (bindingId == null)
-            ContractChecks.require(action == Action.SAVE && expectedVersion == 0, "Only creation omits bindingId");
+            ContractChecks.require((action == Action.SAVE || action == Action.ENSURE_DEFAULT) && expectedVersion == 0, "Only creation or default preparation omits bindingId");
         else {
+            ContractChecks.require(action != Action.ENSURE_DEFAULT, "Default identity is server derived");
             ContractChecks.id(bindingId, "bindingId");
             ContractChecks.require(expectedVersion > 0, "Existing binding requires a version");
         }

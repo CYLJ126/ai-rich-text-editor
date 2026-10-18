@@ -471,6 +471,136 @@ public class ToolManagementHttpTest {
         assertNotEquals(en.path("desc"), zh.path("desc"));
     }
 
+    @Test
+    public void defaultPreparationAcrossKeysAndVersionsRetainsOnePersonalBinding() throws Exception {
+        var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object())), "review", null, ToolExecutionPolicy.ApprovalMode.NONE, null, null);
+        assertEquals(ToolReleaseReceipt.Rejection.NONE, releaseService.execute(actor("alice"), new ToolReleaseCommand(v2.revision().tool().definition(), ToolReleaseCommand.Action.PUBLISH, 0, "setup-publish-v2", "setup", review, null)).block(WAIT).value().rejection());
+        var first = request("prepareDefaultBinding", Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of()), "default-1", "alice", 200);
+        String id = first.path("data").path("bindingId").asString();
+        assertTrue(id.startsWith("default-tool-"));
+        var next = request("prepareDefaultBinding", Map.of("scope", SCOPE, "tool", v2.revision().tool().definition(), "configuration", Map.of("text", "changed")), "default-2", "alice", 200);
+        assertEquals(id, next.path("data").path("bindingId").asString());
+        assertEquals("1", next.path("data").path("currentVersion").asString());
+        assertEquals(1, count("binding"));
+        assertEquals(1, count("binding_revision"));
+        assertEquals("v1", ok("getBinding", Map.of("scope", SCOPE, "bindingId", id)).path("data").path("revision").path("settings").path("tool").path("version").asString());
+    }
+
+    @Test
+    public void defaultPreparationDoesNotReenableOrOverwritePersonalEdits() throws Exception {
+        var body = Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of());
+        String id = request("prepareDefaultBinding", body, "default", "alice", 200).path("data").path("bindingId").asString();
+        request("saveBinding", Map.of("scope", SCOPE, "bindingId", id, "expectedVersion", "1", "reason", "edit", "settings", settings(v1, Map.of("text", "personal"))), "edit", "alice", 200);
+        request("setBindingState", Map.of("scope", SCOPE, "bindingId", id, "expectedVersion", "2", "reason", "stop", "enabled", false), "disable", "alice", 200);
+        var prepared = request("prepareDefaultBinding", body, "another", "alice", 200).path("data");
+        assertEquals("3", prepared.path("currentVersion").asString());
+        assertFalse(prepared.path("binding").path("enabled").asBoolean());
+        var saved = ok("getBinding", Map.of("scope", SCOPE, "bindingId", id)).path("data").path("revision").path("settings");
+        assertEquals("personal", saved.path("configuration").path("text").asString());
+        assertEquals(3, count("binding_revision"));
+    }
+
+    @Test
+    public void defaultCommandsReplayRejectDifferentIntentAndReauthorize() throws Exception {
+        var body = Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of());
+        request("prepareDefaultBinding", body, "default", "alice", 200);
+        assertEquals("REPLAYED", request("prepareDefaultBinding", body, "default", "alice", 200).path("data").path("delivery").asString());
+        request("prepareDefaultBinding", Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of("text", "other")), "default", "alice", 409);
+        revoked.set(true);
+        request("prepareDefaultBinding", body, "default", "alice", 403);
+        assertEquals(1, count("binding"));
+    }
+
+    @Test
+    public void defaultIdentityIsIsolatedBetweenOwnersAndFinalAuthorizationRollsBack() throws Exception {
+        var body = Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of());
+        String alice = request("prepareDefaultBinding", body, "same", "alice", 200).path("data").path("bindingId").asString();
+        String bob = request("prepareDefaultBinding", body, "same", "bob", 200).path("data").path("bindingId").asString();
+        assertNotEquals(alice, bob);
+        request("getBinding", Map.of("scope", SCOPE, "bindingId", alice), null, "bob", 404);
+        commitRevoked.set(true);
+        request("prepareDefaultBinding", body, "third", "charlie", 403);
+        assertEquals(2, count("binding"));
+        assertEquals(2, count("binding_command"));
+    }
+
+    @Test
+    public void concurrentDefaultPreparationWithDifferentKeysCreatesOnlyOneRevision() throws Exception {
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var gate = new java.util.concurrent.CyclicBarrier(2);
+            var session = new TestAccess().capture(new UsernamePasswordAuthenticationToken("alice", "none", List.of()));
+            var first = pool.submit(() -> {
+                gate.await();
+                return service.prepareDefault(session, scope(), v1.revision().tool().definition(), object(), "one").block(WAIT);
+            });
+            var second = pool.submit(() -> {
+                gate.await();
+                return service.prepareDefault(session, scope(), v1.revision().tool().definition(), object(), "two").block(WAIT);
+            });
+            assertEquals(first.get().value().bindingId(), second.get().value().bindingId());
+            assertEquals(1, count("binding"));
+            assertEquals(1, count("binding_revision"));
+            assertEquals(2, count("binding_command"));
+        }
+    }
+
+    @Test
+    public void defaultConfigurationFailureCanBeCorrectedUsingNewCommandWithoutPoisoningIdentity() throws Exception {
+        request("prepareDefaultBinding", Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of("unknown", "invalid")), "bad", "alice", 422);
+        assertEquals(0, count("binding"));
+        request("prepareDefaultBinding", Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of()), "corrected", "alice", 200);
+        assertEquals(1, count("binding"));
+        assertEquals(2, count("binding_command"));
+    }
+
+    @Test
+    public void schemaAndConfigurationTextKeepExactNumbersForBrowserEditing() throws Exception {
+        var config = "{\"decimal\":0.12345678901234567890123456789,\"integer\":9007199254740993}";
+        var input = "{\"scope\":{\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"},\"tool\":" + json.writeValueAsString(v1.revision().tool().definition()) + ",\"configuration\":" + config + "}";
+        var created = raw("prepareDefaultBinding", input, "precise-default", "alice", "zh-CN", 200);
+        String id = created.path("data").path("bindingId").asString();
+        var detail = ok("getBinding", Map.of("scope", SCOPE, "bindingId", id)).path("data");
+        String raw = detail.path("revision").path("settings").path("configurationJson").asString();
+        assertTrue(raw.contains("0.12345678901234567890123456789"));
+        assertTrue(raw.contains("9007199254740993"));
+        assertTrue(ok("getTool", Map.of("scope", SCOPE, "tool", v1.revision().tool().definition())).path("data").path("configurationSchema").path("documentJson").asString().contains("properties"));
+        var snapshot = jdbc.queryForObject("SELECT snapshot FROM arte_ai_tool_binding_command WHERE command_key=?", String.class, created.path("data").path("commandId").asString());
+        assertTrue(snapshot.contains("\"schemaVersion\":2"));
+        assertNotNull(new JacksonExecutionRecordCodec().decode(snapshot, com.arte.ainew.pojo.tool.ToolBindingReceipt.class));
+        assertThrows(IllegalArgumentException.class, () -> new JacksonExecutionRecordCodec().decode(snapshot.replace("\"schemaVersion\":2", "\"schemaVersion\":1"), com.arte.ainew.pojo.tool.ToolBindingReceipt.class));
+    }
+
+    @Test
+    public void ordinaryCatalogFiltersAreServerSideAndBoundToCursor() throws Exception {
+        assertEquals(1, ok("listTools", Map.of("scope", SCOPE, "query", "text", "state", "PUBLISHED")).path("data").path("records").size());
+        assertEquals(0, ok("listTools", Map.of("scope", SCOPE, "query", "absent")).path("data").path("records").size());
+        assertEquals(0, ok("listTools", Map.of("scope", SCOPE, "tag", "absent")).path("data").path("records").size());
+        var page = ok("listTools", Map.of("scope", SCOPE, "size", 1, "query", "absent")).path("data");
+        assertTrue(page.path("records").isEmpty());
+        assertFalse(page.path("nextCursor").isNull());
+        request("listTools", Map.of("scope", SCOPE, "size", 1, "query", "changed", "cursor", page.path("nextCursor").asString()), null, "alice", 400);
+    }
+
+    @Test
+    public void defaultPreparationRejectsClientIdentityAndRollsBackOnAuditFailure() throws Exception {
+        var body = new LinkedHashMap<String, Object>(Map.of("scope", SCOPE, "tool", v1.revision().tool().definition(), "configuration", Map.of()));
+        body.put("owner", Map.of("subjectId", "someone"));
+        request("prepareDefaultBinding", body, "forged", "alice", 400);
+        body.remove("owner");
+        jdbc.execute("ALTER TABLE arte_ai_tool_binding_command ADD CONSTRAINT reject_default_audit CHECK(1=0)");
+        request("prepareDefaultBinding", body, "audit-fail", "alice", 503);
+        assertEquals(0, count("binding"));
+        assertEquals(0, count("binding_revision"));
+        assertEquals(0, count("binding_command"));
+    }
+
+    /**
+     * 仅供显式启动的本机浏览器验收桥复用真实 MVC／H2，不属于生产装配。
+     */
+    MockMvc browserMvc() {
+        return mvc;
+    }
+
     private final class TestAccess implements ToolManagementAccess {
         public Session capture(Authentication auth) {
             if (auth == null || !auth.isAuthenticated())

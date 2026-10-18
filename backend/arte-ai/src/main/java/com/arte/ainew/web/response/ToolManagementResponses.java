@@ -4,6 +4,7 @@ import com.arte.ainew.application.tool.management.ToolManagementService;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
+import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.web.ToolManagementValues;
 import com.arte.ainew.web.request.ToolManagementRequests;
 
@@ -42,7 +43,7 @@ public final class ToolManagementResponses {
                        Risk risk, ToolManagementRequests.Policy defaultPolicy, Release release, String checksum) {
     }
 
-    public record Schema(DefinitionRef definition, Object document, String checksum) {
+    public record Schema(DefinitionRef definition, Object document, String documentJson, String checksum) {
     }
 
     public record ToolDetail(Tool tool, Schema inputSchema, Schema outputSchema, Schema configurationSchema,
@@ -64,7 +65,8 @@ public final class ToolManagementResponses {
 
     public record Settings(DefinitionRef tool, ToolBindingSettings.VersionPolicy versionPolicy, String name,
                            boolean enabled, Object configuration,
-                           Map<String, DefinitionRef> secrets, ToolManagementRequests.Policy policy,
+                           String configurationJson, Map<String, DefinitionRef> secrets,
+                           ToolManagementRequests.Policy policy,
                            List<String> networkOrigins) {
     }
 
@@ -75,7 +77,8 @@ public final class ToolManagementResponses {
     }
 
     public record Plan(DefinitionRef binding, DefinitionRef revision, DefinitionRef tool, String contractDigest,
-                       Object configuration, String configurationDigest, ToolManagementRequests.Policy policy,
+                       Object configuration, String configurationJson, String configurationDigest,
+                       ToolManagementRequests.Policy policy,
                        List<String> networkOrigins) {
     }
 
@@ -133,7 +136,7 @@ public final class ToolManagementResponses {
     }
 
     private static Schema schema(ToolSchemaDefinition value) {
-        return new Schema(value.definition(), ToolManagementValues.json(value.document()), value.checksum());
+        return new Schema(value.definition(), ToolManagementValues.json(value.document()), CanonicalJson.encode(ToolManagementValues.json(value.document())), value.checksum());
     }
 
     public static Provider provider(ToolProviderDefinition value) {
@@ -162,7 +165,7 @@ public final class ToolManagementResponses {
 
     public static Settings settings(ToolBindingSettings value) {
         return new Settings(value.tool(), value.versionPolicy(), value.name(), value.enabled(), ToolManagementValues.json(value.configuration()),
-                value.secrets(), policy(value.policy()), value.networkOrigins() == null ? null : origins(value.networkOrigins()));
+                CanonicalJson.encode(ToolManagementValues.json(value.configuration())), value.secrets(), policy(value.policy()), value.networkOrigins() == null ? null : origins(value.networkOrigins()));
     }
 
     public static ToolManagementRequests.Policy policy(ToolExecutionPolicy value) {
@@ -181,7 +184,7 @@ public final class ToolManagementResponses {
     public static Upgrade upgrade(ToolBindingUpgradePreview value) {
         var result = value.proposed();
         var p = result.value();
-        var plan = p == null ? null : new Plan(p.definition(), p.revision(), p.tool().tool().definition(), p.contractDigest(), ToolManagementValues.json(p.effectiveConfiguration()),
+        var plan = p == null ? null : new Plan(p.definition(), p.revision(), p.tool().tool().definition(), p.contractDigest(), ToolManagementValues.json(p.effectiveConfiguration()), CanonicalJson.encode(ToolManagementValues.json(p.effectiveConfiguration())),
                 p.configurationDigest(), policy(p.effectivePolicy()), origins(p.networkOrigins()));
         return new Upgrade(value.bindingId(), Long.toString(value.expectedVersion()), value.currentBaseline(), value.currentTool(), value.compatible(), value.changes(),
                 result.successful(), result.rejection().name(), plan, value.digest());

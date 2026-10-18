@@ -99,7 +99,7 @@ export default defineConfig({
   // routes,
   // Chat 目录只注册页面入口，配置、测试和说明文档不作为约定式路由。
   conventionRoutes: {
-    exclude: [/^AI\/(?:Chat|ChatNew)\/(?!index\.tsx$)/],
+    exclude: [/^AI\/(?:Chat|ChatNew|Tools)\/(?!index\.tsx$)/],
   },
   /**
    * @name theme 主题的配置

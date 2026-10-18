@@ -45,7 +45,7 @@ public class NewAiToolController {
 
     @PostMapping("/listTools")
     public Mono<ResultContext<ToolManagementResponses.Page<ToolManagementResponses.Tool>>> listTools(Authentication auth, @Valid @RequestBody ToolManagementRequests.ListTools request, Locale locale) {
-        return service.tools(access.capture(auth), request.scope().value(), Boolean.TRUE.equals(request.managed()), request.provider(), request.cursor(), size(request.size()))
+        return service.tools(access.capture(auth), request.scope().value(), Boolean.TRUE.equals(request.managed()), request.provider(), request.cursor(), size(request.size()), request.query(), request.tag(), request.providerId(), request.state())
                 .map(page -> success(ToolManagementResponses.page(page, ToolManagementResponses::tool), locale));
     }
 
@@ -116,6 +116,14 @@ public class NewAiToolController {
                                                                                                    @RequestHeader("Idempotency-Key") String key, Locale locale) {
         var command = new ToolBindingCommand(ToolBindingCommand.Action.SAVE, request.bindingId(), version(request.expectedVersion()), key, request.reason(), settings(request.settings()), null, null, false);
         return service.changeBinding(access.capture(auth), request.scope().value(), command).map(value -> ToolManagementHttpResult.binding(value, locale));
+    }
+
+    @PostMapping("/prepareDefaultBinding")
+    public Mono<ResponseEntity<ResultContext<ToolManagementResponses.BindingCommand>>> prepareDefaultBinding(Authentication auth,
+                                                                                                             @Valid @RequestBody ToolManagementRequests.PrepareDefaultBinding request,
+                                                                                                             @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        return service.prepareDefault(access.capture(auth), request.scope().value(), request.tool(), object(request.configuration(), true), key)
+                .map(value -> ToolManagementHttpResult.binding(value, locale));
     }
 
     @PostMapping("/setBindingState")

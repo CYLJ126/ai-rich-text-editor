@@ -44,7 +44,10 @@ public final class ToolManagementRequests {
     }
 
     public record ListTools(@NotNull @Valid ToolScope scope, DefinitionRef provider, Boolean managed,
-                            @Size(max = 132) String cursor, @Min(1) @Max(100) Integer size) implements Strict {
+                            @Size(max = 132) String cursor, @Min(1) @Max(100) Integer size,
+                            @Size(max = 200) String query, @Size(max = 100) String tag,
+                            @Size(max = 256) String providerId,
+                            com.arte.ainew.pojo.tool.ToolRelease.State state) implements Strict {
     }
 
     public record Page(@NotNull @Valid ToolScope scope, @Size(max = 132) String cursor,
@@ -95,6 +98,13 @@ public final class ToolManagementRequests {
                               @NotBlank @Pattern(regexp = "0|[1-9][0-9]{0,18}") String expectedVersion,
                               @NotBlank @Size(max = 1024) String reason,
                               @NotNull @Valid Settings settings) implements Strict {
+    }
+
+    /**
+     * 默认配置仅在缺失时创建；固定工具与补充配置来自本次用户选择，不允许指定 owner 或默认身份。
+     */
+    public record PrepareDefaultBinding(@NotNull @Valid ToolScope scope, @NotNull DefinitionRef tool,
+                                        @NotNull @tools.jackson.databind.annotation.JsonDeserialize(using = com.arte.ainew.web.ToolJsonNodeDeserializer.class) JsonNode configuration) implements Strict {
     }
 
     public record SetBindingState(@NotNull @Valid ToolScope scope, @NotBlank @Size(max = 256) String bindingId,

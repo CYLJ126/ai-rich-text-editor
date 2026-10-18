@@ -1,0 +1,57 @@
+.tool-page {
+  padding: 16px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.tool-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tool-page-header {
+  margin-bottom: 16px;
+}
+
+.tool-filters {
+  gap: 8px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+
+.tool-json {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #d9d9d9);
+  border-radius: 8px;
+}
+
+.tool-advanced,
+.tool-drawer-alert {
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+  .tool-page {
+    padding: 8px;
+  }
+
+  .tool-filters .ant-form-item {
+    width: 100%;
+    margin-inline-end: 0;
+  }
+
+  .tool-filters .ant-select {
+    width: 100%;
+  }
+}
