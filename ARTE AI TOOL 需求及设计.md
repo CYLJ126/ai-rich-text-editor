@@ -1,15 +1,16 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-18。
-> 文档版本：V0.2（评审修订，S1-05 实施同步）。状态：S1-01 值对象、S1-02 Schema 校验、S1-03 类型化目标、S1-04
-> 工具定义／Schema／提供者存储、S1-05 本地登记与发现已完成，其余批次待实现，实际数据库未部署 S1-04 增量；性能数值是验收目标，不是实测结果。
+> 文档版本：V0.2（评审修订，S1-06 实施同步）。状态：S1-01—S1-06 已完成对应批次的契约、存储、本地发现及内部发布治理，绑定和管理
+> API 等后续批次待实现。
+> 实际数据库未部署 S1-04／S1-06 增量；TOOL 默认关闭，性能数值是验收目标，不是实测结果。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-05
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-06
 > 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。当前已有工具值对象、Schema
-> 校验、类型化目标、底层目录版本存储／部署脚本及显式本地发现，未开放工具功能。验证包含本机受控
+> 校验、类型化目标、底层目录版本存储／部署脚本、显式本地发现和内部生命周期治理，未开放工具功能。验证包含本机受控
 > HTTP 及测试 H2，未连接配置中的业务数据库或执行部署迁移，未完成生产环境验收。参考项目只用于理解功能，不构成本功能的架构、数据或接口兼容要求。
 
 ## 目录
@@ -195,7 +196,8 @@ callId，也通过所属轮次与子 Invocation 隔离。
 
 以下为逻辑模型及名称。S1-01 已实现 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy 的不可变值对象；S1-02
 已实现 application.tool.schema.ToolSchemaValidator 独立校验组件；S1-04 已实现提供者、Schema 和定义修订的底层版本存储；S1-05
-已实现显式本地登记及手动完整发现。管理 API、发布、绑定、远端发现和执行行为仍为计划设计。
+已实现显式本地登记及手动完整发现；S1-06 已实现本地发布预检、发布／废弃／停用／重新启用和原子管理审计。管理
+API、绑定、远端发现和执行行为仍为计划设计。
 
 | 对象                   | 责任与主要字段                                                                                            |
 |------------------------|-----------------------------------------------------------------------------------------------------------|
@@ -206,7 +208,7 @@ callId，也通过所属轮次与子 Invocation 隔离。
 | ToolRiskProfile        | sideEffect、destructive、幂等依据、必要 scopes 及允许网络 origin；不代表当前授权                          |
 | ToolCapabilities       | 工具适用的通用 features 与业务结果核对能力；不把平台异步排队算作工具远端异步能力                          |
 | ToolExecutionPolicy    | 总期限、含首次的尝试上限、最低退避、输入／输出字节上限及最低人工控制模式                                  |
-| ToolRelease            | 工具版本发布状态、兼容基准、说明及审计；不承载本次调用参数                                                |
+| ToolRelease            | 已实现治理状态、乐观版本、不可变首次发布材料、兼容前驱及废弃截止；不承载本次调用参数                      |
 | ToolBindingDefinition  | 稳定 bindingId、真实 Scope 与主体、基准工具版本、版本策略、非敏感配置、Secret 引用、策略及行版本          |
 | ToolExecutionSnapshot  | 受理时的实际工具／绑定引用、有效配置、策略、Schema 摘要、适配与连接版本及请求摘要                         |
 | ToolApproval           | invocationId、操作摘要、模式、允许决策规则、决定者、状态、到期时间及版本                                  |
@@ -226,8 +228,8 @@ EXECUTABLE。实际字段、结构上限及尚未实现的验证见 [TOOL 实施
 Scope 和主体。用户私有定义、跨租户分发及工具市场另行设计，不以目录可见代替空间使用许可。
 
 S1-04 的 ToolCatalogStore 是受信底层 SPI，不是上述目录的公共查询或授权 API。提供者接入契约使用
-type=tool-provider-adapter，区别于执行单个本地工具的
-tool-adapter。提供者启停、活跃版本、同步结果及草稿／发布指针后续另行实现；已保存的固定引用始终不可原地改写，草稿编辑不得绕过这一版本约束。
+type=tool-provider-adapter，区别于执行单个本地工具的 tool-adapter。S1-06 已新增 ToolReleaseStore 管理固定工具版本的生命周期，不使用可变
+latest 指针。提供者启停、活跃接入版本及同步权威仍待后续实现；已保存的固定引用始终不可原地改写，草稿编辑不得绕过这一版本约束。
 
 ### 3.3 工具身份、Schema 与风险
 
@@ -354,6 +356,7 @@ follow-compatible 在新受理时按显式兼容链解析，生成包含实际�
 | Turn 用 invocationIds 表达候选                                               | S4 引入带类型候选及活跃执行身份                        | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                          |
 | OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选     | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份 | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation |
 | BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通             | S3 增加结果查询适配与证据提交，S5 验证远端协议         | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                    |
+| 既有 codec 只识别显式根别名，不承担工具治理状态                              | S1-06 增加 tool-release／tool-release-receipt v1       | 旧类型保持原义；新别名严格整数版本，先升级读端再写；原子回滚与旧数据回归见实施记录 §6          |
 | 当前人工账单核对限 GENERATION                                                | 付费工具阶段扩展费用核对，并与业务结果核对分离         | 不能因账单确认就生成工具业务结果；现有生成账本回执语义保持                                     |
 
 本表中的类位于 com.arte.ainew；完整代码链接见 §16。每一行在所属阶段必须有变更说明、旧数据解码用例、失败回滚用例和对应
@@ -429,7 +432,7 @@ Limits 设置更低限额，尚未新增服务器配置项。
 UTF-8、必要转义、键和标点），不建立完整编码副本；它不等于原始请求字节数。后续传输层仍须限制原始字节，并在严格解析时拒绝重复键、尾随内容及非法数值，持久化边界仍须限制实际编码大小。
 
 S1-02 完成时校验器为独立组件；S1-04 已在存储边界、S1-05 已在本地发现候选中接入 Schema 子集、固定依赖、默认配置及 checksum
-真实性验证。发布、TOOL
+真实性验证；S1-06 发布预检及事务内也复核 Schema、默认配置和非敏感输入输出示例。TOOL
 网关、绑定配置管理和前端表单仍未接线；FR-07.1／AC-03
 的端到端门槛不能因底层校验通过而标为完成。实现及测试清单见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)。
 
@@ -463,7 +466,8 @@ ToolResult.SUCCEEDED。TASK_QUERY／CANCEL 必须有真实适配能力。
 - Redis 可广播变更，权威状态仍在数据库；通知丢失由周期对账收敛。
 
 S1-05 当前实现范围：仅显式本地来源的节点内手动刷新。全部来源成功后，复用 S1-04 的单次原子 Batch 登记，再一次替换
-Snapshot／State；新版本仍为 DISCOVERED，发布生命周期及草稿状态由 S1-06 实现。读取失败、空 Mono、超时、校验失败、版本漂移及存储失败均保留完整旧
+Snapshot／State；发现视图仍为 DISCOVERED，正式生命周期与派生草稿已由 S1-06 单独实现，不自动发布。读取失败、空
+Mono、超时、校验失败、版本漂移及存储失败均保留完整旧
 Snapshot，并使 discoveryHealthy=false；失败结果和日志不透传来源／数据库异常正文。首次成功前没有快照。BUSY 只拒绝并发请求，不覆盖上一结果。
 
 完整的空 Definitions 可以移除当前发现视图中的条目，但不删除历史版本，也不等于停用已发布工具。单个 refresh
@@ -544,7 +548,8 @@ TOOL 消费前，仍须先升级全部读端并落实 §4.6
 
 S1-05 已落地 enabled=false 和 discovery.source-timeout=10s；后者为每个完整来源的读取期限，可配置 1ms 至 1m，不是工具调用超时。
 配置已进入 common.properties 默认值、app.properties.example、运行时过滤模板及 examples/ainew-tool.yml。仅当 AI 主开关及
-TOOL 开关同时打开才装配；缺少显式 LocalToolRegistry 则装配失败。使用独立的有界元数据线程池（2 线程，每线程队列
+TOOL 开关同时打开才装配；缺少显式 LocalToolRegistry 则装配失败。S1-06 在相同开关下新增内部治理服务，发布／重新启用预检沿用
+source-timeout，不增加后台开关。 使用独立的有界元数据线程池（2 线程，每线程队列
 16），不在启动时刷新、建表、发布或执行。 除这两项外，下表配置仍是设计计划，当前不能填写未实现的配置项；包括
 discovery.auto-sync-enabled，严格绑定会拒绝。
 
@@ -619,11 +624,22 @@ Run 额度更新与账户结算同库原子提交，事件只在提交后发布�
 
 草稿 DRAFT → 已发布 PUBLISHED → 废弃 DEPRECATED 或停用 DISABLED。
 
-- 草稿不可执行，发布前允许修改。
+- 草稿不可执行；尚未登记的编辑工作副本可以修改。固定 toolRef 登记后不可覆写，修改契约须使用新版本，不能以“尚未发布”为由绕过
+  S1-04 防漂移。
 - PUBLISHED 的契约不可变，变化必须新版本。
 - DEPRECATED 表示不推荐新建绑定，既有绑定在允许期限内仍可使用；如需禁止执行应明确 DISABLED。
 - DISABLED 阻止下一次敏感执行边界；已发生副作用仍需查询、核对及结算。
 - 再启用须具备管理权限、版本检查及原因；不能恢复被替换的可变契约。
+
+S1-06 已实现内部生命周期：存在不可变工具定义但没有治理行时，ToolReleaseStore.find 派生 DRAFT、version=0，且不写数据库；首次发布成功保存
+PUBLISHED、version=1。 允许 DRAFT→PUBLISHED、PUBLISHED→DEPRECATED、PUBLISHED／DEPRECATED→DISABLED；REENABLE 只恢复停用前的
+PUBLISHED／DEPRECATED，不把已废弃工具变成推荐工具。 其他转换明确拒绝；成功变更 version 加一，拒绝和重放不推进。DEPRECATE 可设置
+existingBindingsUntil，截止时刻起既有绑定生命周期资格失效；null 表示未额外设定截止，不豁免当前权限和执行期限。
+重新启用保留原截止，截止已到时拒绝，不隐式延长使用期。
+
+ToolRelease 的 permitsNewBinding／permitsExistingBinding 只判断生命周期资格，不判断空间可见性、权限、执行器、免费／付费资格或节点就绪。
+当前状态读取不缓存；历史回执中的 PUBLISHED 只是当时记录，不可用作当前执行凭据。S1-07 绑定与 S2 敏感执行边界必须读取并复核当前治理状态；本批未接入实际
+TOOL 派发。
 
 ### 7.2 发布检查
 
@@ -632,6 +648,22 @@ Run 额度更新与账户结算同库原子提交，事件只在提交后发布�
 
 兼容性、试调用成功和连接健康不能代替实际资源授权。远端探测可能产生费用或副作用，只能作为明确的受控操作执行。
 
+S1-06 本地预检检查最近发现健康、固定工具存在、当前登记的实际 BusinessToolAdapter 能力一致及非 DISABLED，重新编译三类
+Schema、校验默认配置及 1—8 个非敏感正向输入输出示例。 每个示例输入／输出最多 32 KiB 紧凑 JSON
+UTF-8，同时受工具更低的策略限制；发布状态和审计快照各不超过 1,000,000 实际编码字节。 UNKNOWN 风险、UNVERIFIED
+幂等不可发布；声明领域／远端操作键防重必须保存人工审核依据。审核材料不是业务防重实现的自动证明，审核者仍须核实证据。 首批对全部
+EXTERNAL_EFFECT 保守要求 INDEPENDENT_APPROVAL；审核最低控制不得低于风险要求，工具默认策略不得低于审核要求。
+
+当前 BusinessToolAdapter 只有单次最终结果端口，发布暂只接受 features 为空且 outcomeQuerySupported=false
+的本地工具。流式、异步任务／任务查询、取消、用量报告及业务结果核对可保留发现描述，但发布返回
+UNSUPPORTED_CAPABILITY；相应执行协议及验收落地后再放开，不能只凭声明发布。 预检不调用
+invoke、不访问真实领域资源、不探测远端连接。远端工具发布、Secret 授权和集群执行器清单验收尚未实现；实际管理权限接入为 S1-08。
+
+发布与重新启用的预检报告只由服务端生成，不能从 HTTP 请求绑定。事务内复核报告有效期（不超过 1
+分钟）、固定契约摘要、Schema／示例及风险约束；首次发布冻结契约和审核材料，重新启用重验当前实现及原契约，不覆盖首次发布记录。
+固定发布契约摘要 tool-release-contract-v1 覆盖工具产品 checksum、实际提供方、执行目标及三类 Schema
+摘要；节点清单摘要只记录当次观察，不证明集群同构。
+
 ### 7.3 兼容升级
 
 follow-compatible 只沿管理员明确发布的单向兼容链选择，不按版本字符串或更新时间挑选。链必须无环、无歧义，并验证输入接受范围、输出消费契约、配置及副作用不破坏既有使用。
@@ -639,6 +671,13 @@ follow-compatible 只沿管理员明确发布的单向兼容链选择，不按�
 不能自动兼容的变化包括新增必填字段、字段类型收窄、结果结构破坏、扩大外发或副作用、需要新凭据／权限。静态检查不能证明的语义兼容由审核确认并记录证据。
 
 升级预览列出当前／目标版本、配置校验、风险变化及受影响的允许工具集合。显式升级保持 bindingId，创建新修订；不兼容变化由用户确认并调整配置。
+
+S1-06 已落地显式兼容边的发布约束，未实现绑定自动选版。compatibleFrom 必须是同一稳定工具的另一固定版本，且已处于
+PUBLISHED／DEPRECATED；只有首次发布目标才能登记边。
+同一稳定工具的治理锁串行化边创建，前驱唯一索引禁止分叉；边不允许改写，因而按“已发布前驱→首次发布目标”的构造顺序无环，不依赖版本标签或时间排序。
+本批仅自动证明保守子集：三类 Schema 内容摘要相同，风险／scopes／外发目标、工具能力、默认策略和非敏感默认配置相同；另需人工业务语义兼容依据。
+不满足时可作为无兼容边的独立固定版本发布，不能强行加入自动升级链。更宽泛的 Schema 接受范围证明、升级预览及
+follow-compatible 解析由 S1-07 接线。
 
 ### 7.4 运行中固定与安全撤销
 
@@ -1134,14 +1173,16 @@ arte_ai_invocation、arte_ai_acceptance、arte_ai_attempt、arte_ai_result、art
 
 ### 13.2 必要新增存储计划
 
-S1-04 已为下表前三项交付基线／增量 DDL 和底层版本存储；其余表及完整管理职责仍是后续设计。脚本只在测试 H2 执行，未在配置中的业务数据库创建表。
+S1-04 已为下表前三项交付目录存储；S1-06 已交付 release／release_command 两表及内部治理事务；其余表及完整管理职责仍是后续设计。脚本只在测试
+H2 执行，未在配置中的业务数据库创建表。
 
 | 候选表                              | 权威职责及必要约束                                                        |
 |-------------------------------------|---------------------------------------------------------------------------|
 | arte_ai_tool_provider               | 已实现平台受管提供者不可变版本；身份及版本唯一。启停／同步权威待后续实现  |
 | arte_ai_tool_definition             | 固定工具定义、Schema 引用与执行适配；toolId + version 唯一、checksum 校验 |
 | arte_ai_tool_schema                 | 固定 Schema 内容、dialect、摘要及版本；引用唯一                           |
-| arte_ai_tool_release                | 工具发布状态、兼容基准及发布审计；条件更新                                |
+| arte_ai_tool_release                | 已实现当前生命周期、治理版本、首次发布材料和兼容前驱；条件更新及前驱唯一  |
+| arte_ai_tool_release_command        | 已实现管理防重及不可变审计回执；真实主体、原因、预检和原始领域决定同存    |
 | arte_ai_tool_binding                | bindingId、Scope／主体、当前修订及行版本；当前归属不可变                  |
 | arte_ai_tool_binding_revision       | 不可变配置与策略修订、工具基准和引用；bindingId + revision 唯一           |
 | arte_ai_tool_execution_snapshot     | invocationId、实际解析配置及摘要；同调用唯一、不可变                      |
@@ -1171,6 +1212,17 @@ ToolDefinitionRevision 的不可变存储及字节摘要另行保护，不把产
 ，已有基线环境仅执行 [S1-04 增量](backend/arte-ai/scripts/arte-ai-tool-catalog-migration.sql)
 ，两者建表段一致。增量执行前应停写、备份并确认三张目标表不存在；脚本不以 IF NOT EXISTS 掩盖结构漂移。底层存储 Bean 构造零
 SQL，不在启动时自动建表、登记或发布工具。
+
+S1-06 在同一物理数据源、同一 Spring
+事务内保存治理状态及管理回执／审计。幂等键按真实稳定主体及类别命名，跨工具／动作共享键空间；语义摘要包含命令、expectedVersion、原因和审核材料，不包含重算预检时间。
+同键同语义重放首次决定，改变语义返回 IDEMPOTENCY_CONFLICT；NOT_FOUND、VERSION_CONFLICT、INVALID_STATE
+拒绝也保存首次回执，不会在环境改变后悄悄变成成功。 StoreOutcome 外层 APPLIED／REPLAYED 表示回执首次登记／重放，实际领域决定读取
+receipt.outcome；SQL 故障通过 onError 传播并回滚，不保存假拒绝。 当前治理行及审计索引读取时均核对白名单快照、摘要和实际引用；审计游标仅是存储位置。新增
+tool-release／tool-release-receipt 根别名写 v1，严格整数版本，不改变旧定义、绑定或执行类型编码。
+
+已有目录环境执行 [S1-06 增量](backend/arte-ai/scripts/arte-ai-tool-release-migration.sql)，尚未部署 S1-04
+的环境须先部署目录增量；新环境可执行更新后的完整基线。 执行前停写、备份并确认两张目标表不存在；不使用 IF NOT EXISTS
+掩盖漂移。只交付脚本，运行时不执行 DDL，不回填伪发布状态。
 
 Run 的可恢复工作项和事件通知优先扩展既有 Outbox 支持带类型执行身份；当前 Outbox 以 invocationId 为中心，实施 Run
 前必须显式版本化该信封与领取路由，不能把 runId 冒充 invocationId。Run 创建及检查点提交与工作项同库原子提交。
@@ -1417,7 +1469,12 @@ MySQL／生产性能或部署验收，详见 [TOOL 实施记录](backend/arte-ai
 S1-05 已完成显式本地来源／执行器登记、完整候选校验、原子版本登记及节点视图替换、失败保留旧视图、漂移拒绝、并发保护、清单摘要和默认关闭装配；相关配置默认值、示例及运行时模板一起落地。
 新增 39 项测试及兼容回归共 304 项通过，JDK 21 Reactor 编译通过；真实持久化集成使用临时
 H2。验证结果及命令见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md) §5。 未新增生产工具 Bean、DDL 或公开管理入口；未部署
-S1-04 增量，未实现发布、绑定或 TOOL 执行，S1 整体仍未完成。
+S1-04 增量；S1-05 完成时尚无发布、绑定或 TOOL 执行，后续实际结果见下段。
+
+S1-06 已完成本地发布预检、派生草稿、发布／废弃／停用／重新启用、保守兼容边、乐观版本、防重及状态／审计同库原子提交；新增基线／增量两表及两个
+v1 白名单根别名。 新增 33 项真实 MyBatis／H2 测试通过；JDK 21 Reactor 编译及针对性兼容回归共 337 项通过。未部署业务数据库、注册生产工具或启用
+TOOL，管理 API／当前授权仍待 S1-08，绑定待 S1-07，执行边界待 S2。
+命令、脚本交付和验证边界见 [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md) §6，S1 整体尚未完成。
 
 原始分批边界保持不变：S1-04 为存储；S1-05 本地登记与发现，S1-06 发布／废弃／停用，S1-07 绑定修订，S1-08 管理 API
 及当前授权接入。每次只验收一批，不把内部存储当作已授权产品入口。
@@ -1438,11 +1495,14 @@ NF，并在实施任务中落实负责人。
 | FR-02.2  | 固定版本详情必须展示实际能力及副作用           | UT-01        | §3.3         | getTool                               | AC-02               | S1        |
 | FR-03.1  | 发布前必须校验真实执行适配存在                 | UT-07        | §7.2         | publishTool                           | AC-02               | S1        |
 | FR-03.2  | 停用必须阻止下一敏感执行边界                   | UT-07        | §7.4         | setToolState                          | AC-02、AC-17        | S2        |
+| FR-03.3  | 生命周期变更须版本检查、防重并原子保存审计     | UT-07        | §7.1、§13.2  | ToolReleaseStore                      | AC-02、AC-08        | S1-06     |
+| FR-03.4  | 本地发布须核对当前实现、审核材料和支持的协议   | UT-07        | §7.2         | LocalToolPublicationValidator         | AC-02、AC-03        | S1-06     |
 | FR-04.1  | 绑定更新必须产生不可变修订                     | UT-07        | §3.4、§6.2   | saveBinding                           | AC-04               | S1        |
 | FR-04.2  | 并发准备默认绑定只能产生一个默认实例           | UT-01        | §2.5、§11.2  | ensureDefaultBinding                  | AC-37               | S2        |
 | FR-04.3  | 本地工具目标不得依赖虚构连接或模型窗口         | UT-07        | §6.4         | ExecutionTarget／ResolvedBinding      | AC-04、AC-30        | S1-03     |
 | FR-05.1  | 自动升级只能沿已审核兼容链选择                 | UT-01        | §7.3         | upgradeBinding                        | AC-05               | S1        |
 | FR-05.2  | 重放必须使用原受理固定版本                     | UT-02        | §3.4、§8.4   | ToolExecutionSnapshot                 | AC-05、AC-08        | S2        |
+| FR-05.3  | 兼容边须显式、无分叉且不可改写                 | UT-07        | §7.3         | ToolRelease.Publication               | AC-05               | S1-06     |
 | FR-06.1  | 受理回执只能在耐久记录提交后返回               | UT-02        | §8.1、§13.3  | invokeTool                            | AC-08               | S2        |
 | FR-06.2  | TOOL 必须按能力进入工具派发分支                | UT-02        | §4.6、§8.3   | InvocationCoordinator                 | AC-09               | S2        |
 | FR-07.1  | 服务端必须独立验证输入和输出 Schema            | UT-02        | §5.3、§9.4   | ToolGateway                           | AC-03               | S2        |

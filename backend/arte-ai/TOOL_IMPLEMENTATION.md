@@ -3,7 +3,7 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02、S1-03、S1-04、S1-05。S1 整体尚未完成，TOOL 尚未开放使用；S1-04 增量尚未在配置中的业务数据库部署。
+当前完成：S1-01、S1-02、S1-03、S1-04、S1-05、S1-06。S1 整体尚未完成，TOOL 尚未开放使用；S1-04／S1-06 增量尚未在配置中的业务数据库部署。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -498,5 +498,138 @@ State／Snapshot 是节点进程内发现结果，不是新增活动目录数据
 通知／周期对账、多节点执行就绪、自动发布、绑定、管理授权／审计事务、实际工具执行或前端。 S1-08
 对外接线前，发现导致的目录变更仍须纳入管理命令回执、当前授权与审计事务，不能把底层服务直接暴露为公开接口。
 
-本次停在 S1-05；下一批为 S1-06：发布、废弃与停用。未运行全量测试、实际 MySQL、生产性能／负载、多节点部署或浏览器验收；没有新增生产业务工具、启用
+S1-05 完成时的下一批为 S1-06，实际结果见下节。未运行全量测试、实际 MySQL、生产性能／负载、多节点部署或浏览器验收；没有新增生产业务工具、启用
 TOOL 或执行部署 DDL。
+
+## 6. S1-06：发布、废弃与停用
+
+状态：内部生命周期治理、发布预检、状态／管理防重／审计原子事务及针对性验证完成。当前只有本地单次最终结果协议可发布；TOOL
+仍默认关闭，未新增管理 HTTP、生产工具、绑定或实际派发。
+
+### 6.1 契约与生命周期
+
+| 类型／位置                                                                    | 本批职责                                                                                         |
+|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| pojo.tool.ToolRelease                                                         | 固定工具的当前治理状态、行版本、首次发布材料、停用前状态及废弃截止                               |
+| pojo.tool.ToolReleaseCommand                                                  | 带 expectedVersion、幂等键和原因的管理语义；审核示例、风险／幂等依据、最低人工控制及可选兼容前驱 |
+| pojo.tool.ToolPublicationValidation                                           | 服务端检查结果、固定契约摘要、节点清单摘要和稳定问题码；不携带异常正文                           |
+| pojo.tool.ToolReleaseReceipt                                                  | 实际操作者、原始命令、领域决定、拒绝原因、当时状态及预检结果；同时作为不可变管理审计             |
+| application.tool.release.LocalToolPublicationValidator                        | 当前发现与实现、Schema／示例、风险／幂等／人工控制及已支持协议预检                               |
+| application.tool.release.ToolReleaseService                                   | 受信内部编排；发布／重新启用先预检，停用／废弃不依赖来源健康                                     |
+| spi.persistence.ToolReleaseStore／persistence.mybatis.MybatisToolReleaseStore | 当前状态、原始审计分页与管理事务，不缓存撤销状态，不替代当前授权                                 |
+
+状态规则：
+
+- 有固定定义但无治理行：派生 DRAFT、version=0、publication=null，读取不写数据库；不存在固定定义则返回空 Mono。
+- PUBLISH：仅 DRAFT→PUBLISHED，首次管理成功写 version=1、不可变首次发布材料与契约。
+- DEPRECATE：仅 PUBLISHED→DEPRECATED；不推荐新建绑定，既有绑定可在截止前使用。
+- DISABLE：仅 PUBLISHED／DEPRECATED→DISABLED，保存原状态及废弃截止；不需要健康来源或存在执行器，便于故障时撤销。
+- REENABLE：仅 DISABLED→停用前状态，重新预检原审核材料及原固定契约；不把废弃状态改成推荐状态，不延长截止，不覆盖首次发布者／时间／兼容边。
+
+成功变更 version 加一，拒绝及重放不推进。其他转换明确拒绝。废弃截止 existingBindingsUntil
+可为空，表示未额外设定治理截止；到达明确截止时即失去既有绑定生命周期资格，无需等待后台修改状态。
+已过截止不能重新启用。permitsNewBinding／permitsExistingBinding 只判断生命周期资格，不证明当前空间、权限、执行器、免费资格或
+Worker 就绪。
+
+已登记的固定引用连草稿也不能覆写；未登记的编辑工作副本可以修改，修改固定契约须新版本。本批未实现草稿编辑器。
+
+### 6.2 发布前置检查及不可变材料
+
+发布／重新启用须满足：最近完整发现健康且包含该固定工具；实际已登记 BusinessToolAdapter 当前非 DISABLED，且
+capability／Schema／features／sideEffect 与产品定义一致。 检查使用有界元数据线程，期限沿用 discovery.source-timeout；不调用
+invoke、不执行试用、不访问真实领域资源或远端服务。
+
+重新编译输入、输出和配置 Schema，校验默认配置、真实 checksum 及 1—8 个非敏感正向输入输出示例。单个示例输入／输出最多 32 KiB
+紧凑 JSON UTF-8，且不得超过工具更低的策略值；治理状态与回执分别受 1,000,000 实际编码字节上限限制。
+示例只是正向契约材料，不能证明实际业务实现正确或资源授权已通过；领域边界用例仍须工具开发者提供。
+
+UNKNOWN 风险、UNVERIFIED 幂等不发布。DOMAIN_OPERATION_KEY／REMOTE_OPERATION_KEY 必须附人工核实的实现依据；非空材料不是平台自动证明防重实现。
+审核 minimumApproval 不得低于风险要求，默认策略不得低于审核要求；首批对所有 EXTERNAL_EFFECT 保守要求
+INDEPENDENT_APPROVAL，未放宽 S1-01 的任何结构约束。
+
+当前 BusinessToolAdapter 只有单次最终结果端口：features 必须为空，outcomeQuerySupported 必须为
+false。STREAMING、ASYNC_TASK／TASK_QUERY、CANCEL、USAGE_REPORTING 或业务核对声明仍可被发现，但发布返回 UNSUPPORTED_CAPABILITY。
+对应执行协议及验收落地后再扩展；不因描述元数据存在就宣称支持。远端发布、Secret 授权及多节点实现一致性仍未接入。
+
+首次发布保存原审核材料、实际操作者稳定主体、发布时间、节点清单摘要及 tool-release-contract-v1。契约摘要覆盖工具
+checksum、实际提供方、固定目标及三类 Schema 摘要，引用排序；不包含授权、治理行版本或操作时间。
+事务内重新核对固定事实、Schema／示例与风险约束，拒绝过期（超过 1 分钟）、未来时间或摘要不匹配的报告。报告只能由内部服务产生，不是可从
+HTTP 绑定的客户端凭据。 重新启用重新检查当前实现与原契约，不以首次通过的报告替代当前资格。
+
+### 6.3 兼容前驱及治理事务
+
+compatibleFrom 只接受同一稳定工具的另一固定版本，前驱须已 PUBLISHED／DEPRECATED；首次发布目标才允许建边，发布后不能改写。
+当前采用保守自动检查：三类 Schema 内容摘要相同，风险／必要权限／网络 origin、工具能力、默认策略及非敏感默认配置相同，并有人工语义兼容依据。
+不满足者可以作为不带兼容边的独立版本发布；不会按 v2／v10、大小写、更新时间自动推断兼容。更宽泛的 Schema 兼容证明及绑定选版留给
+S1-07。
+
+同一稳定工具的治理锁串行化兼容边变更。前驱唯一索引禁止多个后继；“已发布前驱→首次发布目标”且边不可改写，按构造顺序无环，不以版本字符串或时间排序证明无环。
+重新启用保留原边，不重新分叉。
+
+MybatisToolReleaseStore 复用物理 DataSource、独立 MyBatis 工厂、有界 DB 调度器及 UTC 微秒时钟，不引入另一套身份或工作空间体系。实际操作者使用现有
+core.pojo.platform.TrustedActor／Principal；构造受信对象不等于完成认证或当前授权。
+
+管理事务按以下顺序执行：命令键／稳定工具身份锁排序取得 → 核对历史回执与语义 → 当前治理行版本及状态检查 →
+发布事实／兼容检查 → 状态与不可变审计回执同事务写入。
+同一真实主体类别／subjectId／幂等键跨工具及动作共用键空间；语义摘要包含固定工具、动作、expectedVersion、原因、审核材料和废弃截止，不包含重算预检时间。
+同键同语义重放首次决定；改变语义返回 IDEMPOTENCY_CONFLICT，不写第二份记录。NOT_FOUND、VERSION_CONFLICT、INVALID_STATE
+也固定保存首次回执，防止之后环境改变时同键变成新操作。
+
+StoreOutcome 外层 APPLIED／REPLAYED 表示回执首次登记／重放，真实领域结果读取 value.outcome；预检、状态、兼容拒绝原因可从回执稳定码读取。
+数据库故障或编码超限传播 onError 并回滚，不把故障保存成假拒绝。审计写入失败时治理状态和兼容占位一起回滚；提交不发送额外业务通知或调用工具。
+当前状态与审计索引均核对白名单快照字节摘要、实际引用、状态、行版本和微秒时间。history 最多 100 条，用不透明主键游标，不承诺时间排序或跨页同步快照。
+
+治理回执本身是本批原子审计记录；S1-08 对外接线须先复核当前管理／审计读取资格，不能把本服务直接暴露成 HTTP，也不能用额外独立
+AuditSink 调用冒充同事务审计。 公共治理审计如需投影，应在该阶段落实其可靠一致性，不在本批增加没有消费者的通知设施。
+
+### 6.4 编码、DDL 与装配
+
+新增白名单根别名 tool-release、tool-release-receipt，均写 schemaVersion=1，拒绝小数、字符串或未知版本；不开放类名多态。旧目录、绑定
+v2、执行／事件／结果格式保留原义。 工厂显式 Mapper 数量由 10 增为 11；新 SQL 使用唯一限定的方法名，避免短名与旧 Mapper
+歧义。新查询不经过旧 MapperScan 或全局 MyBatis 插件。
+
+新增 arte_ai_tool_release 当前治理表、arte_ai_tool_release_command 管理防重／审计回执表。工具与前驱外键指向不可变定义；前驱唯一约束防分叉，治理行约束正版本与三个持久化状态。
+不存在治理行的已登记定义派生草稿，不回填伪造发布或伪操作者；缺表故障不会伪装成空目录／草稿。
+
+- 新环境使用更新后的 [完整基线](scripts/arte-ai-new-ddl-mysql.sql)。
+- 已部署 S1-04 的环境执行 [生命周期增量](scripts/arte-ai-tool-release-migration.sql)；尚未部署目录表时先执行 S1-04 增量。
+- 执行前停写、备份并核对两张新增表不存在；不运行完整基线覆盖旧库，不用 IF NOT EXISTS 掩盖结构漂移。
+- 脚本只作为部署文件与测试资源，不进入运行时 JAR，Bean 构造及启动均不执行 SQL 或 DDL。
+
+NewAiAdmissionConfiguration 构造底层存储但不访问新增表；两个主开关打开后，NewAiToolConfiguration 增加发布预检和内部治理服务
+Bean。 沿用已有两个配置参数，不新增自动发布开关；YAML 示例已同步。默认 TOOL 仍关闭，未修改本地 app.properties 或启用生产工具。
+
+### 6.5 验证证据
+
+代码基于 `305cb34e68689a44148b03e97b424d858363256a` 的工作区；本地 JDK 21.0.8、Maven 3.9.16。 新增 ToolReleaseTest 33
+项，使用临时 H2 MySQL 模式与真实
+MyBatis，覆盖状态／截止、原契约恢复、两实例并发、成功及拒绝重放、跨工具键冲突、真实主体、元数据故障下撤销、当前实现、示例／风险／幂等／能力门禁、过期／伪造摘要、事务内重验、审计故障回滚、兼容边／数据库唯一及外键、快照完整性、分页、严格编码和基线／增量一致性。
+既有装配测试补充默认关闭、治理存储构造零 SQL及治理服务无自动操作断言。测试仅在 H2 执行本批脚本；配置中的业务数据库未连接、未检查、未修改。
+
+最终针对性回归命令（允许本机受控 HTTP 临时端口）：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+PATH="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin:$PATH" \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.app.platform.persistence.PlatformBindingJsonTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS；arte-ai 334 项、arte-app 3 项，共 337 项，失败／错误／跳过均为 0，Reactor 编译通过。 随后整理等价的 Optional
+取值及 import 后，本批 33 项和装配 6 项共 39 项再次通过，生产／测试代码重新编译通过；最终差异检查及基线／增量 DDL 一致性检查通过。
+测试中保留 DDL 连接，处理 H2 2.4.240 的 IN 检查表达式持有已关闭创建会话的问题；实际事务仍使用独立连接。初轮发现的 Mapper
+短名歧义已通过唯一方法名修复，未弱化工厂断言。 故障注入的 SQL 错误为预期；既有重复 H2 依赖、macOS Netty DNS native
+fallback、资源编码及旧 API 提示仍存在。本批未重跑有已知基线问题的整套 ProfileConfigurationTest，未把它列为通过。
+
+### 6.6 需求追踪、边界及下一批
+
+FR-03.3／03.4、FR-05.3 对应本批状态事务、本地发布检查和保守兼容边；FR-01.1 的发现未发布版本已具有明确派生草稿语义。
+AC-02／03／05／08 当前只完成本批组件验证。FR-03.2 的下一敏感执行边界仍须 S2 消费最新治理状态；不能把 permitsExistingBinding
+当作完整执行资格。 当前绑定、follow-compatible 自动解析／升级预览、多节点就绪及异构领取、远端发布、实际工具执行、当前管理授权、HTTP
+和前端均未完成；没有调用领域工具、真实模型或远端供应商。
+
+本次停在 S1-06，下一批为 S1-07：绑定及修订。S1 整体尚未完成，未运行全量测试、实际 MySQL 隔离／锁竞争、生产性能、多节点部署或浏览器验收；业务数据库的
+S1-04／S1-06 增量仍须按部署流程单独执行。

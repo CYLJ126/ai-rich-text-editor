@@ -182,6 +182,7 @@
                     <include>arte-ai-new-conversation-metadata-migration.sql</include>
                     <include>arte-ai-new-search-sync-migration.sql</include>
                     <include>arte-ai-tool-catalog-migration.sql</include>
+                    <include>arte-ai-tool-release-migration.sql</include>
                 </includes>
             </testResource>
         </testResources>

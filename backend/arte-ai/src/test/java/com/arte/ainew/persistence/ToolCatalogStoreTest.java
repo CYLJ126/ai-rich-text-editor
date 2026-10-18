@@ -64,6 +64,8 @@ public class ToolCatalogStoreTest {
         var baseline = new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql"));
         baseline.execute(dataSource);
         jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("DROP TABLE arte_ai_tool_release_command");
+        jdbc.execute("DROP TABLE arte_ai_tool_release");
         jdbc.execute("DROP TABLE arte_ai_tool_definition");
         jdbc.execute("DROP TABLE arte_ai_tool_schema");
         jdbc.execute("DROP TABLE arte_ai_tool_provider");
@@ -409,7 +411,7 @@ public class ToolCatalogStoreTest {
         String baseline = Files.readString(Path.of("scripts/arte-ai-new-ddl-mysql.sql"));
         String incremental = Files.readString(Path.of("scripts/arte-ai-tool-catalog-migration.sql"));
         assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(),
-                baseline.substring(baseline.indexOf("create table arte_ai_tool_provider")).trim());
+                baseline.substring(baseline.indexOf("create table arte_ai_tool_provider"), baseline.indexOf("-- AI TOOL S1-06")).trim());
     }
 
     private int count(String table) {

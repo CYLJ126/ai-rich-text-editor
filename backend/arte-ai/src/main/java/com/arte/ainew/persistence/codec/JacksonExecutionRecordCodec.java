@@ -16,10 +16,7 @@ import com.arte.ainew.pojo.generation.GenerationEvent;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.media.MediaRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
-import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
-import com.arte.ainew.pojo.tool.ToolInvocation;
-import com.arte.ainew.pojo.tool.ToolProviderDefinition;
-import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -49,6 +46,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolRelease.class, "tool-release"),
+            Map.entry(ToolReleaseReceipt.class, "tool-release-receipt"),
             Map.entry(ToolProviderDefinition.class, "tool-provider"),
             Map.entry(ToolSchemaDefinition.class, "tool-schema"),
             Map.entry(ToolDefinitionRevision.class, "tool-definition-revision"),
@@ -124,9 +123,10 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         }
         var node = mapper.readTree(json);
         int version = node.path("schemaVersion").asInt();
-        if (expectedType == ResolvedBinding.class && (!node.path("schemaVersion").isIntegralNumber()
+        if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class)
+                && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
-            throw new IllegalArgumentException("Binding snapshot version must be an integer");
+            throw new IllegalArgumentException("Snapshot version must be an integer");
         if ((version != 1 && !(expectedType == ResolvedBinding.class && version == 2))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");

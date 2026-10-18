@@ -2,8 +2,11 @@ package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.ainew.spi.persistence.ToolReleaseStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,7 +18,7 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Clock;
 
 /**
- * 显式启用本地 TOOL 发现；组合模块必须提供 LocalToolRegistry，不搜集任意来源／执行器 Bean。
+ * 显式启用本地 TOOL 发现及内部生命周期治理；组合模块必须提供 LocalToolRegistry，不搜集任意来源／执行器 Bean。
  * 构造零 SQL、零发现、零执行，不接入 Worker，不代替后续管理 API 的当前授权及审计事务。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -44,5 +47,24 @@ public class NewAiToolConfiguration {
                                           @Qualifier("newAiClock") Clock clock, NewAiToolProperties properties) {
         return new LocalToolDiscovery(registry, store, new ToolSchemaValidator(), scheduler, clock,
                 properties.discovery().sourceTimeout());
+    }
+
+    /**
+     * 本地发布／重新启用预检；沿用有界元数据线程及读取期限，不试调用工具。
+     */
+    @Bean("newAiToolPublicationValidator")
+    LocalToolPublicationValidator publicationValidator(LocalToolDiscovery discovery, LocalToolRegistry registry,
+                                                       @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler,
+                                                       @Qualifier("newAiClock") Clock clock, NewAiToolProperties properties) {
+        return new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock,
+                properties.discovery().sourceTimeout());
+    }
+
+    /**
+     * 内部治理服务；不自动发布，不注册管理 HTTP，当前授权接线由 S1-08 完成。
+     */
+    @Bean("newAiToolReleaseService")
+    ToolReleaseService toolReleaseService(ToolReleaseStore store, LocalToolPublicationValidator validator) {
+        return new ToolReleaseService(store, validator);
     }
 }

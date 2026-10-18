@@ -48,6 +48,7 @@ public class LocalToolDiscoveryAssemblyTest {
                 configure(context, properties);
                 context.refresh();
                 assertTrue(context.getBeansOfType(LocalToolDiscovery.class).isEmpty());
+                assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.release.ToolReleaseService.class).isEmpty());
                 assertFalse(context.containsBean("newAiToolDiscoveryScheduler"));
             }
         }
@@ -74,6 +75,8 @@ public class LocalToolDiscoveryAssemblyTest {
             assertEquals(0, reads.get());
             assertEquals(0, store.calls.get());
             assertNotNull(context.getBean(LocalToolDiscovery.class));
+            assertNotNull(context.getBean(com.arte.ainew.application.tool.release.ToolReleaseService.class));
+            assertNotNull(context.getBean(com.arte.ainew.application.tool.release.LocalToolPublicationValidator.class));
             assertEquals(Duration.ofSeconds(10), context.getBean(NewAiToolProperties.class).discovery().sourceTimeout());
             scheduler = context.getBean("newAiToolDiscoveryScheduler", reactor.core.scheduler.Scheduler.class);
             assertFalse(scheduler.isDisposed());
@@ -158,6 +161,22 @@ public class LocalToolDiscoveryAssemblyTest {
 
     private static void dependencies(AnnotationConfigApplicationContext context, ToolCatalogStore store) {
         context.registerBean(ToolCatalogStore.class, () -> store);
+        context.registerBean(com.arte.ainew.spi.persistence.ToolReleaseStore.class, () -> new com.arte.ainew.spi.persistence.ToolReleaseStore() {
+            public Mono<com.arte.ainew.pojo.tool.ToolRelease> find(com.arte.ainew.common.reference.DefinitionRef tool) {
+                throw new AssertionError("Assembly must not read releases");
+            }
+
+            public Mono<ToolCatalogStore.Page<com.arte.ainew.pojo.tool.ToolReleaseReceipt>> history(
+                    com.arte.ainew.common.reference.DefinitionRef tool, String cursor, int limit) {
+                throw new AssertionError("Assembly must not read release history");
+            }
+
+            public Mono<com.arte.ainew.pojo.execution.StoreOutcome<com.arte.ainew.pojo.tool.ToolReleaseReceipt>> execute(
+                    com.arte.core.pojo.platform.TrustedActor actor, com.arte.ainew.pojo.tool.ToolReleaseCommand command,
+                    com.arte.ainew.pojo.tool.ToolPublicationValidation validation) {
+                throw new AssertionError("Assembly must not publish tools");
+            }
+        });
         context.registerBean("newAiClock", Clock.class, Clock::systemUTC);
     }
 

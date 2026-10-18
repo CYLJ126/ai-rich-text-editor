@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolReleaseMapper">
+    <resultMap id="row" type="com.arte.ainew.persistence.mybatis.mapper.ToolReleaseMapper$Row">
+        <constructor>
+            <arg column="tool_key" javaType="java.lang.String"/>
+            <arg column="compatible_from_key" javaType="java.lang.String"/>
+            <arg column="row_version" javaType="_long"/>
+            <arg column="state" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="release_snapshot" javaType="java.lang.String"/>
+            <arg column="updated_micros" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="commandRow" type="com.arte.ainew.persistence.mybatis.mapper.ToolReleaseMapper$CommandRow">
+        <constructor>
+            <arg column="command_key" javaType="java.lang.String"/>
+            <arg column="actor_key" javaType="java.lang.String"/>
+            <arg column="tool_key" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="outcome" javaType="java.lang.String"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="receipt_snapshot" javaType="java.lang.String"/>
+            <arg column="recorded_micros" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <sql id="releaseColumns">tool_key, compatible_from_key, row_version, state, payload_digest, release_snapshot,
+        updated_micros
+    </sql>
+    <sql id="receiptColumns">command_key, actor_key, tool_key, request_digest, outcome, action, payload_digest,
+        receipt_snapshot, recorded_micros
+    </sql>
+    <select id="toolRelease" resultMap="row" useCache="false">
+        SELECT
+        <include refid="releaseColumns"/>
+        FROM arte_ai_tool_release WHERE tool_key=#{tool}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <select id="toolReleaseSuccessor" resultMap="row" useCache="false">
+        SELECT
+        <include refid="releaseColumns"/>
+        FROM arte_ai_tool_release WHERE compatible_from_key=#{from} FOR UPDATE
+    </select>
+    <select id="toolReleaseCommand" resultMap="commandRow" useCache="false">
+        SELECT
+        <include refid="receiptColumns"/>
+        FROM arte_ai_tool_release_command WHERE command_key=#{key} FOR UPDATE
+    </select>
+    <insert id="insertToolRelease">
+        INSERT INTO
+        arte_ai_tool_release(tool_key,compatible_from_key,row_version,state,payload_digest,release_snapshot,updated_micros)
+        VALUES(#{r.toolKey},#{r.compatibleFromKey},#{r.version},#{r.state},#{r.payloadDigest},#{r.snapshot},#{r.updatedMicros})
+    </insert>
+    <update id="updateToolRelease">
+        UPDATE arte_ai_tool_release SET row_version=#{r.version},state=#{r.state},payload_digest=#{r.payloadDigest},
+        release_snapshot=#{r.snapshot},updated_micros=#{r.updatedMicros}
+        WHERE tool_key=#{r.toolKey} AND row_version=#{expected}
+    </update>
+    <insert id="insertToolReleaseCommand">
+        INSERT INTO
+        arte_ai_tool_release_command(command_key,actor_key,tool_key,request_digest,outcome,action,payload_digest,receipt_snapshot,recorded_micros)
+        VALUES(#{r.commandKey},#{r.actorKey},#{r.toolKey},#{r.requestDigest},#{r.outcome},#{r.action},#{r.payloadDigest},#{r.snapshot},#{r.recordedMicros})
+    </insert>
+    <select id="toolReleaseHistory" resultMap="commandRow" useCache="false">
+        SELECT
+        <include refid="receiptColumns"/>
+        FROM arte_ai_tool_release_command WHERE tool_key=#{tool}
+        <if test="after != null">AND command_key &gt; #{after}</if>
+        ORDER BY command_key LIMIT #{limit}
+    </select>
+</mapper>

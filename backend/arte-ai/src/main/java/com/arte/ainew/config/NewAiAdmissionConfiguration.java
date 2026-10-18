@@ -23,6 +23,7 @@ import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
+import com.arte.ainew.persistence.mybatis.MybatisToolReleaseStore;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
@@ -152,6 +153,16 @@ public class NewAiAdmissionConfiguration {
                                              ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                              @Qualifier("newAiClock") Clock clock) {
         return new MybatisToolCatalogStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, clock);
+    }
+
+    /**
+     * 生命周期底层状态／命令审计存储；构造零 SQL，TOOL 关闭时也不主动访问新增表。
+     */
+    @Bean("newAiToolReleaseStore")
+    MybatisToolReleaseStore toolReleaseStore(NewAiProperties properties, ListableBeanFactory beans,
+                                             ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                             @Qualifier("newAiClock") Clock clock) {
+        return new MybatisToolReleaseStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, clock);
     }
 
     /**

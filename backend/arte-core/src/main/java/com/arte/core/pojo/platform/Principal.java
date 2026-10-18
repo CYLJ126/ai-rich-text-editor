@@ -12,10 +12,8 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
-public record Principal(
-        String subjectId,
-        PrincipalKindEnum kind,
-        PrincipalStatusEnum status) {
+public record Principal(String subjectId, PrincipalKindEnum kind, PrincipalStatusEnum status) {
+
     public Principal {
         PlatformChecks.id(subjectId, "subjectId");
         Objects.requireNonNull(kind, "kind");

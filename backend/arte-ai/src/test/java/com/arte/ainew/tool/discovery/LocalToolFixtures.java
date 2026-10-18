@@ -24,30 +24,30 @@ import java.util.Set;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */
-final class LocalToolFixtures {
+public final class LocalToolFixtures {
 
     private LocalToolFixtures() {
     }
 
-    static DefinitionRef ref(String type, String id, String version) {
+    public static DefinitionRef ref(String type, String id, String version) {
         return new DefinitionRef(type, id, version);
     }
 
-    static StructuredValue.ObjectValue object(Object... pairs) {
+    public static StructuredValue.ObjectValue object(Object... pairs) {
         var fields = new java.util.LinkedHashMap<String, StructuredValue>();
         for (int i = 0; i < pairs.length; i += 2) fields.put((String) pairs[i], (StructuredValue) pairs[i + 1]);
         return new StructuredValue.ObjectValue(fields);
     }
 
-    static StructuredValue.StringValue text(String value) {
+    public static StructuredValue.StringValue text(String value) {
         return new StructuredValue.StringValue(value);
     }
 
-    static ToolSchemaDefinition schema(DefinitionRef ref, StructuredValue.ObjectValue document) {
+    public static ToolSchemaDefinition schema(DefinitionRef ref, StructuredValue.ObjectValue document) {
         return new ToolSchemaDefinition(ref, document, ToolCatalogDigests.schema(document));
     }
 
-    static Fixture fixture(String providerId, String version) {
+    public static Fixture fixture(String providerId, String version) {
         var provider = new ToolProviderDefinition(ref("tool-provider", providerId, "v1"), ToolProviderDefinition.Kind.LOCAL,
                 ref("tool-provider-adapter", providerId + "-source", "v1"), null);
         var schema = schema(ref("schema", providerId + "-object", "v1"), object("$schema", text(ToolSchemaValidator.DIALECT),
@@ -62,7 +62,7 @@ final class LocalToolFixtures {
                 new ExecutionTarget.Local(adapter)), adapter);
     }
 
-    static ToolDefinition withTitle(ToolDefinition tool, String title) {
+    public static ToolDefinition withTitle(ToolDefinition tool, String title) {
         var unsigned = new ToolDefinition(tool.definition(), tool.providerId(), title, tool.description(), tool.tags(), tool.capability(),
                 tool.inputSchema(), tool.outputSchema(), tool.configurationSchema(), tool.defaultConfiguration(), tool.capabilities(),
                 tool.risk(), tool.defaultPolicy(), "0".repeat(64));
@@ -71,7 +71,7 @@ final class LocalToolFixtures {
                 unsigned.capabilities(), unsigned.risk(), unsigned.defaultPolicy(), ToolCatalogDigests.tool(unsigned));
     }
 
-    static BusinessToolAdapter adapter(CapabilityDescriptor capability) {
+    public static BusinessToolAdapter adapter(CapabilityDescriptor capability) {
         return new BusinessToolAdapter() {
             public CapabilityDescriptor capability() {
                 return capability;
@@ -83,17 +83,17 @@ final class LocalToolFixtures {
         };
     }
 
-    record Fixture(ToolProviderDefinition provider, ToolSchemaDefinition schema, ToolDefinitionRevision revision,
+    public record Fixture(ToolProviderDefinition provider, ToolSchemaDefinition schema, ToolDefinitionRevision revision,
                    DefinitionRef adapterRef) {
-        LocalToolDefinitionSource.Definitions definitions() {
+        public LocalToolDefinitionSource.Definitions definitions() {
             return new LocalToolDefinitionSource.Definitions(List.of(schema), List.of(revision));
         }
 
-        LocalToolRegistry.Registration registration(LocalToolDefinitionSource source) {
+        public LocalToolRegistry.Registration registration(LocalToolDefinitionSource source) {
             return new LocalToolRegistry.Registration(provider, source, Map.of(adapterRef, adapter(revision.tool().discoveredCapability())));
         }
 
-        LocalToolRegistry.Registration registration() {
+        public LocalToolRegistry.Registration registration() {
             return registration(() -> Mono.just(definitions()));
         }
     }

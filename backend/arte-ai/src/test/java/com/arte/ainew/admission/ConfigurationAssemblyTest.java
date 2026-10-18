@@ -63,6 +63,7 @@ public class ConfigurationAssemblyTest {
             assertTrue(context.getBeansOfType(ChatService.class).isEmpty());
             assertTrue(context.getBeansOfType(MybatisExecutionPersistence.class).isEmpty());
             assertTrue(context.getBeansOfType(com.arte.ainew.spi.persistence.ToolCatalogStore.class).isEmpty());
+            assertTrue(context.getBeansOfType(com.arte.ainew.spi.persistence.ToolReleaseStore.class).isEmpty());
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.discovery.LocalToolDiscovery.class).isEmpty());
             assertTrue(context.getBeansOfType(BudgetAccountQueryService.class).isEmpty());
             assertTrue(context.getBeansOfType(NewAiBudgetController.class).isEmpty());
@@ -92,6 +93,7 @@ public class ConfigurationAssemblyTest {
             assertNotNull(context.getBean(ConnectionManager.class));
             assertNotNull(context.getBean(InvocationCoordinator.class));
             assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolCatalogStore.class));
+            assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolReleaseStore.class));
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.discovery.LocalToolDiscovery.class).isEmpty());
             assertNotNull(context.getBean(BudgetAccountQueryService.class));
             assertNotNull(context.getBean(NewAiBudgetController.class));

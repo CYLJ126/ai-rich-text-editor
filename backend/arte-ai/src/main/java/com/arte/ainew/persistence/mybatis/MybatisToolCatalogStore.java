@@ -276,4 +276,17 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
     private static String id(DefinitionRef ref) {
         return key(ref.type(), ref.id(), ref.version());
     }
+
+    /**
+     * 同物理数据源的生命周期事务读取固定事实；不派发异步任务，不锁定或修改不可变定义行。
+     */
+    ToolCatalogStore.Batch releaseArtifacts(DefinitionRef ref) {
+        var tool = (ToolDefinitionRevision) load(ref, false);
+        if (tool == null) return null;
+        var documents = new LinkedHashMap<DefinitionRef, ToolSchemaDefinition>();
+        for (var schema : List.of(tool.tool().inputSchema(), tool.tool().outputSchema(), tool.tool().configurationSchema()))
+            documents.put(schema, Objects.requireNonNull((ToolSchemaDefinition) load(schema, false), "Missing release Schema"));
+        var provider = Objects.requireNonNull((ToolProviderDefinition) load(tool.provider(), false), "Missing release provider");
+        return new ToolCatalogStore.Batch(List.of(provider), List.copyOf(documents.values()), List.of(tool));
+    }
 }
