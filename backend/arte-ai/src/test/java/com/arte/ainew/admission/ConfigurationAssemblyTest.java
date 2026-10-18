@@ -57,11 +57,13 @@ public class ConfigurationAssemblyTest {
     @Test
     public void disabledConfigurationRequiresNoDataSourceOrGrantsAndAddsNoRuntimeBeans() {
         try (var context = new AnnotationConfigApplicationContext()) {
-            context.register(NewAiAdmissionConfiguration.class, NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
+            context.register(NewAiAdmissionConfiguration.class, com.arte.ainew.config.NewAiToolConfiguration.class,
+                    NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
             context.refresh();
             assertTrue(context.getBeansOfType(ChatService.class).isEmpty());
             assertTrue(context.getBeansOfType(MybatisExecutionPersistence.class).isEmpty());
             assertTrue(context.getBeansOfType(com.arte.ainew.spi.persistence.ToolCatalogStore.class).isEmpty());
+            assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.discovery.LocalToolDiscovery.class).isEmpty());
             assertTrue(context.getBeansOfType(BudgetAccountQueryService.class).isEmpty());
             assertTrue(context.getBeansOfType(NewAiBudgetController.class).isEmpty());
             assertTrue(context.getBeansOfType(ChatConfigurationQueryService.class).isEmpty());
@@ -79,7 +81,8 @@ public class ConfigurationAssemblyTest {
             context.registerBean("appDataSource", DataSource.class, () -> forbidden("physical app datasource"));
             context.registerBean("multipleDataSource", DataSource.class, () -> forbidden("primary routing datasource"), bd -> bd.setPrimary(true));
             context.registerBean("chatService", String.class, () -> "existing-bean");
-            context.register(NewAiAdmissionConfiguration.class, NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
+            context.register(NewAiAdmissionConfiguration.class, com.arte.ainew.config.NewAiToolConfiguration.class,
+                    NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
             context.refresh();
             assertEquals(AdmissionFixture.properties(), context.getBean(NewAiProperties.class));
             assertEquals("existing-bean", context.getBean("chatService"));
@@ -89,6 +92,7 @@ public class ConfigurationAssemblyTest {
             assertNotNull(context.getBean(ConnectionManager.class));
             assertNotNull(context.getBean(InvocationCoordinator.class));
             assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolCatalogStore.class));
+            assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.discovery.LocalToolDiscovery.class).isEmpty());
             assertNotNull(context.getBean(BudgetAccountQueryService.class));
             assertNotNull(context.getBean(NewAiBudgetController.class));
             assertNotNull(context.getBean(ChatConfigurationQueryService.class));

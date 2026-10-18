@@ -1,0 +1,8 @@
+# S1-05 仅支持显式登记的本地来源及手动发现，不开放发布、绑定或执行入口。
+# 先升级读端并由部署流程执行 TOOL 目录增量 DDL，再由组合模块提供 LocalToolRegistry Bean。
+# arte.ai-new.enabled 也须开启；这里保持 TOOL 默认关闭，不内置生产示例工具。
+arte:
+  ai-new-tool:
+    enabled: false
+    discovery:
+      source-timeout: 10s

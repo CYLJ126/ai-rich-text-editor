@@ -1,9 +1,9 @@
 # AI TOOL 实施记录
 
-日期：2026-10-17。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
+日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02、S1-03、S1-04。S1 整体尚未完成，TOOL 尚未开放使用；S1-04 增量尚未在配置中的业务数据库部署。
+当前完成：S1-01、S1-02、S1-03、S1-04、S1-05。S1 整体尚未完成，TOOL 尚未开放使用；S1-04 增量尚未在配置中的业务数据库部署。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -380,4 +380,123 @@ FR-01.3 对应本批固定版本原子登记；FR-07.3／07.4 的组件已用于
 API、工具执行或前端；未新增权限初始化数据、其他运行开关或真实业务工具。没有连接真实供应商或配置中的业务数据库，也未运行生产
 MySQL 隔离／锁竞争、多节点、压测、浏览器或完整应用验收。
 
-本次停在 S1-04；下一批是 S1-05：本地工具登记与发现。代码和脚本完成不代表工具已开放或数据库已部署。
+S1-04 完成时的下一批为 S1-05；实际结果见下节。代码和脚本完成不代表工具已开放或数据库已部署。
+
+## 5. S1-05：本地工具显式登记与完整发现
+
+状态：本地来源、显式注册、手动完整发现及针对性验证完成。没有新增真实业务工具 Bean，不扫描任意 Bean；发现结果仍为
+DISCOVERED，不表达发布、当前授权或可执行性。
+
+### 5.1 组件及使用
+
+| 位置／类型                                         | 职责                                                                                       |
+|----------------------------------------------------|--------------------------------------------------------------------------------------------|
+| spi.adapter.LocalToolDefinitionSource              | 一次返回完整 Definitions（Schema／工具集合）；空 Mono 是异常，不是空目录                   |
+| application.tool.discovery.LocalToolRegistry       | 组合模块显式指定 LOCAL 提供方、来源实例、固定 tool-adapter 引用及 BusinessToolAdapter 实例 |
+| application.tool.discovery.LocalToolDiscovery      | 顺序读取来源，校验完整候选，调用一次 ToolCatalogStore.put，成功后原子替换节点 State        |
+| LocalToolDiscovery.Snapshot                        | 不可变提供方／Schema／工具索引、内容清单摘要及 UTC 微秒装载时间，不保存发布状态            |
+| config.NewAiToolConfiguration／NewAiToolProperties | 独立默认关闭开关、严格属性绑定、有界元数据线程池；不启动同步或执行                         |
+
+组合模块通过构造器注入真实领域 Query／Command 给 BusinessToolAdapter，然后显式提供一个 LocalToolRegistry
+Bean。以下为组合代码示意，变量表示组合模块已构造的对象，不是新增的生产示例类：
+
+```java
+var registration = new LocalToolRegistry.Registration(
+        providerDefinition, // LOCAL；type=tool-provider，adapter 为 type=tool-provider-adapter
+        definitionSource,   // LocalToolDefinitionSource；完整 Schema 及工具版本
+        Map.of(adapterRef, businessToolAdapter)); // adapterRef：type=tool-adapter，固定版本
+var registry = new LocalToolRegistry(List.of(registration));
+// LocalToolDiscovery 仅由内部管理流程显式调用；refresh() 返回 Mono，订阅才开始。
+var command = discovery.refresh(); // Mono<RefreshResult>
+// 订阅后从 RefreshResult 读取 code()、state().snapshot()，不是工具调用结果。
+```
+
+提供方、定义来源和执行器实例在受信代码中绑定；不按配置中的类名、Bean 名称或任意字符串反射加载。一个节点同一提供方只登记一个接入版本，tool-adapter
+固定引用不得跨来源重复登记；注册表、Definitions、Snapshot 的集合均防御性复制。构造和未订阅 refresh 不读取来源、数据库或外部服务。
+
+### 5.2 完整性、失败及并发
+
+1. 每个来源显式返回完整 Definitions；逐来源合并时限制总量，超过 128 个不同 Schema 或 128 个工具立即终止，不再读取后续来源。注册表最多
+   32 个提供方。
+2. 工具必须属于登记的固定提供方及 LOCAL 目标；执行器必须在该来源内显式登记，其固定 capability、kind、输入／输出
+   Schema、features、sideEffect 须与产品定义的单向投影一致。
+3. DISABLED、缺失或声明不匹配的执行器拒绝装载；EXECUTABLE 声明只作为匹配元数据，目录仍投影 DISCOVERED，不调用
+   invoke、不推断额外权限。
+4. 候选必须自带全部 Schema；相同引用相同原文可以跨来源共享，矛盾原文拒绝整轮。重算 Schema／工具
+   checksum，按真实用途编译输入、输出、配置，并校验默认配置。同一 capability 引用不得声明矛盾内容。
+5. 当前视图的同引用内容漂移在持久化前拒绝；重启后或已移除版本的历史漂移，由 S1-04 底层不可变存储再次拒绝。任一来源失败，不先登记已成功的来源。
+6. 只有一次原子 Batch 返回 APPLIED／REPLAYED 后才安装整份节点快照；数据库错误或拒绝不替换旧快照。原有单条 1,000,000 字节、整批
+   8 MiB 及 Schema 限额继续生效。
+
+State 一次读取 snapshot 和 lastResult；首次成功前
+snapshot=null。SOURCE_FAILED、SOURCE_EMPTY、SOURCE_TIMEOUT、INVALID_DEFINITION、ADAPTER_MISMATCH、CONTRACT_DRIFT、STORE_REJECTED、STORE_FAILED
+保留最近完整快照并令 discoveryHealthy=false。刷新成功才恢复健康。错误只返回稳定码，日志不附带原始 Throwable 或默认配置。
+
+完整空 Definitions 会移除该来源在本次视图中的工具，但不会删除历史定义或停用已发布工具。该行为只表达“当前节点发现到了什么”，不能绕过后续停用流程。
+
+每个节点最多一个刷新在进行；新并发请求返回 BUSY，不更改全局状态。一个 refresh 返回值通过 cache
+共享一次命令，多订阅不重复读取或写入；首次订阅后，取消某个订阅不会取消正在进行的刷新或提前释放保护，避免晚到旧刷新覆盖较新目录。
+每个来源读取有独立超时；同步读取被调度到专用有界线程，不占用 HTTP／Reactor 事件线程。该超时不证明任意不合作的 Java
+代码可被强制停止；来源及 capability () 必须只读取受信、有界元数据。 APPLIED／REPLAYED
+表示底层固定版本登记结果，不表示节点视图有没有变化；例如完整空来源可只重放提供方历史记录，同时安装更小的当前视图。判断视图内容使用
+snapshot.checksum。
+
+清单摘要为 local-tool-discovery-v1，按 type／id／version 的精确字符串排序，覆盖提供方接入版本、Schema
+摘要、工具摘要、固定提供方和执行目标；不含发现时间或来源顺序。 同内容节点可比较该摘要，但本批没有自动进行节点比较，也没有把
+discoveryHealthy 接入 Worker 就绪、领取或公开健康接口。
+
+### 5.3 配置与部署边界
+
+已同时落实配置类、[YAML 示例](examples/ainew-tool.yml)、`src/main/resources/ainew/config/application.properties` 过滤模板、
+`../profile/common.properties` 默认值和 `../profile/app.properties.example`。
+
+| 配置                                      | 默认及范围                                                               |
+|-------------------------------------------|--------------------------------------------------------------------------|
+| arte.ai-new-tool.enabled                  | false；AI 主开关也必须为 true；开启时必须提供显式 LocalToolRegistry Bean |
+| arte.ai-new-tool.discovery.source-timeout | 10s；1ms—1m；每个完整来源的读取期限，不是工具调用期限                    |
+
+专用线程池为 2 线程、每线程队列 16，应用关闭释放。启动不访问数据库、不发现、不发布或执行，也不自动同步。 当前只接受这两个已实现的
+TOOL 参数；auto-sync、执行、审批、聊天及远端配置仍是未来设计，填写时会被严格属性绑定拒绝。
+
+本批没有新增 SQL 或内部持久化根别名；复用 S1-04 三表及原子登记。配置中的业务数据库未执行 S1-04 增量；实际启用及刷新前仍须按
+§4.3 停写、备份、核对并部署增量。现有生成及平台目录未改变，也未修改现有认证、授权、空间或 Worker 规则。
+
+### 5.4 验证证据
+
+代码基于 `c0624bdf5b87f581f8c410fe954732027fdf6d7d` 的当前工作区；本地 JDK 21.0.8、Maven 3.9.16。新增测试位于
+`src/test/java/com/arte/ainew/tool/discovery`，覆盖显式登记、完整／空来源、共享
+Schema、摘要／用途／默认值、实现匹配、漂移、并发、多订阅、取消等待、容量、默认关闭和配置模板。 其中真实持久化集成使用临时 H2 MySQL
+模式，验证两个独立节点清单、重启后漂移整批拒绝、SQL 故障保留旧视图和显式恢复；不连接配置中的业务数据库。
+
+最终回归命令（仓库根目录）：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+PATH="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin:$PATH" \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.app.platform.persistence.PlatformBindingJsonTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS；arte-ai 301 项、arte-app 3 项，共 304 项，失败／错误／跳过均为 0，Reactor 编译通过。本批新增 39 项：
+LocalToolDiscoveryTest 30、LocalToolDiscoveryAssemblyTest 6、LocalToolDiscoveryPersistenceTest 3；既有
+ConfigurationAssemblyTest 补充 TOOL 默认关闭的断言。
+
+第一次在受限沙箱中运行时，55 项既有受控 HTTP 测试因 Socket Operation not permitted 失败；允许本机临时端口绑定后按同一命令完整重跑通过。
+SQL 故障注入产生预期错误日志；既有 macOS Netty DNS native fallback、重复 H2 依赖、资源编码及旧 API 提示仍存在，本批未处理。
+这不是全量或 MySQL／生产性能验收；既有 ProfileConfigurationTest 的三处基线问题见 S1-03，本批未重跑整套该类，不列为通过。本批新增的专用
+profile 测试只核对 TOOL 两个参数从默认值、示例到实际过滤资源的传递。
+
+### 5.5 需求追踪及下一批
+
+FR-01.4 对应本地显式登记与完整节点视图；FR-01.2／AC-01 的本地失败保留路径已有证据。FR-01.1 的正式草稿生命周期、FR-03.1
+的发布校验及 AC-28 的集群就绪／滚动发布仍须后续接线，不能因发现测试通过而标为产品级全链路验收。
+
+State／Snapshot 是节点进程内发现结果，不是新增活动目录数据库权威；重启后须重新显式发现。没有实现远端来源、完整同步快照的数据库激活、Redis
+通知／周期对账、多节点执行就绪、自动发布、绑定、管理授权／审计事务、实际工具执行或前端。 S1-08
+对外接线前，发现导致的目录变更仍须纳入管理命令回执、当前授权与审计事务，不能把底层服务直接暴露为公开接口。
+
+本次停在 S1-05；下一批为 S1-06：发布、废弃与停用。未运行全量测试、实际 MySQL、生产性能／负载、多节点部署或浏览器验收；没有新增生产业务工具、启用
+TOOL 或执行部署 DDL。

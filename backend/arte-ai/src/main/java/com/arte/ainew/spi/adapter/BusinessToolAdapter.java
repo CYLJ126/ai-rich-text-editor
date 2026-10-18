@@ -17,9 +17,14 @@ import reactor.core.publisher.Mono;
  **/
 public interface BusinessToolAdapter {
 
-    /** 固定版本的工具能力声明；副作用、Schema 和当前权限仍由网关及领域校验。 */
+    /**
+     * 固定版本的工具能力声明；只读取有界元数据，不执行领域操作或外部探测。
+     * 声明不授予发布资格，副作用、Schema 和当前权限仍由控制面、网关及领域校验。
+     */
     CapabilityDescriptor capability();
 
-    /** 委托实际领域 Query／Command；保留领域事务、版本冲突及领域幂等，不直接改领域数据库。 */
+    /**
+     * 委托实际领域 Query／Command；保留领域事务、版本冲突及领域幂等，不直接改领域数据库。
+     */
     Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call);
 }

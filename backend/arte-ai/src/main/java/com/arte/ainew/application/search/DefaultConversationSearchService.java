@@ -8,6 +8,7 @@ import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.common.search.SearchPreview;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.pojo.search.SearchSession;
+import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
 import com.arte.ainew.spi.search.ConversationSearchReads;
 import com.arte.ainew.spi.search.ConversationSearchSessions;
@@ -117,7 +118,7 @@ public final class DefaultConversationSearchService implements ConversationSearc
                 if (query.size() > properties.limits().maxPageSize())
                     throw new IllegalArgumentException("Search page exceeds configured limit");
                 authorization.require(context, true, op.remaining());
-                String hash = com.arte.ainew.serialization.CanonicalJson.sha256(com.arte.ainew.serialization.CanonicalJson.encode(Map.of("owner", SearchCursor.owner(owner), "query", query.query(), "groups", query.groupIds(), "size", query.size())));
+                String hash = CanonicalJson.sha256(CanonicalJson.encode(Map.of("owner", SearchCursor.owner(owner), "query", query.query(), "groups", query.groupIds(), "size", query.size())));
                 SearchCursor.Page cursor;
                 if (query.cursor() == null) {
                     op.newId = UUID.randomUUID().toString();
