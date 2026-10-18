@@ -15,7 +15,6 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
-import com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.Principal;
@@ -42,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 import static com.arte.ainew.pojo.tool.ToolRelease.State.*;
 import static com.arte.ainew.pojo.tool.ToolReleaseCommand.Action.*;
+import static com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import static org.junit.Assert.*;
 
 /**

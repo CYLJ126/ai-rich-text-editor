@@ -227,7 +227,8 @@ public final class GenerationDispatcher {
                     timing.mark("DISPATCH_PREPARATION_STARTED");
                     return store.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
                                     CanonicalJson.key(message.invocationId(), "attempt-" + number), newAiExecutionProperties.attemptLease(),
-                                    amount, prepared.binding().rate(), newAiExecutionProperties.reservationRetention()))
+                                    new DispatchPreparationStore.Charge(amount, prepared.binding().rate(),
+                                            newAiExecutionProperties.reservationRetention())))
                             .doOnNext(result -> {
                                 if (result.successful()) timing.mark("DISPATCH_PREPARATION_COMMITTED", started, 0);
                             });

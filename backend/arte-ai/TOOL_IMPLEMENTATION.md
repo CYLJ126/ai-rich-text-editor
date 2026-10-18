@@ -3,10 +3,11 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01—S1-08 本地管理后端基线；16 个管理 API 与现有当前授权接线完成，实际执行仍待 S2。TOOL
+当前完成：S1-01—S1-08 本地管理后端基线，以及 S2-01 FREE／CHARGE 原子派发准备；16 个管理 API 与现有当前授权接线完成，实际 TOOL
+执行仍待 S2 后续批次。TOOL
 默认关闭；S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
 
-§1—§7 保留各批完成时的范围与验证记录；最新管理入口、部署及验证状态以 §8 为准。
+§1—§8 保留各批完成时的范围与验证记录；管理入口及部署状态见 §8，本批派发准备与验证状态见 §9。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -878,3 +879,82 @@ FR-01 的本地发现／草稿、FR-02 的当前可见目录、FR-04 的个人�
 AC-01／AC-02／AC-04／AC-05／AC-08 的本地管理部分具备测试证据。 FR-03 的实际资源授权、默认绑定、Invocation 受理、TOOL
 dispatch、免费／计费准备及执行期限仍留在 S2；审批、结果核对、工具聊天、远端和 UI 按后续批次实施。 本批未改变现有生成配置发现、模型调用、预算账户或
 Worker 领取逻辑，S1 完成只表示本地管理后端基线完成。
+
+## 9. S2-01：FREE／CHARGE 原子派发准备
+
+状态：完成内部计费计划、免费派发事务及模型收费路径兼容；S2 整体未完成，不开放实际 TOOL 受理／执行入口。
+
+### 9.1 内部命令与兼容边界
+
+`DispatchPreparationStore.Command` 增加封闭 `BillingPlan`：
+
+| 计划   | 参数与约束                                                               | 准备结果                                                                                                     |
+|--------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| Free   | 无金额、费率、预留有效期；存储仅接受 TOOL 且 context.budgetRef 为 null   | ready=true、billingMode=FREE；Attempt 无 reservation                                                         |
+| Charge | Money、固定 rate、1 秒至 30 天的 retention；账户及费率继续按现有规则校验 | 成功为 ready=true、billingMode=CHARGE 且有 reservation；余额不足为 ready=false、NOT_STARTED 且无 reservation |
+
+金额为零的 Charge 仍走既有收费准备，不自动改为 Free。缺失收费参数明确拒绝。保留原七参数 Command 构造、amount／rate／retention
+访问器及三参数 PreparedDispatch 构造，均保持 CHARGE 含义；FREE 调用收费参数访问器抛出 IllegalStateException，不返回伪金额或伪费率。
+结果构造校验 ready、派发状态、计费模式与 reservation 的一致性，不能把免费准备结果当作有费用许可的结果。
+
+计划属于可信应用层内部命令，不接受客户端传入；仅检查 kind 与 budgetRef 不代表完成工具计费资格校验。后续 TOOL
+受理／派发必须从受信定义和配置确定计划。 命令和准备结果不进入执行 codec；没有“旧命令快照解码为
+CHARGE”的存储变更。Invocation／Attempt 继续使用原有快照格式，无 DDL、codec 版本或历史数据回填。
+
+### 9.2 原子准备与安全检查
+
+`MybatisExecutionPersistence.prepareDispatch` 保持 Invocation → 已领取 Outbox → 按需 Account → Reservation 的持锁顺序：
+
+1. 读取并锁定权威 Invocation，核验 owner／版本；锁定 Outbox，检查完整领取身份、worker、token、未 ACK 及数据库时钟下的租约。
+2. FREE 在创建 Attempt 前拒绝非 TOOL 或带 budgetRef 的调用，防止模型或预算绑定调用绕过预留。
+3. 复用 createAttemptLocked 的取消、总期限、尝试上限、前次安全重试、唯一 Attempt ID、序号和 fencing 校验；保存 RUNNING 及状态事件。
+4. FREE 不读取账户、不创建 Reservation／Settlement，再次检查领取，复用 markDispatchLocked 检查取消、总期限、执行租约及 EXECUTE
+   purpose，写入稳定派发身份与 MAY_HAVE_EXECUTED。
+5. CHARGE 保留原账户归属、金额／费率校验及原子预留；不足只提交未发送 Attempt。两条分支发生其他拒绝或写入错误均整体回滚。
+
+准备成功只允许本次事务提交后的首次执行；重复命令返回版本冲突，不返回另一份可发送许可。实际调用必须在事务外，不能把准备重放当作外部业务重试。
+FREE 的 Usage 仍为既有 unknown 测量语义，不伪造模型 token；免费无账户费用不等于没有耗时、步骤、并发或资源限制。
+
+`GenerationDispatcher.startAtomically` 显式传入 Charge，保留原模型报价、预留及不足处理。现有通用 markDispatch
+不放宽任何预算检查；本批没有修改 Worker 领取、模型网关或现有收费结算。
+
+### 9.3 验证范围
+
+新增 18 项测试：DispatchBillingContractTest 4 项、FreeDispatchPreparationIntegrationTest 13 项、既有
+DispatchPreparationIntegrationTest 增补 1 项模型 FREE 拒绝验证。 覆盖旧构造／访问器、零报价、必填收费参数、领取归属、无账户免费派发、跨实例快照读取、并发／重复拒绝、取消、陈旧
+token、领取／Attempt／总期限过期、 派发写入失败整体回滚及恢复重试、预算绑定 TOOL 与无预算模型不能使用 FREE、CHARGE
+不降级为免费、结果模式一致性。付费的共享账户竞争、余额不足、失租及预留到期测试继续保留。
+
+使用 JDK 21、隔离 H2 和本机受控 HTTP，执行契约、持久化、S1 工具管理及全部 admission 测试，42 个测试类共 584 项： **577 项通过，1
+项失败、2 项错误、4 项按条件跳过**；不能记为全绿。新增 18 项全部通过，Reactor 主代码／测试代码编译通过。 4 项跳过均因未提供独立测试
+Redis（ExecutionAssemblyTest 1 项、InvocationHttpIntegrationTest 3 项），未借用配置中的业务 Redis。 3 项失败均位于既有
+ProfileConfigurationTest：2 项缺少平台 ExecutionAuthorizationResolver 装配，1 项 application-ai.yml 的旧 import 断言不匹配。
+已在临时副本恢复本批三个生产类及原派发测试为 HEAD、移除两个新增测试，仅保留 S1 静态导入编译修复，重新执行该类，复现相同 1
+失败／2 错误；确认不由 S2-01 引入，本批不扩大为配置改造。
+
+扩展验证命令（仓库根目录）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.admission.*Test' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+日志：`/tmp/arte-s201-regression.log`；隔离基线复核：`/tmp/arte-s201-baseline-profile.log`。 最终核心验证采用相同 JDK／Maven
+参数，将 Dtest 替换为
+`DispatchBillingContractTest,FreeDispatchPreparationIntegrationTest,DispatchPreparationIntegrationTest,DispatchIntegrationTest,DispatchWorkerIntegrationTest`，
+**73 项全部通过，0 失败／错误／跳过，BUILD SUCCESS**；日志为 `/tmp/arte-s201-final-targeted.log`。这 73 项是上述扩展范围的子集，不重复计入总数。
+初次模型回归因沙箱禁止绑定本机端口报 Socket Operation not permitted，取得本机测试能力后重新运行；不能把首次受限运行记为模型行为失败。
+本次不是全仓验证，未运行旧 AI 全量、arte-app 全量、真实 MySQL、多节点压力、浏览器或生产环境验收。
+
+### 9.4 本批交付边界
+
+- 无数据库结构或数据变更；未连接／修改配置中的业务数据库，TOOL 仍默认关闭。
+- 未实现 S2-02 ToolGateway、TOOL 受理快照、默认绑定、分类领取／容量或真实业务工具；这些不能计入 S2-01 完成范围。
+- 未实现工具付费定价、Run 总额／跨账户选择、业务结果核对、审批或 UI。S4 免费子执行须由受信选择器明确构造无 budgetRef
+  的上下文，不能直接继承父预算后传 FREE。
+- 修复当前基线中 ToolBindingStoreTest、ToolReleaseTest、ToolManagementHttpTest 缺少 LocalToolFixtures 静态导入的编译问题；未改业务断言或
+  S1 生产逻辑。

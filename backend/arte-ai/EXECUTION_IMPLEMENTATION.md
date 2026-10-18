@@ -8,6 +8,12 @@
 > TOOL 评审修订 V0.2：专项 §6.7 将 Run 额度、账户预留、Attempt 和派发事实规定为同库短事务，免费派发使用明确 FREE 分支；§8.8
 > 将业务结果核对与费用核对分离。首版同构执行节点，§13.7 要求按 workClass 和容量领取，当前 claim／Worker 仍须扩展；§14.5
 > 的性能指标是待压测目标，当前实现和历史测试不证明达到。
+> S2-01 实施同步：MybatisExecutionPersistence.prepareDispatch 已增加无预算引用 TOOL 的 FREE 分支，GenerationDispatcher 显式传
+> Charge。
+> FREE 同样原子创建 Attempt／派发事实并检查领取、取消和期限，不生成预算预留；旧收费命令及预算不足语义保持。尚无 TOOL
+> 受理／网关执行入口，
+> 分类领取／容量与 Run
+> 预算仍待后续。当前实现及验证范围见 [TOOL 实施记录 §9](TOOL_IMPLEMENTATION.md#9-s2-01freecharge-原子派发准备)。
 
 已实现 Service 层完整链路：创建会话 → ChatService.submit 可靠受理 → Worker 领取 DISPATCH Outbox → Attempt／预算预留／发送标记 → ModelGateway 单次生成 → 输出事件／结果字节 → 耐久终态 → 预算结算 → 状态、结果及事件重放查询。新增运行实现均在 `com.arte.ainew`，复用前 4 步的控制面、字节存储及受控连接。
 

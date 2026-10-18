@@ -86,6 +86,7 @@ public class DispatchPreparationIntegrationTest {
         var result = fixture.executions.prepareDispatch(cmd).block(wait);
         assertTrue(result.successful());
         assertTrue(result.value().ready());
+        assertEquals(DispatchPreparationStore.BillingMode.CHARGE, result.value().billingMode());
         assertEquals(Attempt.Dispatch.MAY_HAVE_EXECUTED, result.value().attempt().dispatch());
         assertEquals(2, result.value().attempt().version());
         assertEquals(1, result.value().invocation().version());
@@ -93,6 +94,16 @@ public class DispatchPreparationIntegrationTest {
         assertEquals(AdmissionFixture.money("1"), fixture.executions.account(claim.owner(), "alice-budget").block(wait).held());
         assertEquals(StoreOutcome.Code.VERSION_CONFLICT, other.executions.prepareDispatch(cmd).block(wait).code());
         assertEquals(1, count("arte_ai_attempt"));
+    }
+
+    @Test
+    public void freePlanCannotBypassModelBudgetReservation() {
+        var cmd = command("1");
+        assertTrue(cmd.billingPlan() instanceof DispatchPreparationStore.Charge);
+        var free = new DispatchPreparationStore.Command(cmd.invocation(), claim, cmd.attemptId(), cmd.attemptLease(),
+                new DispatchPreparationStore.Free());
+        assertEquals(StoreOutcome.Code.INVALID_STATE, fixture.executions.prepareDispatch(free).block(wait).code());
+        assertRolledBack();
     }
 
     @Test
@@ -133,6 +144,7 @@ public class DispatchPreparationIntegrationTest {
         var result = fixture.executions.prepareDispatch(command("101")).block(wait);
         assertTrue(result.successful());
         assertFalse(result.value().ready());
+        assertEquals(DispatchPreparationStore.BillingMode.CHARGE, result.value().billingMode());
         assertEquals(Attempt.Dispatch.NOT_STARTED, result.value().attempt().dispatch());
         assertNull(result.value().attempt().budgetReservationId());
         assertEquals(0, count("arte_ai_reservation"));

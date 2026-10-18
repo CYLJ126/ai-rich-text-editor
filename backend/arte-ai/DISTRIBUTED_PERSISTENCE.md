@@ -1,8 +1,10 @@
 # AI 执行存储与预算事务契约 v1
 
 > 2026-10-17 TOOL 评审设计关联：[AI TOOL 专项 V0.2](../../ARTE%20AI%20TOOL%20需求及设计.md)§4.6、§6.7、§8.8、§13.7
-> 规定免费／付费派发、Run 额度与账户预留同库事务、业务结果证据、workClass 领取及版本切换。当前原子派发要求费用预留，Outbox
-> 仍按现有类型领取；新契约尚未实现。新增持锁顺序保持 Invocation 在前，再按需锁 Outbox、Run 预算、Account、Reservation；Run
+> 规定免费／付费派发、Run 额度与账户预留同库事务、业务结果证据、workClass 领取及版本切换。S2-01 已实现 FREE／CHARGE
+> 原子派发准备；Outbox
+> 仍按现有类型领取，Run 预算、业务核对和分类领取尚未实现。新增持锁顺序保持 Invocation 在前，再按需锁 Outbox、Run
+> 预算、Account、Reservation；Run
 > 控制不反向持锁等待子 Invocation。不得以两个独立提交的 Store 操作模拟原子预算，也不得把 Run ID 填入 invocationId。
 > S1-04 新增 ToolCatalogStore／MybatisToolCatalogStore，为提供者、Schema、工具定义修订提供不可变版本登记及一个批次内的跨表事务。三个新工具根别名使用
 > v1；不会改写现有执行快照，也不开放 TOOL 执行。DDL 已交付并用临时 H2 验证，配置中的业务数据库未执行本批增量。
@@ -11,19 +13,20 @@ ExecutionStore、ExecutionEventStore 和 BudgetService 提供 Reactor 方法契�
 
 ## 1. 原子边界
 
-| 操作 | 一次事务中的保证 | 竞争／恢复结果 |
-|---|---|---|
-| accept | 幂等记录、Invocation、可选 Turn、会话版本／活跃调用门闩、ACCEPTED 事件、派发 Outbox 一起提交 | 同键同摘要返回原 Invocation；同键异摘要拒绝；会话版本过旧或已有活跃调用拒绝 |
-| createAttempt | 校验 Invocation 版本、期限、前一次尝试的安全重试事实；分配唯一序号、递增 fencing token，关联 activeAttempt，写 STARTED 事件及 Outbox | 每次创建增加 Invocation.version；消息重投不能无条件创建新尝试；未知副作用先核对 |
-| acquireLease / renewLease | 租约依据数据库时钟，检查版本／activeAttempt；接管时递增 fencing token；续租增加 Attempt.version | 过期 Worker 的追加、发送标记、续租和提交全部拒绝 |
-| stopExpired | Invocation CAS、数据库时钟检查活跃 Attempt 已过期；增加版本与 fencing，提交终态、事件及发布 Outbox | NOT_STARTED 为 INTERRUPTED，可能发送为 UNKNOWN；不重发，预算独立处理 |
-| validateClaim / renewClaim | 锁定 Outbox，检查完整消息身份、Worker、token、未 ACK 和数据库时钟下租约有效 | 同 token 续租；失效领取不能复活，重新领取递增 token |
-| markDispatch | 在外部调用前耐久标记 MAY_HAVE_EXECUTED；有 budgetRef 时验证有效 RESERVED 预留 | 必须成功提交后才发送；发送失败／超时不恢复 NOT_STARTED |
-| updateConditionally | 两份版本、Worker、token、有效租约同时校验；只保存有明确事实的失败 Attempt | 可能执行且副作用未排除时拒绝；Invocation 终态另走 commitCompletion |
-| appendBatch | 同一 Invocation 跨 Attempt 分配连续 sequence；整批事件、batchKey、防重摘要、输出字节计数及发布 Outbox 一起提交 | 同键同批次返回原序号；同键异内容拒绝；超过输出上限整批拒绝 |
-| commitCompletion | Invocation 终态、Attempt、ResultRef、终态事件、完成防重记录、发布 Outbox 一起提交 | 同 completionKey 返回原提交快照；已知终态不能覆盖；结果字节应由可信结果存储预先落盘 |
-| reserve | 锁定账户，检查币种、固定费率、余额；预留、held、Attempt 关联一起提交 | 每 Attempt 最多一个预留；重投不重复占用；余额不足拒绝 |
-| settle | 预留版本 CAS、settlementKey 防重、账户 held／charged、预留状态及结算事实一起提交 | 同键异内容拒绝；最终结算只能一次；数据库故障整笔回滚 |
+| 操作                       | 一次事务中的保证                                                                                                                                                                     | 竞争／恢复结果                                                                                                                                   |
+|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| accept                     | 幂等记录、Invocation、可选 Turn、会话版本／活跃调用门闩、ACCEPTED 事件、派发 Outbox 一起提交                                                                                         | 同键同摘要返回原 Invocation；同键异摘要拒绝；会话版本过旧或已有活跃调用拒绝                                                                      |
+| createAttempt              | 校验 Invocation 版本、期限、前一次尝试的安全重试事实；分配唯一序号、递增 fencing token，关联 activeAttempt，写 STARTED 事件及 Outbox                                                 | 每次创建增加 Invocation.version；消息重投不能无条件创建新尝试；未知副作用先核对                                                                  |
+| acquireLease / renewLease  | 租约依据数据库时钟，检查版本／activeAttempt；接管时递增 fencing token；续租增加 Attempt.version                                                                                      | 过期 Worker 的追加、发送标记、续租和提交全部拒绝                                                                                                 |
+| stopExpired                | Invocation CAS、数据库时钟检查活跃 Attempt 已过期；增加版本与 fencing，提交终态、事件及发布 Outbox                                                                                   | NOT_STARTED 为 INTERRUPTED，可能发送为 UNKNOWN；不重发，预算独立处理                                                                             |
+| validateClaim / renewClaim | 锁定 Outbox，检查完整消息身份、Worker、token、未 ACK 和数据库时钟下租约有效                                                                                                          | 同 token 续租；失效领取不能复活，重新领取递增 token                                                                                              |
+| markDispatch               | 在外部调用前耐久标记 MAY_HAVE_EXECUTED；有 budgetRef 时验证有效 RESERVED 预留                                                                                                        | 必须成功提交后才发送；发送失败／超时不恢复 NOT_STARTED                                                                                           |
+| prepareDispatch            | Invocation → 已领取 Outbox → 按需 Account／Reservation；同事务创建 Attempt、递增 fencing、写状态／事件及派发标记。FREE 仅限无 budgetRef 的 TOOL，不访问预算账本；CHARGE 要求有效预留 | 旧构造仍为 CHARGE；金额零不代表免费。预算不足仅保留 NOT_STARTED Attempt，ready=false；其他失败整体回滚。重复／失效领取拒绝，不授予第二次发送许可 |
+| updateConditionally        | 两份版本、Worker、token、有效租约同时校验；只保存有明确事实的失败 Attempt                                                                                                            | 可能执行且副作用未排除时拒绝；Invocation 终态另走 commitCompletion                                                                               |
+| appendBatch                | 同一 Invocation 跨 Attempt 分配连续 sequence；整批事件、batchKey、防重摘要、输出字节计数及发布 Outbox 一起提交                                                                       | 同键同批次返回原序号；同键异内容拒绝；超过输出上限整批拒绝                                                                                       |
+| commitCompletion           | Invocation 终态、Attempt、ResultRef、终态事件、完成防重记录、发布 Outbox 一起提交                                                                                                    | 同 completionKey 返回原提交快照；已知终态不能覆盖；结果字节应由可信结果存储预先落盘                                                              |
+| reserve                    | 锁定账户，检查币种、固定费率、余额；预留、held、Attempt 关联一起提交                                                                                                                 | 每 Attempt 最多一个预留；重投不重复占用；余额不足拒绝                                                                                            |
+| settle                     | 预留版本 CAS、settlementKey 防重、账户 held／charged、预留状态及结算事实一起提交                                                                                                     | 同键异内容拒绝；最终结算只能一次；数据库故障整笔回滚                                                                                             |
 
 可预期拒绝返回 `StoreOutcome.Code`；数据库、编码或事务故障进入 Mono.onError。不能把 onComplete、取消订阅、构造快照或写入本地缓存当作耐久成功。读对象接口在不存在或归属不符时返回空 Mono；调用者仍须检查当前权限和 grant。
 

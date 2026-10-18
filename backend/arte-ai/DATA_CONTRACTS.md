@@ -4,8 +4,11 @@
 > ToolInvocation、ToolResult、DefinitionRef 和通用执行契约为基础规划新功能。工具目录／绑定修订、Invocation.WAITING_APPROVAL、ToolChatRun、带类型的
 > Turn 回答候选及 Run 事件／工作项均为计划扩展，当前 v1 类型和存储编码尚未实现这些变化；实施时须同步状态校验、codec、事务、查询和前端类型。ToolResult
 > 仍只表达 SUCCEEDED／FAILED／UNKNOWN，受理与审批等待不作为最终结果变体。
-> TOOL 评审修订 V0.2：专项 §4.6 明确现有契约影响；FREE／CHARGE 派发、受信子预算选择、Run C／H 费用占用、核对证据和带类型候选都需要新增类型／codec
+> TOOL 评审修订 V0.2：专项 §4.6 明确现有契约影响；受信子预算选择、Run C／H 费用占用、核对证据和带类型候选仍须按阶段扩展类型／codec
 > 与历史解码。ExecutionContext.child () 当前仍继承单一 budgetRef，不具备账户切换能力；现有数据声明不因设计更新自动获得这些能力。
+> S2-01 实施同步：DispatchPreparationStore 的内部命令增加 Free／Charge，结果显式携带 BillingMode；旧 Java 构造保持 CHARGE。
+> FREE 仅用于无预算引用的 TOOL；计划和准备结果不持久化，无新增根别名或历史命令解码。Invocation／Attempt 仍用原快照，免费
+> Attempt 不带 reservation。
 > S1-01 实施同步：已新增 pojo.tool 下的 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy
 > 不可变值对象及结构／跨字段契约测试。Schema 仍为固定引用，checksum
 > 仅作格式校验；尚未接入目录、发布、执行或内部白名单存储编码。实际字段及验证范围见 [TOOL 实施记录](TOOL_IMPLEMENTATION.md)。

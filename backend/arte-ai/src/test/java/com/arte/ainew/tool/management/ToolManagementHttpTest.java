@@ -20,7 +20,6 @@ import com.arte.ainew.pojo.tool.ToolReleaseCommand;
 import com.arte.ainew.pojo.tool.ToolReleaseReceipt;
 import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
-import com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
 import com.arte.ainew.web.controller.NewAiToolController;
 import com.arte.core.enums.platform.PrincipalKindEnum;
@@ -58,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import static org.junit.Assert.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;

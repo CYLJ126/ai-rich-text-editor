@@ -9,6 +9,7 @@ import java.util.Objects;
  * @since 2026/10/4 23:11 ✾
  */
 public record StoreOutcome<T>(Code code, T value) {
+
     public enum Code {
         APPLIED, REPLAYED, NOT_FOUND, OWNER_MISMATCH, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT,
         LEASE_LOST, INVALID_STATE, RECONCILIATION_REQUIRED, CONVERSATION_BUSY,

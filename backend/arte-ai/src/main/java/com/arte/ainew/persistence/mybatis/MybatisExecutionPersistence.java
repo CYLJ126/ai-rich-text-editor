@@ -1,36 +1,44 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.api.execution.BudgetService;
+import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits;
 import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OperationRow;
+import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow;
 import com.arte.ainew.pojo.budget.*;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
+import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.*;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import javax.sql.DataSource;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HexFormat;
-import java.util.List;
-import java.util.Objects;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static com.arte.ainew.pojo.execution.ExecutionCommands.*;
@@ -47,6 +55,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 @Slf4j
 public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
         ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore {
+
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
@@ -91,11 +100,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
         this.metadataTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        this.metadataTransaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
+        this.metadataTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.metadataTransaction.setTimeout(30);
         this.readTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.readTransaction.setReadOnly(true);
-        this.readTransaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        this.readTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.readTransaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
         this.conversationMetadata = new ConversationMetadataPersistence(sessions.getMapper(ConversationMetadataMapper.class),
@@ -144,11 +153,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var digest = MessageDigest.getInstance("SHA-256");
             for (var part : parts) {
                 var bytes = Objects.requireNonNull(part).getBytes(StandardCharsets.UTF_8);
-                digest.update(java.nio.ByteBuffer.allocate(4).putInt(bytes.length).array());
+                digest.update(ByteBuffer.allocate(4).putInt(bytes.length).array());
                 digest.update(bytes);
             }
             return HexFormat.of().formatHex(digest.digest());
-        } catch (java.security.NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
     }
@@ -164,7 +173,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     private Instant now() {
         return Objects.requireNonNull(system.databaseTime())
-                .toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+                .toInstant().truncatedTo(ChronoUnit.MILLIS);
     }
 
     /**
@@ -295,7 +304,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         ContractChecks.id(idempotencyKey, "idempotencyKey");
         return tx(() -> {
             var records = execution.acceptance(hash(ownerKey(owner), capabilityId), hash(idempotencyKey));
-            if (records.isEmpty()) { return null; }
+            if (records.isEmpty()) {
+                return null;
+            }
             var original = workspaceSnapshot(execution.invocationSnapshot(records.getFirst().invocationKey(), false), Invocation.class);
             if (original == null || !ExecutionOwner.from(original.request().context()).equals(owner)) {
                 throw new IllegalStateException("Broken acceptance record");
@@ -376,7 +387,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<ConversationPage<Turn>>> listTurns(ExecutionOwner owner, String conversationId,
-                                                              long expectedVersion, long current, long size) {
+                                                                long expectedVersion, long current, long size) {
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(conversationId, "conversationId");
         ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
@@ -417,7 +428,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     @Override
-    public Mono<com.arte.ainew.pojo.conversation.Turn> findTurn(ExecutionOwner owner, String conversationId, String turnId) {
+    public Mono<Turn> findTurn(ExecutionOwner owner, String conversationId, String turnId) {
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(conversationId, "conversationId");
         ContractChecks.id(turnId, "turnId");
@@ -426,7 +437,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             if (conversation == null || !conversation.owner().equals(owner)) {
                 return null;
             }
-            var turn = workspaceSnapshot(admission.turnSnapshot(hash(turnId), false), com.arte.ainew.pojo.conversation.Turn.class);
+            var turn = workspaceSnapshot(admission.turnSnapshot(hash(turnId), false), Turn.class);
             return turn != null && turn.conversationId().equals(conversationId) ? turn : null;
         });
     }
@@ -467,7 +478,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 }
                 var turn = command.turn();
                 lock(hash("turn-id", turn.turnId()));
-                var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), com.arte.ainew.pojo.conversation.Turn.class);
+                var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), Turn.class);
                 if (oldTurn == null) {
                     require(candidate.replacesInvocationId() == null, INVALID_STATE);
                     require(turn.version() == 0 && turn.selectedInvocationId() == null
@@ -531,13 +542,13 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             return readTransaction.execute(status -> {
                 var invocations = execution.invocationSnapshots(ownerKey(owner), invocationIds.stream().distinct().map(MybatisExecutionPersistence::hash).toList())
                         .stream().map(json -> codec.decode(json, Invocation.class)).toList();
-                var attempts = new java.util.HashMap<String, Attempt>();
+                var attempts = new HashMap<String, Attempt>();
                 var keys = invocations.stream().map(Invocation::activeAttemptId).filter(Objects::nonNull).distinct().map(MybatisExecutionPersistence::hash).toList();
                 if (!keys.isEmpty()) execution.attemptSnapshots(keys).forEach(json -> {
                     var attempt = codec.decode(json, Attempt.class);
                     attempts.put(attempt.attemptId(), attempt);
                 });
-                var reservations = new java.util.HashMap<String, BudgetReservation>();
+                var reservations = new HashMap<String, BudgetReservation>();
                 var reservationKeys = attempts.values().stream().map(Attempt::budgetReservationId).filter(Objects::nonNull).distinct().map(MybatisExecutionPersistence::hash).toList();
                 if (!reservationKeys.isEmpty()) budget.reservationSnapshots(reservationKeys).forEach(json -> {
                     var reservation = codec.decode(json, BudgetReservation.class);
@@ -607,18 +618,29 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             require(!rows.isEmpty(), NOT_FOUND);
             var claim = rows.getFirst();
             claimed(command.claim(), claim);
+            boolean free = command.billingPlan() instanceof DispatchPreparationStore.Free;
+            if (free) {
+                // FREE 是内部命令，仍禁止模型或带预算引用的调用绕过原有预留。
+                require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.request().context().budgetRef() == null, INVALID_STATE);
+            }
             var created = createAttemptLocked(new CreateAttempt(command.invocation(), command.attemptId(),
                     command.claim().workerId(), command.attemptLease()), invocation);
             var running = created.invocation();
             var guard = Guard.from(command.invocation().owner(), running, created.attempt());
             var attempt = guarded(running, guard, created.attempt());
+            if (free) {
+                claimed(command.claim(), claim);
+                var ready = checked(running, guard, attempt);
+                var dispatched = markDispatchLocked(new Dispatch(guard, CanonicalJson.key(ready.attemptId(), "remote-request")), running, ready, null);
+                return StoreOutcome.applied(new DispatchPreparationStore.PreparedDispatch(running, dispatched, true,
+                        DispatchPreparationStore.BillingMode.FREE));
+            }
             var ref = running.request().context().budgetRef();
             require(ref != null, NOT_FOUND);
             var account = workspaceSnapshot(budget.accountSnapshot(hash(ref), true), BudgetCommands.Account.class);
             require(account != null, NOT_FOUND);
             require(account.owner().equals(command.invocation().owner()), OWNER_MISMATCH);
-            var reserve = new BudgetCommands.Reserve(guard,
-                    com.arte.ainew.serialization.CanonicalJson.key(attempt.attemptId(), "reservation"), command.amount(),
+            var reserve = new BudgetCommands.Reserve(guard, CanonicalJson.key(attempt.attemptId(), "reservation"), command.amount(),
                     command.rate(), command.retention());
             ReservedAttempt reserved;
             try {
@@ -634,7 +656,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             claimed(command.claim(), claim);
             var ready = checked(running, Guard.from(command.invocation().owner(), running, reserved.attempt()), reserved.attempt());
             var dispatched = markDispatchLocked(new Dispatch(Guard.from(command.invocation().owner(), running, ready),
-                    com.arte.ainew.serialization.CanonicalJson.key(ready.attemptId(), "remote-request")), running, ready, reserved.reservation());
+                    CanonicalJson.key(ready.attemptId(), "remote-request")), running, ready, reserved.reservation());
             return StoreOutcome.applied(new DispatchPreparationStore.PreparedDispatch(running, dispatched, true));
         });
     }
@@ -1037,7 +1059,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                             && row.ownerKey().equals(ownerKey(command.guard().invocation().owner()))
                             && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
                             && row.schemaVersion() == ref.schemaVersion() && row.payloadDigest().equals(ref.contentDigest())
-                            && row.payloadDigest().equals(com.arte.ainew.serialization.CanonicalJson.sha256(row.workspaceSnapshot()));
+                            && row.payloadDigest().equals(CanonicalJson.sha256(row.workspaceSnapshot()));
                     if (verifiedOutput) {
                         var value = codec.decode(row.workspaceSnapshot(), InvocationResult.class);
                         verifiedOutput = value instanceof InvocationResult.Generation generation && !generation.value().complete()
@@ -1112,8 +1134,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         outbox.insertMessage(key, hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(), owner.subjectId(), kind.name(), sequence);
         if (kind == OutboxMessage.Kind.EVENT || kind == OutboxMessage.Kind.DISPATCH) {
             // 回滚不通知。唤醒失败不改变已提交的业务结果，由统一 Outbox 恢复扫描兜底。
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
                             try {
@@ -1234,7 +1256,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         });
     }
 
-    private void claimed(OutboxMessage message, com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow row) {
+    private void claimed(OutboxMessage message, OutboxRow row) {
         require(message.workerId().equals(row.workerId()) && message.fencingToken() == row.token()
                 && hash(message.invocationId()).equals(row.invocationKey())
                 && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()))
@@ -1287,7 +1309,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<DispatchLimitStore.Decision> acquireDispatchPermit(OutboxMessage message, String modelKey,
-                                                                   com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits limits) {
+                                                                   DispatchLimits limits) {
         return tx(() -> {
             require(message.kind() == OutboxMessage.Kind.DISPATCH, INVALID_STATE);
             lock(hash("dispatch-limits", "global"));
@@ -1331,7 +1353,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             }
             dispatchLimits.insertPermit(message.messageId(), message.fencingToken(), tenant, user, model, row.leaseUntil());
             return new DispatchLimitStore.Decision(true, Duration.ZERO);
-        }).onErrorMap(Rejected.class, error -> com.arte.ainew.application.support.AdmissionException.fromStoreRejection(error.code));
+        }).onErrorMap(Rejected.class, error -> AdmissionException.fromStoreRejection(error.code));
     }
 
     @Override
@@ -1517,7 +1539,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Reconciliation.Receipt.class));
             }
             version(invocation, new Version(command.owner(), command.invocationId(), command.invocationVersion()));
-            require(invocation.request().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION
+            require(invocation.request().kind() == CapabilityDescriptor.Kind.GENERATION
                     && invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
             var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class);
             require(reservation != null && reservation.invocationId().equals(id(invocation))

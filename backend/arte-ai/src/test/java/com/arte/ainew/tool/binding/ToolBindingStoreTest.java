@@ -18,7 +18,6 @@ import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
-import com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.Principal;
@@ -47,6 +46,7 @@ import static com.arte.ainew.pojo.tool.ToolBindingResult.Rejection.*;
 import static com.arte.ainew.pojo.tool.ToolBindingSettings.VersionPolicy.FOLLOW_COMPATIBLE;
 import static com.arte.ainew.pojo.tool.ToolBindingSettings.VersionPolicy.PINNED;
 import static com.arte.ainew.tool.binding.ToolBindingConstraintsTest.policy;
+import static com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import static org.junit.Assert.*;
 
 /**

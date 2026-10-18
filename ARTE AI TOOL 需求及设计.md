@@ -1,7 +1,8 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-18。
-> 文档版本：V0.2（评审修订，S1-08 实施同步）。状态：S1-01—S1-08 本地管理后端基线完成，包含契约、存储、发现、发布、私有绑定及当前授权管理
+> 文档版本：V0.2（评审修订，S2-01 实施同步）。状态：S1-01—S1-08 本地管理后端基线完成，S2-01 已完成 FREE／CHARGE
+> 原子派发准备。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
 > API；
 > 实际 TOOL 执行、默认绑定、审批、工具聊天、远端治理和前端仍待后续批次。
 > 实际数据库未部署 S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义脚本；TOOL 默认关闭，性能数值是验收目标，不是实测结果。
@@ -9,7 +10,7 @@
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08、S2-01
 > 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。当前已有工具值对象、Schema
 > 校验、类型化目标、底层目录版本存储／部署脚本、显式本地发现、生命周期治理、私有绑定管理／固定解析和 16
 > 个管理接口；接口须两个开关共同开启，尚无实际工具执行入口。验证包含本机受控
@@ -65,7 +66,7 @@ Agent／Workflow 引擎、Skill 平台、远程应用平台和通用 Secret 管�
 | 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                                   | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调            |
 | 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                                    | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具 |
 | 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                                 | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查         |
-| 预算与费用     | 账户、预留、结算、待核对及预算查询                                                                                       | 区分免费本地工具与付费工具；多次模型调用累计计费           |
+| 预算与费用     | 账户、预留、结算、待核对及预算查询；S2-01 增加 FREE／CHARGE 原子派发准备                                                 | 工具受理时解析可信计费策略；多次模型调用累计计费           |
 | 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                         | 协议工具字段、增量参数组装、结果回传及多步持久化推进       |
 | 前端           | ChatNew、工作空间上下文、services/arte-ai、状态查询及事件订阅                                                            | 工具管理、绑定、调试、审批、工具过程展示和 Run 跟踪        |
 
@@ -356,18 +357,18 @@ owner、绑定启用、实际工具生命周期及当前服务器容量，不因
 
 ### 4.6 现有不变量与契约影响矩阵
 
-| 现有不变量／代码位置                                                         | 计划变化与实施阶段                                     | 兼容及回归门槛                                                                                 |
-|------------------------------------------------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| 原 ResolvedBinding 要求 connection；ConnectionDefinition 为 HTTP 连接        | S1-03 已完成类型化目标及兼容编码；目录接线仍待后续     | 生成保留原六字段配置及平台目录格式；旧远端形状解码为 REMOTE，新绑定快照显式 v2                 |
-| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验               | S1／S2 按 kind 分派 TOOL 控制及受理                    | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                            |
-| DispatchPreparationStore.Command 要求 amount、rate，成功结果要求 reservation | S2 引入 FREE／CHARGE 计费计划                          | FREE 可安全无预留派发；旧命令解码为 CHARGE；预算不足与取消仍不发送                             |
-| ExecutionContext.child() 继承单一 budgetRef                                  | S4 增加受信子预算选择，见 §6.7                         | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes      |
-| Invocation 当前无 WAITING_APPROVAL                                           | S3 增加非终态及 Attempt 前完成路径                     | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                   |
-| Turn 用 invocationIds 表达候选                                               | S4 引入带类型候选及活跃执行身份                        | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                          |
-| OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选     | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份 | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation |
-| BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通             | S3 增加结果查询适配与证据提交，S5 验证远端协议         | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                    |
-| 既有 codec 只识别显式根别名，不承担工具治理状态                              | S1-06 增加 tool-release／tool-release-receipt v1       | 旧类型保持原义；新别名严格整数版本，先升级读端再写；原子回滚与旧数据回归见实施记录 §6          |
-| 当前人工账单核对限 GENERATION                                                | 付费工具阶段扩展费用核对，并与业务结果核对分离         | 不能因账单确认就生成工具业务结果；现有生成账本回执语义保持                                     |
+| 现有不变量／代码位置                                                       | 计划变化与实施阶段                                     | 兼容及回归门槛                                                                                                      |
+|----------------------------------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| 原 ResolvedBinding 要求 connection；ConnectionDefinition 为 HTTP 连接      | S1-03 已完成类型化目标及兼容编码；目录接线仍待后续     | 生成保留原六字段配置及平台目录格式；旧远端形状解码为 REMOTE，新绑定快照显式 v2                                      |
+| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S1／S2 按 kind 分派 TOOL 控制及受理                    | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
+| DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                     | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
+| ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                         | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
+| Invocation 当前无 WAITING_APPROVAL                                         | S3 增加非终态及 Attempt 前完成路径                     | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                                        |
+| Turn 用 invocationIds 表达候选                                             | S4 引入带类型候选及活跃执行身份                        | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                                               |
+| OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选   | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份 | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation                      |
+| BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通           | S3 增加结果查询适配与证据提交，S5 验证远端协议         | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                                         |
+| 既有 codec 只识别显式根别名，不承担工具治理状态                            | S1-06 增加 tool-release／tool-release-receipt v1       | 旧类型保持原义；新别名严格整数版本，先升级读端再写；原子回滚与旧数据回归见实施记录 §6                               |
+| 当前人工账单核对限 GENERATION                                              | 付费工具阶段扩展费用核对，并与业务结果核对分离         | 不能因账单确认就生成工具业务结果；现有生成账本回执语义保持                                                          |
 
 本表中的类位于 com.arte.ainew；完整代码链接见 §16。每一行在所属阶段必须有变更说明、旧数据解码用例、失败回滚用例和对应
 AC，不能以“统一复用”替代契约修改。
@@ -632,6 +633,14 @@ owner、scope、scopes、trace、parent 及期限约束不变。不能直接使�
 
 **计费计划**：派发准备命令采用 FREE 或 CHARGE 两种计划。FREE 没有 rate、Money 或 reservation，仍在同一派发事务中校验版本／取消／容量并创建
 Attempt 和派发身份；CHARGE 要求固定计价、金额上界及预留。返回值必须与计划一致；旧生成路径保留 CHARGE 的既有含义。
+
+S2-01 已实现内部 `DispatchPreparationStore.Free／Charge` 与结果 `billingMode`。FREE 当前仅接受 TOOL 且
+`budgetRef == null`，不读取／创建账户、预留或结算；金额为零仍属于 CHARGE，不自动转为免费。两条分支复用现有 Attempt
+序号、fencing、领取、取消及期限检查， 派发标记失败整体回滚；重复命令不返回第二份发送许可。旧七参数命令和三参数结果构造仍对应
+CHARGE；命令／准备结果不进入 codec，现有 Invocation／Attempt 快照及 DDL 不变。 计费计划只由可信应用层构造，不能绑定客户端请求；后续
+TOOL 受理须依据受信配置决定是否免费，不能只凭请求缺少 budgetRef 放行。 本批尚未接入 TOOL Gateway／受理、分类领取与容量、Run
+预算或付费工具计价；不表示已完成 S2。S4 的免费子调用须由受信选择器明确构造无预算引用的上下文，不能直接继承父预算引用后传
+FREE。
 
 **Run 子派发事务**：在同一物理数据库短事务中核验子 Invocation、Run 状态／版本、当前领取和取消事实，检查 Run 额度，写唯一
 RunBudgetAllocation、账户预留、Attempt 及派发标记，再提交。锁定顺序统一为子 Invocation → 本次已领取 Outbox（结算时无此步骤）→
@@ -1592,6 +1601,12 @@ Reactor 编译通过；命令与实际验证边界见 [TOOL 实施记录](backen
 本地管理后端基线完成，不代表可执行工具或生产验收完成；提供者独立同步／启停、远端协议和前端不计入已交付范围。 下一阶段 S2
 完成默认绑定、TOOL 受理快照及实际派发，并按前述最小预算门槛接入，暂不扩展独立预算产品。
 
+S2-01 已完成 FREE／CHARGE 内部计费计划、免费 TOOL 原子派发准备、结果模式一致性及原生成收费构造兼容，细则见 §6.7。 新增 18
+项测试全部通过；JDK 21 Reactor 编译及核心派发回归 73 项全部通过。扩展验证执行 584 项，577 项通过、4 项缺独立 Redis 条件跳过、
+3 项既有 ProfileConfigurationTest 配置失败，已在恢复本批改动前代码的临时副本复现，不能视作扩展回归全绿。 未变更
+DDL／codec、业务数据库或 TOOL 开关，未实现 S2-02 网关及后续受理／调度；不表示 S2
+整体完成。命令、基线复核及边界见 [TOOL 实施记录 §9](backend/arte-ai/TOOL_IMPLEMENTATION.md#9-s2-01freecharge-原子派发准备)。
+
 原始分批边界保持不变：S1-04 为存储；S1-05 本地登记与发现，S1-06 发布／废弃／停用，S1-07 绑定修订，S1-08 管理 API
 及当前授权接入。每次只验收一批，不把内部存储当作已授权产品入口。
 
@@ -1689,7 +1704,7 @@ AC-28／35。所有验收编号都必须在实际验证记录中注明对应需�
 | [AI 聊天界面需求及设计](ARTE%20AI%20聊天界面需求及设计.md)                                                          | 当前聊天产品基线及工具聊天扩展范围               |
 | [ChatNew 说明](frontend/src/pages/AI/ChatNew/README.md)                                                             | 现有页面与工作空间集成边界                       |
 | [执行上下文值对象](backend/arte-ai/src/main/java/com/arte/ainew/common/execution/ExecutionContext.java)             | 当前子上下文继承单一预算的约束                   |
-| [原子派发准备](backend/arte-ai/src/main/java/com/arte/ainew/spi/persistence/DispatchPreparationStore.java)          | 当前预留必填及派发事务契约                       |
+| [原子派发准备](backend/arte-ai/src/main/java/com/arte/ainew/spi/persistence/DispatchPreparationStore.java)          | S2-01 FREE／CHARGE 计划及原子派发事务契约        |
 | [Outbox 消费端口](backend/arte-ai/src/main/java/com/arte/ainew/spi/persistence/ExecutionOutboxStore.java)           | 当前领取参数及租约语义                           |
 | [Turn 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/conversation/Turn.java)                             | 当前 Invocation 候选结构                         |
 | [执行持久化实现](backend/arte-ai/src/main/java/com/arte/ainew/persistence/mybatis/MybatisExecutionPersistence.java) | 当前锁顺序、账本事务及生成专属人工核对           |
