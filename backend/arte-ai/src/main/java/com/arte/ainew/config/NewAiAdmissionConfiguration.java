@@ -20,10 +20,8 @@ import com.arte.ainew.application.execution.LocalDispatchNotifier;
 import com.arte.ainew.application.execution.LocalExecutionEventNotifier;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
-import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
-import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
-import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
-import com.arte.ainew.persistence.mybatis.MybatisToolReleaseStore;
+import com.arte.ainew.persistence.mybatis.*;
+import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
@@ -163,6 +161,19 @@ public class NewAiAdmissionConfiguration {
                                              ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                              @Qualifier("newAiClock") Clock clock) {
         return new MybatisToolReleaseStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, clock);
+    }
+
+    /**
+     * 私有绑定底层存储，复用当前服务器 limits；构造不读表、不自动创建绑定。
+     */
+    @Bean("newAiToolBindingStore")
+    MybatisToolBindingStore toolBindingStore(NewAiProperties properties, ListableBeanFactory beans,
+                                             ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                             @Qualifier("newAiClock") Clock clock, MybatisToolCatalogStore catalog, MybatisToolReleaseStore releases) {
+        var limits = properties.limits();
+        var policy = new ToolExecutionPolicy(limits.maximumTimeout(), 10, java.time.Duration.ZERO, limits.maxInputBytes(),
+                limits.maxOutputBytes(), ToolExecutionPolicy.ApprovalMode.NONE);
+        return new MybatisToolBindingStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, clock, policy, catalog, releases);
     }
 
     /**

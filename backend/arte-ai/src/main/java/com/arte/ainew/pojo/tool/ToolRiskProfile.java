@@ -72,7 +72,7 @@ public record ToolRiskProfile(CapabilityDescriptor.SideEffect sideEffect, boolea
     /**
      * 仅校验声明结构；DNS、实际连接地址、端口策略和当前外发授权留在发送边界检查。
      */
-    private static void validateOrigin(URI origin) {
+    static void validateOrigin(URI origin) {
         ContractChecks.text(origin.toString(), "allowedNetworkOrigin", 2048);
         ContractChecks.require(("https".equalsIgnoreCase(origin.getScheme()) || "http".equalsIgnoreCase(origin.getScheme()))
                         && origin.getHost() != null && origin.getUserInfo() == null

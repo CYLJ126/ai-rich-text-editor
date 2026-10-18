@@ -1,10 +1,12 @@
 package com.arte.ainew.config;
 
+import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
 import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
+import com.arte.ainew.spi.persistence.ToolBindingStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.ainew.spi.persistence.ToolReleaseStore;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -66,5 +68,14 @@ public class NewAiToolConfiguration {
     @Bean("newAiToolReleaseService")
     ToolReleaseService toolReleaseService(ToolReleaseStore store, LocalToolPublicationValidator validator) {
         return new ToolReleaseService(store, validator);
+    }
+
+    /**
+     * 个人绑定内部管理／解析，不自动建绑、不接入聊天或 Worker。
+     */
+    @Bean("newAiToolBindingService")
+    ToolBindingService toolBindingService(ToolBindingStore store, LocalToolDiscovery discovery, LocalToolRegistry registry,
+                                          @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, NewAiToolProperties properties) {
+        return new ToolBindingService(store, discovery, registry, scheduler, properties.discovery().sourceTimeout());
     }
 }

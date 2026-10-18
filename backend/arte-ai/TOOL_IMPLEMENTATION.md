@@ -3,7 +3,7 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02、S1-03、S1-04、S1-05、S1-06。S1 整体尚未完成，TOOL 尚未开放使用；S1-04／S1-06 增量尚未在配置中的业务数据库部署。
+当前完成：S1-01、S1-02、S1-03、S1-04、S1-05、S1-06、S1-07。S1 整体尚未完成，TOOL 尚未开放使用；S1-04／S1-06／S1-07 增量尚未在配置中的业务数据库部署。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -631,5 +631,117 @@ AC-02／03／05／08 当前只完成本批组件验证。FR-03.2 的下一敏感
 当作完整执行资格。 当前绑定、follow-compatible 自动解析／升级预览、多节点就绪及异构领取、远端发布、实际工具执行、当前管理授权、HTTP
 和前端均未完成；没有调用领域工具、真实模型或远端供应商。
 
-本次停在 S1-06，下一批为 S1-07：绑定及修订。S1 整体尚未完成，未运行全量测试、实际 MySQL 隔离／锁竞争、生产性能、多节点部署或浏览器验收；业务数据库的
+S1-06 完成时的下一批为 S1-07：绑定及修订，实际交付见 §7。S1 整体尚未完成，未运行全量测试、实际 MySQL
+隔离／锁竞争、生产性能、多节点部署或浏览器验收；业务数据库的
 S1-04／S1-06 增量仍须按部署流程单独执行。
+
+## 7. S1-07：私有绑定、不可变修订与固定解析
+
+状态：完成内部本地绑定管理／解析及本批验证。下一批为 S1-08 管理 API 与现有当前授权接入；S1 整体尚未完成。 未注册生产工具、启用
+TOOL 或改变原生成 BindingManager／FixedControlCatalog，也未接入 Worker、聊天或默认绑定创建。
+
+### 7.1 代码与引用
+
+| 类型／位置 | 职责 |
+| --- | --- |
+| pojo.tool.ToolBindingDefinition／Revision／Settings | 稳定个人身份、当前指针及完整不可变配置；真实 owner 和稳定 toolId 创建后不能改变 |
+| ToolBindingCommand／Result／Receipt | 完整保存、启停、升级确认；稳定拒绝原因及原始命令审计，不混淆领域决定和回执首次／重放 |
+| ToolBindingResolution／UpgradePreview | 固定实际工具及合并配置／约束；只读升级预览和确认摘要 |
+| application.tool.binding.ToolBindingConstraints | 对象递归合并、数组／标量／null 替换；策略取交集 |
+| ToolBindingStore／MybatisToolBindingStore | 同库指针／修订／审计事务、分页、审核链选择、预览重算及固定读取 |
+| ToolBindingService | 有界元数据线程复核当前健康发现视图和实际适配器声明，不调用 invoke |
+| serialization.ToolBindingDigests／ToolCatalogDigests | 集合排序的管理语义摘要、标准 JSON 配置摘要与字节容量 |
+
+创建 SAVE 的 bindingId 为空、expectedVersion=0；服务端按 owner 三元组、主体类别与幂等键派生稳定 ID。 修改必须提供稳定 ID 和当前
+expectedVersion，成功增加一个治理版本并追加完整 `binding/{id}/rN`；名称或启停变化也保留历史。 同工具允许多个命名绑定。SAVE
+不能更换工具基线，须经过 UPGRADE；稳定 toolId／owner 无法更换，无变化返回 NO_CHANGE。
+
+动态解析保存内容寻址的 `binding/{id}/p1-{SHA-256}`，包含来源 rN、真实 owner、实际产品及提供方／目标、发布契约摘要、合并配置与摘要、有效策略、外发范围和
+Secret 引用。 同一有效计划复用原材料；新兼容发布或有效服务器约束变化产生不同 p1，不改写 rN。计划摘要中的集合先排序，读取另外核对实际存储字节摘要及原始身份。
+解析材料不含调用参数、Invocation、临时授权或预算资格，不是 S2 ToolExecutionSnapshot；S2 仍需把参数和实际引用绑定到耐久受理及派发。
+
+### 7.2 配置、策略、归属及撤销
+
+- 每次 SAVE／UPGRADE 都提交完整覆盖层，只与工具默认配置合并，不与上一 rN 合并；对象递归，数组／标量替换，null 保留为显式值，再校验配置
+  Schema。
+- 配置标准 JSON 字节容量复用当前 arte.ai-new.limits.max-input-bytes，与工具 arguments 的 maxInputBytes
+  分开；固定读取也复核当前配置容量。保存前还检查整份固定材料的编码容量，避免留下无法解析的绑定。
+- 工具默认策略、可选绑定策略及服务器 limits 求交集：超时／次数／输入输出取小、最低退避取大、审批取强。退避超过最终期限返回
+  POLICY_CONFLICT；上限不是安全重试授权。
+- 服务器总期限／输入输出沿用原 limits，尝试次数绝对上限 10，不新增预算系统或复制 Worker 参数。允许集合及单次调用进一步收紧待
+  S2／S4。
+- 网络范围 null 表示继承，空集表示禁止外发；新增工具未声明的目标返回 NETWORK_NOT_ALLOWED。绑定不能开启实现未支持的协议能力。
+- 当前本地端口没有凭据槽／Secret 使用授权，非空引用明确返回 SECRET_UNSUPPORTED，不读取凭据值，不假造已验证引用。远端连接与凭据另在
+  S5 落实。
+- 所有读取核对 tenant/workspace/subject；越界不返回私人配置或当前版本。管理只接受 ACTIVE 且与 owner.subjectId 相同的可信
+  actor，但仍需要 S1-08 检查当前 RBAC／空间资格。
+- SET_ENABLED (false) 只复制原设置为新修订，工具停用或发现失败不妨碍撤销；重新启用重验配置、策略及生命周期。绑定停用阻止历史
+  p1，普通配置更新保留历史 p1。
+- 固定读取不重新选择版本，检查当前绑定启用、实际工具生命周期和服务器约束；更严策略失配时拒绝，不原地改写旧材料。实际执行边界的再次检查仍待
+  S2。
+
+### 7.3 版本与升级
+
+PINNED 仅使用固定基线；FOLLOW_COMPATIBLE 只沿 S1-06 唯一审核边前进，不按标签／时间排序，最多访问 128 个版本。
+逐一验证身份、重复节点及生命周期；中间停用、废弃到期、缺失或链过长即拒绝，不跳过或静默回退。 新建及显式升级最终选择须为
+PUBLISHED；已有绑定可在 DEPRECATED 截止前继续使用。固定 p1 读取只检查实际版本，不受新发布自动替换。
+
+升级预览不写指针、修订、回执或解析材料，返回当前基线／实际版本、兼容性、目标方案、变更类别和摘要。
+变更包含配置、版本策略、风险、能力、执行约束、网络、Secret 引用、名称及启停；完整目标方案可供后续管理响应呈现。 确认须同时提交
+expectedVersion 和预览摘要，在事务内重算目标／治理事实；变化返回 PREVIEW_CHANGED。 没有审核路径时必须
+acceptIncompatible=true，并提供通过目标配置 Schema 的完整设置，不代替当前授权。 旧基线停用后仍可显式预览并升级到可新绑定的目标。允许工具集合的影响分析留给
+S4，不输出虚构 ToolSet 清单。
+
+实际可用解析／固定读取／成功预览还通过 ToolBindingService 复核当前节点的完整健康视图、精确固定定义及实际
+adapter.capability； 声明停用、缺失、异常或读取超时返回 EXECUTOR_UNAVAILABLE。读取在已有有界元数据调度器执行，期限沿用
+discovery.source-timeout。 管理配置可在节点暂不可执行时保存，不以保存成功冒充可用解析；不调用 BusinessToolAdapter.invoke
+或凭据解析器。
+
+### 7.4 事务、编码与部署
+
+管理先锁命令／绑定，再锁与发布共用的稳定工具身份；预览、解析和固定读取也遵循绑定→工具顺序。 同一个物理 DataSource、工作线程及
+Spring 事务保存当前指针、rN、原始回执／审计；依赖数据源不一致会在构造时拒绝。 管理键在真实 owner 和 actor
+范围跨绑定／动作共享；完整设置、原因、expectedVersion、预览摘要及确认参与语义比较。 首次成功或拒绝均保存原决定，同语义返回
+REPLAYED，改变语义返回 IDEMPOTENCY_CONFLICT；SQL／编码损坏通过 onError 传播并回滚，不能伪装业务拒绝。 外层
+StoreOutcome.APPLIED／REPLAYED 是回执首次／重放，领域决定读取 receipt.result。审计游标表示存储位置，不代表时间排序或跨页一致快照。
+
+新增四个内部白名单根：tool-binding、tool-binding-revision、tool-binding-resolution、tool-binding-receipt，均写
+schemaVersion=1，严格整数版本。 旧 resolved-binding v2／v1、生成配置六字段、Invocation／Attempt／结果／事件编码保持原行为。
+单条内部材料实际编码不超过 1,000,000 字节，列表／历史最多 100 条；解析材料去重但未实现清理任务，生产容量需随 S2 实际受理量验收。
+
+- 新环境使用更新后的 [完整基线](scripts/arte-ai-new-ddl-mysql.sql)。
+- 已有环境先部署 S1-04、S1-06，再执行 [S1-07 绑定增量](scripts/arte-ai-tool-binding-migration.sql)
+  ：binding、binding_revision、binding_resolution、binding_command 四表。
+- 停写、备份、核对目标表不存在后显式部署；脚本不进入运行时 JAR，Bean 构造零 SQL，不自动创建绑定或发布工具。
+- 配置中的业务数据库本次未连接、未检查、未执行任何迁移；其他环境同样需要显式部署，不能以临时 H2 通过代替 MySQL 验收。
+
+### 7.5 验证证据
+
+JDK 21、Maven 离线 Reactor 编译通过。新增 ToolBindingConstraintsTest 5 项、ToolBindingStoreTest 39 项，共 44 项。 使用临时 H2
+MySQL 模式、真实隔离 MyBatis、多实例独立连接及 UTC 微秒时钟；保留 DDL 会话处理 H2 的 IN 检查表达式限制，不连接业务数据库。
+覆盖完整配置／null／数组、Schema、UTF-8 字节及整份材料容量、策略冲突、Secret 拒绝、网络收紧、owner
+隔离、多个命名绑定、不可变修订、分页、无变化、并发版本冲突、成功／拒绝重放、审计失败回滚、固定计划与当前撤销、服务器容量收紧、pinned／审核链／不兼容确认、停用中间节点、129
+版本链超限、预览变化、旧基线修复、当前实现停用／缺失／超时及严格编码／完整性。
+
+针对性回归命令（允许受控本机 HTTP 临时端口）：
+
+```sh
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.app.platform.persistence.PlatformBindingJsonTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+结果：BUILD SUCCESS，arte-ai 378 项、arte-app 3 项，共 381 项，失败／错误／跳过均为 0。现有测试同时补充新 Mapper
+注册数量、依赖表清理及基线／增量分段断言，修正发布测试夹具的静态导入。 审计失败注入的 SQL 错误是预期结果；既有重复 H2
+依赖、资源编码、旧 API、macOS Netty DNS native fallback 提示未在本批处理。 不是全量测试，也不是实际 MySQL
+锁竞争、生产吞吐、多节点部署或浏览器验收；未将存在既有问题的整套 ProfileConfigurationTest 计入通过。
+
+### 7.6 需求追踪与下一批
+
+FR-04.1 对应不可变修订与管理事务，FR-05.1 对应显式链、固定材料及升级预览；AC-04／05／08 当前只完成本批内部组件验证。 FR-05.2 的
+Invocation 重放、FR-03.2 的实际敏感执行边界、默认绑定及完整 TOOL 受理／派发仍待 S2。 S1-08 接入当前授权、管理 HTTP
+和错误／预览响应；不得把底层 owner／actor 结构检查当作已完成当前 RBAC。 TOOL 仍默认关闭，未实现共享绑定、远端
+Secret、允许集合、审批、工具聊天、领域工具执行或前端。

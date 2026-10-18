@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC '-//mybatis.org//DTD Mapper 3.0//EN'
+        'https://mybatis.org/dtd/mybatis-3-mapper.dtd'>
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper">
+    <resultMap id="Header" type="com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper$Header">
+        <constructor>
+            <arg column="binding_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="tool_id" javaType="java.lang.String"/>
+            <arg column="row_version" javaType="_long"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Artifact" type="com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper$Artifact">
+        <constructor>
+            <arg column="artifact_key" javaType="java.lang.String"/>
+            <arg column="binding_key" javaType="java.lang.String"/>
+            <arg column="revision_key" javaType="java.lang.String"/>
+            <arg column="tool_key" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Command" type="com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper$Command">
+        <constructor>
+            <arg column="command_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="binding_key" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="toolBinding" resultMap="Header" useCache="false">SELECT
+        binding_key,owner_key,tool_id,row_version,payload_digest,snapshot FROM arte_ai_tool_binding WHERE
+        binding_key=#{key}
+        FOR UPDATE
+    </select>
+    <select id="toolBindingRevision" resultMap="Artifact" useCache="false">SELECT
+        artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot FROM arte_ai_tool_binding_revision WHERE
+        artifact_key=#{key}
+        FOR UPDATE
+    </select>
+    <select id="toolBindingResolution" resultMap="Artifact" useCache="false">SELECT
+        artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot FROM arte_ai_tool_binding_resolution
+        WHERE artifact_key=#{key}
+        FOR UPDATE
+    </select>
+    <select id="toolBindingCommand" resultMap="Command" useCache="false">SELECT
+        command_key,owner_key,binding_key,request_digest,payload_digest,snapshot FROM arte_ai_tool_binding_command WHERE
+        command_key=#{key}
+        FOR UPDATE
+    </select>
+    <select id="toolBindings" resultMap="Header" useCache="false">
+        SELECT binding_key,owner_key,tool_id,row_version,payload_digest,snapshot FROM arte_ai_tool_binding WHERE
+        owner_key=#{owner}
+        <if test="after != null">AND binding_key &gt; #{after}</if>
+        ORDER BY binding_key LIMIT #{limit}
+    </select>
+    <select id="toolBindingHistory" resultMap="Command" useCache="false">
+        SELECT command_key,owner_key,binding_key,request_digest,payload_digest,snapshot FROM
+        arte_ai_tool_binding_command WHERE owner_key=#{owner} AND binding_key=#{binding}
+        <if test="after != null">AND command_key &gt; #{after}</if>
+        ORDER BY command_key LIMIT #{limit}
+    </select>
+    <insert id="insertToolBinding">INSERT INTO
+        arte_ai_tool_binding(binding_key,owner_key,tool_id,row_version,payload_digest,snapshot)
+        VALUES(#{r.bindingKey},#{r.ownerKey},#{r.toolId},#{r.version},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+    <insert id="insertToolBindingRevision">INSERT INTO
+        arte_ai_tool_binding_revision(artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot)
+        VALUES(#{r.artifactKey},#{r.bindingKey},#{r.revisionKey},#{r.toolKey},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+    <insert id="insertToolBindingResolution">INSERT INTO
+        arte_ai_tool_binding_resolution(artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot)
+        VALUES(#{r.artifactKey},#{r.bindingKey},#{r.revisionKey},#{r.toolKey},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+    <insert id="insertToolBindingCommand">INSERT INTO
+        arte_ai_tool_binding_command(command_key,owner_key,binding_key,request_digest,payload_digest,snapshot)
+        VALUES(#{r.commandKey},#{r.ownerKey},#{r.bindingKey},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+    <update id="updateToolBinding">UPDATE arte_ai_tool_binding SET
+        row_version=#{r.version},payload_digest=#{r.payloadDigest},snapshot=#{r.snapshot}
+        WHERE binding_key=#{r.bindingKey} AND owner_key=#{r.ownerKey} AND tool_id=#{r.toolId} AND
+        row_version=#{expected}
+    </update>
+</mapper>

@@ -54,6 +54,8 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
      * 发布材料与审计快照沿用目录单条 1,000,000 字节上限。
      */
     private static final int MAX_RECORD_BYTES = 1_000_000;
+
+    private final DataSource dataSource;
     private final ToolReleaseMapper mapper;
     private final ToolCatalogMapper catalogMapper;
     private final SystemMapper locks;
@@ -65,6 +67,7 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
     private final ToolSchemaValidator schemas = new ToolSchemaValidator();
 
     public MybatisToolReleaseStore(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler, Clock clock) {
+        this.dataSource = Objects.requireNonNull(dataSource);
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(dataSource));
         mapper = sessions.getMapper(ToolReleaseMapper.class);
         catalogMapper = sessions.getMapper(ToolCatalogMapper.class);
@@ -75,6 +78,23 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         catalog = new MybatisToolCatalogStore(dataSource, codec, scheduler, clock);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         transaction.setTimeout(30);
+    }
+
+    boolean uses(DataSource source) {
+        return dataSource == source;
+    }
+
+    /**
+     * 绑定事务已持有稳定工具身份锁；使用当前读，不能跨调度器脱离事务。
+     */
+    ToolRelease currentForBinding(DefinitionRef ref) {
+        var row = mapper.toolRelease(id(ref), true);
+        return row == null ? null : decode(row);
+    }
+
+    ToolRelease successorForBinding(DefinitionRef ref) {
+        var row = mapper.toolReleaseSuccessor(id(ref));
+        return row == null ? null : decode(row);
     }
 
     private <T> Mono<T> io(Supplier<T> operation) {

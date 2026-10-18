@@ -556,7 +556,7 @@ public class ToolReleaseTest {
         var baseline = Files.readString(Path.of("scripts/arte-ai-new-ddl-mysql.sql"));
         var incremental = Files.readString(Path.of("scripts/arte-ai-tool-release-migration.sql"));
         assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(),
-                baseline.substring(baseline.indexOf("create table arte_ai_tool_release\n")).trim());
+                baseline.substring(baseline.indexOf("create table arte_ai_tool_release\n"), baseline.indexOf("-- AI TOOL S1-07")).trim());
     }
 
     private record Node(LocalToolDiscovery discovery, LocalToolPublicationValidator validator,

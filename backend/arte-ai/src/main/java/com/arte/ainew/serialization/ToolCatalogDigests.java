@@ -22,6 +22,20 @@ public final class ToolCatalogDigests {
         return CanonicalJson.digest(jsonValue(document));
     }
 
+    /**
+     * 标准 JSON 配置摘要，保留数组顺序及显式 null，不含内部类型包装。
+     */
+    public static String configuration(StructuredValue.ObjectValue configuration) {
+        return CanonicalJson.digest(jsonValue(configuration));
+    }
+
+    /**
+     * 用当前服务器配置容量复核旧固定材料；与工具 arguments 的字节上限相互独立。
+     */
+    public static long configurationBytes(StructuredValue.ObjectValue configuration) {
+        return CanonicalJson.encode(jsonValue(configuration)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    }
+
     public static String tool(ToolDefinition tool) {
         var risk = tool.risk();
         return CanonicalJson.digest(CanonicalJson.fields(

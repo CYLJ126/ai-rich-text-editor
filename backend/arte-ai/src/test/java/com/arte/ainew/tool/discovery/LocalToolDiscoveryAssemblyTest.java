@@ -161,6 +161,12 @@ public class LocalToolDiscoveryAssemblyTest {
 
     private static void dependencies(AnnotationConfigApplicationContext context, ToolCatalogStore store) {
         context.registerBean(ToolCatalogStore.class, () -> store);
+        context.registerBean(com.arte.ainew.spi.persistence.ToolBindingStore.class, () ->
+                (com.arte.ainew.spi.persistence.ToolBindingStore) java.lang.reflect.Proxy.newProxyInstance(
+                        com.arte.ainew.spi.persistence.ToolBindingStore.class.getClassLoader(),
+                        new Class<?>[]{com.arte.ainew.spi.persistence.ToolBindingStore.class}, (proxy, method, args) -> {
+                            throw new AssertionError("Assembly must not access bindings");
+                        }));
         context.registerBean(com.arte.ainew.spi.persistence.ToolReleaseStore.class, () -> new com.arte.ainew.spi.persistence.ToolReleaseStore() {
             public Mono<com.arte.ainew.pojo.tool.ToolRelease> find(com.arte.ainew.common.reference.DefinitionRef tool) {
                 throw new AssertionError("Assembly must not read releases");

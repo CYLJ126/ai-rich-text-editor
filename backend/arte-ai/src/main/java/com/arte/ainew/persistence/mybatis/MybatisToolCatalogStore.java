@@ -43,6 +43,8 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
 
     public static final int MAX_RECORD_BYTES = 1_000_000;
     public static final int MAX_BATCH_BYTES = 8 * 1024 * 1024;
+
+    private final DataSource dataSource;
     private final ToolCatalogMapper mapper;
     private final SystemMapper locks;
     private final ExecutionRecordCodec codec;
@@ -52,6 +54,7 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
     private final ToolSchemaValidator schemas = new ToolSchemaValidator();
 
     public MybatisToolCatalogStore(DataSource dataSource, ExecutionRecordCodec codec, Scheduler scheduler, Clock clock) {
+        this.dataSource = Objects.requireNonNull(dataSource);
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(dataSource));
         mapper = sessions.getMapper(ToolCatalogMapper.class);
         locks = sessions.getMapper(SystemMapper.class);
@@ -60,6 +63,10 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
         this.codec = Objects.requireNonNull(codec, "codec");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    boolean uses(DataSource source) {
+        return dataSource == source;
     }
 
     private <T> Mono<T> io(Supplier<T> work) {

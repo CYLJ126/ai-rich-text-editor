@@ -64,6 +64,10 @@ public class ToolCatalogStoreTest {
         var baseline = new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql"));
         baseline.execute(dataSource);
         jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("DROP TABLE arte_ai_tool_binding_command");
+        jdbc.execute("DROP TABLE arte_ai_tool_binding_resolution");
+        jdbc.execute("DROP TABLE arte_ai_tool_binding_revision");
+        jdbc.execute("DROP TABLE arte_ai_tool_binding");
         jdbc.execute("DROP TABLE arte_ai_tool_release_command");
         jdbc.execute("DROP TABLE arte_ai_tool_release");
         jdbc.execute("DROP TABLE arte_ai_tool_definition");
