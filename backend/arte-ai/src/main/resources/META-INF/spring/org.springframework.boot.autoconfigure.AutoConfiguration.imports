@@ -1,5 +1,6 @@
 com.arte.ainew.config.NewAiAdmissionConfiguration
 com.arte.ainew.config.NewAiToolConfiguration
+com.arte.ainew.config.NewAiToolGatewayConfiguration
 com.arte.ainew.config.NewAiToolManagementConfiguration
 com.arte.ainew.config.NewAiGenerationConfiguration
 com.arte.ainew.config.NewAiExecutionConfiguration

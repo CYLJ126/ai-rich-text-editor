@@ -14,6 +14,11 @@
 > 受理／网关执行入口，
 > 分类领取／容量与 Run
 > 预算仍待后续。当前实现及验证范围见 [TOOL 实施记录 §9](TOOL_IMPLEMENTATION.md#9-s2-01freecharge-原子派发准备)。
+> S2-02 实施同步：内部 DefaultToolGateway 已完成本地只读固定调用、Schema、显式宿主授权、取消／期限及输出检查；不接管
+> Worker、租约或终态事务。
+> 双开关开启且宿主提供 ToolExecutionAccess 才装配网关和有界执行线程池；未提供端口时仍可只部署工具管理，不生成允许执行的授权器。
+> 新网关没有接入当前生成派发器，TOOL 受理／快照及 Worker
+> 闭环仍待后续；详见 [TOOL 实施记录 §10](TOOL_IMPLEMENTATION.md#10-s2-02本地只读-tool-网关)。
 
 已实现 Service 层完整链路：创建会话 → ChatService.submit 可靠受理 → Worker 领取 DISPATCH Outbox → Attempt／预算预留／发送标记 → ModelGateway 单次生成 → 输出事件／结果字节 → 耐久终态 → 预算结算 → 状态、结果及事件重放查询。新增运行实现均在 `com.arte.ainew`，复用前 4 步的控制面、字节存储及受控连接。
 

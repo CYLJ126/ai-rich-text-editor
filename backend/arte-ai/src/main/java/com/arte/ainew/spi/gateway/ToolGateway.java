@@ -20,6 +20,9 @@ public interface ToolGateway {
 
     /**
      * 重新校验绑定、工具 Schema、权限及副作用；一次调用，不自行执行模型后续决策或重试。
+     * 当前本地实现只开放免收费只读工具；需审批、网络、Secret 或付费计划的调用明确拒绝。
+     * 返回的 Publisher 只允许订阅一次；调用方仍须维护耐久派发、租约和最终结果提交。
+     * 进入适配器后的异常／超时不能当作未执行证据，未知结果须交给执行协调层保存及核对。
      */
     Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call);
 }

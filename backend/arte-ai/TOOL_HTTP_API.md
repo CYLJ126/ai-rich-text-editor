@@ -4,6 +4,9 @@
 [需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 ，实现与验证见 [实施记录 §8](TOOL_IMPLEMENTATION.md#8-s1-08管理-api-与现有当前授权)。
 
+S2-02 已新增内部本地只读网关，但本文件仍只有管理接口；没有新增 invokeTool 或绕过耐久受理的同步调用路由。
+网关装配及后续接线边界见 [实施记录 §10](TOOL_IMPLEMENTATION.md#10-s2-02本地只读-tool-网关)。
+
 仅当 `arte.ai-new.enabled=true` 和 `arte.ai-new-tool.enabled=true` 时注册。复用现有认证、语言和 `ResultContext`； 外部路径前缀为
 `/arte/ai-new/tool`，Controller 路径不包含应用上下文 `/arte`。 启用前须具备现有公共身份／持久化／空间基础、同一物理
 `appDataSource` 及相应表，缺少宿主授权时启动失败。 本次未连接或部署业务数据库，TOOL 仍默认关闭，未登记生产工具或提供前端页面。

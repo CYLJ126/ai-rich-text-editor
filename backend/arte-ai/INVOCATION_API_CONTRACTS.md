@@ -8,6 +8,11 @@
 > 的契约变更。ToolOutcomeQueryAdapter／核对证据提交是计划端口，不能把当前 invoke 或生成账单核对用作工具结果确认；所有新状态、计划和证据须通过版本化白名单与当前授权。
 > S1-03 已完成本地／远端目标契约及编码兼容：ResolvedBinding.target 为唯一执行位置，本地目标只用于 TOOL；GatewayCall 还要求
 > ToolInvocation 和已有耐久派发身份。原生成路径、费用预留和状态机未放宽；本批不提供 TOOL 受理、免费派发或实际适配器执行。
+> S2-02 实施同步：已实现内部 DefaultToolGateway，复用 S1 固定绑定及 Schema、S2-01 FREE 准备后的调用契约；当前只处理本地免收费只读工具。
+> 通过 ToolExecutionAccess 重新授权后，向 BusinessToolAdapter.invoke (LocalToolCall) 传递固定配置及当前权限；旧执行方法只兼容空配置。
+> 网关 Publisher 只允许一次订阅，不重试、不写执行／预算状态；进入适配器后的异常或无效结果保守为 UNKNOWN。宿主授权与真实领域工具尚未接线，
+> 不代表已有 TOOL HTTP／Worker
+> 闭环。验证及装配边界见 [TOOL 实施记录 §10](TOOL_IMPLEMENTATION.md#10-s2-02本地只读-tool-网关)。
 
 适用于 `com.arte.ainew`。第 1～3 步的固定配置、字节存储及可靠受理已实现，详见 [受理实现与使用](ADMISSION_IMPLEMENTATION.md)
 。第 4 步的 ModelGateway、DeepSeek 供应商适配及受控 HTTP／SSE 交互已实现，详见 [单次模型交互](GENERATION_IMPLEMENTATION.md)

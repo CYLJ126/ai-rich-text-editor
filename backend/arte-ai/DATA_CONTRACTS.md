@@ -9,6 +9,10 @@
 > S2-01 实施同步：DispatchPreparationStore 的内部命令增加 Free／Charge，结果显式携带 BillingMode；旧 Java 构造保持 CHARGE。
 > FREE 仅用于无预算引用的 TOOL；计划和准备结果不持久化，无新增根别名或历史命令解码。Invocation／Attempt 仍用原快照，免费
 > Attempt 不带 reservation。
+> S2-02 实施同步：新增非持久化 LocalToolCall，将 GatewayCall 与已经复核的 ToolBindingResolution 关联，保留固定配置、目标、操作键及执行身份。
+> BusinessToolAdapter 新增此类型的执行重载；旧方法只兼容空配置。当前授权通过显式 ToolExecutionAccess 再取，不能换 owner 或扩大
+> scopes。
+> 未新增快照别名、DDL 或受理类型；LocalToolCall 含进程内运行对象，不是 ToolExecutionSnapshot，不能作为 HTTP 或持久化数据使用。
 > S1-01 实施同步：已新增 pojo.tool 下的 ToolDefinition、ToolRiskProfile、ToolCapabilities、ToolExecutionPolicy
 > 不可变值对象及结构／跨字段契约测试。Schema 仍为固定引用，checksum
 > 仅作格式校验；尚未接入目录、发布、执行或内部白名单存储编码。实际字段及验证范围见 [TOOL 实施记录](TOOL_IMPLEMENTATION.md)。

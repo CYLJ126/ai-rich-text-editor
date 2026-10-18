@@ -3,11 +3,11 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01—S1-08 本地管理后端基线，以及 S2-01 FREE／CHARGE 原子派发准备；16 个管理 API 与现有当前授权接线完成，实际 TOOL
-执行仍待 S2 后续批次。TOOL
+当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，以及 S2-02 内部本地只读网关；16 个管理 API
+与现有当前授权接线完成。 面向用户的 TOOL 受理／Worker 执行闭环仍待 S2 后续批次。TOOL
 默认关闭；S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
 
-§1—§8 保留各批完成时的范围与验证记录；管理入口及部署状态见 §8，本批派发准备与验证状态见 §9。
+§1—§9 保留各批完成时的范围与验证记录；管理入口及部署状态见 §8、派发准备见 §9，本批网关与验证状态见 §10。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -958,3 +958,92 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
   的上下文，不能直接继承父预算后传 FREE。
 - 修复当前基线中 ToolBindingStoreTest、ToolReleaseTest、ToolManagementHttpTest 缺少 LocalToolFixtures 静态导入的编译问题；未改业务断言或
   S1 生产逻辑。
+
+## 10. S2-02：本地只读 TOOL 网关
+
+状态：完成单次本地只读网关、固定配置调用材料、执行授权端口及条件装配；S2 整体未完成，尚无用户可调用的 TOOL 执行入口。
+
+### 10.1 组件及契约
+
+| 组件                                      | 已实现职责                                                                                                                                |
+|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| application.gateway.DefaultToolGateway    | 实现 ToolGateway，复用固定绑定／Schema，重新授权、控制期限与取消、检查输出，不执行模型继续决策或内部重试                                  |
+| pojo.tool.LocalToolCall                   | GatewayCall 与 ToolBindingResolution 的单次关联材料，传递固定配置／策略，校验归属、目标、工具及 trace／parent／预算／发布引用／操作键不变 |
+| spi.auth.ToolExecutionAccess              | 宿主每次复核当前身份、空间、AI 资格、工具使用及实际资源的执行授权端口；无默认允许实现                                                     |
+| BusinessToolAdapter.invoke(LocalToolCall) | 新增配置感知的重载；旧 GatewayCall 方法仅兼容空配置，非空配置返回 TOOL_CONFIGURATION_UNSUPPORTED，不进入旧执行方法                        |
+| NewAiToolGatewayConfiguration             | 双开关且存在显式 ToolExecutionAccess 才装配网关及 newAiToolInvocationScheduler；已登记 Boot AutoConfiguration                             |
+
+LocalToolCall 不持久化、不从 HTTP 绑定；它包含进程内取消对象，不是 ToolExecutionSnapshot。未新增 codec 根别名或修改
+Invocation／Attempt 编码。 有配置的业务适配器应覆盖类型化重载，使用传入的 effectiveConfiguration，不重新选择当前绑定或
+latest。领域实际 Query／Command 继续检查资源权限、版本与幂等。
+
+ToolExecutionAccess 的宿主实现留给后续执行接线，须组合 arte_dev 现有公共身份、空间、AI 资格、RBAC 及领域权限，不另建授权权威。
+仅提供本批测试授权端口不构成平台资源权限验收；本批没有向 arte-app 注入默认放行实现，也没有注册生产工具。
+
+### 10.2 固定调用与安全边界
+
+1. 订阅时检查当前取消、运行绝对期限及初始 Attempt 租约；按 owner／固定 p1-* 绑定引用读取已保存解析工件，不调用 resolve 重选版本。
+2. 复用 ToolBindingService.fixed：绑定当前启用、发布／废弃有效性、契约摘要、服务器上限及节点发现／执行器当前能力均须通过。
+3. 校验调用绑定、能力、目标与实际工具引用一致；仅允许本地 READ_ONLY、approval=NONE、无 Secret／网络／协议特性、无费用引用的调用，尝试序号不超过有效策略。
+4. 按固定引用读取并核验三类 Schema 摘要；在有界执行资源编译并验证输入／配置，复核配置摘要，不补默认值或加载远端 Schema。
+5. 调用 ToolExecutionAccess；结果不能为空，只能保留同一主体类别／稳定主体／租户／空间并缩小运行 scopes，且包含工具必要
+   scopes。将当前授权传给适配器。
+6. 授权等待后再次执行 fixed 复核，治理停用或执行器变为不可用会阻止实际入口；固定材料不得变化。
+7. 通过同一 CAS 协调适配器入口与停止：尚未进入时停止可保存明确未进入事实，已进入后异常或中断不能再宣称未执行。
+8. 检查 callId、只读副作用事实及所有已返回 output 的 Schema；按与 MybatisPayloadPersistence 相同的规范化
+   InvocationResult.Tool 信封检查 UTF-8 字节，取工具与 Invocation 上限的小值，包含来源、产物、错误及编码开销。
+
+FREE 费用资格须由后续可信受理／派发决定，网关不以缺少 budgetRef 自动授予免费使用资格；有预算引用、费率或 Reservation
+的调用明确拒绝。 网关不读写预算、受理记录、执行状态、事件或终态；成功 ToolResult 不等于结果已保存，协调层仍须先持久化结果字节再以
+fencing 提交终态。
+
+### 10.3 期限、取消及结果事实
+
+- 受理必须将产品策略与入口总上限求交，把包含排队和授权等待的期限固定到 ExecutionOptions.deadline；该接线属于后续批次。
+- 网关以传入绝对 deadline 为上限，并附加 Attempt.createdAt + policy.timeout 的保护期限；Schema、授权等待和执行共用剩余时长，不为每个阶段重新分配期限。
+- 同步适配入口、Schema 和编码使用专用有界 Scheduler；默认最多四线程、每线程 32 个排队任务，容器关闭时释放。期限及取消信号可取消订阅，不依赖同步入口返回。
+- 取消订阅不证明底层业务已经停止；适配器仍须协作响应取消。进入后的异常／空 Publisher／空结果／超时／取消／无效输出均保守返回
+  UNKNOWN／POSSIBLE、retryable=false，丢弃无效输出。
+- 进入前拒绝返回 FAILED、KNOWN／NONE；安全错误只含稳定码、阶段与 traceId，不回显原异常、参数或配置。基础设施错误使用
+  TOOL_PREFLIGHT_ERROR，区别于输入不合规。
+- 合法的领域 FAILED／UNKNOWN 结果保留事实；只读声明不能覆盖适配器报告的真实副作用，发现 POSSIBLE／CONFIRMED 时拒绝正常成功。
+- 每个 invoke 返回的 Publisher 只能订阅一次，再次订阅直接报错，不返回另一份“未执行”事实。此内存保护不提供跨
+  invoke／跨进程防重；仍依赖耐久准备、领取／执行租约维护与终态事务。
+
+### 10.4 装配与交付边界
+
+`arte.ai-new.enabled` 与 `arte.ai-new-tool.enabled` 均开启且组合模块显式提供 ToolExecutionAccess 时，才创建内部
+ToolGateway。 缺少此端口时保留已有工具管理，不创建执行线程池或默认授权；缺少其他必要执行依赖时装配失败，不提供空网关。 构造不执行
+SQL、发现、授权或工具调用；不改现有模型派发器、管理 HTTP 路由和 TOOL 默认关闭配置。
+
+本批没有实现 TOOL HTTP／受理快照、默认绑定、Worker 能力路由、分类领取／容量、执行终态协调、审批、业务核对、付费／远端工具或 UI。
+未变更 DDL／数据库数据、RBAC 定义或历史 codec，未连接配置中的业务数据库，也未部署已有 S1 脚本。
+
+### 10.5 验证证据
+
+新增两类共 **45 项全部通过**：
+
+| 测试类                     | 数量 | 证据                                                                                                                                                                       |
+|----------------------------|------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ToolGatewayIntegrationTest | 40   | 真实 MyBatis／隔离 H2：发现、发布、绑定、FREE 准备后调用；当前治理／权限、配置传递、旧适配兼容、Schema／UTF-8、取消竞争、阻塞入口／期限、异常／UNKNOWN、结果信封及身份不变 |
+| ToolGatewayAssemblyTest    | 5    | 双开关、无默认执行授权、只管理部署、构造零 I/O、缺依赖失败、Scheduler 释放及 Boot 注册                                                                                     |
+
+JDK 21 Reactor 主代码／测试代码编译通过；选定契约、持久化、S1 工具管理及 admission 回归共 **625 项，621 项通过、4 项跳过、0
+失败／错误，BUILD SUCCESS**。 4 项跳过均因未提供独立测试 Redis（ExecutionAssemblyTest 1 项、InvocationHttpIntegrationTest 3
+项），未借用业务 Redis。 本次显式排除既有 ProfileConfigurationTest 的 4 项，其 3 项配置失败已由 S2-01 在改动前代码复现，未计入本次
+625 项，也未声称修复。 测试使用本机受控 HTTP，不连接外部模型。H2 沿用既有 TOOL 集成测试持有建表连接的方式，避免 H2 CHECK
+表达式引用已关闭建表会话；未为此放宽数据库约束。
+
+执行命令（仓库根目录）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.tool.gateway.*Test,com.arte.ainew.admission.*Test,!com.arte.ainew.admission.ProfileConfigurationTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+最终日志：`/tmp/arte-s202-regression.log`。新增 45 项包含在 625 项中，不重复累计。 这是组件与兼容回归，未运行全仓／arte-app
+全量、实际领域工具授权、MySQL／Redis 多节点、压力测试、浏览器或生产环境验收，不能视为 S2 产品闭环或性能目标达标。
