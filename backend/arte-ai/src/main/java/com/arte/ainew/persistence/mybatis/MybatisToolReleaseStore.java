@@ -132,7 +132,33 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
     }
 
     @Override
+    public Mono<java.util.Map<DefinitionRef, ToolRelease>> findKnown(java.util.List<DefinitionRef> tools) {
+        var refs = ContractChecks.list(tools, "known tools", 0, 100);
+        refs.forEach(ref -> ref.requireType("tool"));
+        return io(() -> {
+            var result = new HashMap<DefinitionRef, ToolRelease>();
+            refs.forEach(ref -> result.put(ref, ToolRelease.draft(ref)));
+            if (!refs.isEmpty())
+                for (var row : mapper.toolReleases(refs.stream().map(MybatisToolReleaseStore::id).distinct().toList())) {
+                    var release = decode(row);
+                    if (!result.containsKey(release.tool()))
+                        throw new IllegalStateException("Tool release page identity mismatch");
+                    result.put(release.tool(), release);
+                }
+            return java.util.Map.copyOf(result);
+        });
+    }
+
+    @Override
     public Mono<StoreOutcome<ToolReleaseReceipt>> execute(TrustedActor actor, ToolReleaseCommand command, ToolPublicationValidation validation) {
+        return executeGuarded(actor, command, validation, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<ToolReleaseReceipt>> executeGuarded(TrustedActor actor, ToolReleaseCommand command,
+                                                                 ToolPublicationValidation validation, Runnable authorization) {
+        Objects.requireNonNull(authorization);
         Objects.requireNonNull(actor);
         Objects.requireNonNull(command);
         ContractChecks.require(actor.principal().status() == PrincipalStatusEnum.ACTIVE, "Inactive release actor");
@@ -143,6 +169,8 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         String commandKey = commandKey(subject, kind, command.idempotencyKey());
         String requestDigest = requestDigest(subject, kind, command);
         return io(() -> transaction.execute(status -> {
+            // 公共主体／空间治理锁先于工具锁；授权失败不读取历史回执或写入假拒绝。
+            authorization.run();
             // 两类锁一起排序；不同实例、相反输入顺序也不反向取得锁。
             for (String lock : new TreeSet<>(Set.of(commandKey, key("tool-release-identity", command.tool().id())))) {
                 catalogMapper.ensureCatalogLock(lock);

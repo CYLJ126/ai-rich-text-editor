@@ -8,7 +8,7 @@ import java.time.Duration;
 /**
  * TOOL 独立开关及本地发现限制；只接受本批已实现的配置项，不启动发现、发布或执行。
  *
- * @param enabled   默认关闭；开启装配本地发现及内部治理服务，不自动刷新、发布或执行。
+ * @param enabled   默认关闭；与 ai-new 开关共同开启本地管理 API、发现及治理服务，不自动刷新、发布或执行。
  * @param discovery 本地来源读取限制。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30

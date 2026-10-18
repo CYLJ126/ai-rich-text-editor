@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static com.arte.ainew.application.tool.discovery.LocalToolDiscovery.Code.*;
 
@@ -175,13 +176,23 @@ public final class LocalToolDiscovery {
      * @return 安全结果码及节点状态，不向外透传来源或数据库异常内容。
      */
     public Mono<RefreshResult> refresh() {
+        return refresh(store::put);
+    }
+
+    /**
+     * 管理入口在元数据加载完成后注入同库授权／审计提交；来源读取期间不持有数据库治理锁。
+     */
+    public Mono<RefreshResult> refresh(Function<ToolCatalogStore.Batch, Mono<StoreOutcome<ToolCatalogStore.Batch>>> commit) {
+        Objects.requireNonNull(commit);
         return Mono.defer(() -> {
-            if (!refreshing.compareAndSet(false, true)) return Mono.just(new RefreshResult(BUSY, current.get()));
+            if (!refreshing.compareAndSet(false, true)) {
+                return Mono.just(new RefreshResult(BUSY, current.get()));
+            }
             return Flux.fromIterable(registry.registrations()).concatMap(this::load)
                     .collect(Candidate::new, Candidate::add)
                     .publishOn(scheduler)
                     .map(candidate -> prepare(candidate.loaded))
-                    .flatMap(batch -> Mono.defer(() -> store.put(batch))
+                    .flatMap(batch -> Mono.defer(() -> commit.apply(batch))
                             .switchIfEmpty(Mono.error(new Failure(STORE_FAILED)))
                             .onErrorMap(error -> error instanceof Failure ? error : new Failure(STORE_FAILED))
                             .map(outcome -> install(batch, outcome)))

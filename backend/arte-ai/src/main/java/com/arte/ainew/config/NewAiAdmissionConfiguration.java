@@ -164,6 +164,16 @@ public class NewAiAdmissionConfiguration {
     }
 
     /**
+     * 完整本地目录刷新命令与审计存储；构造不读表、不加载来源。
+     */
+    @Bean("newAiToolDiscoveryManagementStore")
+    MybatisToolDiscoveryManagementStore toolDiscoveryManagementStore(NewAiProperties properties, ListableBeanFactory beans,
+                                                                     ExecutionRecordCodec codec, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                                                     @Qualifier("newAiClock") Clock clock, MybatisToolCatalogStore catalog) {
+        return new MybatisToolDiscoveryManagementStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, clock, catalog);
+    }
+
+    /**
      * 私有绑定底层存储，复用当前服务器 limits；构造不读表、不自动创建绑定。
      */
     @Bean("newAiToolBindingStore")

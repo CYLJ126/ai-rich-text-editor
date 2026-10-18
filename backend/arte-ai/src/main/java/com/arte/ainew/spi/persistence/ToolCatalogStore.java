@@ -72,6 +72,13 @@ public interface ToolCatalogStore {
     Mono<Page<ToolDefinitionRevision>> listTools(DefinitionRef provider, String afterKey, int limit);
 
     /**
+     * 管理查询全目录的有界一页；外层必须按当前可见资格过滤，不能把历史登记等同可用目录。
+     */
+    default Mono<Page<ToolDefinitionRevision>> listTools(String afterKey, int limit) {
+        return Mono.error(new UnsupportedOperationException("Global tool listing is not supported"));
+    }
+
+    /**
      * 原子登记的版本集合；各列表内引用唯一，三个列表不能同时为空。
      *
      * @param providers 提供方版本的不可变列表，最多 32 项。

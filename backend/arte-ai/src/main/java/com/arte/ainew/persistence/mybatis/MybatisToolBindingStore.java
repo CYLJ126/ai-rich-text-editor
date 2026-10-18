@@ -127,6 +127,14 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
 
     @Override
     public Mono<StoreOutcome<ToolBindingReceipt>> execute(TrustedActor actor, ExecutionOwner owner, ToolBindingCommand command) {
+        return executeGuarded(actor, owner, command, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<ToolBindingReceipt>> executeGuarded(TrustedActor actor, ExecutionOwner owner, ToolBindingCommand command,
+                                                                 Runnable authorization) {
+        Objects.requireNonNull(authorization);
         Objects.requireNonNull(actor);
         Objects.requireNonNull(owner);
         Objects.requireNonNull(command);
@@ -139,6 +147,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         ContractChecks.require(CanonicalJson.encode(command).getBytes(StandardCharsets.UTF_8).length <= MAX_RECORD_BYTES,
                 "Binding command exceeds byte limit");
         return io(() -> transaction.execute(status -> {
+            authorization.run();
             for (var lock : new TreeSet<>(Set.of(commandKey, bindingKey(bindingId)))) lock(lock);
             var previous = mapper.toolBindingCommand(commandKey);
             if (previous != null) {

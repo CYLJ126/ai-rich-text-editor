@@ -3,7 +3,10 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01、S1-02、S1-03、S1-04、S1-05、S1-06、S1-07。S1 整体尚未完成，TOOL 尚未开放使用；S1-04／S1-06／S1-07 增量尚未在配置中的业务数据库部署。
+当前完成：S1-01—S1-08 本地管理后端基线；16 个管理 API 与现有当前授权接线完成，实际执行仍待 S2。TOOL
+默认关闭；S1-04／S1-06／S1-07／S1-08 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
+
+§1—§7 保留各批完成时的范围与验证记录；最新管理入口、部署及验证状态以 §8 为准。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -637,7 +640,7 @@ S1-04／S1-06 增量仍须按部署流程单独执行。
 
 ## 7. S1-07：私有绑定、不可变修订与固定解析
 
-状态：完成内部本地绑定管理／解析及本批验证。下一批为 S1-08 管理 API 与现有当前授权接入；S1 整体尚未完成。 未注册生产工具、启用
+状态：完成内部本地绑定管理／解析及本批验证。S1-07 完成时下一批为 S1-08，实际管理 API 与当前授权接入见 §8。 未注册生产工具、启用
 TOOL 或改变原生成 BindingManager／FixedControlCatalog，也未接入 Worker、聊天或默认绑定创建。
 
 ### 7.1 代码与引用
@@ -745,3 +748,133 @@ FR-04.1 对应不可变修订与管理事务，FR-05.1 对应显式链、固定�
 Invocation 重放、FR-03.2 的实际敏感执行边界、默认绑定及完整 TOOL 受理／派发仍待 S2。 S1-08 接入当前授权、管理 HTTP
 和错误／预览响应；不得把底层 owner／actor 结构检查当作已完成当前 RBAC。 TOOL 仍默认关闭，未实现共享绑定、远端
 Secret、允许集合、审批、工具聊天、领域工具执行或前端。
+
+## 8. S1-08：管理 API 与现有当前授权
+
+状态：本地管理后端基线完成。当前接口见 [TOOL 管理 HTTP API](TOOL_HTTP_API.md)，实际 TOOL 受理、执行、默认绑定及前端仍未实现。
+本批没有启用开关、登记生产工具或连接配置中的业务数据库。
+
+### 8.1 已交付入口与职责
+
+`NewAiToolController` 提供 16 个 JSON POST 入口，复用现有认证、语言及 ResultContext：
+
+- 目录：listTools、getTool、listProviders；普通目录隐藏草稿并按当前 requiredScopes 过滤，管理模式可见草稿。
+- 本地刷新：refreshLocalCatalog，完整读取全部显式登记来源，保留 S1-05 的完整候选校验与视图原子替换。
+- 发布治理：validateTool、publishTool、setToolState、getToolHistory。
+- 本人绑定：listBindings、getBinding、getBindingRevision、saveBinding、setBindingState、getBindingHistory。
+- 显式升级：previewBindingUpgrade、upgradeBinding；预览不写库，确认时重算实际方案及摘要。
+
+`application.tool.management.ToolManagementService` 是公开用例门面；原本的内部发现、发布及绑定服务保持职责，不把内部 Store
+当作当前授权入口。 目录按主键游标有界读取，生命周期批量查询，避免随每页工具数增加 SQL 次数。每页扫描上限 100，默认 20；响应
+records／nextCursor／scanned／exhausted，过滤空页仍可能有下一页。 游标绑定真实主体／空间／操作／筛选条件，不作为权限凭据，不声明跨页快照或总数。
+
+提供者仍为不可变部署定义。当前完整刷新替代本地“单提供者同步”的产品操作，保持全量视图语义；未实现
+syncProvider／setProviderState，须在后续可变提供者治理与远端接入时实现。 不提供任意 URL、客户端注册适配器、默认绑定、TOOL
+invoke、审批或工具聊天入口，不把这些计划项计为完成。
+
+### 8.2 现有基础上的当前授权
+
+新增 `spi.auth.ToolManagementAccess` 作为宿主端口，arte-app 使用 `PlatformToolManagementAccess`，复用：
+
+- `RbacIdentityProvider` 的会话 PK、账户名、accountCreatedAt 和稳定主体映射，新增 actorCurrent 做锁定当前读的会话复核。
+- 公共 PublicTransactionRunner、WorkspaceWriteGuard、AuthorizationService 的账户／租户／空间状态及成员政策。
+- 原有 RBAC 关系表及启用角色。`RbacToolPermissionReader` 使用物理 appDataSource 的当前事务读取，不使用 token 权限缓存或
+  ThreadLocal 数据源路由。
+- 原有 DATABASE 空间 AI enabled／公共 AI 使用资格，或 FIXED 匹配真实身份与空间的 grant；不查询生成模型、费率或预算目录。
+
+| 操作            | 当前检查                                                                |
+|-----------------|-------------------------------------------------------------------------|
+| LIST            | aiTool:list + WORKSPACE_READ + AI READ                                  |
+| BINDING_WRITE   | aiTool:invoke + WORKSPACE_AI_USE + AI INVOKE + 当前工具必要 scopes      |
+| BINDING_DISABLE | aiTool:invoke + WORKSPACE_READ；DATABASE 空间 AI 关闭后仍可撤销本人绑定 |
+| MANAGE          | aiTool:manage 与 aiConfiguration:manage + WORKSPACE_READ                |
+
+目录与发布是平台全局治理，空间 owner 不自动获得 MANAGE；绑定归属只由当前真实 tenant/workspace/subject 产生，越界读取／修改不披露他人版本。
+既有 admin 操作标记只满足菜单检查，不绕过公共当前资格。FIXED 仍遵守现有启动配置规则，本批没有放宽其生成配置校验。
+菜单操作不能变成业务执行 scopes；当前 DATABASE 只派生 ai:read／ai:invoke，额外业务 scopes 超出资格时隐藏或拒绝。 领域资源授权仍需
+S2 在实际调用边界接入。
+
+所有读取先复核当前资格；公开变更把最终门控传入 MybatisToolReleaseStore／MybatisToolBindingStore／发现管理 Store 的原事务。
+顺序为当前公共账户／租户／空间和 RBAC／空间 AI 资格锁 → TOOL 命令及治理锁 → 条件更新与审计提交。
+原成功或拒绝的幂等重放也执行门控；撤权不能通过重放读取旧成功。来源加载／发布预检不持有这些数据库锁，提交前重新授权。 初始化不读
+SQL、不刷新来源；两个开关和公共身份／持久化／空间基础缺一不可，物理数据源必须一致，不注册允许式兜底。
+
+### 8.3 刷新审计与事务
+
+新增 `ToolDiscoveryManagementStore`／`MybatisToolDiscoveryManagementStore` 和 `arte_ai_tool_discovery_command`，与目录事实同库提交。
+`LocalToolDiscovery.refresh(commit)` 允许管理用例在候选校验后注入授权及审计事务，原内部 refresh 仍可使用原存储路径。
+
+- 命令键由真实主体／类别／Idempotency-Key 派生；请求语义包含完整本地刷新意图、Scope 和原因。
+- 同键同语义返回首次回执，不再次读取来源；不同语义返回冲突。两个并发相同键不覆盖原候选事实。
+- 成功目录及回执同事务，审计失败回滚事实且不安装节点视图；来源明确失败耐久保存首次拒绝。
+- SQL 故障／节点忙不保存假拒绝。忙状态 409，允许同键重试；故障保留旧视图并标记不健康。
+- 回执只保存固定主体、原因、决定、目录 checksum／数量和 UTC 微秒时间，不保存目录原文或异常内容。
+- 原始 checksum 与当前节点 nodeDiscoveryHealthy／nodeChecksum 分开返回；重启后重放历史成功不能让本节点假装已完成发现。
+
+新增 `tool-discovery-receipt` v1 白名单根，严格整数 schemaVersion；持久化读取核对字节摘要、原始身份及请求语义。 隔离
+ExecutionSqlSessionFactory 注册 13 个显式 mapper，未修改全局 MyBatis 路由／扫描规则。
+
+### 8.4 HTTP 值、回执与错误
+
+`ToolManagementRequests` 使用严格白名单，Scope 不含 owner／actor／角色／执行 scopes；管理行版本使用十进制字符串。 配置和审核示例通过有界
+`ToolJsonNodeDeserializer` 转为精确数值／显式 null 的标准 JSON，拒绝重复键、超限节点／深度／字段与异常数字尺度。
+`ToolManagementValues` 处理 StructuredValue 转换、配置字节上限、审核示例每份 32 KiB 上限与常见凭据字段；当前本地绑定拒绝非空
+Secret 引用。 凭据字段检查只是辅助，不能证明任意字符串不包含秘密。 内部快照 JSON 树也启用精确 BigDecimal 读取，修复已校验小数在持久化往返时被
+double 舍入的问题；不改变根别名、字段及 schemaVersion。 HTTP + H2 测试覆盖高精度小数、大整数的保存、读取及同键重放。
+
+`ToolManagementResponses` 显式投影，不返回内部多态 codec、执行器目标、连接地址、临时授权或审核示例原文；普通用户的工具详情不含默认配置。
+`ToolManagementHttpResult` 区分回执登记 APPLIED／REPLAYED 与原始 outcome／rejection，拒绝返回对应 HTTP
+状态及安全回执，防止首次保存拒绝被误报成功。 升级预览与发布预检按 valid 表达领域校验结果；传输／授权／基础设施错误使用对应状态。
+
+新增七个 AI_TOOL_* 错误码及默认／en_US／zh_CN／zh_TW 消息；限定 Controller 的异常包装统一同步／异步错误，不返回
+SQL、配置、审核原文或原始异常。 日志只记录方法、路径、状态、码及异常类别。
+
+### 8.5 部署交付与环境状态
+
+- 新环境：[AI 完整基线](scripts/arte-ai-new-ddl-mysql.sql) 已包含十张 TOOL 表；不要再重复执行各 TOOL 建表增量。
+- 已有环境：S1-04 → S1-06 → S1-07 → [S1-08 刷新审计增量](scripts/arte-ai-tool-management-migration.sql)
+  。停写、备份并核对目标表／索引，运行时不建表。
+- RBAC：[TOOL 操作定义增量](../arte-app/scripts/arte-ai-tool-rbac-dml-mysql.sql)；新环境原 RBAC 基线 DML 已包含相同段。
+  只补缺失定义，重复执行保留已有定义／停用状态；不新增菜单、不授予角色／用户。授予通过现有 RBAC 管理按需完成。
+- 未连接、检查或修改配置中的业务数据库，未执行生产 MySQL 增量、权限授予或工具发现；TOOL 保持默认关闭。
+
+### 8.6 验证证据
+
+新增测试：
+
+| 测试类                           | 数量 | 核心证据                                                                                                                                                    |
+|----------------------------------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ToolManagementHttpTest           | 26   | MockMvc + 真实 MyBatis/H2：目录／发布／绑定／升级、原始回执／重放、越界隔离、事务内门控、刷新原子性／失败回滚／节点健康、语言及安全错误                     |
+| ToolManagementValuesTest         | 9    | 精确数值及快照往返、null、重复键、深度／宽度／scale、UTF-8 容量、示例大小、凭据字段、版本格式                                                               |
+| ToolManagementAssemblyTest       | 4    | 双开关、缺授权失败、构造无副作用、16 条管理路由及未实现入口缺席                                                                                             |
+| ToolDiscoveryContractTest        | 2    | 完整／增量 DDL 一致、白名单根及严格整数版本                                                                                                                 |
+| PlatformToolManagementAccessTest | 21   | 真实公共身份／空间与当前 RBAC：撤权／重放、AI 关闭、账户停用／改名、空间归档、租户停用、移除成员、启用角色、FIXED grant、同物理写事务及授权关系锁持续至提交 |
+| RbacToolDefinitionScriptTest     | 1    | 原 RBAC DDL 上重复执行定义增量，保持停用／版本、不增加菜单或授权关系；与基线段一致                                                                          |
+
+合计新增 63 项。验证环境为 JDK 21、临时 H2 和本机受控 HTTP，不连接配置中的业务数据库或外部模型。 新增 63 项及选定兼容回归共
+**507 项通过**（arte-ai 419、arte-app 88），0 失败／错误／跳过，JDK 21 Reactor 编译通过。
+覆盖原有契约、Schema、发现、发布、绑定、持久化、生成装配／网关／派发、配置发现、平台身份／登录会话及 DATABASE 聊天配置。
+这是针对性回归，不是全仓测试；未执行旧 AI 全量套件、真实 MySQL 验证、压力测试或前端验收。 H2 中的授权关系锁测试证明测试环境内的事务行为，不能据此宣称生产
+MySQL 锁性能或整应用端到端已验收。
+
+执行命令（仓库根目录）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.admission.ConfigurationAssemblyTest,com.arte.ainew.admission.ControlPreparationTest,com.arte.ainew.admission.GenerationAssemblyTest,com.arte.ainew.admission.GenerationEgressTest,com.arte.ainew.admission.ConfigurationHttpIntegrationTest,com.arte.ainew.admission.GenerationGatewayTest,com.arte.ainew.admission.DispatchIntegrationTest,com.arte.app.platform.persistence.PlatformBindingJsonTest,com.arte.app.platform.persistence.PlatformToolManagementAccessTest,com.arte.app.platform.identity.*Test,com.arte.app.platform.persistence.DatabaseAiControlIntegrationTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+首次扩展平台回归受沙箱内 Mockito JVM self-attach 限制影响；取得本机测试能力后按上述完整命令重跑，最终日志
+`/tmp/arte-s108-final-regression.log` 为 BUILD SUCCESS。 既有 S1-06／S1-07 测试的 LocalToolFixtures 静态导入已恢复，未修改其业务断言。
+完整／增量脚本只交付，不通过本条测试命令连接或修改业务数据库。
+
+### 8.7 需求追踪与下一阶段
+
+FR-01 的本地发现／草稿、FR-02 的当前可见目录、FR-04 的个人绑定修订和 FR-05 的升级在管理 HTTP 已接线；对应
+AC-01／AC-02／AC-04／AC-05／AC-08 的本地管理部分具备测试证据。 FR-03 的实际资源授权、默认绑定、Invocation 受理、TOOL
+dispatch、免费／计费准备及执行期限仍留在 S2；审批、结果核对、工具聊天、远端和 UI 按后续批次实施。 本批未改变现有生成配置发现、模型调用、预算账户或
+Worker 领取逻辑，S1 完成只表示本地管理后端基线完成。

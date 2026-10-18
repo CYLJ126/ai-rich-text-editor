@@ -27,6 +27,14 @@ public interface ToolReleaseStore {
     Mono<ToolRelease> find(DefinitionRef tool);
 
     /**
+     * 只供已经从不可变目录核实存在的一页工具批量查询，最多 100 项；无治理行派生草稿，不用作写入授权。
+     */
+    default Mono<java.util.Map<DefinitionRef, ToolRelease>> findKnown(java.util.List<DefinitionRef> tools) {
+        com.arte.ainew.common.validation.ContractChecks.list(tools, "known tools", 0, 100);
+        return reactor.core.publisher.Flux.fromIterable(tools).concatMap(this::find).collectMap(ToolRelease::tool);
+    }
+
+    /**
      * 读取该工具的管理审计回执；游标表示存储位置，不表达版本新旧或跨页一致快照。
      *
      * @param tool     固定工具版本，外层须复核当前审计读取资格。
@@ -45,4 +53,12 @@ public interface ToolReleaseStore {
      * @return 首次记录为 APPLIED、同语义重放为 REPLAYED；实际领域决定读取 receipt.outcome；变更键语义返回 IDEMPOTENCY_CONFLICT。
      */
     Mono<StoreOutcome<ToolReleaseReceipt>> execute(TrustedActor actor, ToolReleaseCommand command, ToolPublicationValidation validation);
+
+    /**
+     * 对外管理专用：必须在实际事务内先执行当前授权，不能用事务外检查替代；不支持的适配器明确拒绝。
+     */
+    default Mono<StoreOutcome<ToolReleaseReceipt>> executeGuarded(TrustedActor actor, ToolReleaseCommand command,
+                                                                  ToolPublicationValidation validation, Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Transactional tool authorization is required"));
+    }
 }

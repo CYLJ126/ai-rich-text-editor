@@ -21,7 +21,7 @@ import java.util.Objects;
  * 内部本地绑定管理及固定解析
  * <p>
  * 成功解析前复核当前节点的受信实现声明，不调用 invoke。
- * 这里没有公开 HTTP 或当前 RBAC 接线；S1-08 可信入口必须先复核当前资格，S2 派发仍须再次检查。
+ * 这里保留内部解析职责；公开管理入口由 ToolManagementService 复核当前资格，S2 派发仍须再次检查。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 10:41

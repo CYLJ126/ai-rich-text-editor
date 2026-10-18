@@ -37,6 +37,12 @@
         FROM arte_ai_tool_release WHERE tool_key=#{tool}
         <if test="lock">FOR UPDATE</if>
     </select>
+    <select id="toolReleases" resultMap="row" useCache="false">
+        SELECT
+        <include refid="releaseColumns"/>
+        FROM arte_ai_tool_release WHERE tool_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
     <select id="toolReleaseSuccessor" resultMap="row" useCache="false">
         SELECT
         <include refid="releaseColumns"/>

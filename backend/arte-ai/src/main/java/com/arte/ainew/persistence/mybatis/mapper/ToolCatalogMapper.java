@@ -38,4 +38,6 @@ public interface ToolCatalogMapper {
     List<Row> providers(@Param("after") String after, @Param("limit") int limit);
 
     List<Row> tools(@Param("provider") String provider, @Param("after") String after, @Param("limit") int limit);
+
+    List<Row> allTools(@Param("after") String after, @Param("limit") int limit);
 }

@@ -117,6 +117,16 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
         return result;
     }
 
+    /**
+     * 本地目录刷新原事务的同步提交，不切线程、不另开事务；只供同数据源管理适配器调用。
+     */
+    StoreOutcome<Batch> putInCurrentTransaction(Batch batch) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                || !org.springframework.transaction.support.TransactionSynchronizationManager.hasResource(dataSource))
+            throw new IllegalStateException("Tool catalog requires its physical transaction");
+        return write(batch, prepare(batch));
+    }
+
     private StoreOutcome<Batch> write(Batch batch, List<Prepared> prepared) {
         var lockKeys = new TreeSet<String>();
         for (var item : prepared) lockKeys.add(id(item.ref()));
@@ -250,6 +260,12 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
         Objects.requireNonNull(provider).requireType("tool-provider");
         pageArguments(afterKey, limit);
         return io(() -> page(mapper.tools(id(provider), afterKey, limit + 1), limit, ToolDefinitionRevision.class));
+    }
+
+    @Override
+    public Mono<Page<ToolDefinitionRevision>> listTools(String afterKey, int limit) {
+        pageArguments(afterKey, limit);
+        return io(() -> page(mapper.allTools(afterKey, limit + 1), limit, ToolDefinitionRevision.class));
     }
 
     private static void pageArguments(String after, int limit) {

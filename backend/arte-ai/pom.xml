@@ -184,6 +184,7 @@
                     <include>arte-ai-tool-catalog-migration.sql</include>
                     <include>arte-ai-tool-release-migration.sql</include>
                     <include>arte-ai-tool-binding-migration.sql</include>
+                    <include>arte-ai-tool-management-migration.sql</include>
                 </includes>
             </testResource>
         </testResources>

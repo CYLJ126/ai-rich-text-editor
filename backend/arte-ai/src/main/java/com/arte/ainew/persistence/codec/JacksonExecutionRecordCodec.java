@@ -21,6 +21,7 @@ import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.jsontype.NamedType;
 
@@ -46,6 +47,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolDiscoveryReceipt.class, "tool-discovery-receipt"),
             Map.entry(ToolBindingDefinition.class, "tool-binding"),
             Map.entry(ToolBindingRevision.class, "tool-binding-revision"),
             Map.entry(ToolBindingResolution.class, "tool-binding-resolution"),
@@ -67,7 +69,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     private final JsonMapper mapper;
 
     public JacksonExecutionRecordCodec() {
-        var builder = JsonMapper.builder();
+        // 快照经 JSON 树中转时也保留精确小数，不能把已校验配置／Schema 先转换为 double。
+        var builder = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
         builder.addModule(ResolvedBindingJson.module(true));
         builder.addMixIn(Money.class, MoneyShape.class);
         for (var base : new Class<?>[]{CapabilityInput.class, ChatMessage.ContentPart.class,
@@ -127,7 +130,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         }
         var node = mapper.readTree(json);
         int version = node.path("schemaVersion").asInt();
-        if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class
+        if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
                 || expectedType == ToolBindingDefinition.class || expectedType == ToolBindingRevision.class
                 || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class)
                 && (!node.path("schemaVersion").isIntegralNumber()

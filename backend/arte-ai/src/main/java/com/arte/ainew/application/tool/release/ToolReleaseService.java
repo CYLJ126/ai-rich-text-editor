@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 受信内部生命周期管理；S1-08 必须在此服务外接当前管理授权，不能直接注册为 HTTP 入口。
+ * 受信内部生命周期管理；公开入口通过 ToolManagementService 接入当前管理授权及事务门控。
  * 停用／废弃不依赖来源或执行器健康，避免部署故障时无法撤销；发布与重新启用必须预检。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -37,17 +37,24 @@ public final class ToolReleaseService {
      * @return 首次或重放回执；领域决定读取 receipt.outcome，预检失败也不改变当前状态。
      */
     public Mono<StoreOutcome<ToolReleaseReceipt>> execute(TrustedActor actor, ToolReleaseCommand command) {
+        return execute(actor, command, null);
+    }
+
+    /**
+     * 先做本地无副作用预检，再由底层在提交事务中执行最终授权；不跨元数据线程持有数据库锁。
+     */
+    public Mono<StoreOutcome<ToolReleaseReceipt>> execute(TrustedActor actor, ToolReleaseCommand command, Runnable authorization) {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(command);
         return Mono.defer(() -> switch (command.action()) {
             case PUBLISH ->
-                    validator.validate(command.tool(), command.review()).flatMap(v -> store.execute(actor, command, v));
+                    validator.validate(command.tool(), command.review()).flatMap(v -> save(actor, command, v, authorization));
             case REENABLE ->
                     store.find(command.tool()).map(release -> Optional.ofNullable(release.publication()).map(ToolRelease.Publication::review))
                             .defaultIfEmpty(Optional.empty())
                             .flatMap(review -> validator.validate(command.tool(), review.orElse(null)))
-                            .flatMap(v -> store.execute(actor, command, v));
-            case DEPRECATE, DISABLE -> store.execute(actor, command, null);
+                            .flatMap(v -> save(actor, command, v, authorization));
+            case DEPRECATE, DISABLE -> save(actor, command, null, authorization);
         }).doOnNext(outcome -> {
             if (outcome.code() == StoreOutcome.Code.APPLIED && outcome.value().outcome() == StoreOutcome.Code.APPLIED) {
                 var receipt = outcome.value();
@@ -55,5 +62,10 @@ public final class ToolReleaseService {
                         receipt.release().version(), receipt.release().state(), receipt.commandId());
             }
         });
+    }
+
+    private Mono<StoreOutcome<ToolReleaseReceipt>> save(TrustedActor actor, ToolReleaseCommand command,
+                                                        com.arte.ainew.pojo.tool.ToolPublicationValidation validation, Runnable authorization) {
+        return authorization == null ? store.execute(actor, command, validation) : store.executeGuarded(actor, command, validation, authorization);
     }
 }

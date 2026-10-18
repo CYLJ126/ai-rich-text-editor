@@ -57,11 +57,22 @@ public final class RbacIdentityProvider implements IdentityProvider {
      * HTTP 适配入口：必须同时核验认证会话的账户主键与名称，不能仅接受一个名称字符串。
      */
     public TrustedActor actor(Authentication authentication) {
+        return actor(authentication, false);
+    }
+
+    /**
+     * 提交事务中的会话复核：主键、名称和创建时间均用锁定当前读，拒绝旧 MVCC 会话证据。
+     */
+    public TrustedActor actorCurrent(Authentication authentication) {
+        return actor(authentication, true);
+    }
+
+    private TrustedActor actor(Authentication authentication, boolean current) {
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof JwtUserDto(UserOnlineInfo userOnlineInfo))) {
             throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
         }
-        var account = accounts.findById(userOnlineInfo.getId())
+        var account = (current && userOnlineInfo.getId() != null ? accounts.findCurrentById(userOnlineInfo.getId()) : accounts.findById(userOnlineInfo.getId()))
                 .filter(a -> a.active() && a.name().equals(authentication.getName())
                         && a.createdAt().equals(userOnlineInfo.getAccountCreatedAt()))
                 .orElseThrow(() -> failure(PlatformErrorCodeEnum.UNAUTHENTICATED));

@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
  * @since 2026/10/18 10:41
  */
 public interface ToolBindingStore {
-    
+
     /**
      * 按真实 owner 读取当前绑定，越界或不存在均返回空。
      */
@@ -35,6 +35,14 @@ public interface ToolBindingStore {
      * 原子保存当前指针、不可变修订、幂等回执及审计；拒绝决定也耐久保存。
      */
     Mono<StoreOutcome<ToolBindingReceipt>> execute(TrustedActor actor, ExecutionOwner owner, ToolBindingCommand command);
+
+    /**
+     * 对外管理专用：当前授权与指针／修订／回执使用同一事务和线程；不允许默认降级。
+     */
+    default Mono<StoreOutcome<ToolBindingReceipt>> executeGuarded(TrustedActor actor, ExecutionOwner owner, ToolBindingCommand command,
+                                                                  Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Transactional tool authorization is required"));
+    }
 
     /**
      * 无写入的升级预览；settings 是完整目标配置，expectedVersion 防止预览过期。

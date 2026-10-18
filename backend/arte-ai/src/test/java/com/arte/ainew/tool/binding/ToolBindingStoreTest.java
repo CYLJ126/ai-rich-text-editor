@@ -615,7 +615,7 @@ public class ToolBindingStoreTest {
     public void baselineAndIncrementalBindingDdlAreIdentical() throws Exception {
         var baseline = Files.readString(Path.of("scripts/arte-ai-new-ddl-mysql.sql"));
         var incremental = Files.readString(Path.of("scripts/arte-ai-tool-binding-migration.sql"));
-        assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(), baseline.substring(baseline.indexOf("create table arte_ai_tool_binding\n")).trim());
+        assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(), baseline.substring(baseline.indexOf("create table arte_ai_tool_binding\n"), baseline.indexOf("-- AI TOOL S1-08")).trim());
     }
 
     private MybatisToolBindingStore store(ToolExecutionPolicy policy) {

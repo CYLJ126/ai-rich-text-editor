@@ -214,6 +214,14 @@ public enum ResultCodeEnum {
      */
     AI_ADMISSION_EXCEPTION("305001", "result.ai.admission.admissionException"),
 
+    AI_TOOL_NOT_AVAILABLE("205050", "result.ai.tool.notAvailable"),
+    AI_TOOL_CONFIGURATION_INVALID("205051", "result.ai.tool.configurationInvalid"),
+    AI_TOOL_POLICY_DENIED("205052", "result.ai.tool.policyDenied"),
+    AI_TOOL_PLAN_CHANGED("205053", "result.ai.tool.planChanged"),
+    AI_TOOL_SECRET_UNSUPPORTED("205054", "result.ai.tool.secretUnsupported"),
+    AI_TOOL_INVALID_REQUEST("205055", "result.ai.tool.invalidRequest"),
+    AI_TOOL_MANAGEMENT_UNAVAILABLE("305002", "result.ai.tool.managementUnavailable"),
+
     AI_SEARCH_EXPIRED("205044", "result.ai.search.expired"),
     AI_SEARCH_LIMIT_REACHED("205045", "result.ai.search.limitReached"),
     AI_SEARCH_BUSY("205046", "result.ai.search.busy"),

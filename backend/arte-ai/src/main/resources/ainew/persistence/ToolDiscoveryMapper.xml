@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolDiscoveryMapper">
+    <resultMap id="row" type="com.arte.ainew.persistence.mybatis.mapper.ToolDiscoveryMapper$Row">
+        <constructor>
+            <arg column="command_key" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="toolDiscoveryCommand" resultMap="row" useCache="false">
+        SELECT command_key,request_digest,payload_digest,snapshot FROM arte_ai_tool_discovery_command WHERE
+        command_key=#{key} FOR UPDATE
+    </select>
+    <insert id="insertToolDiscoveryCommand">
+        INSERT INTO arte_ai_tool_discovery_command(command_key,request_digest,payload_digest,snapshot)
+        VALUES(#{r.commandKey},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+</mapper>

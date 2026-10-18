@@ -72,4 +72,11 @@
         <if test="after != null">AND id_key &gt; #{after}</if>
         ORDER BY id_key LIMIT #{limit}
     </select>
+    <select id="allTools" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="dependencies"/>
+        FROM arte_ai_tool_definition
+        <if test="after != null">WHERE id_key &gt; #{after}</if>
+        ORDER BY id_key LIMIT #{limit}
+    </select>
 </mapper>

@@ -27,6 +27,8 @@ public interface ToolReleaseMapper {
 
     Row toolRelease(@Param("tool") String tool, @Param("lock") boolean lock);
 
+    List<Row> toolReleases(@Param("keys") List<String> keys);
+
     Row toolReleaseSuccessor(@Param("from") String from);
 
     CommandRow toolReleaseCommand(@Param("key") String key);
