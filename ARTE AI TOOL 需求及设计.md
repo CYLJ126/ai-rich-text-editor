@@ -1,19 +1,20 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-18。
-> 文档版本：V0.2（评审修订，S2-03 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
-> 原子派发准备、S2-02 本地只读网关及 S2-03 内部可靠受理／执行快照完成。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
+> 文档版本：V0.2（评审修订，S2-04 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
+> 原子派发准备、S2-02 本地只读网关、S2-03 内部可靠受理／执行快照及 S2-04 Worker 派发／完成已实现。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
 > API；
-> 面向用户的 TOOL 受理／Worker 执行闭环、默认绑定、审批、工具聊天、远端治理和前端仍待后续批次。
+> 当前具备内部服务至 Worker 的本地免费只读执行链路；面向用户的调用／查询／取消入口、默认绑定、分类容量、审批、工具聊天及前端仍待后续批次。
 > 实际数据库未部署 S1-04／S1-06／S1-07／S1-08／S2-03 增量及 TOOL RBAC 定义脚本；TOOL 默认关闭，性能数值是验收目标，不是实测结果。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现基于 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew，复用现有身份认证、授权、工作空间、执行协调、预算和事件等基础能力。
 >
-> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08、S2-01／02／03
+> **状态说明**：本文是新功能的实现基线；除明确标记“现有基础”及 §15.4 的 S1-01—S1-08、S2-01／02／03／04
 > 完成项外，新增类型、状态、接口、配置、表及页面均为计划设计。当前已有工具值对象、Schema
 > 校验、类型化目标、底层目录版本存储／部署脚本、显式本地发现、生命周期治理、私有绑定管理／固定解析和 16
-> 个管理接口；接口须两个开关共同开启，尚无实际工具执行入口。验证包含本机受控
+> 个管理接口；接口须两个开关共同开启，尚无公开 TOOL 调用 HTTP；S2-04 内部调用在三个开关及两类宿主授权齐备后接入
+> Worker。验证包含本机受控
 > HTTP 及测试 H2，未连接配置中的业务数据库或执行部署迁移，未完成生产环境验收。参考项目只用于理解功能，不构成本功能的架构、数据或接口兼容要求。
 
 ## 目录
@@ -61,10 +62,10 @@ Agent／Workflow 引擎、Skill 平台、远程应用平台和通用 Secret 管�
 
 | 领域           | 现有基础                                                                                                                    | 本功能所需增量                                                   |
 |----------------|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
-| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S2-02 新增本地只读 DefaultToolGateway 及 LocalToolCall | S2-03 内部受理已实现；派发接线、宿主执行授权、实际业务及远端适配 |
+| TOOL 契约      | ToolInvocation、ToolResult、ToolGateway.invoke、BusinessToolAdapter；S2-02 新增本地只读 DefaultToolGateway 及 LocalToolCall | S2-03／04 内部受理和本地派发已实现；真实宿主授权、业务及远端适配 |
 | 通用控制面     | CapabilityDescriptor、DefinitionRef、BindingManager、ResolvedBinding、FixedControlCatalog；S1-02 独立 TOOL Schema 校验器    | Schema 目录接线及绑定解析；按能力区分生成与工具校验              |
 | 可靠执行       | Invocation、Attempt、Outbox、受理、租约、fencing、终态、结果及事件存储                                                      | TOOL 准入与派发；审批等待及 TOOL 完成事实的协调                  |
-| 实际受理和派发 | AdmissionInvocationCoordinator、GenerationDispatcher 当前处理生成输入                                                       | 增加 TOOL 分派，保留现有生成行为，不将生成专属条件套到工具       |
+| 实际受理和派发 | AdmissionInvocationCoordinator 处理生成受理；通用协调器按权威 kind 路由 GenerationDispatcher／ToolDispatcher                | TOOL 查询／取消、分类容量及实际宿主接线；原生成行为不放宽        |
 | 身份与空间     | 可信身份、执行上下文、公共空间及授权 API、现有 RBAC 适配                                                                    | 定义 TOOL 资源的归属及操作权限，在现有授权链路检查               |
 | 预算与费用     | 账户、预留、结算、待核对及预算查询；S2-01 增加 FREE／CHARGE 原子派发准备                                                    | 工具受理时解析可信计费策略；多次模型调用累计计费                 |
 | 模型和上下文   | GenerationRequest 含工具描述；已有受控文本生成、上下文和历史链路                                                            | 协议工具字段、增量参数组装、结果回传及多步持久化推进             |
@@ -374,18 +375,18 @@ S2-02 已实现内部本地只读网关：`GatewayCall<ToolInvocation>` → 当�
 
 ### 4.6 现有不变量与契约影响矩阵
 
-| 现有不变量／代码位置                                                       | 计划变化与实施阶段                                     | 兼容及回归门槛                                                                                                      |
-|----------------------------------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| 原 ResolvedBinding 要求 connection；ConnectionDefinition 为 HTTP 连接      | S1-03 已完成类型化目标及兼容编码；目录接线仍待后续     | 生成保留原六字段配置及平台目录格式；旧远端形状解码为 REMOTE，新绑定快照显式 v2                                      |
-| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S2-03 独立 TOOL 内部受理；公开协调与路由待后续         | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
-| DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                     | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
-| ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                         | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
-| Invocation 当前无 WAITING_APPROVAL                                         | S3 增加非终态及 Attempt 前完成路径                     | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                                        |
-| Turn 用 invocationIds 表达候选                                             | S4 引入带类型候选及活跃执行身份                        | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                                               |
-| OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选   | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份 | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation                      |
-| BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通           | S3 增加结果查询适配与证据提交，S5 验证远端协议         | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                                         |
-| 既有 codec 只识别显式根别名，不承担工具治理状态                            | S1-06 增加 tool-release／tool-release-receipt v1       | 旧类型保持原义；新别名严格整数版本，先升级读端再写；原子回滚与旧数据回归见实施记录 §6                               |
-| 当前人工账单核对限 GENERATION                                              | 付费工具阶段扩展费用核对，并与业务结果核对分离         | 不能因账单确认就生成工具业务结果；现有生成账本回执语义保持                                                          |
+| 现有不变量／代码位置                                                       | 计划变化与实施阶段                                       | 兼容及回归门槛                                                                                                      |
+|----------------------------------------------------------------------------|----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| 原 ResolvedBinding 要求 connection；ConnectionDefinition 为 HTTP 连接      | S1-03 已完成类型化目标及兼容编码；目录接线仍待后续       | 生成保留原六字段配置及平台目录格式；旧远端形状解码为 REMOTE，新绑定快照显式 v2                                      |
+| FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S2-03／04 内部 TOOL 受理及派发路由已实现；公开入口待后续 | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
+| DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                       | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
+| ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                           | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
+| Invocation 当前无 WAITING_APPROVAL                                         | S3 增加非终态及 Attempt 前完成路径                       | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                                        |
+| Turn 用 invocationIds 表达候选                                             | S4 引入带类型候选及活跃执行身份                          | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                                               |
+| OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选   | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份   | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation                      |
+| BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通           | S3 增加结果查询适配与证据提交，S5 验证远端协议           | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                                         |
+| 既有 codec 只识别显式根别名，不承担工具治理状态                            | S1-06 增加 tool-release／tool-release-receipt v1         | 旧类型保持原义；新别名严格整数版本，先升级读端再写；原子回滚与旧数据回归见实施记录 §6                               |
+| 当前人工账单核对限 GENERATION                                              | 付费工具阶段扩展费用核对，并与业务结果核对分离           | 不能因账单确认就生成工具业务结果；现有生成账本回执语义保持                                                          |
 
 本表中的类位于 com.arte.ainew；完整代码链接见 §16。每一行在所属阶段必须有变更说明、旧数据解码用例、失败回滚用例和对应
 AC，不能以“统一复用”替代契约修改。
@@ -777,8 +778,11 @@ Schema 验证，不补默认值；总期限从进入受理组件开始计算，�
 同事务复核当前绑定／生命周期及实际选版，预检后选版或配置变化返回 `AI_TOOL_PLAN_CHANGED`；快照、通用受理索引、Invocation、
 ACCEPTED 事件和 DISPATCH／EVENT Outbox 一起提交，任何写入失败全部回滚，唤醒只发生在提交后。
 
-本批未提供宿主许可的默认允许实现，未自动装配受理服务或新增 HTTP，也未接入 Worker；当前 Worker 仍只处理 GENERATION。 后续必须先完成
-TOOL 能力路由和执行协调，再开放生产入口，避免已受理的 TOOL 被生成派发器消费。 网关保护期限继续只收紧已受理绝对期限，不能重新计时。
+S2-04 已在 `NewAiToolExecutionConfiguration` 接通内部受理与 Worker 派发：必须同时开启 `arte.ai-new.enabled`、
+`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled`，并由宿主提供 `ToolAdmissionAccess` 与 `ToolExecutionAccess`。
+没有默认允许实现；缺端口时保留已有管理／生成能力，不装配 TOOL 受理及派发。只启用 TOOL 时不需要模型定义、连接、费率、预算或
+ModelGateway。 Worker 自动消费仍由既有 worker-enabled 单独控制；构造不访问数据库、授权、发现或执行工具。没有新增公开 TOOL
+HTTP，真实宿主授权和领域工具仍须由组合模块提供。 网关保护期限继续只收紧已受理绝对期限，不能重新计时。
 
 ### 8.2 状态与结果
 
@@ -816,9 +820,25 @@ ID 或不合规输出保守返回 UNKNOWN／POSSIBLE，丢弃无效输出且不�
 事实保持原义；只读适配报告实际副作用时不会被当作正常成功。
 
 一个网关 Publisher 只能订阅一次，再次订阅直接报错，不产生另一份“未执行”结果。此限制不提供跨进程或跨 `invoke`
-的防重，耐久准入、领取／租约维护和结果／终态提交仍由后续协调层负责。
+的防重，耐久准入、领取／租约维护和结果／终态提交由 S2-03／04 协调层负责。
 阻塞适配入口在有界线程池执行，期限与取消由独立信号终止订阅；取消订阅不证明底层业务已停止。网关不写执行状态或预算，不内置业务操作。
 当前仅允许无费用引用、无人工控制、无外发／Secret 的本地只读工具，写工具、远端、协议特性及付费工具明确拒绝。
+
+S2-04 已实现内部 `ToolDispatcher`，通过通用 Worker／协调器按权威 Invocation.kind 路由，不从外部参数指定能力。 派发读取原
+ToolExecutionSnapshot 和原 p1 方案，重新检查当前治理及免费使用资格，随后执行一次 FREE 原子准备，取得本次新提交的
+Attempt／耐久操作身份后才订阅 ToolGateway。网关在领域适配前再次检查当前资源权限；生成专属的模型、上下文及计价校验不用于
+TOOL。
+
+结果先以已有 `InvocationResult.Tool`／`tool-result` 信封保存有界字节，再用最新 Guard 原子提交
+Attempt、Invocation、结果引用、终态事件及 EVENT Outbox。 TOOL 终态事务核对结果类型、版本、owner、Invocation、Attempt、callId、摘要、partial
+和 outcome／error；不可跨调用引用或伪造成功。 若请求上限连安全失败信封也容纳不了，只保存 Invocation 的错误事实，不写超限结果或假成功。FREE
+不读写预算账户、预留和结算。
+
+Worker 维护 Outbox 租约，派发器维护 Attempt 租约；版本竞争只重读 Guard，不重订阅网关。只有派发处理成功后才 ACK。
+已终态重投不调用工具；存在活跃 Attempt 时不新建第二次尝试；过期可能执行的 Attempt 保守收敛 UNKNOWN。存储／租约失败不
+ACK，不把基础设施异常当作工具已知失败。 本批不自动重试，不做业务结果核对；查询／取消产品入口与进一步恢复留在
+S2-05，分类容量及公平领取留在 S2-06。 当前 Worker 的本机槽位仍为生成和 TOOL 共享，已有生成限流语义保持，不能据此宣称 TOOL
+分类／集群容量已完成。
 
 ### 8.4 幂等、重试与期限
 
@@ -1666,6 +1686,12 @@ S2-03 已完成内部独立本地免费只读受理：固定原始意图、实�
 `tool-execution-snapshot` v1 白名单根别名及单表增量，未修改原 GENERATION 受理语义，也未增加状态／审批或预算产品。
 验证证据见 [TOOL 实施记录 §11](backend/arte-ai/TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
 本批不自动装配受理服务、不提供 HTTP／Worker 路由或宿主资源授权实现；未部署业务数据库，TOOL 仍关闭，不能视为 S2 产品闭环完成。
+
+S2-04 已完成 TOOL Worker 派发及完成：权威能力路由、原快照与当前资格复核、FREE 原子准备、单次网关执行、 结果字节持久化、fencing
+下的终态／事件提交及提交后 ACK。重复领取不重发工具；原生成受理及收费分支保持。 内部受理和派发在三个开关及显式宿主授权下装配，可只启用
+TOOL；本批无 DDL 或 codec 布局变化，未连接业务库或启用生产工具。
+验证证据及后续边界见 [TOOL 实施记录 §12](backend/arte-ai/TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。 S2-05
+查询／取消及进一步恢复、S2-06 分类容量／排队、S2-07／08 页面及 S2-09 集成验收仍未完成，不代表 S2 产品阶段整体完成。
 
 ### 15.5 原子需求与双向追踪
 

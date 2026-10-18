@@ -33,8 +33,13 @@ S2-03 实施同步：新增 `ToolAdmissionInput` 和耐久 `ToolExecutionSnapsho
 `tool-execution-snapshot`（严格整数 schemaVersion=1），不改变旧执行／生成快照的编码。 v1
 仅表达独立本地免费只读调用：原始意图、实际请求、固定绑定方案、完整收紧策略、最多三份去重 Schema 原文及接收时刻；无运行资源／Secret
 值。 快照按 Invocation ID 一对一保存，不使用生成专属 `Invocation.contextSnapshotId`。完整载荷摘要保护原期限与身份；
-意图摘要排除当前配置及随机身份，执行摘要固定实际版本／配置／Schema／权限上限／相对超时策略。 当前授权与治理仍须重验，快照不授予执行权。内部受理尚未接入
-HTTP／Worker，详见 [实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+意图摘要排除当前配置及随机身份，执行摘要固定实际版本／配置／Schema／权限上限／相对超时策略。 当前授权与治理仍须重验，快照不授予执行权。S2-03
+完成时尚未接入 Worker；后续结果见下段。详见 [实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+
+S2-04 复用原 `InvocationResult.Tool`、`tool-result`、ResultRef、Attempt／Invocation、终态事件及 Outbox，未增加状态、字段或
+codec 版本。 结果字节先保存，完成事务校验其真实类型／归属／尝试／callId／摘要及 outcome／error，再原子提交引用、终态与事件。
+新派发器只接受独立本地免费只读快照，不根据缺少 budgetRef 自动推断任意工具免费；资格由显式宿主端口重验。 已接入内部
+Worker，公开 HTTP 和分类调度仍待后续，见 [实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
 
 ## 1. 所有权、关系与实现范围
 

@@ -17,6 +17,8 @@ import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
+import com.arte.ainew.pojo.tool.ToolInvocation;
+import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.*;
 import lombok.extern.slf4j.Slf4j;
@@ -546,7 +548,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     boolean uses(DataSource source) {
-        return dataSource == source; }
+        return dataSource == source;
+    }
 
     @Override
     public Mono<List<ExecutionReadStore.Snapshot>> snapshots(ExecutionOwner owner, List<String> invocationIds) {
@@ -1086,6 +1089,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 require(terminal.error() != null && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
                         || verifiedOutput, RECONCILIATION_REQUIRED);
             }
+            verifyToolCompletion(invocation, attempt, command.terminal());
             var completed = state(invocation, command.terminal().state(), attempt.attemptId(), command.terminal().result(), command.terminal().error());
             var attemptState = Attempt.State.valueOf(completed.state().name());
             var dispatch = completed.state() == Invocation.State.SUCCEEDED ? Attempt.Dispatch.CONFIRMED : attempt.dispatch();
@@ -1103,6 +1107,33 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。
             return StoreOutcome.applied(completed);
         });
+    }
+
+    /**
+     * TOOL 终态引用必须指向本次尝试的真实结果字节，不能用错类型、跨 owner 或伪造摘要宣称成功。
+     */
+    private void verifyToolCompletion(Invocation invocation, Attempt attempt, ExecutionPayload.Terminal terminal) {
+        if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL || terminal.result() == null) return;
+        var ref = terminal.result();
+        require(ref.resultType().equals("tool-result") && ref.schemaVersion() == 1, INVALID_STATE);
+        var row = payload.result(ref.resultId());
+        require(row != null && row.ownerKey().equals(ownerKey(ExecutionOwner.from(invocation.request().context())))
+                && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
+                && row.resultType().equals(ref.resultType()) && row.schemaVersion() == ref.schemaVersion()
+                && (row.partial() == 1) == ref.partial() && row.payloadDigest().equals(ref.contentDigest()), INVALID_STATE);
+        if (!CanonicalJson.sha256(row.workspaceSnapshot()).equals(row.payloadDigest()))
+            throw new IllegalStateException("Tool result bytes are corrupt");
+        var decoded = codec.decode(row.workspaceSnapshot(), InvocationResult.class);
+        require(decoded instanceof InvocationResult.Tool && invocation.request().input() instanceof ToolInvocation, INVALID_STATE);
+        var value = ((InvocationResult.Tool) decoded).value();
+        var input = (ToolInvocation) invocation.request().input();
+        require(value.callId().equals(input.callId()) && Objects.equals(value.error(), terminal.error())
+                && ref.partial() == (value.outcome() != ToolResult.Outcome.SUCCEEDED), INVALID_STATE);
+        require(switch (terminal.state()) {
+            case SUCCEEDED -> value.outcome() == ToolResult.Outcome.SUCCEEDED;
+            case UNKNOWN -> value.outcome() == ToolResult.Outcome.UNKNOWN;
+            default -> value.outcome() == ToolResult.Outcome.FAILED;
+        }, INVALID_STATE);
     }
 
     private void selectCompletedCandidate(Invocation completed) {

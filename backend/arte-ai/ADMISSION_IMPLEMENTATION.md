@@ -7,11 +7,12 @@ Outbox。成功受理后状态为 ACCEPTED。第 4 步的模型网关可独立�
 Worker 和完整生成闭环另行开启，见 [异步执行](EXECUTION_IMPLEMENTATION.md)。对外入口见 [聊天 HTTP API](CHAT_HTTP_API.md)
 ，费用核对见 [预算 HTTP API](BUDGET_HTTP_API.md)。
 
-S2-03 新增内部 `ToolAdmissionService`：对独立本地免费只读工具执行固定解析、Schema 校验、当前宿主授权及可靠受理， 以同库事务提交
-TOOL 执行快照、通用 Invocation、首事件和 DISPATCH Outbox，支持基于原快照的幂等重放。 本组件没有自动装配或公开 HTTP；原生成协调器及
-Worker 仍只处理 GENERATION，尚不能对外调用 TOOL。 宿主须在现有身份／空间／权限基础上实现 `ToolAdmissionAccess`
-的预检和同事务复核，并在完成 TOOL 路由后接线。
-范围、部署与验证见 [TOOL 实施记录 §11](TOOL_IMPLEMENTATION.md#11-s2-03内部可靠受理与固定执行快照)。
+S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：同库可靠受理 → 原固定快照／当前资格 → FREE
+原子准备 → ToolGateway → 结果字节 → 终态／事件 → Worker ACK。通用协调器按权威 kind 路由，原生成 submit 语义不扩展为 TOOL。
+`arte.ai-new.enabled`、`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled` 三开关及显式宿主 `ToolAdmissionAccess`、
+`ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 当前仍没有公开
+TOOL 调用／查询／取消 HTTP；管理接口维持原范围。宿主真实权限及领域适配需由组合模块提供，不能直接绑定客户端 ExecutionContext。
+本批不部署数据库或开启 TOOL。范围与验证见 [TOOL 实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
 
 ## TODO
 

@@ -46,7 +46,9 @@ owner＋稳定绑定＋幂等键，复核工具／绑定治理，调用同步同
 
 额外 owner＋稳定绑定＋key 索引用于先找到原快照，避免 follow-compatible 选版或改配置后同意图重放冲突；不改变原
 owner＋capability.id＋key 防重围栏。重放重新检查当前宿主资格和原固定方案治理，不写第二条快照或 Outbox，也不重置原期限。
-当前宿主权限端口没有默认允许实现，内部受理不自动装配；Worker TOOL 路由尚未接线，不能向当前生成 Worker 投递这类工作项。
+当前宿主权限端口没有默认允许实现。S2-04 已在三个开关和显式宿主受理／执行授权下装配 TOOL 受理与派发，并通过权威 kind 路由； 缺
+TOOL 派发器的生成节点不会将 TOOL 改写为生成失败，工作项保留未 ACK。部署时仍须先升级全部消费者并保持同构能力，分类领取留在
+S2-06。
 
 ## 2. Worker 与崩溃恢复
 
@@ -67,6 +69,13 @@ Attempt，先释放上一尝试预算；失效且可能发送的 Attempt 使用 
 Permit／频率窗口及 Outbox 延迟基于数据库时钟和 fencing，见 EXECUTION_IMPLEMENTATION.md。自动消费由独立 worker-enabled 显式开启。
 
 已保存且校验的模型结束结果可以证明输出不完整：FAILED／MODEL_OUTPUT_INCOMPLETE 使用部分 model-result 引用和对应证据，存储核对结果行的 owner、Invocation、Attempt、类型、Schema、摘要、partial／complete 和用量。缺失字节或仅提供证据字符串仍返回 RECONCILIATION_REQUIRED；其他可能发送的已知失败继续要求排除副作用或远端核对。
+
+S2-04 的 `ToolDispatcher` 只使用本次新取得的 FREE 派发准备，不把已保存的准备结果当作重放发送许可。 工作项与 Attempt
+租约分别续租；Guard 写入只对 VERSION_CONFLICT 有界重读，不重新订阅工具。 TOOL
+结果先写入原结果字节表；完成事务在同一物理数据库核对字节摘要、类型／版本、owner／调用／尝试、callId 及 outcome／error， 并提交
+Attempt、Invocation、引用、终态事件与 EVENT Outbox。结果故障、完成事务故障或租约丢失不 ACK，保留可恢复状态； ACK
+失败后的终态重投不会再次调用工具。没有新增 DDL、存储别名或状态，FREE 不创建账户／预留／结算。 本批对过期可能执行的尝试只保守停止为
+UNKNOWN；进一步结果恢复、查询及取消入口在 S2-05 实现，不能宣称完整恢复产品已交付。
 
 ## 3. 预算与费用事实
 

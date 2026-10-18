@@ -3,12 +3,13 @@
 日期：2026-10-18。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
-当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关及 S2-03 内部可靠受理／执行快照；16
-个管理 API
-与现有当前授权接线完成。 面向用户的 TOOL 受理／Worker 执行闭环仍待 S2 后续批次。TOOL 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03
+当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关、S2-03 内部可靠受理／执行快照及
+S2-04 TOOL Worker 派发／完成；16
+个管理 API 与现有当前授权接线完成。 内部服务至 Worker 链路已实现；公开调用／查询／取消、分类容量与页面仍待后续批次。TOOL
+默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03
 增量及 TOOL RBAC 定义尚未在配置中的业务数据库部署。
 
-§1—§10 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10，本批受理与验证状态见 §11。
+§1—§11 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11，本批派发及验证见 §12。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -1133,3 +1134,116 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 最终日志 `/tmp/arte-s203-final-regression.log`。中间复验与编译重叠曾产生临时缺类错误，已单独串行重跑；最终结果以上述日志为准。
 `git diff --check` 通过；未运行全仓／arte-app 全量、实际宿主资源授权、MySQL／Redis 多节点、压力测试、浏览器或生产验收。 H2
 验证不能替代真实 MySQL 锁和部署验证，也不证明非功能性能目标达标。
+
+## 12. S2-04：TOOL Worker 派发及完成
+
+状态：完成内部本地免费只读工具的 Worker 执行链路；S2-05 查询／取消及进一步恢复、S2-06 分类容量／排队仍待后续。
+
+### 12.1 组件及调用链
+
+| 组件                                        | 本批职责                                                                                                    |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| `application.tool.execution.ToolDispatcher` | 原快照／固定绑定及当前免费资格预检、FREE 原子准备、单次网关、结果持久化、租约及 Guard 下的终态提交          |
+| `DefaultInvocationCoordinator`              | 按权威 Invocation.kind 路由 GENERATION／TOOL；原 submit 保持生成语义，TOOL 仍通过 ToolAdmissionService 受理 |
+| `InvocationDispatchWorker`                  | 继续复用原领取、Outbox 续租、本机槽位和处理后 ACK，没有新增第二套任务权威或 Worker                          |
+| `MybatisExecutionPersistence`               | 复用原 prepareDispatch／commitCompletion；增加 TOOL 结果引用的真实字节、类型及归属一致性校验                |
+| `NewAiToolExecutionConfiguration`           | 三开关及显式宿主授权齐备时，装配内部受理 Store／Service 和 ToolDispatcher；与通用执行共用物理数据库         |
+
+```text
+ToolAdmissionService → 快照／Invocation／DISPATCH 提交
+  → InvocationDispatchWorker → 权威 kind 路由
+  → ToolDispatcher：原快照、原 p1、当前免费资格
+  → prepareDispatch(FREE)：新 Attempt／耐久操作身份同事务提交
+  → ToolGateway：当前资源权限／Schema／固定配置 → 领域只读适配
+  → InvocationResult.Tool 字节保存
+  → commitCompletion：Attempt／Invocation／结果引用／终态事件／EVENT Outbox 同事务
+  → Worker ACK
+```
+
+派发不重新执行 follow-compatible，不替换已受理配置、Schema、工具版本或原 deadline。 宿主免费资格预检复用
+ToolAdmissionAccess，核对同一 owner／主体类别、当前权限子集及必要 scopes；真正进入领域适配前另由 ToolExecutionAccess
+和领域服务检查当前资源权限。预检不冻结授权，派发不执行新受理事务的 Permit 回调，也不创建第二份受理记录。
+当前仅使用免费分支，不读取账户、预留、结算或模型计价，不伪造零金额预留。
+
+### 12.2 结果与可靠完成
+
+网关单次订阅，派发器再次约束 callId、只读副作用、输出 Schema 和完整信封 UTF-8 上限；不合规结果或网关意外异常保守为 UNKNOWN。
+明确未进入业务的资格／治理／期限拒绝保存为已知失败／超时，未创建 Attempt 时通过 CompleteBeforeAttempt 提交，不伪造
+ToolResult。 合法 FAILED／UNKNOWN 结果保留事实；retryable 不会自动触发新尝试，本批没有 TOOL 自动重试。
+
+沿用 `InvocationResult.Tool`／`tool-result` v1，结果字节先写入原结果表。 完成事务核对真实行的
+owner、Invocation、Attempt、类型／版本、字节摘要、partial、callId 及 outcome／error；拒绝错类型、跨调用引用和假成功。
+Invocation、Attempt、结果引用、终态事件及 EVENT Outbox 一起提交。请求结果上限若连安全失败信封也无法容纳，仅保存 Invocation
+错误事实， 不写超限结果，不宣称成功；这种失败可以没有 ResultRef。
+
+结果写入、终态事务或租约故障向 Worker 传播，不 ACK，不能以 Publisher 完成代替可靠终态。 关键存储端口意外返回空 Publisher
+同样视作基础设施故障，防止 ACCEPTED／RUNNING 工作项被误 ACK。 结果已保存但终态事务失败时可能留下未引用字节，本批不清理、不凭这些字节重新执行；进一步恢复在
+S2-05 处理。
+
+### 12.3 重复领取及租约
+
+- FREE 准备只使用本次新提交的发送许可；并发重复领取由版本、领取 token 和数据库事务仲裁，不产生第二次业务调用。
+- 已终态重投直接完成处理，ACK 故障后重领不重复写终态事件，也不重新调用工具。
+- 活跃 Attempt 不创建下一次尝试；过期且可能执行的 Attempt 通过既有 stopExpired 保守收敛 UNKNOWN，不盲目重发。
+- Worker 续租 Outbox，派发器续租 Attempt；每次写入重新读取最新 Guard，只有 VERSION_CONFLICT 有界重读，不重新订阅网关。
+- 失租停止当前订阅，旧 fencing 不得提交；取消订阅不证明底层业务未执行，不伪造已知取消或零费用事实。
+
+上述是本批派发防重及失败保守性，不表示 S2-05 的查询、取消、完整崩溃恢复或业务结果核对产品已完成。
+
+### 12.4 装配、兼容及部署
+
+同时开启 `arte.ai-new.enabled`、`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled`，并由宿主明确提供
+ToolAdmissionAccess、ToolExecutionAccess 后才装配 TOOL 受理与派发；无默认允许实现。
+缺少任一端口时保留已有管理／生成能力；显式提供端口但缺必要网关或依赖则装配失败，不创建空派发器。 只启用 TOOL 不要求
+ModelGateway、模型定义／连接、费率或预算；沿用现有 DATABASE 模式与宿主身份解析基础。 若没有任何派发器，通用执行装配失败，不能先受理不可执行的任务。
+
+生成与 TOOL 共用一个通用协调器和 Worker。协调器统一使用四参数构造，ExecutionStore 始终必填，并按权威 kind
+路由；生成派发器遇到非生成记录会拒绝处理， 不会把 TOOL 落为生成失败。自动消费仍由 worker-enabled 单独控制，默认不启动；构造零
+SQL／发现／授权／业务调用，调度器关闭时释放。
+
+本批没有新增 DDL、codec 字段／版本、Invocation 状态、HTTP 路由或配置项，未修改 TOOL 默认关闭配置。 S1 与 S2-03
+既有部署脚本仍须按需停写、备份并显式部署；本批未连接、检查或修改配置中的业务数据库，也未注册真实领域工具或生产授权实现。
+Worker 本机槽位仍为生成／工具共享；原生成限流保持，TOOL 分类领取、空间／提供者容量、过载与排队公平性由 S2-06 完成。
+不能据此宣称多节点、容量隔离、性能目标或整个 S2 阶段通过验收。
+
+### 12.5 验证证据
+
+新增 **41 项全部通过**：
+
+| 测试类                      | 数量 | 证据                                                                                                                                                                                                                                                                               |
+|-----------------------------|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ToolDispatchIntegrationTest | 34   | 隔离 H2／真实 MyBatis、受理、网关及 Worker；结果／终态／事件／ACK、原版本与配置、并发重复领取、当前权限与治理、总期限、异常／空结果／Schema／越限输出、结果与终态回滚、空存储回执、ACK 故障、双租约续租／失租、缺快照、错 owner／scope／领取、结果引用完整性、生成节点不误处理工具 |
+| ToolExecutionAssemblyTest   | 7    | 三开关、无默认授权、模型定义／网关全空的 TOOL 单独装配、生成兼容、缺依赖失败、单一 Worker／协调器、构造零 I/O、资源关闭及 Boot 顺序登记                                                                                                                                            |
+
+针对性日志：`/tmp/arte-s204-targeted.log`。只读领域查询由受控测试适配器提供，不代表已注册生产业务工具或验证真实平台资源权限。
+
+JDK 21 主代码及测试代码编译通过。最终兼容回归 **699 项，695 项通过、4 项跳过、0 失败／错误，BUILD SUCCESS**。 新增 41 项已包含在
+699 项中，不重复累计。4 项跳过仍为缺少独立测试 Redis 的 ExecutionAssemblyTest 1 项与 InvocationHttpIntegrationTest 3
+项，未借用业务 Redis；显式排除既有 ProfileConfigurationTest 的 4 项，沿用 S2-01 已复现的配置基线记录，未声称修复。
+现有生成派发、收费、聊天受理、持久化和 S1／S2 工具回归均包含在本次选择范围；未调用外部模型。
+
+执行命令（仓库根目录，JDK 21）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider \
+  '-Dtest=com.arte.ainew.contract.*Test,com.arte.ainew.persistence.*Test,com.arte.ainew.tool.schema.*Test,com.arte.ainew.tool.discovery.*Test,com.arte.ainew.tool.release.*Test,com.arte.ainew.tool.binding.*Test,com.arte.ainew.tool.management.*Test,com.arte.ainew.tool.gateway.*Test,com.arte.ainew.tool.admission.*Test,com.arte.ainew.tool.execution.*Test,com.arte.ainew.admission.*Test,!com.arte.ainew.admission.ProfileConfigurationTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+最终日志：`/tmp/arte-s204-final-regression.log`。`git diff --check` 通过。 未运行全仓／arte-app 全量、真实宿主权限和领域工具、真实
+MySQL／Redis 多节点、分类容量压测、浏览器或生产验收。 临时 H2 与本机受控测试不证明生产约束、完整故障矩阵或性能目标达标；未进入
+S2-05。
+
+### 12.6 协调器构造收敛
+
+移除两参数构造及 `ExecutionStore == null` 的生成兼容分支；统一四参数构造，强制提供 ExecutionStore， 始终读取权威
+Invocation.kind 后选择派发器。生成单独装配仍可将 ToolDispatcher 置空；遇到 TOOL 时拒绝派发，保持原受理状态。 生成／HTTP
+测试调用点及 TOOL 测试夹具同步调整，不再保留旧构造路径。
+
+本次针对性回归选择
+DispatchIntegrationTest、DispatchWorkerIntegrationTest、InvocationHttpIntegrationTest、ExecutionAssemblyTest 及
+`com.arte.ainew.tool.execution.*Test`： **131 项，127 项通过、4 项 Redis 相关跳过、0 失败／错误，BUILD SUCCESS**。 JDK 21
+主代码及测试代码编译通过，日志 `/tmp/arte-s204-coordinator-constructor.log`；本次未重跑上文 699 项兼容回归。

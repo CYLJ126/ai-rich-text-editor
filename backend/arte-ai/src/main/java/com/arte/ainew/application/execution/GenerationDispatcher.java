@@ -107,6 +107,9 @@ public final class GenerationDispatcher {
                     .then(load(message.owner(), message.invocationId()))
                     .flatMap(invocation -> {
                         timing.mark("DISPATCH_LOADED");
+                        if (!(invocation.request().input() instanceof GenerationRequest)) {
+                            return Mono.error(new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY));
+                        }
                         if (!invocation.request().context().authorization().scopes().containsAll(runtime.execution().authorization().scopes())
                                 || !Objects.equals(invocation.request().context().budgetRef(), runtime.execution().budgetRef())
                                 || !Objects.equals(invocation.request().context().releaseRef(), runtime.execution().releaseRef())

@@ -6,6 +6,7 @@ import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.*;
+import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
@@ -14,6 +15,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,13 +26,14 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Clock;
 
 /**
- * 显式启用单次生成派发与读取；依赖已有受理及 ModelGateway，不执行 DDL 或账户初始化。
+ * 显式启用派发路由与读取；生成依赖 ModelGateway，TOOL 依赖宿主授权和 ToolGateway，至少具备一种派发器。
+ * 不执行 DDL 或账户初始化。
  * Worker 自动启动另由 worker-enabled 开关控制；默认可手动 pollOnce 做完整集成测试。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 16:14 ✾
  */
-@AutoConfiguration(after = {NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class})
+@AutoConfiguration(after = {NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class, NewAiToolExecutionConfiguration.class})
 @ConditionalOnProperty(prefix = "arte.ai-new-execution", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiEventProperties.class})
 public class NewAiExecutionConfiguration {
@@ -41,6 +44,7 @@ public class NewAiExecutionConfiguration {
     }
 
     @Bean("newAiGenerationDispatcher")
+    @ConditionalOnBean(ModelGateway.class)
     GenerationDispatcher dispatcher(AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                     MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, ModelGateway gateway,
                                     NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock,
@@ -50,11 +54,11 @@ public class NewAiExecutionConfiguration {
     }
 
     @Bean("newAiInvocationCoordinator")
-    InvocationCoordinator coordinator(GenerationDispatcher dispatcher, AdmissionAuthorization authorization,
+    InvocationCoordinator coordinator(ObjectProvider<GenerationDispatcher> dispatcher, ObjectProvider<ToolDispatcher> tools, AdmissionAuthorization authorization,
                                       FixedControlCatalog catalog, MybatisExecutionPersistence executions,
                                       MybatisPayloadPersistence payloads, NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
         var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
-        return new DefaultInvocationCoordinator(admission, dispatcher);
+        return new DefaultInvocationCoordinator(admission, dispatcher.getIfAvailable(), executions, tools.getIfAvailable());
     }
 
     @Bean("newAiExecutionControl")

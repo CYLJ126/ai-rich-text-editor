@@ -182,7 +182,7 @@ public class DispatchIntegrationTest {
         DefaultInvocationCoordinator coordinator(BudgetService budgets) {
             var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.executions, fixture.executions,
                     fixture.executions, fixture.payloads, fixture.payloads, budgets, gateway, fixture.properties, settings, Clock.systemUTC());
-            return new DefaultInvocationCoordinator(fixture.coordinator, dispatcher);
+            return new DefaultInvocationCoordinator(fixture.coordinator, dispatcher, fixture.executions, null);
         }
 
         BudgetService budgetFault() {
@@ -653,7 +653,7 @@ public class DispatchIntegrationTest {
             var secondPayloads = new com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence(rig.dataSource, rig.fixture.codec, rig.db);
             var secondDispatcher = new GenerationDispatcher(rig.authorization, rig.fixture.catalog, secondStore, secondStore,
                     secondStore, secondPayloads, secondPayloads, secondStore, rig.gateway, rig.fixture.properties, rig.settings, Clock.systemUTC());
-            var secondCoordinator = new DefaultInvocationCoordinator(rig.fixture.coordinator, secondDispatcher);
+            var secondCoordinator = new DefaultInvocationCoordinator(rig.fixture.coordinator, secondDispatcher, secondStore, null);
             var secondWorker = new InvocationDispatchWorker(secondStore, secondStore, secondCoordinator, rig.settings, rig.timer);
             var counts = Mono.zip(rig.worker.pollOnce(), secondWorker.pollOnce()).block(WAIT);
             assertEquals(1, counts.getT1() + counts.getT2());
@@ -980,7 +980,7 @@ public class DispatchIntegrationTest {
             var replacement = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
                     new DefaultInvocationCoordinator(rig.fixture.coordinator, new GenerationDispatcher(rig.authorization, rig.fixture.catalog,
                             rig.fixture.executions, rig.fixture.executions, rig.fixture.executions, rig.fixture.payloads, rig.fixture.payloads,
-                            rig.fixture.executions, rig.gateway, rig.fixture.properties, reduced, Clock.systemUTC())), reduced, rig.timer);
+                            rig.fixture.executions, rig.gateway, rig.fixture.properties, reduced, Clock.systemUTC()), rig.fixture.executions, null), reduced, rig.timer);
             replacement.pollOnce().block(WAIT);
             assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
             assertEquals(1, rig.requests.get());

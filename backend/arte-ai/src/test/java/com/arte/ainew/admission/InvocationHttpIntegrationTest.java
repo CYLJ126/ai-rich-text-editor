@@ -159,7 +159,7 @@ public class InvocationHttpIntegrationTest {
                             : new GenerationSignal.Result(result);
                     return Flux.just(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT)), terminal);
                 }), fixture.properties, settings, Clock.systemUTC(), liveText);
-        var coordinator = new DefaultInvocationCoordinator(fixture.coordinator, dispatcher);
+        var coordinator = new DefaultInvocationCoordinator(fixture.coordinator, dispatcher, fixture.executions, null);
         publisher = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer);
         worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
         validator = new LocalValidatorFactoryBean();

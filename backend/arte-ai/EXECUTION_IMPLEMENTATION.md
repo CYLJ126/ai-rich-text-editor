@@ -20,6 +20,13 @@
 > 新网关没有接入当前生成派发器，TOOL 受理／快照及 Worker
 > 闭环仍待后续；详见 [TOOL 实施记录 §10](TOOL_IMPLEMENTATION.md#10-s2-02本地只读-tool-网关)。
 
+S2-04 实施同步：内部本地免费只读 TOOL 已接入 `InvocationDispatchWorker` 与通用协调器，按权威 Invocation.kind 路由到
+`ToolDispatcher`；复用原快照、FREE 原子准备、ToolGateway、结果字节及终态事务，处理完成后才 ACK。 三个开关及显式
+ToolAdmissionAccess／ToolExecutionAccess 齐备后装配，可独立于 ModelGateway／模型定义／费率／预算启用。 自动消费仍由
+worker-enabled 控制，默认不启动；本批不开放公开 TOOL HTTP，不实现分类容量、自动重试或完整查询／取消及恢复产品。
+已部署的生成限流／计费及受理行为保持，缺 TOOL 派发器不会把工具工作项落为生成失败。
+完整范围及验证见 [TOOL 实施记录 §12](TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。
+
 已实现 Service 层完整链路：创建会话 → ChatService.submit 可靠受理 → Worker 领取 DISPATCH Outbox → Attempt／预算预留／发送标记 → ModelGateway 单次生成 → 输出事件／结果字节 → 耐久终态 → 预算结算 → 状态、结果及事件重放查询。新增运行实现均在 `com.arte.ainew`，复用前 4 步的控制面、字节存储及受控连接。
 
 **图 1：会话创建与可靠受理**
@@ -106,14 +113,15 @@ flowchart TB
 
 ## 实现分工
 
-| 实现 | 责任 |
-|---|---|
-| `DefaultInvocationCoordinator` | submit 委托可靠受理组件；dispatch 委托生成派发组件 |
-| `GenerationDispatcher` | 核验领取、重新授权、复核固定绑定与快照，创建单次 Attempt，预留、发送、续租、保存输出、结束及结算 |
-| `InvocationDispatchWorker` | pollOnce 领取并发容量以内的消息，续租、处理后 ACK；支持 Spring 生命周期和显式自动轮询 |
-| `DefaultExecutionControl` | status 在当前 ai:read 授权下读取权威 Invocation |
-| `DefaultExecutionEventService` | result 按权威 ResultRef 读取完整／部分结果；replay 读取有界单页事件 |
-| `NewAiExecutionConfiguration` | 独立开关、协调器替换、读取服务及 Worker 装配；缺少前置组件时启动失败 |
+| 实现                           | 责任                                                                                             |
+|--------------------------------|--------------------------------------------------------------------------------------------------|
+| `DefaultInvocationCoordinator` | submit 仍委托生成受理；dispatch 按权威 kind 路由到已装配的生成／TOOL 派发器                      |
+| `GenerationDispatcher`         | 核验领取、重新授权、复核固定绑定与快照，创建单次 Attempt，预留、发送、续租、保存输出、结束及结算 |
+| `ToolDispatcher`               | 原 TOOL 快照、当前免费资格、FREE 原子准备、单次网关、有界结果及终态提交；重复领取不重发          |
+| `InvocationDispatchWorker`     | pollOnce 领取并发容量以内的消息，续租、处理后 ACK；支持 Spring 生命周期和显式自动轮询            |
+| `DefaultExecutionControl`      | status 在当前 ai:read 授权下读取权威 Invocation                                                  |
+| `DefaultExecutionEventService` | result 按权威 ResultRef 读取完整／部分结果；replay 读取有界单页事件                              |
+| `NewAiExecutionConfiguration`  | 独立开关、协调器替换、读取服务及 Worker 装配；缺少前置组件时启动失败                             |
 
 ## 开启及测试入口
 
