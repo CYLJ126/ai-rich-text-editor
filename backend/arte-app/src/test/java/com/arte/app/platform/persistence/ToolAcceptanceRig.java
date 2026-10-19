@@ -182,7 +182,7 @@ final class ToolAcceptanceRig implements AutoCloseable {
     }
 
     Map<String, Object> command(MockMvc mvc, String binding, String text) throws Exception {
-        var input = Map.of("bindingId", binding, "arguments", Map.of("text", text), "timeoutSeconds", 5);
+        var input = Map.of("bindingId", binding, "arguments", Map.of("text", text), "timeoutSeconds", 30);
         var preview = post(mvc, "tool/previewInvocation", Map.of("scope", scope, "input", input), null, 200);
         return Map.of("scope", scope, "input", input, "expectedPlanDigest", preview.get("planDigest").asString());
     }

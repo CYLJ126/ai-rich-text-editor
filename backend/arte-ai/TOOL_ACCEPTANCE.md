@@ -2,6 +2,9 @@
 
 日期：2026-10-19。基线：[需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)、[实施记录 §17](TOOL_IMPLEMENTATION.md#17-s2-09正式宿主接线与本机集成验收)。
 
+开发期已将唯一文本工具 v1 的总上限统一为 30 秒，下方工具策略和清单使用当前值；历史测量数据仍属于各自记录时点。 已登记旧 5 秒
+v1 的开发库需重新登记工具测试数据，见 [开发期重建步骤](TOOL_TIMEOUT_INCIDENT.md)。
+
 本轮按用户确认限定为 **本机集成验收和性能基线**。正式参考环境双节点、规定数据量和 30 分钟 W1—W4／PF-01—08 留待上线前验收；本机通过不解除需求
 §15.1 的生产开放门槛。
 
@@ -15,7 +18,7 @@
 | 输出         | `{ "codePoints": 4 }`，接口以 outputJson 原文返回                                                      |
 | 语义         | Unicode 码点，包含空格和换行；e＋组合音符为 2，家庭组合表情为 7，空文本为 0                            |
 | 边界         | Schema 最多 65536 码点；还须满足服务器／工具／绑定的有效 JSON 字节上限，默认服务器上限 65536 字节      |
-| 固定工具策略 | 只读、最多 5 秒、1 次尝试、工具输入上限 262144 字节／输出 4096 字节、无审批；有效上限可进一步收紧      |
+| 固定工具策略 | 只读、最多 30 秒、1 次尝试、工具输入上限 262144 字节／输出 4096 字节、无审批；有效上限可进一步收紧     |
 | 费用／资源   | 明确受信 FREE，预算 NOT_RESERVED；不创建费用账户或 reservation，不调用模型、不访问网络／文件／业务资源 |
 
 实现位于 arte-app 的 `platform/ai/tool/LocalTextTools`，登记来源和实际算法一起提供，不注册测试适配器。免费授权比较完整固定契约、本人绑定及空配置／无
@@ -57,7 +60,7 @@ arte.ai-new-execution.scheduling.slots.generation=2
 arte.ai-new-execution.scheduling.slots.tool-short=2
 arte.ai-new-execution.scheduling.slots.tool-long=1
 arte.ai-new-execution.scheduling.slots.outcome-check=1
-arte.ai-new-execution.scheduling.tool-manifest=331756c89f707d42a1142275e1be4d4711b6ef76ef6ac7df4b996ce463cd6569
+arte.ai-new-execution.scheduling.tool-manifest=a6bb1c11e6f08fd0088d121a7cf6e5a6c7e755c1fc03cad73d252a5dacfea92a
 ```
 
 上述摘要仅适用于本版唯一的正式文本工具完整清单；增加／更改固定来源后须重新评审和计算，不能照抄旧值或填写工具

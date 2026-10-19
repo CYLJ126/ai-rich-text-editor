@@ -69,10 +69,10 @@ class ToolDeadlinePolicyIntegrationTest {
                 String binding = rig.prepare(mvc);
                 var owner = new ExecutionOwner(rig.scope.tenantId(), rig.scope.workspaceId(), rig.base.f.actor.principal().subjectId());
                 var policy = c.getBean(NewAiExecutionProperties.class).scheduling();
-                assertEquals(Duration.ofSeconds(5), rig.tools.revision().tool().defaultPolicy().timeout());
+                assertEquals(Duration.ofSeconds(30), rig.tools.revision().tool().defaultPolicy().timeout());
                 assertEquals("v1", LocalTextTools.TOOL.version());
                 assertEquals(rig.tools.manifest(), policy.toolManifest());
-                assertTrue(Duration.ofSeconds(5).compareTo(policy.shortThreshold()) <= 0);
+                assertTrue(Duration.ofSeconds(30).compareTo(policy.shortThreshold()) > 0);
                 for (int requested : new int[]{30, 1}) {
                     var input = Map.of("bindingId", binding, "arguments", Map.of("text", "deadline"), "timeoutSeconds", requested);
                     var preview = rig.post(mvc, "tool/previewInvocation", Map.of("scope", rig.scope, "input", input), null, 200);
@@ -86,7 +86,7 @@ class ToolDeadlinePolicyIntegrationTest {
                     assertTrue(snapshot.request().options().deadline().isAfter(snapshot.receivedAt()));
                     assertFalse(snapshot.request().options().deadline().isAfter(snapshot.receivedAt().plusMillis(cap)));
                     assertEquals(snapshot.request().context().deadline(), snapshot.request().options().deadline());
-                    assertEquals("TOOL_SHORT", rig.base.f.jdbc.queryForObject("SELECT work_class FROM arte_ai_outbox WHERE invocation_id=? AND kind='DISPATCH'", String.class, id));
+                    assertEquals("TOOL_LONG", rig.base.f.jdbc.queryForObject("SELECT work_class FROM arte_ai_outbox WHERE invocation_id=? AND kind='DISPATCH'", String.class, id));
                     assertTrue(rig.base.f.jdbc.queryForObject("SELECT queue_deadline FROM arte_ai_outbox WHERE invocation_id=? AND kind='DISPATCH'", Long.class, id)
                             <= snapshot.request().options().deadline().toEpochMilli());
                 }

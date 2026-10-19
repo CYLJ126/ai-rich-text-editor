@@ -60,7 +60,8 @@ public final class LocalTextTools {
                 Set.of("文本", "字符统计"), ref("capability", "arte-text-code-points"), input.definition(), output.definition(), configuration.definition(), EMPTY,
                 new ToolCapabilities(Set.of(), false), new ToolRiskProfile(CapabilityDescriptor.SideEffect.READ_ONLY, false,
                 ToolRiskProfile.Idempotency.NONE, Set.of(AdmissionAuthorization.INVOKE), Set.of()),
-                new ToolExecutionPolicy(Duration.ofSeconds(5), 1, Duration.ZERO, 262144, 4096, ToolExecutionPolicy.ApprovalMode.NONE), "0".repeat(64));
+                // 开发期统一 v1 为 30 秒总预算；已登记的旧 5 秒契约须清理测试数据后重新发现和发布。 TODO 后续待优化——工具调用时间过长
+                new ToolExecutionPolicy(Duration.ofSeconds(30), 1, Duration.ZERO, 262144, 4096, ToolExecutionPolicy.ApprovalMode.NONE), "0".repeat(64));
         var signed = new ToolDefinition(unsigned.definition(), unsigned.providerId(), unsigned.title(), unsigned.description(), unsigned.tags(),
                 unsigned.capability(), unsigned.inputSchema(), unsigned.outputSchema(), unsigned.configurationSchema(), unsigned.defaultConfiguration(),
                 unsigned.capabilities(), unsigned.risk(), unsigned.defaultPolicy(), ToolCatalogDigests.tool(unsigned));
