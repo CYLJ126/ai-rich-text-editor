@@ -279,6 +279,26 @@ public class ToolManagementHttpTest {
     }
 
     @Test
+    public void missingIdempotencyHeaderNamesTheRequiredHeaderBeforeDiscoveryOrWriting() throws Exception {
+        int reads = sourceReads.get(), checks = finalChecks.get();
+        String body = json.writeValueAsString(Map.of("scope", SCOPE, "reason", "private-review-reason"));
+        var expected = Map.of("zh-CN", "缺少必填请求头：Idempotency-Key。请在请求头中补充后重试。",
+                "zh-TW", "缺少必要請求標頭：Idempotency-Key。請補上請求標頭後重試。",
+                "en-US", "Missing required request header: Idempotency-Key. Add it to the request headers and retry.");
+        for (var language : expected.entrySet()) {
+            var result = raw("refreshLocalCatalog", body, null, "alice", language.getKey(), 400);
+            assertEquals("205055", result.path("code").asString());
+            assertEquals(language.getValue(), result.path("desc").asString());
+            assertFalse(result.path("success").asBoolean());
+            assertTrue(result.path("data").isNull());
+            assertFalse(result.toString().contains("private-review-reason"));
+        }
+        assertEquals(reads, sourceReads.get());
+        assertEquals(checks, finalChecks.get());
+        assertEquals(0, count("discovery_command"));
+    }
+
+    @Test
     public void parametersMissingKeysUnknownTypesAndBadVersionsFailBeforeWriting() throws Exception {
         request("saveBinding", createBody("A"), null, "alice", 400);
         for (var version : List.of("-1", "latest", "9223372036854775808")) {

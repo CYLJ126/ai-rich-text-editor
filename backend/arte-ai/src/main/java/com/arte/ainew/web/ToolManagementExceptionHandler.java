@@ -6,6 +6,7 @@ import com.arte.ainew.web.controller.NewAiToolController;
 import com.arte.ainew.web.controller.NewAiToolSubmissionController;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.i18n.MessageUtils;
 import com.arte.core.pojo.ResultContext;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -36,6 +38,9 @@ public class ToolManagementExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResultContext<Void>> handle(Exception error, HttpServletRequest request, Locale locale) {
+        if (error instanceof MissingRequestHeaderException missing) {
+            return missingHeader(missing, request, locale);
+        }
         if (error instanceof DispatchSchedulingException scheduling) {
             boolean full = scheduling.reason() == DispatchSchedulingException.Reason.QUEUE_FULL;
             var code = full ? ResultCodeEnum.AI_DISPATCH_QUEUE_FULL : ResultCodeEnum.AI_DISPATCH_UNAVAILABLE;
@@ -70,5 +75,19 @@ public class ToolManagementExceptionHandler {
         }
         log.warn("AI_TOOL_HTTP rejected method={} path={} status={} code={} type={}", request.getMethod(), request.getRequestURI(), status.value(), code.getCode(), error.getClass().getSimpleName());
         return ResponseEntity.status(status).body(ResultContext.fail(code, locale));
+    }
+
+    /**
+     * Spring 在进入 Controller 前校验必填请求头；仅输出服务端声明的头名称，不记录请求值或异常原文。
+     */
+    private ResponseEntity<ResultContext<Void>> missingHeader(MissingRequestHeaderException error, HttpServletRequest request, Locale locale) {
+        var code = ResultCodeEnum.AI_TOOL_INVALID_REQUEST;
+        boolean converted = error.isMissingAfterConversion();
+        String reason = converted ? "INVALID_REQUEST_HEADER" : "MISSING_REQUEST_HEADER";
+        String message = converted ? "result.ai.tool.invalidHeader" : "result.ai.tool.missingHeader";
+        log.warn("AI_TOOL_HTTP rejected method={} path={} status=400 code={} type={} reason={} header={}",
+                request.getMethod(), request.getRequestURI(), code.getCode(), error.getClass().getSimpleName(), reason, error.getHeaderName());
+        var body = ResultContext.<Void>fail(code, locale).setDesc(MessageUtils.get(locale, message, error.getHeaderName()));
+        return ResponseEntity.badRequest().body(body);
     }
 }

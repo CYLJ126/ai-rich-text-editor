@@ -188,6 +188,23 @@ outcome／rejection（刷新为 result）表示首次实际决定。首次保存
 validateTool 与 previewBindingUpgrade 的领域预检失败使用 HTTP 200 + valid=false；传输、当前授权或基础设施错误仍使用相应错误状态。
 命令领域拒绝的 data 保留安全原始回执；数据库错误不伪造回执。消息遵循现有语言设置，错误码使用现有体系及 AI_TOOL_* 扩展。
 
+必填请求头由 Spring MVC 根据 Controller 的 `@RequestHeader` 声明校验，缺失时在进入业务方法前抛出
+MissingRequestHeaderException。TOOL 管理／独立提交入口将其明确返回为 HTTP 400、code=205055，data 保持 null；例如：
+
+```json
+{
+  "code": "205055",
+  "desc": "缺少必填请求头：Idempotency-Key。请在请求头中补充后重试。",
+  "success": false,
+  "data": null,
+  "statistics": null
+}
+```
+
+提示按请求语言提供简体中文、繁体中文和英文；请求头转换后为空时提示该必填头无效。日志保留固定原因
+`reason=MISSING_REQUEST_HEADER`（转换后为空为 `INVALID_REQUEST_HEADER`）及服务端声明的 `header=Idempotency-Key`，
+不记录请求头值、请求正文或原始异常消息。校验不改变幂等语义：同次重试复用原键，新操作使用新键。
+
 建议本地联调顺序：登记真实来源／适配器 → 管理刷新 → managed 目录读取草稿 → 审核预检 → 发布 → 普通目录读取 → 新建本人绑定 →
 修订／历史读取 → 升级预览／确认 → 停用。
 
