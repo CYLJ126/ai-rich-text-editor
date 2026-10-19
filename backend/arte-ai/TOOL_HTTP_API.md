@@ -205,6 +205,13 @@ MissingRequestHeaderException。TOOL 管理／独立提交入口将其明确返�
 `reason=MISSING_REQUEST_HEADER`（转换后为空为 `INVALID_REQUEST_HEADER`）及服务端声明的 `header=Idempotency-Key`，
 不记录请求头值、请求正文或原始异常消息。校验不改变幂等语义：同次重试复用原键，新操作使用新键。
 
+请求体的 `@Valid` 字段校验失败同样保留 HTTP 400、code=205055、data=null，desc 按请求语言列出字段路径及固定约束原因； 例如
+publishTool 只提交 scope／reason 时，返回
+`请求参数校验失败：expectedVersion (必填), review (必填), tool (必填)。请检查必填项及字段约束。`。 日志增加
+`reason=INVALID_REQUEST_FIELDS fields=[expectedVersion:REQUIRED, review:REQUIRED, tool:REQUIRED]`。 字段去重排序，最多显示
+16 项，区分必填、格式、数值范围、长度／数量及一般非法值；不输出提交值、原始校验消息或动态 Map 键。 这只细化 Bean Validation
+失败的提示，JSON 无法解析、业务资格与领域拒绝仍按各自既有规则处理。
+
 建议本地联调顺序：登记真实来源／适配器 → 管理刷新 → managed 目录读取草稿 → 审核预检 → 发布 → 普通目录读取 → 新建本人绑定 →
 修订／历史读取 → 升级预览／确认 → 停用。
 

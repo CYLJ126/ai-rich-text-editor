@@ -299,6 +299,35 @@ public class ToolManagementHttpTest {
     }
 
     @Test
+    public void incompletePublishBodyReportsRequiredFieldsBeforePublishing() throws Exception {
+        var body = json.writeValueAsString(Map.of("scope", SCOPE, "reason", "private-review-reason"));
+        var before = finalChecks.get();
+        var result = raw("publishTool", body, "publish-missing-fields", "alice", "zh-CN", 400);
+        assertEquals("205055", result.path("code").asString());
+        assertEquals("请求参数校验失败：expectedVersion (必填), review (必填), tool (必填)。请检查必填项及字段约束。", result.path("desc").asString());
+        assertFalse(result.path("success").asBoolean());
+        assertTrue(result.path("data").isNull());
+        assertFalse(result.toString().contains("private-review-reason"));
+        assertEquals(before, finalChecks.get());
+        assertEquals("0", ok("getTool", Map.of("scope", SCOPE, "tool", v2.revision().tool().definition(), "managed", true))
+                .path("data").path("tool").path("release").path("version").asString());
+    }
+
+    @Test
+    public void nestedAndMalformedFieldsReportPathsWithoutRejectedValues() throws Exception {
+        var body = new LinkedHashMap<>(Map.of("scope", SCOPE, "tool", v2.revision().tool().definition(),
+                "expectedVersion", "private-invalid-version", "reason", "private-review-reason", "review", review()));
+        var review = new LinkedHashMap<>(review());
+        review.remove("examples");
+        body.put("review", review);
+        var result = request("publishTool", body, "publish-bad-fields", "alice", 400);
+        assertEquals("Request validation failed: expectedVersion (invalid format), review.examples (required). Check required fields and field constraints.",
+                result.path("desc").asString());
+        assertFalse(result.toString().contains("private-invalid-version"));
+        assertFalse(result.toString().contains("private-review-reason"));
+    }
+
+    @Test
     public void parametersMissingKeysUnknownTypesAndBadVersionsFailBeforeWriting() throws Exception {
         request("saveBinding", createBody("A"), null, "alice", 400);
         for (var version : List.of("-1", "latest", "9223372036854775808")) {
