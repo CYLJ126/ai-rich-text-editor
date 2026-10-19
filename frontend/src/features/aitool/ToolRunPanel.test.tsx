@@ -126,6 +126,9 @@ describe('工具调用预览和结果页面', () => {
       await screen.findByRole('button', {name: '确认并执行工具'}),
     ).toBeEnabled();
     expect(invokeTool).not.toHaveBeenCalled();
+    expect(screen.getByText('调用总上限')).toBeTruthy();
+    expect(screen.getByText(/总期限包含受理、排队、执行前校验和工具执行/)).toBeTruthy();
+    expect(screen.getByText(/查询或确认已受理调用不会延长原期限/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('调用总期限'), {
       target: {value: '20'},
     });

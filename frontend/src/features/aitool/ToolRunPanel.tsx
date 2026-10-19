@@ -457,7 +457,7 @@ export default function ToolRunPanel({
                     },
                     {
                       key: 'timeout',
-                      label: '执行上限',
+                      label: '调用总上限',
                       children: `${preview.value.timeoutMillis / 1000} 秒；最多 ${preview.value.maxAttempts} 次尝试；输出 ${preview.value.maxOutputBytes} 字节`,
                     },
                     {
@@ -467,6 +467,9 @@ export default function ToolRunPanel({
                     },
                   ]}
                 />
+                <Typography.Text type="secondary">
+                  总期限包含受理、排队、执行前校验和工具执行，工具仅使用剩余时间。预览不会启动调用；查询或确认已受理调用不会延长原期限。
+                </Typography.Text>
                 <Typography.Text strong>实际参数</Typography.Text>
                 <pre className="tool-json">{preview.value.argumentsJson}</pre>
                 <Collapse

@@ -258,7 +258,7 @@ final class ToolExecutionFixture implements AutoCloseable {
         jdbc.update("UPDATE arte_ai_attempt SET workspace_snapshot=? WHERE id_key=?", codec.encode(expired), CanonicalJson.key(value.attemptId()));
         // 过期夹具必须等真实时钟越过租约；相邻事务可能仍在 createdAt 的同一毫秒。
         long waitUntil = System.nanoTime() + Duration.ofSeconds(2).toNanos();
-        while (clock.instant().isBefore(expired.leaseExpiresAt()) || jdbc.queryForObject("SELECT CURRENT_TIMESTAMP", java.sql.Timestamp.class)
+        while (clock.instant().isBefore(expired.leaseExpiresAt()) || jdbc.queryForObject("SELECT CURRENT_TIMESTAMP(3)", java.sql.Timestamp.class)
                 .toInstant().toEpochMilli() < expired.leaseExpiresAt().toEpochMilli()) {
             if (System.nanoTime() >= waitUntil) throw new AssertionError("Fixture clock did not reach lease expiry");
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000);

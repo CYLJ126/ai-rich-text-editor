@@ -12,7 +12,10 @@ import java.sql.Timestamp;
  * @since 2026/10/4 23:30 ✾
  */
 public interface SystemMapper {
-    
+
+    /**
+     * 数据库当前时间保留毫秒，用于执行期限及租约仲裁；每次读取都访问 JDBC。
+     */
     Timestamp databaseTime();
 
     /**

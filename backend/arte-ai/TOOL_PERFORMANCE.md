@@ -1,7 +1,8 @@
 # AI TOOL 分阶段观测与基线（P01）
 
 日期：2026-10-19。P01 已增加测量及复测工具；P02 已减少重复授权读取，见 §7；P03 已合并固定材料读取并复用编译计划，见 §8。 P04
-已减少受理事务往返，见 §9；P05 已优化 Worker 领取和许可校验，见 §10；P06—P07 仍待分别实施。授权规则、事务边界、5
+已减少受理事务往返，见 §9；P05 已优化 Worker 领取和许可校验，见 §10；P06 已评估期限并校准数据库毫秒时钟，见 §11；P07
+待实施。授权规则、事务边界、5
 秒工具策略、调度容量、固定版本及 manifest 均未调整；没有数据库增量脚本。
 
 ## 1. 日志入口
@@ -411,4 +412,87 @@ HTTP 用例因沙箱禁止本机监听而出现 Socket Operation not permitted�
 `/tmp/arte-tool-p05-mysql-final.log`。额外的大小写不敏感表列补验通过，见 `/tmp/arte-tool-p05-mysql-collation.log`；
 该用例将消息键及许可类别临时列设为 utf8mb4_0900_ai_ci，仍拒绝大小写变体，普通基线库仍保持 utf8mb4_bin。
 
-本轮未连接业务数据库或 Redis，未重启业务应用，未做浏览器、全仓或正式持续负载验收；临时 MySQL 已删除。P06—P07 待分别实施。
+本轮未连接业务数据库或 Redis，未重启业务应用，未做浏览器、全仓或正式持续负载验收；临时 MySQL 已删除。本节记录 P05 完成时的状态，后续
+P06 见 §11。
+
+## 11. P06 期限评估与毫秒时钟校准
+
+### 评估结论与边界
+
+保留 `text.countCodePoints / v1` 的 **5 秒总上限**。P05 原始日志经本轮脚本重新统计，50 次调用在进入实际适配器时最少剩余
+**3978ms**，执行准备结束最少剩余 4075ms，受理结束最少剩余 4617ms；均非缺测，也没有起止剩余时间非正记录。
+这些是本机串行样本的观测最小值，不代表生产延迟上界；P07 仍需使用业务库网络路径与实际负载复测。
+
+检查同时发现 `SystemMapper.databaseTime` 读取 `CURRENT_TIMESTAMP`，在 MySQL 上只有整秒精度。 P05 的某次调用逻辑 deadline
+末尾为 `.933`，Attempt 策略保护期限末尾为 `.000`，网关因取更早值缩短了 933ms。 本轮改为 `CURRENT_TIMESTAMP(3)`，使
+Attempt／事件时间及租约、排队期限等判断使用数据库毫秒时间。 所有读取仍到 JDBC，不增加语句数、不改时钟权威，不重写旧 Invocation
+的绝对期限或旧 Attempt.createdAt。
+
+没有提高工具固定 timeout，因此不发布新工具版本、不重建绑定，也不替换 manifest；默认 short-threshold=10s 时仍为 TOOL_SHORT。
+将来若确需提高产品 timeout，必须发布新固定版本并核对绑定选版、节点 manifest、分类和容量；不能改页面秒数绕过原产品策略。
+
+### 期限语义及验收
+
+| 项目 | 当前行为 |
+|------|----------|
+| 预览 | 显示产品／绑定／服务器／请求求交的相对总上限；不创建 Invocation，预览耗时不消耗后续新提交期限 |
+| 新提交 | 受入口上下文与受理时刻推导的绝对 deadline 约束，受理、持锁、排队、预检和执行共用剩余时间 |
+| 执行前 | 网关取原逻辑 deadline 与 Attempt.createdAt + 固定策略 timeout 的较早值；不重新发放总时长 |
+| 原键确认 | 以本次新请求上下文重新授权和等待，返回原回执；原参数、键、deadline 和 acceptedAt 保持 |
+| 历史查询 | 使用当前查询请求的独立等待上限（服务器最大期限与 30 秒取小），原执行期限已过仍可按当前资格读取 |
+| 到期且未派发 | 按原队列／执行收尾，不创建 Attempt，不订阅业务适配器；确认与查询不续期或重新派发 |
+
+固定工具上限从进入受理组件的时刻推导，同时受入口绝对期限约束；入口身份解析受本次请求期限约束，不能把预览的相对工具上限理解为浏览器请求总耗时保证。
+原键确认仍经受理入口，其本次 HTTP 等待还受原请求 requestedTimeout 和服务器上限约束；独立等待不等于无限等待或重新取得执行资格。
+预览值是上限，不是执行时长保证或实时剩余秒数。页面已明确显示“调用总上限”并解释各阶段共用期限。
+
+`scripts/measure_tool_phases.py` 的各 stageMetrics 新增 `remainingStartMs`、`minimumRemainingStartMs`、
+`minimumRemainingEndMs`， 以及起止缺测／非正记录数。父子阶段可能收紧期限，不能直接相减当作纯排队或 CPU
+时间；缺测不归零，非正毫秒观测不代替持久化超时状态。
+
+### 修正后的本机复测
+
+原始统计：[p06-local-baseline.json](acceptance/p06-local-baseline.json)。仍为独立 MySQL 8.4.11、REPEATABLE-READ、
+utf8mb4_bin、128 MiB buffer pool、flush_log_at_trx_commit=1，Druid 最大 8 连接、JDK 21.0.8； 正式 MVC／平台授权／真实文本工具和自动
+Worker，10 次预热＋50 次串行测量，全部 HTTP 202 且最终 SUCCEEDED。 零预算预留，HTTP 与入口／受理 SQL 对账，无未归属 SQL；受理
+SQL 仍为 76、DISPATCH_LOAD 仍为 5、PREPARE_DISPATCH 仍为 32。
+
+| 阶段 | 本轮最小剩余时间 | 口径 |
+|------|-----------------:|------|
+| 受理结束 | 4722ms | ADMISSION.remainingEndMs |
+| 执行准备结束 | 4399ms | PREPARE_DISPATCH.remainingEndMs |
+| 进入实际适配器 | 4305ms | ADAPTER.remainingStartMs |
+| 终态提交结束 | 4179ms | TERMINAL_COMMIT.remainingEndMs |
+
+50 个样本均有这些阶段的期限记录，起止非正数为零。P05 50 个样本中 46 次网关保护期限比准备阶段的逻辑期限更早， 最大提前
+933ms；本轮 50 次差值全部为零。该差值取同一调用的 PREPARE_DISPATCH 与 ADAPTER 的 deadlineEpochMs，
+不把跨阶段耗时当作时钟精度，也不推断其他类型工具的保护期限永远必须等于逻辑期限。
+
+本轮 HTTP P50／P95／P99 为 **39.375／237.894／280.405ms**，提交到 Worker 首读为 **10／80／105ms**。
+采样时点和机器负载仍未受控，不把分位变化归因为单一修正。此处可确认毫秒精度修正和所记录的余量， 不能据本机串行 50
+次成功认定业务环境网络条件或正式双节点持续负载已达标。
+
+复现沿用 §5 Maven 命令，将开关设为 `-Dplatform.tool.p06.baseline=true`；只读汇总：
+
+```sh
+python3 backend/arte-ai/scripts/measure_tool_phases.py \
+  backend/arte-app/target/tool-p06-stage-events.log --output /tmp/tool-p06-baseline.json
+```
+
+本轮原始证据另存 `/tmp/arte-tool-p06-stage-events-mysql.log` 和 `/tmp/arte-tool-p06-stage-proof-mysql.json`。 旧日志重算使用
+`/tmp/arte-tool-p05-stage-events-mysql.log`，不修改 P05 已保存的原始基线或原执行数据。
+
+### 回归与交付
+
+最终后端定向回归 **371 项**通过（arte-ai 329、arte-app 42），独立 MySQL **14 项**通过，零失败／错误／跳过； 前端相关 **4 文件／29
+项**及统计脚本 **10 项**通过，修改前端文件 Biome lint 和 git diff --check 通过。 后端日志为
+`/tmp/arte-tool-p06-final-regression.log`，MySQL 为 `/tmp/arte-tool-p06-mysql.log`， 前端为
+`/tmp/arte-tool-p06-frontend.log`。H2 与 MySQL 的重叠用例按环境分别记录，不相加为独立测试数量。
+
+新增 MySQL 时钟用例只在本次事务连接设置会话 timestamp 的 `.789` 小数，证明 mapper 保留毫秒并在 finally 恢复；
+不修改服务器时钟。其余新增用例验证 2 秒服务器上限和 1 秒请求收紧、预览与受理一致、TOOL_SHORT／固定 manifest 保持，
+以及原调用过期后在当前资格下读取／原键确认、收尾后再次确认均不增加 Invocation、Attempt、DISPATCH 或费用预留。 既有 HTTP
+入口授权耗时、持锁等待、最终期限回滚、业务前拒绝及进入后 UNKNOWN、续租与旧 fencing 回归均保留。
+
+无需数据库脚本、新增配置、工具重新发布或重新绑定。后端重新构建重启、前端更新后生效；本轮未重启业务应用，
+未连接业务数据库／Redis、未调用外部模型，未做浏览器、全仓或正式持续负载验收；临时 MySQL 已删除。P07 待实施。

@@ -702,7 +702,7 @@ public class ToolSchedulingIntegrationTest {
             r.f.jdbc.update("UPDATE arte_ai_attempt SET workspace_snapshot=?", r.f.codec.encode(expired));
             // 租约判断使用数据库毫秒时钟；不能假定下一次事务已经越过 createdAt + 1ms。
             long waitUntil = System.nanoTime() + Duration.ofSeconds(2).toNanos();
-            while (r.f.jdbc.queryForObject("SELECT CURRENT_TIMESTAMP", java.sql.Timestamp.class).toInstant()
+            while (r.f.jdbc.queryForObject("SELECT CURRENT_TIMESTAMP(3)", java.sql.Timestamp.class).toInstant()
                     .toEpochMilli() < expired.leaseExpiresAt().toEpochMilli()) {
                 assertTrue("Database clock did not reach lease expiry", System.nanoTime() < waitUntil);
                 Thread.sleep(1);

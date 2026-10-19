@@ -8,6 +8,8 @@ import com.arte.ainew.web.ToolManagementValues;
 
 /**
  * 可确认的公开方案；精确数值用 JSON 原文传输，不返回内部执行目标或临时授权。
+ * timeoutMillis 是产品、绑定、服务器和请求求交后的相对总上限，不是适配器的独立执行时间。
+ * 新提交另按入口及受理时刻固定绝对期限；预览耗时不计入随后新提交，原键确认不重置已保存期限。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/19

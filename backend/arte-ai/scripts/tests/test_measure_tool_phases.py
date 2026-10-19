@@ -23,6 +23,28 @@ class ToolPhaseReportTest(unittest.TestCase):
         self.assertEqual({"p50": 25, "p95": 48, "p99": 50}, phases.percentiles(list(range(1, 51))))
         self.assertIsNone(phases.percentiles([]))
 
+    def test_remaining_time_minima_include_low_and_nonpositive_samples(self):
+        rows = [stage(started=100, remainingStartMs=4900, remainingEndMs=4890),
+                stage(started=200, remainingStartMs=10, remainingEndMs=0),
+                stage(started=300, remainingStartMs=-1, remainingEndMs=-5)]
+        metric = phases.summarize(rows)["stageMetrics"]["ADMISSION"]
+        self.assertEqual(-1, metric["minimumRemainingStartMs"])
+        self.assertEqual(-5, metric["minimumRemainingEndMs"])
+        self.assertEqual(1, metric["nonPositiveRemainingStartSamples"])
+        self.assertEqual(2, metric["nonPositiveRemainingEndSamples"])
+        self.assertEqual(0, metric["missingRemainingStartSamples"])
+
+    def test_missing_remaining_time_is_not_zero_and_filtered_samples_stay_separate(self):
+        rows = [stage(remainingEndMs=None), stage(invocation="second", started=300, remainingStartMs=100, remainingEndMs=90)]
+        metric = phases.summarize(rows, trace_id="trace")["stageMetrics"]["ADMISSION"]
+        self.assertIsNone(metric["minimumRemainingStartMs"])
+        self.assertIsNone(metric["minimumRemainingEndMs"])
+        self.assertIsNone(metric["remainingStartMs"])
+        self.assertEqual(1, metric["missingRemainingStartSamples"])
+        self.assertEqual(1, metric["missingRemainingEndSamples"])
+        self.assertEqual(0, metric["nonPositiveRemainingEndSamples"])
+        self.assertEqual(100, phases.summarize(rows, skip=1)["stageMetrics"]["ADMISSION"]["minimumRemainingStartMs"])
+
     def test_deduplication_and_parent_sql_are_not_added(self):
         rows = [stage(), stage("COMMIT_WRITES", sqlCount=2), stage()]
         report = phases.summarize(rows)

@@ -74,7 +74,14 @@ def summarize(records, skip=0, trace_id=None, allow_cross_node=False):
             "sqlExecuteMs": percentiles([row["sqlExecuteMs"] for row in sql]),
             "sqlUnobservedSamples": len(samples) - len(sql),
             "partialSqlSamples": sum(row.get("sqlInFlight", 0) > 0 for row in samples),
+            "remainingStartMs": percentiles([row["remainingStartMs"] for row in samples if row.get("remainingStartMs") is not None]),
             "remainingEndMs": percentiles([row["remainingEndMs"] for row in samples if row.get("remainingEndMs") is not None]),
+            "minimumRemainingStartMs": min((row["remainingStartMs"] for row in samples if row.get("remainingStartMs") is not None), default=None),
+            "minimumRemainingEndMs": min((row["remainingEndMs"] for row in samples if row.get("remainingEndMs") is not None), default=None),
+            "missingRemainingStartSamples": sum(row.get("remainingStartMs") is None for row in samples),
+            "missingRemainingEndSamples": sum(row.get("remainingEndMs") is None for row in samples),
+            "nonPositiveRemainingStartSamples": sum(row.get("remainingStartMs") is not None and row["remainingStartMs"] <= 0 for row in samples),
+            "nonPositiveRemainingEndSamples": sum(row.get("remainingEndMs") is not None and row["remainingEndMs"] <= 0 for row in samples),
         }
     gaps, cross_node, clock_conflicts, missing = [], 0, 0, 0
     for key in selected:
@@ -125,7 +132,9 @@ def summarize(records, skip=0, trace_id=None, allow_cross_node=False):
                   "CANCELLED with SQL in flight is partial; inspect ADMISSION_TRANSACTION and commit/rollback points.",
                   "FOR UPDATE duration is not actual lock wait. No lock-wait value is inferred.",
                   "Commit-to-worker gap includes scheduling/claim before the first invocation read; it is not pure polling delay.",
-                  "Cross-node wall-clock gaps are excluded unless explicitly allowed; clocks must be calibrated."],
+                  "Cross-node wall-clock gaps are excluded unless explicitly allowed; clocks must be calibrated.",
+                  "Remaining-time minima describe recorded samples, not an execution-time guarantee; parent/child deadlines may tighten.",
+                  "Missing remaining time is unobserved, not zero; non-positive millisecond values do not establish durable timeout state."],
     }
 
 

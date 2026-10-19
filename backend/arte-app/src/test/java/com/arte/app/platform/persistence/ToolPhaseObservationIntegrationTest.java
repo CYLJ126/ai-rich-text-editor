@@ -40,9 +40,11 @@ class ToolPhaseObservationIntegrationTest {
         boolean p03 = Boolean.getBoolean("platform.tool.p03.baseline");
         boolean p04 = Boolean.getBoolean("platform.tool.p04.baseline");
         boolean p05 = Boolean.getBoolean("platform.tool.p05.baseline");
-        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03 || p04 || p05;
+        boolean p06 = Boolean.getBoolean("platform.tool.p06.baseline");
+        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03 || p04 || p05 || p06;
         final String outputPrefix;
-        if (p05) outputPrefix = "target/tool-p05";
+        if (p06) outputPrefix = "target/tool-p06";
+        else if (p05) outputPrefix = "target/tool-p05";
         else if (p04) outputPrefix = "target/tool-p04";
         else if (p03) outputPrefix = "target/tool-p03";
         else if (p02) outputPrefix = "target/tool-p02";

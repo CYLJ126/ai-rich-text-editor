@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.arte.ainew.persistence.mybatis.mapper.SystemMapper">
     <select id="databaseTime" resultType="java.sql.Timestamp" useCache="false">
-        SELECT CURRENT_TIMESTAMP
+        SELECT CURRENT_TIMESTAMP(3)
     </select>
     <insert id="ensureLock">
         <!-- 已存在时直接取得排他记录锁；INSERT IGNORE 的共享重复键锁会在并发 FOR UPDATE 升级时死锁。 -->
