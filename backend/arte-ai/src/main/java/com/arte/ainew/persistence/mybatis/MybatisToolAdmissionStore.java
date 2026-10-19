@@ -12,6 +12,8 @@ import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
+import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -24,6 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -37,6 +42,7 @@ import static com.arte.ainew.serialization.CanonicalJson.key;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 16:30 ✾
  */
+@Slf4j
 public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
 
     public static final int MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
@@ -45,7 +51,6 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
     private final SystemMapper locks;
     private final MybatisExecutionPersistence executions;
     private final MybatisToolBindingStore bindings;
-    private final MybatisToolCatalogStore catalog;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
     private final TransactionTemplate transaction;
@@ -75,7 +80,6 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
         locks = sessions.getMapper(SystemMapper.class);
         this.executions = executions;
         this.bindings = bindings;
-        this.catalog = catalog;
         this.codec = Objects.requireNonNull(codec);
         this.scheduler = Objects.requireNonNull(scheduler);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
@@ -83,11 +87,29 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
     }
 
     private <T> Mono<T> io(Supplier<T> work) {
-        return Mono.fromCallable(() -> {
-            if (Schedulers.isInNonBlockingThread())
-                throw new IllegalStateException("Tool admission requires a bounded JDBC worker");
-            return transaction.execute(status -> work.get());
-        }).subscribeOn(scheduler);
+        return io(work, null, null);
+    }
+
+    private <T> Mono<T> io(Supplier<T> work, String invocationId, String traceId) {
+        return Mono.defer(() -> {
+            var cancelled = new AtomicBoolean();
+            // 仅屏蔽本次订阅对已运行 JDBC 的中断；cache 持有其终态，避免迟到异常掉入全局 onErrorDropped。
+            // 不跨请求缓存受理结果；未开始的已取消任务直接跳过，已开始的事务仍须在末尾检查 deadline 并回滚。
+            return Mono.fromCallable(() -> {
+                if (cancelled.get()) return null;
+                if (Schedulers.isInNonBlockingThread())
+                    throw new IllegalStateException("Tool admission requires a bounded JDBC worker");
+                return transaction.execute(status -> work.get());
+            }).subscribeOn(scheduler).doOnError(error -> {
+                if (!cancelled.get()) return;
+                if (error instanceof DeadlineExceeded || error instanceof CancellationException)
+                    log.debug("AI_TOOL_ADMISSION finished after caller cancellation, invocationId={}, traceId={}, reason={}",
+                            invocationId, traceId, error.getClass().getSimpleName());
+                else
+                    log.warn("AI_TOOL_ADMISSION failed after caller cancellation, invocationId={}, traceId={}, type={}",
+                            invocationId, traceId, error.getClass().getName());
+            }).cache().doOnCancel(() -> cancelled.set(true));
+        });
     }
 
     @Override
@@ -124,7 +146,6 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
             String ownerKey = ownerKey(owner), bindingKey = key(candidate.input().bindingId()), idem = key(context.idempotencyKey());
             String lock = key("tool-admission", ownerKey, bindingKey, idem);
             locks.ensureLock(lock);
-            locks.lock(lock);
             var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem));
             if (previous != null) {
                 if (!previous.snapshot().submissionDigest().equals(candidate.submissionDigest()))
@@ -136,11 +157,12 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                 return StoreOutcome.replayed(previous);
             }
             // 新受理重新按当前绑定／审核兼容链解析，拒绝预检后发生的配置或选版变化；重放不走此分支。
-            var current = bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId());
+                    var loaded = new AtomicReference<ToolCatalogStore.Batch>();
+                    var current = bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId(), loaded::set);
             if (!current.successful()) throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
             if (!current.value().equals(candidate.binding()))
                 throw new MybatisExecutionPersistence.Rejected(VERSION_CONFLICT);
-            var artifacts = catalog.releaseArtifacts(candidate.binding().tool().tool().definition());
+                    var artifacts = loaded.get();
             if (artifacts == null || !new HashSet<>(artifacts.schemas()).equals(new HashSet<>(candidate.schemas())))
                 throw new IllegalStateException("Tool execution schema integrity mismatch");
             requireUnexpired(candidate);
@@ -157,7 +179,8 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                 throw new IllegalStateException("Tool execution snapshot was not recorded");
             requireUnexpired(candidate);
             return StoreOutcome.applied(new Accepted(outcome.value(), candidate));
-        })).onErrorResume(MybatisExecutionPersistence.Rejected.class, rejected -> Mono.just(StoreOutcome.rejected(rejected.code)));
+                }, candidate.request().context().executionId(), candidate.request().context().traceId()))
+                .onErrorResume(MybatisExecutionPersistence.Rejected.class, rejected -> Mono.just(StoreOutcome.rejected(rejected.code)));
     }
 
     private void requireUnexpired(ToolExecutionSnapshot snapshot) {

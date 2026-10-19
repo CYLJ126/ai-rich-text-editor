@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.arte.ainew.pojo.tool.ToolBindingResult.Rejection.*;
@@ -305,6 +306,15 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         return resolveLocked(owner, bindingId);
     }
 
+    /**
+     * 同库受理复用本次解析已核验的不可变目录材料；不缓存跨事务的治理或权限事实。
+     */
+    ToolBindingResult<ToolBindingResolution> resolveInCurrentTransaction(ExecutionOwner owner, String bindingId,
+                                                                         Consumer<ToolCatalogStore.Batch> artifacts) {
+        requireTransaction();
+        return resolvePlan(owner, bindingId, true, artifacts);
+    }
+
     @Override
     public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
         require(owner, bindingId);
@@ -316,6 +326,12 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolBindingResult<ToolBindingResolution> resolvePlan(ExecutionOwner owner, String bindingId, boolean persist) {
+        return resolvePlan(owner, bindingId, persist, ignored -> {
+        });
+    }
+
+    private ToolBindingResult<ToolBindingResolution> resolvePlan(ExecutionOwner owner, String bindingId, boolean persist,
+                                                                 Consumer<ToolCatalogStore.Batch> artifacts) {
         require(owner, bindingId);
         if (persist) lock(bindingKey(bindingId));
         var before = header(bindingId, persist);
@@ -324,7 +340,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         var revision = Objects.requireNonNull(readRevision(before.revision(), before, persist), "Missing current binding revision");
         try {
             if (!before.enabled()) throw reject(BINDING_DISABLED);
-            var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock), persist);
+            var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock), persist, artifacts);
             if (!persist) return ToolBindingResult.success(plan, before.version());
             var row = mapper.toolBindingResolution(id(plan.definition()));
             if (row == null && persist) {
@@ -392,6 +408,12 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolBindingResolution plan(ExecutionOwner owner, DefinitionRef revision, ToolBindingSettings settings, boolean creating, Instant now, boolean lock) {
+        return plan(owner, revision, settings, creating, now, lock, ignored -> {
+        });
+    }
+
+    private ToolBindingResolution plan(ExecutionOwner owner, DefinitionRef revision, ToolBindingSettings settings, boolean creating,
+                                       Instant now, boolean lock, Consumer<ToolCatalogStore.Batch> onArtifacts) {
         if (!settings.secrets().isEmpty()) throw reject(SECRET_UNSUPPORTED);
         var release = select(settings, creating, now, lock);
         var artifacts = catalog.releaseArtifacts(release.tool());
@@ -400,6 +422,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         String contract = ToolReleaseDigests.contract(tool, artifacts.providers().getFirst(), artifacts.schemas());
         if (!contract.equals(release.publication().contractDigest()))
             throw new IllegalStateException("Published contract integrity failure");
+        onArtifacts.accept(artifacts);
         var origins = tool.tool().risk().allowedNetworkOrigins();
         if (settings.networkOrigins() != null) {
             if (!origins.containsAll(settings.networkOrigins())) throw reject(NETWORK_NOT_ALLOWED);

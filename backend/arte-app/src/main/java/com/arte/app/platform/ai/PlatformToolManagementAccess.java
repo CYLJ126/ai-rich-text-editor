@@ -222,8 +222,9 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
             Set<String> scopes;
             if (databaseMode) {
                 boolean aiEnabled = enabled(scope);
-                boolean mayInvoke = false;
-                if (aiEnabled) {
+                // 写入门控刚以同一事务的当前事实验证过 AI_USE，不再退出授权批次后重复整轮锁读。
+                boolean mayInvoke = aiEnabled && operation == Operation.BINDING_WRITE;
+                if (aiEnabled && operation != Operation.BINDING_WRITE) {
                     try {
                         authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_AI_USE, "ai-tool-eligibility"));
                         mayInvoke = true;

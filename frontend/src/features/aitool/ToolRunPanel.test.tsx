@@ -1,11 +1,13 @@
 import React from 'react';
-import {cleanup, fireEvent, render, screen, waitFor,} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor, within,} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import ToolRunPanel from './ToolRunPanel';
 import {detail, scope, toolDetail} from './fixtures.testdata';
 import {getTool, getToolBinding} from '@/services/arte-ai/tool';
 import {invokeTool, previewToolInvocation,} from '@/services/arte-ai/toolInvocation';
 import {getInvocationResult, getInvocationStatus} from '@/services/arte-ai';
+import {AiApiError} from '@/services/arte-ai/request';
+import {storageKey, writeValue} from '@/features/ainew/storage';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/arte-ai/tool', async (original) => ({
@@ -89,6 +91,33 @@ const show = () =>
     />,
   );
 describe('工具调用预览和结果页面', () => {
+  it('旧提交确认超时后可明确暂存，重新预览新调用，并保留原提交恢复入口', async () => {
+    const context = {userId: 'user', scope};
+    const requestJson = JSON.stringify({
+      scope,
+      input: {bindingId: detail.binding.bindingId, arguments: {}},
+      expectedPlanDigest: 'a'.repeat(64)
+    });
+    writeValue(storageKey(context, 'tool-invocation'), {key: 'old-key', requestJson});
+    vi.mocked(invokeTool).mockRejectedValue(new AiApiError(504, {code: '205005'}));
+    show();
+    fireEvent.click(screen.getByRole('button', {name: '确认原调用'}));
+    await screen.findByText(/确认请求超时/);
+    fireEvent.click(screen.getByRole('button', {name: '暂存并开始新调用'}));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('暂存不会取消它');
+    fireEvent.click(within(dialog).getByRole('button', {name: '暂存并开始新调用'}));
+    const preview = await screen.findByRole('button', {name: '预览调用'});
+    expect(screen.getByText('待确认提交（1）')).toBeTruthy();
+    expect(invokeTool).toHaveBeenCalledTimes(1);
+    fireEvent.click(preview);
+    await screen.findByRole('button', {name: '确认并执行工具'});
+    expect(invokeTool).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', {name: '恢复待确认提交 1'}));
+    await screen.findByRole('button', {name: '确认原调用'});
+    expect(invokeTool).toHaveBeenCalledTimes(1);
+  });
+
   it('预览不提交；修改期限撤销确认方案', async () => {
     show();
     await waitFor(() => expect(getTool).toHaveBeenCalled());

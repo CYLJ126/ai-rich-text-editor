@@ -335,7 +335,7 @@ export default function ToolRunPanel({
                 <Alert
                   type="warning"
                   title="提交结果尚待确认"
-                  description="请使用原输入和原幂等键确认。刷新、切换空间或网络中断不会撤销服务器调用。"
+                  description="确认超时不代表原调用未受理。您可以继续确认，或暂存本次提交后开始新的独立调用；暂存不会停止原调用。"
                 />
                 <Button
                   type="primary"
@@ -344,6 +344,25 @@ export default function ToolRunPanel({
                   onClick={execution.retry}
                 >
                   确认原调用
+                </Button>
+                <Button
+                  disabled={execution.blocked || execution.busy}
+                  onClick={() => modal.confirm({
+                    title: '暂存待确认提交并开始新调用？',
+                    content: '原调用可能已经受理，暂存不会取消它。原输入和原幂等键会保留在当前浏览器会话的待确认列表，可稍后恢复。新调用是独立操作，须重新预览并确认；使用相同参数可能重复执行。',
+                    okText: '暂存并开始新调用',
+                    cancelText: '继续确认原调用',
+                    onOk: () => {
+                      if (execution.parkPending()) {
+                        setArgumentsJson('{}');
+                        setPreview(null);
+                        setError(null);
+                        onDirty(false);
+                      }
+                    },
+                  })}
+                >
+                  暂存并开始新调用
                 </Button>
               </>
             )}
@@ -516,6 +535,31 @@ export default function ToolRunPanel({
             </Space.Compact>
           </Card>
         </>
+      )}
+      {!!execution.pending.length && (
+        <Card size="small" title={`待确认提交（${execution.pending.length}）`}>
+          <Flex vertical gap={12}>
+            <Typography.Text type="secondary">
+              暂存在当前浏览器会话，按账号和空间隔离。原调用可能仍在执行；恢复只展示原提交，不会自动重发。
+            </Typography.Text>
+            {execution.pending.map((operation, index) => {
+              const body = JSON.parse(operation.requestJson);
+              const name = bindings.find(binding => binding.bindingId === body.input.bindingId)?.name ?? '工具调用';
+              return (
+                <Flex key={operation.key} wrap gap={8} justify="space-between" align="center">
+                  <Typography.Text>{index + 1}. {name} · {operation.key.slice(0, 8)}</Typography.Text>
+                  <Button
+                    aria-label={`恢复待确认提交 ${index + 1}`}
+                    disabled={locked || execution.busy}
+                    onClick={() => execution.restorePending(operation.key)}
+                  >
+                    恢复确认
+                  </Button>
+                </Flex>
+              );
+            })}
+          </Flex>
+        </Card>
       )}
     </Flex>
   );

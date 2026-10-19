@@ -196,11 +196,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     /**
-     * INSERT IGNORE 仅用于无业务数据的锁行；所有业务唯一冲突不能忽略。
+     * upsert 仅用于无业务数据的锁行，并直接取得排他锁；所有业务唯一冲突不能忽略。
      */
     private void lock(String key) {
         system.ensureLock(key);
-        system.lock(key);
     }
 
     private <T> T workspaceSnapshot(String encoded, Class<T> type) {
@@ -492,7 +491,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         }
         if (requireClassifiedTools && candidate.request().kind() == CapabilityDescriptor.Kind.TOOL && !scheduling.enabled())
             throw new DispatchSchedulingException(DispatchSchedulingException.Reason.NODE_NOT_READY);
-        scheduling.admit(candidate, command.dispatchPlan());
+        boolean tool = candidate.request().kind() == CapabilityDescriptor.Kind.TOOL;
+        if (!tool) scheduling.admit(candidate, command.dispatchPlan());
         require(candidate.request().options().deadline().isAfter(now()), INVALID_STATE);
         lock(hash("invocation-id", id(candidate)));
         require(workspaceSnapshot(execution.invocationSnapshot(hash(id(candidate)), false), Invocation.class) == null, IDEMPOTENCY_CONFLICT);
@@ -563,6 +563,9 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
         event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
         outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
+        // 新 TOOL 行在提交前对 Worker 不可见；把队列仲裁后移，缩短全局调度锁持有时间。
+        // 容量不足仍回滚整份受理；生成原有会话及重试的取锁顺序保持。
+        if (tool) scheduling.admit(accepted, command.dispatchPlan());
         scheduling.classify(accepted, command.dispatchPlan());
         return StoreOutcome.applied(accepted);
     }

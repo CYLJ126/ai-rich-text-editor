@@ -59,9 +59,118 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('独立 TOOL 原调用恢复', () => {
+  it('连续确认超时后可暂存并创建独立调用，刷新仍能用原输入和原键恢复', async () => {
+    vi.mocked(invokeTool).mockRejectedValue(new AiApiError(504, {code: '205005'}));
+    const first = renderHook(() => useToolInvocation(context));
+    act(() => first.result.current.start(requestJson));
+    await waitFor(() => expect(first.result.current.busy).toBe(false));
+    const original = saved();
+    act(() => first.result.current.retry());
+    await waitFor(() => expect(first.result.current.error).toContain('确认请求超时'));
+    act(() => expect(first.result.current.parkPending()).toBe(true));
+    expect(first.result.current.record).toBeNull();
+    expect(first.result.current.pending).toEqual([original]);
+    expect(invokeTool).toHaveBeenCalledTimes(2);
+    first.unmount();
+
+    const restored = renderHook(() => useToolInvocation(context));
+    expect(restored.result.current.pending).toEqual([original]);
+    expect(invokeTool).toHaveBeenCalledTimes(2);
+    vi.mocked(invokeTool).mockResolvedValue(accepted);
+    act(() => restored.result.current.start(requestJson));
+    await waitFor(() => expect(restored.result.current.status?.state).toBe('SUCCEEDED'));
+    expect(vi.mocked(invokeTool).mock.calls[2][1]).not.toBe(original.key);
+    expect(restored.result.current.pending).toEqual([original]);
+    act(() => restored.result.current.clear());
+    act(() => restored.result.current.restorePending(original.key));
+    expect(restored.result.current.record).toEqual(original);
+    expect(invokeTool).toHaveBeenCalledTimes(3);
+    act(() => restored.result.current.retry());
+    await waitFor(() => expect(restored.result.current.record?.acceptedId).toBe('original'));
+    expect(vi.mocked(invokeTool).mock.calls[3].slice(0, 2)).toEqual([original.requestJson, original.key]);
+    expect(restored.result.current.pending).toEqual([]);
+  });
+
+  it('暂存落盘失败保留当前提交，不开放新调用', () => {
+    const original = {key: 'original-key', requestJson};
+    writeValue(storageKey(context, 'tool-invocation'), original);
+    const storage = sessionStorage;
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: (key: string, value: string) => {
+        if (key === storageKey(context, 'tool-invocation-pending')) throw new Error('quota');
+        storage.setItem(key, value);
+      },
+      removeItem: (key: string) => storage.removeItem(key),
+    });
+    const {result} = renderHook(() => useToolInvocation(context));
+    act(() => expect(result.current.parkPending()).toBe(false));
+    expect(result.current.record).toEqual(original);
+    expect(result.current.error).toContain('无法保存待确认调用');
+    act(() => result.current.start(requestJson));
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
+
+  it('重复暂存和恢复不丢记录，不自动提交，待确认列表按账号和空间隔离', () => {
+    const original = {key: 'original-key', requestJson};
+    writeValue(storageKey(context, 'tool-invocation'), original);
+    const {result} = renderHook(() => useToolInvocation(context));
+    act(() => result.current.parkPending());
+    act(() => result.current.restorePending(original.key));
+    act(() => result.current.parkPending());
+    expect(result.current.pending).toEqual([original]);
+    const otherUser = renderHook(() => useToolInvocation({...context, userId: 'other'}));
+    const otherSpace = renderHook(() => useToolInvocation({
+      ...context,
+      scope: {...context.scope, workspaceId: 'other'}
+    }));
+    expect(otherUser.result.current.pending).toEqual([]);
+    expect(otherSpace.result.current.pending).toEqual([]);
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
+
+  it('待确认列表满时保留当前提交和全部旧记录', () => {
+    const pending = Array.from({length: 20}, (_, index) => ({key: `pending-${index}`, requestJson}));
+    writeValue(storageKey(context, 'tool-invocation-pending'), pending);
+    writeValue(storageKey(context, 'tool-invocation'), {key: 'current', requestJson});
+    const {result} = renderHook(() => useToolInvocation(context));
+    act(() => expect(result.current.parkPending()).toBe(false));
+    expect(result.current.record?.key).toBe('current');
+    expect(result.current.pending).toEqual(pending);
+    expect(result.current.error).toContain('20 条');
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
+
+  it('损坏的待确认列表阻止覆盖原记录', () => {
+    writeValue(storageKey(context, 'tool-invocation-pending'), [{key: 'broken', requestJson: '{}'}]);
+    const {result} = renderHook(() => useToolInvocation(context));
+    expect(result.current.blocked).toBe(true);
+    act(() => result.current.start(requestJson));
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([504, 409])('受理期限失败 HTTP %s 明确提示超时，刷新后仍用原输入和原键确认', async (statusCode) => {
+    vi.mocked(invokeTool)
+      .mockRejectedValueOnce(new AiApiError(statusCode, {code: '205005'}))
+      .mockResolvedValue(accepted);
+    const first = renderHook(() => useToolInvocation(context));
+    act(() => first.result.current.start(requestJson));
+    await waitFor(() => expect(first.result.current.error).toContain('工具调用受理超时'));
+    const original = saved();
+    expect(original.requestJson).toBe(requestJson);
+    expect(first.result.current.record?.key).toBe(original.key);
+    first.unmount();
+    const restored = renderHook(() => useToolInvocation(context));
+    expect(invokeTool).toHaveBeenCalledTimes(1);
+    act(() => restored.result.current.retry());
+    await waitFor(() => expect(restored.result.current.record?.acceptedId).toBe('original'));
+    expect(vi.mocked(invokeTool).mock.calls[1].slice(0, 2)).toEqual([original.requestJson, original.key]);
+  });
+
   it('先落盘再发送，重复点击不创建第二条调用', async () => {
     vi.mocked(invokeTool).mockImplementation(() => {
       expect(saved().requestJson).toBe(requestJson);

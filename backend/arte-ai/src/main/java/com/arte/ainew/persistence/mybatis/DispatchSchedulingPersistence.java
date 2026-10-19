@@ -55,8 +55,8 @@ final class DispatchSchedulingPersistence {
 
     private void lock() {
         var key = CanonicalJson.key("dispatch-scheduling", "v1");
+        // upsert 在新建／重复键分支均取得排他记录锁，事务内无需再 SELECT FOR UPDATE。
         locks.ensureLock(key);
-        locks.lock(key);
     }
 
     private void pool() {

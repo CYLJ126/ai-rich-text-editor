@@ -19,6 +19,53 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolLocalBaselineTest {
 
     @Test
+    void admissionSqlRoundTrips() throws Exception {
+        assertNotNull(System.getProperty("platform.test.mysql"), "SQL baseline requires isolated MySQL");
+        try (var rig = new ToolAcceptanceRig()) {
+            rig.context().run(c -> {
+                assertNull(c.getStartupFailure());
+                var mvc = rig.mvc(c);
+                rig.publish(mvc);
+                var command = rig.command(mvc, rig.prepare(mvc), "SQL 往返计数😀");
+                var before = sqlCounts(rig);
+                long started = System.nanoTime();
+                rig.post(mvc, "tool/invokeTool", command, "sql-count", 202);
+                double elapsed = (System.nanoTime() - started) / 1e6;
+                var delta = new TreeMap<String, Long>();
+                sqlCounts(rig).forEach((sql, count) -> {
+                    long difference = count - before.getOrDefault(sql, 0L);
+                    if (difference > 0) delta.put(sql, difference);
+                });
+                long policyReads = delta.entrySet().stream()
+                        .filter(e -> e.getKey().startsWith("SELECT") && e.getKey().contains("`arte_platform_workspace_policy`")
+                                && e.getKey().contains("FOR UPDATE"))
+                        .mapToLong(Map.Entry::getValue).sum();
+                // 入口授权和最终受理事务各一次当前事实锁读，保留两个边界，消除各自内部的重复轮次。
+                assertEquals(2, policyReads);
+                long statements = delta.values().stream().mapToLong(Long::longValue).sum();
+                String report = rig.json.writerWithDefaultPrettyPrinter().writeValueAsString(
+                        Map.of("admissionBusinessSqlCount", statements, "currentWorkspacePolicyReads", policyReads,
+                                "scope", "SQL referencing arte_* tables; excludes session, transaction and database-clock statements",
+                                "admissionMs", elapsed, "statements", delta));
+                Files.writeString(Path.of("target/tool-admission-sql-baseline.json"), report);
+                System.out.println("TOOL_ADMISSION_SQL_BASELINE=" + report);
+            });
+        }
+    }
+
+    private static Map<String, Long> sqlCounts(ToolAcceptanceRig rig) {
+        var counts = new HashMap<String, Long>();
+        // 只读取该随机测试库的归一化计数，不清空全局统计，不记录 SQL 参数。
+        rig.base.f.jdbc.query("SELECT DIGEST_TEXT,COUNT_STAR FROM performance_schema.events_statements_summary_by_digest WHERE SCHEMA_NAME=?",
+                rows -> {
+                    String sql = rows.getString(1);
+                    if (sql != null && sql.contains("`arte_") && !sql.contains("performance_schema"))
+                        counts.merge(sql, rows.getLong(2), Long::sum);
+                }, rig.base.f.database);
+        return counts;
+    }
+
+    @Test
     void baseline() throws Exception {
         assertNotNull(System.getProperty("platform.test.mysql"), "Baseline requires isolated MySQL");
         try (var rig = new ToolAcceptanceRig()) {

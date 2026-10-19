@@ -16,11 +16,17 @@ import com.arte.core.enums.ResultCodeEnum;
 import org.junit.Test;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.*;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.arte.ainew.tool.discovery.LocalToolFixtures.object;
 import static com.arte.ainew.tool.discovery.LocalToolFixtures.text;
@@ -411,6 +417,84 @@ public class ToolAdmissionIntegrationTest {
             assertCounts(f, 0);
             assertEquals(0, f.wakeups.get());
         }
+    }
+
+    @Test
+    public void lateDeadlineAfterHttpTimeoutRollsBackWithoutDroppedErrorOrJdbcInterruption() throws Exception {
+        assertLateRollback(false);
+    }
+
+    @Test
+    public void unexpectedLateTransactionFailureIsConsumedAndStillRollsBack() throws Exception {
+        assertLateRollback(true);
+    }
+
+    private void assertLateRollback(boolean unexpectedFailure) throws Exception {
+        var writer = Schedulers.newBoundedElastic(1, 8, "tool-late-rollback");
+        var atFinalCheck = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var completed = new CountDownLatch(1);
+        var interrupted = new AtomicBoolean();
+        var completionStatus = new AtomicInteger(-1);
+        var dropped = new CopyOnWriteArrayList<Throwable>();
+        Hooks.onErrorDropped(dropped::add);
+        try (var f = new ToolAdmissionFixture()) {
+            var candidate = f.service.preview(f.input(), f.context("late-rollback", "original-key")).block(WAIT);
+            var checks = new AtomicInteger();
+            Clock delayed = new Clock() {
+                public ZoneId getZone() {
+                    return ZoneOffset.UTC;
+                }
+
+                public Clock withZone(ZoneId zone) {
+                    return this;
+                }
+
+                public Instant instant() {
+                    if (checks.incrementAndGet() == 1) return candidate.receivedAt();
+                    // 真正写入快照及 Outbox 后才阻塞，模拟 HTTP 超时后数据库返回失败。
+                    atFinalCheck.countDown();
+                    try {
+                        if (!release.await(10, TimeUnit.SECONDS))
+                            throw new AssertionError("Late transaction was not released");
+                    } catch (InterruptedException error) {
+                        interrupted.set(true);
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(error);
+                    }
+                    if (unexpectedFailure) throw new IllegalStateException("simulated late JDBC failure");
+                    return candidate.request().options().deadline().plusSeconds(1);
+                }
+            };
+            var storage = new MybatisToolAdmissionStore(f.source, f.codec, writer, f.executions, f.bindings, f.catalog, delayed);
+            var future = storage.accept(candidate, ignored -> TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        public void afterCompletion(int status) {
+                            completionStatus.set(status);
+                            completed.countDown();
+                        }
+                    })).timeout(Duration.ofSeconds(2)).toFuture();
+            assertTrue("Transaction must reach the post-write deadline check", atFinalCheck.await(5, TimeUnit.SECONDS));
+            assertInstanceOfTimeout(assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS)));
+            release.countDown();
+            assertTrue(completed.await(5, TimeUnit.SECONDS));
+            // 同一单线程 worker 的栅栏保证事务终态以及 Reactor 的错误消费均已完成。
+            Mono.fromRunnable(() -> {
+            }).subscribeOn(writer).block(WAIT);
+            assertEquals(TransactionSynchronization.STATUS_ROLLED_BACK, completionStatus.get());
+            assertFalse("HTTP cancellation must not interrupt an active JDBC transaction", interrupted.get());
+            assertTrue("Late errors must not reach the global dropped-error handler", dropped.isEmpty());
+            assertCounts(f, 0);
+            assertEquals(0, f.wakeups.get());
+        } finally {
+            release.countDown();
+            writer.dispose();
+            Hooks.resetOnErrorDropped();
+        }
+    }
+
+    private static void assertInstanceOfTimeout(ExecutionException failure) {
+        assertTrue(failure.getCause() instanceof TimeoutException);
     }
 
     @Test

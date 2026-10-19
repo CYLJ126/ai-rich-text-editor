@@ -15,6 +15,9 @@ public interface SystemMapper {
     
     Timestamp databaseTime();
 
+    /**
+     * 新建或无修改更新锁行，两个分支均持排他记录锁至事务结束；不能替换为 INSERT IGNORE。
+     */
     int ensureLock(@Param("key") String key);
 
     String lock(@Param("key") String key);

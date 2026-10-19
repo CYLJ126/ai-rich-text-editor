@@ -6,8 +6,15 @@ import type {InvocationResultResponse, InvocationStatusResponse,} from '@/servic
 import {type BrowserContext, readValue, removeValue, storageKey, writeValue,} from '@/features/ainew/storage';
 import {toolFailure} from './useToolCommand';
 
-export function toolInvocationFailure(error: unknown): string {
+export function toolInvocationFailure(error: unknown, phase: 'request' | 'submission' | 'confirmation' = 'request'): string {
   if (error instanceof AiApiError) {
+    if (error.httpStatus === 504 || error.code === '205005') {
+      if (phase === 'confirmation')
+        return '确认请求超时，原调用仍待确认。可稍后继续确认，或暂存后开始新的独立调用。';
+      return phase === 'submission'
+        ? '工具调用受理超时，提交结果尚待确认。可继续确认原调用，或暂存后开始新的独立调用。'
+        : '工具请求超时，请稍后重试。';
+    }
     if (error.code === '205053')
       return '有效调用方案已变化，输入已保留，请重新预览后确认。';
     if (error.code === '205027')
@@ -31,6 +38,25 @@ export interface SavedToolInvocation {
   historyOnly?: boolean;
 }
 
+function validRecord(value: unknown, context: BrowserContext): value is SavedToolInvocation {
+  try {
+    if (!value || typeof value !== 'object') return false;
+    const record = value as SavedToolInvocation;
+    if (typeof record.requestJson !== 'string' || record.requestJson.length > 1_100_000) return false;
+    const body = JSON.parse(record.requestJson);
+    return typeof record.key === 'string' && !!record.key && record.key.length <= 256 &&
+      body?.scope?.tenantId === context.scope.tenantId &&
+      body?.scope?.workspaceId === context.scope.workspaceId &&
+      typeof body.input?.bindingId === 'string' && !!body.input.bindingId &&
+      /^[0-9a-f]{64}$/.test(body.expectedPlanDigest) &&
+      (record.acceptedId === undefined || (typeof record.acceptedId === 'string' && !!record.acceptedId && record.acceptedId.length <= 256)) &&
+      (record.cancelKey === undefined || (typeof record.cancelKey === 'string' && !!record.cancelKey && record.cancelKey.length <= 256)) &&
+      (record.historyOnly === undefined || typeof record.historyOnly === 'boolean');
+  } catch {
+    return false;
+  }
+}
+
 export const toolTerminal = (status: InvocationStatusResponse | null) =>
   !!status && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state);
 export type ToolResultView = { value: ToolResult; outputJson: string | null };
@@ -39,6 +65,18 @@ export type ToolResultView = { value: ToolResult; outputJson: string | null };
 export function useToolInvocation(context: BrowserContext) {
   const target = storageKey(context, 'tool-invocation');
   const historyTarget = storageKey(context, 'tool-invocation-history');
+  const pendingTarget = storageKey(context, 'tool-invocation-pending');
+  const [pendingInitial] = useState(() => {
+    const stored = readValue<unknown>(pendingTarget);
+    if (stored.value === null) return {records: [] as SavedToolInvocation[], blocked: !!stored.warning};
+    if (!Array.isArray(stored.value) || stored.value.length > 20 ||
+      !stored.value.every(value => validRecord(value, context) && !value.acceptedId && !value.historyOnly) ||
+      new Set(stored.value.map(value => value.key)).size !== stored.value.length)
+      return {records: [] as SavedToolInvocation[], blocked: true};
+    return {records: stored.value as SavedToolInvocation[], blocked: false};
+  });
+  const [pending, setPending] = useState(pendingInitial.records);
+  const pendingRef = useRef(pending);
   const [history, setHistory] = useState<string[]>(() => {
     const stored = readValue<unknown>(historyTarget).value;
     return Array.isArray(stored) &&
@@ -52,41 +90,18 @@ export function useToolInvocation(context: BrowserContext) {
   const [initial] = useState(() => {
     const stored = readValue<SavedToolInvocation>(target);
     if (!stored.value) return {record: null, blocked: !!stored.warning};
-    try {
-      const record = stored.value;
-      const body = JSON.parse(record.requestJson);
-      if (
-        typeof record.key !== 'string' ||
-        !record.key ||
-        record.key.length > 256 ||
-        record.requestJson.length > 1_100_000 ||
-        body.scope?.tenantId !== context.scope.tenantId ||
-        body.scope?.workspaceId !== context.scope.workspaceId ||
-        !body.input?.bindingId ||
-        !/^[0-9a-f]{64}$/.test(body.expectedPlanDigest) ||
-        (record.acceptedId !== undefined &&
-          (typeof record.acceptedId !== 'string' ||
-            !record.acceptedId ||
-            record.acceptedId.length > 256)) ||
-        (record.cancelKey !== undefined &&
-          (typeof record.cancelKey !== 'string' ||
-            !record.cancelKey ||
-            record.cancelKey.length > 256))
-      )
-        throw new Error('invalid');
-      return {record, blocked: false};
-    } catch {
-      return {record: null, blocked: true};
-    }
+    return validRecord(stored.value, context)
+      ? {record: stored.value, blocked: false}
+      : {record: null, blocked: true};
   });
   const [record, setRecord] = useState<SavedToolInvocation | null>(
     initial.record,
   );
   const recordRef = useRef(record);
-  const [blocked, setBlocked] = useState(initial.blocked);
+  const [blocked, setBlocked] = useState(initial.blocked || pendingInitial.blocked);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(
-    initial.blocked
+    initial.blocked || pendingInitial.blocked
       ? '调用恢复记录无法读取，暂不能创建新调用。请检查浏览器存储后刷新。'
       : null,
   );
@@ -112,6 +127,30 @@ export function useToolInvocation(context: BrowserContext) {
     }
     recordRef.current = next;
     setRecord(next);
+    return true;
+  };
+  const savePending = (next: SavedToolInvocation[]) => {
+    if (!writeValue(pendingTarget, next)) {
+      setError('无法保存待确认调用，原提交仍保留在当前页面；请检查浏览器存储。');
+      return false;
+    }
+    pendingRef.current = next;
+    setPending(next);
+    return true;
+  };
+  const releaseCurrent = () => {
+    if (!removeValue(target)) {
+      setBlocked(true);
+      setError('无法更新当前调用恢复记录，请检查浏览器存储后刷新。');
+      return false;
+    }
+    recordRef.current = null;
+    setRecord(null);
+    setStatus(null);
+    setResult(null);
+    setReadError(null);
+    setCancelReceipt(null);
+    setError(null);
     return true;
   };
   const execute = async (operation: SavedToolInvocation, recovery: boolean) => {
@@ -145,6 +184,9 @@ export function useToolInvocation(context: BrowserContext) {
         // 已知回执即使无法落盘也保留在内存供用户复制；原命令仍在存储，可用原键确认。
         recordRef.current = accepted;
         setRecord(accepted);
+      } else if (pendingRef.current.some(value => value.key === operation.key)) {
+        // 已拿到回执并保存当前记录后，才移出待确认列表；失败时仍可按原键恢复。
+        savePending(pendingRef.current.filter(value => value.key !== operation.key));
       }
     } catch (failure) {
       if (
@@ -153,7 +195,7 @@ export function useToolInvocation(context: BrowserContext) {
         currentAiCredential() !== credential
       )
         return;
-      setError(toolInvocationFailure(failure));
+      setError(toolInvocationFailure(failure, recovery ? 'confirmation' : 'submission'));
       // 恢复时的拒绝可能是受理后撤权，不能据此断言原调用不存在。
       if (
         !recovery &&
@@ -161,6 +203,7 @@ export function useToolInvocation(context: BrowserContext) {
         failure.httpStatus >= 400 &&
         failure.httpStatus < 500 &&
         failure.httpStatus !== 408 &&
+        failure.code !== '205005' &&
         failure.code !== '205027'
       ) {
         if (!removeValue(target)) setBlocked(true);
@@ -306,6 +349,7 @@ export function useToolInvocation(context: BrowserContext) {
   return {
     record,
     history,
+    pending,
     blocked,
     busy,
     error,
@@ -323,6 +367,25 @@ export function useToolInvocation(context: BrowserContext) {
       recordRef.current && !recordRef.current.acceptedId
         ? void execute(recordRef.current, true)
         : undefined,
+    parkPending: () => {
+      const original = recordRef.current;
+      if (!original || original.acceptedId || active.current || blocked) return false;
+      const next = [original, ...pendingRef.current.filter(value => value.key !== original.key)];
+      if (next.length > 20) {
+        setError('待确认调用已达 20 条，请先恢复并确认已有提交；不会丢弃旧记录。');
+        return false;
+      }
+      // 先保存完整原命令，再释放当前槽位；不把暂存当成服务端取消或执行失败。
+      return savePending(next) && releaseCurrent();
+    },
+    restorePending: (key: string) => {
+      if (recordRef.current || active.current || blocked) return;
+      const original = pendingRef.current.find(value => value.key === key);
+      if (original && save(original)) {
+        setError(null);
+        // 恢复只展示原提交，不自动发送；拿到回执前仍保留暂存副本。
+      }
+    },
     cancel: () => void cancel(),
     clear: (acknowledgeUnknown = false) => {
       const original = recordRef.current;
@@ -345,16 +408,7 @@ export function useToolInvocation(context: BrowserContext) {
         }
         setHistory(next);
       }
-      if (!removeValue(target)) {
-        setBlocked(true);
-        return;
-      }
-      recordRef.current = null;
-      setRecord(null);
-      setStatus(null);
-      setResult(null);
-      setCancelReceipt(null);
-      setError(null);
+      releaseCurrent();
     },
     open: (invocationId: string) => {
       if (
