@@ -5,7 +5,7 @@ INSERT INTO arte_rbac_menu
  create_by, create_time, update_by, update_time)
 SELECT 'aiTool',
        'AI 工具',
-       'tool',
+       'FunctionOutlined',
        '/AI/Tools',
        NULL,
        8,

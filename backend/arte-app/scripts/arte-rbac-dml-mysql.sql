@@ -1,10 +1,22 @@
 SET NAMES utf8mb4;
 
 -- arte_rbac_menu
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (1, 'Administration', 'Administration', 'administration', '/Administration', null, 4, 1, '系统管理', '1', 1, 'system', sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (2, 'BasicWriting', 'Basic Writing', 'smile', '/Writing/BasicWriting', 9, 1, 1, '基础写作管理', '1', 0, 'system', sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (3, 'Chatbot', 'Chatbot', 'robot', '/AI/ChatManagement', null, 8, 1, 'AI 问答', '1', 1, 'system', sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (4, 'HomePage', 'HomePage', 'homePage', '/HomePage', null, 1, 1, '首页', '1', 1, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (1, 'Administration', 'Administration', 'SettingOutlined', '/Administration', null, 4, 1, '系统管理', '1', 1,
+        'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (2, 'BasicWriting', 'Basic Writing', 'SmileOutlined', '/Writing/BasicWriting', 9, 1, 1, '基础写作管理', '1', 0,
+        'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (3, 'Chatbot', 'Chatbot', 'RobotOutlined', '/AI/ChatManagement', null, 8, 1, 'AI 问答', '1', 1, 'system',
+        sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (4, 'HomePage', 'HomePage', 'HomeOutlined', '/HomePage', null, 1, 1, '首页', '1', 1, 'system', sysdate(),
+        'system', sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (6, 'UserManagement', 'User Management', null, '/Administration/UserManagement', 1, 1, 1, '用户管理', '1', 1, 'system', sysdate(), 'system', sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (7, 'MenuManagement', 'Menu Management', null, '/Administration/MenuManagement', 1, 1, 1, '菜单管理', '1', 1, 'system', sysdate(), 'system', sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (8, 'RoleManagement', 'Role Management', null, '/Administration/RoleManagement', 1, 1, 1, '角色管理', '1', 1, 'system', sysdate(), 'system', sysdate());
@@ -16,10 +28,14 @@ INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (33, 'TagManagement', 'Tag Management', null, '/Personal/TagManagement', 5, 4, 1, '标签管理', '1', 1, 'system',
         sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (9, 'Writing', 'Writing', 'write', '/Writing', null, 5, 1, '写作管理目录', '1', 0, 'system', sysdate(), 'system', sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
-VALUES (15, 'Tools', 'Tools', 'tool', '/Tools', null, 3, 1, '工具', '1', 1, 'system', sysdate(), 'system', sysdate());
+VALUES (9, 'Writing', 'Writing', 'SignatureOutlined', '/Writing', null, 5, 1, '写作管理目录', '1', 0, 'system',
+        sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (15, 'Tools', 'Tools', 'ToolOutlined', '/Tools', null, 3, 1, '工具', '1', 1, 'system', sysdate(), 'system',
+        sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (16, 'TextFormatter', 'Text Formatter', null, '/Tools/TextFormatter', 15, 1, 1, '文本格式化', '1', 1, 'system',
@@ -212,7 +228,22 @@ INSERT INTO arte_rbac_role (id, role_code, role_name, status, description, creat
 INSERT INTO arte_rbac_user (id, user_name, status, mobile, email, password, description, create_by, update_by, create_time, update_time, row_version) VALUES (1, 'admin', '1', '', '', '$2a$10$XqyDPLzYsyRjNmPur/CZnOxoGZUT12xfZ1/wlhHMWBTNoOjfR0nae', null, 'system', 'system', sysdate(), sysdate(), 0);
 
 -- 新版 AI 聊天入口（已有数据库使用 20261011-ai-chat-new-menu.sql）
-INSERT INTO arte_rbac_menu (menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) SELECT 'ChatNew', 'AI 聊天（新版）', 'robot', '/AI/ChatNew', NULL, 7, 1, '新 AI 会话、模型配置及操作恢复', '1', 0, 'system', CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM arte_rbac_menu WHERE menu_code = 'ChatNew' OR menu_url = '/AI/ChatNew');
+INSERT INTO arte_rbac_menu (menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag,
+                            row_version, create_by, create_time, update_by, update_time)
+SELECT 'ChatNew',
+       'AI 聊天（新版）',
+       'MessageOutlined',
+       '/AI/ChatNew',
+       NULL,
+       7,
+       1,
+       '新 AI 会话、模型配置及操作恢复',
+       '1',
+       0,
+       'system',
+       CURRENT_TIMESTAMP,
+       'system',
+       CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM arte_rbac_menu WHERE menu_code = 'ChatNew' OR menu_url = '/AI/ChatNew');
 
 -- 默认只给已存在的 admin 角色展示入口，其他角色通过菜单管理显式分配。
 INSERT INTO arte_rbac_relation (source, target, binding_type, create_by, create_time)
@@ -296,7 +327,7 @@ INSERT INTO arte_rbac_menu
  create_by, create_time, update_by, update_time)
 SELECT 'aiTool',
        'AI 工具',
-       'tool',
+       'FunctionOutlined',
        '/AI/Tools',
        NULL,
        8,

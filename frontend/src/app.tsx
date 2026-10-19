@@ -9,12 +9,12 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import React from 'react';
 import {AliveScope} from 'react-activation';
 import {AvatarDropdown, ErrorBoundary, LangDropdown, OfflineBanner, ThemeSwitch,} from '@/components';
+import MyDynamicIcon from '@/components/DynamicIcon/MyDynamicIcon';
 import TabsLayout from '@/components/TabsLayout';
 import WorkspaceSession from '@/features/workspace/WorkspaceSession';
 import {Toaster} from '@/components/ui/sonner';
 import {getStoredLayoutMenuState, LayoutMenuContextProvider, saveLayoutMenuState,} from '@/contexts/LayoutMenuContext';
 import {ThemeContextProvider, useThemeContext} from '@/contexts/ThemeContext';
-import IconMap from '@/icons/IconMap';
 import {queryCurrentUser} from '@/services/ant-design-pro/base';
 import {listRecursiveMenus} from '@/services/ant-design-pro/rbac';
 import defaultSettings from '../config/defaultSettings';
@@ -45,8 +45,7 @@ const loginRoute = {
 
 /**
  * 菜单转换
- * 由于 ant design pro 项目中，图标不支持从后端获取配置后直接转换，所以需要前端加一个映射
- * 配置可参见官网：https://umijs.org/docs/max/layout-menu
+ * 将后端配置的完整图标名称交给 MyDynamicIcon 渲染，空值或未知名称不显示图标。
  * @param rawMenu 后端的菜单配置信息
  * @param userMenuCodes 前端支持的菜单集合
  */
@@ -54,11 +53,15 @@ function transfer(rawMenu: any, userMenuCodes: string[]) {
   if (!userMenuCodes.includes(rawMenu.menuCode)) {
     return null;
   }
+  const iconName =
+    typeof rawMenu.icon === 'string' ? rawMenu.icon.trim() : '';
   const one: any = {
     id: rawMenu.id,
     name: rawMenu.menuCode,
     path: rawMenu.menuUrl,
-    icon: IconMap[rawMenu.icon] || '',
+    icon: iconName
+      ? <MyDynamicIcon iconName={iconName} fallback={null}/>
+      : undefined,
   };
   if (rawMenu.children && rawMenu.children.length > 0) {
     one.routes = rawMenu.children
