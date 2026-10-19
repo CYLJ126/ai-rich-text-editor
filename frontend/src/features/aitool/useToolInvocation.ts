@@ -389,8 +389,10 @@ export function useToolInvocation(context: BrowserContext) {
     cancel: () => void cancel(),
     clear: (acknowledgeUnknown = false) => {
       const original = recordRef.current;
+      // 查询失败不推断服务端终态；用户明确确认后可保留编号并释放当前查看入口。
+      const confirmedUnreadable = !!original?.acceptedId && !!readError && acknowledgeUnknown;
       if (
-        (!original?.historyOnly &&
+        (!original?.historyOnly && !confirmedUnreadable &&
           (!toolTerminal(status) ||
             (status?.state === 'UNKNOWN' && !acknowledgeUnknown))) ||
         active.current ||

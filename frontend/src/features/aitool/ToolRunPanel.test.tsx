@@ -91,6 +91,34 @@ const show = () =>
     />,
   );
 describe('工具调用预览和结果页面', () => {
+  it('旧调用已删除时，明确结束查看后开放新预览并保留待确认提交', async () => {
+    const context = {userId: 'user', scope};
+    const requestJson = JSON.stringify({
+      scope,
+      input: {bindingId: detail.binding.bindingId, arguments: {}},
+      expectedPlanDigest: 'a'.repeat(64)
+    });
+    writeValue(storageKey(context, 'tool-invocation'), {key: 'old-key', requestJson, acceptedId: 'deleted-invocation'});
+    writeValue(storageKey(context, 'tool-invocation-pending'), [{key: 'pending-1', requestJson}, {
+      key: 'pending-2',
+      requestJson
+    }]);
+    vi.mocked(getInvocationStatus).mockRejectedValue(new AiApiError(404, {}));
+    show();
+    await screen.findByText('工具服务未启用，或当前工具／配置已不可访问。');
+    expect(screen.getByText('状态无法读取')).toBeTruthy();
+    expect(screen.queryByRole('button', {name: '预览调用'})).toBeNull();
+    fireEvent.click(screen.getByRole('button', {name: '结束本次查看'}));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('deleted-invocation');
+    expect(dialog).toHaveTextContent('不会取消或重发原操作');
+    fireEvent.click(within(dialog).getByRole('button', {name: '保留编号并结束查看'}));
+    await screen.findByRole('button', {name: '预览调用'});
+    expect(screen.getByText('待确认提交（2）')).toBeTruthy();
+    expect(invokeTool).not.toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem(storageKey(context, 'tool-invocation-history')) ?? '{}').value).toEqual(['deleted-invocation']);
+  });
+
   it('旧提交确认超时后可明确暂存，重新预览新调用，并保留原提交恢复入口', async () => {
     const context = {userId: 'user', scope};
     const requestJson = JSON.stringify({

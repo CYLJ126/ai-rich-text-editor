@@ -33,6 +33,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.arte.ainew.tool.discovery.LocalToolFixtures.object;
 import static com.arte.ainew.tool.discovery.LocalToolFixtures.text;
@@ -414,6 +415,35 @@ public class ToolDispatchIntegrationTest {
             assertEquals(1, delivered(f));
             assertEquals(1, f.invocations.get());
             assertEquals(events, f.count("arte_ai_event"));
+        }
+    }
+
+    @Test
+    public void slowCancellationReadsDoNotInterruptGatewayOrOverlapPolling() throws Exception {
+        try (var f = new ToolExecutionFixture()) {
+            var active = new AtomicInteger();
+            var maximum = new AtomicInteger();
+            var reads = new AtomicInteger();
+            var storage = proxy(ExecutionStore.class, f.executions, (method, args) -> method.equals("cancellationRequested")
+                    ? Mono.defer(() -> {
+                // 网关启动后的读取来自后台轮询；准备阶段读取保持原速。
+                if (f.invoked.get() == null) return f.executions.cancellationRequested(f.owner, "one");
+                reads.incrementAndGet();
+                maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+                return f.executions.cancellationRequested(f.owner, "one")
+                        .delayElement(Duration.ofMillis(650))
+                        .doOnEach(signal -> {
+                            if (signal.isOnNext() || signal.isOnError()) active.decrementAndGet();
+                        });
+            }) : null);
+            f.operation = call -> Mono.delay(Duration.ofMillis(1800)).map(ignored -> ToolExecutionFixture.success(call));
+            f.submit("one");
+            f.worker(f.dispatcher(storage, f.payloads, f.gateway)).pollOnce().block(WAIT);
+            assertEquals(Invocation.State.SUCCEEDED, f.invocation("one").state());
+            assertTrue(reads.get() >= 2);
+            assertEquals(1, maximum.get());
+            assertEquals(1, f.invocations.get());
+            assertEquals(1, delivered(f));
         }
     }
 

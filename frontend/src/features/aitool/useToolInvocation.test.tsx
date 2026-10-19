@@ -300,6 +300,46 @@ describe('独立 TOOL 原调用恢复', () => {
     expect(second.result.current.record).toBeNull();
     expect(second.result.current.blocked).toBe(false);
   });
+  it.each([403, 404, 500])('已受理记录查询失败 %s 后仅明确确认可结束查看，保留编号和待确认提交', async (httpStatus) => {
+    writeValue(storageKey(context, 'tool-invocation'), {
+      key: 'original-key', requestJson, acceptedId: 'original',
+    });
+    writeValue(storageKey(context, 'tool-invocation-pending'), [{key: 'pending', requestJson}]);
+    vi.mocked(getInvocationStatus).mockRejectedValue(new AiApiError(httpStatus, {}));
+    const first = renderHook(() => useToolInvocation(context));
+    await waitFor(() => expect(first.result.current.readError).toBeTruthy());
+    act(() => first.result.current.clear());
+    expect(first.result.current.record?.acceptedId).toBe('original');
+    act(() => first.result.current.clear(true));
+    expect(first.result.current.record).toBeNull();
+    expect(first.result.current.history).toEqual(['original']);
+    expect(first.result.current.pending).toEqual([{key: 'pending', requestJson}]);
+    expect(invokeTool).not.toHaveBeenCalled();
+    first.unmount();
+    const restored = renderHook(() => useToolInvocation(context));
+    expect(restored.result.current.record).toBeNull();
+    expect(restored.result.current.history).toEqual(['original']);
+    expect(restored.result.current.pending).toEqual([{key: 'pending', requestJson}]);
+  });
+  it('读取失败后的退出若无法保存历史编号，保留当前调用', async () => {
+    writeValue(storageKey(context, 'tool-invocation'), {key: 'original-key', requestJson, acceptedId: 'original'});
+    vi.mocked(getInvocationStatus).mockRejectedValue(new AiApiError(404, {}));
+    const {result} = renderHook(() => useToolInvocation(context));
+    await waitFor(() => expect(result.current.readError).toBeTruthy());
+    const storage = sessionStorage;
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: (key: string, value: string) => {
+        if (key === storageKey(context, 'tool-invocation-history')) throw new Error('quota');
+        storage.setItem(key, value);
+      },
+      removeItem: (key: string) => storage.removeItem(key),
+    });
+    act(() => result.current.clear(true));
+    expect(result.current.record?.acceptedId).toBe('original');
+    expect(result.current.error).toContain('无法保存原调用编号');
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
   it('历史查询不会提交，读取不到也可结束历史查询', async () => {
     vi.mocked(getInvocationStatus).mockRejectedValue(new AiApiError(404, {}));
     const {result} = renderHook(() => useToolInvocation(context));

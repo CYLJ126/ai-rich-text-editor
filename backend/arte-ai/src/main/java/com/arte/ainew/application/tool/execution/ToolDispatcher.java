@@ -271,10 +271,11 @@ public final class ToolDispatcher {
             var work = executions.cancellationRequested(message.owner(), message.invocationId())
                     .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))
                     .flatMap(requested -> requested ? finish(notInvoked("TOOL_CANCELLED")) : invoke);
-            var heartbeat = Flux.interval(attemptLease.dividedBy(3)).concatMap(ignored -> completed.get() ? Mono.empty()
+            // 慢数据库下合并定时提醒，保持查询串行；interval 缺少需求会溢出并取消主执行链。
+            var heartbeat = Flux.interval(attemptLease.dividedBy(3)).onBackpressureLatest().concatMap(ignored -> completed.get() ? Mono.empty()
                     : load(message).flatMap(invocation -> invocation.state().terminal() ? Mono.empty()
                     : guarded(guard -> executions.renewLease(guard, attemptLease), 3).then()), 1).then();
-            var cancellations = Flux.interval(Duration.ofMillis(200)).concatMap(ignored -> completed.get() ? Mono.empty()
+            var cancellations = Flux.interval(Duration.ofMillis(200)).onBackpressureLatest().concatMap(ignored -> completed.get() ? Mono.empty()
                     : executions.cancellationRequested(message.owner(), message.invocationId())
                     .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))
                     .doOnNext(requested -> {

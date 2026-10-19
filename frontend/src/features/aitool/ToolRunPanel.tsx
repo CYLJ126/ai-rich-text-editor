@@ -205,7 +205,7 @@ export default function ToolRunPanel({
                       execution.status?.state === 'SUCCEEDED' ? 'green' : 'blue'
                     }
                   >
-                    {knownState ?? '正在读取状态'}
+                    {knownState ?? (execution.readError ? '状态无法读取' : '正在读取状态')}
                   </Tag>
                   {execution.status && (
                     <Tag>
@@ -220,7 +220,7 @@ export default function ToolRunPanel({
                   <Alert
                     type="warning"
                     title={execution.readError}
-                    description="查询失败不代表执行失败。请保留原调用编号，恢复权限或连接后重新读取。"
+                    description="查询失败不代表执行失败。可重新读取，或保留原调用编号后结束本次查看。"
                   />
                 )}
                 {execution.cancelReceipt && (
@@ -263,13 +263,15 @@ export default function ToolRunPanel({
                     </Button>
                   )}
                 </Space>
-                {execution.status?.state === 'UNKNOWN' &&
+                {(execution.status?.state === 'UNKNOWN' ||
+                    (execution.readError && !toolTerminal(execution.status))) &&
                   !execution.record.historyOnly && (
                     <Button
+                      disabled={execution.blocked || execution.busy}
                       onClick={() =>
                         modal.confirm({
-                          title: '本次调用的结果仍待核对',
-                          content: `结束查看会保留原调用编号 ${execution.record?.acceptedId}。不会重发原操作；请勿根据不确定结果重复操作。新调用仍须重新填写、预览并确认。`,
+                          title: execution.status?.state === 'UNKNOWN' ? '本次调用的结果仍待核对' : '当前调用状态无法读取',
+                          content: `结束查看会保留原调用编号 ${execution.record?.acceptedId}，不会取消或重发原操作。原调用仍可能已经执行，请勿根据查询失败重复操作。新调用是独立操作，仍须重新填写、预览并确认。`,
                           okText: '保留编号并结束查看',
                           cancelText: '继续查看原调用',
                           onOk: () => {
