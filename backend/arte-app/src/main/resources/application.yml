@@ -7,6 +7,10 @@ server:
 # 日志配置
 logging:
   config: @logging.config@
+  level:
+    # TOOL 阶段、生命周期点与新 AI HTTP 汇总日志。
+    com.arte.core.diagnostics.OperationObservation: @logging.level.com.arte.core.diagnostics.OperationObservation@
+    com.arte.app.diagnostics.NewAiHttpObservationFilter: @logging.level.com.arte.app.diagnostics.NewAiHttpObservationFilter@
 
 # 业务线程池配置
 threadPool:
@@ -104,6 +108,10 @@ elasticsearch:
 
 # 首页资讯配置（公共平台配置由 platform/config/application.properties 导入）
 arte:
+  observability:
+    ai-http:
+      # 接入 HTTP、JDBC、Reactor 与持久化调度器观测，不控制所有阶段日志的输出。
+      enabled: @arte.observability.ai-http.enabled@
   homepage:
     website:
       # 是否在启动时加载网站资讯

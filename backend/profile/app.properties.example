@@ -50,6 +50,15 @@ logging.level.org.apache.hc.core5=INFO
 logging.level.org.springframework.ai=DEBUG
 # spring ai advisor 日志级别
 logging.level.org.springframework.ai.chat.client.advisor=DEBUG
+# ======================== AI HTTP / TOOL 观测配置 ========================
+# 接入 HTTP 指标、JDBC 统计、Reactor 上下文传播和持久化调度器观测；默认开启。
+arte.observability.ai-http.enabled=true
+# 输出阶段耗时 / SQL / 剩余期限和生命周期点：AI_TOOL_STAGE、AI_TOOL_POINT。
+logging.level.com.arte.core.diagnostics.OperationObservation=INFO
+# 输出新 AI 请求汇总：AI_HTTP_METRICS。
+logging.level.com.arte.app.diagnostics.NewAiHttpObservationFilter=INFO
+# 关闭基础设施开关不会屏蔽所有阶段日志；停用上述日志需将对应级别调为 WARN 或 OFF。
+# 修改后需重新生成 Maven 资源并重启后端。
 # ======================== 文章相关配置 ========================
 # 历史版本最大数量
 rich-text.history.max-versions=20

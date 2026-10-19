@@ -2,6 +2,7 @@ package com.arte.ainew.application.tool.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
@@ -21,6 +22,7 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.enums.ResultCodeEnum;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -34,6 +36,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
+
+import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
  * 独立本地免费只读 TOOL 的内部可靠受理
@@ -94,7 +98,7 @@ public final class ToolAdmissionService {
     public Mono<AcceptedExecution> submit(ToolAdmissionInput input, String expectedPlanDigest, ExecutionContext context) {
         Objects.requireNonNull(input);
         Objects.requireNonNull(context);
-        return Mono.defer(() -> {
+        return OperationObservation.observe(ADMISSION.name(), context.executionId(), context.traceId(), context.deadline(), observation -> Mono.defer(() -> {
             require(context.budgetRef() == null && context.parentExecutionId() == null, ResultCodeEnum.AI_TOOL_POLICY_DENIED);
             require(context.authorization().scopes().contains(AdmissionAuthorization.INVOKE), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
             var received = clock.instant();
@@ -102,9 +106,10 @@ public final class ToolAdmissionService {
             var deadline = earlier(context.deadline(), received.plus(timeout));
             var owner = ExecutionOwner.from(context);
             // 在调用线程只记录入口时刻，阻塞工作随后排入有界调度器；排队不能推迟总期限起点。
-            var work = Mono.defer(() -> store.findAccepted(owner, input.bindingId(), context.idempotencyKey())
+            var work = Mono.defer(() -> ToolObservation.mono(REPLAY_LOOKUP, context,
+                                    () -> store.findAccepted(owner, input.bindingId(), context.idempotencyKey()))
                             .flatMap(previous -> replay(input, context, previous, expectedPlanDigest))
-                            .switchIfEmpty(Mono.defer(() -> bindings.inspect(owner, input.bindingId())
+                            .switchIfEmpty(Mono.defer(() -> ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.inspect(owner, input.bindingId()))
                                     .flatMap(result -> {
                                         require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
                                         return prepare(input, context, result.value(), received, deadline, (snapshot, permit) -> {
@@ -116,7 +121,7 @@ public final class ToolAdmissionService {
                     .subscribeOn(scheduler);
             return work.timeout(remaining(deadline)).onErrorMap(TimeoutException.class,
                     expired -> new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
-        });
+        }).doOnNext(receipt -> observation.resolvedInvocation(receipt.executionId())));
     }
 
     /**
@@ -124,9 +129,9 @@ public final class ToolAdmissionService {
      */
     private Mono<AcceptedExecution> replay(ToolAdmissionInput input, ExecutionContext context, ToolAdmissionStore.Accepted previous, String expectedPlanDigest) {
         var snapshot = previous.snapshot();
-        return bindings.fixed(ExecutionOwner.from(context), snapshot.binding().definition()).flatMap(result -> {
+        return ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.fixed(ExecutionOwner.from(context), snapshot.binding().definition())).flatMap(result -> {
             require(result.successful() && result.value().equals(snapshot.binding()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
-            return permit(input, context, snapshot.binding()).flatMap(permit -> {
+            return ToolObservation.mono(HOST_AUTHORIZATION, context, () -> permit(input, context, snapshot.binding())).flatMap(permit -> {
                 require(snapshot.submissionDigest().equals(ToolAdmissionDigests.submission(ExecutionOwner.from(context), input)),
                         ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
                 require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(snapshot)),
@@ -169,9 +174,11 @@ public final class ToolAdmissionService {
         }
         var totalTimeout = min(policy.timeout(), input.requestedTimeout() == null ? policy.timeout() : input.requestedTimeout());
         var deadline = earlier(entryDeadline, received.plus(totalTimeout));
-        return documents(binding).publishOn(scheduler).flatMap(documents -> {
+        return ToolObservation.mono(SCHEMA_VALIDATION, original, deadline, () -> documents(binding).publishOn(scheduler).map(documents -> {
             validate(input, binding, documents, policy);
-            return permit(input, original, binding).flatMap(permit -> {
+            return documents;
+        })).flatMap(documents -> {
+            return ToolObservation.mono(HOST_AUTHORIZATION, original, deadline, () -> permit(input, original, binding)).flatMap(permit -> {
                 remaining(deadline);
                 var context = new ExecutionContext(original.executionId(), original.traceId(), permit.authorization(), deadline,
                         null, null, original.releaseRef(), original.idempotencyKey());
@@ -201,12 +208,12 @@ public final class ToolAdmissionService {
 
     private Mono<AcceptedExecution> commit(ToolExecutionSnapshot snapshot, VerifiedPermit permit, String expectedPlanDigest) {
         // 进入物理写事务后再次复核当前宿主资格；存储负责原子治理检查、幂等仲裁及全部持久化。
-        return store.accept(snapshot, actual -> {
+        return ToolObservation.mono(ADMISSION_COMMIT, snapshot.request().context(), () -> store.accept(snapshot, actual -> {
                     permit.permit().requireInCurrentTransaction(actual);
                     // 并发同键重放也检查真正提交的材料，不能用新方案确认旧调用。
                     require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(actual)),
                             ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
-                }).map(result -> {
+                })).map(result -> {
                     if (!result.successful()) {
                         if (result.code() == StoreOutcome.Code.VERSION_CONFLICT)
                             throw new AdmissionException(ResultCodeEnum.AI_TOOL_PLAN_CHANGED);

@@ -126,6 +126,7 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
                             <testIncludes>
+                                <testInclude>**/diagnostics/NewAiRequestObservationTest.java</testInclude>
                                 <testInclude>**/platform/persistence/*.java</testInclude>
                                 <testInclude>**/platform/workspace/*.java</testInclude>
                                 <testInclude>**/platform/identity/*.java</testInclude>

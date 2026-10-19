@@ -3,6 +3,7 @@ package com.arte.ainew.context;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.diagnostics.RequestObservation;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -140,7 +141,12 @@ public final class ExecutionContextFactory {
         String traceId = request.traceId() == null ? UUID.randomUUID().toString().replace("-", "") : request.traceId();
         var deadline = clock.instant().plus(request.timeout());
         // 先解析并验证授权引用，再创建执行上下文
-        return RequestObservation.initialAuthorization(authorize(authenticatedName, request.tenantId(), request.workspaceId(), request.scopes(), deadline))
+        var authorized = RequestObservation.initialAuthorization(authorize(authenticatedName, request.tenantId(), request.workspaceId(), request.scopes(), deadline));
+        var observation = RequestObservation.current();
+        // 仅 TOOL 提交／预览增加入口分段；已有 HTTP 初始授权汇总继续独立统计。
+        boolean tool = observation != null && ("/ai-new/tool/invokeTool".equals(observation.path)
+                || "/ai-new/tool/previewInvocation".equals(observation.path));
+        return (tool ? OperationObservation.observe("ENTRY_AUTHORIZATION", executionId, traceId, deadline, ignored -> authorized) : authorized)
                 .map(authorization -> new ExecutionContext(executionId, traceId, authorization, deadline, null,
                         request.budgetRef(), request.releaseRef(), request.idempotencyKey()));
     }

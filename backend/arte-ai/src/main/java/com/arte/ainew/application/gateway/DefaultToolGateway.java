@@ -1,5 +1,6 @@
 package com.arte.ainew.application.gateway;
 
+import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
@@ -36,6 +37,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
  * 单次本地只读 TOOL 网关
@@ -91,7 +94,8 @@ public final class DefaultToolGateway implements ToolGateway {
                 require(call.attempt().leaseExpiresAt().isAfter(clock.instant()), "TOOL_ATTEMPT_LEASE_EXPIRED");
                 // fixed()：读取本次工具调用，并做相关校验
                 // execute()：执行工具调用，并返回结果
-                return fixed(call).flatMap(binding -> execute(call, binding, entry, phase));
+                return ToolObservation.mono(GATEWAY_BINDING, call.runtime().execution(), () -> fixed(call))
+                        .flatMap(binding -> execute(call, binding, entry, phase));
             }).subscribeOn(scheduler);
             var remaining = Duration.between(clock.instant(), call.runtime().execution().deadline());
             Mono<ToolResult> deadline = remaining.isNegative() || remaining.isZero()
@@ -123,7 +127,7 @@ public final class DefaultToolGateway implements ToolGateway {
         var call = new GatewayCall<>(original.request(), original.binding(), original.attempt(),
                 new ExecutionRuntimeContext(context, original.runtime().cancellation()));
         active(call);
-        return Mono.defer(() -> prepare(call, binding)).flatMap(prepared -> {
+        return ToolObservation.mono(GATEWAY_PREFLIGHT, call.runtime().execution(), () -> Mono.defer(() -> prepare(call, binding)).flatMap(prepared -> {
                     phase.set(ExecutionError.Phase.AUTHORIZATION);
                     return Mono.defer(() -> access.authorize(prepared.call()))
                             .switchIfEmpty(Mono.error(new Rejected("TOOL_ACCESS_DENIED")))
@@ -133,7 +137,7 @@ public final class DefaultToolGateway implements ToolGateway {
                 .flatMap(prepared -> fixed(prepared.call().call()).map(current -> {
                     require(current.equals(prepared.call().binding()), "TOOL_FIXED_BINDING_CHANGED");
                     return prepared;
-                }))
+                })))
                 // 调用本地工具（适配器）
                 .flatMap(prepared -> invokeAdapter(prepared, entry, phase))
                 // 调用超时检查
@@ -228,14 +232,14 @@ public final class DefaultToolGateway implements ToolGateway {
             phase.set(ExecutionError.Phase.INVOCATION);
             var remaining = remaining(call);
             // 标记先于适配器同步入口；入口抛错、空返回和超时均不能再宣称业务未执行。
-            var result = Mono.defer(() -> {
+            var result = ToolObservation.mono(ADAPTER, call.runtime().execution(), () -> Mono.defer(() -> {
                         active(call);
                         require(entry.compareAndSet(0, 1), "TOOL_CANCELLED");
                         // 调用本地工具 BusinessToolAdapter
                         return Objects.requireNonNull(prepared.adapter().invoke(prepared.call()));
-                    }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY")))
+                    }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY"))))
                     // 输出结果检查
-                    .publishOn(scheduler).map(value -> {
+                    .publishOn(scheduler).map(value -> ToolObservation.call(OUTPUT_VALIDATION, call.runtime().execution(), () -> {
                         phase.set(ExecutionError.Phase.OUTPUT);
                         require(value.callId().equals(call.request().input().callId())
                                 && value.sideEffect() == ExecutionError.SideEffect.NONE, "TOOL_RESULT_INVALID");
@@ -248,7 +252,7 @@ public final class DefaultToolGateway implements ToolGateway {
                         require(CanonicalJson.normalize(codec.encode(new InvocationResult.Tool(value)))
                                 .getBytes(StandardCharsets.UTF_8).length <= max, "TOOL_OUTPUT_LIMIT");
                         return value;
-                    });
+                    }));
             // 调用超时检查
             return result.timeout(remaining);
         });

@@ -2,6 +2,7 @@ package com.arte.ainew.application.execution;
 
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -51,7 +52,11 @@ public final class DefaultInvocationCoordinator implements InvocationCoordinator
 
     @Override
     public Mono<Void> dispatch(OutboxMessage message, ExecutionRuntimeContext runtime) {
-        return executionStore.find(message.owner(), message.invocationId())
+        boolean tool = message.workClass() == OutboxMessage.WorkClass.TOOL_SHORT || message.workClass() == OutboxMessage.WorkClass.TOOL_LONG;
+        var loading = tool ? ToolObservation.mono(ToolObservation.Stage.DISPATCH_ROUTING, runtime.execution(),
+                () -> executionStore.find(message.owner(), message.invocationId()))
+                : executionStore.find(message.owner(), message.invocationId());
+        return loading
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(invocation -> switch (invocation.request().kind()) {
                     case GENERATION ->

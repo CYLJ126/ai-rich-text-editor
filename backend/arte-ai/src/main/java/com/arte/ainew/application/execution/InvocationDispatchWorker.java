@@ -2,13 +2,17 @@ package com.arte.ainew.application.execution;
 
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
+import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.DispatchSchedulingStore;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
+import com.arte.core.diagnostics.OperationObservation;
+import com.arte.core.diagnostics.RequestObservation;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
@@ -152,7 +156,13 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
     }
 
     private Mono<Void> process(OutboxMessage message) {
-        return executionStore.find(message.owner(), message.invocationId())
+        boolean toolWork = message.workClass() == OutboxMessage.WorkClass.TOOL_SHORT || message.workClass() == OutboxMessage.WorkClass.TOOL_LONG;
+        Mono<Invocation> loading = toolWork
+                ? OperationObservation.observe(ToolObservation.Stage.WORKER_LOAD.name(), message.invocationId(), null, null,
+                span -> executionStore.find(message.owner(), message.invocationId()).doOnNext(invocation ->
+                        span.correlate(invocation.request().context().traceId(), invocation.request().options().deadline())))
+                : executionStore.find(message.owner(), message.invocationId());
+        return RequestObservation.background(loading
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(invocation -> {
                     log.info("AI dispatch message processing, invocationId={}, traceId={}, messageId={}, workerId={}, fencingToken={}, state={}",
@@ -164,6 +174,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                             original.authorization(), deadline, original.parentExecutionId(), original.budgetRef(),
                             original.releaseRef(), original.idempotencyKey());
                     var runtime = ExecutionRuntimeContext.start(effective);
+                    if (toolWork) ToolObservation.point(ToolObservation.Stage.WORKER_RECORD_LOADED, effective);
                     boolean tool = message.workClass() == OutboxMessage.WorkClass.TOOL_SHORT || message.workClass() == OutboxMessage.WorkClass.TOOL_LONG;
                     var work = scheduling.enabled() && tool && !toolExecutionReady()
                             ? Mono.<Void>error(new DispatchDeferredException(java.time.Duration.ofSeconds(1)))
@@ -187,7 +198,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                     log.warn("AI dispatch message not acknowledged; reclaim after lease expiry, invocationId={}, messageId={}, workerId={}, code={}, type={}",
                             message.invocationId(), message.messageId(), workerId, code, error.getClass().getName());
                     return Mono.empty();
-                });
+                }));
     }
 
     /**
@@ -232,8 +243,8 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
         }
 
         private Mono<Integer> refill() {
-            if (scheduling.enabled()) return refillClasses();
-            return Mono.defer(() -> {
+            if (scheduling.enabled()) return RequestObservation.background(refillClasses());
+            return RequestObservation.background(Mono.defer(() -> {
                 int free;
                 synchronized (InvocationDispatchWorker.this) {
                     if (!live() || polling.get()) return Mono.just(0);
@@ -257,7 +268,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
             }).onErrorResume(error -> {
                 log.warn("AI dispatch outbox recovery scan failed, workerId={}, type={}", workerId, error.getClass().getName());
                 return Mono.just(0);
-            });
+            }));
         }
 
         /**

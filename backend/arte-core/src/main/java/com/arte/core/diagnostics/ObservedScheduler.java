@@ -23,9 +23,10 @@ public final class ObservedScheduler implements Scheduler {
 
     private Runnable wrap(Runnable task, long delay, TimeUnit unit) {
         var observation = RequestObservation.current();
+        var stage = OperationObservation.current();
         long due = System.nanoTime() + unit.toNanos(delay);
         return () -> {
-            try (var ignored = RequestObservation.bind(observation)) {
+            try (var ignored = RequestObservation.bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                 if (observation != null) observation.queued(name, Math.max(0, System.nanoTime() - due));
                 task.run();
             }
@@ -49,9 +50,10 @@ public final class ObservedScheduler implements Scheduler {
 
     private Runnable periodic(Runnable task, long delay, long period, TimeUnit unit) {
         var observation = RequestObservation.current();
+        var stage = OperationObservation.current();
         var due = new java.util.concurrent.atomic.AtomicLong(System.nanoTime() + unit.toNanos(delay));
         return () -> {
-            try (var ignored = RequestObservation.bind(observation)) {
+            try (var ignored = RequestObservation.bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                 if (observation != null)
                     observation.queued(name, Math.max(0, System.nanoTime() - due.getAndAdd(unit.toNanos(period))));
                 task.run();

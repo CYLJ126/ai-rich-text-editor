@@ -8,6 +8,7 @@ import com.alibaba.druid.proxy.jdbc.ConnectionProxy;
 import com.alibaba.druid.proxy.jdbc.PreparedStatementProxy;
 import com.alibaba.druid.proxy.jdbc.ResultSetProxy;
 import com.alibaba.druid.proxy.jdbc.StatementProxy;
+import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.diagnostics.RequestObservation;
 
 import java.sql.SQLException;
@@ -27,7 +28,9 @@ public final class NewAiJdbcObservationFilter extends FilterAdapter {
 
     private <T> T sql(StatementProxy statement, String sql, SqlWork<T> work) throws SQLException {
         var observation = RequestObservation.current();
-        if (observation == null || !observation.sqlStarted()) return work.execute();
+        boolean requestStarted = observation != null && observation.sqlStarted();
+        var stage = OperationObservation.sqlStarted();
+        if (!requestStarted && stage == null) return work.execute();
         long start = System.nanoTime();
         boolean failed = true;
         try {
@@ -36,8 +39,11 @@ public final class NewAiJdbcObservationFilter extends FilterAdapter {
             return value;
         } finally {
             String normalized = sql == null ? "" : sql.toUpperCase(java.util.Locale.ROOT);
-            observation.sql(System.nanoTime() - start, normalized.contains("FOR UPDATE") || normalized.contains("FOR SHARE"), failed,
-                    mysqlId(statement.getConnectionProxy().getRawObject()));
+            long elapsed = System.nanoTime() - start;
+            boolean locking = normalized.contains("FOR UPDATE") || normalized.contains("FOR SHARE");
+            Long connectionId = mysqlId(statement.getConnectionProxy().getRawObject());
+            if (requestStarted) observation.sql(elapsed, locking, failed, connectionId);
+            if (stage != null) stage.completed(elapsed, locking, failed, connectionId);
         }
     }
 

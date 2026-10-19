@@ -790,6 +790,9 @@ ACCEPTED 事件和 DISPATCH／EVENT Outbox 一起提交，任何写入失败全�
 暂存不取消原调用，也不把其标记为失败；恢复只展示原命令，须用户显式原键确认。当前浏览器会话按账号／空间隔离保留最多 20 条待确认提交，
 先保存再开放新调用；存储失败或达到上限时不丢弃旧记录。新调用必须重新预览并确认，不自动复制原操作执行。
 
+P01 已补齐受理、物理事务、Worker、执行及结果提交的阶段观测，以及只读基线统计脚本。口径、本机 50 次自动 Worker 样本和业务环境复测方法见
+[分阶段观测与基线](backend/arte-ai/TOOL_PERFORMANCE.md)。P02—P07 的性能优化与正式性能验收仍待分别完成。
+
 S2-04 已在 `NewAiToolExecutionConfiguration` 接通内部受理与 Worker 派发：必须同时开启 `arte.ai-new.enabled`、
 `arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled`，并由宿主提供 `ToolAdmissionAccess` 与 `ToolExecutionAccess`。
 没有默认允许实现；缺端口时保留已有管理／生成能力，不装配 TOOL 受理及派发。只启用 TOOL 时不需要模型定义、连接、费率、预算或

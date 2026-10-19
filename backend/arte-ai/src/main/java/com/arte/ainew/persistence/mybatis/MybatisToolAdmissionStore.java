@@ -1,5 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
+import com.arte.ainew.application.support.ToolObservation;
+import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
@@ -13,9 +15,13 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.diagnostics.OperationObservation;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.core.Ordered;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -24,6 +30,7 @@ import reactor.core.scheduler.Schedulers;
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -32,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 import static com.arte.ainew.serialization.CanonicalJson.key;
 
@@ -87,10 +95,10 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
     }
 
     private <T> Mono<T> io(Supplier<T> work) {
-        return io(work, null, null);
+        return io(work, null, null, null);
     }
 
-    private <T> Mono<T> io(Supplier<T> work, String invocationId, String traceId) {
+    private <T> Mono<T> io(Supplier<T> work, String invocationId, String traceId, Instant deadline) {
         return Mono.defer(() -> {
             var cancelled = new AtomicBoolean();
             // 仅屏蔽本次订阅对已运行 JDBC 的中断；cache 持有其终态，避免迟到异常掉入全局 onErrorDropped。
@@ -99,7 +107,9 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                 if (cancelled.get()) return null;
                 if (Schedulers.isInNonBlockingThread())
                     throw new IllegalStateException("Tool admission requires a bounded JDBC worker");
-                return transaction.execute(status -> work.get());
+                return invocationId == null ? transaction.execute(status -> work.get())
+                        : OperationObservation.call(ADMISSION_TRANSACTION.name(), invocationId, traceId, deadline,
+                        () -> transaction.execute(status -> work.get()));
             }).subscribeOn(scheduler).doOnError(error -> {
                 if (!cancelled.get()) return;
                 if (error instanceof DeadlineExceeded || error instanceof CancellationException)
@@ -136,51 +146,87 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
         Objects.requireNonNull(authorization);
         // 大记录编码在持锁前完成；不会在写完执行数据后才发现快照超限。
         return Mono.fromCallable(() -> {
-            String encoded = CanonicalJson.normalize(codec.encode(candidate));
-            ContractChecks.require(encoded.getBytes(StandardCharsets.UTF_8).length <= MAX_SNAPSHOT_BYTES, "Tool execution snapshot exceeds byte limit");
-            return encoded;
-        }).subscribeOn(scheduler).flatMap(encoded -> io(() -> {
-            authorization.accept(candidate);
-            var context = candidate.request().context();
-            var owner = ExecutionOwner.from(context);
-            String ownerKey = ownerKey(owner), bindingKey = key(candidate.input().bindingId()), idem = key(context.idempotencyKey());
-            String lock = key("tool-admission", ownerKey, bindingKey, idem);
-            locks.ensureLock(lock);
-            var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem));
-            if (previous != null) {
-                if (!previous.snapshot().submissionDigest().equals(candidate.submissionDigest()))
-                    throw new MybatisExecutionPersistence.Rejected(IDEMPOTENCY_CONFLICT);
-                if (!previous.snapshot().equals(candidate)) authorization.accept(previous.snapshot());
-                var fixed = bindings.fixedInCurrentTransaction(owner, previous.snapshot().binding().definition());
-                if (!fixed.successful() || !fixed.value().equals(previous.snapshot().binding()))
-                    throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
-                return StoreOutcome.replayed(previous);
-            }
-            // 新受理重新按当前绑定／审核兼容链解析，拒绝预检后发生的配置或选版变化；重放不走此分支。
+                    String encoded = CanonicalJson.normalize(codec.encode(candidate));
+                    ContractChecks.require(encoded.getBytes(StandardCharsets.UTF_8).length <= MAX_SNAPSHOT_BYTES, "Tool execution snapshot exceeds byte limit");
+                    return encoded;
+                }).subscribeOn(scheduler).flatMap(encoded -> io(() -> {
+                    var context = candidate.request().context();
+                    var newlyAccepted = new AtomicBoolean();
+                    observeTransaction(context, newlyAccepted);
+                    ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
+                        authorization.accept(candidate);
+                        return true;
+                    });
+                    var owner = ExecutionOwner.from(context);
+                    String ownerKey = ownerKey(owner), bindingKey = key(candidate.input().bindingId()), idem = key(context.idempotencyKey());
+                    String lock = key("tool-admission", ownerKey, bindingKey, idem);
+                    locks.ensureLock(lock);
+                    var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem));
+                    if (previous != null) {
+                        if (!previous.snapshot().submissionDigest().equals(candidate.submissionDigest()))
+                            throw new MybatisExecutionPersistence.Rejected(IDEMPOTENCY_CONFLICT);
+                        if (!previous.snapshot().equals(candidate)) ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
+                            authorization.accept(previous.snapshot());
+                            return true;
+                        });
+                        var fixed = ToolObservation.call(COMMIT_GOVERNANCE, context,
+                                () -> bindings.fixedInCurrentTransaction(owner, previous.snapshot().binding().definition()));
+                        if (!fixed.successful() || !fixed.value().equals(previous.snapshot().binding()))
+                            throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
+                        return StoreOutcome.replayed(previous);
+                    }
+                    // 新受理重新按当前绑定／审核兼容链解析，拒绝预检后发生的配置或选版变化；重放不走此分支。
                     var loaded = new AtomicReference<ToolCatalogStore.Batch>();
-                    var current = bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId(), loaded::set);
-            if (!current.successful()) throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
-            if (!current.value().equals(candidate.binding()))
-                throw new MybatisExecutionPersistence.Rejected(VERSION_CONFLICT);
+                    var current = ToolObservation.call(COMMIT_GOVERNANCE, context,
+                            () -> bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId(), loaded::set));
+                    if (!current.successful()) throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
+                    if (!current.value().equals(candidate.binding()))
+                        throw new MybatisExecutionPersistence.Rejected(VERSION_CONFLICT);
                     var artifacts = loaded.get();
-            if (artifacts == null || !new HashSet<>(artifacts.schemas()).equals(new HashSet<>(candidate.schemas())))
-                throw new IllegalStateException("Tool execution schema integrity mismatch");
-            requireUnexpired(candidate);
-            var now = candidate.receivedAt();
-            var invocation = new Invocation(candidate.request(), candidate.requestDigest(), null, null, null,
-                    Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-            var outcome = executions.acceptInCurrentTransaction(new ExecutionCommands.Accept(invocation, null, executions.toolDispatchPlan(candidate.binding().tool().tool().providerId(),
-                    candidate.binding().tool().tool().defaultPolicy().timeout())));
-            if (outcome.code() != APPLIED)
-                throw new IllegalStateException("Generic acceptance has no matching tool snapshot");
-            var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,
-                    candidate.submissionDigest(), candidate.requestDigest(), CanonicalJson.sha256(encoded), encoded);
-            if (mapper.insertToolSnapshot(row) != 1)
-                throw new IllegalStateException("Tool execution snapshot was not recorded");
-            requireUnexpired(candidate);
-            return StoreOutcome.applied(new Accepted(outcome.value(), candidate));
-                }, candidate.request().context().executionId(), candidate.request().context().traceId()))
+                    if (artifacts == null || !new HashSet<>(artifacts.schemas()).equals(new HashSet<>(candidate.schemas())))
+                        throw new IllegalStateException("Tool execution schema integrity mismatch");
+                    return ToolObservation.call(COMMIT_WRITES, context, () -> {
+                        requireUnexpired(candidate);
+                        var now = candidate.receivedAt();
+                        var invocation = new Invocation(candidate.request(), candidate.requestDigest(), null, null, null,
+                                Invocation.State.ACCEPTED, 0, null, null, null, now, now);
+                        var outcome = executions.acceptInCurrentTransaction(new ExecutionCommands.Accept(invocation, null, executions.toolDispatchPlan(candidate.binding().tool().tool().providerId(),
+                                candidate.binding().tool().tool().defaultPolicy().timeout())));
+                        if (outcome.code() != APPLIED)
+                            throw new IllegalStateException("Generic acceptance has no matching tool snapshot");
+                        var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,
+                                candidate.submissionDigest(), candidate.requestDigest(), CanonicalJson.sha256(encoded), encoded);
+                        if (mapper.insertToolSnapshot(row) != 1)
+                            throw new IllegalStateException("Tool execution snapshot was not recorded");
+                        requireUnexpired(candidate);
+                        newlyAccepted.set(true);
+                        return StoreOutcome.applied(new Accepted(outcome.value(), candidate));
+                    });
+                }, candidate.request().context().executionId(), candidate.request().context().traceId(), candidate.request().options().deadline()))
                 .onErrorResume(MybatisExecutionPersistence.Rejected.class, rejected -> Mono.just(StoreOutcome.rejected(rejected.code)));
+    }
+
+    /**
+     * 真实物理提交后、既有唤醒之前记录提交点；回滚或未知提交状态分别记录，HTTP 取消不代替事务结果。
+     */
+    private static void observeTransaction(ExecutionContext context, AtomicBoolean newlyAccepted) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public int getOrder() {
+                return Ordered.HIGHEST_PRECEDENCE;
+            }
+
+            @Override
+            public void afterCommit() {
+                ToolObservation.point(newlyAccepted.get() ? ADMISSION_COMMITTED : ADMISSION_REPLAY_COMMITTED, context);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED)
+                    ToolObservation.point(status == STATUS_ROLLED_BACK ? ADMISSION_ROLLED_BACK : ADMISSION_OUTCOME_UNKNOWN, context);
+            }
+        });
     }
 
     private void requireUnexpired(ToolExecutionSnapshot snapshot) {

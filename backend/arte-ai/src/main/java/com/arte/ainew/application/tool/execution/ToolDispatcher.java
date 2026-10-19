@@ -2,6 +2,7 @@ package com.arte.ainew.application.tool.execution;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -35,6 +36,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+
+import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
  * 独立本地免费只读 TOOL 的一次耐久派发：读取原快照、复核资格、原子准备、调用网关并提交结果／终态。
@@ -87,29 +90,29 @@ public final class ToolDispatcher {
      * Worker 负责工作项续租及提交后 ACK；这里只处理权威 TOOL 记录，不信任消息或调用方自报能力。
      */
     public Mono<Void> dispatch(OutboxMessage message, ExecutionRuntimeContext runtime) {
-        return Mono.defer(() -> {
+        return ToolObservation.mono(DISPATCH, runtime.execution(), () -> Mono.defer(() -> {
             require(message.kind() == OutboxMessage.Kind.DISPATCH
                     && message.invocationId().equals(runtime.execution().executionId())
                     && message.owner().equals(ExecutionOwner.from(runtime.execution())), ResultCodeEnum.AI_OWNER_MISMATCH);
-            return committed(outbox.validateClaim(message))
-                    .then(load(message)).flatMap(invocation -> {
+            return ToolObservation.mono(DISPATCH_LOAD, runtime.execution(), () -> committed(outbox.validateClaim(message))
+                    .then(load(message))).flatMap(invocation -> {
                         verifyRuntime(invocation, runtime);
                         if (invocation.state().terminal()) return Mono.empty();
                         if (invocation.activeAttemptId() != null) {
-                            return recover(message, invocation);
+                            return ToolObservation.mono(RECOVERY, runtime.execution(), () -> recover(message, invocation));
                         }
-                        return preflight(invocation, runtime)
+                return ToolObservation.mono(PREFLIGHT, runtime.execution(), () -> preflight(invocation, runtime))
                                 .onErrorResume(error -> predictable(error)
                                         ? reject(invocation, error).then(Mono.empty()) : Mono.error(error))
-                                .flatMap(prepared -> committed(preparation.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
-                                        CanonicalJson.key(message.invocationId(), "tool-attempt-1"), attemptLease, new DispatchPreparationStore.Free())))
+                        .flatMap(prepared -> ToolObservation.mono(PREPARE_DISPATCH, runtime.execution(), () -> committed(preparation.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
+                                        CanonicalJson.key(message.invocationId(), "tool-attempt-1"), attemptLease, new DispatchPreparationStore.Free()))))
                                         .flatMap(ready -> {
                                             if (!ready.ready() || ready.billingMode() != DispatchPreparationStore.BillingMode.FREE)
                                                 return Mono.error(new IllegalStateException("Tool dispatch requires fresh FREE preparation"));
                                             return new Session(message, prepared, ready.attempt()).run();
                                         }));
                     });
-        }).subscribeOn(scheduler);
+        }).subscribeOn(scheduler));
     }
 
     /**
@@ -227,8 +230,8 @@ public final class ToolDispatcher {
         var error = new ExecutionError(code, rejected instanceof AccessDeniedException ? ExecutionError.Phase.AUTHORIZATION
                 : ExecutionError.Phase.ADMISSION, false, ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN,
                 invocation.request().context().traceId());
-        return committed(executions.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(version(invocation), "tool-preflight",
-                new ExecutionPayload.Terminal(state, null, error)))).then();
+        return ToolObservation.mono(TERMINAL_COMMIT, invocation.request().context(), () -> committed(executions.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(version(invocation), "tool-preflight",
+                new ExecutionPayload.Terminal(state, null, error))))).then();
     }
 
     /**
@@ -257,7 +260,7 @@ public final class ToolDispatcher {
                         if (!clock.instant().isBefore(prepared.runtime().execution().deadline()))
                             return Mono.just(notInvoked("TOOL_DEADLINE_EXCEEDED"));
                         if (prepared.runtime().cancellation().isCancelled()) return Mono.just(notInvoked("TOOL_CANCELLED"));
-                        return Mono.firstWithSignal(gateway.invoke(call), prepared.runtime().cancellation().signal()
+                        return Mono.firstWithSignal(ToolObservation.mono(GATEWAY, prepared.runtime().execution(), () -> gateway.invoke(call)), prepared.runtime().cancellation().signal()
                                 .map(ignored -> unknown("TOOL_CANCELLED")));
                     }).switchIfEmpty(Mono.error(new IllegalStateException("Empty tool gateway result")))
                     .timeout(remaining.isNegative() || remaining.isZero() ? Duration.ofNanos(1) : remaining)
@@ -315,13 +318,13 @@ public final class ToolDispatcher {
             var max = Math.min(prepared.snapshot().policy().maxOutputBytes(), prepared.snapshot().request().options().maxOutputBytes());
             // 极小的请求上限可能连安全失败信封也放不下；仍保存 Invocation 错误事实，不伪造成功或丢弃大业务输出。
             Mono<Optional<ResultRef>> saved = bytes(result) > max ? Mono.just(Optional.empty())
-                    : committed(results.put(message.owner(), message.invocationId(), claimed.attemptId(), "tool-result", new InvocationResult.Tool(result)))
+                    : ToolObservation.mono(RESULT_PERSIST, prepared.runtime().execution(), () -> committed(results.put(message.owner(), message.invocationId(), claimed.attemptId(), "tool-result", new InvocationResult.Tool(result))))
                     .map(Optional::of);
             return saved.flatMap(reference -> {
                 var state = terminalState(result);
-                return guarded(guard -> executions.commitCompletion(new ExecutionCommands.Complete(guard,
+                return ToolObservation.mono(TERMINAL_COMMIT, prepared.runtime().execution(), () -> guarded(guard -> executions.commitCompletion(new ExecutionCommands.Complete(guard,
                         CanonicalJson.key(claimed.attemptId(), "tool-completion"), new ExecutionPayload.Terminal(state, reference.orElse(null), result.error()),
-                        Usage.unknown(), null)), 3)
+                                Usage.unknown(), null)), 3))
                         .doOnNext(value -> {
                             completed.set(true);
                             log.info("AI tool terminal committed, invocationId={}, traceId={}, attemptId={}, state={}", message.invocationId(),

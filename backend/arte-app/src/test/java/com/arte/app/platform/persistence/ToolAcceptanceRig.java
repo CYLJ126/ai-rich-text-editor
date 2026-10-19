@@ -38,6 +38,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,7 +96,11 @@ final class ToolAcceptanceRig implements AutoCloseable {
     }
 
     ApplicationContextRunner context() {
-        return base.context().withUserConfiguration(PlatformToolManagementConfiguration.class, PlatformToolInvocationConfiguration.class,
+        return context(base.f.source);
+    }
+
+    ApplicationContextRunner context(DataSource source) {
+        return base.context(source).withUserConfiguration(PlatformToolManagementConfiguration.class, PlatformToolInvocationConfiguration.class,
                         PlatformToolExecutionConfiguration.class)
                 .withConfiguration(AutoConfigurations.of(NewAiToolConfiguration.class, NewAiToolGatewayConfiguration.class,
                         NewAiToolExecutionConfiguration.class, NewAiToolManagementConfiguration.class, NewAiExecutionConfiguration.class))
@@ -116,15 +121,21 @@ final class ToolAcceptanceRig implements AutoCloseable {
     }
 
     MockMvc mvc(ApplicationContext c) {
+        return mvc(c, false);
+    }
+
+    MockMvc mvc(ApplicationContext c, boolean observed) {
         var http = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
-        return standaloneSetup(new NewAiToolController(c.getBean(ToolManagementService.class),
+        var builder = standaloneSetup(new NewAiToolController(c.getBean(ToolManagementService.class),
                         c.getBean(ToolManagementAccess.class)),
                 new NewAiToolSubmissionController(c.getBeanProvider(ToolAdmissionService.class), http, c.getBean(NewAiProperties.class)),
                 new NewAiInvocationController(c.getBean(ExecutionControl.class),
                         c.getBean(ExecutionEventService.class), http, c.getBean(NewAiProperties.class),
                         c.getBean(InvocationBudgetStatusResolver.class)),
                 new NewAiToolInvocationController(c.getBean(ExecutionControl.class), http, c.getBean(NewAiProperties.class)))
-                .setControllerAdvice(new ToolManagementExceptionHandler(), new ConversationExceptionHandler()).setValidator(validator).build();
+                .setControllerAdvice(new ToolManagementExceptionHandler(), new ConversationExceptionHandler()).setValidator(validator);
+        if (observed) builder.addFilters(new com.arte.app.diagnostics.NewAiHttpObservationFilter());
+        return builder.build();
     }
 
     JsonNode post(MockMvc mvc, String path, Map<String, ?> body, String key, int expectedStatus) throws Exception {

@@ -116,6 +116,10 @@ Idempotency-Key。应看到 nodeDiscoveryHealthy=true、nodeChecksum 与上值�
 invocationId、traceId、异常类型，不输出参数或原始异常消息。此修正没有更改 5 秒策略、数据库结构或部署清单；更新后需重新构建、重启后端并更新前端。
 业务环境是否仍存在 SQL／锁等待，应在重启后用新的同一 traceId 的 HTTP／SQL 指标复测，本机通过不保证业务环境的尾延迟。
 
+P01 已增加 `AI_TOOL_STAGE`／`AI_TOOL_POINT`，可区分入口授权、解析、真实提交／回滚、Worker 读取、实际适配器及结果持久化。
+按 [分阶段观测与基线](TOOL_PERFORMANCE.md) 重启后采集新调用；使用 `scripts/measure_tool_phases.py` 按追踪号或连续样本统计。
+该脚本只读取日志，不调用业务接口或数据库；本批没有放宽 5 秒策略或实现 P02—P07 的优化。
+
 ## 5. 本轮证据和边界
 
 | 验证层           | 覆盖                                                                                                                                              | 不代表                                               |

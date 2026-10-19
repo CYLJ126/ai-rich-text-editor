@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class RequestObservation {
     private static final String KEY = RequestObservation.class.getName();
+    private static final String BACKGROUND = KEY + ".background";
     private static final ThreadLocal<RequestObservation> CURRENT = new ThreadLocal<>();
     public final String traceId = UUID.randomUUID().toString().replace("-", "");
     public final long started = System.nanoTime();
@@ -101,6 +102,13 @@ public final class RequestObservation {
         return observation == null ? source : source.contextWrite(context -> context.put(KEY, observation));
     }
 
+    /**
+     * 提交唤醒可能同步触发后台领取；清除来源请求的诊断归属，保留其他既有 Reactor 上下文。
+     */
+    public static <T> Mono<T> background(Mono<T> source) {
+        return source.contextWrite(context -> context.delete(KEY).delete(OperationObservation.KEY).put(BACKGROUND, true));
+    }
+
     public static <T> Mono<T> initialAuthorization(Mono<T> source) {
         return Mono.deferContextual(context -> {
             var observation = context.<RequestObservation>getOrDefault(KEY, current());
@@ -122,7 +130,9 @@ public final class RequestObservation {
     public static void installReactorPropagation() {
         Hooks.onEachOperator(KEY, Operators.lift((source, subscriber) -> {
             var observation = subscriber.currentContext().<RequestObservation>getOrDefault(KEY, null);
-            if (observation == null) return subscriber;
+            var stage = OperationObservation.from(subscriber.currentContext());
+            if (observation == null && stage == null && !subscriber.currentContext().getOrDefault(BACKGROUND, false))
+                return subscriber;
             return new CoreSubscriber<Object>() {
                 @Override
                 public @NonNull Context currentContext() {
@@ -131,28 +141,28 @@ public final class RequestObservation {
 
                 @Override
                 public void onSubscribe(@NonNull Subscription subscription) {
-                    try (var ignored = bind(observation)) {
+                    try (var ignored = bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                         subscriber.onSubscribe(subscription);
                     }
                 }
 
                 @Override
                 public void onNext(Object value) {
-                    try (var ignored = bind(observation)) {
+                    try (var ignored = bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                         subscriber.onNext(value);
                     }
                 }
 
                 @Override
                 public void onError(Throwable error) {
-                    try (var ignored = bind(observation)) {
+                    try (var ignored = bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                         subscriber.onError(error);
                     }
                 }
 
                 @Override
                 public void onComplete() {
-                    try (var ignored = bind(observation)) {
+                    try (var ignored = bind(observation); var ignoredStage = OperationObservation.bind(stage)) {
                         subscriber.onComplete();
                     }
                 }
