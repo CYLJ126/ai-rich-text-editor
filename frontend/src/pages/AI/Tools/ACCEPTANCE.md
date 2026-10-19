@@ -79,3 +79,28 @@ DDL 或启用功能开关。
 ![390px 调用预览](acceptance/run-preview-narrow.png)
 
 ![390px 原调用结果](acceptance/run-result-narrow.png)
+
+## S2-09 正式文本工具与 MySQL（2026-10-19）
+
+本轮按确认范围验收本机集成与性能基线。使用 `ToolPlatformBrowserAcceptance#browserBridge`／`scripts/tool-s209-browser`
+，固定测试登录会话、随机真实平台 scope、正式平台当前 RBAC／空间／AI 资格、真实 text.countCodePoints@v1、独立 MySQL 8.4.11 和实际
+Worker。详细启用、发布 JSON、复现命令及边界见 [使用与验收](../../../../../backend/arte-ai/TOOL_ACCEPTANCE.md)。
+
+| 场景 | 观察 |
+|---|---|
+| 首次使用 | 已发布文本工具可见，详情说明 Unicode 码点语义；显式准备本人默认空配置 |
+| 调用预览 | 输入 A😀中；显示实际 v1／r1、5 秒／1 次／4096 字节、FREE 说明，不调用模型 |
+| 提交结果 | SUCCEEDED，预算未预留，副作用 NONE，结构化结果 codePoints=3 |
+| 刷新恢复 | 回到调用页恢复 bb588219-dafb-47ac-81d8-f0e7ea530d57 和同一结果 |
+| 390px | 参数、费用／限制、确认按钮与结果可见，按钮换行，页面可滚动 |
+| 只预览 | 窄屏另填参数仅预览，关闭桥时 invocations=1、attempts=1、reservations=0 |
+
+前端相关 157 项测试通过，新页面桥 Biome check 通过；产品组件未改动。浏览器页、桥及 Vite 已关闭，测试随机数据库已清理。未验证真实登录／JWT
+签名过滤、业务角色与菜单授予、完整 Umi 生产构建、跨主机事件传播或正式参考环境持续负载。双 Worker 为同 JVM
+独立实例，不能据此宣称双应用节点或生产性能通过。
+
+![正式文本工具调用结果](acceptance/s209-result-desktop.png)
+
+![390px 正式结果](acceptance/s209-result-narrow.png)
+
+![390px 实际方案与确认按钮](acceptance/s209-preview-narrow.png)

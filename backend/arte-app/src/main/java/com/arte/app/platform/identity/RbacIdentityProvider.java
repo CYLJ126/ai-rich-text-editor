@@ -92,6 +92,27 @@ public final class RbacIdentityProvider implements IdentityProvider {
         return identities.findAccountBinding(subjectId, true).map(identity -> principal(identity, true));
     }
 
+    /**
+     * Worker 的可信执行主体没有 HTTP 会话；锁定现有映射及账户，核对稳定主体、当前名称和账户生命周期。
+     * 不根据任务里的名称创建身份，不重建 JWT，也不把旧执行快照当作当前账户资格。
+     */
+    public Optional<Principal> findCurrentExecutionPrincipal(ExecutionPrincipal expected) {
+        accounts.requireTransaction();
+        if (expected.kind() != ExecutionPrincipal.Kind.USER) return Optional.empty();
+        return identities.findAccountBinding(expected.subjectId(), true).flatMap(binding -> {
+            long userId;
+            try {
+                userId = Long.parseLong(binding.identity().externalUserId());
+            } catch (NumberFormatException invalid) {
+                throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+            }
+            return accounts.findCurrentById(userId).filter(account -> account.name().equals(expected.subjectName())).map(account -> {
+                validateBinding(binding, account);
+                return principal(binding.identity(), account);
+            });
+        });
+    }
+
     private Principal resolve(RbacAccountReader.Account account) {
         var existing = identities.findAccountBindingByExternalId(String.valueOf(account.id()));
         if (existing.isPresent()) {

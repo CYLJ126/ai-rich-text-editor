@@ -292,6 +292,20 @@ public final class LocalToolDiscovery {
         require(discovered.equals(revision.tool().discoveredCapability()), ADAPTER_MISMATCH);
     }
 
+    /**
+     * 部署清单摘要的唯一算法；可由受信静态来源离线计算预期值，不授予发现健康或执行资格。
+     * 固定排序使登记顺序、发现时刻及节点重启不改变摘要。
+     */
+    public static String manifest(ToolCatalogStore.Batch batch) {
+        return CanonicalJson.digest(CanonicalJson.fields("format", "local-tool-discovery-v1",
+                "providers", batch.providers().stream().sorted(Comparator.comparing(ToolProviderDefinition::definition, REFERENCES)).toList(),
+                "schemas", batch.schemas().stream().sorted(Comparator.comparing(ToolSchemaDefinition::definition, REFERENCES))
+                        .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                "tools", batch.tools().stream().sorted(Comparator.comparing(t -> t.tool().definition(), REFERENCES))
+                        .map(t -> CanonicalJson.fields("definition", t.tool().definition(), "checksum", t.tool().checksum(),
+                                "provider", t.provider(), "target", t.target())).toList()));
+    }
+
     private RefreshResult install(ToolCatalogStore.Batch batch, StoreOutcome<ToolCatalogStore.Batch> outcome) {
         if (outcome.code() != StoreOutcome.Code.APPLIED && outcome.code() != StoreOutcome.Code.REPLAYED)
             throw new Failure(outcome.code() == StoreOutcome.Code.IDEMPOTENCY_CONFLICT ? CONTRACT_DRIFT : STORE_REJECTED);
@@ -302,10 +316,7 @@ public final class LocalToolDiscovery {
         batch.providers().forEach(p -> providers.put(p.definition(), p));
         batch.schemas().forEach(s -> documents.put(s.definition(), s));
         batch.tools().forEach(t -> tools.put(t.tool().definition(), t));
-        var digest = CanonicalJson.digest(CanonicalJson.fields("format", "local-tool-discovery-v1", "providers", batch.providers(),
-                "schemas", batch.schemas().stream().map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
-                "tools", batch.tools().stream().map(t -> CanonicalJson.fields("definition", t.tool().definition(), "checksum", t.tool().checksum(),
-                        "provider", t.provider(), "target", t.target())).toList()));
+        var digest = manifest(batch);
         var snapshot = new Snapshot(providers, documents, tools, digest, PlatformTimes.businessNow(clock));
         var code = outcome.code() == StoreOutcome.Code.APPLIED ? APPLIED : REPLAYED;
         var state = new State(snapshot, code);

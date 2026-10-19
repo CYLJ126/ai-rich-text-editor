@@ -3,6 +3,7 @@ package com.arte.ainew.config;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.ToolStartupDiscovery;
 import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
@@ -49,6 +50,12 @@ public class NewAiToolConfiguration {
                                           @Qualifier("newAiClock") Clock clock, NewAiToolProperties properties) {
         return new LocalToolDiscovery(registry, store, new ToolSchemaValidator(), scheduler, clock,
                 properties.discovery().sourceTimeout());
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.ai-new-tool.discovery", name = "refresh-on-startup", havingValue = "true")
+    ToolStartupDiscovery toolStartupDiscovery(LocalToolDiscovery discovery) {
+        return new ToolStartupDiscovery(discovery);
     }
 
     /**

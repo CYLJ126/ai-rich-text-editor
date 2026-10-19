@@ -1,7 +1,9 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.app.platform.identity.RbacIdentityProvider;
@@ -12,6 +14,7 @@ import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.UserOnlineInfo;
 import com.arte.core.pojo.platform.Scope;
@@ -89,6 +92,66 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
         });
     }
 
+    /**
+     * 独立调用／Worker 沿用同一当前资格门控；输入必须是可信入口或耐久记录产生的上下文，不接收客户端主体。
+     * 与管理写入共享账户、RBAC、空间及 AI 开关检查；免费和领域资源资格由执行适配另外明确批准。
+     */
+    public Mono<Permit> authorizeUse(ExecutionContext context) {
+        return Mono.defer(() -> {
+            var remaining = Duration.between(clock.instant(), context.deadline());
+            if (remaining.isZero() || remaining.isNegative()) return Mono.error(denied());
+            return Mono.fromCallable(() -> transactions.required(() -> {
+                var actor = useActor(context);
+                var scope = new Scope(context.authorization().tenantId(), context.authorization().workspaceId());
+                var scopes = checkUse(context, actor, scope, Set.of(AdmissionAuthorization.INVOKE));
+                return (Permit) new Permit() {
+                    public TrustedActor actor() {
+                        return actor;
+                    }
+
+                    public ExecutionOwner owner() {
+                        return ExecutionOwner.from(context);
+                    }
+
+                    public Operation operation() {
+                        return Operation.BINDING_WRITE;
+                    }
+
+                    public Set<String> executionScopes() {
+                        return scopes;
+                    }
+
+                    public void requireInCurrentTransaction(Set<String> required) {
+                        checkUse(context, actor, scope, required);
+                    }
+                };
+            })).subscribeOn(scheduler).timeout(remaining).onErrorMap(PlatformException.class, error -> switch (error.getCode()) {
+                // 当前资格明确丧失应在派发前收尾；权威不可用等基础设施故障仍保留原异常，不能伪装成撤权。
+                case UNAUTHENTICATED, ACCESS_DENIED, POLICY_DENIED, NOT_FOUND, SPACE_READ_ONLY, SPACE_CLOSING,
+                     CAPABILITY_NOT_ENABLED, IDENTITY_CONFLICT, TENANT_INACTIVE -> denied();
+                default -> error;
+            });
+        });
+    }
+
+    private TrustedActor useActor(ExecutionContext context) {
+        var expected = context.authorization().principal();
+        if (expected.kind() != ExecutionPrincipal.Kind.USER || !context.authorization().scopes().contains(AdmissionAuthorization.INVOKE))
+            throw denied();
+        var principal = identities.findBySubjectId(expected.subjectId()).filter(value -> value.status() == PrincipalStatusEnum.ACTIVE)
+                .orElseThrow(PlatformToolManagementAccess::denied);
+        return new TrustedActor(principal, clock.instant());
+    }
+
+    private Set<String> checkUse(ExecutionContext context, TrustedActor actor, Scope scope, Set<String> required) {
+        return checkCurrent(actor, context.authorization().principal().subjectName(), scope, Operation.BINDING_WRITE, required,
+                context.deadline(), () -> {
+                    var current = identities.findCurrentExecutionPrincipal(context.authorization().principal()).orElseThrow(PlatformToolManagementAccess::denied);
+                    if (!current.equals(actor.principal()) || current.status() != PrincipalStatusEnum.ACTIVE)
+                        throw denied();
+                });
+    }
+
     private final class CurrentPermit implements Permit {
         private final Authentication login;
         private final TrustedActor actor;
@@ -133,10 +196,22 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
             throw new com.arte.ainew.application.support.AdmissionException(com.arte.core.enums.ResultCodeEnum.AI_DEADLINE_EXCEEDED);
         var actor = identities.actor(login);
         if (!actor.principal().equals(expected.principal())) throw denied();
+        return checkCurrent(actor, login.getName(), scope, operation, required, deadline, () -> {
+            if (!identities.actorCurrent(login).principal().equals(actor.principal())) throw denied();
+        });
+    }
+
+    /**
+     * 管理会话与可信执行复用当前权限规则，主体证据在公共锁内分别复核。
+     */
+    private Set<String> checkCurrent(TrustedActor actor, String subjectName, Scope scope, Operation operation,
+                                     Set<String> required, Instant deadline, Runnable identityProof) {
+        transactions.requireWritable();
+        if (!clock.instant().isBefore(deadline)) throw denied();
         var action = operation == Operation.BINDING_WRITE ? WORKSPACE_AI_USE : WORKSPACE_READ;
         return guard.inCurrentTransaction(actor, List.of(DefaultAuthorizationService.workspaceRequest(scope, action, "ai-tool-management")), () -> {
-            if (!identities.actorCurrent(login).principal().equals(actor.principal())) throw denied();
-            var operations = permissions.current(login.getName());
+            identityProof.run();
+            var operations = permissions.current(subjectName);
             var requiredOperation = switch (operation) {
                 case LIST -> "aiTool:list";
                 case BINDING_WRITE, BINDING_DISABLE -> "aiTool:invoke";
@@ -159,7 +234,7 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
                 if (operation == Operation.BINDING_WRITE && !mayInvoke) throw denied();
                 scopes = mayInvoke ? Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.INVOKE) : Set.of(AdmissionAuthorization.READ);
             } else {
-                var grant = properties.grants().stream().filter(g -> g.enabled() && g.subjectName().equals(login.getName())
+                var grant = properties.grants().stream().filter(g -> g.enabled() && g.subjectName().equals(subjectName)
                         && g.subjectId().equals(actor.principal().subjectId()) && g.tenantId().equals(scope.tenantId())
                         && g.workspaceId().equals(scope.workspaceId()) && g.principalKind() == com.arte.ainew.common.execution.ExecutionPrincipal.Kind.USER).findFirst().orElseThrow(PlatformToolManagementAccess::denied);
                 scopes = grant.scopes();

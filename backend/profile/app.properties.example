@@ -136,6 +136,7 @@ arte.ai-new.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 LocalToolRegistry Bean。
 arte.ai-new-tool.enabled=false
 arte.ai-new-tool.discovery.source-timeout=10s
+arte.ai-new-tool.discovery.refresh-on-startup=false
 # Set true for the first upgraded startup after applying the metadata migration.
 arte.ai-new.conversation-metadata-backfill.enabled=false
 arte.ai-new.data-source-bean=appDataSource

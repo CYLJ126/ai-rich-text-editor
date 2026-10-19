@@ -1,6 +1,6 @@
 # AI TOOL HTTP API（管理与独立调用）
 
-更新：2026-10-19，S2-08。本接口提供本地目录、发布、当前空间内本人绑定管理及独立免费只读调用。需求见
+更新：2026-10-19，S2-09。本接口提供本地目录、发布、当前空间内本人绑定管理及独立免费只读调用。需求见
 [需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 ，实现与验证见 [实施记录 §8](TOOL_IMPLEMENTATION.md#8-s1-08管理-api-与现有当前授权)。
 
@@ -10,7 +10,8 @@ S2-02 提供内部本地只读网关；S2-08 新增独立调用预览与可靠�
 仅当 `arte.ai-new.enabled=true` 和 `arte.ai-new-tool.enabled=true` 时注册。复用现有认证、语言和 `ResultContext`； 外部路径前缀为
 `/arte/ai-new/tool`，Controller 路径不包含应用上下文 `/arte`。 启用前须具备现有公共身份／持久化／空间基础、同一物理
 `appDataSource` 及相应表，缺少管理授权时装配失败，缺少显式执行授权时新调用不可用。 本次未连接或部署业务数据库，TOOL
-仍默认关闭，未登记生产工具；前端目录／配置及调用页面已实现。
+共享默认仍关闭；arte-app
+已显式登记正式文本计数工具和执行授权，前端目录／配置及调用页面已实现。首次发布、配置和验收见 [S2-09 使用与验收](TOOL_ACCEPTANCE.md)。
 
 S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：同库可靠受理 → 原固定快照／当前资格 → FREE
 原子准备 → ToolGateway → 结果字节 → 终态／事件 → Worker ACK。通用协调器按权威 kind 路由，原生成 submit 语义不扩展为 TOOL。
@@ -46,7 +47,8 @@ DATABASE 模式读取现有空间 AI enabled 与公共 AI 使用资格，派生 
 
 ## S2-07 目录与默认配置
 
-已新增 `/AI/Tools` 目录与本人配置页，管理入口总数为 17；S2-08 已接入调用预览／提交／结果，S2-09 仍为只读集成验收。
+已新增 `/AI/Tools` 目录与本人配置页，管理入口总数为 17；S2-08 已接入调用预览／提交／结果，S2-09
+已完成正式文本工具、本机集成及性能基线，正式参考环境性能仍待验。
 
 `listTools` 新增可选 `query`（名称／ID／用途，最多 200 字符）、`tag`（精确标签，100）、`providerId`（精确提供者 ID，256）、`state`。
 筛选在服务器有界候选页执行，并与主体、Scope、managed 和 provider 一起绑定游标；records 为空仍可能有 nextCursor，条件变化须重启分页。
@@ -72,10 +74,11 @@ tool-binding-receipt v2，部署兼容见实施记录 §15。
 `aiTool:invoke`，两者均受本人归属及当前空间 READ 约束，不读取模型或预算目录。 新增 `POST /ai-new/tool/cancelToolInvocation`
 ，正文 `{scope, invocationId}`，必须提供独立 `Idempotency-Key`。 该入口使用 `ai:read` 上下文及独立控制资格，空间 AI
 已关闭时仍可停止已有工具；不需要 aiTool:list，不能以此停止生成。 与通用查询相同，该收尾入口不依赖 TOOL
-新调用开关；当前授权端口缺失时拒绝，不提供默认放行。受理与真实执行端口依旧显式提供。
+新调用开关；当前授权端口缺失时拒绝，不提供默认放行。受理与真实执行端口由 arte-app 的 PlatformToolExecutionAccess
+显式提供，当前免费策略仅覆盖受信文本计数工具。
 
 返回 ACCEPTED／202 只表示取消命令已保存，同键重放返回原回执；终态只以调用查询为准。未执行取消没有 ToolResult，运行中取消可能为
-UNKNOWN。 默认绑定、公开调用提交及试用页面仍待后续，不能把本入口当作 invoke API。原 16 个管理接口范围不变。
+UNKNOWN。 默认绑定、公开调用提交及试用页面已由 S2-07／08 提供；停止入口仅接收控制命令。管理接口现共 17 个。
 
 新调用开关关闭时仍须保持通用执行装配可用；本批未改变至少需要一种派发器的启动约束。
 
@@ -225,3 +228,17 @@ budgetRef，不调用模型、不预留或扣减模型预算；不是独立收�
 
 状态／结果沿用 invocation/getInvocationStatus、getInvocationResult；TOOL 结果追加 outputJson，页面按纯文本显示精确 JSON。 停止用
 tool/cancelToolInvocation；停止回执只说明命令事实。审批、写工具、远端与费用核对仍在后续阶段。
+
+## S2-09 正式文本工具与启动发现
+
+arte-app 提供 `text.countCodePoints@v1`（文本字符计数），参数 `{ "text": "A😀中\n" }`，成功 outputJson 为
+`{ "codePoints": 4 }`。按 Unicode 码点计数，空格／换行计入，组合字符及组合表情可有多个码点；允许空文本。输入 Schema 最多 65536
+码点，同时受有效输入 JSON 字节上限约束（共享默认 65536 字节），不是对任意 65536 字符的接收承诺。配置必须 `{}`；无
+Secret、网络、文件、模型和费用账户。
+
+发布仍须 MANAGE 和显式 review；使用仍须当前 aiTool:invoke／空间 AI 使用资格与个人绑定。FREE／NOT_RESERVED 是该固定实现经宿主认可的策略，不按
+READ_ONLY 推断。
+
+`arte.ai-new-tool.discovery.refresh-on-startup=true` 可使每个节点在 Worker 启动前完整发现（最多等待 30 秒）；默认
+false，失败拒绝启动。它不构造管理用户或管理审计回执，不自动发布／建绑／授权。`refreshLocalCatalog` 继续是有当前 MANAGE
+检查、命令审计及幂等回执的显式管理入口。已知清单及首次发布 JSON 见 [使用与验收](TOOL_ACCEPTANCE.md)。

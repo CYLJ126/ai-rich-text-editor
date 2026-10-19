@@ -1,7 +1,6 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
 import com.arte.app.platform.persistence.PlatformJson;
@@ -29,7 +28,7 @@ import java.time.Clock;
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled"}, havingValue = "true")
 public class PlatformToolManagementConfiguration {
     @Bean
-    ToolManagementAccess toolManagementAccess(RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource source,
+    PlatformToolManagementAccess toolManagementAccess(RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource source,
                                               @Qualifier("platformTransactionRunner") PublicTransactionRunner transactions,
                                               WorkspaceWriteGuard guard, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                               PlatformAiControlMapper configuration, PlatformJson json, NewAiProperties properties,

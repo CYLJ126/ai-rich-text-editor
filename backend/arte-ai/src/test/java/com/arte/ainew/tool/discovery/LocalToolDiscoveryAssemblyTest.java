@@ -138,12 +138,13 @@ public class LocalToolDiscoveryAssemblyTest {
             example.load(reader);
         }
         var template = Files.readString(Path.of("src/main/resources/ainew/config/application.properties"));
-        for (String key : List.of("arte.ai-new-tool.enabled", "arte.ai-new-tool.discovery.source-timeout")) {
+        for (String key : List.of("arte.ai-new-tool.enabled", "arte.ai-new-tool.discovery.source-timeout", "arte.ai-new-tool.discovery.refresh-on-startup")) {
             assertTrue(template.contains(key + "=@" + key + "@"));
             assertEquals(defaults.getProperty(key), example.getProperty(key));
         }
         assertEquals("false", defaults.getProperty("arte.ai-new-tool.enabled"));
         assertEquals("10s", defaults.getProperty("arte.ai-new-tool.discovery.source-timeout"));
+        assertEquals("false", defaults.getProperty("arte.ai-new-tool.discovery.refresh-on-startup"));
         var resource = new ClassPathResource("ainew/config/application.properties").getContentAsString(StandardCharsets.UTF_8);
         assertFalse(resource.contains("@arte.ai-new-tool"));
         var runtime = new Properties();
@@ -151,7 +152,9 @@ public class LocalToolDiscoveryAssemblyTest {
         var environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new PropertiesPropertySource("filtered-tool", runtime));
         var properties = Binder.get(environment).bind("arte.ai-new-tool", Bindable.of(NewAiToolProperties.class)).orElseThrow(AssertionError::new);
-        assertFalse(properties.enabled());
+        // 共享／示例默认关闭已在上方验证；dev 的 app.properties 可显式启用，不能硬编码运行时也关闭。
+        assertEquals(Boolean.parseBoolean(runtime.getProperty("arte.ai-new-tool.enabled")), properties.enabled());
+        assertEquals(Boolean.parseBoolean(runtime.getProperty("arte.ai-new-tool.discovery.refresh-on-startup")), properties.discovery().refreshOnStartup());
         assertEquals(Duration.ofSeconds(10), properties.discovery().sourceTimeout());
     }
 

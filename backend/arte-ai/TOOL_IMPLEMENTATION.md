@@ -5,12 +5,11 @@
 
 当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关、S2-03 内部可靠受理／执行快照及
 S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06 分类容量／排队及 S2-07 目录／个人配置页面；17 个管理 API
-与现有当前授权接线完成。S2-08 已完成调用预览／可靠提交／结果和恢复页面；生产宿主执行授权及真实工具登记仍须显式提供，S2-09
-未验收。 TOOL 与分类调度
-默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量、TOOL RBAC 定义及 S2-07 菜单 DML 尚未在配置中的业务数据库部署。
+与现有当前授权接线完成。S2-08 已完成调用预览／可靠提交／结果和恢复页面；S2-09 已补齐正式宿主执行授权、真实文本工具及本机集成验收／性能基线，正式参考环境性能待验，详见
+§17。 TOOL 与分类调度 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量、TOOL RBAC 定义及 S2-07 菜单 DML 本轮未在配置中的业务数据库执行。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
-§13、分类容量与排队见 §14，目录与绑定页面见 §15，本批调用预览与结果页面见 §16。
+§13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
 
 S1 后续原始分批顺序：S1-04 工具定义／Schema／提供者存储；S1-05 本地登记与发现；S1-06 发布、废弃与停用；S1-07 绑定及修订；S1-08
 管理 API 和现有授权接入。批次编号不因实现细节调整而改成另一项工作。
@@ -1573,10 +1572,91 @@ ID 查询。正常单飞每秒轮询，失败指数退避到 15 秒，页面隐�
 
 ### 16.4 生产开放前提与下一批
 
-当前仓库 arte-app 已提供管理和历史读取／停止的当前平台授权，但尚无生产 ToolAdmissionAccess／ToolExecutionAccess 或真实
+本节为 S2-08 完成时的记录，后续接线与验收状态见 §17。当时 arte-app 已提供管理和历史读取／停止的当前平台授权，但尚无生产
+ToolAdmissionAccess／ToolExecutionAccess 或真实
 LocalToolRegistry.Registration。 本批保留该显式接入边界，不登记测试适配器、不以只读元数据或管理权限代替免费／资源授权。三开关开启但缺受理服务时，新接口返回
 503。 宿主实现必须检查现有稳定身份、当前账号／租户／空间、AI 使用、aiTool:invoke、实际资源及受信计费策略；提交与重放在同库原事务复核，
 执行边界再检查当前资格。实际业务适配仍须使用原领域授权。
 
 S2-09 才进行具体业务库／Redis、多节点、故障矩阵、性能与首次真实使用验收，并逐项记录生产工具及宿主授权缺口；不能因页面与 H2
 用例通过即宣布开放。 审批、写工具、远端、付费工具、工具聊天及自动业务结果核对均未进入本批。
+
+## 17. S2-09：正式宿主接线与本机集成验收
+
+状态：按本轮确认完成本机集成及性能基线；正式参考环境双节点、规定数据规模、30 分钟 W1—W4／PF-01—08 保留待验。S2
+生产开放门槛不变。本批首次使用和配置步骤集中在 [使用与验收](TOOL_ACCEPTANCE.md)。
+
+### 17.1 正式实现与宿主授权
+
+- arte-app 新增 `PlatformToolExecutionConfiguration`，按现有包路径显式装配 `LocalToolRegistry`、`LocalTextTools` 和同时实现
+  ToolAdmissionAccess／ToolExecutionAccess 的 `PlatformToolExecutionAccess`。修复开启 TOOL 后缺少 LocalToolRegistry
+  的启动缺口，不注册空目录或默认放行端口。
+- 正式工具 `text.countCodePoints@v1` 按 Unicode 码点计数，输入 text，输出 codePoints，配置必须空对象。仅处理本次文本，无
+  Secret／网络／文件／模型／业务资源；5 秒／1 次尝试／受控字节上限。完整契约与实际适配器一起登记，免费策略比较完整固定版本及有效配置，不按名称、READ_ONLY
+  或空预算推断。
+- 受理、同键重放、Worker 和实际网关调用均使用现有当前身份／空间／RBAC／AI 资格。抽取既有管理门控供可信执行复用，提交／重放仍在原物理写事务最终校验。
+  `RbacIdentityProvider.findCurrentExecutionPrincipal` 锁定既有映射与账户，核对当前名称及账户生命周期，不构造 JWT
+  或按任务名称新增身份。
+- 明确的账户／空间资格丧失转换为当前授权拒绝，在调用算法前失败收尾；AUTHORITY_UNAVAILABLE、SQL 等基础设施错误保留原语义，不能伪装成撤权。既有管理
+  Session、READ 历史和停止授权规则保持。
+- 明确 FREE 的调用保持 NOT_RESERVED、零费用账户／reservation、不选聊天模型；未新增第二套预算，也未实现付费工具或 Run 编排。
+
+### 17.2 启动发现和部署清单
+
+新增 `arte.ai-new-tool.discovery.refresh-on-startup`，共享和示例默认 false。显式启用后 `ToolStartupDiscovery` 在 Worker
+启动前完整发现，30 秒总等待上限，失败拒绝启动；仅登记不可变部署事实，不执行 DDL、不自动发布／建绑／授予角色，不伪造管理员会话或管理审计回执。构造发现服务仍零
+SQL，手动管理刷新仍有独立当前授权／审计。
+
+`LocalToolDiscovery.manifest(batch)` 提取原有摘要算法，按提供者／Schema／工具固定排序，忽略来源顺序和加载时间；生产文本清单可在启动前计算，不需要先起服务取值再重启。当前唯一文本工具清单：
+
+```properties
+arte.ai-new-execution.scheduling.tool-manifest=331756c89f707d42a1142275e1be4d4711b6ef76ef6ac7df4b996ce463cd6569
+```
+
+Worker 仍要求本节点健康发现且与固定池清单匹配；已知摘要不授予健康或执行资格。变更清单和分类策略仍须停写排空、统一升级并按
+§14 处理固定 pool 记录，没有自动清库／忽略漂移的路径。当前被忽略的本机 app.properties 已填入上值和启动发现开关；共享配置仍保持关闭。本批没有新表或
+codec 布局变化。
+
+### 17.3 MySQL 实测发现的锁修复
+
+独立 MySQL 8.4 双 Worker 同时领取，复现 `SystemMapper.ensureLock` 使用 INSERT IGNORE 后同时 FOR UPDATE 的共享锁升级死锁，InnoDB
+最近死锁记录明确显示两个事务互持相同主键 S 锁并等待 X 锁。改为 `INSERT … ON DUPLICATE KEY UPDATE lock_key=lock_key`
+，在已存在锁行时直接取得排他锁，然后沿用原锁定读取和事务顺序。没有用业务自动重试掩盖重复派发；修复后 MySQL 双 Worker
+完成一次逻辑调用、一次 Attempt、零预算预留。
+
+### 17.4 验证结果和范围
+
+- `PlatformToolExecutionIntegrationTest` 7 项：正式 Spring／当前平台权限／MVC／真实工具；发现→显式发布→本人默认准备→预览→可靠提交→双
+  Worker→持久结果；同键相同编号、撤权拒绝新提交及重放、AI 关闭后历史可读、参数／他人空间拒绝、Unicode／空文本／大输入及非法输入、关闭
+  Spring 后新节点发现并恢复原调用、重复取消零 Attempt、账户生命周期变化派发前拒绝。
+- 独立 MySQL 8.4.11：上述 7 项和 `ToolMySqlMigrationAcceptanceTest` 1 项共 8 项全部通过。新建全量 DDL 正常；在空随机测试基线上撤去新增结构后按
+  S1-04→06→07→08→S2-03→06 原始脚本恢复，11 张 TOOL 表、4 张调度表、Outbox 新列／索引及外键与全量一致。不是带历史数据或所有旧版本组合升级验收。
+- 显式 `ToolLocalBaselineTest` 1 项通过：首次单列、预热 10 次、测量 50 次串行真实 MVC／平台授权／SQL。61 次调用均一次
+  Attempt，零 reservation，队列预留归零。受理 P95 231.15ms、查询 P95 150.21ms、端到端 P95
+  992.79ms；完整环境、冷样本、P50／95／99、测量边界见 [基线表](TOOL_ACCEPTANCE.md#本机性能基线)。端到端主动推进
+  Worker，不含生产轮询间隔，不判定 PF 达标。
+- 实际浏览器：`ToolPlatformBrowserAcceptance#browserBridge` 与 `frontend/scripts/tool-s209-browser`，正式组件／真实工具／当前平台授权／临时
+  MySQL，固定测试登录会话。目录→详情→默认准备→调用→预览→确认→SUCCEEDED／NOT_RESERVED，A😀中输出 3；刷新恢复原编号
+  bb588219-dafb-47ac-81d8-f0e7ea530d57；390px 的预览与结果可用。关闭统计
+  invocations=1、attempts=1、reservations=0，窄屏再次预览不执行。桥和 Vite
+  已关闭，证据见 [页面验收](../../frontend/src/pages/AI/Tools/ACCEPTANCE.md)。没有以固定测试会话替代生产 JWT／菜单验收。
+- 前端既有相关范围 17 个文件／157 项全部通过；新验收桥 Biome check 通过，git diff --check 通过。产品 UI 未修改，未重跑已有基线问题的全仓
+  tsc 或完整 Umi 生产构建。
+
+最终后端兼容回归：arte-ai **789 项通过**，arte-app **69 项通过**（平台管理授权 26、正式执行 7、身份／会话／登录 36），合计 **858
+项，零失败／错误／跳过**。其中原先跳过的 4 项 Redis 测试本次使用独立 Redis 通过；MySQL 8 项、显式基线及浏览器桥另外列环境证据，不与重叠回归重复累计。原
+GENERATION／预算／事件和平台身份权限均在选定范围内。没有运行全仓测试、连接业务库／Redis、修改真实用户角色或调用外部模型。
+
+最终日志：`/tmp/arte-s209-regression-final.log`、`/tmp/arte-s209-mysql-verified.log`、`/tmp/arte-s209-mysql-final.log`
+（含基线）、`/tmp/arte-s209-browser.log`、`/tmp/arte-s209-frontend.log`。
+
+### 17.5 复现与上线边界
+
+JDK 21，沿用 §13 兼容命令，显式排除已知基线 ProfileConfigurationTest 四项和 `ToolRunBrowserAcceptanceTest` 页面桥，增加
+PlatformToolExecutionIntegrationTest、RbacIdentityProviderTest、RbacSessionIdentityTest、RbacLoginIdentityTest；本轮使用独立
+Redis 的 loopback 映射，不再跳过 4 项 Redis 测试。默认测试集不启动
+ToolPlatformBrowserAcceptance／ToolLocalBaseline／ToolMySqlMigrationAcceptance，须按使用文档显式指定。
+
+本轮仅创建并清理独立容器及随机 platform_test_* 库，未连接配置中的业务 MySQL／Redis。实际部署仍须备份、按现有版本应用脚本、显式授予菜单和操作权限、启用真实空间
+AI、统一节点配置并进行真实登录试用；不能以测试容器已运行推断业务环境已准备。正式参考环境持续负载、双应用进程／跨主机故障、生产构建及恢复／回退演练继续待验，禁止将
+S2-09 本机交付写成 S2 生产性能验收完成。

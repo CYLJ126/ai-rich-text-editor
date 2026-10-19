@@ -2,6 +2,7 @@ package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.OutboxMapper;
+import com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.executor.Executor;
@@ -32,6 +33,7 @@ import java.util.function.LongSupplier;
 public final class ExecutionSqlDiagnostics implements Interceptor {
 
     private static final String SYSTEM_MAPPER_PREFIX = SystemMapper.class.getName() + ".";
+    private static final String SCHEDULING_MAPPER_PREFIX = SchedulingMapper.class.getName() + ".";
     private static final String OUTBOX_PENDING_MESSAGES_STATEMENT = OutboxMapper.class.getName() + ".pendingMessages";
     private final NewAiSearchProperties.Diagnostics background;
     private final LongSupplier nanoTime;
@@ -52,7 +54,7 @@ public final class ExecutionSqlDiagnostics implements Interceptor {
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
         var statement = (MappedStatement) invocation.getArgs()[0];
-        if (statement.getId().startsWith(SYSTEM_MAPPER_PREFIX) || statement.getId().equals(OUTBOX_PENDING_MESSAGES_STATEMENT)) {
+        if (statement.getId().startsWith(SYSTEM_MAPPER_PREFIX) || statement.getId().startsWith(SCHEDULING_MAPPER_PREFIX) || statement.getId().equals(OUTBOX_PENDING_MESSAGES_STATEMENT)) {
             return invocation.proceed();
         }
         var started = nanoTime.getAsLong();

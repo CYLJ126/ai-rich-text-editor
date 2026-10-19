@@ -2,6 +2,7 @@ package com.arte.ainew.tool.discovery;
 
 import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.ToolStartupDiscovery;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -61,6 +62,25 @@ public class LocalToolDiscoveryTest {
 
     private LocalToolDiscovery service(LocalToolRegistry.Registration... registrations) {
         return new LocalToolDiscovery(new LocalToolRegistry(List.of(registrations)), store, new ToolSchemaValidator(), scheduler, CLOCK, Duration.ofSeconds(2));
+    }
+
+    @Test
+    public void startupDiscoveryIsBoundedFailClosedAndDoesNotPublish() {
+        var discovery = service(first.registration());
+        var lifecycle = new ToolStartupDiscovery(discovery);
+        assertFalse(lifecycle.isRunning());
+        lifecycle.start();
+        assertTrue(lifecycle.isRunning());
+        assertTrue(discovery.state().discoveryHealthy());
+        assertEquals(LocalToolDiscovery.manifest(new ToolCatalogStore.Batch(List.of(first.provider()),
+                first.definitions().schemas(), List.of(first.revision()))), discovery.state().snapshot().checksum());
+        lifecycle.start();
+        assertEquals(1, store.calls.get());
+        lifecycle.stop();
+        assertFalse(lifecycle.isRunning());
+        var failed = new ToolStartupDiscovery(service(first.registration(() -> Mono.error(new IllegalStateException("source failed")))));
+        assertThrows(IllegalStateException.class, failed::start);
+        assertFalse(failed.isRunning());
     }
 
     @Test

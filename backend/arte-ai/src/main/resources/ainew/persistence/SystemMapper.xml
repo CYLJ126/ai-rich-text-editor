@@ -5,7 +5,8 @@
         SELECT CURRENT_TIMESTAMP
     </select>
     <insert id="ensureLock">
-        INSERT IGNORE INTO arte_ai_lock(lock_key) VALUES (#{key})
+        <!-- 已存在时直接取得排他记录锁；INSERT IGNORE 的共享重复键锁会在并发 FOR UPDATE 升级时死锁。 -->
+        INSERT INTO arte_ai_lock(lock_key) VALUES (#{key}) ON DUPLICATE KEY UPDATE lock_key=lock_key
     </insert>
     <select id="lock" resultType="java.lang.String" useCache="false">
         SELECT lock_key FROM arte_ai_lock WHERE lock_key=#{key} FOR UPDATE
