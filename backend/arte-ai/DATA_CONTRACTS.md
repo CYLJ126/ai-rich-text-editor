@@ -1,5 +1,9 @@
 # 最小 AI 数据契约 v1
 
+> S3-01：Invocation 新增非终态 WAITING_APPROVAL；无审批 tool-execution-snapshot 保持 v1，带审批政策使用 v2。
+> 新增 tool-approval v1／tool-approval-receipt v1，审批版本独立于 Invocation，旧版本不支持新状态。
+> 固定摘要、模式／版本校验和兼容部署见 [审批事务说明](TOOL_APPROVAL.md)。
+
 > 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)以现有
 > ToolInvocation、ToolResult、DefinitionRef 和通用执行契约为基础规划新功能。工具目录／绑定修订、Invocation.WAITING_APPROVAL、ToolChatRun、带类型的
 > Turn 回答候选及 Run 事件／工作项均为计划扩展，当前 v1 类型和存储编码尚未实现这些变化；实施时须同步状态校验、codec、事务、查询和前端类型。ToolResult

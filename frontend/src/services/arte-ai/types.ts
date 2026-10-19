@@ -247,7 +247,7 @@ export type CapabilityKind =
   | 'TOOL'
   | 'REMOTE_APPLICATION';
 
-export type ActiveInvocationState = 'ACCEPTED' | 'QUEUED' | 'RUNNING';
+export type ActiveInvocationState = 'ACCEPTED' | 'WAITING_APPROVAL' | 'QUEUED' | 'RUNNING';
 export type TerminalInvocationState =
   | 'SUCCEEDED'
   | 'FAILED'

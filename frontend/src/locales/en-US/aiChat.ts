@@ -182,6 +182,7 @@ export default {
     'The submission outcome is uncertain. Retrying reuses the same request and idempotency key. Check history before refreshing or switching conversations.',
   'app.aiChat.retryMessage': 'Retry submission',
   'app.aiChat.execution.ACCEPTED': 'Accepted',
+  'app.aiChat.execution.WAITING_APPROVAL': 'Waiting for approval',
   'app.aiChat.execution.QUEUED': 'Queued',
   'app.aiChat.execution.RUNNING': 'Running',
   'app.aiChat.execution.SUCCEEDED': 'Succeeded',

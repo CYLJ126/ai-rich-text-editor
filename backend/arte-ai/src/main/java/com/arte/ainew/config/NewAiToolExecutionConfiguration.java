@@ -1,6 +1,7 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
+import com.arte.ainew.application.tool.approval.ToolApprovalRecovery;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
@@ -33,7 +34,7 @@ import java.time.Duration;
 @AutoConfiguration(after = {NewAiAdmissionConfiguration.class, NewAiToolGatewayConfiguration.class})
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled", "ai-new-execution.enabled"}, havingValue = "true")
 @ConditionalOnBean({ToolAdmissionAccess.class, ToolExecutionAccess.class})
-@EnableConfigurationProperties(NewAiExecutionProperties.class)
+@EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiToolApprovalProperties.class})
 public class NewAiToolExecutionConfiguration {
 
     /**
@@ -45,6 +46,23 @@ public class NewAiToolExecutionConfiguration {
                                                  @Qualifier("newAiClock") Clock clock, MybatisExecutionPersistence executions,
                                                  MybatisToolBindingStore bindings, MybatisToolCatalogStore catalog) {
         return new MybatisToolAdmissionStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, executions, bindings, catalog, clock);
+    }
+
+    /**
+     * 内部事务能力；公开审批入口及其宿主授权在 S3-02 接入，本批不注册 HTTP 或默认审批人。
+     */
+    @Bean("newAiToolApprovalStore")
+    MybatisToolApprovalStore toolApprovalStore(NewAiProperties properties, ListableBeanFactory beans, ExecutionRecordCodec codec,
+                                               @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                               MybatisExecutionPersistence executions, MybatisToolBindingStore bindings) {
+        return new MybatisToolApprovalStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, scheduler, executions, bindings);
+    }
+
+    @Bean("newAiToolApprovalRecovery")
+    @ConditionalOnProperty(prefix = "arte", name = {"ai-new-tool-approval.enabled", "ai-new-execution.worker-enabled"}, havingValue = "true")
+    ToolApprovalRecovery toolApprovalRecovery(MybatisToolApprovalStore store, NewAiToolApprovalProperties properties,
+                                              @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        return new ToolApprovalRecovery(store, properties, scheduler);
     }
 
     /**

@@ -171,6 +171,7 @@ export default {
     '本次提交结果尚不明确。重试会复用相同请求和幂等键；刷新页面或切换会话前，请先确认历史记录。',
   'app.aiChat.retryMessage': '重试提交',
   'app.aiChat.execution.ACCEPTED': '已受理',
+  'app.aiChat.execution.WAITING_APPROVAL': '等待审批',
   'app.aiChat.execution.QUEUED': '排队中',
   'app.aiChat.execution.RUNNING': '执行中',
   'app.aiChat.execution.SUCCEEDED': '成功',

@@ -48,6 +48,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolApproval.class, "tool-approval"),
+            Map.entry(ToolApprovalReceipt.class, "tool-approval-receipt"),
             Map.entry(ToolExecutionSnapshot.class, "tool-execution-snapshot"),
             Map.entry(ToolDiscoveryReceipt.class, "tool-discovery-receipt"),
             Map.entry(ToolBindingDefinition.class, "tool-binding"),
@@ -116,7 +118,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         }
         var node = mapper.createObjectNode();
         node.put("schemaVersion", value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
-                && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT ? 2 : 1).put("type", alias);
+                && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT
+                || value instanceof ToolExecutionSnapshot snapshot && snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE
+                ? 2 : 1).put("type", alias);
         node.set("body", mapper.valueToTree(value));
         var json = mapper.writeValueAsString(node);
         if (json.length() > 4_000_000) {
@@ -135,11 +139,13 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         int version = node.path("schemaVersion").asInt();
         if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
                 || expectedType == ToolBindingDefinition.class || expectedType == ToolBindingRevision.class
-                || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class)
+                || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class
+                || expectedType == ToolApproval.class || expectedType == ToolApprovalReceipt.class)
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
-        if ((version != 1 && !((expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class) && version == 2))
+        if ((version != 1 && !((expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
+                || expectedType == ToolExecutionSnapshot.class) && version == 2))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
@@ -148,6 +154,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");
         var value = mapper.treeToValue(body, expectedType);
+        if (value instanceof ToolExecutionSnapshot snapshot && (version == 2)
+                != (snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE))
+            throw new IllegalArgumentException("Tool approval policy does not match snapshot version");
         if (value instanceof ToolBindingReceipt receipt && (version == 2)
                 != (receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT))
             throw new IllegalArgumentException("Binding command does not match snapshot version");

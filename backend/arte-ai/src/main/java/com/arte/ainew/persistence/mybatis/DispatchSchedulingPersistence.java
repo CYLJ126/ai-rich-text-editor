@@ -112,16 +112,23 @@ final class DispatchSchedulingPersistence {
     }
 
     void classify(Invocation invocation, DispatchPlan plan) {
+        classify(invocation, plan, invocation.acceptedAt());
+    }
+
+    /**
+     * 审批等待不计入队列等待；排队起点改变，但原逻辑 deadline 仍是硬上限。
+     */
+    void classify(Invocation invocation, DispatchPlan plan, java.time.Instant queuedAt) {
         if (!enabled()) return;
         var owner = ExecutionOwner.from(invocation.request().context());
         long deadline = invocation.request().options().deadline().toEpochMilli();
         var type = plan.workClass();
         if (type == TOOL_SHORT || type == TOOL_LONG) {
             var wait = type == TOOL_SHORT ? policy.shortQueueTimeout() : policy.longQueueTimeout();
-            deadline = Math.min(deadline, Math.addExact(invocation.acceptedAt().toEpochMilli(), wait.toMillis()));
+            deadline = Math.min(deadline, Math.addExact(queuedAt.toEpochMilli(), wait.toMillis()));
         }
         mapper.classify(CanonicalJson.key(invocation.request().context().executionId(), "DISPATCH", "0"), type.name(),
-                CanonicalJson.key(plan.providerKey()), space(owner), subject(owner), invocation.acceptedAt().toEpochMilli(), deadline);
+                CanonicalJson.key(plan.providerKey()), space(owner), subject(owner), queuedAt.toEpochMilli(), deadline);
     }
 
     static String space(ExecutionOwner owner) {

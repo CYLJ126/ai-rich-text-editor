@@ -19,6 +19,7 @@ import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.*;
+import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.CanonicalJson;
@@ -62,6 +63,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     private final DispatchSchedulingPersistence scheduling;
     private final SchedulingMapper schedulingMapper;
+    private final ToolApprovalMapper toolApprovals;
+    private final ToolAdmissionMapper toolSnapshots;
     private final boolean requireClassifiedTools;
     private final DataSource dataSource;
     private final SystemMapper system;
@@ -115,6 +118,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.dispatchLimits = sessions.getMapper(DispatchLimitMapper.class);
         this.payload = sessions.getMapper(PayloadMapper.class);
         this.schedulingMapper = sessions.getMapper(SchedulingMapper.class);
+        this.toolApprovals = sessions.getMapper(ToolApprovalMapper.class);
+        this.toolSnapshots = sessions.getMapper(ToolAdmissionMapper.class);
         this.scheduling = new DispatchSchedulingPersistence(schedulingPolicy, schedulingMapper, outbox, system, this::now);
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.transaction.setTimeout(30);
@@ -471,13 +476,35 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
      * 同库 TOOL 受理复用通用提交，不切线程、不另开事务；保留原生成受理与回滚语义。
      */
     StoreOutcome<Invocation> acceptInCurrentTransaction(Accept command) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()
-                || !TransactionSynchronizationManager.hasResource(dataSource))
-            throw new IllegalStateException("Acceptance requires its physical transaction");
+        requirePhysicalTransaction();
         return acceptLocked(command);
     }
 
+    private void requirePhysicalTransaction() {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.hasResource(dataSource))
+            throw new IllegalStateException("Acceptance requires its physical transaction");
+    }
+
+    Instant databaseTimeInCurrentTransaction() {
+        requirePhysicalTransaction();
+        return now();
+    }
+
+    /**
+     * 只有 TOOL 审批受理适配器可用；从不短暂提交可派发状态。
+     */
+    StoreOutcome<Invocation> acceptWaitingToolInCurrentTransaction(Accept command) {
+        requirePhysicalTransaction();
+        require(command.invocation().request().kind() == CapabilityDescriptor.Kind.TOOL && command.turn() == null, INVALID_STATE);
+        return acceptLocked(command, true);
+    }
+
     private StoreOutcome<Invocation> acceptLocked(Accept command) {
+        return acceptLocked(command, false);
+    }
+
+    private StoreOutcome<Invocation> acceptLocked(Accept command, boolean waitingApproval) {
         var candidate = command.invocation();
         var owner = ExecutionOwner.from(candidate.request().context());
         var capability = candidate.request().capability();
@@ -559,9 +586,15 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var acceptedAt = now();
         var accepted = new Invocation(candidate.request(), candidate.requestDigest(), link, candidate.contextSnapshotId(),
                 candidate.replacesInvocationId(), Invocation.State.ACCEPTED, 0, null, null, null, acceptedAt, acceptedAt);
-        execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted), tool ? 1 : 0);
+        execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted), tool && !waitingApproval ? 1 : 0);
         execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
-        if (tool) {
+        if (waitingApproval) {
+            event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
+            var waiting = state(accepted, Invocation.State.WAITING_APPROVAL, null, null, null);
+            save(waiting);
+            event(waiting, null, new ExecutionPayload.Status(Invocation.State.WAITING_APPROVAL));
+            return StoreOutcome.applied(waiting);
+        } else if (tool) {
             initialToolEvents(accepted);
         } else {
             event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
@@ -576,6 +609,47 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     DispatchPlan toolDispatchPlan(String provider, Duration declaredTimeout) {
         return scheduling.toolPlan(provider, declaredTimeout);
+    }
+
+    /**
+     * 决定者持有原 Invocation 行锁；审批、队列容量、状态、事件和唯一工作项一起提交。
+     */
+    Invocation queueApprovedToolInCurrentTransaction(Invocation waiting, DispatchPlan plan) {
+        requirePhysicalTransaction();
+        require(waiting.state() == Invocation.State.WAITING_APPROVAL && waiting.activeAttemptId() == null, INVALID_STATE);
+        require(waiting.request().options().deadline().isAfter(now()), INVALID_STATE);
+        scheduling.admit(waiting, plan);
+        var queued = state(waiting, Invocation.State.QUEUED, null, null, null);
+        save(queued);
+        event(queued, null, new ExecutionPayload.Status(Invocation.State.QUEUED));
+        outbox(queued, OutboxMessage.Kind.DISPATCH, 0);
+        scheduling.classify(queued, plan, queued.updatedAt());
+        return queued;
+    }
+
+    /**
+     * 审批拒绝／过期没有 Attempt、结果或预算；复用通用完成事务。
+     */
+    Invocation finishWaitingToolInCurrentTransaction(Invocation waiting, Invocation.State terminal, String code) {
+        requirePhysicalTransaction();
+        require(waiting.state() == Invocation.State.WAITING_APPROVAL && waiting.activeAttemptId() == null, INVALID_STATE);
+        var error = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false,
+                ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, waiting.request().context().traceId());
+        return completeBeforeAttemptLocked(new CompleteBeforeAttempt(new Version(ExecutionOwner.from(waiting.request().context()),
+                id(waiting), waiting.version()), "tool-approval-completion", new ExecutionPayload.Terminal(terminal, null, error))).value();
+    }
+
+    /**
+     * 通用取消／Attempt 前失败也关闭 PENDING，避免只有审批入口知道等待状态。
+     */
+    private void closePendingApproval(Invocation source, Invocation.State terminal) {
+        if (source.state() != Invocation.State.WAITING_APPROVAL) return;
+        var approval = ToolApprovalRecords.read(toolApprovals.find(hash(id(source)), true), codec);
+        require(approval != null, INVALID_STATE);
+        if (approval.state() != ToolApproval.State.PENDING) return;
+        var next = terminal == Invocation.State.CANCELLED ? ToolApproval.State.CANCELLED
+                : terminal == Invocation.State.TIMED_OUT ? ToolApproval.State.EXPIRED : ToolApproval.State.CANCELLED;
+        require(toolApprovals.save(ToolApprovalRecords.row(approval.decided(next, null, now()), codec), approval.version()) == 1, VERSION_CONFLICT);
     }
 
     @Override
@@ -760,6 +834,13 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private CreatedAttempt createAttemptLocked(CreateAttempt command, Invocation invocation) {
+        require(invocation.state() != Invocation.State.WAITING_APPROVAL, INVALID_STATE);
+        if (invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.state() == Invocation.State.QUEUED
+                && invocation.activeAttemptId() == null) {
+            var approved = ToolApprovalRecords.read(toolApprovals.find(hash(id(invocation)), true), codec);
+            require(approved != null && approved.state() == ToolApproval.State.APPROVED, INVALID_STATE);
+            ToolApprovalRecords.snapshot(approved, invocation, toolSnapshots, codec);
+        }
         scheduling.beforeStart(invocation);
         version(invocation, command.invocation());
         require(operation(invocation, CANCEL_REQUEST_KEY) == null, INVALID_STATE);
@@ -926,6 +1007,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                         execution.saveNextFence(fence, hash(id(invocation)));
                     }
                     var cancelled = state(invocation, Invocation.State.CANCELLED, invocation.activeAttemptId(), null, error);
+                    closePendingApproval(invocation, Invocation.State.CANCELLED);
                     save(cancelled);
                     event(cancelled, cancelled.activeAttemptId(), new ExecutionPayload.Terminal(cancelled.state(), null, error));
                     if (cancelled.conversation() != null) {
@@ -1112,26 +1194,29 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<Invocation>> commitCompletion(CompleteBeforeAttempt command) {
-        return outcome(() -> {
-            var invocation = invocation(command.invocation());
-            var key = operationKey("completion", command.completionKey());
-            var digest = hash("before-attempt", command.terminal().toString());
-            var previous = operation(invocation, key);
-            if (previous != null) {
-                require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
-                return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Invocation.class));
-            }
-            version(invocation, command.invocation());
-            require(invocation.activeAttemptId() == null && invocation.state().canTransitionTo(command.terminal().state()), INVALID_STATE);
-            var completed = state(invocation, command.terminal().state(), null, null, command.terminal().error());
-            save(completed);
-            var terminal = event(completed, null, command.terminal());
-            execution.insertCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed));
-            if (completed.conversation() != null) {
-                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
-            }
-            return StoreOutcome.applied(completed);
-        });
+        return outcome(() -> completeBeforeAttemptLocked(command));
+    }
+
+    private StoreOutcome<Invocation> completeBeforeAttemptLocked(CompleteBeforeAttempt command) {
+        var invocation = invocation(command.invocation());
+        var key = operationKey("completion", command.completionKey());
+        var digest = hash("before-attempt", command.terminal().toString());
+        var previous = operation(invocation, key);
+        if (previous != null) {
+            require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
+            return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Invocation.class));
+        }
+        version(invocation, command.invocation());
+        require(invocation.activeAttemptId() == null && invocation.state().canTransitionTo(command.terminal().state()), INVALID_STATE);
+        var completed = state(invocation, command.terminal().state(), null, null, command.terminal().error());
+        closePendingApproval(invocation, completed.state());
+        save(completed);
+        var terminal = event(completed, null, command.terminal());
+        execution.insertCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed));
+        if (completed.conversation() != null) {
+            admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+        }
+        return StoreOutcome.applied(completed);
     }
 
     @Override

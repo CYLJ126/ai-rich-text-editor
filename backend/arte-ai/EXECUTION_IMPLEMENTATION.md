@@ -1,5 +1,9 @@
 # 第 5～6 步：异步派发与最小生成闭环
 
+> S3-01 增补：内部 TOOL 审批等待与决定事务已实现，批准才产生原子 DISPATCH，通用取消同步关闭 PENDING。
+> 本批不开放审批 HTTP／写工具；S2 网关和宿主仍限 NONE。数据库部署、恢复开关及后续接线见
+> [审批事务说明](TOOL_APPROVAL.md)。
+
 > 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)规划在本执行基础上新增 TOOL
 > 准入与按能力派发。当前 AdmissionInvocationCoordinator／GenerationDispatcher 仍限制生成输入，不能直接受理工具。单次工具计划复用
 > Invocation／Attempt、Outbox、结果、事件及 fencing，审批等待须新增非终态并在获批前不创建 Attempt；免费工具不产生虚构模型费用。工具聊天由独立

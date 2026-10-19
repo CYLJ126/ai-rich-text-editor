@@ -3,6 +3,7 @@ package com.arte.ainew.spi.persistence;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import reactor.core.publisher.Mono;
 
@@ -39,6 +40,16 @@ public interface ToolAdmissionStore {
      * 在同一事务内复核授权和治理，原子保存快照、Invocation、防重记录、首事件及 Outbox；失败全部回滚。
      */
     Mono<StoreOutcome<Accepted>> accept(ToolExecutionSnapshot snapshot, Consumer<ToolExecutionSnapshot> authorization);
+
+    /**
+     * 审批受理：原子写入固定快照、WAITING_APPROVAL、审批及事件；不得写 DISPATCH、占执行队列或创建 Attempt。
+     * plan 必须由可信政策生成；授权回调还须验证该审批模式可用及当前审批人资格，不接受浏览器自选审批人。
+     * 不支持该能力的适配器明确失败，不能退化为直接执行。
+     */
+    default Mono<StoreOutcome<Accepted>> awaitApproval(ToolExecutionSnapshot snapshot, ToolApproval.Plan plan,
+                                                       Consumer<ToolExecutionSnapshot> authorization) {
+        return Mono.error(new UnsupportedOperationException("Approval admission is not supported"));
+    }
 
     /**
      * 新受理在持锁等待或写入期间耗尽总期限；必须回滚，历史回执重放不受原期限限制。

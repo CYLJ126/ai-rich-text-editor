@@ -36,7 +36,7 @@ export const HISTORY_PAGE_SIZE = 10;
 export const POLL_INTERVAL_MS = 10_000;
 
 export function isActive(status: InvocationStatusResponse) {
-  return ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state);
+  return ['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(status.state);
 }
 
 function needsObservation(status: InvocationStatusResponse) {

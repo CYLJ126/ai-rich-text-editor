@@ -29,11 +29,11 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
                          Instant acceptedAt, Instant updatedAt) implements Serializable {
 
     public enum State {
-        ACCEPTED, QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED, TIMED_OUT, INTERRUPTED, UNKNOWN;
+        ACCEPTED, WAITING_APPROVAL, QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED, TIMED_OUT, INTERRUPTED, UNKNOWN;
 
         public boolean terminal() {
             return switch (this) {
-                case ACCEPTED, QUEUED, RUNNING -> false;
+                case ACCEPTED, WAITING_APPROVAL, QUEUED, RUNNING -> false;
                 default -> true;
             };
         }
@@ -50,8 +50,10 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
                 return false;
             }
             return switch (this) {
-                case ACCEPTED -> next == QUEUED || next == RUNNING || next == FAILED || next == CANCELLED
+                case ACCEPTED ->
+                        next == WAITING_APPROVAL || next == QUEUED || next == RUNNING || next == FAILED || next == CANCELLED
                         || next == TIMED_OUT || next == INTERRUPTED;
+                case WAITING_APPROVAL -> next == QUEUED || next == FAILED || next == CANCELLED || next == TIMED_OUT;
                 case QUEUED -> next == RUNNING || next == FAILED || next == CANCELLED || next == TIMED_OUT
                         || next == INTERRUPTED;
                 case RUNNING -> next == QUEUED || next.terminal();
@@ -71,6 +73,8 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
         Objects.requireNonNull(state, "state");
         ContractChecks.range(version, "version", 0, Long.MAX_VALUE);
         ContractChecks.optionalId(activeAttemptId, "activeAttemptId");
+        ContractChecks.require(state != State.WAITING_APPROVAL || request.kind() == CapabilityDescriptor.Kind.TOOL
+                && activeAttemptId == null && result == null, "Waiting approval requires undispatched TOOL");
         ContractChecks.require(state != State.RUNNING && state != State.SUCCEEDED || activeAttemptId != null,
                 "Running or succeeded invocation requires attempt identity");
         ContractChecks.require(state != State.SUCCEEDED || result != null && !result.partial() && error == null,

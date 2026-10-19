@@ -113,7 +113,7 @@ export default function ChatPanel({
           const latestId = turn.invocationIds.at(-1);
           const latestStatus = latestId ? chat.invocations[latestId]?.status : undefined;
           const latestTurn = chat.page === Math.max(1, Math.ceil(chat.total / HISTORY_PAGE_SIZE)) && turn.sequence === chat.total;
-          const regeneratable = latestStatus && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(latestStatus.state) &&
+          const regeneratable = latestStatus && !['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(latestStatus.state) &&
             (latestStatus.state !== 'UNKNOWN' || isUserStoppedGeneration(latestStatus));
           const invocation = id ? chat.invocations[id] : undefined;
           const result = invocation?.result;
@@ -183,7 +183,7 @@ export default function ChatPanel({
                   >
                     {t(
                       invocation.status &&
-                      !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(
+                      !['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(
                         invocation.status.state,
                       )
                         ? 'streamedPartial'
@@ -195,7 +195,7 @@ export default function ChatPanel({
                 <p className="m-0 text-sm text-[var(--ant-color-text-secondary)]">
                   {t(
                     invocation?.status &&
-                    ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(
+                    ['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(
                       invocation.status.state,
                     )
                       ? 'waitingReply'
@@ -263,7 +263,7 @@ export default function ChatPanel({
             <p role="status" className="m-0 text-xs">
               {t(
                 current.status &&
-                !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(
+                !['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(
                   current.status.state,
                 )
                   ? 'streamedPartial'
@@ -337,7 +337,7 @@ export default function ChatPanel({
       {isUserStoppedGeneration(current?.status) && (
         <Alert type="info" title={t('stoppedPendingReconciliation')}/>
       )}
-      {chat.stopRequested === chat.invocationId && state && ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(state) && (
+      {chat.stopRequested === chat.invocationId && state && ['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(state) && (
         <p role="status">{t('stopRequested')}</p>
       )}
       {error(chat.submitError)}
@@ -357,7 +357,7 @@ export default function ChatPanel({
       <div className="flex justify-end gap-2">
         {chat.pendingRegeneration && <Button loading={chat.submitting} disabled={dirty || chat.submitting}
                                              onClick={() => void chat.regenerate()}>{t('retryRegeneration')}</Button>}
-        {chat.invocationId && state && ['ACCEPTED', 'QUEUED', 'RUNNING'].includes(state) && (
+        {chat.invocationId && state && ['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(state) && (
           <Button
             loading={chat.stopping}
             aria-label={t(chat.stopRequested === chat.invocationId ? 'stopping' : 'stopGeneration')}

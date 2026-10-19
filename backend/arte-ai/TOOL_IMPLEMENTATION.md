@@ -1828,3 +1828,46 @@ v2；工具／能力／适配器引用、Schema、授权和计数语义不变。
 同版本固定契约的目录校验仍保留。已登记旧 5 秒定义的开发库需统一重建相应目录、发布、绑定等测试数据，并更新清单及固定池配置；
 应用不会原地覆盖旧契约或延长已有 Invocation。现有数据库和本机配置未修改，未重启应用。
 证据、新清单、开发库处理步骤与验证边界见 [本次超时与开发期调整](TOOL_TIMEOUT_INCIDENT.md)。
+
+## 27. S3-01：审批等待状态与决定事务（2026-10-19）
+
+完成内部审批受理、决定和到期恢复，不开放公开审批入口或业务写工具。详细契约、授权责任及部署步骤见
+[审批事务说明](TOOL_APPROVAL.md)；S2 HTTP／宿主执行授权／网关仍要求 NONE。
+
+- `Invocation.State.WAITING_APPROVAL` 为非终态，不能直接进入 RUNNING／SUCCEEDED；通用状态查询与事件沿用原 DTO，
+  前端枚举、进行中判断和状态文案同步。本批没有审批表单或批准／拒绝按钮。
+- `ToolAdmissionStore.awaitApproval` 在原物理受理事务写固定快照、Invocation、审批及首事件；等待不写 DISPATCH， 不创建
+  Attempt／租约／预算或执行队列预留。原 NONE 入口不能接受带审批策略的快照，且无审批路径不依赖新表。
+- `MybatisToolApprovalStore` 以 Invocation → approval 当前行锁仲裁决定、取消与到期；
+  必须验证同一租户／空间、本人／固定独立审批人、当前宿主资格、审批摘要、版本、PENDING 和数据库时钟窗口。 独立审批不能本人批准，批准者不会替换原
+  request、scopes 或 deadline；固定名单不能代替当前成员／操作授权。
+- 批准、QUEUED、事件、唯一工作项、分类与容量预留原子提交；队列从获批开始计时，原总期限不变。 拒绝、到期及未执行取消走 Attempt
+  前完成，不虚构 ToolResult。通用取消同时关闭 PENDING；Attempt 创建前再次核验批准与固定摘要。
+- 同键重放重新授权并返回原持久化回执；相反决定、摘要／版本不符、到期决定拒绝。任一写入失败整体回滚， 不留下孤立决定、队列、控制标记或事件，回滚不唤醒
+  Worker。
+- 无审批执行快照保持 v1，审批策略写 v2 并严格匹配版本；新增 tool-approval／tool-approval-receipt v1。
+  使用稳定集合顺序生成审批摘要，不以反序列化后的集合编码顺序判断原始字节损坏。
+- 有界到期扫描逐条独立事务，多实例竞争只完成一次；异常记录保留并告警，单条失败不阻断同批后续记录。 自动恢复默认关闭，需新增
+  `arte.ai-new-tool-approval.enabled` 与既有 worker-enabled 同时开启，串行扫描不堆积定时任务。
+
+验证结果：后端定向覆盖 **20 个测试类、299 项**，最终各类报告均为零失败／错误／跳过。 其中新增 **22 项审批 JDBC 集成测试、2
+项恢复生命周期测试**；旧工厂白名单数量断言随新增 Mapper 同步后， 审批、工厂及装配 **35 项关联复跑全部通过**
+。覆盖等待零执行资源、原子批准／拒绝、当前授权及重放撤权、 Scope／本人隔离、相反决定和取消竞争、跨实例到期／回执恢复、窗口消耗、写入失败回滚、DDL
+一致与 v1／v2 兼容。 现有 S2 受理、派发、调度、查询、取消、恢复与通用执行／数据契约均纳入定向范围。
+
+前端 TOOL 调用、SSE、恢复及旧聊天会话 **4 个文件、120 项通过**，包含新增等待审批不读终态结果的回归。 全量 `npm run tsc`
+未通过，报告 106 处错误，分布在 `src/app.tsx`、文章组件、图标等未修改文件；本批修改文件无类型错误报告。
+没有据此前端定向通过宣称全项目类型检查通过，也没有扩展本批去修复这些文件。
+
+复现后端定向范围：JDK 21，仓库根目录执行（离线依赖须已齐备）：
+
+```shell
+mvn -o -f backend/pom.xml -pl arte-ai -am \
+  -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  '-Dtest=ToolApproval*Test,ToolAdmission*Test,ToolInvocation*Test,ToolDispatch*Test,ToolExecution*Test,ToolScheduling*Test,ToolSubmission*Test,MybatisExecutionPersistenceTest,ExecutionSqlSessionFactoryTest,DataContractsTest,InvocationApiContractsTest,ToolDefinitionContractsTest,DispatchBillingContractTest,ResolvedBindingCodecTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+新增 `scripts/arte-ai-tool-approval-migration.sql`；全量 DDL 同步，增量与全量不能重复执行。 本轮未连接／修改业务数据库、调整业务配置或重启应用；未执行生产
+MySQL、多节点、性能压测或浏览器视觉验收。 开放审批受理前须统一升级所有共享库消费者，不能单独回退到不识别 WAITING_APPROVAL／快照
+v2 的程序。 S3-02 继续完成公开确认／审批、宿主当前审批授权及获批工具执行接线；写工具仍按后续批次实施。

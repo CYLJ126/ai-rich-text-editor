@@ -7,9 +7,12 @@ import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolAdmissionMapper;
+import com.arte.ainew.persistence.mybatis.mapper.ToolApprovalMapper;
 import com.arte.ainew.pojo.execution.ExecutionCommands;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.pojo.tool.ToolApproval;
+import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -44,7 +47,8 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 import static com.arte.ainew.serialization.CanonicalJson.key;
 
 /**
- * TOOL 受理事务：先当前宿主资格，再重放锁／绑定治理，再复用通用受理提交；快照写入失败连同首事件／Outbox 整体回滚。
+ * TOOL 同库受理事务，快照写入失败连同 Invocation／事件／Outbox 整体回滚。
+ * 普通受理沿用当前资格后重放门控；审批重放与决定／取消统一先取 Invocation 锁再复核资格。
  * 所有依赖必须共享同一物理 DataSource，不以异步串联的两个 Store 提交模拟原子性。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -55,6 +59,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
 
     public static final int MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
     private final ToolAdmissionMapper mapper;
+    private final ToolApprovalMapper approvals;
     private final ExecutionMapper execution;
     private final SystemMapper locks;
     private final MybatisExecutionPersistence executions;
@@ -84,6 +89,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                 "Tool admission dependencies must use the same physical DataSource");
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(source));
         mapper = sessions.getMapper(ToolAdmissionMapper.class);
+        approvals = sessions.getMapper(ToolApprovalMapper.class);
         execution = sessions.getMapper(ExecutionMapper.class);
         locks = sessions.getMapper(SystemMapper.class);
         this.executions = executions;
@@ -142,6 +148,20 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
 
     @Override
     public Mono<StoreOutcome<Accepted>> accept(ToolExecutionSnapshot candidate, Consumer<ToolExecutionSnapshot> authorization) {
+        ContractChecks.require(candidate.policy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE,
+                "Approval-required snapshot cannot use immediate admission");
+        return accept(candidate, null, authorization);
+    }
+
+    @Override
+    public Mono<StoreOutcome<Accepted>> awaitApproval(ToolExecutionSnapshot candidate, ToolApproval.Plan plan,
+                                                      Consumer<ToolExecutionSnapshot> authorization) {
+        Objects.requireNonNull(plan).requireMatches(candidate);
+        return accept(candidate, plan, authorization);
+    }
+
+    private Mono<StoreOutcome<Accepted>> accept(ToolExecutionSnapshot candidate, ToolApproval.Plan plan,
+                                                Consumer<ToolExecutionSnapshot> authorization) {
         Objects.requireNonNull(candidate);
         Objects.requireNonNull(authorization);
         // 大记录编码在持锁前完成；不会在写完执行数据后才发现快照超限。
@@ -153,7 +173,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                     var context = candidate.request().context();
                     var newlyAccepted = new AtomicBoolean();
                     observeTransaction(context, newlyAccepted);
-                    ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
+                    if (plan == null) ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
                         authorization.accept(candidate);
                         return true;
                     });
@@ -163,8 +183,18 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                     locks.ensureLock(lock);
                     // 授权检查可能已建立 RR 快照；同键门控等待后须读取已提交的最新快照及 Invocation。
                     var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem, true), true);
+                    // 审批重放先与决定／取消统一取得 Invocation 锁，再锁当前资格，避免与决定事务反向持锁。
+                    if (plan != null) ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
+                        authorization.accept(candidate);
+                        return true;
+                    });
                     if (previous != null) {
                         if (!previous.snapshot().submissionDigest().equals(candidate.submissionDigest()))
+                            throw new MybatisExecutionPersistence.Rejected(IDEMPOTENCY_CONFLICT);
+                        var originalApproval = plan == null && previous.snapshot().policy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE
+                                ? null : ToolApprovalRecords.read(approvals.find(key(previous.snapshot().request().context().executionId()), true), codec);
+                        if ((plan == null) != (originalApproval == null)
+                                || plan != null && !originalApproval.plan().equals(plan))
                             throw new MybatisExecutionPersistence.Rejected(IDEMPOTENCY_CONFLICT);
                         if (!previous.snapshot().equals(candidate)) ToolObservation.call(COMMIT_AUTHORIZATION, context, () -> {
                             authorization.accept(previous.snapshot());
@@ -191,14 +221,22 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                         var now = candidate.receivedAt();
                         var invocation = new Invocation(candidate.request(), candidate.requestDigest(), null, null, null,
                                 Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-                        var outcome = executions.acceptInCurrentTransaction(new ExecutionCommands.Accept(invocation, null, executions.toolDispatchPlan(candidate.binding().tool().tool().providerId(),
-                                candidate.binding().tool().tool().defaultPolicy().timeout())));
+                        var command = new ExecutionCommands.Accept(invocation, null, executions.toolDispatchPlan(candidate.binding().tool().tool().providerId(),
+                                candidate.binding().tool().tool().defaultPolicy().timeout()));
+                        var outcome = plan == null ? executions.acceptInCurrentTransaction(command)
+                                : executions.acceptWaitingToolInCurrentTransaction(command);
                         if (outcome.code() != APPLIED)
                             throw new IllegalStateException("Generic acceptance has no matching tool snapshot");
                         var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,
                                 candidate.submissionDigest(), candidate.requestDigest(), CanonicalJson.sha256(encoded), encoded);
                         if (mapper.insertToolSnapshot(row) != 1)
                             throw new IllegalStateException("Tool execution snapshot was not recorded");
+                        if (plan != null) {
+                            if (!executions.databaseTimeInCurrentTransaction().isBefore(plan.expiresAt()))
+                                throw new DeadlineExceeded();
+                            if (approvals.insert(ToolApprovalRecords.row(ToolApproval.pending(candidate, plan), codec)) != 1)
+                                throw new IllegalStateException("Tool approval was not recorded");
+                        }
                         requireUnexpired(candidate);
                         newlyAccepted.set(true);
                         return StoreOutcome.applied(new Accepted(outcome.value(), candidate));

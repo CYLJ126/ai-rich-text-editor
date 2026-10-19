@@ -29,6 +29,7 @@ import {toolInvocationFailure, toolTerminal, useToolInvocation,} from './useTool
 
 const stateNames: Record<string, string> = {
   ACCEPTED: '已受理',
+  WAITING_APPROVAL: '等待审批',
   QUEUED: '排队中',
   RUNNING: '执行中',
   SUCCEEDED: '执行成功',

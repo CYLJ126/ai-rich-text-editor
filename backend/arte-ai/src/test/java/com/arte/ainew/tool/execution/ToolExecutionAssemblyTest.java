@@ -48,6 +48,8 @@ public class ToolExecutionAssemblyTest {
             ports(context, true, true);
             refresh(context);
             assertNotNull(context.getBean(ToolAdmissionService.class));
+            assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolApprovalStore.class));
+            assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalRecovery.class).isEmpty());
             assertNotNull(context.getBean(ToolDispatcher.class));
             assertNotNull(context.getBean(ToolGateway.class));
             assertTrue(context.getBean(InvocationCoordinator.class) instanceof DefaultInvocationCoordinator);

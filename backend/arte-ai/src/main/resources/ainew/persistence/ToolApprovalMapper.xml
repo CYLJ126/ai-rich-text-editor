@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolApprovalMapper">
+    <resultMap id="Row" type="com.arte.ainew.persistence.mybatis.mapper.ToolApprovalMapper$Row">
+        <constructor>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="approval_key" javaType="java.lang.String"/>
+            <arg column="state" javaType="java.lang.String"/>
+            <arg column="version_no" javaType="_long"/>
+            <arg column="expires_at" javaType="_long"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="find" resultMap="Row" useCache="false">
+        SELECT invocation_key,owner_key,approval_key,state,version_no,expires_at,payload_digest,snapshot
+        FROM arte_ai_tool_approval WHERE invocation_key=#{invocation}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <insert id="insert">
+        INSERT INTO
+        arte_ai_tool_approval(invocation_key,owner_key,approval_key,state,version_no,expires_at,payload_digest,snapshot)
+        VALUES(#{r.invocationKey},#{r.ownerKey},#{r.approvalKey},#{r.state},#{r.version},#{r.expiresAt},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+    <update id="save">
+        UPDATE arte_ai_tool_approval SET
+        state=#{r.state},version_no=#{r.version},payload_digest=#{r.payloadDigest},snapshot=#{r.snapshot}
+        WHERE invocation_key=#{r.invocationKey} AND version_no=#{expected} AND state='PENDING'
+    </update>
+    <select id="expired" resultType="java.lang.String" useCache="false">
+        SELECT invocation_key FROM arte_ai_tool_approval
+        WHERE state='PENDING' AND expires_at &lt;= #{now}
+        ORDER BY expires_at,invocation_key LIMIT #{limit}
+    </select>
+</mapper>

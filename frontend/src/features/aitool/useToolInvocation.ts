@@ -58,7 +58,7 @@ function validRecord(value: unknown, context: BrowserContext): value is SavedToo
 }
 
 export const toolTerminal = (status: InvocationStatusResponse | null) =>
-  !!status && !['ACCEPTED', 'QUEUED', 'RUNNING'].includes(status.state);
+  !!status && !['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(status.state);
 export type ToolResultView = { value: ToolResult; outputJson: string | null };
 
 /** 每个账号／空间保存原命令；恢复只查询原 ID，未获回执时由用户用原键确认。 */

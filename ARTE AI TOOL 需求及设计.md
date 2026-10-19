@@ -381,7 +381,7 @@ S2-02 已实现内部本地只读网关：`GatewayCall<ToolInvocation>` → 当�
 | FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S2-03／04 内部 TOOL 受理及派发路由已实现；公开入口待后续 | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
 | DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                       | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
 | ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                           | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
-| Invocation 当前无 WAITING_APPROVAL                                         | S3 增加非终态及 Attempt 前完成路径                       | 所有 terminal／状态转换／取消分支、codec、查询和前端枚举同步；未支持节点隔离                                        |
+| Invocation 增加 WAITING_APPROVAL                                           | S3-01 已实现内部等待与决定事务；公开审批待 S3-02         | 非终态、Attempt 前完成、取消及前端状态判断同步；审批快照 v2，未支持节点必须隔离                                     |
 | Turn 用 invocationIds 表达候选                                             | S4 引入带类型候选及活跃执行身份                          | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                                               |
 | OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选   | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份   | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation                      |
 | BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通           | S3 增加结果查询适配与证据提交，S5 验证远端协议           | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                                         |
@@ -814,7 +814,8 @@ HTTP，真实宿主授权和领域工具仍须由组合模块提供。 网关保
 
 ### 8.2 状态与结果
 
-计划为通用 Invocation 增加 WAITING_APPROVAL 非终态，并同步状态机、持久化 codec、事件、查询 DTO 及前端类型；当前代码尚无该状态。
+S3-01 已为通用 Invocation 增加 WAITING_APPROVAL 非终态，并同步状态机、持久化 codec、状态事件、通用查询 DTO 及前端非终态判断。
+本批提供可信内部受理／决定事务，公开确认／审批入口与宿主当前审批资格接线留给 S3-02，业务写工具留给后续步骤。
 
     ACCEPTED → QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED / TIMED_OUT / INTERRUPTED / UNKNOWN
     ACCEPTED → WAITING_APPROVAL → QUEUED
@@ -931,6 +932,16 @@ Invocation；原调用的 deadline 不得重置。本版不新增该意图模型
 7. 不向浏览器发通用 resumeToken；按审批 ID、当前身份及幂等命令推进。首版不提供任意暂停或从任意指令恢复。
 
 批准者只写入决定事实，不替换原发起者或扩充其执行 scopes。获批后的 Worker 仍以原执行主体重新解析当前使用及资源权限；发起者已被撤权时，审批权限不能让原调用继续执行。
+
+S3-01 实施边界：`ToolAdmissionStore.awaitApproval` 原子写入 WAITING_APPROVAL、固定快照、审批及事件；
+`ToolApprovalStore.decide` 在同库事务内提交唯一决定和排队／Attempt 前终态。等待不占 S2 执行队列，获批才预留容量，
+队列等待从获批时开始，原 deadline 不变。通用取消同步关闭 PENDING；到期扫描使用数据库时间，同一调用行锁仲裁决定、取消与到期。
+审批版本与 Invocation 版本独立；同键重放重新授权并返回原决定回执。实际 Attempt 创建再次核验批准事实及固定摘要。
+
+本批无公开审批 API、默认审批人或平台审批权限放行；既有 S2 HTTP、派发授权与网关继续只允许 NONE。 独立审批人的当前成员／审批操作授权、15
+分钟产品窗口和本人确认的预览窗口将在 S3-02 的可信应用入口落实； 内部事务已限制截止不超过原 deadline 减至少 30
+秒执行余量。数据库增量、配置、兼容与验收见
+[审批事务实施说明](backend/arte-ai/TOOL_APPROVAL.md)。
 
 ### 8.7 取消、租约与未知结果
 

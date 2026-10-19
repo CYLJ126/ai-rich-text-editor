@@ -63,6 +63,15 @@ afterEach(() => {
 });
 
 describe('独立 TOOL 原调用恢复', () => {
+  it('等待审批继续保留原调用且不读取终态结果', async () => {
+    vi.mocked(invokeTool).mockResolvedValue(accepted);
+    vi.mocked(getInvocationStatus).mockResolvedValue(status('WAITING_APPROVAL'));
+    const hook = renderHook(() => useToolInvocation(context));
+    act(() => hook.result.current.start(requestJson));
+    await waitFor(() => expect(hook.result.current.status?.state).toBe('WAITING_APPROVAL'));
+    expect(hook.result.current.record?.acceptedId).toBe('original');
+    expect(getInvocationResult).not.toHaveBeenCalled();
+  });
   it('连续确认超时后可暂存并创建独立调用，刷新仍能用原输入和原键恢复', async () => {
     vi.mocked(invokeTool).mockRejectedValue(new AiApiError(504, {code: '205005'}));
     const first = renderHook(() => useToolInvocation(context));
