@@ -1,0 +1,795 @@
+{
+  "invocationCount": 50,
+  "skippedInvocations": 0,
+  "entryOnlyFailures": 0,
+  "traceIds": [
+    "0153c7d3db654ab18f506e7683c9b1ec",
+    "130c9abfd9e64a39930df0708521e10c",
+    "1648629d3bc340949b617d465b8800ad",
+    "1a17d04f2d88443b93692b16e28a027a",
+    "2135b24f8f684f30a6c83b835ab40de1",
+    "238906a6570542d4a7fd4ce729af57fa",
+    "30223999ac9b4289bd3331d294c07b12",
+    "31bbe00f664c41f990b02a51c484c25a",
+    "342de8b3a50a4f7f89d550674fae1ca8",
+    "3a5e1f16667a488d9e77edb42a5a4a5e",
+    "4173240434444aeda612fec2becbcc2c",
+    "43f6dadee5ad41859b05331fb700d041",
+    "44791f26bdb84ee394c5d8b09c120bed",
+    "4ddb32c2d5cf4ff6a70002499380f002",
+    "51935f812bb545799d533bf9f5f4299b",
+    "55e6570c65b94bb59f9c6d2018c3d8a5",
+    "5c2fec0df4704eed87c28b60782115fa",
+    "688fd0ff3b054ce88ecfed75e6ae7bf1",
+    "6916e0775443415e9e5b6eb0aed3e3a7",
+    "73e23feed66c41e09c78bc99f579e50b",
+    "740e1cfdb22942e48c8132d85cc3784b",
+    "76cd6aff583c4ff2a2d77a9f0165f075",
+    "8dc7272690bc46de9fa0520ac0f18b83",
+    "90161e0d253e42d2b95b82b1dd5a641c",
+    "99bb36f7210247c6bd80c97d2f32614a",
+    "a43999ef147e42c19ae23cbaa32e7377",
+    "a77df3aa3b934df6a7700a3b8cbeaf45",
+    "aa1411075ad44f10a5d4193ddfbdd0a2",
+    "abdc7749b07445c1b3252071746ff6ae",
+    "b17075105397416bae047635681742f7",
+    "b36ba4a4fdc84ab0baa06d1b3afaf0a5",
+    "b3d1778d14e74db28b69b331cd4b3ca2",
+    "b8248a93b1284b1a80cdb62ac06ef2ef",
+    "b84ca0fab6454959a7332a6e368b2cbb",
+    "b8b9ca866eca43b2b5d2be33b2e277c4",
+    "b923df6f5dec48cbbb7ec8c93442fbe7",
+    "c295efb55c3d4f94aa79ebd2375cba90",
+    "c2f89539f9e24034ad1a338d67b61758",
+    "cbcef3ed56bc49019f977c5ece3075ec",
+    "cd80bae8ac1b4514bff5505bc6fc82c6",
+    "d1d186df17c44601ad8d79c836efb98d",
+    "d35836fa371245caac30f9d461ff101f",
+    "d49268ede4b341018d051ebdf13c640a",
+    "daf1c7e376744ddaaf1e21fb152eaf47",
+    "dbc6be57da1c4c22a94598adfd28eac1",
+    "ea6431ddceed4d8c805166f847ca2a0d",
+    "ef277cc7b1df48f5a33226ace5217c61",
+    "efca4f4b3f344dd2b138a6b252ef5e30",
+    "f00e71246ef14dbaa57de140866ec212",
+    "f69e09c9145e4b93b0044b93151a7f82"
+  ],
+  "stageMetrics": {
+    "ADAPTER": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 0.069,
+        "p95": 0.104,
+        "p99": 0.155
+      },
+      "sqlCount": null,
+      "sqlExecuteMs": null,
+      "sqlUnobservedSamples": 50,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4446,
+        "p95": 4882,
+        "p99": 4903
+      }
+    },
+    "ADMISSION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 34.205,
+        "p95": 45.889,
+        "p99": 81.338
+      },
+      "sqlCount": {
+        "p50": 74,
+        "p95": 74,
+        "p99": 74
+      },
+      "sqlExecuteMs": {
+        "p50": 23.033,
+        "p95": 34.06,
+        "p99": 56.917
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4961,
+        "p95": 4965,
+        "p99": 4967
+      }
+    },
+    "ADMISSION_COMMIT": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 23.359,
+        "p95": 34.521,
+        "p99": 54.18
+      },
+      "sqlCount": {
+        "p50": 53,
+        "p95": 53,
+        "p99": 53
+      },
+      "sqlExecuteMs": {
+        "p50": 17.771,
+        "p95": 28.468,
+        "p99": 43.097
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4961,
+        "p95": 4965,
+        "p99": 4967
+      }
+    },
+    "ADMISSION_TRANSACTION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 23.033,
+        "p95": 34.188,
+        "p99": 53.762
+      },
+      "sqlCount": {
+        "p50": 53,
+        "p95": 53,
+        "p99": 53
+      },
+      "sqlExecuteMs": {
+        "p50": 17.771,
+        "p95": 28.468,
+        "p99": 43.097
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4961,
+        "p95": 4966,
+        "p99": 4967
+      }
+    },
+    "BINDING_RESOLUTION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 3.455,
+        "p95": 7.582,
+        "p99": 10.303
+      },
+      "sqlCount": {
+        "p50": 4,
+        "p95": 4,
+        "p99": 4
+      },
+      "sqlExecuteMs": {
+        "p50": 1.183,
+        "p95": 3.404,
+        "p99": 7.76
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4990,
+        "p95": 4991,
+        "p99": 4992
+      }
+    },
+    "COMMIT_AUTHORIZATION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 4.847,
+        "p95": 8.707,
+        "p99": 9.314
+      },
+      "sqlCount": {
+        "p50": 16,
+        "p95": 16,
+        "p99": 16
+      },
+      "sqlExecuteMs": {
+        "p50": 3.985,
+        "p95": 6.597,
+        "p99": 7.015
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4979,
+        "p95": 4981,
+        "p99": 4982
+      }
+    },
+    "COMMIT_GOVERNANCE": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 4.096,
+        "p95": 8.051,
+        "p99": 10.578
+      },
+      "sqlCount": {
+        "p50": 9,
+        "p95": 9,
+        "p99": 9
+      },
+      "sqlExecuteMs": {
+        "p50": 2.781,
+        "p95": 6.417,
+        "p99": 7.78
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4974,
+        "p95": 4976,
+        "p99": 4977
+      }
+    },
+    "COMMIT_WRITES": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 11.004,
+        "p95": 18.398,
+        "p99": 30.01
+      },
+      "sqlCount": {
+        "p50": 26,
+        "p95": 26,
+        "p99": 26
+      },
+      "sqlExecuteMs": {
+        "p50": 10.122,
+        "p95": 17.005,
+        "p99": 27.657
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4962,
+        "p95": 4967,
+        "p99": 4968
+      }
+    },
+    "DISPATCH": {
+      "samples": 50,
+      "outcomes": {
+        "EMPTY": 50
+      },
+      "elapsedMs": {
+        "p50": 58.668,
+        "p95": 99.732,
+        "p99": 161.925
+      },
+      "sqlCount": {
+        "p50": 130,
+        "p95": 130,
+        "p99": 130
+      },
+      "sqlExecuteMs": {
+        "p50": 35.866,
+        "p95": 55.223,
+        "p99": 87.105
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4432,
+        "p95": 4868,
+        "p99": 4890
+      }
+    },
+    "DISPATCH_LOAD": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 2.967,
+        "p95": 4.26,
+        "p99": 7.076
+      },
+      "sqlCount": {
+        "p50": 6,
+        "p95": 6,
+        "p99": 6
+      },
+      "sqlExecuteMs": {
+        "p50": 1.417,
+        "p95": 2.199,
+        "p99": 3.235
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4944,
+        "p95": 4950,
+        "p99": 4953
+      }
+    },
+    "DISPATCH_ROUTING": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 1.16,
+        "p95": 1.82,
+        "p99": 2.799
+      },
+      "sqlCount": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "sqlExecuteMs": {
+        "p50": 0.276,
+        "p95": 0.441,
+        "p99": 0.55
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4947,
+        "p95": 4952,
+        "p99": 4955
+      }
+    },
+    "ENTRY_AUTHORIZATION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 4.832,
+        "p95": 6.784,
+        "p99": 15.047
+      },
+      "sqlCount": {
+        "p50": 11,
+        "p95": 11,
+        "p99": 11
+      },
+      "sqlExecuteMs": {
+        "p50": 2.871,
+        "p95": 4.061,
+        "p99": 8.507
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4995,
+        "p95": 4996,
+        "p99": 4996
+      }
+    },
+    "GATEWAY": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 13.207,
+        "p95": 20.073,
+        "p99": 23.071
+      },
+      "sqlCount": {
+        "p50": 31,
+        "p95": 31,
+        "p99": 31
+      },
+      "sqlExecuteMs": {
+        "p50": 7.87,
+        "p95": 11.703,
+        "p99": 13.752
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4446,
+        "p95": 4882,
+        "p99": 4903
+      }
+    },
+    "GATEWAY_BINDING": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 3.566,
+        "p95": 4.872,
+        "p99": 7.701
+      },
+      "sqlCount": {
+        "p50": 7,
+        "p95": 7,
+        "p99": 7
+      },
+      "sqlExecuteMs": {
+        "p50": 2.16,
+        "p95": 2.833,
+        "p99": 5.336
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4911,
+        "p95": 4922,
+        "p99": 4924
+      }
+    },
+    "GATEWAY_PREFLIGHT": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 9.004,
+        "p95": 13.224,
+        "p99": 16.046
+      },
+      "sqlCount": {
+        "p50": 24,
+        "p95": 24,
+        "p99": 24
+      },
+      "sqlExecuteMs": {
+        "p50": 5.68,
+        "p95": 8.27,
+        "p99": 9.789
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4446,
+        "p95": 4882,
+        "p99": 4903
+      }
+    },
+    "HOST_AUTHORIZATION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 5.717,
+        "p95": 9.46,
+        "p99": 13.401
+      },
+      "sqlCount": {
+        "p50": 16,
+        "p95": 16,
+        "p99": 16
+      },
+      "sqlExecuteMs": {
+        "p50": 4.035,
+        "p95": 6.133,
+        "p99": 9.315
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4985,
+        "p95": 4986,
+        "p99": 4987
+      }
+    },
+    "OUTPUT_VALIDATION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 0.064,
+        "p95": 0.097,
+        "p99": 0.12
+      },
+      "sqlCount": null,
+      "sqlExecuteMs": null,
+      "sqlUnobservedSamples": 50,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4446,
+        "p95": 4882,
+        "p99": 4903
+      }
+    },
+    "PREFLIGHT": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 12.283,
+        "p95": 18.889,
+        "p99": 23.382
+      },
+      "sqlCount": {
+        "p50": 27,
+        "p95": 27,
+        "p99": 27
+      },
+      "sqlExecuteMs": {
+        "p50": 6.569,
+        "p95": 9.72,
+        "p99": 12.266
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4931,
+        "p95": 4939,
+        "p99": 4943
+      }
+    },
+    "PREPARE_DISPATCH": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 13.448,
+        "p95": 18.782,
+        "p99": 30.357
+      },
+      "sqlCount": {
+        "p50": 36,
+        "p95": 36,
+        "p99": 36
+      },
+      "sqlExecuteMs": {
+        "p50": 10.741,
+        "p95": 15.284,
+        "p99": 24.571
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4917,
+        "p95": 4927,
+        "p99": 4931
+      }
+    },
+    "REPLAY_LOOKUP": {
+      "samples": 50,
+      "outcomes": {
+        "EMPTY": 50
+      },
+      "elapsedMs": {
+        "p50": 1.027,
+        "p95": 1.895,
+        "p99": 3.434
+      },
+      "sqlCount": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "sqlExecuteMs": {
+        "p50": 0.266,
+        "p95": 0.588,
+        "p99": 1.106
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4994,
+        "p95": 4995,
+        "p99": 4995
+      }
+    },
+    "RESULT_PERSIST": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 3.667,
+        "p95": 7.653,
+        "p99": 20.951
+      },
+      "sqlCount": {
+        "p50": 7,
+        "p95": 7,
+        "p99": 7
+      },
+      "sqlExecuteMs": {
+        "p50": 1.947,
+        "p95": 3.494,
+        "p99": 6.736
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4899,
+        "p95": 4909,
+        "p99": 4911
+      }
+    },
+    "SCHEMA_VALIDATION": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 0.173,
+        "p95": 0.327,
+        "p99": 0.685
+      },
+      "sqlCount": null,
+      "sqlExecuteMs": null,
+      "sqlUnobservedSamples": 50,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4990,
+        "p95": 4991,
+        "p99": 4992
+      }
+    },
+    "TERMINAL_COMMIT": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 9.989,
+        "p95": 25.562,
+        "p99": 61.7
+      },
+      "sqlCount": {
+        "p50": 21,
+        "p95": 21,
+        "p99": 21
+      },
+      "sqlExecuteMs": {
+        "p50": 6.34,
+        "p95": 16.318,
+        "p99": 29.797
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4888,
+        "p95": 4900,
+        "p99": 4903
+      }
+    },
+    "WORKER_LOAD": {
+      "samples": 50,
+      "outcomes": {
+        "SUCCESS": 50
+      },
+      "elapsedMs": {
+        "p50": 1.229,
+        "p95": 2.871,
+        "p99": 4.462
+      },
+      "sqlCount": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "sqlExecuteMs": {
+        "p50": 0.287,
+        "p95": 0.566,
+        "p99": 1.918
+      },
+      "sqlUnobservedSamples": 0,
+      "partialSqlSamples": 0,
+      "remainingEndMs": {
+        "p50": 4949,
+        "p95": 4954,
+        "p99": 4956
+      }
+    }
+  },
+  "http": {
+    "samples": 50,
+    "statuses": {
+      "202": 50
+    },
+    "mvcTotalMs": {
+      "p50": 40.391,
+      "p95": 52.579,
+      "p99": 97.762
+    },
+    "sqlCount": {
+      "p50": 85,
+      "p95": 85,
+      "p99": 85
+    },
+    "sqlExecuteMs": {
+      "p50": 26.063,
+      "p95": 37.118,
+      "p99": 65.424
+    },
+    "unassignedSqlCount": {
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    }
+  },
+  "commitToWorkerReadStartMs": {
+    "samples": 50,
+    "latency": {
+      "p50": 11,
+      "p95": 13,
+      "p99": 20
+    },
+    "missingPairs": 0,
+    "crossNodePairs": 0,
+    "negativeClockPairs": 0,
+    "allowCrossNodeClock": false
+  },
+  "coverage": {
+    "ADMISSION_COMMITTED": 0,
+    "WORKER_LOAD": 0,
+    "ADAPTER": 0,
+    "TERMINAL_COMMIT": 0
+  },
+  "notes": [
+    "Parent stages include child SQL and elapsed time; do not sum parent and child metrics.",
+    "Multiple requests may resolve to one invocation; stage sample counts are not logical invocation counts.",
+    "SUCCESS/EMPTY describe publisher completion, not business outcome; inspect durable terminal state.",
+    "Zero SQL with jdbcObserved=false is unmeasured, not proof of no SQL.",
+    "CANCELLED with SQL in flight is partial; inspect ADMISSION_TRANSACTION and commit/rollback points.",
+    "FOR UPDATE duration is not actual lock wait. No lock-wait value is inferred.",
+    "Commit-to-worker gap includes scheduling/claim before the first invocation read; it is not pure polling delay.",
+    "Cross-node wall-clock gaps are excluded unless explicitly allowed; clocks must be calibrated."
+  ],
+  "malformedRecords": 0,
+  "environment": {
+    "date": "2026-10-19",
+    "database": "MySQL 8.4.11 in disposable Docker container",
+    "transactionIsolation": "REPEATABLE-READ",
+    "innodbBufferPoolBytes": 134217728,
+    "flushLogAtTransactionCommit": 1,
+    "dataSource": "Druid",
+    "maximumPoolConnections": 8,
+    "worker": "automatic Worker; real notifier and recovery scans",
+    "warmupCount": 10,
+    "measuredSamples": 50,
+    "load": "serial standalone MVC through current platform authorization and real text tool",
+    "jvm": "21.0.8",
+    "businessEnvironment": false,
+    "excludes": "production JWT filter, browser network, business DB RTT and reference-environment sustained concurrency",
+    "phase": "P03"
+  },
+  "comparison": {
+    "baseline": "p02-local-baseline.json",
+    "httpSqlBefore": 96,
+    "httpSqlAfter": 85,
+    "bindingResolutionSqlBefore": 8,
+    "bindingResolutionSqlAfter": 4,
+    "schemaValidationSqlBefore": 3,
+    "schemaValidationSqlAfter": 0,
+    "commitGovernanceSqlBefore": 13,
+    "commitGovernanceSqlAfter": 9,
+    "gatewayPreflightSqlBefore": 26,
+    "gatewayPreflightSqlAfter": 24,
+    "cacheMaximumEntries": 256,
+    "cacheMaximumEstimatedWeightBytes": 16777216,
+    "cacheKey": "fixed schema reference, computed content digest, purpose and validator limits"
+  }
+}

@@ -317,8 +317,15 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
 
     @Override
     public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
+        return inspect(owner, bindingId, ignored -> {
+        });
+    }
+
+    @Override
+    public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId, Consumer<ToolCatalogStore.Batch> artifacts) {
         require(owner, bindingId);
-        return io(() -> reads.execute(status -> resolvePlan(owner, bindingId, false)));
+        Objects.requireNonNull(artifacts);
+        return io(() -> reads.execute(status -> resolvePlan(owner, bindingId, false, artifacts)));
     }
 
     private ToolBindingResult<ToolBindingResolution> resolveLocked(ExecutionOwner owner, String bindingId) {

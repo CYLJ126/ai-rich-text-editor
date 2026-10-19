@@ -7,6 +7,8 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.core.pojo.platform.TrustedActor;
 import reactor.core.publisher.Mono;
 
+import java.util.function.Consumer;
+
 /**
  * 私有 TOOL 绑定底层事务端口；owner 必须来自可信入口，外层仍须复核当前管理／使用资格。
  * 不替代通用 BindingManager，不参与 GENERATION 控制面。
@@ -59,6 +61,14 @@ public interface ToolBindingStore {
      */
     default Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
         return Mono.error(new UnsupportedOperationException("Read-only tool inspection is required"));
+    }
+
+    /**
+     * 同次只读解析可携带已核验的固定材料，供受理准备复用；旧适配器可保留原读取方式。
+     */
+    default Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId,
+                                                                   Consumer<ToolCatalogStore.Batch> artifacts) {
+        return inspect(owner, bindingId);
     }
 
 

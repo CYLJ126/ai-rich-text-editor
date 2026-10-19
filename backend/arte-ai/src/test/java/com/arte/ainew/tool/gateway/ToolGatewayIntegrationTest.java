@@ -8,6 +8,7 @@ import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.*;
+import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -20,6 +21,8 @@ import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.*;
+import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -48,10 +51,7 @@ import java.sql.Connection;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -371,6 +371,22 @@ public class ToolGatewayIntegrationTest {
     }
 
     @Test
+    public void warmSchemaPlanCannotHidePublishedMaterialDrift() {
+        var original = call();
+        assertEquals(ToolResult.Outcome.SUCCEEDED, gateway.invoke(original).block(WAIT).outcome());
+        var document = new HashMap<>(fixture.schema().document().fields());
+        document.put("title", text("Changed after publication"));
+        var changed = new ToolSchemaDefinition(fixture.schema().definition(), new StructuredValue.ObjectValue(document),
+                ToolCatalogDigests.schema(new StructuredValue.ObjectValue(document)));
+        var encoded = CanonicalJson.normalize(codec.encode(changed));
+        jdbc.update("UPDATE arte_ai_tool_schema SET workspace_snapshot=?,payload_digest=?", encoded, CanonicalJson.sha256(encoded));
+        var result = gateway.invoke(original).block(WAIT);
+        assertEquals(ToolResult.Outcome.FAILED, result.outcome());
+        assertEquals("TOOL_SCHEMA_INVALID", result.error().code());
+        assertEquals(1, invokes.get());
+    }
+
+    @Test
     public void alreadyCancelledCallNeverEntersAdapter() {
         var call = call();
         call.runtime().cancellation().cancel("cancelled");
@@ -618,7 +634,13 @@ public class ToolGatewayIntegrationTest {
 
     private ToolCatalogStore documents(Mono<ToolSchemaDefinition> response) {
         return (ToolCatalogStore) Proxy.newProxyInstance(ToolCatalogStore.class.getClassLoader(), new Class<?>[]{ToolCatalogStore.class},
-                (proxy, method, args) -> method.getName().equals("findSchema") ? response : method.invoke(catalog, args));
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "findSchema" -> response;
+                    case "findSchemas" -> response.map(List::of);
+                    case "findArtifacts" -> response.flatMap(schema -> catalog.findArtifacts((DefinitionRef) args[0])
+                            .map(artifacts -> new ToolCatalogStore.Batch(artifacts.providers(), List.of(schema), artifacts.tools())));
+                    default -> method.invoke(catalog, args);
+                });
     }
 
     private void disableBinding() {

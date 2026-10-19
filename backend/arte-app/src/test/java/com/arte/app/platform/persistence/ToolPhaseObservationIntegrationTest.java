@@ -37,8 +37,12 @@ class ToolPhaseObservationIntegrationTest {
     @Test
     void endToEndStagesRetainSqlAndOriginalTrace() throws Exception {
         boolean p02 = Boolean.getBoolean("platform.tool.p02.baseline");
-        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02;
-        String outputPrefix = p02 ? "target/tool-p02" : "target/tool-p01";
+        boolean p03 = Boolean.getBoolean("platform.tool.p03.baseline");
+        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03;
+        final String outputPrefix;
+        if (p03) outputPrefix = "target/tool-p03";
+        else if (p02) outputPrefix = "target/tool-p02";
+        else outputPrefix = "target/tool-p01";
         if (baseline) assertNotNull(System.getProperty("platform.test.mysql"), "Baseline requires isolated MySQL");
         var events = new CopyOnWriteArrayList<String>();
         var logger = (Logger) LogManager.getLogger(OperationObservation.class);
@@ -126,6 +130,12 @@ class ToolPhaseObservationIntegrationTest {
                         assertTrue(row.get("jdbcObserved").asBoolean());
                         assertTrue(row.get("sqlCount").asLong() < limit.getValue(), limit.getKey() + " authorization SQL must decrease");
                     }
+                    for (var expected : Map.of("BINDING_RESOLUTION", 4L, "SCHEMA_VALIDATION", 0L).entrySet()) {
+                        var row = invocationStages.stream().filter(value -> expected.getKey().equals(value.get("stage").asString())).findFirst().orElseThrow();
+                        assertEquals(expected.getValue().longValue(), row.get("sqlCount").asLong(), expected.getKey());
+                    }
+                    var governance = invocationStages.stream().filter(value -> "COMMIT_GOVERNANCE".equals(value.get("stage").asString())).findFirst().orElseThrow();
+                    assertTrue(governance.get("sqlCount").asLong() < 13, "Material SQL must decrease, including cold plan insertion");
                     assertTrue(points.stream().anyMatch(row -> id.equals(row.get("invocationId").asString()) && "ADMISSION_COMMITTED".equals(row.get("stage").asString())));
                 }
                 assertFalse(String.join("\n", events).contains("private-text-never-in-phase-log"));

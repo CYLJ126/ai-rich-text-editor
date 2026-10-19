@@ -4,6 +4,7 @@ import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.common.value.StructuredValue.*;
+import com.arte.ainew.serialization.ToolCatalogDigests;
 
 import java.io.Serial;
 import java.math.BigDecimal;
@@ -26,6 +27,22 @@ public final class ToolSchemaValidator {
             "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum");
     private static final Set<String> TYPES = Set.of("object", "array", "string", "number", "integer", "boolean", "null");
     private final Limits limits;
+
+    // 仅复用不可变编译计划；摘要来自本次原文重算，不缓存目录或授权资格。
+    private static final int MAX_CACHED_SCHEMAS = 256;
+    // 权重为原文 UTF-8 字节加每节点 256 字节的估算，不代表精确堆占用。
+    private static final long MAX_CACHE_WEIGHT = 16L * 1024 * 1024;
+    private static final Map<CacheKey, Cached> COMPILED = new LinkedHashMap<>(32, 0.75f, true);
+    private static long cacheWeight;
+
+    /**
+     * 固定版本、真实内容、校验用途和限制均一致时才允许复用计划。
+     */
+    private record CacheKey(DefinitionRef definition, String checksum, Purpose purpose, Limits limits) {
+    }
+
+    private record Cached(CompiledSchema schema, long weight) {
+    }
 
     public enum Purpose {INPUT, CONFIGURATION, OUTPUT}
 
@@ -116,12 +133,33 @@ public final class ToolSchemaValidator {
         var budget = new Budget(limits.schemaDepth(), limits.schemaNodes(), limits.schemaBytes());
         var violation = budget.inspect(document, "");
         if (violation != null) throw invalid(violation.code(), violation.instancePointer());
+        var key = new CacheKey(definition, ToolCatalogDigests.schema(document), purpose, limits);
+        synchronized (COMPILED) {
+            var cached = COMPILED.get(key);
+            if (cached != null) return cached.schema();
+        }
         if (!(document.fields().get("$schema") instanceof StringValue dialect) || !DIALECT.equals(dialect.value())) {
             throw invalid(Code.INVALID_SCHEMA, "/$schema");
         }
         Node root = compileNode(document, "", true);
         if (purpose != Purpose.OUTPUT && !"object".equals(root.type())) throw invalid(Code.INVALID_SCHEMA, "/type");
-        return new CompiledSchema(definition, document, purpose, root, limits);
+        var compiled = new CompiledSchema(definition, document, purpose, root, limits);
+        // 编译在锁外进行，冷请求不阻塞其他 Schema；并发同键只保留并返回一个成功计划。
+        long weight = budget.bytes + budget.nodes * 256L;
+        synchronized (COMPILED) {
+            var winner = COMPILED.get(key);
+            if (winner != null) return winner.schema();
+            if (weight <= MAX_CACHE_WEIGHT) {
+                COMPILED.put(key, new Cached(compiled, weight));
+                cacheWeight += weight;
+                var entries = COMPILED.entrySet().iterator();
+                while (COMPILED.size() > MAX_CACHED_SCHEMAS || cacheWeight > MAX_CACHE_WEIGHT) {
+                    cacheWeight -= entries.next().getValue().weight();
+                    entries.remove();
+                }
+            }
+        }
+        return compiled;
     }
 
     /**

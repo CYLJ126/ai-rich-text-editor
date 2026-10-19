@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.pojo.tool.ToolBindingSettings;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
+import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import org.junit.Test;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
@@ -327,9 +328,12 @@ public class ToolAdmissionIntegrationTest {
             var barrier = new CyclicBarrier(2);
             f.authorizationHook = ignored -> await(barrier);
             var secondStore = new MybatisToolAdmissionStore(f.source, f.codec, f.io, f.executions, f.bindings, f.catalog);
-            var second = f.service(secondStore, f.access, f.clock);
+            // 测试屏障会阻塞线程；与真实宿主一样把阻塞授权安排到 JDBC 调度器，避免占住元数据线程。
+            ToolAdmissionAccess asynchronous = (input, context, binding) -> f.access.authorizeFreeReadOnly(input, context, binding).subscribeOn(f.io);
+            var first = f.service(f.store, asynchronous, f.clock);
+            var second = f.service(secondStore, asynchronous, f.clock);
             try (var executor = Executors.newFixedThreadPool(2)) {
-                var a = executor.submit(() -> f.service.submit(f.input(), f.context("one", "same")).block(WAIT));
+                var a = executor.submit(() -> first.submit(f.input(), f.context("one", "same")).block(WAIT));
                 var b = executor.submit(() -> second.submit(f.input(), f.context("two", "same")).block(WAIT));
                 assertEquals(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS));
             }

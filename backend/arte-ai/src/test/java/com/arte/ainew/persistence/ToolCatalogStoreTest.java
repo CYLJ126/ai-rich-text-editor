@@ -28,6 +28,8 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -36,6 +38,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
 import static org.junit.Assert.*;
@@ -55,6 +58,73 @@ public class ToolCatalogStoreTest {
     private JdbcTemplate jdbc;
     private Scheduler scheduler;
     private MybatisToolCatalogStore first, second;
+
+    @Test
+    public void fixedArtifactsAndSchemaSetsEachUseOneStatement() {
+        var values = batch("batch-read");
+        assertTrue(first.put(values).block(WAIT).successful());
+        var queries = new AtomicInteger();
+        var counting = new DelegatingDataSource(dataSource) {
+            @Override
+            public Connection getConnection() throws java.sql.SQLException {
+                var actual = super.getConnection();
+                return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[]{Connection.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("prepareStatement") && args[0] instanceof String sql && sql.stripLeading().startsWith("SELECT"))
+                        queries.incrementAndGet();
+                    try {
+                        return method.invoke(actual, args);
+                    } catch (InvocationTargetException error) {
+                        throw error.getCause();
+                    }
+                });
+            }
+        };
+        var store = new MybatisToolCatalogStore(counting, codec, scheduler, CLOCK);
+        var artifacts = store.findArtifacts(values.tools().getFirst().tool().definition()).block(WAIT);
+        assertEquals(values, artifacts);
+        assertEquals(1, queries.get());
+        queries.set(0);
+        var refs = List.of(values.schemas().getLast().definition(), values.schemas().getFirst().definition(), values.schemas().getLast().definition());
+        assertEquals(List.of(values.schemas().getLast(), values.schemas().getFirst()), store.findSchemas(refs).block(WAIT));
+        assertEquals(1, queries.get());
+        queries.set(0);
+        assertEquals(List.of(), store.findSchemas(List.of()).block(WAIT));
+        assertEquals(0, queries.get());
+        assertEquals(List.of(), store.findSchemas(List.of(ref("schema", "missing", "v1"))).block(WAIT));
+        assertNull(store.findArtifacts(ref("tool", "missing", "v1")).block(WAIT));
+        assertThrows(IllegalArgumentException.class, () -> store.findSchemas(List.of(ref("tool", "wrong", "v1"))));
+        assertThrows(IllegalArgumentException.class, () -> store.findSchemas(Collections.nCopies(129, refs.getFirst())));
+    }
+
+    @Test
+    public void warmCompiledPlansDoNotHideChangedOrCorruptCatalogRows() {
+        var values = batch("warm-corruption");
+        first.put(values).block(WAIT);
+        var ref = values.tools().getFirst().tool().definition();
+        assertEquals(values, first.findArtifacts(ref).block(WAIT));
+        var original = values.schemas().getFirst();
+        var replacement = schema(original.definition(), object("type", text("object"), "properties", object("changed", object("type", text("string"))),
+                "required", new ArrayValue(List.of(text("changed")))));
+        var payload = CanonicalJson.normalize(codec.encode(replacement));
+        jdbc.update("UPDATE arte_ai_tool_schema SET workspace_snapshot=?,payload_digest=? WHERE id_key=?", payload,
+                CanonicalJson.sha256(payload), CanonicalJson.key(original.definition().type(), original.definition().id(), original.definition().version()));
+        var loaded = first.findArtifacts(ref).block(WAIT);
+        assertEquals(replacement, loaded.schemas().getFirst());
+        assertFalse(new ToolSchemaValidator().compile(replacement.definition(), replacement.document(), ToolSchemaValidator.Purpose.INPUT)
+                .validate(object(), 128).valid());
+        jdbc.update("UPDATE arte_ai_tool_schema SET payload_digest=?", "0".repeat(64));
+        assertThrows(IllegalStateException.class, () -> first.findArtifacts(ref).block(WAIT));
+        assertThrows(IllegalStateException.class, () -> first.findSchemas(List.of(original.definition())).block(WAIT));
+    }
+
+    @Test
+    public void batchedArtifactsStillRejectDependencyIndexDrift() {
+        var values = batch("dependency-drift");
+        first.put(values).block(WAIT);
+        var tool = values.tools().getFirst().tool();
+        jdbc.update("UPDATE arte_ai_tool_definition SET input_schema_key=?", CanonicalJson.key(tool.outputSchema().type(), tool.outputSchema().id(), tool.outputSchema().version()));
+        assertThrows(IllegalStateException.class, () -> first.findArtifacts(tool.definition()).block(WAIT));
+    }
 
     @Before
     public void setup() {

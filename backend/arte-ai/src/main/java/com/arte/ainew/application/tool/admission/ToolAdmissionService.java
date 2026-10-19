@@ -19,12 +19,12 @@ import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.ainew.serialization.ToolReleaseDigests;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.enums.ResultCodeEnum;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
@@ -105,14 +106,15 @@ public final class ToolAdmissionService {
             var timeout = min(limits.timeout(), input.requestedTimeout() == null ? limits.timeout() : input.requestedTimeout());
             var deadline = earlier(context.deadline(), received.plus(timeout));
             var owner = ExecutionOwner.from(context);
+            var artifacts = new AtomicReference<ToolCatalogStore.Batch>();
             // 在调用线程只记录入口时刻，阻塞工作随后排入有界调度器；排队不能推迟总期限起点。
             var work = Mono.defer(() -> ToolObservation.mono(REPLAY_LOOKUP, context,
                                     () -> store.findAccepted(owner, input.bindingId(), context.idempotencyKey()))
                             .flatMap(previous -> replay(input, context, previous, expectedPlanDigest))
-                            .switchIfEmpty(Mono.defer(() -> ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.inspect(owner, input.bindingId()))
+                            .switchIfEmpty(Mono.defer(() -> ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.inspect(owner, input.bindingId(), artifacts::set))
                                     .flatMap(result -> {
                                         require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
-                                        return prepare(input, context, result.value(), received, deadline, (snapshot, permit) -> {
+                                        return prepare(input, context, result.value(), received, deadline, artifacts.get(), (snapshot, permit) -> {
                                             require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(snapshot)),
                                                     ResultCodeEnum.AI_TOOL_PLAN_CHANGED);
                                             return commit(snapshot, permit, expectedPlanDigest);
@@ -152,19 +154,20 @@ public final class ToolAdmissionService {
             require(context.budgetRef() == null && context.parentExecutionId() == null
                     && context.authorization().scopes().contains(AdmissionAuthorization.INVOKE), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
             var received = clock.instant();
+            var artifacts = new AtomicReference<ToolCatalogStore.Batch>();
             // 临时键只满足内部材料的一致性约束，不写入幂等空间，也不绑定后续提交身份。
             var provisional = new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(),
                     null, null, context.releaseRef(), "preview");
-            return bindings.inspect(ExecutionOwner.from(context), input.bindingId()).flatMap(result -> {
+            return bindings.inspect(ExecutionOwner.from(context), input.bindingId(), artifacts::set).flatMap(result -> {
                         require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
-                        return prepare(input, provisional, result.value(), received, context.deadline(), (snapshot, permit) -> Mono.just(snapshot));
+                        return prepare(input, provisional, result.value(), received, context.deadline(), artifacts.get(), (snapshot, permit) -> Mono.just(snapshot));
                     }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE)))
                     .subscribeOn(scheduler).timeout(remaining(context.deadline()));
         }).onErrorMap(TimeoutException.class, expired -> new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
     }
 
     private <T> Mono<T> prepare(ToolAdmissionInput input, ExecutionContext original, ToolBindingResolution binding,
-                                Instant received, Instant entryDeadline,
+                                Instant received, Instant entryDeadline, ToolCatalogStore.Batch artifacts,
                                 BiFunction<ToolExecutionSnapshot, VerifiedPermit, Mono<T>> complete) {
         ToolExecutionPolicy policy;
         try {
@@ -174,7 +177,7 @@ public final class ToolAdmissionService {
         }
         var totalTimeout = min(policy.timeout(), input.requestedTimeout() == null ? policy.timeout() : input.requestedTimeout());
         var deadline = earlier(entryDeadline, received.plus(totalTimeout));
-        return ToolObservation.mono(SCHEMA_VALIDATION, original, deadline, () -> documents(binding).publishOn(scheduler).map(documents -> {
+        return ToolObservation.mono(SCHEMA_VALIDATION, original, deadline, () -> documents(binding, artifacts).publishOn(scheduler).map(documents -> {
             validate(input, binding, documents, policy);
             return documents;
         })).flatMap(documents -> {
@@ -231,11 +234,18 @@ public final class ToolAdmissionService {
     private record VerifiedPermit(ToolAdmissionAccess.Permit permit, ExecutionAuthorization authorization) {
     }
 
-    private Mono<List<ToolSchemaDefinition>> documents(ToolBindingResolution binding) {
+    private Mono<List<ToolSchemaDefinition>> documents(ToolBindingResolution binding, ToolCatalogStore.Batch artifacts) {
         var tool = binding.tool().tool();
-        return Flux.fromIterable(new LinkedHashSet<>(List.of(tool.inputSchema(), tool.outputSchema(), tool.configurationSchema())))
-                .concatMap(ref -> catalog.findSchema(ref).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE))))
-                .collectList();
+        var refs = List.copyOf(new LinkedHashSet<>(List.of(tool.inputSchema(), tool.outputSchema(), tool.configurationSchema())));
+        // 仅复用本次绑定解析得到且合同摘要一致的固定材料；最终提交仍重新读取当前绑定和发布状态。
+        if (artifacts != null && (!artifacts.tools().equals(List.of(binding.tool())) || artifacts.providers().size() != 1
+                || !ToolReleaseDigests.contract(binding.tool(), artifacts.providers().getFirst(), artifacts.schemas()).equals(binding.contractDigest())))
+            return Mono.error(new IllegalStateException("Tool admission artifacts mismatch"));
+        return (artifacts == null ? catalog.findSchemas(refs) : Mono.just(artifacts.schemas())).map(documents -> {
+            if (documents.size() != refs.size() || !new LinkedHashSet<>(refs).equals(new LinkedHashSet<>(documents.stream().map(ToolSchemaDefinition::definition).toList())))
+                throw new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
+            return documents;
+        });
     }
 
     /**

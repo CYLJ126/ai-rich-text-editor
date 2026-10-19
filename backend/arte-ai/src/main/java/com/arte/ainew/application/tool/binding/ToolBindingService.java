@@ -10,12 +10,14 @@ import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.persistence.ToolBindingStore;
+import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.pojo.platform.TrustedActor;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * 内部本地绑定管理及固定解析
@@ -63,6 +65,13 @@ public final class ToolBindingService {
      */
     public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
         return store.inspect(owner, bindingId).flatMap(this::check);
+    }
+
+    /**
+     * 复用本次解析的不可变材料，不复用后续提交或执行边界的当前治理资格。
+     */
+    public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId, Consumer<ToolCatalogStore.Batch> artifacts) {
+        return store.inspect(owner, bindingId, artifacts).flatMap(this::check);
     }
 
     public Mono<ToolBindingResult<ToolBindingResolution>> resolve(ExecutionOwner owner, String bindingId) {

@@ -17,6 +17,7 @@ import com.arte.ainew.pojo.execution.InvocationResult;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.ainew.serialization.ToolReleaseDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
@@ -30,6 +31,7 @@ import java.io.Serial;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -184,27 +186,33 @@ public final class DefaultToolGateway implements ToolGateway {
         require(call.runtime().execution().authorization().scopes().containsAll(tool.risk().requiredScopes()), "TOOL_ACCESS_DENIED");
         var adapter = registry.findAdapter(((ExecutionTarget.Local) binding.tool().target()).adapter())
                 .orElseThrow(() -> new Rejected("TOOL_EXECUTOR_UNAVAILABLE"));
-        return Mono.zip(schema(tool.inputSchema(), ToolSchemaValidator.Purpose.INPUT),
-                        schema(tool.outputSchema(), ToolSchemaValidator.Purpose.OUTPUT),
-                        schema(tool.configurationSchema(), ToolSchemaValidator.Purpose.CONFIGURATION))
-                .publishOn(scheduler).map(compiled -> {
-                    require(compiled.getT1().validate(call.request().input().arguments(), policy.maxInputBytes()).valid(), "TOOL_INPUT_INVALID");
-                    require(compiled.getT3().validate(binding.effectiveConfiguration(), ToolExecutionPolicy.MAX_INPUT_BYTES).valid(),
+        var refs = List.copyOf(new LinkedHashSet<>(List.of(tool.inputSchema(), tool.outputSchema(), tool.configurationSchema())));
+        return catalog.findArtifacts(tool.definition()).switchIfEmpty(Mono.error(new Rejected("TOOL_SCHEMA_UNAVAILABLE")))
+                .publishOn(scheduler).map(artifacts -> {
+                    require(artifacts.tools().equals(List.of(binding.tool())) && artifacts.providers().size() == 1
+                                    && ToolReleaseDigests.contract(binding.tool(), artifacts.providers().getFirst(), artifacts.schemas()).equals(binding.contractDigest()),
+                            "TOOL_SCHEMA_INVALID");
+                    var documents = artifacts.schemas();
+                    require(documents.size() == refs.size() && new LinkedHashSet<>(refs)
+                            .equals(new LinkedHashSet<>(documents.stream().map(ToolSchemaDefinition::definition).toList())), "TOOL_SCHEMA_UNAVAILABLE");
+                    var input = schema(documents, tool.inputSchema(), ToolSchemaValidator.Purpose.INPUT);
+                    var output = schema(documents, tool.outputSchema(), ToolSchemaValidator.Purpose.OUTPUT);
+                    var configuration = schema(documents, tool.configurationSchema(), ToolSchemaValidator.Purpose.CONFIGURATION);
+                    require(input.validate(call.request().input().arguments(), policy.maxInputBytes()).valid(), "TOOL_INPUT_INVALID");
+                    require(configuration.validate(binding.effectiveConfiguration(), ToolExecutionPolicy.MAX_INPUT_BYTES).valid(),
                             "TOOL_CONFIGURATION_INVALID");
                     require(ToolCatalogDigests.configuration(binding.effectiveConfiguration()).equals(binding.configurationDigest()),
                             "TOOL_CONFIGURATION_INVALID");
-                    return new Prepared(new LocalToolCall(call, binding), adapter, compiled.getT2());
+                    return new Prepared(new LocalToolCall(call, binding), adapter, output);
                 });
     }
 
-    private Mono<ToolSchemaValidator.CompiledSchema> schema(DefinitionRef ref,
-                                                            ToolSchemaValidator.Purpose purpose) {
-        return catalog.findSchema(ref).switchIfEmpty(Mono.error(new Rejected("TOOL_SCHEMA_UNAVAILABLE")))
-                .publishOn(scheduler).map(schema -> {
-                    require(schema.definition().equals(ref) && ToolCatalogDigests.schema(schema.document()).equals(schema.checksum()),
-                            "TOOL_SCHEMA_INVALID");
-                    return schemas.compile(ref, schema.document(), purpose);
-                });
+    private ToolSchemaValidator.CompiledSchema schema(List<ToolSchemaDefinition> documents, DefinitionRef ref,
+                                                      ToolSchemaValidator.Purpose purpose) {
+        var schema = documents.stream().filter(value -> value.definition().equals(ref)).findFirst()
+                .orElseThrow(() -> new Rejected("TOOL_SCHEMA_UNAVAILABLE"));
+        require(ToolCatalogDigests.schema(schema.document()).equals(schema.checksum()), "TOOL_SCHEMA_INVALID");
+        return schemas.compile(ref, schema.document(), purpose);
     }
 
     private Prepared authorized(Prepared prepared, ExecutionAuthorization authorization) {

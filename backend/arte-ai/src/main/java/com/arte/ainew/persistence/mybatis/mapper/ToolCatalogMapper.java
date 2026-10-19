@@ -13,6 +13,7 @@ import java.util.List;
  * @since 2026/10/17 13:52 ✾
  */
 public interface ToolCatalogMapper {
+
     /**
      * 重复键也取得排他锁，避免 INSERT IGNORE 的共享锁再升级。
      */
@@ -28,6 +29,13 @@ public interface ToolCatalogMapper {
     Row schema(@Param("id") String id, @Param("lock") boolean lock);
 
     Row tool(@Param("id") String id, @Param("lock") boolean lock);
+
+    /**
+     * 固定引用集合查询及单工具完整依赖查询，不读取可变发布／绑定状态。
+     */
+    List<Row> schemas(@Param("ids") List<String> ids);
+
+    List<Row> artifacts(@Param("id") String toolId);
 
     int insertProvider(@Param("r") Row row);
 

@@ -6,9 +6,12 @@ import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 平台受管工具目录的底层版本存储
@@ -43,6 +46,31 @@ public interface ToolCatalogStore {
      * @return 对应 Schema 版本，不存在时返回空 Mono。
      */
     Mono<ToolSchemaDefinition> findSchema(DefinitionRef schema);
+
+    /**
+     * 批量读取固定 Schema，按去重后的请求顺序返回；缺失项不返回，调用方仍须核对完整性。
+     */
+    default Mono<List<ToolSchemaDefinition>> findSchemas(List<DefinitionRef> schemas) {
+        var requested = ContractChecks.list(schemas, "schemas", 0, 128);
+        requested.forEach(ref -> Objects.requireNonNull(ref).requireType("schema"));
+        return Flux.fromIterable(new LinkedHashSet<>(requested)).concatMap(this::findSchema).collectList();
+    }
+
+    /**
+     * 读取一份固定工具及其提供者、全部 Schema；不包含当前发布或绑定资格。
+     */
+    default Mono<Batch> findArtifacts(DefinitionRef tool) {
+        Objects.requireNonNull(tool).requireType("tool");
+        return findTool(tool).flatMap(revision -> findProvider(revision.provider())
+                .switchIfEmpty(Mono.error(new IllegalStateException("Missing release provider")))
+                .zipWith(findSchemas(List.of(revision.tool().inputSchema(), revision.tool().outputSchema(), revision.tool().configurationSchema())))
+                .map(parts -> {
+                    var expected = new LinkedHashSet<>(List.of(revision.tool().inputSchema(), revision.tool().outputSchema(), revision.tool().configurationSchema()));
+                    if (!expected.equals(new LinkedHashSet<>(parts.getT2().stream().map(ToolSchemaDefinition::definition).toList())))
+                        throw new IllegalStateException("Missing release Schema");
+                    return new Batch(List.of(parts.getT1()), parts.getT2(), List.of(revision));
+                }));
+    }
 
     /**
      * 按固定引用读取工具定义及其提供方、执行目标。

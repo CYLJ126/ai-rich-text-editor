@@ -41,6 +41,28 @@
         FROM arte_ai_tool_definition WHERE id_key=#{id}
         <if test="lock">FOR UPDATE</if>
     </select>
+    <select id="schemas" resultMap="row" useCache="false">
+        SELECT<include refid="baseColumns"/>,
+        <include refid="noDependencies"/>
+        FROM arte_ai_tool_schema WHERE id_key IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id_key
+    </select>
+    <!-- 一条语句读取固定依赖图，共用同一次语句快照；Schema 被多个用途引用时只返回一行。 -->
+    <select id="artifacts" resultMap="row" useCache="false">
+        SELECT t.id_key,t.identity_key,t.version_key,t.payload_digest,t.workspace_snapshot,t.created_micros,
+        t.provider_key,t.input_schema_key,t.output_schema_key,t.configuration_schema_key
+        FROM arte_ai_tool_definition t WHERE t.id_key=#{id}
+        UNION ALL
+        SELECT p.id_key,p.identity_key,p.version_key,p.payload_digest,p.workspace_snapshot,p.created_micros,
+        NULL,NULL,NULL,NULL
+        FROM arte_ai_tool_provider p JOIN arte_ai_tool_definition t ON p.id_key=t.provider_key WHERE t.id_key=#{id}
+        UNION ALL
+        SELECT s.id_key,s.identity_key,s.version_key,s.payload_digest,s.workspace_snapshot,s.created_micros,
+        NULL,NULL,NULL,NULL
+        FROM arte_ai_tool_schema s JOIN arte_ai_tool_definition t
+        ON s.id_key IN (t.input_schema_key,t.output_schema_key,t.configuration_schema_key) WHERE t.id_key=#{id}
+    </select>
     <insert id="insertProvider">
         INSERT INTO
         arte_ai_tool_provider(id_key,identity_key,version_key,payload_digest,workspace_snapshot,created_micros)

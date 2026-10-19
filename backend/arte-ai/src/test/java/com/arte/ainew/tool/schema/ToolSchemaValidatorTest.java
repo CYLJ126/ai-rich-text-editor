@@ -28,6 +28,64 @@ public class ToolSchemaValidatorTest {
     private final ToolSchemaValidator validator = new ToolSchemaValidator();
 
     @Test
+    public void compiledPlansReuseOnlyMatchingReferenceDigestPurposeAndLimits() {
+        var document = object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("object"));
+        var reference = new DefinitionRef("schema", "cache-" + UUID.randomUUID(), "v1");
+        var original = validator.compile(reference, document, INPUT);
+        assertSame(original, new ToolSchemaValidator().compile(reference, document, INPUT));
+        assertNotSame(original, validator.compile(reference, document, OUTPUT));
+        assertNotSame(original, validator.compile(new DefinitionRef("schema", reference.id(), "v2"), document, INPUT));
+        var changed = new HashMap<>(document.fields());
+        changed.put("properties", object("required", object("type", text("string"))));
+        changed.put("required", array(text("required")));
+        var updated = validator.compile(reference, new ObjectValue(changed), INPUT);
+        assertNotSame(original, updated);
+        assertFalse(updated.validate(object(), 128).valid());
+        var limits = new Limits(16, 2048, 256 * 1024, 24, 8192, 100, 32);
+        var smaller = new ToolSchemaValidator(limits).compile(reference, document, INPUT);
+        assertNotSame(original, smaller);
+        assertThrows(IllegalArgumentException.class, () -> smaller.validate(object(), 101));
+        var array = object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("array"));
+        validator.compile(reference, array, OUTPUT);
+        assertThrows(InvalidSchemaException.class, () -> validator.compile(reference, array, INPUT));
+    }
+
+    @Test
+    public void cachedPlansAreEvictedAndInvalidSchemasCannotUseAWarmPlan() {
+        var reference = new DefinitionRef("schema", "evict-" + UUID.randomUUID(), "v1");
+        var document = object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("object"));
+        var original = validator.compile(reference, document, INPUT);
+        for (int i = 0; i < 256; i++)
+            validator.compile(new DefinitionRef("schema", reference.id(), "other-" + i), document, INPUT);
+        assertNotSame(original, validator.compile(reference, document, INPUT));
+        var invalid = object("$schema", text(ToolSchemaValidator.DIALECT), "$ref", text("https://invalid.example/schema"));
+        assertThrows(InvalidSchemaException.class, () -> validator.compile(reference, invalid, INPUT));
+        assertSame(validator.compile(reference, document, INPUT), validator.compile(reference, document, INPUT));
+    }
+
+    @Test
+    public void concurrentCompilationPublishesOneImmutablePlan() throws Exception {
+        var reference = new DefinitionRef("schema", "concurrent-" + UUID.randomUUID(), "v1");
+        var document = object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("object"));
+        try (var pool = Executors.newFixedThreadPool(8)) {
+            var results = new ArrayList<java.util.concurrent.Future<CompiledSchema>>();
+            for (int i = 0; i < 32; i++) results.add(pool.submit(() -> validator.compile(reference, document, INPUT)));
+            var first = results.getFirst().get();
+            for (var result : results) assertSame(first, result.get());
+        }
+    }
+
+    @Test
+    public void largePlansAreEvictedBeforeTheEntryLimitIsReached() {
+        var reference = new DefinitionRef("schema", "weighted-" + UUID.randomUUID(), "v1");
+        var document = object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("object"), "description", text("x".repeat(180_000)));
+        var original = validator.compile(reference, document, INPUT);
+        for (int i = 0; i < 100; i++)
+            validator.compile(new DefinitionRef("schema", reference.id(), "large-" + i), document, INPUT);
+        assertNotSame(original, validator.compile(reference, document, INPUT));
+    }
+
+    @Test
     public void nestedObjectsAndArraysUseTheSameRules() {
         var schema = compile(object("type", text("object"), "properties", object("rows", object(
                         "type", text("array"), "items", object("type", text("object"), "properties", object(

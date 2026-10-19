@@ -199,6 +199,29 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
     }
 
     @Override
+    public Mono<List<ToolSchemaDefinition>> findSchemas(List<DefinitionRef> schemas) {
+        var requested = List.copyOf(new LinkedHashSet<>(ContractChecks.list(schemas, "schemas", 0, 128)));
+        requested.forEach(ref -> ref.requireType("schema"));
+        if (requested.isEmpty()) return Mono.just(List.of());
+        return io(() -> {
+            var rows = index(mapper.schemas(requested.stream().map(MybatisToolCatalogStore::id).toList()));
+            var result = new ArrayList<ToolSchemaDefinition>();
+            for (var ref : requested) {
+                var row = rows.remove(id(ref));
+                if (row != null) result.add(checked(row, ref, ToolSchemaDefinition.class));
+            }
+            if (!rows.isEmpty()) throw new IllegalStateException("Unexpected Schema batch row");
+            return List.copyOf(result);
+        });
+    }
+
+    @Override
+    public Mono<Batch> findArtifacts(DefinitionRef tool) {
+        Objects.requireNonNull(tool).requireType("tool");
+        return io(() -> releaseArtifacts(tool));
+    }
+
+    @Override
     public Mono<ToolDefinitionRevision> findTool(DefinitionRef tool) {
         Objects.requireNonNull(tool).requireType("tool");
         return io(() -> ToolDefinitionRevision.class.cast(load(tool, false)));
@@ -304,12 +327,35 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
      * 同物理数据源的生命周期事务读取固定事实；不派发异步任务，不锁定或修改不可变定义行。
      */
     ToolCatalogStore.Batch releaseArtifacts(DefinitionRef ref) {
-        var tool = (ToolDefinitionRevision) load(ref, false);
-        if (tool == null) return null;
-        var documents = new LinkedHashMap<DefinitionRef, ToolSchemaDefinition>();
-        for (var schema : List.of(tool.tool().inputSchema(), tool.tool().outputSchema(), tool.tool().configurationSchema()))
-            documents.put(schema, Objects.requireNonNull((ToolSchemaDefinition) load(schema, false), "Missing release Schema"));
-        var provider = Objects.requireNonNull((ToolProviderDefinition) load(tool.provider(), false), "Missing release provider");
-        return new ToolCatalogStore.Batch(List.of(provider), List.copyOf(documents.values()), List.of(tool));
+        var rows = index(mapper.artifacts(id(ref)));
+        var toolRow = rows.remove(id(ref));
+        if (toolRow == null) {
+            if (!rows.isEmpty()) throw new IllegalStateException("Tool artifacts identity mismatch");
+            return null;
+        }
+        var tool = checked(toolRow, ref, ToolDefinitionRevision.class);
+        var provider = checked(Objects.requireNonNull(rows.remove(id(tool.provider())), "Missing release provider"),
+                tool.provider(), ToolProviderDefinition.class);
+        var documents = new ArrayList<ToolSchemaDefinition>();
+        for (var schema : new LinkedHashSet<>(List.of(tool.tool().inputSchema(), tool.tool().outputSchema(), tool.tool().configurationSchema())))
+            documents.add(checked(Objects.requireNonNull(rows.remove(id(schema)), "Missing release Schema"), schema, ToolSchemaDefinition.class));
+        if (!rows.isEmpty()) throw new IllegalStateException("Unexpected tool artifacts row");
+        return new ToolCatalogStore.Batch(List.of(provider), documents, List.of(tool));
+    }
+
+    /**
+     * 批量返回的每行仍按原有摘要、索引、内容及精确引用校验，不因合并 SQL 放宽完整性。
+     */
+    private <T> T checked(Row row, DefinitionRef ref, Class<T> type) {
+        T value = decode(row, type);
+        if (!ref.equals(reference(value))) throw new IllegalStateException("Tool catalog identity mismatch");
+        return value;
+    }
+
+    private static Map<String, Row> index(List<Row> rows) {
+        var indexed = new HashMap<String, Row>();
+        for (var row : rows)
+            if (indexed.put(row.idKey(), row) != null) throw new IllegalStateException("Duplicate tool catalog row");
+        return indexed;
     }
 }
