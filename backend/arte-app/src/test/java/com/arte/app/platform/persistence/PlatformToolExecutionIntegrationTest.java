@@ -23,7 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +38,41 @@ import static org.junit.jupiter.api.Assertions.*;
  * @since 2026/10/19 11:18 ✾
  */
 class PlatformToolExecutionIntegrationTest {
+    @Test
+    void concurrentSameKeySubmissionsReauthorizeAndKeepOneInvocation() throws Exception {
+        try (var rig = new ToolAcceptanceRig()) {
+            rig.context().run(c -> {
+                assertNull(c.getStartupFailure());
+                var mvc = rig.mvc(c);
+                rig.publish(mvc);
+                var command = rig.command(mvc, rig.prepare(mvc), "concurrent replay😀");
+                var body = rig.json.writeValueAsString(command);
+                var key = UUID.randomUUID().toString();
+                var start = new CountDownLatch(1);
+                try (var pool = Executors.newFixedThreadPool(2)) {
+                    var submissions = IntStream.range(0, 2).mapToObj(index -> pool.submit(() -> {
+                        assertTrue(start.await(5, TimeUnit.SECONDS));
+                        var result = rig.request(mvc, "tool/invokeTool", body, key);
+                        if (result.getResponse().getStatus() != 202 && result.getResolvedException() != null)
+                            result.getResolvedException().printStackTrace();
+                        assertEquals(202, result.getResponse().getStatus(), result.getResponse().getContentAsString());
+                        return rig.json.readTree(result.getResponse().getContentAsString()).get("data").get("executionId").asString();
+                    })).toList();
+                    start.countDown();
+                    var id = submissions.getFirst().get(15, TimeUnit.SECONDS);
+                    assertEquals(id, submissions.getLast().get(15, TimeUnit.SECONDS));
+                    assertEquals(1, rig.base.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
+                    assertEquals(1, rig.base.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_tool_execution_snapshot", Integer.class));
+                    c.getBean(InvocationDispatchWorker.class).pollOnce().block(Duration.ofSeconds(15));
+                    assertEquals("SUCCEEDED", rig.post(mvc, "invocation/getInvocationStatus", Map.of("scope", rig.scope, "invocationId", id), null, 200).get("state").asString());
+                    assertEquals(1, rig.base.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_attempt", Integer.class));
+                    rig.base.f.jdbc.update("DELETE FROM arte_rbac_relation WHERE target='aiTool:invoke'");
+                    rig.post(mvc, "tool/invokeTool", command, key, 403);
+                }
+            });
+        }
+    }
+
     @Test
     void unicodeBoundariesAreCountedAndInvalidInputsNeverDispatch() throws Exception {
         try (var rig = new ToolAcceptanceRig()) {

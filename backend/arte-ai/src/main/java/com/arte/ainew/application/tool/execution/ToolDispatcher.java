@@ -96,22 +96,22 @@ public final class ToolDispatcher {
                     && message.owner().equals(ExecutionOwner.from(runtime.execution())), ResultCodeEnum.AI_OWNER_MISMATCH);
             return ToolObservation.mono(DISPATCH_LOAD, runtime.execution(), () -> committed(outbox.validateClaim(message))
                     .then(load(message))).flatMap(invocation -> {
-                        verifyRuntime(invocation, runtime);
-                        if (invocation.state().terminal()) return Mono.empty();
-                        if (invocation.activeAttemptId() != null) {
-                            return ToolObservation.mono(RECOVERY, runtime.execution(), () -> recover(message, invocation));
-                        }
+                verifyRuntime(invocation, runtime);
+                if (invocation.state().terminal()) return Mono.empty();
+                if (invocation.activeAttemptId() != null) {
+                    return ToolObservation.mono(RECOVERY, runtime.execution(), () -> recover(message, invocation));
+                }
                 return ToolObservation.mono(PREFLIGHT, runtime.execution(), () -> preflight(invocation, runtime))
-                                .onErrorResume(error -> predictable(error)
-                                        ? reject(invocation, error).then(Mono.empty()) : Mono.error(error))
+                        .onErrorResume(error -> predictable(error)
+                                ? reject(invocation, error).then(Mono.empty()) : Mono.error(error))
                         .flatMap(prepared -> ToolObservation.mono(PREPARE_DISPATCH, runtime.execution(), () -> committed(preparation.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
                                         CanonicalJson.key(message.invocationId(), "tool-attempt-1"), attemptLease, new DispatchPreparationStore.Free()))))
-                                        .flatMap(ready -> {
-                                            if (!ready.ready() || ready.billingMode() != DispatchPreparationStore.BillingMode.FREE)
-                                                return Mono.error(new IllegalStateException("Tool dispatch requires fresh FREE preparation"));
-                                            return new Session(message, prepared, ready.attempt()).run();
-                                        }));
-                    });
+                                .flatMap(ready -> {
+                                    if (!ready.ready() || ready.billingMode() != DispatchPreparationStore.BillingMode.FREE)
+                                        return Mono.error(new IllegalStateException("Tool dispatch requires fresh FREE preparation"));
+                                    return new Session(message, prepared, ready.attempt()).run();
+                                }));
+            });
         }).subscribeOn(scheduler));
     }
 
@@ -323,7 +323,7 @@ public final class ToolDispatcher {
             return saved.flatMap(reference -> {
                 var state = terminalState(result);
                 return ToolObservation.mono(TERMINAL_COMMIT, prepared.runtime().execution(), () -> guarded(guard -> executions.commitCompletion(new ExecutionCommands.Complete(guard,
-                        CanonicalJson.key(claimed.attemptId(), "tool-completion"), new ExecutionPayload.Terminal(state, reference.orElse(null), result.error()),
+                                CanonicalJson.key(claimed.attemptId(), "tool-completion"), new ExecutionPayload.Terminal(state, reference.orElse(null), result.error()),
                                 Usage.unknown(), null)), 3))
                         .doOnNext(value -> {
                             completed.set(true);

@@ -791,7 +791,9 @@ ACCEPTED 事件和 DISPATCH／EVENT Outbox 一起提交，任何写入失败全�
 先保存再开放新调用；存储失败或达到上限时不丢弃旧记录。新调用必须重新预览并确认，不自动复制原操作执行。
 
 P01 已补齐受理、物理事务、Worker、执行及结果提交的阶段观测，以及只读基线统计脚本。口径、本机 50 次自动 Worker 样本和业务环境复测方法见
-[分阶段观测与基线](backend/arte-ai/TOOL_PERFORMANCE.md)。P02—P07 的性能优化与正式性能验收仍待分别完成。
+[分阶段观测与基线](backend/arte-ai/TOOL_PERFORMANCE.md)。P02 已补充事务内单次授权批次的身份／RBAC 原始读取复用；
+普通快照读与锁定当前读分别保留，授权结束即清除，入口、最终提交和执行前各自重检；不缓存允许决定。
+空间事实仍沿用现有公共门控的批次复用，业务写入前清除。P03—P07 的优化与正式性能验收仍待分别完成。
 
 S2-04 已在 `NewAiToolExecutionConfiguration` 接通内部受理与 Worker 派发：必须同时开启 `arte.ai-new.enabled`、
 `arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled`，并由宿主提供 `ToolAdmissionAccess` 与 `ToolExecutionAccess`。

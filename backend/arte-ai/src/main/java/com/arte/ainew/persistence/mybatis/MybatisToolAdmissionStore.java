@@ -127,7 +127,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
         Objects.requireNonNull(owner);
         ContractChecks.id(bindingId, "bindingId");
         ContractChecks.id(idempotencyKey, "idempotencyKey");
-        return io(() -> accepted(mapper.accepted(ownerKey(owner), key(bindingId), key(idempotencyKey))));
+        return io(() -> accepted(mapper.accepted(ownerKey(owner), key(bindingId), key(idempotencyKey), false)));
     }
 
     @Override
@@ -161,7 +161,8 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                     String ownerKey = ownerKey(owner), bindingKey = key(candidate.input().bindingId()), idem = key(context.idempotencyKey());
                     String lock = key("tool-admission", ownerKey, bindingKey, idem);
                     locks.ensureLock(lock);
-                    var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem));
+                    // 授权检查可能已建立 RR 快照；同键门控等待后须读取已提交的最新快照及 Invocation。
+                    var previous = accepted(mapper.accepted(ownerKey, bindingKey, idem, true), true);
                     if (previous != null) {
                         if (!previous.snapshot().submissionDigest().equals(candidate.submissionDigest()))
                             throw new MybatisExecutionPersistence.Rejected(IDEMPOTENCY_CONFLICT);
@@ -234,6 +235,10 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
     }
 
     private Accepted accepted(ToolAdmissionMapper.Row row) {
+        return accepted(row, false);
+    }
+
+    private Accepted accepted(ToolAdmissionMapper.Row row, boolean currentRead) {
         if (row == null) return null;
         if (!CanonicalJson.sha256(row.snapshot()).equals(row.payloadDigest()))
             throw new IllegalStateException("Tool snapshot bytes are corrupt");
@@ -243,7 +248,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                 || !row.bindingKey().equals(key(snapshot.input().bindingId())) || !row.idempotencyKey().equals(key(request.context().idempotencyKey()))
                 || !row.submissionDigest().equals(snapshot.submissionDigest()) || !row.requestDigest().equals(snapshot.requestDigest()))
             throw new IllegalStateException("Tool snapshot metadata mismatch");
-        var invocation = codec.decode(Objects.requireNonNull(execution.invocationSnapshot(row.invocationKey(), false),
+        var invocation = codec.decode(Objects.requireNonNull(execution.invocationSnapshot(row.invocationKey(), currentRead),
                 "Tool snapshot invocation is missing"), Invocation.class);
         return new Accepted(invocation, snapshot);
     }

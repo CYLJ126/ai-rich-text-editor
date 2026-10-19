@@ -36,7 +36,9 @@ class ToolPhaseObservationIntegrationTest {
 
     @Test
     void endToEndStagesRetainSqlAndOriginalTrace() throws Exception {
-        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline");
+        boolean p02 = Boolean.getBoolean("platform.tool.p02.baseline");
+        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02;
+        String outputPrefix = p02 ? "target/tool-p02" : "target/tool-p01";
         if (baseline) assertNotNull(System.getProperty("platform.test.mysql"), "Baseline requires isolated MySQL");
         var events = new CopyOnWriteArrayList<String>();
         var logger = (Logger) LogManager.getLogger(OperationObservation.class);
@@ -118,12 +120,18 @@ class ToolPhaseObservationIntegrationTest {
                         assertEquals(0L, row.get("sqlInFlight").asLong());
                         assertTrue(row.get("lockWaitMs").isNull());
                     }
+                    // P01 宿主预检／最终事务授权分别为 20／18；入口的独立只读快照不纳入本次复用。
+                    for (var limit : Map.of("HOST_AUTHORIZATION", 20L, "COMMIT_AUTHORIZATION", 18L).entrySet()) {
+                        var row = invocationStages.stream().filter(value -> limit.getKey().equals(value.get("stage").asString())).findFirst().orElseThrow();
+                        assertTrue(row.get("jdbcObserved").asBoolean());
+                        assertTrue(row.get("sqlCount").asLong() < limit.getValue(), limit.getKey() + " authorization SQL must decrease");
+                    }
                     assertTrue(points.stream().anyMatch(row -> id.equals(row.get("invocationId").asString()) && "ADMISSION_COMMITTED".equals(row.get("stage").asString())));
                 }
                 assertFalse(String.join("\n", events).contains("private-text-never-in-phase-log"));
                 assertEquals(0, rig.base.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_reservation", Integer.class));
-                Files.writeString(Path.of("target/tool-p01-stage-events.log"), String.join("\n", events) + "\n");
-                Files.writeString(Path.of("target/tool-p01-stage-proof.json"), json.writerWithDefaultPrettyPrinter().writeValueAsString(
+                Files.writeString(Path.of(outputPrefix + "-stage-events.log"), String.join("\n", events) + "\n");
+                Files.writeString(Path.of(outputPrefix + "-stage-proof.json"), json.writerWithDefaultPrettyPrinter().writeValueAsString(
                         Map.of("warmupCount", warmups, "sampleCount", samples, "database", rig.base.f.mysql == null ? "isolated-h2" : "isolated-mysql",
                                 "automaticWorker", baseline, "jvm", System.getProperty("java.version"), "invocationIds", measuredIds, "stages", stages, "points", points)));
                 if (!baseline) {

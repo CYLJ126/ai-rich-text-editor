@@ -1,7 +1,7 @@
 # AI TOOL 分阶段观测与基线（P01）
 
-日期：2026-10-19。P01 已增加测量及复测工具；P02—P07 的性能优化仍待分别实施。 授权规则、SQL 业务流程、5 秒工具策略、调度容量、固定版本及
-manifest 均未调整；没有数据库增量脚本。
+日期：2026-10-19。P01 已增加测量及复测工具；P02 已减少同一授权批次内的重复身份／RBAC 读取，见 §7。 P03—P07 仍待分别实施。授权规则、事务边界、5
+秒工具策略、调度容量、固定版本及 manifest 均未调整；没有数据库增量脚本。
 
 ## 1. 日志入口
 
@@ -144,3 +144,68 @@ JDBC、阶段上下文跨线程／定时器、后台与 HTTP 隔离、原 HTTP�
 
 主要日志：/tmp/arte-tool-p01-regression.log、/tmp/arte-tool-p01-http-regression.log、
 /tmp/arte-tool-p01-final-verification.log、/tmp/arte-tool-p01-mysql-final.log。
+
+## 7. P02 授权读取复用与复测
+
+### 实现范围
+
+- `RbacIdentityProvider.duringAuthorization` 显式限定一次同步授权检查；账户、稳定身份映射及当前 RBAC 操作集合只在该批次复用。
+  状态属于实际 appDataSource 事务的同步器列表，REQUIRES_NEW 不取得被挂起事务的事实；成功或异常退出即清空。
+  同一外层事务随后再次授权也重新读取，不把复用范围延长到业务写入。
+- 普通快照读与锁定当前读分别记录，按主体／外部账户键复用同一身份行；不保留缺失身份，不缓存允许决定。
+  当前主体、会话名称／创建时间、角色状态、操作权限、空间生命周期和 AI 开关的规则保持。
+  `actorCurrent` 的身份映射也使用锁定当前读，避免账户当前读与旧映射快照混用。
+- 接入管理会话、工具宿主预检、最终提交复核及历史／取消资格检查。入口独立只读快照保持原实现； Worker
+  的执行前检查和网关授权仍单独复核。空间事实沿用原公共门控的一批授权内复用，不把事实带入业务写回调。
+- MySQL 并发用例暴露最终授权建立 RR 快照后仍用普通读定位同键受理的缺陷；提交内定位及关联 Invocation 改为锁定当前读。
+  预查／历史查询保持原模式，没有增加查询次数、捕获重复键伪造回执或重试整个事务。
+
+没有新增配置或数据库脚本，没有调整授权规则、5 秒期限、工具版本、manifest 或调度容量。重新构建并重启后端后生效。
+
+### SQL 与本机基线
+
+原始统计：[p02-local-baseline.json](acceptance/p02-local-baseline.json)。同样使用独立 MySQL 8.4.11、REPEATABLE-READ、 128
+MiB buffer pool、flush_log_at_trx_commit=1、Druid 最大 8 连接及 JDK 21；自动 Worker，10 次预热＋50 次串行样本。 50 次 HTTP
+202，最终均 SUCCEEDED，零预算预留；入口和受理阶段 SQL 与 HTTP 汇总逐次对账，差额均为 0。
+
+| 统计范围                          | P01 每次 SQL | P02 每次 SQL |         减少 |
+|-----------------------------------|-------------:|-------------:|-------------:|
+| HTTP 受理汇总                     |          102 |           96 | 6（约 5.9%） |
+| 入口独立授权快照                  |           11 |           11 |            0 |
+| 受理服务 ADMISSION                |           91 |           85 |            6 |
+| 宿主预检 HOST_AUTHORIZATION       |           20 |           16 |            4 |
+| 最终事务资格 COMMIT_AUTHORIZATION |           18 |           16 |            2 |
+
+宿主预检与最终资格是 ADMISSION 的子阶段，不能把各行相加。RBAC 直接／角色读取在一次常规调用里本来就只有一组，
+该组查询仍保留；复用机制只省去本批中再次读取同一账户／映射／RBAC 事实的往返。
+
+本轮 HTTP P50／P95／P99 为 48.389／381.903／514.596ms，提交到 Worker 首读为 12／93／107ms； 适配器为 0.078／0.192／0.276ms。P01 的
+HTTP P95 为 240.387ms， **本轮没有得到稳定延迟下降的证据**， 只能确认 SQL 数减少。两次本机采样负载时刻不同，不能把尾延迟差异归因为本次修改或据此宣称业务环境超时已经解决。
+P03—P05 仍需继续减少材料、持久化与调度往返，正式性能结论仍按原生产验收要求判断。
+
+复现时沿用 §5 的 Maven 命令，将测试开关替换为 `-Dplatform.tool.p02.baseline=true`，日志及原始证据输出到
+`target/tool-p02-stage-events.log`／`target/tool-p02-stage-proof.json`，再执行：
+
+```sh
+python3 backend/arte-ai/scripts/measure_tool_phases.py \
+  backend/arte-app/target/tool-p02-stage-events.log --output /tmp/tool-p02-baseline.json
+```
+
+本轮 MySQL 原始日志保存在 `/tmp/arte-tool-p02-stage-events-mysql.log`，证明文件为
+`/tmp/arte-tool-p02-stage-proof-mysql.json`。
+
+### 验证边界
+
+最终定向回归 287 项通过、零失败／错误／跳过：arte-core 69、arte-ai 115、arte-app 103， 覆盖身份／登录、公共事务门控、TOOL
+受理／派发／网关、正式宿主和聊天控制面。日志：`/tmp/arte-tool-p02-verified-regression.log`。
+
+独立 MySQL 的 9 项用例通过：50 次自动执行基线，以及完整工具执行集成，覆盖同键并发只生成一次 Invocation／Attempt、
+撤权后原键／新键拒绝、账户生命周期变更、双 Worker、取消和重启恢复。授权批次另外验证普通／当前读分离、事务挂起／恢复、
+异常和回滚清理、同一事务内再次授权识别撤权和空间关闭；聊天控制面也列入回归。 MySQL 日志为
+`/tmp/arte-tool-p02-mysql-final.log`，与 H2 重叠的用例按环境分别列出，不叠加为独立测试数。
+
+扩大回归发现既有 `RbacToolDefinitionScriptTest` 失败：断言增量脚本等于 RBAC 基线文件从 TOOL 标记起的整个尾段， 但该尾段还包含
+S2-07 工具菜单登记内容。直接读取 HEAD 的两份脚本也不相等；本次没有修改脚本或放宽该断言，后续定向回归将其明确排除。 Mockito
+在本机沙箱自附加失败的首轮测试，已通过显式测试 JVM javaagent 重新验证，不以初始化失败作为业务结论。
+
+本轮未连接业务数据库／Redis、未调用外部模型、未重启业务应用，未做浏览器或正式参考资源持续负载验收；临时 MySQL 在验证后删除。

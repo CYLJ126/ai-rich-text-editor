@@ -67,6 +67,15 @@ public final class RbacIdentityProvider implements IdentityProvider {
         return actor(authentication, true);
     }
 
+    /**
+     * 本次可写事务的同步授权检查内复用原始账户、身份映射及 RBAC 事实。
+     * 回调结束即清除，不跨入口、提交或 Worker 边界，也不得包住业务写入。
+     * 普通读取与锁定当前读取分别保存，所有生命周期和会话证据仍逐次校验。
+     */
+    public <T> T duringAuthorization(Supplier<T> work) {
+        return accounts.duringAuthorization(work);
+    }
+
     private TrustedActor actor(Authentication authentication, boolean current) {
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof JwtUserDto(UserOnlineInfo userOnlineInfo))) {
@@ -76,7 +85,7 @@ public final class RbacIdentityProvider implements IdentityProvider {
                 .filter(a -> a.active() && a.name().equals(authentication.getName())
                         && a.createdAt().equals(userOnlineInfo.getAccountCreatedAt()))
                 .orElseThrow(() -> failure(PlatformErrorCodeEnum.UNAUTHENTICATED));
-        var principal = resolve(account);
+        var principal = resolve(account, current);
         if (principal.status() != PrincipalStatusEnum.ACTIVE) throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
         return new TrustedActor(principal, clock.instant());
     }
@@ -114,7 +123,11 @@ public final class RbacIdentityProvider implements IdentityProvider {
     }
 
     private Principal resolve(RbacAccountReader.Account account) {
-        var existing = identities.findAccountBindingByExternalId(String.valueOf(account.id()));
+        return resolve(account, false);
+    }
+
+    private Principal resolve(RbacAccountReader.Account account, boolean currentRead) {
+        var existing = identities.findAccountBindingByExternalId(String.valueOf(account.id()), currentRead);
         if (existing.isPresent()) {
             validateBinding(existing.get(), account);
             return principal(existing.get().identity(), account);

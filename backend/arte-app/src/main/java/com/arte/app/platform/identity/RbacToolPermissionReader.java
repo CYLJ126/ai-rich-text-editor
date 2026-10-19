@@ -45,6 +45,10 @@ public final class RbacToolPermissionReader {
     public Set<String> current(String accountName) {
         if (!TransactionSynchronizationManager.isActualTransactionActive() || !TransactionSynchronizationManager.hasResource(source))
             throw new IllegalStateException("Current RBAC reads require appDataSource transaction");
+        return RbacAuthorizationReads.read(source, this, accountName, () -> loadCurrent(accountName));
+    }
+
+    private Set<String> loadCurrent(String accountName) {
         var direct = mapper.relations(accountName, "user_to_operation");
         var roles = mapper.relations(accountName, "user_to_role");
         if (direct.size() > 256 || roles.size() > 256)

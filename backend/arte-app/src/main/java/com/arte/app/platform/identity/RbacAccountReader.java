@@ -11,6 +11,7 @@ import javax.sql.DataSource;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * 账号权威读取：复用 UserMapper，使用 app 物理库，不经过用户缓存、创建人过滤或线程路由。
@@ -37,12 +38,12 @@ public class RbacAccountReader {
 
     public Optional<Account> findByName(String name) {
         if (name == null || name.isBlank()) return Optional.empty();
-        return account(users.selectIdentityByName(name));
+        return read(new ReadKey(false, name), () -> account(users.selectIdentityByName(name)));
     }
 
     public Optional<Account> findById(Long id) {
         if (id == null || id <= 0) return Optional.empty();
-        return account(users.selectIdentityById(id));
+        return read(new ReadKey(false, id), () -> account(users.selectIdentityById(id)));
     }
 
     /**
@@ -50,7 +51,25 @@ public class RbacAccountReader {
      */
     public Optional<Account> findCurrentById(long id) {
         requireTransaction();
-        return account(users.selectCurrentIdentityById(id));
+        return read(new ReadKey(true, id), () -> account(users.selectCurrentIdentityById(id)));
+    }
+
+    /**
+     * 同一授权检查内复用原始账户事实；不同读模式及不同账户互不混用。
+     */
+    private record ReadKey(boolean current, Object account) {
+    }
+
+    private Optional<Account> read(ReadKey key, Supplier<Optional<Account>> load) {
+        var result = RbacAuthorizationReads.read(dataSource, this, key, load);
+        result.ifPresent(value -> {
+            RbacAuthorizationReads.remember(dataSource, this, new ReadKey(key.current(), value.id()), result);
+        });
+        return result;
+    }
+
+    <T> T duringAuthorization(Supplier<T> work) {
+        return RbacAuthorizationReads.during(dataSource, work);
     }
 
     public void requireTransaction() {

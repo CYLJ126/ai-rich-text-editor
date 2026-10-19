@@ -23,6 +23,7 @@
         invocation_key,owner_key,binding_key,idempotency_key,submission_digest,request_digest,payload_digest,snapshot
         FROM arte_ai_tool_execution_snapshot WHERE owner_key=#{owner} AND binding_key=#{binding} AND
         idempotency_key=#{key}
+        <if test="current">FOR UPDATE</if>
     </select>
     <insert id="insertToolSnapshot">
         INSERT INTO arte_ai_tool_execution_snapshot(invocation_key,owner_key,binding_key,idempotency_key,

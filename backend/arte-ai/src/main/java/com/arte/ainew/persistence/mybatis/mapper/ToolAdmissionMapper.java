@@ -19,7 +19,11 @@ public interface ToolAdmissionMapper {
 
     Row toolSnapshot(@Param("invocation") String invocationKey, @Param("owner") String ownerKey);
 
-    Row accepted(@Param("owner") String ownerKey, @Param("binding") String bindingKey, @Param("key") String idempotencyKey);
+    /**
+     * 提交内的幂等定位须当前读，避免等待同键提交后仍沿用此前授权产生的 MVCC 快照。
+     */
+    Row accepted(@Param("owner") String ownerKey, @Param("binding") String bindingKey,
+                 @Param("key") String idempotencyKey, @Param("current") boolean currentRead);
 
     int insertToolSnapshot(@Param("r") Row row);
 }

@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * 唯一约束保存不可变身份关联；额外保存账户创建时间以拒绝被复用的账户主键。
@@ -54,11 +55,33 @@ public final class JdbcPrincipalIdentityStore implements PrincipalIdentityStore 
 
     public Optional<AccountBinding> findAccountBinding(String subjectId, boolean currentRead) {
         if (currentRead) accounts.requireTransaction();
-        return find("subject_id = ?" + (currentRead ? " FOR UPDATE" : ""), subjectId);
+        return read(new ReadKey(currentRead, true, subjectId),
+                () -> find("subject_id = ?" + (currentRead ? " FOR UPDATE" : ""), subjectId));
     }
 
     public Optional<AccountBinding> findAccountBindingByExternalId(String externalUserId) {
-        return find("provider = ? AND external_user_id = ?", PROVIDER, externalUserId);
+        return findAccountBindingByExternalId(externalUserId, false);
+    }
+
+    /**
+     * 提交时的会话映射复核也必须使用当前读，不能沿用事务的普通快照。
+     */
+    public Optional<AccountBinding> findAccountBindingByExternalId(String externalUserId, boolean currentRead) {
+        if (currentRead) accounts.requireTransaction();
+        return read(new ReadKey(currentRead, false, externalUserId),
+                () -> find("provider = ? AND external_user_id = ?" + (currentRead ? " FOR UPDATE" : ""), PROVIDER, externalUserId));
+    }
+
+    private record ReadKey(boolean current, boolean subject, String id) {
+    }
+
+    private Optional<AccountBinding> read(ReadKey key, Supplier<Optional<AccountBinding>> load) {
+        var result = RbacAuthorizationReads.read(jdbc.getDataSource(), this, key, load);
+        result.filter(value -> PROVIDER.equals(value.identity().provider())).ifPresent(value -> {
+            RbacAuthorizationReads.remember(jdbc.getDataSource(), this, new ReadKey(key.current(), true, value.identity().subjectId()), result);
+            RbacAuthorizationReads.remember(jdbc.getDataSource(), this, new ReadKey(key.current(), false, value.identity().externalUserId()), result);
+        });
+        return result;
     }
 
     public boolean matchesAccount(PrincipalIdentity identity, RbacAccountReader.Account account) {

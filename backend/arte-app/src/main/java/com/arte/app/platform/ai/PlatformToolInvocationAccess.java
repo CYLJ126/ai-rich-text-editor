@@ -93,6 +93,16 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
      */
     private void check(Invocation invocation, ExecutionContext context, Operation operation) {
         transactions.requireWritable();
+        identities.duringAuthorization(() -> {
+            checkCurrent(invocation, context, operation);
+            return true;
+        });
+    }
+
+    /**
+     * 仅在本次授权批次内复用读取；返回后业务控制写入不能沿用这些事实。
+     */
+    private void checkCurrent(Invocation invocation, ExecutionContext context, Operation operation) {
         var principal = context.authorization().principal();
         if (!clock.instant().isBefore(context.deadline()) || principal.kind() != ExecutionPrincipal.Kind.USER
                 || !ExecutionOwner.from(context).equals(ExecutionOwner.from(invocation.request().context())))

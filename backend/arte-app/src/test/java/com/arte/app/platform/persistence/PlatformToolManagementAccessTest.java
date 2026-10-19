@@ -175,6 +175,33 @@ class PlatformToolManagementAccessTest {
     }
 
     @Test
+    void anotherAuthorizationInTheSameTransactionSeesRbacRevocation() {
+        var permit = permit(BINDING_WRITE);
+        f.tx.required(() -> {
+            permit.requireInCurrentTransaction(Set.of());
+            revoke("aiTool:invoke");
+            assertThrows(RuntimeException.class, () -> permit.requireInCurrentTransaction(Set.of()));
+            return true;
+        });
+        assertEquals(0, count("binding_command"));
+    }
+
+    @Test
+    void anotherAuthorizationInTheSameTransactionSeesSpaceClosing() {
+        var permit = permit(BINDING_WRITE);
+        f.tx.required(() -> {
+            permit.requireInCurrentTransaction(Set.of());
+            var current = f.workspaces.lock(scope).orElseThrow();
+            assertTrue(f.workspaces.replace(new com.arte.core.pojo.workspace.Workspace(scope, current.name(), current.description(),
+                    com.arte.core.enums.workspace.WorkspaceStateEnum.CLOSING, current.createdBy(), current.version() + 1,
+                    current.authEpoch() + 1, current.createdAt(), clock.instant()), current.version()));
+            assertThrows(RuntimeException.class, () -> permit.requireInCurrentTransaction(Set.of()));
+            return true;
+        });
+        assertEquals(0, count("binding_command"));
+    }
+
+    @Test
     void replayAlsoRechecksCurrentRbac() {
         var permit = permit(BINDING_WRITE);
         assertTrue(create(permit, "same").result().successful());
