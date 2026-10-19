@@ -358,6 +358,8 @@ export type InvocationResultResponse =
   invocationId: string;
   kind: Exclude<CapabilityKind, 'GENERATION'>;
   result: { value: unknown };
+  /** TOOL 标准 JSON 原文，保留大整数与精确小数；不要转为 JS number。 */
+  outputJson?: string | null;
 };
 
 export type GenerationEvent =

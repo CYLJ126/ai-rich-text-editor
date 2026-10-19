@@ -33,13 +33,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 
 /**
  * 独立本地免费只读 TOOL 的内部可靠受理
  * <p>
  * 不调用 Gateway、不创建 Attempt，也不选择模型或预算。
  * 先按稳定绑定定位重放，再对原材料重新授权；新调用固定参数／配置／Schema／总期限后经同库事务提交。
- * 宿主执行授权及 TOOL Worker 路由尚未接线，不能把本组件直接作为生产公开入口。
+ * 公开入口还须捕获真实身份；宿主必须明确提供免费与资源资格，不以只读声明推断允许。
  * <p>
  * 应用层的受理服务，负责组织业务流程：
  * <ol>
@@ -84,6 +85,13 @@ public final class ToolAdmissionService {
      * 当前授权且真实受理事务提交成功后才返回回执；相同意图重放返回原身份和原受理时间。
      */
     public Mono<AcceptedExecution> submit(ToolAdmissionInput input, ExecutionContext context) {
+        return submit(input, null, context);
+    }
+
+    /**
+     * 公开提交必须携带已确认的预览摘要；内部旧调用保留原语义。
+     */
+    public Mono<AcceptedExecution> submit(ToolAdmissionInput input, String expectedPlanDigest, ExecutionContext context) {
         Objects.requireNonNull(input);
         Objects.requireNonNull(context);
         return Mono.defer(() -> {
@@ -95,11 +103,15 @@ public final class ToolAdmissionService {
             var owner = ExecutionOwner.from(context);
             // 在调用线程只记录入口时刻，阻塞工作随后排入有界调度器；排队不能推迟总期限起点。
             var work = Mono.defer(() -> store.findAccepted(owner, input.bindingId(), context.idempotencyKey())
-                            .flatMap(previous -> replay(input, context, previous))
-                            .switchIfEmpty(Mono.defer(() -> bindings.resolve(owner, input.bindingId())
+                            .flatMap(previous -> replay(input, context, previous, expectedPlanDigest))
+                            .switchIfEmpty(Mono.defer(() -> bindings.inspect(owner, input.bindingId())
                                     .flatMap(result -> {
                                         require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
-                                        return fresh(input, context, result.value(), received, deadline);
+                                        return prepare(input, context, result.value(), received, deadline, (snapshot, permit) -> {
+                                            require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(snapshot)),
+                                                    ResultCodeEnum.AI_TOOL_PLAN_CHANGED);
+                                            return commit(snapshot, permit, expectedPlanDigest);
+                                        });
                                     }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE))))))
                     .subscribeOn(scheduler);
             return work.timeout(remaining(deadline)).onErrorMap(TimeoutException.class,
@@ -110,20 +122,45 @@ public final class ToolAdmissionService {
     /**
      * 原调用即使已结束／过期也可在当前资格下重放；不重算原 deadline 或跟随新发布版本。
      */
-    private Mono<AcceptedExecution> replay(ToolAdmissionInput input, ExecutionContext context, ToolAdmissionStore.Accepted previous) {
+    private Mono<AcceptedExecution> replay(ToolAdmissionInput input, ExecutionContext context, ToolAdmissionStore.Accepted previous, String expectedPlanDigest) {
         var snapshot = previous.snapshot();
         return bindings.fixed(ExecutionOwner.from(context), snapshot.binding().definition()).flatMap(result -> {
             require(result.successful() && result.value().equals(snapshot.binding()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
             return permit(input, context, snapshot.binding()).flatMap(permit -> {
                 require(snapshot.submissionDigest().equals(ToolAdmissionDigests.submission(ExecutionOwner.from(context), input)),
                         ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
-                return commit(snapshot, permit);
+                require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(snapshot)),
+                        ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+                return commit(snapshot, permit, expectedPlanDigest);
             });
         }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE)));
     }
 
-    private Mono<AcceptedExecution> fresh(ToolAdmissionInput input, ExecutionContext original, ToolBindingResolution binding,
-                                          Instant received, Instant entryDeadline) {
+    /**
+     * 与提交复用校验及授权，但不创建固定解析、Invocation、Attempt、预算或派发消息。
+     * 返回内部临时材料，由 HTTP 白名单投影为可展示方案；预览从不执行工具。
+     */
+    public Mono<ToolExecutionSnapshot> preview(ToolAdmissionInput input, ExecutionContext context) {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(context);
+        return Mono.defer(() -> {
+            require(context.budgetRef() == null && context.parentExecutionId() == null
+                    && context.authorization().scopes().contains(AdmissionAuthorization.INVOKE), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
+            var received = clock.instant();
+            // 临时键只满足内部材料的一致性约束，不写入幂等空间，也不绑定后续提交身份。
+            var provisional = new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(),
+                    null, null, context.releaseRef(), "preview");
+            return bindings.inspect(ExecutionOwner.from(context), input.bindingId()).flatMap(result -> {
+                        require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
+                        return prepare(input, provisional, result.value(), received, context.deadline(), (snapshot, permit) -> Mono.just(snapshot));
+                    }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE)))
+                    .subscribeOn(scheduler).timeout(remaining(context.deadline()));
+        }).onErrorMap(TimeoutException.class, expired -> new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+    }
+
+    private <T> Mono<T> prepare(ToolAdmissionInput input, ExecutionContext original, ToolBindingResolution binding,
+                                Instant received, Instant entryDeadline,
+                                BiFunction<ToolExecutionSnapshot, VerifiedPermit, Mono<T>> complete) {
         ToolExecutionPolicy policy;
         try {
             policy = ToolBindingConstraints.intersect(binding.effectivePolicy(), limits);
@@ -143,7 +180,7 @@ public final class ToolAdmissionService {
                 var options = new ExecutionOptions(deadline, Math.min(policy.maxAttempts(), input.maxAttempts() == null ? policy.maxAttempts() : input.maxAttempts()),
                         Math.min(policy.maxOutputBytes(), input.maxOutputBytes() == null ? policy.maxOutputBytes() : input.maxOutputBytes()), 0, 0, totalTimeout);
                 var request = new InvocationRequest<>(binding.tool().tool().capability(), binding.definition(), invocation.kind(), invocation, options, context);
-                return commit(new ToolExecutionSnapshot(input, request, binding, policy, documents, received), permit);
+                return complete.apply(new ToolExecutionSnapshot(input, request, binding, policy, documents, received), permit);
             });
         }).timeout(remaining(deadline));
     }
@@ -162,9 +199,14 @@ public final class ToolAdmissionService {
                 });
     }
 
-    private Mono<AcceptedExecution> commit(ToolExecutionSnapshot snapshot, VerifiedPermit permit) {
+    private Mono<AcceptedExecution> commit(ToolExecutionSnapshot snapshot, VerifiedPermit permit, String expectedPlanDigest) {
         // 进入物理写事务后再次复核当前宿主资格；存储负责原子治理检查、幂等仲裁及全部持久化。
-        return store.accept(snapshot, permit.permit()::requireInCurrentTransaction).map(result -> {
+        return store.accept(snapshot, actual -> {
+                    permit.permit().requireInCurrentTransaction(actual);
+                    // 并发同键重放也检查真正提交的材料，不能用新方案确认旧调用。
+                    require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolAdmissionDigests.plan(actual)),
+                            ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+                }).map(result -> {
                     if (!result.successful()) {
                         if (result.code() == StoreOutcome.Code.VERSION_CONFLICT)
                             throw new AdmissionException(ResultCodeEnum.AI_TOOL_PLAN_CHANGED);

@@ -1,6 +1,6 @@
-# S2-07 工具目录与绑定页面验收
+# AI TOOL 页面分批验收记录
 
-日期：2026-10-19。范围：`/AI/Tools` 的目录／个人配置；不包含 S2-08 的调用提交及结果跟踪，S2-09 为只读集成验收。
+S2-07（2026-10-19）范围：`/AI/Tools` 的目录／个人配置；不包含 S2-08 的调用提交及结果跟踪，S2-09 为只读集成验收。
 
 ## 自动验证
 
@@ -40,3 +40,42 @@ Controller、管理用例、MyBatis 和临时 H2。没有调用工具、业务�
 TOOL／分类调度。 默认命令的 tool-binding-receipt v2 要求先统一升级管理读写节点，回退构建须保留 v2 读取能力。 尚未验证真实
 MySQL／Redis、多节点、宿主生产登录／RBAC／菜单授予、真实工具、性能或完整生产构建；这些不能由 H2、受控身份和单机页面测试替代。
 普通未保存草稿只在当前页面内保存；关闭详情／切换空间／刷新离开前提示，未确认命令独立存储以恢复。
+
+## S2-08 调用预览与结果（2026-10-19）
+
+本批新增“工具调用”页签，目录／配置页面仍保留；覆盖预览、确认提交、原调用状态／结构化结果、错误、停止与刷新恢复。 前端相关测试共
+157 项通过；后端兼容回归与最终 119 项受影响范围验证见 TOOL_IMPLEMENTATION.md §16。Biome lint 与差异检查通过； 全仓 tsc
+仍有既有诊断，本批文件无诊断；未重跑完整 Umi 生产构建。
+
+隔离运行方式（JDK 21；终端在仓库根、前端命令在 frontend）：
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am -Dmaven.compiler.proc=full -Dmaven.compiler.release=21 \
+  '-Dtest=ToolRunBrowserAcceptance#browserBridge' -Dsurefire.failIfNoSpecifiedTests=false test
+node scripts/tool-s208-browser/server.mjs
+```
+
+桥仅绑定 127.0.0.1:15218，Vite 为 5218。固定测试身份与空间，真实 Controller／MyBatis／H2／Worker； fixture 的 Count
+是受控测试适配器，不代表已登记生产文本计数工具或验证生产 RBAC。 通过 target/tool-run-browser-stop 停止桥并关闭本次 Vite，15
+分钟有界自动退出。页面验证后临时服务已关闭。
+
+| 场景 | 可观察事实 |
+|---|---|
+| 桌面预览 | 显示实际工具 v1、修订 r1、参数、有效配置、期限／尝试／输出上限与 FREE；预览不执行 |
+| 修改参数 | 原确认方案消失，必须重新预览 |
+| 公开提交至 Worker | 返回原调用编号，后续读取 SUCCEEDED、NOT_RESERVED 和结构化结果 |
+| 页面刷新 | 保留 a5ddea03-87ed-4e78-98b4-62897d2782c1，按原 ID 读取成功结果，不产生第二次执行 |
+| 390px | 卡片、参数与 JSON 换行，操作可用，结果及预览确认按钮可滚动到达 |
+| 桥关闭统计 | invocations=1，reservations=0；新调用预览未增加执行次数 |
+
+UNKNOWN、断网、恢复撤权、损坏存储及停止回执用自动化测试验证；本次浏览器未模拟全部故障。 新增最近 20 个本会话调用编号的只读恢复；UNKNOWN
+明确确认结束查看后保留原编号，不自动重发。 真实业务权限／工具、生产构建、多节点／MySQL／Redis 和性能仍未验收，属于 S2-09；本批没有执行
+DDL 或启用功能开关。
+
+![桌面调用预览](acceptance/run-preview-desktop.png)
+
+![桌面原调用结果](acceptance/run-result-desktop.png)
+
+![390px 调用预览](acceptance/run-preview-narrow.png)
+
+![390px 原调用结果](acceptance/run-result-narrow.png)

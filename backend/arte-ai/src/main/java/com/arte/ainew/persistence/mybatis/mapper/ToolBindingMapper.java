@@ -36,6 +36,13 @@ public interface ToolBindingMapper {
 
     List<Header> toolBindings(@Param("owner") String owner, @Param("after") String after, @Param("limit") int limit);
 
+    /**
+     * 调用预览使用普通快照读取，不能持有管理写锁。
+     */
+    Header toolBindingReadOnly(@Param("key") String key);
+
+    Artifact toolBindingRevisionReadOnly(@Param("key") String key);
+
     Artifact toolBindingRevision(@Param("key") String key);
 
     Artifact toolBindingResolution(@Param("key") String key);

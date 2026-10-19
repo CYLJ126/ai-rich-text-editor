@@ -38,6 +38,14 @@
         binding_key=#{key}
         FOR UPDATE
     </select>
+    <select id="toolBindingReadOnly" resultMap="Header" useCache="false">SELECT
+        binding_key,owner_key,tool_id,row_version,payload_digest,snapshot FROM arte_ai_tool_binding WHERE
+        binding_key=#{key}
+    </select>
+    <select id="toolBindingRevisionReadOnly" resultMap="Artifact" useCache="false">SELECT
+        artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot FROM arte_ai_tool_binding_revision WHERE
+        artifact_key=#{key}
+    </select>
     <select id="toolBindingRevision" resultMap="Artifact" useCache="false">SELECT
         artifact_key,binding_key,revision_key,tool_key,payload_digest,snapshot FROM arte_ai_tool_binding_revision WHERE
         artifact_key=#{key}

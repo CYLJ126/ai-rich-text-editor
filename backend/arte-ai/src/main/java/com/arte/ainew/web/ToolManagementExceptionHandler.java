@@ -3,6 +3,7 @@ package com.arte.ainew.web;
 import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.web.controller.NewAiToolController;
+import com.arte.ainew.web.controller.NewAiToolSubmissionController;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.ResultContext;
@@ -28,7 +29,7 @@ import java.util.Locale;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾
  */
-@RestControllerAdvice(assignableTypes = NewAiToolController.class)
+@RestControllerAdvice(assignableTypes = {NewAiToolController.class, NewAiToolSubmissionController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ToolManagementExceptionHandler {

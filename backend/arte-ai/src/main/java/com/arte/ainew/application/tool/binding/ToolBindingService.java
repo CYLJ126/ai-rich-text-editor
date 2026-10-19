@@ -58,6 +58,13 @@ public final class ToolBindingService {
                         preview.compatible(), preview.changes(), result, result.successful() ? preview.digest() : null)));
     }
 
+    /**
+     * 只检查当前有效方案与本节点实现，不保存固定解析。
+     */
+    public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
+        return store.inspect(owner, bindingId).flatMap(this::check);
+    }
+
     public Mono<ToolBindingResult<ToolBindingResolution>> resolve(ExecutionOwner owner, String bindingId) {
         return store.resolve(owner, bindingId).flatMap(this::check);
     }

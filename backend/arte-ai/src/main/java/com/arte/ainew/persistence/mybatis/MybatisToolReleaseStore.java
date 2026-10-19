@@ -88,12 +88,23 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
      * 绑定事务已持有稳定工具身份锁；使用当前读，不能跨调度器脱离事务。
      */
     ToolRelease currentForBinding(DefinitionRef ref) {
-        var row = mapper.toolRelease(id(ref), true);
+        return forBinding(ref, true);
+    }
+
+    /**
+     * 预览使用事务快照；真正变更／受理仍在稳定身份锁下当前读。
+     */
+    ToolRelease forBinding(DefinitionRef ref, boolean lock) {
+        var row = mapper.toolRelease(id(ref), lock);
         return row == null ? null : decode(row);
     }
 
     ToolRelease successorForBinding(DefinitionRef ref) {
-        var row = mapper.toolReleaseSuccessor(id(ref));
+        return successorForBinding(ref, true);
+    }
+
+    ToolRelease successorForBinding(DefinitionRef ref, boolean lock) {
+        var row = mapper.toolReleaseSuccessor(id(ref), lock);
         return row == null ? null : decode(row);
     }
 
@@ -293,7 +304,7 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         if (predecessor == null) return INCOMPATIBLE;
         var baseline = decode(predecessor);
         if (baseline.state() != PUBLISHED && baseline.state() != DEPRECATED) return INCOMPATIBLE;
-        if (mapper.toolReleaseSuccessor(id(from)) != null) return AMBIGUOUS_COMPATIBILITY;
+        if (mapper.toolReleaseSuccessor(id(from), true) != null) return AMBIGUOUS_COMPATIBILITY;
         var original = Objects.requireNonNull(catalog.releaseArtifacts(from), "Missing compatibility predecessor");
         var old = original.tools().getFirst().tool();
         var next = target.tools().getFirst().tool();

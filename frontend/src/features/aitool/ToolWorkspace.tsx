@@ -31,6 +31,7 @@ import {useToolPage} from './useToolPage';
 import {useToolCommand} from './useToolCommand';
 import ToolDetailPanel, {releaseName} from './ToolDetailPanel';
 import BindingEditor from './BindingEditor';
+import ToolRunPanel from './ToolRunPanel';
 import './tools.css';
 
 export default function ToolWorkspace({
@@ -52,7 +53,10 @@ export default function ToolWorkspace({
   const [selectedBinding, setSelectedBinding] = useState<ToolBinding | null>(
     null,
   );
-  const [dirty, setDirty] = useState(false);
+  const [bindingDirty, setDirty] = useState(false);
+  const [runDirty, setRunDirty] = useState(false);
+  const [runBinding, setRunBinding] = useState<string>();
+  const dirty = bindingDirty || runDirty;
   const [bindingRevision, setBindingRevision] = useState(0);
   const [sessionCleared, setSessionCleared] = useState(false);
   const [modal, modalContext] = Modal.useModal();
@@ -88,6 +92,7 @@ export default function ToolWorkspace({
         cancelText: '继续编辑',
         onOk: () => {
           setDirty(false);
+          setRunDirty(false);
           next();
         },
       });
@@ -150,6 +155,11 @@ export default function ToolWorkspace({
         activeKey={tab}
         onChange={setTab}
         items={[
+          {
+            key: 'run', label: '工具调用', forceRender: true,
+            children: <ToolRunPanel context={{userId, scope}} bindings={bindings.records} selectedBindingId={runBinding}
+                                    onDirty={setRunDirty}/>,
+          },
           {
             key: 'catalog',
             label: '工具目录',
@@ -343,6 +353,11 @@ export default function ToolWorkspace({
                           )}
                         </Flex>
                       </Flex>
+                      <Space wrap>
+                        <Button type="primary" disabled={!binding.enabled} onClick={() => protect(() => {
+                          setRunBinding(binding.bindingId);
+                          setTab('run');
+                        })}>调用工具</Button>
                       <Button
                         onClick={() =>
                           protect(() => {
@@ -352,7 +367,7 @@ export default function ToolWorkspace({
                         }
                       >
                         管理配置
-                      </Button>
+                      </Button> </Space>
                     </Flex>
                   </Card>
                 ))}

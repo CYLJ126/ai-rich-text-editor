@@ -1,12 +1,13 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-19。
-> 文档版本：V0.2（评审修订，S2-07 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
+> 文档版本：V0.2（评审修订，S2-08 实施同步）。状态：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE
 > 原子派发准备、S2-02 本地只读网关、S2-03 内部可靠受理／执行快照、S2-04 Worker 派发／完成及 S2-05
-> 查询／取消／本地恢复、S2-06 分类容量／排队、S2-07 工具目录与绑定页面已实现。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
+> 查询／取消／本地恢复、S2-06 分类容量／排队、S2-07 工具目录与绑定页面、S2-08 调用预览与结果页面已实现。管理基线包含契约、存储、发现、发布、私有绑定及当前授权管理
 > API；
 > 当前具备内部服务至 Worker 的本地免费只读执行链路、通用查询及 TOOL
-> 停止入口；目录与个人配置页面及显式默认绑定准备已实现；公开调用提交、调用预览／结果页、审批及工具聊天仍待后续批次；分类调度须显式部署并启用，尚未完成生产性能验收。
+> 停止入口；目录／个人配置、显式默认准备及独立调用预览／提交／结果页面已实现。宿主生产执行授权与真实工具登记仍须接线；审批及工具聊天未实现，分类调度须显式部署启用，尚未完成
+> S2-09 集成及生产性能验收。
 > 实际数据库未部署 S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量及 TOOL RBAC 定义及 S2-07 菜单脚本；TOOL
 > 默认关闭，性能数值是验收目标，不是实测结果。
 >
@@ -1148,7 +1149,7 @@ observedAt、有效 maxAge 和来源，时间上限由工具审核配置，不�
 
 S2-07 已在 `frontend/src/pages/AI/Tools/index.tsx` 实现 `/AI/Tools`，服务位于 `services/arte-ai/tool.ts`，业务组件位于
 `features/aitool`。 复用 Umi 约定式路由、现有工作空间与 Token／语言拦截器。菜单 `aiTool` 沿用现有 RBAC，交付独立菜单 DML
-和新环境基线；未连接业务库执行、未自动授予用户／角色。此页仅目录与本人配置，S2-08 调用预览／提交／结果尚未开放。
+和新环境基线；未连接业务库执行、未自动授予用户／角色。S2-08 已追加独立调用预览／提交／结果及原调用恢复；生产开放还须具备明确的宿主执行授权与真实工具登记。
 目录名称／用途、标签、提供者及状态由服务器筛选并绑定游标；可见空页仍按 nextCursor 继续。失权、未启用和网络错误明确展示，不当成空目录。
 
 ### 11.2 直接使用流程
@@ -1242,70 +1243,114 @@ S1-08 已实现 16 个 POST 后缀，路径前缀 `/arte/ai-new/tool`：
 与当前节点 nodeDiscoveryHealthy／nodeChecksum；重放原成功不重新读取来源，不证明本节点已发现成功。 来源决定性失败可保存原拒绝，SQL
 故障／忙状态不保存假决定；忙状态返回 409，允许同键重试。
 
-下面保持后续功能的接口设计；与上表重复的管理项以当前 HTTP API 文档及白名单 DTO 为准，不能据此调用未实现入口。
+S2-07 增加 prepareDefaultBinding 后管理入口为 17 个。S2-08 增加 previewInvocation／invokeTool 两个新调用入口；不计入管理入口数量。
+下面为接口总览，审批／工具聊天／远端等后续项仍是设计；当前请求布局以 HTTP API 文档及白名单 DTO 为准。
 
-| 操作               | POST 后缀                               | 主要输入与返回                                                                          |
-|--------------------|-----------------------------------------|-----------------------------------------------------------------------------------------|
-| 目录分页／详情     | listTools / getTool                     | scope、筛选／toolRef；目录与固定版本详情                                                |
-| 提供者查询         | listProviders                           | scope、分页；当前可见提供者及同步状态                                                   |
-| 提供者同步         | syncProvider                            | scope、providerId、expectedVersion；同步命令结果                                        |
-| 启停提供者         | setProviderState                        | scope、providerId、state、expectedVersion                                               |
-| 发布校验／发布     | validateTool / publishTool              | scope、toolRef、expectedVersion；校验结果／发布记录                                     |
-| 停用／废弃         | setToolState                            | scope、toolRef、state、reason、expectedVersion                                          |
-| 绑定分页／详情     | listBindings / getBinding               | scope、筛选／bindingId                                                                  |
-| 创建／更新绑定     | saveBinding                             | scope、bindingId（新建可空）、工具基准、配置、策略、Secret 引用、expectedVersion        |
-| 准备默认绑定       | ensureDefaultBinding                    | scope、toolRef；幂等创建或返回本人当前空间默认绑定，不执行工具                          |
-| 启停绑定           | setBindingState                         | scope、bindingId、enabled、expectedVersion；新修订                                      |
-| 升级预览／确认     | previewBindingUpgrade / upgradeBinding  | scope、bindingId、目标版本、expectedVersion                                             |
-| 可用集合预览       | resolveToolSet                          | scope、bindingIds、策略；模型可见描述及限制，无 Secret                                  |
-| 调用预览           | previewInvocation                       | scope、bindingId、arguments、期限意图；有效计划、planDigest、人工模式及费用上限         |
-| 直接调用           | invokeTool                              | scope、bindingId、arguments、expectedPlanDigest、可选 timeoutSeconds；AcceptedExecution |
-| 审批分页／详情     | listApprovals / getApproval             | scope、筛选／approvalId；当前有资格查看的脱敏内容                                       |
-| 确认／审批决定     | decideApproval                          | scope、approvalId、decision、expectedPlanDigest、expectedVersion；命令回执              |
-| 结果核对列表／详情 | listReconciliations / getReconciliation | scope、筛选／invocationId；当前可见证据摘要及处理责任方                                 |
-| 请求检查原结果     | requestOutcomeCheck                     | scope、invocationId、expectedVersion；只排队有界查询，不重新执行工具                    |
-| 人工提交结果证据   | confirmOutcome                          | scope、原执行／Attempt、expectedVersion、证据身份／结论／结果引用；核对回执             |
-| 执行列表／统计     | listExecutions / getStatistics          | scope、时间窗口、筛选；授权列表／指标                                                   |
+| 操作               | POST 后缀                               | 主要输入与返回                                                                           |
+|--------------------|-----------------------------------------|------------------------------------------------------------------------------------------|
+| 目录分页／详情     | listTools / getTool                     | scope、筛选／toolRef；目录与固定版本详情                                                 |
+| 提供者查询         | listProviders                           | scope、分页；当前可见提供者及同步状态                                                    |
+| 提供者同步         | syncProvider                            | scope、providerId、expectedVersion；同步命令结果                                         |
+| 启停提供者         | setProviderState                        | scope、providerId、state、expectedVersion                                                |
+| 发布校验／发布     | validateTool / publishTool              | scope、toolRef、expectedVersion；校验结果／发布记录                                      |
+| 停用／废弃         | setToolState                            | scope、toolRef、state、reason、expectedVersion                                           |
+| 绑定分页／详情     | listBindings / getBinding               | scope、筛选／bindingId                                                                   |
+| 创建／更新绑定     | saveBinding                             | scope、bindingId（新建可空）、工具基准、配置、策略、Secret 引用、expectedVersion         |
+| 准备默认绑定       | ensureDefaultBinding                    | scope、toolRef；幂等创建或返回本人当前空间默认绑定，不执行工具                           |
+| 启停绑定           | setBindingState                         | scope、bindingId、enabled、expectedVersion；新修订                                       |
+| 升级预览／确认     | previewBindingUpgrade / upgradeBinding  | scope、bindingId、目标版本、expectedVersion                                              |
+| 可用集合预览       | resolveToolSet                          | scope、bindingIds、策略；模型可见描述及限制，无 Secret                                   |
+| 调用预览（已实现） | previewInvocation                       | scope、input（bindingId／arguments／期限意图）；有效版本、配置、Schema、planDigest、FREE |
+| 直接调用（已实现） | invokeTool                              | scope、input、expectedPlanDigest；Idempotency-Key 必填；AcceptedExecution                |
+| 审批分页／详情     | listApprovals / getApproval             | scope、筛选／approvalId；当前有资格查看的脱敏内容                                        |
+| 确认／审批决定     | decideApproval                          | scope、approvalId、decision、expectedPlanDigest、expectedVersion；命令回执               |
+| 结果核对列表／详情 | listReconciliations / getReconciliation | scope、筛选／invocationId；当前可见证据摘要及处理责任方                                  |
+| 请求检查原结果     | requestOutcomeCheck                     | scope、invocationId、expectedVersion；只排队有界查询，不重新执行工具                     |
+| 人工提交结果证据   | confirmOutcome                          | scope、原执行／Attempt、expectedVersion、证据身份／结论／结果引用；核对回执              |
+| 执行列表／统计     | listExecutions / getStatistics          | scope、时间窗口、筛选；授权列表／指标                                                    |
 
 提供者为部署登记，不提供任意 URL 的通用新建／编辑入口。当前只查询及完整本地刷新，单提供者同步／启停待后续。远端 Secret 授权实现后
 saveBinding 才能选择有权使用的引用；当前本地绑定拒绝非空 secrets。
 
 ### 12.3 直接调用示例
 
-以下是 **计划请求**，不能据此对当前应用发起联调：
+S2-08 已实现以下请求。部署须同时具备三个功能开关、分类调度与同构节点门控、宿主免费／资源执行授权及已发布的真实本地工具。
+未具备这些前提时返回不可用，不登记测试工具或自动开放权限。
 
-    POST /arte/ai-new/tool/invokeTool
-    Idempotency-Key: tool-request-001
-    Content-Type: application/json
+先 POST `/arte/ai-new/tool/previewInvocation`：
 
-    {
-      "scope": {"tenantId": "tenant-example", "workspaceId": "workspace-example"},
-      "bindingId": "text-counter",
-      "expectedPlanDigest": "digest-returned-by-previewInvocation",
-      "arguments": {"text": "示例文本"},
-      "timeoutSeconds": 30
-    }
+```json
+{
+  "scope": {
+    "tenantId": "tenant-example",
+    "workspaceId": "workspace-example"
+  },
+  "input": {
+    "bindingId": "server-binding-id",
+    "arguments": {
+      "text": "示例文本"
+    },
+    "timeoutSeconds": 30
+  }
+}
+```
 
-服务端生成 callId、解析 capability／binding／tool 固定引用、快照、策略、真实上下文及免费／付费资格；请求不自报这些执行事实。
+预览使用当前身份、空间及工具资格，不执行工具、不写固定解析／Invocation／Attempt／Outbox／预算。 返回实际工具／绑定修订、精确
+argumentsJson／configurationJson、实际输入 Schema、限制、approvalMode=NONE、billingMode=FREE 和 planDigest。
+预览不预占队列容量；提交时可能因当前容量或资格变化被拒绝。
 
-响应 HTTP 202，body.data 为：
+确认后 POST `/arte/ai-new/tool/invokeTool`，带 `Idempotency-Key: tool-request-001`：
 
-    {"executionId": "server-invocation-id", "kind": "INVOCATION", "acceptedAt": "2026-10-17T00:00:00Z"}
+```json
+{
+  "scope": {
+    "tenantId": "tenant-example",
+    "workspaceId": "workspace-example"
+  },
+  "input": {
+    "bindingId": "server-binding-id",
+    "arguments": {
+      "text": "示例文本"
+    },
+    "timeoutSeconds": 30
+  },
+  "expectedPlanDigest": "预览返回的64位十六进制摘要"
+}
+```
 
-查询位置按现有 HTTP 约定提供，不把部署 URL 写入持久化对象。未实现前不在代码示例中伪造已存在的前端导出函数。
+摘要固定 owner／空间、原参数和限制意图、实际绑定／版本／契约／配置／策略／Schema 及 FREE 费用模式，不包含临时 ID、trace 或绝对时间。
+新提交重算摘要，绑定或参数变化返回 AI_TOOL_PLAN_CHANGED（409），必须重新预览；提交事务再次检查实际材料、当前授权与队列。
+同键重放固定原方案、受理时间及 Invocation，不跟随新版本；传入与原调用不符的意图或摘要返回幂等冲突。 服务端生成 callId、执行
+ID 及总期限。预览／恢复读取不延长原执行期限，不允许请求自报执行器、权限、owner、预算或费用事实。
+
+事务受理成功后 HTTP 202，body.data：
+
+```json
+{
+  "executionId": "server-invocation-id",
+  "kind": "INVOCATION",
+  "acceptedAt": "2026-10-19T00:00:00Z"
+}
+```
+
+页面按原 ID 查询状态／结果，TOOL 输出额外提供 outputJson 精确 JSON 原文；大整数和小数不得经 JS number 改写。
+网络或不明确回执保留原请求／原键，用户确认原调用；已受理记录刷新仅查询，停止 202 不等于最终已停止。 UNKNOWN
+展示不确定事实，不自动重发；明确结束查看时保留原编号，新的操作仍需重新填写、预览和确认。 仅保留本浏览器会话内最近 20
+个调用编号，不能替代服务端执行历史与审计。
 
 ### 12.4 复用和扩展的通用接口
 
 | 现有接口                          | TOOL 设计要求                                                                                                              |
 |-----------------------------------|----------------------------------------------------------------------------------------------------------------------------|
 | invocation/getInvocationStatus    | 支持 kind=TOOL、新等待状态及可选 approval（ID／版本／摘要／实际到期／可执行动作），不改变 AcceptedExecution 的固定回执结构 |
-| invocation/getInvocationResult    | 返回 InvocationResult.Tool；Attempt 前失败按现有“结果尚不可用／状态含错误”协议                                             |
+| invocation/getInvocationResult    | 返回 InvocationResult.Tool 及 outputJson 精确原文；Attempt 前失败按现有“结果尚不可用／状态含错误”协议                      |
 | invocation/getInvocationSnapshots | 批量查询工具执行，不把前端 kind 固定为 GENERATION                                                                          |
 | invocation/invocationEvent 及订阅 | 保留单 Invocation 游标与授权，增加 TOOL 必要负载类型                                                                       |
 | invocation/cancelInvocation       | 复用耐久控制；等待审批时联动终止审批                                                                                       |
 | budget/getBudget                  | 付费调用查询实际预算；免费调用无虚构预留                                                                                   |
 
-现有接口存在不表示 TOOL 路径已经接通。扩展应保留纯文本生成的响应和错误语义；新增状态、负载及快照都需要版本和前端类型更新。
+S2-05 已接通 TOOL 的通用查询及事件，S2-08 页面复用这些入口；工具停止使用 tool/cancelToolInvocation，不能使用原 GENERATION
+停止入口。 审批等待等新增状态仍属于后续设计；已有纯文本生成语义保持，新增快照和事件仍须版本化。
 
 ### 12.5 工具聊天 Run 接口计划
 
@@ -1751,8 +1796,9 @@ TOOL；本批无 DDL 或 codec 布局变化，未连接业务库或启用生产�
 验证证据及后续边界见 [TOOL 实施记录 §12](backend/arte-ai/TOOL_IMPLEMENTATION.md#12-s2-04tool-worker-派发及完成)。 S2-05
 已补齐通用查询、TOOL 停止、当前读取／控制授权及本地已保存结果恢复，见实施记录 §13。S2-06
 已补齐分类槽位、集群／空间／提供者许可、耐久队列预留、排队期限、公平游标及节点清单门控，见实施记录 §14。S2-07
-已补齐工具目录／详情、显式默认准备、本人配置／启停／升级预览及恢复页面，见实施记录 §15。 S2-08 调用预览／提交／结果页面和 S2-09
-集成验收仍未完成，不代表 S2 产品阶段整体完成。
+已补齐工具目录／详情、显式默认准备、本人配置／启停／升级预览及恢复页面，见实施记录 §15。 S2-08
+已完成只读调用预览、摘要确认、可靠提交、状态／结构化结果、停止及原调用恢复页面，见实施记录 §16。 S2-09 集成验收仍未完成；当前宿主缺少生产
+ToolAdmissionAccess／ToolExecutionAccess 和真实本地登记时，新接口返回不可用，不默认允许。 这不代表 S2 产品阶段或生产开放完成。
 
 ### 15.5 原子需求与双向追踪
 

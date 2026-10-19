@@ -48,7 +48,7 @@ public class NewAiToolExecutionConfiguration {
     }
 
     /**
-     * 仅供可信宿主服务调用；公开请求适配及真实权限端口由组合模块实现。
+     * 受理用例由可信宿主权限端口门控；公开 HTTP 只提交意图并确认预览，不注入默认授权。
      */
     @Bean("newAiToolAdmissionService")
     ToolAdmissionService toolAdmissionService(ToolBindingService bindings, MybatisToolCatalogStore catalog,

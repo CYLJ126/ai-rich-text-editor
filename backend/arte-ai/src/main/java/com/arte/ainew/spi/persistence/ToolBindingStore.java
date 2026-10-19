@@ -55,6 +55,14 @@ public interface ToolBindingStore {
     Mono<ToolBindingResult<ToolBindingResolution>> resolve(ExecutionOwner owner, String bindingId);
 
     /**
+     * 当前调用方案只读预览；不保存解析材料或锁行，不调用执行器。
+     */
+    default Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
+        return Mono.error(new UnsupportedOperationException("Read-only tool inspection is required"));
+    }
+
+
+    /**
      * 读取已保存的固定结果并复核当前启用／生命周期／服务器上限，不重新选择版本。
      */
     Mono<ToolBindingResult<ToolBindingResolution>> fixed(ExecutionOwner owner, DefinitionRef ref);

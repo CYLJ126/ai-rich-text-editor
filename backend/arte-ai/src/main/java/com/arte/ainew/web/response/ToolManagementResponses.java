@@ -135,7 +135,10 @@ public final class ToolManagementResponses {
                 schema(value.schemas().get(tool.configurationSchema())), managed ? ToolManagementValues.json(tool.defaultConfiguration()) : null);
     }
 
-    private static Schema schema(ToolSchemaDefinition value) {
+    /**
+     * 标准 JSON 与精确原文同时返回；管理详情和调用预览使用同一投影。
+     */
+    public static Schema schema(ToolSchemaDefinition value) {
         return new Schema(value.definition(), ToolManagementValues.json(value.document()), CanonicalJson.encode(ToolManagementValues.json(value.document())), value.checksum());
     }
 

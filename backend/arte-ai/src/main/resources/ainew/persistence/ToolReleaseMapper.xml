@@ -46,7 +46,8 @@
     <select id="toolReleaseSuccessor" resultMap="row" useCache="false">
         SELECT
         <include refid="releaseColumns"/>
-        FROM arte_ai_tool_release WHERE compatible_from_key=#{from} FOR UPDATE
+        FROM arte_ai_tool_release WHERE compatible_from_key=#{from}
+        <if test="lock">FOR UPDATE</if>
     </select>
     <select id="toolReleaseCommand" resultMap="commandRow" useCache="false">
         SELECT

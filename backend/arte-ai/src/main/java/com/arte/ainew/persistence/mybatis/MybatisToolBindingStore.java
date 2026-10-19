@@ -65,6 +65,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     private final Clock clock;
     private final ToolExecutionPolicy serverLimits;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate reads;
     private final ToolSchemaValidator schemas = new ToolSchemaValidator();
 
     public MybatisToolBindingStore(DataSource source, ExecutionRecordCodec codec, Scheduler scheduler, Clock clock,
@@ -83,6 +84,9 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         this.serverLimits = Objects.requireNonNull(serverLimits);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         transaction.setTimeout(30);
+        reads = new TransactionTemplate(new DataSourceTransactionManager(source));
+        reads.setReadOnly(true);
+        reads.setTimeout(30);
     }
 
     boolean uses(DataSource source) {
@@ -301,21 +305,32 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         return resolveLocked(owner, bindingId);
     }
 
-    private ToolBindingResult<ToolBindingResolution> resolveLocked(ExecutionOwner owner, String bindingId) {
+    @Override
+    public Mono<ToolBindingResult<ToolBindingResolution>> inspect(ExecutionOwner owner, String bindingId) {
         require(owner, bindingId);
-        lock(bindingKey(bindingId));
-        var before = header(bindingId);
+        return io(() -> reads.execute(status -> resolvePlan(owner, bindingId, false)));
+    }
+
+    private ToolBindingResult<ToolBindingResolution> resolveLocked(ExecutionOwner owner, String bindingId) {
+        return resolvePlan(owner, bindingId, true);
+    }
+
+    private ToolBindingResult<ToolBindingResolution> resolvePlan(ExecutionOwner owner, String bindingId, boolean persist) {
+        require(owner, bindingId);
+        if (persist) lock(bindingKey(bindingId));
+        var before = header(bindingId, persist);
         if (before == null || !before.owner().equals(owner)) return ToolBindingResult.rejected(NOT_FOUND, null);
-        lock(key("tool-release-identity", before.toolId()));
-        var revision = Objects.requireNonNull(readRevision(before.revision(), before), "Missing current binding revision");
+        if (persist) lock(key("tool-release-identity", before.toolId()));
+        var revision = Objects.requireNonNull(readRevision(before.revision(), before, persist), "Missing current binding revision");
         try {
             if (!before.enabled()) throw reject(BINDING_DISABLED);
-            var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock));
+            var plan = plan(owner, revision.definition(), revision.settings(), false, PlatformTimes.businessNow(clock), persist);
+            if (!persist) return ToolBindingResult.success(plan, before.version());
             var row = mapper.toolBindingResolution(id(plan.definition()));
-            if (row == null) {
+            if (row == null && persist) {
                 if (mapper.insertToolBindingResolution(artifact(plan)) != 1)
                     throw new IllegalStateException("Binding resolution was not recorded");
-            } else if (!decodeResolution(row).equals(plan))
+            } else if (row != null && !decodeResolution(row).equals(plan))
                 throw new IllegalStateException("Binding plan identity collision");
             return ToolBindingResult.success(plan, before.version());
         } catch (Rejected rejected) {
@@ -373,8 +388,12 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolBindingResolution plan(ExecutionOwner owner, DefinitionRef revision, ToolBindingSettings settings, boolean creating, Instant now) {
+        return plan(owner, revision, settings, creating, now, true);
+    }
+
+    private ToolBindingResolution plan(ExecutionOwner owner, DefinitionRef revision, ToolBindingSettings settings, boolean creating, Instant now, boolean lock) {
         if (!settings.secrets().isEmpty()) throw reject(SECRET_UNSUPPORTED);
-        var release = select(settings, creating, now);
+        var release = select(settings, creating, now, lock);
         var artifacts = catalog.releaseArtifacts(release.tool());
         if (artifacts == null) throw new IllegalStateException("Missing published tool artifacts");
         var tool = artifacts.tools().getFirst();
@@ -413,13 +432,17 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolRelease select(ToolBindingSettings settings, boolean creating, Instant now) {
-        var release = releases.currentForBinding(settings.tool());
+        return select(settings, creating, now, true);
+    }
+
+    private ToolRelease select(ToolBindingSettings settings, boolean creating, Instant now, boolean lock) {
+        var release = releases.forBinding(settings.tool(), lock);
         var seen = new HashSet<DefinitionRef>();
         for (int count = 0; count < MAX_CHAIN_LENGTH; count++) {
             if (release == null || !release.permitsExistingBinding(now)) throw reject(TOOL_UNAVAILABLE);
             if (!seen.add(release.tool()) || !release.tool().id().equals(settings.tool().id()))
                 throw reject(CHAIN_INVALID);
-            var next = settings.versionPolicy() == ToolBindingSettings.VersionPolicy.PINNED ? null : releases.successorForBinding(release.tool());
+            var next = settings.versionPolicy() == ToolBindingSettings.VersionPolicy.PINNED ? null : releases.successorForBinding(release.tool(), lock);
             if (next == null) {
                 if (creating && !release.permitsNewBinding()) throw reject(TOOL_UNAVAILABLE);
                 return release;
@@ -468,7 +491,11 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolBindingDefinition header(String bindingId) {
-        var row = mapper.toolBinding(bindingKey(bindingId));
+        return header(bindingId, true);
+    }
+
+    private ToolBindingDefinition header(String bindingId, boolean lock) {
+        var row = lock ? mapper.toolBinding(bindingKey(bindingId)) : mapper.toolBindingReadOnly(bindingKey(bindingId));
         var value = row == null ? null : decode(row);
         if (value != null && !value.bindingId().equals(bindingId))
             throw new IllegalStateException("Binding identity mismatch");
@@ -476,7 +503,11 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
     }
 
     private ToolBindingRevision readRevision(DefinitionRef ref, ToolBindingDefinition header) {
-        var row = mapper.toolBindingRevision(id(ref));
+        return readRevision(ref, header, true);
+    }
+
+    private ToolBindingRevision readRevision(DefinitionRef ref, ToolBindingDefinition header, boolean lock) {
+        var row = lock ? mapper.toolBindingRevision(id(ref)) : mapper.toolBindingRevisionReadOnly(id(ref));
         if (row == null) return null;
         var value = decode(row.snapshot(), row.payloadDigest(), ToolBindingRevision.class);
         if (!row.artifactKey().equals(id(value.definition())) || !row.revisionKey().equals(id(value.definition()))

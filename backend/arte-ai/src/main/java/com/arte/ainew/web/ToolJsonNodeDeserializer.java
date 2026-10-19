@@ -9,7 +9,7 @@ import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /**
- * 管理配置／示例的有界标准 JSON：保留精确十进制、拒绝重复键，避免默认浮点树丢失用户值。
+ * TOOL 配置／调用参数／示例的有界标准 JSON：保留精确十进制、拒绝重复键，避免默认浮点树丢失用户值。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾

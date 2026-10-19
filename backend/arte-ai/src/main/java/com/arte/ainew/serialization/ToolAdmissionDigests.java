@@ -45,6 +45,21 @@ public final class ToolAdmissionDigests {
                 "timeout", request.options().requestedTimeout()));
     }
 
+    /**
+     * 用户确认的相对执行方案；不含临时 ID、绝对期限、trace 或授权引用。
+     */
+    public static String plan(ToolExecutionSnapshot snapshot) {
+        var request = snapshot.request();
+        var plan = snapshot.binding();
+        return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-preview-v1",
+                "submission", snapshot.submissionDigest(), "binding", plan, "policy", snapshot.policy(),
+                "billingMode", "FREE", "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
+                "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
+                        .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                "maxAttempts", request.options().maxAttempts(), "maxOutputBytes", request.options().maxOutputBytes(),
+                "timeout", request.options().requestedTimeout()));
+    }
+
     public static String callId(ExecutionOwner owner, String bindingId, String idempotencyKey) {
         return CanonicalJson.key("tool-call", owner.tenantId(), owner.workspaceId(), owner.subjectId(), bindingId, idempotencyKey);
     }

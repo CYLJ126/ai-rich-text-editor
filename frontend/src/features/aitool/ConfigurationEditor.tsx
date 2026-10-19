@@ -8,15 +8,17 @@ export default function ConfigurationEditor({
                                               schema,
                                               value,
                                               onChange,
+                                              purpose = 'configuration',
                                             }: {
   schema: ToolSchema;
   value: string;
   onChange: (json: string) => void;
+  purpose?: 'configuration' | 'arguments';
 }) {
   let tree: Extract<JsonValue, { kind: 'object' }> | null = null;
   let error: string | null = null;
   try {
-    tree = parseConfiguration(value);
+    tree = parseConfiguration(value, purpose);
   } catch (failure) {
     error = (failure as Error).message;
   }
@@ -123,17 +125,17 @@ export default function ConfigurationEditor({
       })}
       {!simple.length && (
         <Typography.Paragraph type="secondary">
-          无须填写常用字段；如有嵌套或数组配置，可展开 JSON 编辑。
+          未列出常用字段；嵌套或数组内容可展开 JSON 编辑。
         </Typography.Paragraph>
       )}
       <Collapse
         items={[
           {
             key: 'json',
-            label: '高级：完整配置 JSON',
+            label: purpose === 'arguments' ? '高级：完整参数 JSON' : '高级：完整配置 JSON',
             children: (
               <Input.TextArea
-                aria-label="完整配置 JSON"
+                aria-label={purpose === 'arguments' ? '完整参数 JSON' : '完整配置 JSON'}
                 value={value}
                 rows={8}
                 onChange={(event) => onChange(event.target.value)}

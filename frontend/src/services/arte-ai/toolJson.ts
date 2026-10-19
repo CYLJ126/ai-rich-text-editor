@@ -9,7 +9,9 @@ export type JsonValue =
 
 const sensitive = new Set(['password', 'passwd', 'secret', 'apikey', 'accesstoken', 'refreshtoken', 'authorization', 'privatekey', 'clientsecret', 'token']);
 
-export function parseConfiguration(source: string): Extract<JsonValue, { kind: 'object' }> {
+export function parseConfiguration(source: string, purpose: 'configuration' | 'arguments' = 'configuration'): Extract<JsonValue, {
+  kind: 'object'
+}> {
   if (new TextEncoder().encode(source).length > 1_000_000) throw new Error('配置不能超过 1 MB。');
   let at = 0;
   let count = 0;
@@ -54,7 +56,7 @@ export function parseConfiguration(source: string): Extract<JsonValue, { kind: '
         const name = string();
         whitespace();
         if (fields.has(name)) throw new Error(`配置字段重复：${name}`);
-        if (sensitive.has(name.replace(/[_-]/g, '').toLowerCase())) throw new Error('配置中不能填写密码或凭据，请使用平台支持的凭据管理方式。');
+        if (purpose === 'configuration' && sensitive.has(name.replace(/[_-]/g, '').toLowerCase())) throw new Error('配置中不能填写密码或凭据，请使用平台支持的凭据管理方式。');
         if (fields.size >= 256 || source[at++] !== ':') return fail();
         fields.set(name, read(depth + 1));
         whitespace();

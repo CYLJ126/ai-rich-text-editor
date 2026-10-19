@@ -1,21 +1,23 @@
-# AI TOOL 管理 HTTP API
+# AI TOOL HTTP API（管理与独立调用）
 
-更新：2026-10-19，S2-07。本接口提供本地目录、发布和当前空间内本人绑定管理。需求见
+更新：2026-10-19，S2-08。本接口提供本地目录、发布、当前空间内本人绑定管理及独立免费只读调用。需求见
 [需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 ，实现与验证见 [实施记录 §8](TOOL_IMPLEMENTATION.md#8-s1-08管理-api-与现有当前授权)。
 
-S2-02 已新增内部本地只读网关，但本文件仍只有管理接口；没有新增 invokeTool 或绕过耐久受理的同步调用路由。
+S2-02 提供内部本地只读网关；S2-08 新增独立调用预览与可靠提交，详见本文末节。没有绕过耐久受理的同步执行路由。
 网关装配及后续接线边界见 [实施记录 §10](TOOL_IMPLEMENTATION.md#10-s2-02本地只读-tool-网关)。
 
 仅当 `arte.ai-new.enabled=true` 和 `arte.ai-new-tool.enabled=true` 时注册。复用现有认证、语言和 `ResultContext`； 外部路径前缀为
 `/arte/ai-new/tool`，Controller 路径不包含应用上下文 `/arte`。 启用前须具备现有公共身份／持久化／空间基础、同一物理
-`appDataSource` 及相应表，缺少宿主授权时启动失败。 本次未连接或部署业务数据库，TOOL 仍默认关闭，未登记生产工具或提供前端页面。
+`appDataSource` 及相应表，缺少管理授权时装配失败，缺少显式执行授权时新调用不可用。 本次未连接或部署业务数据库，TOOL
+仍默认关闭，未登记生产工具；前端目录／配置及调用页面已实现。
 
 S2-03 的内部 `ToolAdmissionService` 已由 S2-04 接入 TOOL Worker 链路：同库可靠受理 → 原固定快照／当前资格 → FREE
 原子准备 → ToolGateway → 结果字节 → 终态／事件 → Worker ACK。通用协调器按权威 kind 路由，原生成 submit 语义不扩展为 TOOL。
 `arte.ai-new.enabled`、`arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled` 三开关及显式宿主 `ToolAdmissionAccess`、
 `ToolExecutionAccess` 齐备时才装配；只启用 TOOL 不需要模型网关／费率／预算配置。worker-enabled 仍独立控制自动消费。 公开 TOOL
-提交仍未开放；S2-05 查询／快照／事件复用通用 Invocation HTTP，新增 `/ai-new/tool/cancelToolInvocation`。 ToolInvocationAccess
+预览／提交已由 S2-08 提供；S2-05 查询／快照／事件复用通用 Invocation HTTP，新增 `/ai-new/tool/cancelToolInvocation`。
+ToolInvocationAccess
 复核当前读取／控制资格，公共平台已有稳定身份／空间／RBAC 适配；缺端口时拒绝工具访问。 新调用的真实受理／资源权限及领域适配仍须由组合模块提供，不能直接绑定客户端
 ExecutionContext。 本批不部署数据库或开启
 TOOL。范围与验证见 [TOOL 实施记录 §13](TOOL_IMPLEMENTATION.md#13-s2-05查询取消与本地恢复)。
@@ -44,8 +46,7 @@ DATABASE 模式读取现有空间 AI enabled 与公共 AI 使用资格，派生 
 
 ## S2-07 目录与默认配置
 
-已新增 `/AI/Tools` 目录与本人配置页，管理入口总数为 17。页面不提供公开工具调用；S2-08 才接入调用预览／提交／结果，S2-09
-为只读集成验收。
+已新增 `/AI/Tools` 目录与本人配置页，管理入口总数为 17；S2-08 已接入调用预览／提交／结果，S2-09 仍为只读集成验收。
 
 `listTools` 新增可选 `query`（名称／ID／用途，最多 200 字符）、`tag`（精确标签，100）、`providerId`（精确提供者 ID，256）、`state`。
 筛选在服务器有界候选页执行，并与主体、Scope、managed 和 provider 一起绑定游标；records 为空仍可能有 nextCursor，条件变化须重启分页。
@@ -196,3 +197,31 @@ validateTool 与 previewBindingUpgrade 的领域预检失败使用 HTTP 200 + va
 查询原幂等身份后使用同一业务键重试，不靠换键规避配额。相同请求已经受理时返回原回执，不重复占用队列。 调度权威、清单或配置不满足执行条件时：HTTP
 503，code=305003（AI_DISPATCH_UNAVAILABLE），不降级为无限并发。 当前仍没有公开 TOOL 提交 API；以上是内部受理错误及现有 HTTP
 错误适配的契约，后续提交入口复用它，不新增隐式调用路径。
+
+## S2-08 独立调用预览与提交
+
+路径前缀 `/arte/ai-new/tool`，两个新入口均要求真实登录、当前空间 AI INVOKE／READ，以及宿主 ToolAdmissionAccess 明确批准
+aiTool:invoke、当前免费只读和实际资源资格；该端口在真实受理事务内再次复核。缺少受理／执行授权端口时返回 503。
+仅三个功能开关同时开启才注册新入口；停止／历史查询的注册条件独立，不随新调用开关一起关闭。
+
+| POST 后缀 | 正文 | 结果 |
+|---|---|---|
+| previewInvocation | `{scope,input}` | HTTP 200，`ToolInvocationPreviewResponse`，不执行或写入 |
+| invokeTool | `{scope,input,expectedPlanDigest}`，必填 Idempotency-Key | HTTP 202，AcceptedExecution；受理后异步执行 |
+
+`input={bindingId,arguments,timeoutSeconds?,maxAttempts?,maxOutputBytes?}`。arguments 为标准 JSON 对象，保留精确数值，
+拒绝重复键／过深／过大输入；业务参数仍由固定输入 Schema 独立校验。timeoutSeconds 为 1～3600 整数，maxAttempts 为 1～10，
+maxOutputBytes 为 1～33554432，实际值取工具／绑定／服务端上限交集。次数上限不授权自动重试。 白名单拒绝
+owner、actor、scopes、target、budgetRef、费用事实等额外字段。
+
+预览返回 planDigest、binding（p1）、revision（rN）、tool、title、inputSchema、argumentsJson、configurationJson、
+timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode=NONE、billingMode=FREE、costDescription。
+不暴露内部执行目标、临时授权或完整快照。预览只规划，不预占队列；正式提交仍需分类调度就绪。
+
+摘要覆盖真实 owner、完整参数／限制意图、固定工具／配置／策略、权限上限和 Schema；忽略临时 ID、trace、绝对期限。 参数、有效版本或限制变化使新提交返回
+409／205053，需重新预览。同键重放从原快照比较意图与摘要，返回原执行编号及受理时间， 不跟随新的兼容版本；异义冲突为
+409／205027。提交事务对真正胜出的原／新快照再次门控，不能借并发重放绕过摘要校验。 当前受理免费工具无
+budgetRef，不调用模型、不预留或扣减模型预算；不是独立收费账户，也不扩展付费工具／工具聊天。
+
+状态／结果沿用 invocation/getInvocationStatus、getInvocationResult；TOOL 结果追加 outputJson，页面按纯文本显示精确 JSON。 停止用
+tool/cancelToolInvocation；停止回执只说明命令事实。审批、写工具、远端与费用核对仍在后续阶段。
