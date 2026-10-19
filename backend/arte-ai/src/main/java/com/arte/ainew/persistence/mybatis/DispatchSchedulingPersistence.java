@@ -4,6 +4,7 @@ import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.persistence.mybatis.mapper.OutboxMapper;
+import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow;
 import com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -189,15 +190,20 @@ final class DispatchSchedulingPersistence {
             throw new MybatisExecutionPersistence.Rejected(StoreOutcome.Code.INVALID_STATE);
     }
 
-    void validate(OutboxMessage message) {
+    /**
+     * 复用本事务已锁定的 Outbox 行；许可及数据库时间仍在每个校验边界重新读取。
+     */
+    void validate(OutboxMessage message, OutboxRow row) {
         if (!enabled() || message.kind() != OutboxMessage.Kind.DISPATCH) return;
-        var meta = mapper.metadata(message.messageId());
-        if (meta == null || !meta.workClass().equals(message.workClass().name()))
+        if (!row.workClass().equals(message.workClass().name()))
             throw new MybatisExecutionPersistence.Rejected(StoreOutcome.Code.LEASE_LOST);
-        if (meta.finished() == 1) return;
-        boolean valid = mapper.permits(clock.get().toEpochMilli()).stream().anyMatch(p -> p.messageKey().equals(message.messageId())
-                && p.token() == message.fencingToken() && p.workClass().equals(meta.workClass()));
-        if (!valid) throw new MybatisExecutionPersistence.Rejected(StoreOutcome.Code.LEASE_LOST);
+        if (row.finished() == 1) return;
+        long now = clock.get().toEpochMilli();
+        var permit = mapper.findPermit(message.messageId());
+        // 精确身份比较留在 Java，避免数据库大小写不敏感排序规则放宽原校验。
+        if (permit == null || !permit.messageKey().equals(message.messageId()) || permit.token() != message.fencingToken()
+                || !permit.workClass().equals(row.workClass()) || permit.leaseUntil() <= now)
+            throw new MybatisExecutionPersistence.Rejected(StoreOutcome.Code.LEASE_LOST);
     }
 
     /**
@@ -211,8 +217,17 @@ final class DispatchSchedulingPersistence {
         lock();
         pool();
         long now = clock.get().toEpochMilli(), expiry = Math.addExact(now, lease.toMillis());
-        var active = new ArrayList<>(mapper.permits(now));
         var ready = mapper.ready(type.name(), now, policy.maxQueued() + policy.generationConcurrency() + policy.shortConcurrency() + policy.longConcurrency() + 256);
+        // 空队列仍核验调度池和清单，只省去不会参与本轮仲裁的许可与游标读取。
+        if (ready.isEmpty()) return List.of();
+        var activeBySpace = new HashMap<String, Integer>();
+        var activeByProvider = new HashMap<String, Integer>();
+        int activeClass = 0;
+        for (var permit : mapper.permits(now)) {
+            if (permit.workClass().equals(type.name())) activeClass++;
+            activeBySpace.merge(permit.spaceKey(), 1, Integer::sum);
+            activeByProvider.merge(permit.providerKey(), 1, Integer::sum);
+        }
         var groups = new TreeMap<String, List<SchedulingMapper.Queued>>();
         for (var row : ready) {
             if (row.spaceKey().isEmpty() || row.providerKey().isEmpty())
@@ -224,6 +239,7 @@ final class DispatchSchedulingPersistence {
         groups.keySet().stream().filter(k -> last == null || k.compareTo(last) > 0).forEach(order::add);
         groups.keySet().stream().filter(k -> last != null && k.compareTo(last) <= 0).forEach(order::add);
         var result = new ArrayList<OutboxMessage>();
+        String nextCursor = null;
         boolean progress = true;
         while (progress && result.size() < limit) {
             progress = false;
@@ -232,9 +248,9 @@ final class DispatchSchedulingPersistence {
                 var candidates = groups.get(space);
                 for (var row : List.copyOf(candidates)) {
                     boolean cleanup = row.finished() == 1;
-                    if (!cleanup && (active.stream().filter(p -> p.workClass().equals(type.name())).count() >= policy.cluster(type)
-                            || active.stream().filter(p -> p.spaceKey().equals(space)).count() >= policy.workspaceConcurrency()
-                            || active.stream().filter(p -> p.providerKey().equals(row.providerKey())).count() >= policy.providerConcurrency()))
+                    if (!cleanup && (activeClass >= policy.cluster(type)
+                            || activeBySpace.getOrDefault(space, 0) >= policy.workspaceConcurrency()
+                            || activeByProvider.getOrDefault(row.providerKey(), 0) >= policy.providerConcurrency()))
                         continue;
                     // 只有调度锁持有者修改领取；其他消费者必须使用分类端口，旧 claim 在启用后拒绝派发领取。
                     var locked = outbox.lockMessage(row.messageKey());
@@ -247,17 +263,23 @@ final class DispatchSchedulingPersistence {
                     outbox.claimMessage(workerId, token, expiry, row.messageKey());
                     if (!cleanup) {
                         mapper.permit(row.messageKey(), token, type.name(), space, row.providerKey(), expiry);
-                        active.add(new SchedulingMapper.Permit(row.messageKey(), token, type.name(), space, row.providerKey(), expiry));
+                        activeClass++;
+                        activeBySpace.merge(space, 1, Integer::sum);
+                        activeByProvider.merge(row.providerKey(), 1, Integer::sum);
                     }
                     result.add(new OutboxMessage(row.messageKey(), row.invocationId(), new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()),
                             OutboxMessage.Kind.DISPATCH, 0, workerId, token, java.time.Instant.ofEpochMilli(expiry), type));
                     candidates.remove(row);
-                    if (mapper.cursor(type.name()) == null) mapper.createCursor(type.name(), space);
-                    else mapper.saveCursor(type.name(), space);
+                    nextCursor = space;
                     progress = true;
                     break; // 每轮每空间最多一条，游标跨实例持久化。
                 }
             }
+        }
+        // 仍持有原调度锁；一次提交本批最后位置，失败时领取、许可和游标一起回滚。
+        if (nextCursor != null) {
+            if (last == null) mapper.createCursor(type.name(), nextCursor);
+            else mapper.saveCursor(type.name(), nextCursor);
         }
         return List.copyOf(result);
     }

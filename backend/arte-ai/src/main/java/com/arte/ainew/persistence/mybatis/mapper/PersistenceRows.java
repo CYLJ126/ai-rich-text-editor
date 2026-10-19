@@ -60,7 +60,9 @@ public final class PersistenceRows {
             String kind,
             long sequenceNo,
             int delivered,
-            long leaseUntil) {
+            long leaseUntil,
+            String workClass,
+            int finished) {
     }
 
     public record SettlementRow(String digest, String resultSnapshot) {

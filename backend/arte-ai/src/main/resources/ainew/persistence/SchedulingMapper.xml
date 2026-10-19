@@ -83,6 +83,9 @@
     </update>
     <select id="permits" resultMap="Permit">SELECT * FROM arte_ai_scheduling_permit WHERE lease_until &gt; #{now}
     </select>
+    <select id="findPermit" resultMap="Permit">
+        SELECT * FROM arte_ai_scheduling_permit WHERE message_key=#{key}
+    </select>
     <insert id="permit">INSERT INTO
         arte_ai_scheduling_permit(message_key,token,work_class,space_key,provider_key,lease_until)
         VALUES(#{key},#{token},#{type},#{space},#{provider},#{until})

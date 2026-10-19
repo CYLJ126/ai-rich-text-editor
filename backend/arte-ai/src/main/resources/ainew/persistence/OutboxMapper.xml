@@ -13,6 +13,8 @@
             <arg column="sequence_no" javaType="_long"/>
             <arg column="delivered" javaType="_int"/>
             <arg column="lease_until" javaType="_long"/>
+            <arg column="work_class" javaType="java.lang.String"/>
+            <arg column="finished" javaType="_int"/>
         </constructor>
     </resultMap>
     <resultMap id="PendingMessageRow" type="com.arte.ainew.persistence.mybatis.mapper.PersistenceRows$PendingMessageRow">

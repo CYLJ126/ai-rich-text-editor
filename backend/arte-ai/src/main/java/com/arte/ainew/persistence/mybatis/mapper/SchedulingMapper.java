@@ -56,6 +56,11 @@ public interface SchedulingMapper {
 
     List<Permit> permits(@Param("now") long now);
 
+    /**
+     * 只读取当前消息的许可，调用方按精确身份、fencing、类别及数据库时间复核。
+     */
+    Permit findPermit(@Param("key") String key);
+
     int permit(@Param("key") String key, @Param("token") long token, @Param("type") String type,
                @Param("space") String space, @Param("provider") String provider, @Param("until") long until);
 

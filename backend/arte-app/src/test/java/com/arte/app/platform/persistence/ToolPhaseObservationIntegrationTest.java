@@ -39,9 +39,11 @@ class ToolPhaseObservationIntegrationTest {
         boolean p02 = Boolean.getBoolean("platform.tool.p02.baseline");
         boolean p03 = Boolean.getBoolean("platform.tool.p03.baseline");
         boolean p04 = Boolean.getBoolean("platform.tool.p04.baseline");
-        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03 || p04;
+        boolean p05 = Boolean.getBoolean("platform.tool.p05.baseline");
+        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03 || p04 || p05;
         final String outputPrefix;
-        if (p04) outputPrefix = "target/tool-p04";
+        if (p05) outputPrefix = "target/tool-p05";
+        else if (p04) outputPrefix = "target/tool-p04";
         else if (p03) outputPrefix = "target/tool-p03";
         else if (p02) outputPrefix = "target/tool-p02";
         else outputPrefix = "target/tool-p01";
@@ -133,6 +135,10 @@ class ToolPhaseObservationIntegrationTest {
                         assertTrue(row.get("sqlCount").asLong() < limit.getValue(), limit.getKey() + " authorization SQL must decrease");
                     }
                     for (var expected : Map.of("BINDING_RESOLUTION", 4L, "SCHEMA_VALIDATION", 0L).entrySet()) {
+                        var row = invocationStages.stream().filter(value -> expected.getKey().equals(value.get("stage").asString())).findFirst().orElseThrow();
+                        assertEquals(expected.getValue().longValue(), row.get("sqlCount").asLong(), expected.getKey());
+                    }
+                    for (var expected : Map.of("DISPATCH_LOAD", 5L, "PREPARE_DISPATCH", 32L).entrySet()) {
                         var row = invocationStages.stream().filter(value -> expected.getKey().equals(value.get("stage").asString())).findFirst().orElseThrow();
                         assertEquals(expected.getValue().longValue(), row.get("sqlCount").asLong(), expected.getKey());
                     }

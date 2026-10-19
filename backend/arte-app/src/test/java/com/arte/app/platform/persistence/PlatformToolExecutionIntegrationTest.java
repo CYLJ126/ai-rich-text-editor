@@ -7,6 +7,8 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.ainew.pojo.execution.OutboxMessage;
+import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.app.platform.identity.RbacIdentityProvider;
@@ -103,6 +105,36 @@ class PlatformToolExecutionIntegrationTest {
                 }
                 rig.post(mvc, "tool/cancelToolInvocation", Map.of("scope", rig.scope, "invocationId", current), UUID.randomUUID().toString(), 202);
                 assertEquals(0L, rig.base.f.jdbc.queryForObject("SELECT SUM(reservations) FROM arte_ai_queue_capacity", Long.class));
+            });
+        }
+    }
+
+    @Test
+    void claimValidationPreservesExactMessageAndPermitClassComparison() throws Exception {
+        try (var rig = new ToolAcceptanceRig()) {
+            if (rig.base.f.mysql != null) {
+                // 仅修改本测试的临时表，显式覆盖大小写不敏感环境；普通验收库仍使用 utf8mb4_bin。
+                rig.base.f.jdbc.execute("ALTER TABLE arte_ai_outbox MODIFY message_key CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL");
+                rig.base.f.jdbc.execute("ALTER TABLE arte_ai_scheduling_permit MODIFY message_key CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL, MODIFY work_class VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL");
+            }
+            rig.context().run(c -> {
+                assertNull(c.getStartupFailure());
+                var mvc = rig.mvc(c);
+                rig.publish(mvc);
+                rig.post(mvc, "tool/invokeTool", rig.command(mvc, rig.prepare(mvc), "exact claim identity"), "exact-claim", 202);
+                var store = (MybatisExecutionPersistence) c.getBean(ExecutionStore.class);
+                var type = OutboxMessage.WorkClass.valueOf(rig.base.f.jdbc.queryForObject("SELECT work_class FROM arte_ai_outbox WHERE kind='DISPATCH'", String.class));
+                var message = store.claimClass(type, "exact-worker", Duration.ofSeconds(10), 1, rig.tools.manifest()).block(Duration.ofSeconds(15)).getFirst();
+                assertTrue(store.validateClaim(message).block(Duration.ofSeconds(15)).successful());
+                var forged = new OutboxMessage(message.messageId().toUpperCase(java.util.Locale.ROOT), message.invocationId(), message.owner(),
+                        message.kind(), message.eventSequence(), message.workerId(), message.fencingToken(), message.leaseExpiresAt(), type);
+                var rejected = store.validateClaim(forged).block(Duration.ofSeconds(15));
+                assertFalse(rejected.successful());
+                if (rig.base.f.mysql != null) assertEquals(StoreOutcome.Code.LEASE_LOST, rejected.code());
+                rig.base.f.jdbc.update("UPDATE arte_ai_scheduling_permit SET work_class=?", type.name().toLowerCase(java.util.Locale.ROOT));
+                assertEquals(StoreOutcome.Code.LEASE_LOST, store.validateClaim(message).block(Duration.ofSeconds(15)).code());
+                rig.base.f.jdbc.update("UPDATE arte_ai_scheduling_permit SET work_class=?", type.name());
+                assertTrue(store.validateClaim(message).block(Duration.ofSeconds(15)).successful());
             });
         }
     }

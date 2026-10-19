@@ -1457,7 +1457,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(message);
             }
             require(row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
-            scheduling.validate(message);
+            scheduling.validate(message, row);
             outbox.deliverMessage(message.messageId());
             scheduling.release(message);
             return StoreOutcome.applied(message);
@@ -1470,7 +1470,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()))
                 && message.kind().name().equals(row.kind()) && message.eventSequence() == row.sequenceNo()
                 && row.delivered() == 0 && row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
-        scheduling.validate(message);
+        scheduling.validate(message, row);
     }
 
     @Override
