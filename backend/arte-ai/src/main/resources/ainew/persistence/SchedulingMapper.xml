@@ -37,15 +37,29 @@
             <arg column="manifest_digest" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
-    <select id="queueCount" resultType="java.lang.Long">SELECT reservations FROM arte_ai_queue_capacity WHERE
-        counter_key=#{key} FOR UPDATE
+    <resultMap id="QueueCounter" type="com.arte.ainew.persistence.mybatis.mapper.SchedulingMapper$QueueCounter">
+        <constructor>
+            <arg column="counter_key" javaType="java.lang.String"/>
+            <arg column="reservations" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <!-- 预留与释放使用相同的主键顺序锁定全部计数器，再执行批量更新。 -->
+    <select id="queueCounts" resultMap="QueueCounter">
+        SELECT counter_key,reservations FROM arte_ai_queue_capacity WHERE counter_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
+        ORDER BY counter_key FOR UPDATE
     </select>
-    <insert id="createQueueCount">INSERT INTO arte_ai_queue_capacity(counter_key,reservations) VALUES(#{key},0)</insert>
-    <update id="incrementQueueCount">UPDATE arte_ai_queue_capacity SET reservations=reservations+1 WHERE
-        counter_key=#{key}
+    <insert id="createQueueCounts">
+        INSERT INTO arte_ai_queue_capacity(counter_key,reservations) VALUES
+        <foreach collection="keys" item="key" separator=",">(#{key},0)</foreach>
+    </insert>
+    <update id="incrementQueueCounts">
+        UPDATE arte_ai_queue_capacity SET reservations=reservations+1 WHERE counter_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
     </update>
-    <update id="decrementQueueCount">UPDATE arte_ai_queue_capacity SET reservations=reservations-1 WHERE
-        counter_key=#{key} AND reservations&gt;0
+    <update id="decrementQueueCounts">
+        UPDATE arte_ai_queue_capacity SET reservations=reservations-1 WHERE reservations&gt;0 AND counter_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
     </update>
     <select id="ready" resultMap="Queued">SELECT * FROM arte_ai_outbox WHERE kind='DISPATCH' AND work_class=#{type} AND
         delivered=0 AND lease_until &lt;= #{now} ORDER BY queued_at,message_key LIMIT #{limit}

@@ -14,10 +14,7 @@ import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.serialization.CanonicalJson;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static com.arte.ainew.application.execution.DispatchSchedulingException.Reason.*;
@@ -79,15 +76,18 @@ final class DispatchSchedulingPersistence {
             var owner = ExecutionOwner.from(invocation.request().context());
             var keys = queueKeys(plan.workClass().name(), space(owner), subject(owner));
             int[] limits = {policy.maxQueued(), policy.queue(plan.workClass()), policy.workspaceQueued(), policy.subjectQueued()};
+            // 四个维度一次锁读；限额仍按各维度独立校验，不复用事务外的计数。
+            var counts = new HashMap<String, Long>();
+            mapper.queueCounts(keys).forEach(row -> counts.put(row.key(), row.reservations()));
+            var missing = keys.stream().filter(key -> !counts.containsKey(key)).sorted().toList();
             for (int i = 0; i < keys.size(); i++) {
-                var count = mapper.queueCount(keys.get(i));
-                if (count == null) {
-                    mapper.createQueueCount(keys.get(i));
-                    count = 0L;
-                }
-                if (count >= limits[i]) throw new DispatchSchedulingException(QUEUE_FULL);
+                if (counts.getOrDefault(keys.get(i), 0L) >= limits[i])
+                    throw new DispatchSchedulingException(QUEUE_FULL);
             }
-            keys.forEach(mapper::incrementQueueCount);
+            if (!missing.isEmpty() && mapper.createQueueCounts(missing) != missing.size())
+                throw new IllegalStateException("Queue capacity counters were not created");
+            if (mapper.incrementQueueCounts(keys) != keys.size())
+                throw new IllegalStateException("Queue capacity facts are missing");
 
         } catch (org.springframework.dao.DataAccessException unavailable) {
             throw new DispatchSchedulingException(UNAVAILABLE, unavailable);
@@ -143,10 +143,13 @@ final class DispatchSchedulingPersistence {
         var key = CanonicalJson.key(invocation.request().context().executionId(), "DISPATCH", "0");
         var meta = mapper.metadata(key);
         if (meta == null || meta.queueReserved() == 0) return;
-        for (var counter : queueKeys(meta.workClass(), meta.spaceKey(), meta.subjectKey())) {
-            if (mapper.decrementQueueCount(counter) != 1)
-                throw new IllegalStateException("Queue capacity facts are missing");
-        }
+        var keys = queueKeys(meta.workClass(), meta.spaceKey(), meta.subjectKey());
+        // 与受理共用批量锁定顺序，避免释放与新预留交错时反向取锁。
+        var counts = mapper.queueCounts(keys);
+        if (counts.size() != keys.size() || counts.stream().anyMatch(row -> row.reservations() <= 0))
+            throw new IllegalStateException("Queue capacity facts are missing");
+        if (mapper.decrementQueueCounts(keys) != keys.size())
+            throw new IllegalStateException("Queue capacity facts are missing");
     }
 
     void started(Invocation invocation) {

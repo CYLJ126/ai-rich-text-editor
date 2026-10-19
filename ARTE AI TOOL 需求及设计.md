@@ -794,8 +794,10 @@ P01 已补齐受理、物理事务、Worker、执行及结果提交的阶段观�
 [分阶段观测与基线](backend/arte-ai/TOOL_PERFORMANCE.md)。P02 已补充事务内单次授权批次的身份／RBAC 原始读取复用；
 普通快照读与锁定当前读分别保留，授权结束即清除，入口、最终提交和执行前各自重检；不缓存允许决定。
 空间事实仍沿用现有公共门控的批次复用，业务写入前清除。P03 已合并固定工具、提供者及 Schema 的读取， 并在同次准备中复用已核验材料；Schema
-编译计划按固定引用、原文摘要、用途和限制使用有界缓存。 发布状态、绑定启停和当前授权仍分别核验，不缓存可变治理资格。P04—P07
-的优化与正式性能验收仍待分别完成。
+编译计划按固定引用、原文摘要、用途和限制使用有界缓存。发布状态、绑定启停和当前授权仍分别核验，不缓存可变治理资格。 P04
+将全局／分类／空间／主体四维队列计数一次锁读、批量预留或释放，保留各维独立限额；预留与释放按一致主键顺序取锁。 新 TOOL 首次事件序号随
+Invocation 初始化为 1，ACCEPTED 事件及 EVENT／DISPATCH Outbox 在同一事务写入，两条 Outbox 合并插入。
+幂等重放不重复写入或预留，写入失败、队列满或最终期限检查失败均整体回滚；提交后才唤醒。P05—P07 的优化与正式性能验收仍待分别完成。
 
 S2-04 已在 `NewAiToolExecutionConfiguration` 接通内部受理与 Worker 派发：必须同时开启 `arte.ai-new.enabled`、
 `arte.ai-new-tool.enabled`、`arte.ai-new-execution.enabled`，并由宿主提供 `ToolAdmissionAccess` 与 `ToolExecutionAccess`。

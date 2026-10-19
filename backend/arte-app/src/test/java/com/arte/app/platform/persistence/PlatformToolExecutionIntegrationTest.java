@@ -74,6 +74,40 @@ class PlatformToolExecutionIntegrationTest {
     }
 
     @Test
+    void concurrentAdmissionAndCancellationKeepQueueReservationsConsistent() throws Exception {
+        try (var rig = new ToolAcceptanceRig()) {
+            rig.context().run(c -> {
+                assertNull(c.getStartupFailure());
+                var mvc = rig.mvc(c);
+                rig.publish(mvc);
+                var command = rig.command(mvc, rig.prepare(mvc), "queue contention");
+                String current = rig.post(mvc, "tool/invokeTool", command, UUID.randomUUID().toString(), 202).get("executionId").asString();
+                try (var pool = Executors.newFixedThreadPool(2)) {
+                    for (int index = 0; index < 8; index++) {
+                        var start = new CountDownLatch(1);
+                        String cancelled = current;
+                        var release = pool.submit(() -> {
+                            assertTrue(start.await(5, TimeUnit.SECONDS));
+                            return rig.post(mvc, "tool/cancelToolInvocation", Map.of("scope", rig.scope, "invocationId", cancelled), UUID.randomUUID().toString(), 202);
+                        });
+                        var accept = pool.submit(() -> {
+                            assertTrue(start.await(5, TimeUnit.SECONDS));
+                            return rig.post(mvc, "tool/invokeTool", command, UUID.randomUUID().toString(), 202).get("executionId").asString();
+                        });
+                        start.countDown();
+                        release.get(15, TimeUnit.SECONDS);
+                        current = accept.get(15, TimeUnit.SECONDS);
+                        assertEquals(4L, rig.base.f.jdbc.queryForObject("SELECT SUM(reservations) FROM arte_ai_queue_capacity", Long.class));
+                        assertEquals(1, rig.base.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox WHERE queue_reserved=1", Integer.class));
+                    }
+                }
+                rig.post(mvc, "tool/cancelToolInvocation", Map.of("scope", rig.scope, "invocationId", current), UUID.randomUUID().toString(), 202);
+                assertEquals(0L, rig.base.f.jdbc.queryForObject("SELECT SUM(reservations) FROM arte_ai_queue_capacity", Long.class));
+            });
+        }
+    }
+
+    @Test
     void unicodeBoundariesAreCountedAndInvalidInputsNeverDispatch() throws Exception {
         try (var rig = new ToolAcceptanceRig()) {
             rig.context().run(c -> {

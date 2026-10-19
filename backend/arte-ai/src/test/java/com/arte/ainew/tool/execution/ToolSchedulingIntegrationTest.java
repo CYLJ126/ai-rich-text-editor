@@ -6,10 +6,7 @@ import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.application.execution.LocalDispatchNotifier;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
-import com.arte.ainew.common.execution.AcceptedExecution;
-import com.arte.ainew.common.execution.ExecutionAuthorization;
-import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionError;
+import com.arte.ainew.common.execution.*;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiSchedulingProperties;
@@ -130,6 +127,46 @@ public class ToolSchedulingIntegrationTest {
     }
 
     @Test
+    public void initialToolEventAndOutboxKeepSequenceAndCommitWakeupsOnReplay() throws Exception {
+        try (var r = new Rig()) {
+            int before = r.f.wakeups.get();
+            r.submit("one");
+            assertEquals(before + 2, r.f.wakeups.get());
+            assertEquals(1, r.number("SELECT next_sequence FROM arte_ai_invocation"));
+            assertEquals(1, r.number("SELECT COUNT(*) FROM arte_ai_outbox WHERE kind='EVENT' AND sequence_no=1"));
+            assertEquals(1, r.number("SELECT COUNT(*) FROM arte_ai_outbox WHERE kind='DISPATCH' AND sequence_no=0"));
+            var initial = r.store.replay(r.f.owner, new ExecutionEvent.Cursor("one", 0), 100).block(WAIT).value().events();
+            assertEquals(1, initial.size());
+            assertEquals(1, initial.getFirst().sequence());
+            assertEquals(new ExecutionPayload.Status(Invocation.State.ACCEPTED), initial.getFirst().payload());
+            r.submit("one");
+            assertEquals(before + 2, r.f.wakeups.get());
+            assertEquals(4, r.number("SELECT SUM(reservations) FROM arte_ai_queue_capacity"));
+            r.store.requestControl(r.f.owner, new ExecutionControlRequest("stop", "one", "stop", ControlReceipt.Command.CANCEL)).block(WAIT);
+            var events = r.store.replay(r.f.owner, new ExecutionEvent.Cursor("one", 0), 100).block(WAIT).value().events();
+            assertTrue(events.size() > 1);
+            for (int index = 0; index < events.size(); index++) assertEquals(index + 1, events.get(index).sequence());
+            assertEquals(events.size(), r.number("SELECT next_sequence FROM arte_ai_invocation"));
+        }
+    }
+
+    @Test
+    public void zeroCounterRollsBackAllReleaseAndTerminalWrites() throws Exception {
+        try (var r = new Rig()) {
+            r.submit("one");
+            r.f.jdbc.update("UPDATE arte_ai_queue_capacity SET reservations=0 WHERE counter_key=(SELECT MIN(counter_key) FROM arte_ai_queue_capacity)");
+            int wakeups = r.f.wakeups.get();
+            assertThrows(IllegalStateException.class, () -> r.store.requestControl(r.f.owner,
+                    new ExecutionControlRequest("stop", "one", "stop", ControlReceipt.Command.CANCEL)).block(WAIT));
+            assertEquals(Invocation.State.ACCEPTED, r.invocation("one").state());
+            assertEquals(3, r.number("SELECT SUM(reservations) FROM arte_ai_queue_capacity"));
+            assertEquals(1, r.number("SELECT COUNT(*) FROM arte_ai_outbox WHERE queue_reserved=1"));
+            assertEquals(1, r.number("SELECT next_sequence FROM arte_ai_invocation"));
+            assertEquals(wakeups, r.f.wakeups.get());
+        }
+    }
+
+    @Test
     public void classifiedClaimNeverFallsBackToUnfilteredLegacyClaim() throws Exception {
         try (var r = new Rig()) {
             r.submit("one");
@@ -201,10 +238,32 @@ public class ToolSchedulingIntegrationTest {
     public void failedOutboxWriteDoesNotLeaveCapacityOrPartialAdmission() throws Exception {
         try (var r = new Rig(8, 8, 2, 1, 100, 20)) {
             r.f.jdbc.execute("ALTER TABLE arte_ai_outbox ADD CONSTRAINT fail_queue CHECK(kind&lt;&gt;'DISPATCH')".replace("&lt;&gt;", "<>"));
+            int wakeups = r.f.wakeups.get();
             assertThrows(Exception.class, () -> r.submit("one"));
-            assertEquals(0, r.f.count("arte_ai_invocation"));
+            for (String table : List.of("arte_ai_invocation", "arte_ai_acceptance", "arte_ai_event", "arte_ai_outbox",
+                    "arte_ai_tool_execution_snapshot", "arte_ai_queue_capacity"))
+                assertEquals(table, 0, r.f.count(table));
+            assertEquals(wakeups, r.f.wakeups.get());
             r.f.jdbc.execute("ALTER TABLE arte_ai_outbox DROP CONSTRAINT fail_queue");
             r.submit("two");
+        }
+    }
+
+    @Test
+    public void failedBatchReservationRollsBackInitialEventsAndSuppressesWakeups() throws Exception {
+        try (var r = new Rig()) {
+            r.f.jdbc.execute("ALTER TABLE arte_ai_queue_capacity ADD CONSTRAINT fail_reservation CHECK(reservations=0)");
+            int wakeups = r.f.wakeups.get();
+            var failure = assertThrows(DispatchSchedulingException.class, () -> r.submit("one"));
+            assertEquals(DispatchSchedulingException.Reason.UNAVAILABLE, failure.reason());
+            for (String table : List.of("arte_ai_invocation", "arte_ai_acceptance", "arte_ai_event", "arte_ai_outbox",
+                    "arte_ai_tool_execution_snapshot", "arte_ai_queue_capacity", "arte_ai_dispatch_pool"))
+                assertEquals(table, 0, r.f.count(table));
+            assertEquals(wakeups, r.f.wakeups.get());
+            r.f.jdbc.execute("ALTER TABLE arte_ai_queue_capacity DROP CONSTRAINT fail_reservation");
+            r.submit("one");
+            assertEquals(wakeups + 2, r.f.wakeups.get());
+            assertEquals(4, r.number("SELECT SUM(reservations) FROM arte_ai_queue_capacity"));
         }
     }
 

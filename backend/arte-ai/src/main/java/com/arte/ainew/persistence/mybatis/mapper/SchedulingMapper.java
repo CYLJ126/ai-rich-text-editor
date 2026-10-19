@@ -25,13 +25,19 @@ public interface SchedulingMapper {
     record Pool(String policyDigest, String manifestDigest) {
     }
 
-    Long queueCount(@Param("key") String key);
+    /**
+     * 同一事务内锁定的队列预留事实；key 对应全局、分类、空间或主体维度。
+     */
+    record QueueCounter(String key, long reservations) {
+    }
 
-    int createQueueCount(@Param("key") String key);
+    List<QueueCounter> queueCounts(@Param("keys") List<String> keys);
 
-    int incrementQueueCount(@Param("key") String key);
+    int createQueueCounts(@Param("keys") List<String> keys);
 
-    int decrementQueueCount(@Param("key") String key);
+    int incrementQueueCounts(@Param("keys") List<String> keys);
+
+    int decrementQueueCounts(@Param("keys") List<String> keys);
 
     List<Queued> ready(@Param("type") String type, @Param("now") long now, @Param("limit") int limit);
 

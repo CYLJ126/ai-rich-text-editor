@@ -36,7 +36,7 @@
     <insert id="insertInvocation">
         INSERT INTO
         arte_ai_invocation(id_key,owner_key,workspace_snapshot,next_attempt,next_fence,next_sequence,retained_after,written_bytes)
-        VALUES (#{idKey},#{ownerKey},#{workspaceSnapshot},0,0,0,0,0)
+        VALUES (#{idKey},#{ownerKey},#{workspaceSnapshot},0,0,#{nextSequence},0,0)
     </insert>
     <insert id="insertAcceptance">
         INSERT INTO arte_ai_acceptance(scope_key,idempotency_key,request_digest,invocation_key) VALUES (#{scopeKey},#{idempotencyKey},#{requestDigest},#{invocationKey})

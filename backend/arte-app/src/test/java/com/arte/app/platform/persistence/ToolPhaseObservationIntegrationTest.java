@@ -38,9 +38,11 @@ class ToolPhaseObservationIntegrationTest {
     void endToEndStagesRetainSqlAndOriginalTrace() throws Exception {
         boolean p02 = Boolean.getBoolean("platform.tool.p02.baseline");
         boolean p03 = Boolean.getBoolean("platform.tool.p03.baseline");
-        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03;
+        boolean p04 = Boolean.getBoolean("platform.tool.p04.baseline");
+        boolean baseline = Boolean.getBoolean("platform.tool.p01.baseline") || p02 || p03 || p04;
         final String outputPrefix;
-        if (p03) outputPrefix = "target/tool-p03";
+        if (p04) outputPrefix = "target/tool-p04";
+        else if (p03) outputPrefix = "target/tool-p03";
         else if (p02) outputPrefix = "target/tool-p02";
         else outputPrefix = "target/tool-p01";
         if (baseline) assertNotNull(System.getProperty("platform.test.mysql"), "Baseline requires isolated MySQL");
@@ -134,6 +136,10 @@ class ToolPhaseObservationIntegrationTest {
                         var row = invocationStages.stream().filter(value -> expected.getKey().equals(value.get("stage").asString())).findFirst().orElseThrow();
                         assertEquals(expected.getValue().longValue(), row.get("sqlCount").asLong(), expected.getKey());
                     }
+                    var writes = invocationStages.stream().filter(value -> "COMMIT_WRITES".equals(value.get("stage").asString())).findFirst().orElseThrow();
+                    if (baseline)
+                        assertEquals(17L, writes.get("sqlCount").asLong(), "Warm P04 writes must decrease from 26 to 17");
+                    else assertTrue(writes.get("sqlCount").asLong() <= 19, "Cold P04 writes may create counters/pool");
                     var governance = invocationStages.stream().filter(value -> "COMMIT_GOVERNANCE".equals(value.get("stage").asString())).findFirst().orElseThrow();
                     assertTrue(governance.get("sqlCount").asLong() < 13, "Material SQL must decrease, including cold plan insertion");
                     assertTrue(points.stream().anyMatch(row -> id.equals(row.get("invocationId").asString()) && "ADMISSION_COMMITTED".equals(row.get("stage").asString())));

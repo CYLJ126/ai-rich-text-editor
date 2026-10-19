@@ -559,10 +559,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var acceptedAt = now();
         var accepted = new Invocation(candidate.request(), candidate.requestDigest(), link, candidate.contextSnapshotId(),
                 candidate.replacesInvocationId(), Invocation.State.ACCEPTED, 0, null, null, null, acceptedAt, acceptedAt);
-        execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted));
+        execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted), tool ? 1 : 0);
         execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
-        event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
-        outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
+        if (tool) {
+            initialToolEvents(accepted);
+        } else {
+            event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
+            outbox(accepted, OutboxMessage.Kind.DISPATCH, 0);
+        }
         // 新 TOOL 行在提交前对 Worker 不可见；把队列仲裁后移，缩短全局调度锁持有时间。
         // 容量不足仍回滚整份受理；生成原有会话及重试的取锁顺序保持。
         if (tool) scheduling.admit(accepted, command.dispatchPlan());
@@ -1307,10 +1311,31 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         outbox(invocation, OutboxMessage.Kind.EVENT, event.sequence());
     }
 
+    /**
+     * 新 TOOL 行的首个序号已随 Invocation 初始化；事件和两份 Outbox 仍在同一受理事务提交。
+     */
+    private void initialToolEvents(Invocation invocation) {
+        var payload = new ExecutionPayload.Status(Invocation.State.ACCEPTED);
+        var initial = new ExecutionEvent<>(1, id(invocation), null, 1, payload.eventKind(), now(), "status", 1, payload);
+        require(event.insertEvent(hash(id(invocation)), 1, codec.encode(initial)) == 1, INVALID_STATE);
+        var owner = ExecutionOwner.from(invocation.request().context());
+        var messages = List.of(
+                new OutboxMapper.NewMessage(hash(id(invocation), "EVENT", "1"), "EVENT", 1),
+                new OutboxMapper.NewMessage(hash(id(invocation), "DISPATCH", "0"), "DISPATCH", 0));
+        require(outbox.insertMessages(hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(),
+                owner.subjectId(), messages) == messages.size(), INVALID_STATE);
+        notifyOutboxAfterCommit(invocation, OutboxMessage.Kind.EVENT, 1);
+        notifyOutboxAfterCommit(invocation, OutboxMessage.Kind.DISPATCH, 0);
+    }
+
     private void outbox(Invocation invocation, OutboxMessage.Kind kind, long sequence) {
         var key = hash(id(invocation), kind.name(), Long.toString(sequence));
         var owner = ExecutionOwner.from(invocation.request().context());
         outbox.insertMessage(key, hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(), owner.subjectId(), kind.name(), sequence);
+        notifyOutboxAfterCommit(invocation, kind, sequence);
+    }
+
+    private void notifyOutboxAfterCommit(Invocation invocation, OutboxMessage.Kind kind, long sequence) {
         if (kind == OutboxMessage.Kind.EVENT || kind == OutboxMessage.Kind.DISPATCH) {
             // 回滚不通知。唤醒失败不改变已提交的业务结果，由统一 Outbox 恢复扫描兜底。
             TransactionSynchronizationManager.registerSynchronization(

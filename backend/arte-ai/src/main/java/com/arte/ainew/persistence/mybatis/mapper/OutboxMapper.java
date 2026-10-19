@@ -13,6 +13,20 @@ import java.util.List;
  * @since 2026/10/4 23:30 ✾
  */
 public interface OutboxMapper {
+    /**
+     * 同一 Invocation 首次提交时一起落库的通知，消息键与序号仍各自独立。
+     */
+    record NewMessage(String messageKey, String kind, long sequenceNo) {
+    }
+
+    int insertMessages(
+            @Param("invocationKey") String invocationKey,
+            @Param("invocationId") String invocationId,
+            @Param("ownerTenant") String ownerTenant,
+            @Param("ownerWorkspace") String ownerWorkspace,
+            @Param("ownerSubject") String ownerSubject,
+            @Param("messages") List<NewMessage> messages);
+
     int insertMessage(
             @Param("messageKey") String messageKey,
             @Param("invocationKey") String invocationKey,

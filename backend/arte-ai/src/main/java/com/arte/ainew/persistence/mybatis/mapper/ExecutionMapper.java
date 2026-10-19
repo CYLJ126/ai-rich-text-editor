@@ -26,7 +26,7 @@ public interface ExecutionMapper {
 
     List<AcceptanceRow> acceptance(@Param("scopeKey") String scopeKey, @Param("idempotencyKey") String idempotencyKey);
 
-    int insertInvocation(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("workspaceSnapshot") String workspaceSnapshot);
+    int insertInvocation(@Param("idKey") String idKey, @Param("ownerKey") String ownerKey, @Param("workspaceSnapshot") String workspaceSnapshot, @Param("nextSequence") long nextSequence);
 
     int insertAcceptance(
             @Param("scopeKey") String scopeKey,

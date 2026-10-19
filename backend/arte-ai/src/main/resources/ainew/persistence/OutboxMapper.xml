@@ -29,6 +29,14 @@
     <insert id="insertMessage">
         INSERT INTO arte_ai_outbox(message_key,invocation_key,invocation_id,owner_tenant,owner_workspace,owner_subject,kind,sequence_no,worker_id,token,lease_until,delivered) VALUES (#{messageKey},#{invocationKey},#{invocationId},#{ownerTenant},#{ownerWorkspace},#{ownerSubject},#{kind},#{sequenceNo},NULL,0,0,0)
     </insert>
+    <insert id="insertMessages">
+        INSERT INTO
+        arte_ai_outbox(message_key,invocation_key,invocation_id,owner_tenant,owner_workspace,owner_subject,kind,sequence_no,worker_id,token,lease_until,delivered)
+        VALUES
+        <foreach collection="messages" item="message" separator=",">
+            (#{message.messageKey},#{invocationKey},#{invocationId},#{ownerTenant},#{ownerWorkspace},#{ownerSubject},#{message.kind},#{message.sequenceNo},NULL,0,0,0)
+        </foreach>
+    </insert>
     <select id="pendingMessages" resultMap="PendingMessageRow" useCache="false">
         SELECT message_key,invocation_id,sequence_no,token,owner_tenant,owner_workspace,owner_subject FROM arte_ai_outbox WHERE kind=#{kind} AND delivered=0 AND lease_until&lt;=#{currentTime} ORDER BY lease_until,message_key LIMIT #{limit} FOR UPDATE
     </select>
