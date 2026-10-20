@@ -321,3 +321,10 @@ WORKSPACE_UPDATE、人工决定及显式宿主写授权，默认 `arte.ai-new-to
 workspaceId、name、字符串 version、领域 operationId。`TOOL_RESOURCE_VERSION_CONFLICT` 表示当前版本已变且本次未修改，
 `TOOL_RESOURCE_ACCESS_DENIED` 表示领域当前权限拒绝；原调用 UNKNOWN 时保留编号，不更换键重发。参数、部署、领域事务与 S3-04／05
 边界见 [写工具说明](TOOL_WRITE.md)。
+
+## S3-04 自动业务结果核对
+
+本批新增后台工作项，不新增 HTTP 路由、权限操作或页面。已受理的 UNKNOWN 可以由受限后台按原领域回执确认， 原
+getInvocationStatus／getInvocationResult／事件接口返回新的事实，读取继续校验当前 aiTool:list 及归属。 撤销 invoke
+不自动撤销历史读取；读取无权与不存在沿用同样的 404，不因后台收尾恢复权限。 没有 requestOutcomeCheck、人工 confirmOutcome
+或核对列表接口，这些属 S3-05。 自动查询默认关闭，部署及边界见 [自动核对说明](TOOL_OUTCOME.md)。

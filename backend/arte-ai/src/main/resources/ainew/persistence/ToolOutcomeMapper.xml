@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolOutcomeMapper">
+    <resultMap id="ScanRow" type="com.arte.ainew.persistence.mybatis.mapper.ToolOutcomeMapper$ScanRow">
+        <constructor>
+            <arg column="id_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="ScanCursor" type="com.arte.ainew.persistence.mybatis.mapper.ToolOutcomeMapper$ScanCursor">
+        <constructor>
+            <arg column="after_key" javaType="java.lang.String"/>
+            <arg column="completed" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+    <insert id="lockScan">INSERT INTO arte_ai_tool_outcome_scan(scan_key,after_key,completed) VALUES('v1','',0) ON
+        DUPLICATE KEY UPDATE scan_key=scan_key
+    </insert>
+    <select id="scanCursor" resultMap="ScanCursor" useCache="false">SELECT after_key,completed FROM
+        arte_ai_tool_outcome_scan WHERE scan_key='v1' FOR UPDATE
+    </select>
+    <select id="scan" resultMap="ScanRow" useCache="false">SELECT id_key FROM arte_ai_invocation WHERE id_key &gt;
+        #{after} ORDER BY id_key LIMIT 32
+    </select>
+    <update id="advanceScan">UPDATE arte_ai_tool_outcome_scan SET after_key=#{after},completed=#{completed} WHERE
+        scan_key='v1'
+    </update>
+    <resultMap id="Case" type="com.arte.ainew.pojo.tool.ToolOutcomeCheck$Case">
+        <constructor>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="invocation_id" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="attempt_id" javaType="java.lang.String"/>
+            <arg column="operation_key" javaType="java.lang.String"/>
+            <arg column="space_key" javaType="java.lang.String"/>
+            <arg column="provider_key" javaType="java.lang.String"/>
+            <arg column="state" javaType="com.arte.ainew.pojo.tool.ToolOutcomeCheck$State"/>
+            <arg column="check_count" javaType="_int"/>
+            <arg column="version_no" javaType="_long"/>
+            <arg column="worker_id" javaType="java.lang.String"/>
+            <arg column="fence" javaType="_long"/>
+            <arg column="lease_until" javaType="_long"/>
+            <arg column="query_deadline" javaType="_long"/>
+            <arg column="next_check" javaType="_long"/>
+            <arg column="created_at" javaType="_long"/>
+            <arg column="valid_until" javaType="_long"/>
+            <arg column="last_code" javaType="java.lang.String"/>
+            <arg column="evidence_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="find" resultMap="Case" useCache="false">
+        SELECT * FROM arte_ai_tool_outcome_check WHERE invocation_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <select id="due" resultMap="Case" useCache="false">
+        SELECT * FROM arte_ai_tool_outcome_check WHERE state='CHECKING' AND next_check &lt;= #{now} AND lease_until &lt;=
+        #{now}
+        ORDER BY next_check,invocation_key LIMIT #{limit}
+    </select>
+    <insert id="insert">INSERT INTO
+        arte_ai_tool_outcome_check(invocation_key,invocation_id,owner_key,attempt_id,operation_key,space_key,provider_key,state,check_count,version_no,worker_id,fence,lease_until,query_deadline,next_check,created_at,valid_until,last_code,evidence_key)
+        VALUES(#{r.invocationKey},#{r.invocationId},#{r.ownerKey},#{r.attemptId},#{r.operationKey},#{r.spaceKey},#{r.providerKey},#{r.state},#{r.checks},#{r.version},#{r.workerId},#{r.fence},#{r.leaseUntil},#{r.queryDeadline},#{r.nextCheck},#{r.createdAt},#{r.validUntil},#{r.lastCode},#{r.evidenceKey})
+    </insert>
+    <update id="save">UPDATE arte_ai_tool_outcome_check SET
+        state=#{r.state},check_count=#{r.checks},version_no=#{r.version},worker_id=#{r.workerId},fence=#{r.fence},lease_until=#{r.leaseUntil},query_deadline=#{r.queryDeadline},next_check=#{r.nextCheck},created_at=#{r.createdAt},valid_until=#{r.validUntil},last_code=#{r.lastCode},evidence_key=#{r.evidenceKey}
+        WHERE invocation_key=#{r.invocationKey} AND version_no=#{expected}
+    </update>
+    <insert id="evidence">INSERT INTO
+        arte_ai_tool_outcome_evidence(invocation_key,evidence_key,check_no,decision,evidence_ref,evidence_digest,result_digest,recorded_at)
+        VALUES(#{invocation},#{key},#{number},#{decision},#{reference},#{digest},#{resultDigest},#{now})
+    </insert>
+</mapper>

@@ -82,6 +82,16 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
 
+    private java.util.function.Consumer<Invocation> toolOutcomeRecorder;
+
+    /**
+     * 组合模块显式安装；构造不启动 IO，UNKNOWN 与可靠核对工作项在原事务提交。
+     */
+    public void configureToolOutcomeRecorder(java.util.function.Consumer<Invocation> recorder) {
+        if (toolOutcomeRecorder != null) throw new IllegalStateException("Tool outcome recorder already installed");
+        toolOutcomeRecorder = Objects.requireNonNull(recorder);
+    }
+
     private final Runnable eventWakeup;
     private final Runnable dispatchWakeup;
 
@@ -261,6 +271,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private void save(Invocation invocation) {
         scheduling.finished(invocation);
         execution.saveInvocation(codec.encode(invocation), hash(id(invocation)));
+        if (toolOutcomeRecorder != null && invocation.state() == Invocation.State.UNKNOWN && invocation.request().kind() == CapabilityDescriptor.Kind.TOOL)
+            toolOutcomeRecorder.accept(invocation);
     }
 
     private void save(Attempt attempt) {
@@ -1229,71 +1241,100 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<Invocation>> commitCompletion(Complete command) {
-        return outcome(() -> {
-            var invocation = invocation(command.guard().invocation());
-            var key = operationKey("completion", command.completionKey());
-            String digest = hash(command.guard().attemptId(), command.terminal().toString(), command.usage().toString(),
-                    Objects.toString(command.evidenceRef(), ""));
-            var previous = operation(invocation, key);
-            if (previous != null) {
-                require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
-                return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Invocation.class));
-            }
-            var attempt = guarded(invocation, command.guard());
-            require(invocation.state().canTransitionTo(command.terminal().state()), INVALID_STATE);
-            boolean reconciliation = purpose(attempt) == LeasePurpose.RECONCILE;
-            require(!reconciliation || command.evidenceRef() != null && command.terminal().state() != Invocation.State.UNKNOWN, INVALID_STATE);
-            require(invocation.state() != Invocation.State.UNKNOWN || reconciliation, RECONCILIATION_REQUIRED);
-            require(command.terminal().state() != Invocation.State.SUCCEEDED || attempt.dispatch() != Attempt.Dispatch.NOT_STARTED
-                    && (reconciliation || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
-            require(command.terminal().state() != Invocation.State.UNKNOWN || attempt.dispatch() != Attempt.Dispatch.NOT_STARTED,
-                    INVALID_STATE);
-            // 已校验并保存的模型终止响应可证明输出不完整；其他可能执行的失败仍需 NONE 或远端核对。
-            if (!reconciliation && attempt.dispatch() != Attempt.Dispatch.NOT_STARTED
-                    && command.terminal().state() != Invocation.State.SUCCEEDED && command.terminal().state() != Invocation.State.UNKNOWN) {
-                var terminal = command.terminal();
-                boolean verifiedOutput = terminal.state() == Invocation.State.FAILED && terminal.result() != null
-                        && terminal.result().partial() && terminal.result().resultType().equals("model-result") && terminal.error() != null
-                        && terminal.error().code().equals("MODEL_OUTPUT_INCOMPLETE")
-                        && terminal.error().phase() == ExecutionError.Phase.OUTPUT
-                        && terminal.error().certainty() == ExecutionError.Certainty.KNOWN
-                        && terminal.error().sideEffect() == ExecutionError.SideEffect.CONFIRMED
-                        && ("model-result:" + terminal.result().resultId()).equals(command.evidenceRef());
+        Objects.requireNonNull(command);
+        return outcome(() -> completeLocked(command));
+    }
+
+    private StoreOutcome<Invocation> completeLocked(Complete command) {
+        var invocation = invocation(command.guard().invocation());
+        var key = operationKey("completion", command.completionKey());
+        String digest = hash(command.guard().attemptId(), command.terminal().toString(), command.usage().toString(),
+                Objects.toString(command.evidenceRef(), ""));
+        var previous = operation(invocation, key);
+        if (previous != null) {
+            require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
+            return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Invocation.class));
+        }
+        var attempt = guarded(invocation, command.guard());
+        require(invocation.state().canTransitionTo(command.terminal().state()), INVALID_STATE);
+        boolean reconciliation = purpose(attempt) == LeasePurpose.RECONCILE;
+        require(!reconciliation || command.evidenceRef() != null && command.terminal().state() != Invocation.State.UNKNOWN, INVALID_STATE);
+        require(invocation.state() != Invocation.State.UNKNOWN || reconciliation, RECONCILIATION_REQUIRED);
+        require(command.terminal().state() != Invocation.State.SUCCEEDED || attempt.dispatch() != Attempt.Dispatch.NOT_STARTED
+                && (reconciliation || attempt.state() == Attempt.State.RUNNING), INVALID_STATE);
+        require(command.terminal().state() != Invocation.State.UNKNOWN || attempt.dispatch() != Attempt.Dispatch.NOT_STARTED,
+                INVALID_STATE);
+        // 已校验并保存的模型终止响应可证明输出不完整；其他可能执行的失败仍需 NONE 或远端核对。
+        if (!reconciliation && attempt.dispatch() != Attempt.Dispatch.NOT_STARTED
+                && command.terminal().state() != Invocation.State.SUCCEEDED && command.terminal().state() != Invocation.State.UNKNOWN) {
+            var terminal = command.terminal();
+            boolean verifiedOutput = terminal.state() == Invocation.State.FAILED && terminal.result() != null
+                    && terminal.result().partial() && terminal.result().resultType().equals("model-result") && terminal.error() != null
+                    && terminal.error().code().equals("MODEL_OUTPUT_INCOMPLETE")
+                    && terminal.error().phase() == ExecutionError.Phase.OUTPUT
+                    && terminal.error().certainty() == ExecutionError.Certainty.KNOWN
+                    && terminal.error().sideEffect() == ExecutionError.SideEffect.CONFIRMED
+                    && ("model-result:" + terminal.result().resultId()).equals(command.evidenceRef());
+            if (verifiedOutput) {
+                var ref = terminal.result();
+                var row = payload.result(ref.resultId());
+                verifiedOutput = row != null && row.partial() == 1 && row.resultType().equals("model-result")
+                        && row.ownerKey().equals(ownerKey(command.guard().invocation().owner()))
+                        && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
+                        && row.schemaVersion() == ref.schemaVersion() && row.payloadDigest().equals(ref.contentDigest())
+                        && row.payloadDigest().equals(CanonicalJson.sha256(row.workspaceSnapshot()));
                 if (verifiedOutput) {
-                    var ref = terminal.result();
-                    var row = payload.result(ref.resultId());
-                    verifiedOutput = row != null && row.partial() == 1 && row.resultType().equals("model-result")
-                            && row.ownerKey().equals(ownerKey(command.guard().invocation().owner()))
-                            && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
-                            && row.schemaVersion() == ref.schemaVersion() && row.payloadDigest().equals(ref.contentDigest())
-                            && row.payloadDigest().equals(CanonicalJson.sha256(row.workspaceSnapshot()));
-                    if (verifiedOutput) {
-                        var value = codec.decode(row.workspaceSnapshot(), InvocationResult.class);
-                        verifiedOutput = value instanceof InvocationResult.Generation generation && !generation.value().complete()
-                                && generation.value().usage().equals(command.usage());
-                    }
+                    var value = codec.decode(row.workspaceSnapshot(), InvocationResult.class);
+                    verifiedOutput = value instanceof InvocationResult.Generation generation && !generation.value().complete()
+                            && generation.value().usage().equals(command.usage());
                 }
-                require(terminal.error() != null && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
-                        || verifiedOutput, RECONCILIATION_REQUIRED);
             }
-            verifyToolCompletion(invocation, attempt, command.terminal());
-            var completed = state(invocation, command.terminal().state(), attempt.attemptId(), command.terminal().result(), command.terminal().error());
-            var attemptState = Attempt.State.valueOf(completed.state().name());
-            var dispatch = completed.state() == Invocation.State.SUCCEEDED ? Attempt.Dispatch.CONFIRMED : attempt.dispatch();
-            save(changed(attempt, attemptState, dispatch, attempt.remoteRequestId(), attempt.budgetReservationId(),
-                    command.usage(), completed.error()));
-            save(completed);
-            var terminal = event(completed, attempt.attemptId(), command.terminal());
-            execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed), command.evidenceRef());
-            if (completed.conversation() != null && (completed.state() != Invocation.State.UNKNOWN || userStoppedGeneration(completed))) {
-                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
-            }
-            if (completed.state() == Invocation.State.SUCCEEDED && completed.replacesInvocationId() != null) {
-                selectCompletedCandidate(completed);
-            }
-            // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。
-            return StoreOutcome.applied(completed);
-        });
+            require(terminal.error() != null && terminal.error().sideEffect() == ExecutionError.SideEffect.NONE
+                    || verifiedOutput, RECONCILIATION_REQUIRED);
+        }
+        verifyToolCompletion(invocation, attempt, command.terminal());
+        var completed = state(invocation, command.terminal().state(), attempt.attemptId(), command.terminal().result(), command.terminal().error());
+        var attemptState = Attempt.State.valueOf(completed.state().name());
+        var dispatch = completed.state() == Invocation.State.SUCCEEDED ? Attempt.Dispatch.CONFIRMED : attempt.dispatch();
+        save(changed(attempt, attemptState, dispatch, attempt.remoteRequestId(), attempt.budgetReservationId(),
+                command.usage(), completed.error()));
+        save(completed);
+        var terminal = event(completed, attempt.attemptId(), command.terminal());
+        execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed), command.evidenceRef());
+        if (completed.conversation() != null && (completed.state() != Invocation.State.UNKNOWN || userStoppedGeneration(completed))) {
+            admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+        }
+        if (completed.state() == Invocation.State.SUCCEEDED && completed.replacesInvocationId() != null) {
+            selectCompletedCandidate(completed);
+        }
+        // 费用结算有独立证据与去重键；执行结束不能隐式释放预算。
+        return StoreOutcome.applied(completed);
+    }
+
+    /**
+     * 只给同库核对工作项使用：沿用原 Attempt，禁止借收尾生成新的执行资格。
+     */
+    Attempt claimToolOutcomeInCurrentTransaction(Invocation expected, String worker, Duration lease) {
+        var current = invocation(new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
+        require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL
+                && current.request().context().budgetRef() == null && current.activeAttemptId() != null, INVALID_STATE);
+        version(current, new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
+        var old = workspaceSnapshot(execution.attemptSnapshot(hash(current.activeAttemptId()), true), Attempt.class);
+        require(old != null && old.state() == Attempt.State.UNKNOWN && old.dispatch() != Attempt.Dispatch.NOT_STARTED && old.budgetReservationId() == null, INVALID_STATE);
+        require(purpose(old) != LeasePurpose.RECONCILE || !old.leaseExpiresAt().isAfter(now()), LEASE_LOST);
+        long fence = Math.addExact(execution.nextFence(hash(id(current))), 1);
+        var claimed = changed(old, old.state(), old.dispatch(), old.remoteRequestId(), null, old.usage(), old.error(), worker, fence, now().plus(lease));
+        save(claimed);
+        execution.savePurpose(LeasePurpose.RECONCILE.name(), hash(old.attemptId()));
+        execution.saveNextFence(fence, hash(id(current)));
+        return claimed;
+    }
+
+    StoreOutcome<Invocation> completeToolOutcomeInCurrentTransaction(Complete command) {
+        var current = invocation(command.guard().invocation());
+        require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL
+                && current.request().context().budgetRef() == null, INVALID_STATE);
+        return completeLocked(command);
     }
 
     /**

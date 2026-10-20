@@ -66,8 +66,9 @@ public class ExecutionSqlSessionFactoryTest {
         assertEquals(LocalCacheScope.STATEMENT,config.getLocalCacheScope());
         assertEquals(ExecutorType.SIMPLE,config.getDefaultExecutorType());
         assertEquals(Integer.valueOf(30),config.getDefaultStatementTimeout());
-        assertEquals(16, config.getMapperRegistry().getMappers().size());
+        assertEquals(17, config.getMapperRegistry().getMappers().size());
         assertTrue(config.hasMapper(com.arte.ainew.persistence.mybatis.mapper.ToolApprovalMapper.class));
+        assertTrue(config.hasMapper(com.arte.ainew.persistence.mybatis.mapper.ToolOutcomeMapper.class));
         assertTrue(config.getMapperRegistry().getMappers().stream().allMatch(type -> type.getPackageName().equals("com.arte.ainew.persistence.mybatis.mapper")));
         assertTrue(config.getMappedStatementNames().stream().filter(name -> name.contains("."))
                 .map(config::getMappedStatement).allMatch(statement -> statement.getCache() == null));

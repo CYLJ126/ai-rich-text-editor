@@ -38,8 +38,34 @@ import java.time.Duration;
 @AutoConfiguration(after = {NewAiAdmissionConfiguration.class, NewAiToolGatewayConfiguration.class})
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled", "ai-new-execution.enabled"}, havingValue = "true")
 @ConditionalOnBean({ToolAdmissionAccess.class, ToolExecutionAccess.class})
-@EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiToolApprovalProperties.class})
+@EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiToolApprovalProperties.class, NewAiToolOutcomeProperties.class})
 public class NewAiToolExecutionConfiguration {
+
+    @Bean
+    com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry toolOutcomeQueryRegistry(
+            ObjectProvider<com.arte.ainew.spi.adapter.ToolOutcomeQueryAdapter> adapters) {
+        return new com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry(adapters.orderedStream().toList());
+    }
+
+    @Bean("newAiToolOutcomeStore")
+    @ConditionalOnProperty(prefix = "arte.ai-new-tool-outcome", name = "enabled", havingValue = "true")
+    MybatisToolOutcomeStore toolOutcomeStore(NewAiProperties properties, ListableBeanFactory beans, ExecutionRecordCodec codec,
+                                             MybatisExecutionPersistence executions, com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry registry,
+                                             NewAiExecutionProperties execution, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        var scheduling = execution.scheduling();
+        if (!scheduling.enabled()) throw new IllegalStateException("Tool outcome requires classified scheduling");
+        var store = new MybatisToolOutcomeStore(beans.getBean(properties.dataSourceBean(), DataSource.class), codec, executions, registry, scheduling, scheduler);
+        executions.configureToolOutcomeRecorder(store::recordUnknownInCurrentTransaction);
+        return store;
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.ai-new-tool-outcome", name = "enabled", havingValue = "true")
+    com.arte.ainew.application.tool.outcome.ToolOutcomeWorker toolOutcomeWorker(MybatisToolOutcomeStore store,
+                                                                                com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry registry, NewAiToolOutcomeProperties properties,
+                                                                                NewAiExecutionProperties execution, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock) {
+        return new com.arte.ainew.application.tool.outcome.ToolOutcomeWorker(store, registry, properties, scheduler, clock, execution.workerEnabled());
+    }
 
     /**
      * 与通用 Invocation 共用精确的物理数据源、有界 JDBC 调度器及事务内同步提交方法。

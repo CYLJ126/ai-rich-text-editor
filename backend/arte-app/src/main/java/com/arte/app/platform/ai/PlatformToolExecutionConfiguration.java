@@ -5,10 +5,7 @@ import com.arte.ainew.config.NewAiToolApprovalProperties;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
-import com.arte.app.platform.ai.tool.LocalTextTools;
-import com.arte.app.platform.ai.tool.LocalToolPolicy;
-import com.arte.app.platform.ai.tool.LocalToolWriteProperties;
-import com.arte.app.platform.ai.tool.LocalWorkspaceTools;
+import com.arte.app.platform.ai.tool.*;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.workspace.WorkspaceService;
@@ -50,6 +47,16 @@ public class PlatformToolExecutionConfiguration {
         return new LocalWorkspaceTools(properties, workspaces, platform, identities, authorization,
                 new WorkspaceGovernanceLocks(transactions, tenants, spaces, tenantMembers, workspaceMembers, preferences),
                 transactions, approvals, codec, clock);
+    }
+
+    /**
+     * 历史 v1 的收尾查询独立登记，不改变已发布的执行契约，也不依赖当前写开关或原用户权限。
+     */
+    @Bean
+    LocalWorkspaceOutcomeQuery localWorkspaceOutcomeQuery(LocalWorkspaceTools contract,
+                                                          com.arte.core.spi.platform.CommandReceiptStore receipts,
+                                                          ObjectProvider<com.arte.ainew.spi.persistence.ToolOutcomeStore> outcomes) {
+        return new LocalWorkspaceOutcomeQuery(contract, receipts, outcomes);
     }
 
     @Bean
