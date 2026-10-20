@@ -13,10 +13,13 @@ import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.*;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProviderAdapter;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.*;
+import com.arte.ainew.pojo.tool.ToolBindingResolution;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.sun.net.httpserver.HttpServer;
@@ -31,6 +34,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,6 +51,36 @@ import static org.junit.Assert.*;
 public class GenerationGatewayTest {
 
     private static final Duration WAIT = Duration.ofSeconds(10);
+
+    @Test
+    public void explicitToolRoundUsesTheSameBoundedGatewayAndNeverFallsBackWithoutItsSnapshot() throws Exception {
+        try (var rig = new Rig(65536, 65536, true)) {
+            var base = rig.call();
+            var fixture = com.arte.ainew.tool.discovery.LocalToolFixtures.fixture("text", "v1");
+            var owner = com.arte.ainew.common.execution.ExecutionOwner.from(base.request().context());
+            var empty = com.arte.ainew.tool.discovery.LocalToolFixtures.object();
+            var binding = new ToolBindingResolution(new com.arte.ainew.common.reference.DefinitionRef("binding", "selected", "p1-" + "1".repeat(64)),
+                    new com.arte.ainew.common.reference.DefinitionRef("binding", "selected", "r1"), owner, fixture.revision(),
+                    fixture.revision().tool().checksum(), empty, com.arte.ainew.serialization.ToolCatalogDigests.configuration(empty),
+                    fixture.revision().tool().defaultPolicy(), Set.of(), Map.of());
+            var snapshot = new ToolSetSnapshot(owner, List.of(new ToolSetSnapshot.Entry("tool_0", binding, binding.effectivePolicy(), fixture.schema())));
+            var input = new GenerationRequest(base.request().input().messages(), base.request().input().options(), snapshot.descriptions(), new GenerationRequest.TextOutput());
+            var options = base.request().options();
+            var request = new InvocationRequest<>(base.request().capability(), base.request().binding(), base.request().kind(), input,
+                    new ExecutionOptions(options.deadline(), 1, options.maxOutputBytes(), 1, 1, options.requestedTimeout()), base.request().context());
+            var call = new GatewayCall<>(request, base.binding(), base.attempt(), base.runtime());
+            assertEquals("TOOL_SET_REQUIRED", assertThrows(GenerationException.class, () -> rig.gateway.generate(call).collectList().block(WAIT)).getMessage());
+            assertEquals(0, rig.requests.get());
+            rig.reply.set(Reply.sse("data: {\"id\":\"chat-1\",\"model\":\"deepseek-actual\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"tool_0\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" + DONE));
+            var result = result(rig.gateway.generate(call, snapshot).collectList().block(WAIT));
+            assertTrue(result.complete());
+            assertEquals(fixture.revision().tool().definition(), result.outputs().getFirst().toolCalls().getFirst().tool());
+            assertTrue(rig.requestBody.get().contains("\"tools\":[{\"type\":\"function\""));
+            assertEquals(1, rig.requests.get());
+            rig.reply.set(Reply.sse(success()));
+            assertTrue(result(rig.run()).complete());
+        }
+    }
 
     @Test
     public void repeatedSuccessfulStreamsReuseTheSameTcpConnection() throws Exception {
@@ -116,6 +151,10 @@ public class GenerationGatewayTest {
         }
 
         Rig(int responseLimit, int frameLimit) throws Exception {
+            this(responseLimit, frameLimit, false);
+        }
+
+        Rig(int responseLimit, int frameLimit, boolean toolSupport) throws Exception {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(workers);
             server.createContext("/", exchange -> {
@@ -150,8 +189,15 @@ public class GenerationGatewayTest {
             connection = new ConnectionDefinition(old.definition(), "deepseek", ChatCompletionsSseProtocolAdapter.DEFINITION,
                     URI.create(origin + "/v1"), old.credential(), old.state(), old.connectTimeout(), old.responseTimeout(), responseLimit);
             var binding = base.bindings().getFirst();
+            var capability = binding.capability();
+            if (toolSupport) {
+                var features = new java.util.HashSet<>(capability.features());
+                features.add(CapabilityDescriptor.Feature.TOOL_CALLS);
+                capability = new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(), capability.outputSchema(),
+                        features, capability.sideEffect(), capability.availability());
+            }
             properties = new NewAiProperties(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
-                    base.grants(), base.capabilities(), List.of(new ResolvedBinding(binding.definition(), binding.capability(), binding.connection(),
+                    base.grants(), List.of(capability), List.of(new ResolvedBinding(binding.definition(), capability, binding.connection(),
                     "deepseek-chat", binding.contextWindowTokens(), binding.rate())), List.of(connection), base.rates(), base.budgets());
             generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 1, 1, Duration.ofSeconds(2), frameLimit, 65536);
             var clock = Clock.systemUTC();

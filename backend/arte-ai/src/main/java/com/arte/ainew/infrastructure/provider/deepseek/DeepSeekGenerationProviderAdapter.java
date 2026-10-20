@@ -8,6 +8,8 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Usage;
 import com.arte.ainew.pojo.generation.*;
+import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.GenerationProviderAdapter;
 import lombok.extern.slf4j.Slf4j;
@@ -17,14 +19,12 @@ import reactor.core.publisher.Flux;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * DeepSeek 单次文本生成映射
+ * DeepSeek 单次文本及工具提议映射
  * <p>
  * 每次订阅拥有独立、有界聚合状态，不调用网络、不推进执行状态。
  *
@@ -42,7 +42,8 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
         this.json = json;
         for (var capability : capabilities) {
             ContractChecks.require(capability.kind() == kind() && Set.of(CapabilityDescriptor.Feature.TEXT_INPUT,
-                            CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.USAGE_REPORTING).containsAll(capability.features()),
+                            CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.USAGE_REPORTING,
+                            CapabilityDescriptor.Feature.TOOL_CALLS).containsAll(capability.features()),
                     "Unsupported DeepSeek capability features");
         }
     }
@@ -64,24 +65,23 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
 
     @Override
     public DeepSeekWire.Request mapRequest(GatewayCall<GenerationRequest> call) {
+        return mapRequest(call, null);
+    }
+
+    @Override
+    public DeepSeekWire.Request mapRequest(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
         var input = call.request().input();
         if (!capabilities.contains(call.binding().capability())
                 || !call.binding().capability().features().contains(CapabilityDescriptor.Feature.STREAMING)
-                || !(input.outputFormat() instanceof GenerationRequest.TextOutput) || !input.tools().isEmpty()) {
+                || !(input.outputFormat() instanceof GenerationRequest.TextOutput)) {
             throw GenerationException.beforeSend("UNSUPPORTED_GENERATION_FEATURE");
         }
-        var messages = input.messages().stream().map(message -> {
-            if (message.role() == ChatMessage.Role.TOOL || !message.toolCalls().isEmpty()
-                    || message.content().stream().anyMatch(part -> !(part instanceof ChatMessage.Text))) {
-                throw GenerationException.beforeSend("UNSUPPORTED_GENERATION_FEATURE");
-            }
-            String text = message.content().stream().map(part -> ((ChatMessage.Text) part).text()).reduce("", String::concat);
-            return new DeepSeekWire.Message(message.role().name().toLowerCase(java.util.Locale.ROOT), text);
-        }).toList();
+        var toolProtocol = new DeepSeekToolProtocol(call, tools);
+        var messages = toolProtocol.messages(input.messages());
         var options = input.options();
         return new DeepSeekWire.Request(messages, call.binding().remoteOperation(), options.maxOutputTokens(),
                 options.temperature(), options.topP(), options.stopSequences().isEmpty() ? null : options.stopSequences(),
-                true, new DeepSeekWire.StreamOptions(true), new DeepSeekWire.Thinking("disabled"));
+                true, new DeepSeekWire.StreamOptions(true), new DeepSeekWire.Thinking("disabled"), toolProtocol.declarations());
     }
 
     /**
@@ -89,18 +89,27 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
      */
     @Override
     public ModelResult mapResult(SseFrame frame, GatewayCall<GenerationRequest> call) {
+        return mapResult(frame, call, null);
+    }
+
+    public ModelResult mapResult(SseFrame frame, GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
         if (!(frame instanceof SseFrame.Data data)) {
             throw GenerationException.output("INVALID_PROVIDER_RESPONSE");
         }
-        var state = new State(call);
+        var state = new State(call, tools);
         state.accept(parse(data), false);
         return state.result(true);
     }
 
     @Override
     public Flux<GenerationSignal> mapStream(Flux<SseFrame> responses, GatewayCall<GenerationRequest> call) {
+        return mapStream(responses, call, null);
+    }
+
+    @Override
+    public Flux<GenerationSignal> mapStream(Flux<SseFrame> responses, GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
         return Flux.defer(() -> {
-            var state = new State(call);
+            var state = new State(call, tools);
             return responses.takeUntil(frame -> frame instanceof SseFrame.Done).concatMap(frame -> {
                         if (frame instanceof SseFrame.Done) {
                             state.done = true;
@@ -144,6 +153,10 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
     private final class State {
         private final GatewayCall<GenerationRequest> call;
         private final StringBuilder text = new StringBuilder();
+        private final DeepSeekToolProtocol tools;
+        private final TreeMap<Integer, Proposal> proposals = new TreeMap<>();
+        private final Set<String> callIds = new HashSet<>();
+        private long characters;
         private long bytes;
         private String responseId;
         private String model;
@@ -151,8 +164,10 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
         private Usage usage = Usage.unknown();
         private boolean done;
 
-        State(GatewayCall<GenerationRequest> call) {
+        State(GatewayCall<GenerationRequest> call, ToolSetSnapshot snapshot) {
             this.call = call;
+            tools = new DeepSeekToolProtocol(call, snapshot);
+            tools.messages(call.request().input().messages());
         }
 
         List<GenerationSignal> accept(DeepSeekWire.Response response, boolean streaming) {
@@ -183,22 +198,28 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
                 var delta = streaming ? choice.delta() : choice.message();
                 if (delta != null) {
                     if (delta.role() != null && !delta.role().equals("assistant")
-                            || delta.reasoningContent() != null && !delta.reasoningContent().isEmpty()
-                            || delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
+                            || delta.reasoningContent() != null && !delta.reasoningContent().isEmpty()) {
                         throw GenerationException.output("UNSUPPORTED_PROVIDER_OUTPUT");
                     }
                     if (delta.content() != null && !delta.content().isEmpty()) {
                         if (finish != null) {
                             throw GenerationException.output("OUTPUT_AFTER_FINISH");
                         }
-                        long added = delta.content().getBytes(StandardCharsets.UTF_8).length;
-                        if (bytes + added > call.request().options().maxOutputBytes()
-                                || text.length() + delta.content().length() > ContractChecks.MAX_TEXT_CHARS) {
-                            throw GenerationException.output("OUTPUT_LIMIT_EXCEEDED");
-                        }
-                        bytes += added;
+                        consume(delta.content());
                         text.append(delta.content());
                         signals.add(new GenerationSignal.Delta(new GenerationEvent.TextDelta(delta.content())));
+                    }
+                    if (delta.toolCalls() != null) {
+                        if (delta.toolCalls().size() > ContractChecks.MAX_TOOLS)
+                            throw GenerationException.output("TOOL_CALL_LIMIT_EXCEEDED");
+                        var indices = new HashSet<Integer>();
+                        for (int i = 0; i < delta.toolCalls().size(); i++) {
+                            var proposal = delta.toolCalls().get(i);
+                            if (proposal == null) throw GenerationException.output("INVALID_TOOL_CALL");
+                            int index = streaming && proposal.index() != null ? proposal.index() : streaming ? -1 : i;
+                            if (!indices.add(index)) throw GenerationException.output("INVALID_TOOL_CALL_INDEX");
+                            signals.add(acceptProposal(index, proposal));
+                        }
                     }
                 }
                 if (choice.finishReason() != null) {
@@ -206,7 +227,7 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
                         case "stop" -> ModelResult.FinishReason.STOP;
                         case "length" -> ModelResult.FinishReason.LENGTH;
                         case "content_filter" -> ModelResult.FinishReason.CONTENT_FILTER;
-                        case "tool_calls" -> throw GenerationException.output("UNSUPPORTED_PROVIDER_OUTPUT");
+                        case "tool_calls" -> ModelResult.FinishReason.TOOL_CALLS;
                         default -> ModelResult.FinishReason.OTHER;
                     };
                     if (finish != null && finish != reason) {
@@ -238,17 +259,92 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
             return signals;
         }
 
+        private void consume(String fragment) {
+            long added = fragment.getBytes(StandardCharsets.UTF_8).length;
+            if (bytes + added > call.request().options().maxOutputBytes()
+                    || characters + fragment.length() > ContractChecks.MAX_TEXT_CHARS)
+                throw GenerationException.output("OUTPUT_LIMIT_EXCEEDED");
+            bytes += added;
+            characters += fragment.length();
+        }
+
+        private GenerationSignal acceptProposal(int index, DeepSeekWire.ToolProposal delta) {
+            if (finish != null) throw GenerationException.output("OUTPUT_AFTER_FINISH");
+            if (index < 0 || index >= ContractChecks.MAX_TOOLS)
+                throw GenerationException.output("INVALID_TOOL_CALL_INDEX");
+            if (!proposals.containsKey(index) && proposals.size() >= call.request().options().maxToolSteps())
+                throw GenerationException.output("TOOL_CALL_LIMIT_EXCEEDED");
+            if (delta.type() != null && !delta.type().equals("function"))
+                throw GenerationException.output("INVALID_TOOL_CALL");
+            var proposal = proposals.computeIfAbsent(index, ignored -> new Proposal());
+            if (delta.id() != null) {
+                if (delta.id().isBlank() || delta.id().length() > 256)
+                    throw GenerationException.output("INVALID_TOOL_CALL");
+                if (proposal.id != null && !proposal.id.equals(delta.id()))
+                    throw GenerationException.output("TOOL_CALL_ID_CHANGED");
+                if (proposal.id == null) {
+                    tools.requireNewId(delta.id());
+                    if (!callIds.add(delta.id())) throw GenerationException.output("DUPLICATE_TOOL_CALL_ID");
+                    proposal.id = delta.id();
+                }
+                consume(delta.id());
+            }
+            if (delta.type() != null) proposal.function = true;
+            var function = delta.function();
+            String fragment = function == null || function.arguments() == null ? "" : function.arguments();
+            String name = function == null ? null : function.name();
+            if (name != null) {
+                tools.named(name);
+                if (proposal.name != null && !proposal.name.equals(name))
+                    throw GenerationException.output("TOOL_CALL_NAME_CHANGED");
+                proposal.name = name;
+                consume(name);
+            }
+            if (delta.id() == null && name == null && fragment.isEmpty())
+                throw GenerationException.output("INVALID_TOOL_CALL");
+            consume(fragment);
+            proposal.argumentBytes += fragment.getBytes(StandardCharsets.UTF_8).length;
+            long limit = proposal.name == null ? ToolExecutionPolicy.MAX_INPUT_BYTES
+                    : tools.named(proposal.name).policy().maxInputBytes();
+            if (proposal.argumentBytes > limit) throw GenerationException.output("TOOL_ARGUMENT_LIMIT_EXCEEDED");
+            proposal.arguments.append(fragment);
+            return new GenerationSignal.Delta(new GenerationEvent.ToolCallDelta(index, delta.id(), name, fragment));
+        }
+
+        private final class Proposal {
+            String id;
+            String name;
+            boolean function;
+            long argumentBytes;
+            final StringBuilder arguments = new StringBuilder();
+        }
+
         ModelResult result(boolean terminal) {
             if (terminal && (finish == null || model == null || finish == ModelResult.FinishReason.STOP && text.toString().isBlank())) {
                 throw GenerationException.output("INVALID_PROVIDER_COMPLETION");
             }
-            var outputs = text.toString().isBlank() ? List.<ChatMessage>of() : List.of(new ChatMessage(
+            var completeCalls = new ArrayList<ToolCall>();
+            if (terminal) {
+                if (!proposals.isEmpty() && finish != ModelResult.FinishReason.TOOL_CALLS)
+                    throw GenerationException.output("INCOMPLETE_TOOL_CALLS");
+                if (finish == ModelResult.FinishReason.TOOL_CALLS) {
+                    if (proposals.isEmpty()) throw GenerationException.output("INVALID_PROVIDER_COMPLETION");
+                    int expected = 0;
+                    for (var entry : proposals.entrySet()) {
+                        var proposal = entry.getValue();
+                        if (entry.getKey() != expected++ || proposal.id == null || proposal.name == null || !proposal.function)
+                            throw GenerationException.output("INCOMPLETE_TOOL_CALLS");
+                        completeCalls.add(tools.complete(proposal.id, proposal.name, proposal.arguments.toString()));
+                    }
+                }
+            }
+            var outputs = text.toString().isBlank() && completeCalls.isEmpty() ? List.<ChatMessage>of() : List.of(new ChatMessage(
                     CanonicalJson.key(call.attempt().attemptId(), "assistant-output"), ChatMessage.Role.ASSISTANT,
-                    List.of(new ChatMessage.Text(text.toString())), List.of(), null));
+                    text.toString().isBlank() ? List.of() : List.of(new ChatMessage.Text(text.toString())), completeCalls, null));
             return new ModelResult(CanonicalJson.key(call.request().context().executionId(), call.attempt().attemptId(), "model-result"),
                     new ModelResult.ModelIdentity(providerId(), model, null), outputs,
-                    finish == null ? ModelResult.FinishReason.OTHER : finish,
-                    terminal && finish == ModelResult.FinishReason.STOP, null, usage, List.of());
+                    finish == null || !terminal && finish == ModelResult.FinishReason.TOOL_CALLS ? ModelResult.FinishReason.OTHER : finish,
+                    terminal && (finish == ModelResult.FinishReason.STOP || finish == ModelResult.FinishReason.TOOL_CALLS), null, usage, List.of());
         }
 
         GenerationSignal.Failure failure(Throwable error) {

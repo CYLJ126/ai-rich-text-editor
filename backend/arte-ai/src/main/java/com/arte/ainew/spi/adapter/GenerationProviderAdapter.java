@@ -4,6 +4,7 @@ import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
 import com.arte.ainew.pojo.generation.ModelResult;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import reactor.core.publisher.Flux;
 
 /**
@@ -17,6 +18,20 @@ import reactor.core.publisher.Flux;
  * @since 2026/10/5 13:09 ✾
  */
 public interface GenerationProviderAdapter<Q, S> extends ProviderAdapter<GenerationRequest, Q, S, ModelResult> {
+
+    /**
+     * 显式固定集合的协议入口；未实现工具协议的适配器默认拒绝。
+     */
+    default Q mapRequest(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
+        if (tools != null) throw new UnsupportedOperationException("Tool protocol is not supported");
+        return mapRequest(call);
+    }
+
+    default Flux<GenerationSignal> mapStream(Flux<S> responses, GatewayCall<GenerationRequest> call,
+                                             ToolSetSnapshot tools) {
+        if (tools != null) return Flux.error(new UnsupportedOperationException("Tool protocol is not supported"));
+        return mapStream(responses, call);
+    }
 
     Flux<GenerationSignal> mapStream(Flux<S> responses, GatewayCall<GenerationRequest> call);
 }

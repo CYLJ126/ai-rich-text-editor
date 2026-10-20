@@ -1,12 +1,15 @@
 # AI TOOL 实施记录
 
-日期：2026-10-19。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
+日期：2026-10-20。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
 当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关、S2-03 内部可靠受理／执行快照及
 S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06 分类容量／排队及 S2-07 目录／个人配置页面；17 个管理 API
 与现有当前授权接线完成。S2-08 已完成调用预览／可靠提交／结果和恢复页面；S2-09 已补齐正式宿主执行授权、真实文本工具及本机集成验收／性能基线，正式参考环境性能待验，详见
 §17。 TOOL 与分类调度 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量、TOOL RBAC 定义及 S2-07 菜单 DML 本轮未在配置中的业务数据库执行。
+
+S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； 工具聊天
+Run、自动子调用、累计预算及前端入口仍待后续批次，本批不开放工具聊天。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -1985,3 +1988,31 @@ reconcile 与原工作空间 WORKSPACE_UPDATE 的交集，不扩展公共角色�
 
 本轮后端 222 项、前端工具组件 61 项通过；新增人工核对双主体集成 8 项、前端核对组件 8 项和人工 DDL 升级验证。 全量 tsc 存在
 106 项未改动文件诊断，本批文件无诊断。真实 MySQL、多节点／性能及浏览器视觉验收未运行，不能以此宣称生产开放通过。
+
+## 32. S4-01：允许工具集合与模型协议（2026-10-20）
+
+完成内部 `ToolSetService`／`ToolSetSnapshot`，复用原管理 LIST 资格、当前必需 scopes、固定绑定解析及 Schema 存储。
+检查范围、重复产品／绑定及可用性，按顺序固定模型别名、准确工具版本、配置、有效策略及输入 Schema；可选策略只会进一步收紧。 模型网关及
+DeepSeek 适配器增加显式快照重载，旧纯文本方法继续使用原入口；缺少或不匹配的集合拒绝，未声明 `TOOL_CALLS` 的模型拒绝。
+
+DeepSeek 请求增加函数声明和 ASSISTANT／TOOL 消息映射。外发 Schema 移除内部 dialect，并显式保持 ARTE 对额外字段的默认拒绝语义。
+响应按 index 有界聚合，仅在明确结束、tool_calls finish 与全部调用身份／完整参数 JSON／Schema 通过后生成完整工具提议。 拒绝重复
+callId、未知名称、身份变化、重复键、尾随 JSON、不完整参数、配对缺失和超限；保留精确数字。 失败的部分结果只有文本及已知用量，不包含可供派发的工具提议。
+
+详细契约、错误码及下一批接线要求见 [S4-01 协议说明](TOOL_CHAT_PROTOCOL.md)。同步需求 §10.1／§10.4 和 HTTP 说明的当前边界。 无
+DDL、业务配置或前端变更；不创建 Run、不实现自动子调用、审批编排或累计预算，不改 Turn、历史及 codec。 快照仍为内部材料，后续 S4
+批次必须完成其耐久保存、恢复、重新授权和 Worker 传递，不能使用临时非耐久循环替代。
+
+验证：JDK 21 模块及依赖编译通过；以下定向与相邻回归共 90 项通过，0 失败、0 错误、0 跳过。 新增集合集成 2 项、协议 13 项、本地
+HTTP 工具往返 1 项；其余为既有生成、出口、装配、控制准备、Schema 与输出批处理回归。
+
+```bash
+cd backend
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl arte-ai -am \
+  -Dtest=ToolChatProtocolTest,ToolSetServiceTest,GenerationGatewayTest,GenerationAssemblyTest,GenerationEgressTest,ControlPreparationTest,ToolManagementAssemblyTest,ToolSchemaValidatorTest,GenerationOutputBatchesTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test -q
+```
+
+初次 HTTP 回归被沙箱禁止监听本地端口；允许临时本地监听后同组通过。 测试使用临时 H2 与回环
+HTTP，不读取业务库、不调用真实模型或领域工具；未运行全量后端测试、真实供应商、MySQL、多节点、性能或浏览器验收。 运行时仍出现既有
+macOS Netty 原生 DNS 库缺失、回退系统解析器的日志，不影响本组测试结果，本批未调整该环境依赖。

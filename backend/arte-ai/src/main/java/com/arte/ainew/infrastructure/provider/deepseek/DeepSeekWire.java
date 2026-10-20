@@ -24,10 +24,21 @@ public final class DeepSeekWire {
     public record Request(List<Message> messages, String model, @JsonProperty("max_tokens") int maxTokens,
                           BigDecimal temperature, @JsonProperty("top_p") BigDecimal topP, List<String> stop,
                           boolean stream, @JsonProperty("stream_options") StreamOptions streamOptions,
-                          Thinking thinking) {
+                          Thinking thinking, List<Tool> tools) {
     }
 
-    public record Message(String role, String content) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Message(String role, String content, @JsonProperty("tool_calls") List<ToolProposal> toolCalls,
+                          @JsonProperty("tool_call_id") String toolCallId) {
+        public Message(String role, String content) {
+            this(role, content, null, null);
+        }
+    }
+
+    public record Tool(String type, FunctionDefinition function) {
+    }
+
+    public record FunctionDefinition(String name, String description, Object parameters) {
     }
 
     public record StreamOptions(@JsonProperty("include_usage") boolean includeUsage) {
@@ -51,6 +62,7 @@ public final class DeepSeekWire {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ToolProposal(Integer index, String id, String type, Function function) {
     }
 

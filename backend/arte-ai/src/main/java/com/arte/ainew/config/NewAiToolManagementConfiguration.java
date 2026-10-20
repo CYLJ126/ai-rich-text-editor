@@ -1,6 +1,7 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
+import com.arte.ainew.application.tool.chat.ToolSetService;
 import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
 import com.arte.ainew.application.tool.management.ToolManagementService;
 import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
@@ -9,9 +10,11 @@ import com.arte.ainew.spi.persistence.ToolBindingStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.ainew.spi.persistence.ToolDiscoveryManagementStore;
 import com.arte.ainew.spi.persistence.ToolReleaseStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * 已有内部能力的管理用例装配；不触发 SQL、发现、发布或执行，HTTP 必须另外具备宿主授权端口。
@@ -22,6 +25,16 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(after = NewAiToolConfiguration.class)
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled"}, havingValue = "true")
 public class NewAiToolManagementConfiguration {
+
+    /**
+     * S4-01 内部集合准备；不注册聊天入口，不启动编排或执行。
+     */
+    @Bean
+    ToolSetService toolSetService(ToolBindingService bindings, ToolCatalogStore catalog,
+                                  @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler,
+                                  NewAiToolProperties properties) {
+        return new ToolSetService(bindings, catalog, scheduler, properties.discovery().sourceTimeout());
+    }
 
     @Bean
     ToolManagementService toolManagementService(ToolCatalogStore catalog, ToolReleaseStore releases, ToolBindingStore bindings,

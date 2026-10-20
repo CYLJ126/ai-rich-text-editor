@@ -51,7 +51,10 @@ public final class ToolCatalogDigests {
                 "defaultPolicy", tool.defaultPolicy()));
     }
 
-    private static Object jsonValue(StructuredValue value) {
+    /**
+     * 受控 JSON 值树到标准 JSON 数据；仅投影传入值，不附带 Java 类型或其他工件。
+     */
+    public static Object jsonValue(StructuredValue value) {
         return switch (value) {
             case StructuredValue.ObjectValue object -> {
                 var map = new TreeMap<String, Object>();

@@ -60,7 +60,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                             && INPUT_SCHEMA.equals(capability.inputSchema()) && OUTPUT_SCHEMA.equals(capability.outputSchema()),
                     "Only registered text generation schemas are supported");
             ContractChecks.require(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING,
-                    CapabilityDescriptor.Feature.USAGE_REPORTING).containsAll(capability.features())
+                    CapabilityDescriptor.Feature.USAGE_REPORTING, CapabilityDescriptor.Feature.TOOL_CALLS).containsAll(capability.features())
                     && capability.features().contains(CapabilityDescriptor.Feature.TEXT_INPUT), "Unsupported advertised capability features");
         }
         for (var binding : bindings.values()) {
@@ -244,7 +244,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         if (source != null) return current(request.context()).flatMap(catalog -> catalog.validate(request));
         return resolve(request.binding(), request.capability(), request.context()).flatMap(binding -> Mono.fromRunnable(() -> {
             if (!(request.input() instanceof GenerationRequest generation) || request.kind() != CapabilityDescriptor.Kind.GENERATION
-                    || !(generation.outputFormat() instanceof GenerationRequest.TextOutput) || !generation.tools().isEmpty()) {
+                    || !(generation.outputFormat() instanceof GenerationRequest.TextOutput)
+                    || !generation.tools().isEmpty() && !binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)) {
                 throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
             }
             var current = request.context();
@@ -257,7 +258,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                 throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);
             }
             var options = request.options();
-            if (options.maxToolSteps() != 0 || options.maxConcurrentTools() != 0
+            if (generation.tools().isEmpty() && (options.maxToolSteps() != 0 || options.maxConcurrentTools() != 0)
                     || options.maxOutputBytes() > properties.limits().maxOutputBytes()
                     || generation.options().maxOutputTokens() > properties.limits().maxOutputTokens()) {
                 throw new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED);

@@ -11,6 +11,7 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.adapter.GenerationProviderAdapter;
 import com.arte.ainew.spi.adapter.ProtocolAdapter;
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 单次文本网关，复用控制面及适配端口；不重试、不推进 Invocation 或预算。
+ * 单次模型网关，复用控制面及适配端口；不重试、不推进 Invocation、Run 或预算，不执行业务工具。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
@@ -65,6 +66,11 @@ public final class DefaultModelGateway<Q, S, H> implements ModelGateway {
 
     @Override
     public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call) {
+        return generate(call, null);
+    }
+
+    @Override
+    public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
         return Flux.defer(() -> {
             var interruption = new AtomicReference<Throwable>();
             // takeUntilOther 的 other.onError 不保证取消主流。将停止原因转换为值，
@@ -88,14 +94,14 @@ public final class DefaultModelGateway<Q, S, H> implements ModelGateway {
                         if (!provider.providerId().equals(connection.providerId()) || !protocol.definition().equals(connection.protocol())) {
                             return Flux.error(GenerationException.beforeSend("PROVIDER_PROTOCOL_NOT_SUPPORTED"));
                         }
-                        var request = provider.mapRequest(call);
+                        var request = provider.mapRequest(call, tools);
                         return Flux.usingWhen(runtime.acquire(connection, call.runtime()),
                                 lease -> protocol.exchange(request, lease, call), runtime::release,
                                         (lease, error) -> runtime.release(lease), runtime::release)
                                 .contextWrite(values -> values.put(GatewayCall.class, call));
                     }).takeUntilOther(stop).concatWith(Flux.defer(() -> interruption.get() == null
                             ? Flux.empty() : Flux.error(interruption.get())));
-            return provider.mapStream(frames, call);
+            return provider.mapStream(frames, call, tools);
         });
     }
 

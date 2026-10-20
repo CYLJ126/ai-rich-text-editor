@@ -5,6 +5,7 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import reactor.core.publisher.Flux;
 
 /**
@@ -33,4 +34,12 @@ public interface ModelGateway {
      * 业务失败转换为 Failure；订阅前校验／基础设施异常可 onError，协调器不得据此假定未执行。
      */
     Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call);
+
+    /**
+     * 内部单轮工具协议入口；快照须由受信集合准备流程产生，不接受 HTTP 直接绑定。
+     */
+    default Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
+        if (tools != null) return Flux.error(new UnsupportedOperationException("Tool protocol is not supported"));
+        return generate(call);
+    }
 }
