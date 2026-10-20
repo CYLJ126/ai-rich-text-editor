@@ -18,6 +18,32 @@ import java.util.function.Consumer;
  */
 public interface ToolChatRunStore {
 
+    /**
+     * 内部幂等定位；仍须复核当前授权与原请求意图。
+     */
+    default Mono<ToolChatRun> accepted(ExecutionOwner owner, String idempotencyKey) {
+        return Mono.error(new UnsupportedOperationException("Run replay lookup required"));
+    }
+
+    /**
+     * 持租短暂休眠，不增加状态版本或生成空进展事件。
+     */
+    default Mono<StoreOutcome<ToolChatCommands.Lease>> park(ToolChatCommands.Lease lease, Duration delay) {
+        return Mono.error(new UnsupportedOperationException("Run park required"));
+    }
+
+    /**
+     * 停止事实、命令防重和唤醒同事务保存；不持根锁等待子 Invocation 锁。
+     */
+    default Mono<StoreOutcome<ToolChatRun>> cancel(ExecutionOwner owner, String runId, String commandKey,
+                                                   Consumer<ToolChatCommands.Guard> authorization) {
+        return Mono.error(new UnsupportedOperationException("Run cancellation required"));
+    }
+
+    default Mono<Boolean> cancellationRequested(ExecutionOwner owner, String runId) {
+        return Mono.error(new UnsupportedOperationException("Run cancellation read required"));
+    }
+
     Mono<StoreOutcome<ToolChatRun>> accept(ToolChatRunSnapshot snapshot, Consumer<ToolChatRunSnapshot> authorization);
 
     /**

@@ -209,12 +209,14 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                     // 新受理重新按当前绑定／审核兼容链解析，拒绝预检后发生的配置或选版变化；重放不走此分支。
                     var loaded = new AtomicReference<ToolCatalogStore.Batch>();
                     var current = ToolObservation.call(COMMIT_GOVERNANCE, context,
-                            () -> bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId(), loaded::set));
+                            () -> context.parentExecutionId() == null
+                                    ? bindings.resolveInCurrentTransaction(owner, candidate.input().bindingId(), loaded::set)
+                                    : bindings.fixedInCurrentTransaction(owner, candidate.binding().definition()));
                     if (!current.successful()) throw new MybatisExecutionPersistence.Rejected(INVALID_STATE);
                     if (!current.value().equals(candidate.binding()))
                         throw new MybatisExecutionPersistence.Rejected(VERSION_CONFLICT);
                     var artifacts = loaded.get();
-                    if (artifacts == null || !new HashSet<>(artifacts.schemas()).equals(new HashSet<>(candidate.schemas())))
+                    if (context.parentExecutionId() == null && (artifacts == null || !new HashSet<>(artifacts.schemas()).equals(new HashSet<>(candidate.schemas()))))
                         throw new IllegalStateException("Tool execution schema integrity mismatch");
                     return ToolObservation.call(COMMIT_WRITES, context, () -> {
                         requireUnexpired(candidate);
@@ -227,6 +229,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                                 : executions.acceptWaitingToolInCurrentTransaction(command);
                         if (outcome.code() != APPLIED)
                             throw new IllegalStateException("Generic acceptance has no matching tool snapshot");
+                        executions.validateToolChatSnapshotInCurrentTransaction(candidate);
                         var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,
                                 candidate.submissionDigest(), candidate.requestDigest(), CanonicalJson.sha256(encoded), encoded);
                         if (mapper.insertToolSnapshot(row) != 1)

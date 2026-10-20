@@ -86,6 +86,44 @@ final class ToolChatBudgetPersistence {
     }
 
     /**
+     * 新子调用入库后、Outbox 提交前锁根复核；沿用子→根锁序，停止门闩之后不再受理。
+     */
+    void admit(Invocation child, Instant time) {
+        if (child.request().context().parentExecutionId() == null) return;
+        var row = runs.find(key(child.request().context().parentExecutionId()), true);
+        require(row != null, NOT_FOUND);
+        var fixed = decode(row.inputSnapshot(), row.inputDigest(), ToolChatRunSnapshot.class);
+        require(fixed.budgetPlan() != null, INVALID_STATE);
+        var selection = fixed.budgetPlan().selection(child.request().binding());
+        DispatchPreparationStore.BillingPlan billing = new DispatchPreparationStore.Free();
+        if (selection.mode() == DispatchPreparationStore.BillingMode.CHARGE) {
+            var stored = runs.step(key(child.request().context().executionId()));
+            require(stored != null, INVALID_STATE);
+            var step = decode(stored.snapshot(), stored.payloadDigest(), ToolChatStep.class);
+            require(step.input() instanceof ToolChatStep.Model, INVALID_STATE);
+            var model = (ToolChatStep.Model) step.input();
+            billing = new DispatchPreparationStore.Charge(selection.price().quote(model.context().budget().maxInputTokens(), fixed.generation().maxOutputTokens()),
+                    selection.rate(), java.time.Duration.ofHours(1));
+        }
+        guard(child, billing, time);
+    }
+
+    /**
+     * 子快照不能绕过 Run 选择时进一步收紧的审批、次数或容量策略。
+     */
+    void admitTool(ToolExecutionSnapshot child) {
+        String parent = child.request().context().parentExecutionId();
+        if (parent == null) return;
+        var row = runs.find(key(parent), true);
+        require(row != null, NOT_FOUND);
+        var fixed = decode(row.inputSnapshot(), row.inputDigest(), ToolChatRunSnapshot.class);
+        var entry = fixed.tools().tool(child.request().input().tool());
+        require(entry.binding().equals(child.binding())
+                && com.arte.ainew.application.tool.binding.ToolBindingConstraints.intersect(entry.policy(), child.policy()).equals(child.policy())
+                && child.schemas().contains(entry.inputSchema()), INVALID_STATE);
+    }
+
+    /**
      * Invocation／Outbox 已锁定后，锁原 Run 资格，再按币种取得预算行；无反向子 Invocation 锁。
      */
     Guard guard(Invocation invocation, DispatchPreparationStore.BillingPlan billing, Instant time) {
@@ -102,7 +140,7 @@ final class ToolChatBudgetPersistence {
                 && root.owner().equals(ExecutionOwner.from(snapshot.context())), OWNER_MISMATCH);
         require(snapshot.budgetPlan() != null && row.deadline() == snapshot.context().deadline().toEpochMilli(), INVALID_STATE);
         require(!root.state().terminal() && root.state() != ToolChatRun.State.PENDING_RECONCILIATION
-                && root.state() != ToolChatRun.State.WAITING_APPROVAL && time.toEpochMilli() < row.deadline()
+                && runs.receipt(row.runKey(), ToolChatCommands.CANCEL_MARKER) == null && time.toEpochMilli() < row.deadline()
                 && child.traceId().equals(snapshot.context().traceId()) && Objects.equals(child.releaseRef(), snapshot.context().releaseRef())
                 && !child.deadline().isAfter(snapshot.context().deadline())
                 && snapshot.context().authorization().scopes().containsAll(child.authorization().scopes())
@@ -126,11 +164,12 @@ final class ToolChatBudgetPersistence {
             require(invocation.request().input() instanceof GenerationRequest, INVALID_STATE);
             var generation = (GenerationRequest) invocation.request().input();
             require(Objects.equals(invocation.contextSnapshotId(), context.snapshotId()) && generation.messages().equals(context.messages())
-                    && generation.options().equals(snapshot.generation()), INVALID_STATE);
+                    && generation.options().equals(snapshot.generation()) && generation.tools().equals(snapshot.tools().descriptions()), INVALID_STATE);
             require(charge.rate().equals(selection.rate()), RATE_MISMATCH);
             require(charge.amount().equals(selection.price().quote(context.budget().maxInputTokens(), generation.options().maxOutputTokens())), INVALID_STATE);
         } else {
-            require(step.input() instanceof ToolChatStep.Tool && root.checkpoint().phase() == ToolChatRun.Phase.WAITING_TOOLS
+            require(step.input() instanceof ToolChatStep.Tool && (root.checkpoint().phase() == ToolChatRun.Phase.WAITING_TOOLS
+                    || root.checkpoint().phase() == ToolChatRun.Phase.WAITING_APPROVAL)
                     && invocation.request().input() instanceof ToolInvocation, INVALID_STATE);
             var call = ((ToolChatStep.Tool) step.input()).call();
             var actual = (ToolInvocation) invocation.request().input();

@@ -461,6 +461,71 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
         });
     }
 
+    @Override
+    public Mono<ToolChatRun> accepted(ExecutionOwner owner, String idempotencyKey) {
+        Objects.requireNonNull(owner);
+        id(idempotencyKey);
+        return io(() -> {
+            var row = mapper.accepted(ownerKey(owner), key(idempotencyKey));
+            return row == null ? null : read(row);
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<ToolChatCommands.Lease>> park(ToolChatCommands.Lease lease, Duration delay) {
+        Objects.requireNonNull(lease);
+        ContractChecks.require(!delay.isNegative() && delay.compareTo(Duration.ofMinutes(1)) <= 0, "Invalid Run park delay");
+        return write(() -> {
+            var row = owned(lease.owner(), lease.runId(), true);
+            require(row != null, NOT_FOUND);
+            var work = mapper.work(row.runKey());
+            long time = now();
+            require(holds(work, lease, time), LEASE_LOST);
+            long due = work.signalVersion() > lease.signalVersion() ? time : Math.min(row.deadline(), time + delay.toMillis());
+            mapper.updateWork(new ToolChatRunMapper.Work(row.runKey(), due, true, "", 0, work.fence(), work.signalVersion()));
+            return StoreOutcome.applied(lease);
+        });
+    }
+
+    @Override
+    public Mono<Boolean> cancellationRequested(ExecutionOwner owner, String runId) {
+        return io(() -> owned(owner, runId, false) != null && mapper.receipt(key(runId), ToolChatCommands.CANCEL_MARKER) != null);
+    }
+
+    @Override
+    public Mono<StoreOutcome<ToolChatRun>> cancel(ExecutionOwner owner, String runId, String commandKey,
+                                                  Consumer<ToolChatCommands.Guard> authorization) {
+        Objects.requireNonNull(authorization);
+        id(commandKey);
+        return write(() -> {
+            var preview = owned(owner, runId, false);
+            require(preview != null, NOT_FOUND);
+            // 先取得宿主公共资格锁，再锁根；与子受理的公共资格→子→根顺序一致。
+            authorization.accept(new ToolChatCommands.Guard(input(preview), read(preview)));
+            var row = owned(owner, runId, true);
+            require(row != null, NOT_FOUND);
+            var run = read(row);
+            authorization.accept(new ToolChatCommands.Guard(input(row), run));
+            String key = key("tool-chat-cancel-command-v1", commandKey);
+            var previous = mapper.receipt(row.runKey(), key);
+            if (previous != null) {
+                var receipt = decode(previous.snapshot(), previous.payloadDigest(), ToolChatCommands.Receipt.class);
+                require(receipt.run().runId().equals(runId) && receipt.run().owner().equals(owner), OWNER_MISMATCH);
+                return StoreOutcome.replayed(receipt.run());
+            }
+            String text = encode(new ToolChatCommands.Receipt(run, List.of()));
+            var receipt = new ToolChatRunMapper.Receipt(key, CanonicalJson.sha256(text), text);
+            mapper.insertReceipt(row.runKey(), key, receipt);
+            if (!run.state().terminal() && mapper.receipt(row.runKey(), ToolChatCommands.CANCEL_MARKER) == null)
+                mapper.insertReceipt(row.runKey(), ToolChatCommands.CANCEL_MARKER, receipt);
+            if (!run.state().terminal()) {
+                var w = mapper.work(row.runKey());
+                mapper.updateWork(new ToolChatRunMapper.Work(row.runKey(), now(), true, w.workerId(), w.leaseUntil(), w.fence(), Math.incrementExact(w.signalVersion())));
+            }
+            return StoreOutcome.applied(run);
+        });
+    }
+
     private static boolean holds(ToolChatRunMapper.Work w, ToolChatCommands.Lease lease, long time) {
         return w != null && w.enabled() && w.fence() == lease.fence() && w.workerId().equals(lease.workerId())
                 && lease.signalVersion() <= w.signalVersion() && w.leaseUntil() > time;
@@ -502,12 +567,16 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
         Objects.requireNonNull(c);
         Objects.requireNonNull(authorization);
         return write(() -> {
+            var preview = owned(c.lease().owner(), c.lease().runId(), false);
+            require(preview != null, NOT_FOUND);
+            authorization.accept(new ToolChatCommands.Guard(input(preview), read(preview)));
             var row = owned(c.lease().owner(), c.lease().runId(), true);
             require(row != null, NOT_FOUND);
             var run = read(row);
             var snapshot = input(row);
             authorization.accept(new ToolChatCommands.Guard(snapshot, run));
             String digest = ToolChatRunDigests.advance(c), commandKey = key(c.commandKey());
+            require(!commandKey.equals(ToolChatCommands.CANCEL_MARKER), INVALID_STATE);
             var receipt = mapper.receipt(row.runKey(), commandKey);
             if (receipt != null) {
                 require(receipt.requestDigest().equals(digest), IDEMPOTENCY_CONFLICT);
@@ -521,6 +590,8 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             require(holds(work, c.lease(), time), LEASE_LOST);
             require(run.version() == c.expectedVersion(), VERSION_CONFLICT);
             require(!run.state().terminal(), INVALID_STATE);
+            require(mapper.receipt(row.runKey(), ToolChatCommands.CANCEL_MARKER) == null
+                    || c.state() == ToolChatRun.State.CANCELLED || c.state() == ToolChatRun.State.TIMED_OUT, INVALID_STATE);
             require(time < row.deadline() || c.state() == ToolChatRun.State.TIMED_OUT || c.state() == ToolChatRun.State.CANCELLED, INVALID_STATE);
             require(c.state() != ToolChatRun.State.TIMED_OUT || time >= row.deadline(), INVALID_STATE);
             var previousSteps = steps(row);

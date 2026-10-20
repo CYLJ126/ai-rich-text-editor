@@ -41,7 +41,7 @@ import java.util.function.BiFunction;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 独立本地免费只读 TOOL 的内部可靠受理
+ * 本地免费 TOOL 的内部可靠受理；独立意图与受信 Run 子调用使用明确分开的入口。
  * <p>
  * 不调用 Gateway、不创建 Attempt，也不选择模型或预算。
  * 先按稳定绑定定位重放，再对原材料重新授权；新调用固定参数／配置／Schema／总期限后经同库事务提交。
@@ -100,6 +100,47 @@ public final class ToolAdmissionService {
      */
     public Mono<AcceptedExecution> submit(ToolAdmissionInput input, ExecutionContext context) {
         return submit(input, null, context);
+    }
+
+    /**
+     * 仅供受信 Run 编排调用，固定模型提议的 callId／版本／策略；公共独立提交仍拒绝 parent。
+     * Store 在子 Invocation 写事务内再锁原 Run 核验步骤及停止门闩，不以该方法参数作为外发许可。
+     */
+    public Mono<AcceptedExecution> submitChild(ToolChatRunSnapshot root, ToolChatStep step, ExecutionContext context) {
+        return Mono.defer(() -> {
+            require(step.input() instanceof ToolChatStep.Tool && root.context().executionId().equals(step.runId())
+                    && step.runId().equals(context.parentExecutionId()) && step.childExecutionId().equals(context.executionId())
+                    && root.context().traceId().equals(context.traceId()) && context.budgetRef() == null
+                    && ExecutionOwner.from(root.context()).equals(ExecutionOwner.from(context)), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
+            var call = ((ToolChatStep.Tool) step.input()).call();
+            var entry = root.tools().tool(call.tool());
+            var input = new ToolAdmissionInput(entry.binding().definition().id(), call.arguments(), entry.policy().timeout(),
+                    entry.policy().maxAttempts(), entry.policy().maxOutputBytes());
+            return store.snapshot(ExecutionOwner.from(context), step.childExecutionId()).flatMap(previous -> {
+                require(previous.request().input().callId().equals(call.callId()) && previous.request().input().arguments().equals(call.arguments())
+                                && previous.binding().equals(entry.binding()) && previous.policy().equals(ToolBindingConstraints.intersect(entry.policy(), limits)),
+                        ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+                return permit(previous.input(), context, previous.binding()).flatMap(p -> approval(previous, context, true)
+                        .flatMap(a -> commit(previous, new VerifiedPermit(p.permit(), p.authorization(), a), null, false)));
+            }).switchIfEmpty(Mono.defer(() -> bindings.fixed(ExecutionOwner.from(context), entry.binding().definition()).flatMap(binding -> {
+                require(binding.successful() && binding.value().equals(entry.binding()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
+                var policy = ToolBindingConstraints.intersect(entry.policy(), limits);
+                return documents(entry.binding(), null).publishOn(scheduler).flatMap(documents -> {
+                    validate(input, entry.binding(), documents, policy);
+                    return permit(input, context, entry.binding()).flatMap(p -> {
+                        Instant deadline = earlier(context.deadline(), step.plannedAt().plus(policy.timeout()));
+                        remaining(deadline);
+                        var child = new ExecutionContext(context.executionId(), context.traceId(), p.authorization(), deadline,
+                                step.runId(), null, context.releaseRef(), context.idempotencyKey());
+                        var invocation = new ToolInvocation(call.callId(), call.tool(), call.arguments());
+                        var options = new ExecutionOptions(deadline, policy.maxAttempts(), policy.maxOutputBytes(), 0, 0, policy.timeout());
+                        var request = new InvocationRequest<>(entry.binding().tool().tool().capability(), entry.binding().definition(), invocation.kind(), invocation, options, child);
+                        var fixed = new ToolExecutionSnapshot(input, request, entry.binding(), policy, documents, step.plannedAt());
+                        return approval(fixed, context, false).flatMap(a -> commit(fixed, new VerifiedPermit(p.permit(), p.authorization(), a), null, true));
+                    });
+                });
+            }))).subscribeOn(scheduler);
+        });
     }
 
     /**

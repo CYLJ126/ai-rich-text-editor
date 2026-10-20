@@ -49,9 +49,11 @@ public class NewAiExecutionConfiguration {
     GenerationDispatcher dispatcher(AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                     MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, ModelGateway gateway,
                                     NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock,
-                                    LiveTextNotifier liveText) {
-        return new GenerationDispatcher(authorization, catalog, executions, executions, executions, payloads, payloads,
+                                    LiveTextNotifier liveText, ObjectProvider<com.arte.ainew.spi.persistence.ToolChatRunStore> runs) {
+        var dispatcher = new GenerationDispatcher(authorization, catalog, executions, executions, executions, payloads, payloads,
                 executions, gateway, admission, execution, clock, liveText);
+        var store = runs.getIfAvailable();
+        return store == null ? dispatcher : dispatcher.toolChats(store);
     }
 
     @Bean("newAiInvocationCoordinator")

@@ -50,7 +50,7 @@ public class NewAiToolChatController {
     @PostMapping("/getRunStatus")
     public Mono<ResultContext<ToolChatRunStatusResponse>> status(@Valid @RequestBody ToolChatRequests.Query request, Locale locale) {
         return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
-                c -> queries.status(request.runId(), c)).map(r -> ResultContext.success(ToolChatRunStatusResponse.from(r), ResultCodeEnum.SUCCESS, locale));
+                c -> queries.statusView(request.runId(), c)).map(r -> ResultContext.success(ToolChatRunStatusResponse.from(r.run(), r.cancellationRequested()), ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getRunBudget")

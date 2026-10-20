@@ -50,6 +50,7 @@ public class ToolChatBudgetStoreTest {
         final MybatisExecutionPersistence second = new MybatisExecutionPersistence(r.source, r.codec, r.io);
         final ToolChatRunSnapshot s;
         Invocation child;
+        StoreOutcome.Code acceptanceCode;
         OutboxMessage claim;
 
         Rig() {
@@ -82,7 +83,7 @@ public class ToolChatBudgetStoreTest {
             CapabilityInput input;
             com.arte.ainew.common.reference.DefinitionRef binding, capability;
             if (step.input() instanceof ToolChatStep.Model model) {
-                input = new GenerationRequest(model.context().messages(), s.generation(), List.of(), new GenerationRequest.TextOutput());
+                input = new GenerationRequest(model.context().messages(), s.generation(), s.tools().descriptions(), new GenerationRequest.TextOutput());
                 binding = s.model().definition();
                 capability = s.model().capability().definition();
             } else {
@@ -92,10 +93,18 @@ public class ToolChatBudgetStoreTest {
                 binding = b.definition();
                 capability = b.tool().tool().capability();
             }
-            var request = new InvocationRequest<>(capability, binding, input.kind(), input, new ExecutionOptions(c.deadline(), 3, 4096, 0, 0), context);
+            var request = new InvocationRequest<>(capability, binding, input.kind(), input, new ExecutionOptions(c.deadline(), 3, 4096, input instanceof GenerationRequest ? 5 : 0, input instanceof GenerationRequest ? 1 : 0), context);
             var candidate = new Invocation(request, key("child-request", step.childExecutionId()), null,
                     input instanceof GenerationRequest ? s.initialContext().snapshotId() : null, null, Invocation.State.ACCEPTED, 0, null, null, null, s.receivedAt(), s.receivedAt());
-            child = first.accept(new ExecutionCommands.Accept(candidate, null)).block(WAIT).value();
+            var accepted = first.accept(new ExecutionCommands.Accept(candidate, null)).block(WAIT);
+            acceptanceCode = accepted.code();
+            if (!accepted.successful()) {
+                assertEquals(INVALID_STATE, accepted.code());
+                child = null;
+                return;
+            }
+            assertTrue(accepted.toString(), accepted.successful());
+            child = accepted.value();
             claim = first.claim(OutboxMessage.Kind.DISPATCH, "worker", Duration.ofSeconds(45), 10).block(WAIT).stream()
                     .filter(m -> m.invocationId().equals(step.childExecutionId())).findFirst().orElseThrow();
         }
@@ -263,7 +272,8 @@ public class ToolChatBudgetStoreTest {
                 assertTrue(f.budget().blocked());
                 assertEquals(money(actual), f.account().charged());
                 f.nextModel();
-                assertEquals(INVALID_STATE, f.first.prepareDispatch(f.command()).block(WAIT).code());
+                assertEquals(INVALID_STATE, f.acceptanceCode);
+                assertNull(f.child); // 超额阻断已前移到新子调用受理边界。
                 assertEquals(1, f.r.count("arte_ai_tool_chat_budget_allocation"));
             }
     }
@@ -346,7 +356,7 @@ public class ToolChatBudgetStoreTest {
     public void legacyRunCannotDispatchWithoutExplicitBudgetPlan() {
         try (var f = new Rig("1", "100", false)) {
             assertTrue(f.r.store.budgets(f.r.owner, "run").block(WAIT).isEmpty());
-            assertEquals(INVALID_STATE, f.first.prepareDispatch(f.command()).block(WAIT).code());
+            assertNull(f.child); // 无预算快照在子受理边界即被拒绝。
             assertEquals(0, f.r.count("arte_ai_attempt"));
             assertEquals(0, f.r.count("arte_ai_reservation"));
         }

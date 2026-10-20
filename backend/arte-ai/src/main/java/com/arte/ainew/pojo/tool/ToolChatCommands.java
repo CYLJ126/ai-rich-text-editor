@@ -17,6 +17,11 @@ import java.util.Objects;
  */
 public final class ToolChatCommands {
 
+    /**
+     * Run 命令表中保留的停止门闩键；普通推进命令不得占用该命名空间。
+     */
+    public static final String CANCEL_MARKER = com.arte.ainew.serialization.CanonicalJson.key("tool-chat-cancel-marker-v1");
+
     private ToolChatCommands() {
     }
 

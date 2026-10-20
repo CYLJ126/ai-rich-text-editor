@@ -1,5 +1,9 @@
 # 最小 AI 数据契约 v1
 
+> S4-05：Run 子工具的 tool-execution-snapshot 使用 v4，父 Run、模型 callId 和收紧政策经耐久步骤校验；旧独立 v1／v2／v3
+> 不变。子模型使用独立受理摘要，普通文本摘要不变；Run 输入仍 v2、Run 状态及账本版本不变，无新增 DDL。Run 状态 HTTP 增加
+> cancellationRequested；升级与命令命名空间见 [执行说明](TOOL_CHAT_EXECUTION.md)。
+
 > S4-04：带预算计划的 tool-chat-run-snapshot 使用 v2，旧无计划保持 v1；新增 tool-chat-budget／tool-chat-budget-allocation
 > v1。预算查询金额使用十进制字符串，既有 Invocation／Attempt 和账户编码不变，见 [预算说明](TOOL_CHAT_BUDGET.md)。
 

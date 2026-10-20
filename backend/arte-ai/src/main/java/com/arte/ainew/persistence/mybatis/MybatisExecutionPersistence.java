@@ -598,6 +598,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var accepted = new Invocation(candidate.request(), candidate.requestDigest(), link, candidate.contextSnapshotId(),
                 candidate.replacesInvocationId(), Invocation.State.ACCEPTED, 0, null, null, null, acceptedAt, acceptedAt);
         execution.insertInvocation(hash(id(accepted)), ownerKey(owner), codec.encode(accepted), tool && !waitingApproval ? 1 : 0);
+        runBudgets.admit(accepted, acceptedAt);
         execution.insertAcceptance(scope, key, accepted.requestDigest(), hash(id(accepted)));
         if (waitingApproval) {
             event(accepted, null, new ExecutionPayload.Status(Invocation.State.ACCEPTED));
@@ -620,6 +621,10 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     DispatchPlan toolDispatchPlan(String provider, Duration declaredTimeout) {
         return scheduling.toolPlan(provider, declaredTimeout);
+    }
+
+    void validateToolChatSnapshotInCurrentTransaction(com.arte.ainew.pojo.tool.ToolExecutionSnapshot snapshot) {
+        runBudgets.admitTool(snapshot);
     }
 
     /**

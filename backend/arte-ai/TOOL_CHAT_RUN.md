@@ -1,5 +1,8 @@
 # S4-02：ToolChatRun 存储与推进基础
 
+> S4-05 已在独立默认关闭开关下完成真实受理、循环、审批／停止及 UNKNOWN 恢复，见 [执行说明](TOOL_CHAT_EXECUTION.md)。下文保留
+> S4-02 批次边界。
+
 > 后续 S4-03 已完成聊天关联受理、类型化 Turn、Run 事件／Outbox、最终回答投影和只读查询，见 [兼容说明](TOOL_CHAT_HISTORY.md)
 > 。本文其余部分保留 S4-02 批次边界。
 

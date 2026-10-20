@@ -106,7 +106,7 @@ final class ToolExecutionFixture implements AutoCloseable {
     final AtomicReference<LocalToolCall> invoked = new AtomicReference<>();
     Function<LocalToolCall, Mono<ToolResult>> operation = call -> Mono.just(success(call));
     final Fixture v1, v2;
-    final ToolExecutionPolicy limits = new ToolExecutionPolicy(Duration.ofSeconds(30), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE);
+    final ToolExecutionPolicy limits;
     ToolBindingDefinition binding;
     final AtomicInteger authorizations = new AtomicInteger(), guards = new AtomicInteger(), wakeups = new AtomicInteger();
     Consumer<ExecutionContext> authorizationHook = ignored -> {
@@ -150,6 +150,11 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk) throws Exception {
+        this(policy, risk, new ToolExecutionPolicy(Duration.ofSeconds(30), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE));
+    }
+
+    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits) throws Exception {
+        this.limits = limits;
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
         ddl = source.getConnection();
         new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql")).populate(ddl);

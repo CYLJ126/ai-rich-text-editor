@@ -127,7 +127,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered snapshot type");
         }
         var node = mapper.createObjectNode();
-        node.put("schemaVersion", value instanceof ToolExecutionSnapshot writeSnapshot
+        node.put("schemaVersion", value instanceof ToolExecutionSnapshot childSnapshot && childSnapshot.request().context().parentExecutionId() != null
+                ? 4 : value instanceof ToolExecutionSnapshot writeSnapshot
                 && writeSnapshot.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
                 ? 3 : value instanceof ToolChatRunSnapshot run && run.budgetPlan() != null || value instanceof Turn || value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
                 && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT
@@ -162,7 +163,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Snapshot version must be an integer");
         if ((version != 1 && !((expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
                 || expectedType == ToolExecutionSnapshot.class) && version == 2)
-                && !(expectedType == ToolExecutionSnapshot.class && version == 3))
+                && !(expectedType == ToolExecutionSnapshot.class && (version == 3 || version == 4)))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
@@ -177,7 +178,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");
         var value = mapper.treeToValue(body, expectedType);
-        if (value instanceof ToolExecutionSnapshot snapshot && version != (snapshot.binding().tool().tool().risk().sideEffect()
+        if (value instanceof ToolExecutionSnapshot snapshot && version != (snapshot.request().context().parentExecutionId() != null ? 4 : snapshot.binding().tool().tool().risk().sideEffect()
                 == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE ? 3
                 : snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE ? 2 : 1))
             throw new IllegalArgumentException("Tool approval policy does not match snapshot version");

@@ -13,11 +13,15 @@ import java.time.Instant;
  */
 public record ToolChatRunStatusResponse(String runId, ToolChatRun.State state, long version,
                                         ToolChatRun.Checkpoint checkpoint, int modelSteps, int toolSteps,
-                                        boolean resultAvailable,
+                                        boolean resultAvailable, boolean cancellationRequested,
                                         ExecutionError error, Instant acceptedAt, Instant updatedAt) {
 
     public static ToolChatRunStatusResponse from(ToolChatRun run) {
+        return from(run, false);
+    }
+
+    public static ToolChatRunStatusResponse from(ToolChatRun run, boolean cancelling) {
         return new ToolChatRunStatusResponse(run.runId(), run.state(), run.version(), run.checkpoint(), run.modelSteps(), run.toolSteps(),
-                run.result() != null, run.error(), run.acceptedAt(), run.updatedAt());
+                run.result() != null, cancelling, run.error(), run.acceptedAt(), run.updatedAt());
     }
 }

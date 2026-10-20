@@ -10,7 +10,8 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 
 S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
 Run 存储、检查点、步骤计划和耐久工作项，见 §33。S4-03 完成类型化候选、Run 事件／Outbox、会话占用、最终回答投影及只读查询，见
-§34；S4-04 已完成固定预算计划、子账户选择和同库附加预算约束，见 §35。自动子调用、工具聊天提交及前端入口仍待后续批次。
+§34；S4-04 已完成固定预算计划、子账户选择和同库附加预算约束，见 §35。S4-05 已完成真实受理、自动子调用、审批／停止／UNKNOWN 恢复与
+Run 通知消费，见 §36；页面与工具聊天重新生成留 S4-06。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2134,3 +2135,70 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl art
 本轮未连接或修改配置中的业务数据库、执行部署 DDL、改动业务配置或重启应用。已有 S4-03 环境须按预算说明停写、备份并显式升级，全体节点协调后再写
 v2。S4-05 的真实子调用受理／自动循环／审批／取消传播、S4-06 的页面仍未实现；远端／付费工具、自动换账户、每账户独立的 Run
 子上限及问题适配全局自动停用不在本批。
+
+## 36. S4-05：工具聊天受理、循环与恢复（2026-10-20）
+
+本批完成 `ToolChatService`／`ToolChatCoordinator`／`ToolChatWorker` 的真实后端闭环，详细契约、请求、开关及协调升级要求见
+[执行说明](TOOL_CHAT_EXECUTION.md)。页面与工具聊天重新生成意图仍留 S4-06。
+
+### 36.1 实现范围
+
+- 新增独立默认关闭的 `arte.ai-new-tool-chat.enabled`、Worker 开关及有界领取参数；关闭时不注册提交入口或启动循环。
+  启用后缺少模型派发、工具准入、预算或宿主授权则装配失败，不注册空实现。
+- `submitToolChat` 只接收用户文本和选择意图，复用原历史／工具集合／模型解析／预算选择，并原子受理 Run、Turn、会话占用及恢复工作项。
+  返回 RUN 回执；重放复用原历史和期限，并发冲突后重新定位胜出的原 Run，异义冲突。
+- 统一 GenerationDispatcher 从原 Run 加载固定集合并调用工具协议重载。完整权威结果通过准确版本、callId、Schema、配对及剩余上限检查后，才创建工具步骤／子调用。
+  工具受理及派发同库核验原步骤、父身份、停止门闩及进一步收紧的审批／次数／容量政策。
+- 工具结果从原 Invocation／Result／工具快照读取并复核输出 Schema，只向模型回填已校验的结构化业务输出。
+  输入容量计入描述、Schema、参数和结果；完整最终回答继续走原 Turn／历史／目录／搜索投影。
+- 只读按 Run 名额并发，包含写提议的整组串行；当前模型步骤 maxAttempts=1，工具 Attempt 仍受原政策约束。
+  审批沿用原实例和决定事务，批准后复用原子调用；已知失败／拒绝停止整轮，UNKNOWN 暂停新外发并接入原核对，可信收敛后在原期限内恢复。
+- `cancelRun` 将停止门闩、回执与唤醒同事务保存；状态接口新增 cancellationRequested。 Worker
+  在根事务外向已受理子调用传播耐久取消，再提交根收尾；过期／撤权也能进行基础设施停止，不释放未知费用或抹掉业务事实。
+- park 不产生空状态版本；失租拒绝推进。下一轮上下文创建时间和即刻唤醒意图由原检查点确定，重复准备不因本机当前时间变化而漂移。
+  RUN_EVENT 由独立发布器校验、发出本机有界提示并 ACK；跨节点读取仍补读独立耐久游标，未新增 Run SSE／Redis 广播。
+- 正式宿主新增 Run 当前授权和停止门控，复用原 RBAC、空间及稳定主体；关闭空间 AI 后本人仍可停止，撤权后的旧许可在写事务内失效。
+  本地写工具及原领域回执核对支持准确 Run 子身份；独立公开 TOOL 提交依旧拒绝 parent 参数。
+
+### 36.2 数据与文档
+
+无新增 DDL 或运行时建表。停止事实复用原 Run 命令表的独立命名空间，不用根锁等待子锁。 Run 子工具快照使用 v4，旧独立工具
+v1／v2／v3 不变；新子模型受理使用独立语义摘要，普通文本摘要、Invocation／Attempt 及账本编码不变。 协调升级全部可能消费
+Run／子调用／审批／核对的节点后，再开放新提交及 Worker。
+
+同步需求文档 V0.11、协议／存储／历史／预算说明、HTTP、数据契约和前端服务 README；未实现或修改前端功能。
+
+### 36.3 验证与已知边界
+
+全部使用 JDK 21、离线 Maven、临时 H2／MockMvc／固定模型与本地域响应，不连接配置业务数据库或真实模型供应商。
+
+- 本批新增 22 项：Run 循环 15、HTTP 3、装配／Run 通知 3、正式宿主 Run 授权 1，均通过。
+  覆盖完整闭环、两个崩溃窗口、同键并发、预算／轮次／期限、真实子停止门闩、审批批准／拒绝、失租、UNKNOWN 原工具核对后恢复、
+  不完整／重复提议不重做、超额保留现成最终回答、金额及请求白名单、停止可见性和 v4 防降级。
+- 最后一轮定向回归为 arte-ai 46 类 574 项、arte-app 5 类 67 项，共 **641 项通过、0 失败／错误／跳过**。 除上述新增用例外，覆盖原工具
+  Schema／目录／绑定／受理／网关／Worker／调度／审批／核对及正式宿主执行／写入／权限。 随后固定重复准备的时间输入，并再次运行本批 3
+  个 AI 测试类：21 项通过。
+- 扩大 AI 回归首次选择 101 类，共 1122 项；沙箱阻止本机 HTTP 监听造成 57 个错误。 放开本机监听后，排除下面 6 个独立失败或人工验收类，95
+  类共 **1080 项，1053 通过、27 原有跳过、0 失败／错误**； 包括普通聊天的 DispatchIntegrationTest 36 项和模型 Gateway 20
+  项，以及真实本机 HTTP／SSE 工具协议用例。
+- 扩大回归没有全绿：ProfileConfigurationTest 4 项中有 1 失败、2 配置装配错误；搜索的
+  ConversationSearchHttpTest、ConversationSearchServiceTest、 SearchContractsTest、ConversationSearchReadPersistenceTest 合计
+  20 个错误，来自未改动的 ConversationSearchIndex.Hit 对含 null 排序值使用 List.copyOf。 相关源码和用例已与 HEAD
+  对比确认未修改；配置文件保留原工作区改动，未顺手修复这些非本批问题。 ToolRunBrowserAcceptanceTest
+  是需要真实浏览器桥接的人工入口，本批没有启动该桥接或宣称浏览器验收通过。
+- 额外运行的 NewAiWebScanningTest 原有 1 项失败：期望集合未包含既有 NewAiToolInvocationController。 两个文件均与 HEAD
+  一致，新工具聊天命令控制器默认关闭，没有出现在该失败的实际集合中；未修改这项旧期望。 宿主测试第一次因沙箱阻止 Mockito JVM
+  attach 失败，允许本机测试代理后，上述 67 项通过。
+- `git diff --check` 通过。未运行生产 MySQL／Redis／ES、多节点切换、生产负载、真实供应商或前端／浏览器验收。
+
+本批 AI 用例的复现命令（仓库根目录）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest='ToolChatLoopTest,ToolChatCommandHttpTest,ToolChatRuntimeAssemblyTest' -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+较大定向回归按 arte-ai 下已发现的 Tool 开头测试类、Codec 类和 ContractValidationTest 显式展开名称，排除人工
+ToolRunBrowserAcceptanceTest， 再追加
+PlatformToolChatAccessIntegrationTest、PlatformToolExecutionIntegrationTest、PlatformToolWriteIntegrationTest、
+PlatformToolOutcomeIntegrationTest、PlatformToolManagementAccessTest，以 `-pl arte-app -am` 运行。 共享／本机业务配置、业务库
+DDL／回填和应用重启均未执行；本批不声明生产开放或性能验收完成。

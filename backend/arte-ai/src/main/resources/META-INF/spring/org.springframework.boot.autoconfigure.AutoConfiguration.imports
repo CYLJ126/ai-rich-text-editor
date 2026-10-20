@@ -4,6 +4,7 @@ com.arte.ainew.config.NewAiToolGatewayConfiguration
 com.arte.ainew.config.NewAiToolExecutionConfiguration
 com.arte.ainew.config.NewAiToolManagementConfiguration
 com.arte.ainew.config.NewAiToolChatConfiguration
+com.arte.ainew.config.NewAiToolChatExecutionConfiguration
 com.arte.ainew.config.NewAiGenerationConfiguration
 com.arte.ainew.config.NewAiExecutionConfiguration
 com.arte.ainew.config.NewAiSearchConfiguration

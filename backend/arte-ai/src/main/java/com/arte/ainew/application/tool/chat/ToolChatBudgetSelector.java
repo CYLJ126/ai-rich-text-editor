@@ -115,7 +115,7 @@ public final class ToolChatBudgetSelector {
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> {
             var owner = ExecutionOwner.from(current);
             return runs.find(owner, runId).switchIfEmpty(denied()).flatMap(run -> {
-                if (run.state().terminal() || run.state() == ToolChatRun.State.PENDING_RECONCILIATION || run.state() == ToolChatRun.State.WAITING_APPROVAL
+                if (run.state().terminal() || run.state() == ToolChatRun.State.PENDING_RECONCILIATION
                         || !run.checkpoint().children().contains(childId)) return denied();
                 return runs.snapshot(owner, runId).switchIfEmpty(denied()).flatMap(fixed -> {
                     if (fixed.budgetPlan() == null || !fixed.context().authorization().principal().equals(current.authorization().principal())

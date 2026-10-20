@@ -138,7 +138,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
     public void recordUnknownInCurrentTransaction(Invocation inv) {
         transaction();
         check(inv.state() == Invocation.State.UNKNOWN && inv.request().kind() == CapabilityDescriptor.Kind.TOOL);
-        if (inv.request().context().budgetRef() != null || inv.request().context().parentExecutionId() != null || inv.activeAttemptId() == null)
+        if (inv.request().context().budgetRef() != null || inv.activeAttemptId() == null)
             return;
         String hash = key(inv.request().context().executionId());
         if (jobs.find(hash, true) != null) return;

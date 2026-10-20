@@ -48,7 +48,7 @@ public final class LocalWorkspaceOutcomeQuery implements ToolOutcomeQueryAdapter
 
     public boolean supports(ToolExecutionSnapshot snapshot) {
         return snapshot.binding().tool().equals(contract.revision()) && snapshot.binding().effectiveConfiguration().fields().isEmpty()
-                && snapshot.request().context().budgetRef() == null && snapshot.request().context().parentExecutionId() == null;
+                && snapshot.request().context().budgetRef() == null;
     }
 
     public String operationKey(ToolExecutionSnapshot snapshot) {

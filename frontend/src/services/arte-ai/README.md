@@ -103,5 +103,6 @@ Redis 实现，前端继续使用相同 SSE/HTTP API 与 sequence 游标。
 和待对账预算，继续以状态接口和终态结果为准。
 
 S4-03：Turn 响应新增 `candidates`／`selectedCandidate`；`invocationIds` 只包含普通 Invocation。搜索命中的 `candidate` 标识回答根，
-`invocationId` 对 Run 最终回答仍是真实模型子调用 ID。工具聊天页面和提交在 S4-06／S4-05 接线，不可把 Run ID 交给 Invocation
+`invocationId` 对 Run 最终回答仍是真实模型子调用 ID。S4-05 后端已提供工具聊天提交／停止与真实循环，接口及开关见
+`backend/arte-ai/TOOL_CHAT_EXECUTION.md`；页面与前端服务封装留 S4-06，不可把 Run ID 交给 Invocation
 查询。只读 Run API 见 [后端说明](../../../../backend/arte-ai/TOOL_CHAT_HISTORY.md)。

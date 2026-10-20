@@ -63,6 +63,15 @@ public final class GenerationDispatcher {
     private final NewAiExecutionProperties newAiExecutionProperties;
     private final Clock clock;
     private final LiveTextNotifier liveTextNotifier;
+    private ToolChatRunStore toolChats;
+
+    /**
+     * 装配时注入；普通聊天不读取 Run。工具生成缺少该权威存储时拒绝。
+     */
+    public GenerationDispatcher toolChats(ToolChatRunStore runs) {
+        this.toolChats = Objects.requireNonNull(runs);
+        return this;
+    }
 
     public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
@@ -188,14 +197,28 @@ public final class GenerationDispatcher {
                             .flatMap(binding -> contextSnapshotStore.find(message.owner(), invocation.contextSnapshotId())
                                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)))
                                     .flatMap(snapshot -> {
-                                        TextInputs.verify(snapshot, binding, newAiProperties.limits());
                                         if (!snapshot.messages().equals(generation.messages()) || !snapshot.expiresAt().isAfter(clock.instant())) {
                                             throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                                         }
-                                        return fixedControlCatalog.configuration(current).map(configuration -> new Prepared(request, binding, snapshot,
+                                        Mono<java.util.Optional<com.arte.ainew.pojo.tool.ToolSetSnapshot>> tools;
+                                        if (current.parentExecutionId() == null) {
+                                            TextInputs.verify(snapshot, binding, newAiProperties.limits());
+                                            tools = Mono.just(java.util.Optional.empty());
+                                        } else {
+                                            if (toolChats == null)
+                                                throw new AdmissionException(ResultCodeEnum.AI_DISPATCH_NOT_ENABLED);
+                                            tools = toolChats.snapshot(message.owner(), current.parentExecutionId())
+                                                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))).map(root -> {
+                                                        com.arte.ainew.application.tool.chat.ToolChatInputs.verify(snapshot, root.tools(), newAiProperties.limits());
+                                                        if (!root.model().equals(binding) || !root.tools().descriptions().equals(generation.tools()))
+                                                            throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+                                                        return java.util.Optional.of(root.tools());
+                                                    });
+                                        }
+                                        return tools.flatMap(set -> fixedControlCatalog.configuration(current).map(configuration -> new Prepared(request, binding, snapshot,
                                                 new ExecutionRuntimeContext(current, runtime.cancellation()), configuration.rates().stream()
                                                 .filter(value -> value.definition().equals(binding.rate())).findFirst()
-                                                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH))));
+                                                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH)), set.orElse(null))));
                                     }));
                 })
                 .onErrorResume(error -> predictable(error)
@@ -260,7 +283,8 @@ public final class GenerationDispatcher {
     }
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
-                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime, NewAiProperties.Rate rate) {
+                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime, NewAiProperties.Rate rate,
+                            com.arte.ainew.pojo.tool.ToolSetSnapshot tools) {
     }
 
     private Mono<Void> rejectBeforeAttempt(Invocation invocation, Throwable error) {
@@ -469,7 +493,7 @@ public final class GenerationDispatcher {
             var gatewayTerminal = new AtomicBoolean();
             var signals = Flux.defer(() -> {
                         timing.mark("GATEWAY_SUBSCRIBED");
-                        return modelGateway.generate(call);
+                        return prepared.tools() == null ? modelGateway.generate(call) : modelGateway.generate(call, prepared.tools());
                     }).doOnNext(signal -> {
                         if (signal instanceof GenerationSignal.Delta(GenerationEvent.TextDelta delta)) {
                             if (firstTextReceived.compareAndSet(false, true)) timing.mark("FIRST_TEXT_DELTA");
@@ -532,7 +556,7 @@ public final class GenerationDispatcher {
                             }
                             text.append(text1);
                             hasTextDelta = true;
-                        } else if (event instanceof GenerationEvent.ToolCallDelta) {
+                        } else if (event instanceof GenerationEvent.ToolCallDelta && prepared.tools() == null) {
                             throw GenerationException.output("UNSUPPORTED_PROVIDER_OUTPUT");
                         } else if (event instanceof GenerationEvent.UsageReported(Usage usage1)) {
                             usage = usage1;
@@ -606,7 +630,8 @@ public final class GenerationDispatcher {
                     boolean valid = result.structuredOutput() == null && result.sources().isEmpty()
                             && result.model().providerId().equals(newAiProperties.connections().stream()
                             .filter(connection -> connection.definition().equals(prepared.binding().connection())).findFirst().orElseThrow().providerId())
-                            && result.outputs().stream().allMatch(value -> value.toolCalls().isEmpty()
+                            && result.outputs().stream().allMatch(value -> (value.toolCalls().isEmpty() || prepared.tools() != null
+                            && value.toolCalls().stream().allMatch(c -> prepared.tools().entries().stream().anyMatch(e -> e.binding().tool().tool().definition().equals(c.tool()))))
                             && value.content().stream().allMatch(ChatMessage.Text.class::isInstance))
                             && (!hasTextDelta || output.contentEquals(text))
                             && (usage.basis() != Usage.Basis.PROVIDER_REPORTED || usage.equals(finalUsage));

@@ -14,8 +14,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 独立、本地、免收费工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
- * 只读无审批保持 v1，只读人工模式写 v2；受控领域写入写 v3，必须经等待审批事务受理。
+ * 本地免收费工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
+ * 独立工具无审批保持 v1、只读人工模式 v2、受控领域写入 v3；Run 子工具使用 v4，并在入库及派发时校验原步骤和收紧政策。
+ * 人工模式必须经等待审批事务受理，父身份本身不授予审批或业务资源资格。
  * 固定执行内容不冻结当前授权、工具启停或服务器约束，派发仍须重新核验。
  *
  * @param input      原始业务意图，用于升级／改配置后的幂等比较
@@ -54,11 +55,11 @@ public record ToolExecutionSnapshot(ToolAdmissionInput input, InvocationRequest<
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
                         && binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
                 "Snapshot requires reviewed local free read-only or confirmed domain write tools");
-        ContractChecks.require(request.context().budgetRef() == null && request.context().parentExecutionId() == null
+        ContractChecks.require(request.context().budgetRef() == null
                         && request.options().maxToolSteps() == 0 && request.options().maxConcurrentTools() == 0,
-                "Standalone free tool context required");
+                "Local free tool context required");
         ContractChecks.require(request.context().authorization().scopes().containsAll(tool.risk().requiredScopes()), "Tool scopes missing");
-        ContractChecks.require(request.input().callId().equals(ToolAdmissionDigests.callId(binding.owner(), input.bindingId(), request.context().idempotencyKey())),
+        ContractChecks.require(request.context().parentExecutionId() != null || request.input().callId().equals(ToolAdmissionDigests.callId(binding.owner(), input.bindingId(), request.context().idempotencyKey())),
                 "Invalid standalone tool call identity");
         var options = request.options();
         ContractChecks.require(options.requestedTimeout() != null && !options.requestedTimeout().isNegative() && !options.requestedTimeout().isZero()

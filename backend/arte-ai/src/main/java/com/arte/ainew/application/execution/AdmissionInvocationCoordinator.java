@@ -89,7 +89,10 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding) {
         var request = submission.request();
         var snapshot = submission.snapshot();
-        TextInputs.verify(snapshot, binding, properties.limits());
+        if (request.context().parentExecutionId() == null) TextInputs.verify(snapshot, binding, properties.limits());
+        else if (!com.arte.ainew.application.tool.chat.ToolChatInputs.TOKENIZER.equals(snapshot.tokenizerVersion())
+                || !snapshot.modelBinding().equals(binding.definition()) || submission.conversation() != null)
+            throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
         if (request.input().options().maxOutputTokens() > snapshot.budget().reservedOutputTokens()) {
             throw new AdmissionException(ResultCodeEnum.AI_OUTPUT_RESERVATION_EXCEEDED);
         }

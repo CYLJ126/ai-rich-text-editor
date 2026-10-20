@@ -78,7 +78,7 @@ public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, T
     }
 
     private void verify(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
-        if (context.budgetRef() != null || context.parentExecutionId() != null || !binding.owner().equals(ExecutionOwner.from(context)))
+        if (context.budgetRef() != null || !binding.owner().equals(ExecutionOwner.from(context)))
             throw denied();
         tools.requireFree(input, binding);
     }

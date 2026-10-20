@@ -65,6 +65,17 @@ public final class ToolChatQueryService {
         return current(id, context).map(Current::run);
     }
 
+    public record Status(ToolChatRun run, boolean cancellationRequested) {
+    }
+
+    /**
+     * 根版本未推进前也能显示耐久停止请求，页面刷新不丢失“正在停止”。
+     */
+    public Mono<Status> statusView(String id, ExecutionContext context) {
+        return current(id, context).flatMap(c -> runs.cancellationRequested(c.run().owner(), id)
+                .map(cancelled -> new Status(c.run(), cancelled)));
+    }
+
     public Mono<List<ToolChatRunEvent>> events(String id, long after, int limit, ExecutionContext context) {
         return current(id, context).flatMap(c -> {
             if (after > c.run().version() + 1)

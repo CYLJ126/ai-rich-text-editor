@@ -33,6 +33,14 @@ public final class ToolAdmissionDigests {
     public static String request(ToolExecutionSnapshot snapshot) {
         var request = snapshot.request();
         var plan = snapshot.binding();
+        if (request.context().parentExecutionId() != null)
+            return CanonicalJson.digest(CanonicalJson.fields("format", "tool-chat-tool-execution-v1",
+                    "parent", request.context().parentExecutionId(), "child", request.context().executionId(),
+                    "binding", plan.definition(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
+                    "target", plan.tool().target(), "policy", snapshot.policy(), "input", request.input(),
+                    "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
+                            .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                    "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()), "options", request.options()));
         return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-execution-v1",
                 "submission", submission(ExecutionOwner.from(request.context()), snapshot.input()),
                 "binding", plan.definition(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),

@@ -58,18 +58,26 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
 
     @Override
     public Mono<Permit> authorize(Invocation invocation, ExecutionContext context, Operation operation) {
+        return authorizeOwner(ExecutionOwner.from(invocation.request().context()), context, operation);
+    }
+
+    /**
+     * Run 停止复用本人的当前读取／控制资格，不构造伪 Invocation。
+     */
+    @Override
+    public Mono<Permit> authorizeOwner(ExecutionOwner owner, ExecutionContext context, Operation operation) {
         return Mono.defer(() -> {
             var remaining = Duration.between(clock.instant(), context.deadline());
             if (remaining.isNegative() || remaining.isZero()) return Mono.error(denied());
             return Mono.fromCallable(() -> transactions.required(() -> {
-                check(invocation, context, operation);
+                check(owner, context, operation);
                 return (Permit) new Permit() {
                     public ExecutionAuthorization authorization() {
                         return context.authorization();
                     }
 
                     public void requireInCurrentTransaction() {
-                        check(invocation, context, operation);
+                        check(owner, context, operation);
                     }
                 };
             })).subscribeOn(scheduler).timeout(remaining);
@@ -91,10 +99,10 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
      * @param context    本次操作的可信身份、权限上限和请求期限，不使用原调用期限限制历史收尾
      * @param operation  READ 为读取历史，CANCEL 为请求停止，两者分别检查当前菜单操作权限
      */
-    private void check(Invocation invocation, ExecutionContext context, Operation operation) {
+    private void check(ExecutionOwner owner, ExecutionContext context, Operation operation) {
         transactions.requireWritable();
         identities.duringAuthorization(() -> {
-            checkCurrent(invocation, context, operation);
+            checkCurrent(owner, context, operation);
             return true;
         });
     }
@@ -102,10 +110,10 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
     /**
      * 仅在本次授权批次内复用读取；返回后业务控制写入不能沿用这些事实。
      */
-    private void checkCurrent(Invocation invocation, ExecutionContext context, Operation operation) {
+    private void checkCurrent(ExecutionOwner owner, ExecutionContext context, Operation operation) {
         var principal = context.authorization().principal();
         if (!clock.instant().isBefore(context.deadline()) || principal.kind() != ExecutionPrincipal.Kind.USER
-                || !ExecutionOwner.from(context).equals(ExecutionOwner.from(invocation.request().context())))
+                || !ExecutionOwner.from(context).equals(owner))
             throw denied();
         var resolved = identities.resolveAuthenticatedName(principal.subjectName()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
                 .orElseThrow(PlatformToolInvocationAccess::denied);

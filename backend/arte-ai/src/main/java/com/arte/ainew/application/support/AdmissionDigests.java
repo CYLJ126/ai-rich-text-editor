@@ -54,6 +54,12 @@ public final class AdmissionDigests {
         var generation = (GenerationRequest) request.input();
         var options = request.options();
         var context = request.context();
+        if (context.parentExecutionId() != null)
+            return CanonicalJson.digest(CanonicalJson.fields("schema", "tool-chat-model-admission-v1",
+                    "owner", ExecutionOwner.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
+                    "parent", context.parentExecutionId(), "child", context.executionId(), "budget", context.budgetRef(),
+                    "binding", request.binding(), "capability", request.capability(), "generation", generation,
+                    "options", options, "context", submission.snapshot().contentDigest(), "contextBudget", submission.snapshot().budget()));
         var link = submission.conversation();
         var turn = submission.newTurn();
         return CanonicalJson.digest(CanonicalJson.fields("schema", "text-admission-v1",

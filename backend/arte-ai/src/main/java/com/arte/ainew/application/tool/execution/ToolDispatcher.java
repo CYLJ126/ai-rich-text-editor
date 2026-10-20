@@ -193,7 +193,7 @@ public final class ToolDispatcher {
                                 && current.scopes().containsAll(snapshot.binding().tool().tool().risk().requiredScopes()), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
                         require(clock.instant().isBefore(runtime.execution().deadline()), ResultCodeEnum.AI_DEADLINE_EXCEEDED);
                         var context = runtime.execution();
-                        var effective = new ExecutionContext(context.executionId(), context.traceId(), current, context.deadline(), null, null,
+                        var effective = new ExecutionContext(context.executionId(), context.traceId(), current, context.deadline(), context.parentExecutionId(), null,
                                 context.releaseRef(), context.idempotencyKey());
                         var output = snapshot.schemas().stream().filter(value -> value.definition().equals(snapshot.binding().tool().tool().outputSchema()))
                                 .findFirst().orElseThrow();
@@ -217,8 +217,9 @@ public final class ToolDispatcher {
         require(accepted.context().authorization().principal().kind() == current.authorization().principal().kind()
                 && accepted.context().authorization().scopes().containsAll(current.authorization().scopes())
                 && Objects.equals(accepted.context().releaseRef(), current.releaseRef())
-                && current.budgetRef() == null && accepted.context().budgetRef() == null && current.parentExecutionId() == null
-                && accepted.context().parentExecutionId() == null && !current.deadline().isAfter(accepted.options().deadline()), ResultCodeEnum.AI_OWNER_MISMATCH);
+                && current.budgetRef() == null && accepted.context().budgetRef() == null
+                && Objects.equals(current.parentExecutionId(), accepted.context().parentExecutionId())
+                && !current.deadline().isAfter(accepted.options().deadline()), ResultCodeEnum.AI_OWNER_MISMATCH);
     }
 
     /**
