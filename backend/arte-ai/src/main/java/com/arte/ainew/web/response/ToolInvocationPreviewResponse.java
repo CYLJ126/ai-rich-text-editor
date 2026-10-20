@@ -43,6 +43,8 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                         .filter(schema -> schema.definition().equals(binding.tool().tool().inputSchema())).findFirst().orElseThrow()),
                 options.requestedTimeout().toMillis(),
                 options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), snapshot.policy().approvalMode().name(), "FREE",
-                "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。", 0, 0, java.util.List.of());
+                (binding.tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
+                        ? "本次为本地免费业务写工具，须人工决定及当前资源权限；不调用聊天模型，不预留或扣减模型预算。"
+                        : "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。"), 0, 0, java.util.List.of());
     }
 }

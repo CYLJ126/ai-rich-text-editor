@@ -91,6 +91,29 @@ const show = () =>
     />,
   );
 describe('工具调用预览和结果页面', () => {
+  it('写入版本冲突说明未修改资源，刷新不重发写操作', async () => {
+    const context = {userId: 'user', scope};
+    writeValue(storageKey(context, 'tool-invocation'), {
+      key: 'write-original-key', acceptedId: 'original', requestJson: JSON.stringify({
+        scope,
+        input: {bindingId: detail.binding.bindingId, arguments: {expectedVersion: '0', name: 'New', description: ''}},
+        expectedPlanDigest: 'a'.repeat(64)
+      })
+    });
+    vi.mocked(getInvocationStatus).mockResolvedValue(response({
+      invocationId: 'original',
+      kind: 'TOOL',
+      state: 'FAILED',
+      resultAvailable: false,
+      budgetState: 'NOT_RESERVED',
+      error: {code: 'TOOL_RESOURCE_VERSION_CONFLICT', phase: 'INVOCATION', sideEffect: 'NONE', correlationId: 'trace'}
+    }));
+    show();
+    await screen.findByText('工作空间版本已变化，本次未修改。请读取当前版本并重新预览。');
+    fireEvent.click(screen.getByRole('button', {name: '重新读取原调用'}));
+    expect(invokeTool).not.toHaveBeenCalled();
+    expect(getInvocationResult).not.toHaveBeenCalled();
+  });
   it('旧调用已删除时，明确结束查看后开放新预览并保留待确认提交', async () => {
     const context = {userId: 'user', scope};
     const requestJson = JSON.stringify({

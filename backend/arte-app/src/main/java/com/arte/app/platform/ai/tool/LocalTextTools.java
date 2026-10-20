@@ -26,13 +26,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * 本地工具：文本字符计数
+ * <p>
  * 受信本地文本工具清单及明确的免费策略；只处理本次参数，不访问文件、网络或业务资源。
  * 固定版本不可原地改契约；新增工具须同时补充实现、计费／资源授权与验收，不能按 READ_ONLY 一律放行。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/19 11:18 ✾
  */
-public final class LocalTextTools {
+public final class LocalTextTools implements LocalToolPolicy {
+
     public static final DefinitionRef TOOL = ref("tool", "text.countCodePoints");
     public static final DefinitionRef ADAPTER = ref("tool-adapter", "arte-text-code-points");
     private static final StructuredValue.ObjectValue EMPTY = object(Map.of());

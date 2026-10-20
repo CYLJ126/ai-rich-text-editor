@@ -10,7 +10,6 @@ import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.context.ExecutionRuntimeContext;
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.InvocationResult;
@@ -43,11 +42,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 单次本地只读 TOOL 网关
+ * 单次本地免费 TOOL 网关
  * <p>
  * 固定材料复核、当前授权、Schema、期限及输出检查，不重试或推进执行／预算状态。
  * 调用方必须先原子准备派发并持续维护领取／执行租约；网关内存状态不代替数据库 fencing。
- * 人工模式在适配器前复核当前 Attempt 与批准事实；写工具、网络与 Secret 仍明确拒绝。
+ * 人工模式在适配器前复核当前 Attempt 与批准事实；领域写入须显式宿主授权，网络与 Secret 仍拒绝。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
@@ -185,8 +184,7 @@ public final class DefaultToolGateway implements ToolGateway {
         var tool = binding.tool().tool();
         var policy = binding.effectivePolicy();
         require(binding.tool().target() instanceof ExecutionTarget.Local, "TOOL_REMOTE_UNSUPPORTED");
-        require(tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY
-                        && !tool.risk().destructive(),
+        require(ToolExecutionRules.supported(tool.risk(), policy),
                 "TOOL_APPROVAL_UNSUPPORTED");
         require(binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty()
                 && binding.secrets().isEmpty(), "TOOL_EXTERNAL_ACCESS_UNSUPPORTED");
@@ -261,7 +259,7 @@ public final class DefaultToolGateway implements ToolGateway {
                     .publishOn(scheduler).map(value -> ToolObservation.call(OUTPUT_VALIDATION, call.runtime().execution(), () -> {
                         phase.set(ExecutionError.Phase.OUTPUT);
                         require(value.callId().equals(call.request().input().callId())
-                                && value.sideEffect() == ExecutionError.SideEffect.NONE, "TOOL_RESULT_INVALID");
+                                && ToolExecutionRules.resultAllowed(prepared.call().binding().tool().tool().risk(), value), "TOOL_RESULT_INVALID");
                         // 最大输出字节检查
                         long maxBytes = prepared.call().binding().effectivePolicy().maxOutputBytes();
                         if (value.output() != null) {

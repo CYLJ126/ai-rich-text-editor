@@ -310,3 +310,14 @@ approverSubjectIds、title、toolVersion、bindingVersion、argumentsJson、conf
 15 分钟及至少 30 秒执行余量。错误 `205057 AI_TOOL_APPROVAL_WINDOW_INVALID` 表示期限不足，
 `205058 AI_TOOL_APPROVAL_UNAVAILABLE` 表示未开启或缺可信审批政策／名单；按现有 AdmissionException 映射返回错误，不静默降级。正式
 text.countCodePoints@v1 30 秒契约仍不能承担人工模式。
+
+## S3-03 受控业务写工具
+
+沿用 previewInvocation、invokeTool 和审批接口，不新增绕过可靠受理的写入路由。`workspace.updateDetails@v1` 输入为字符串
+expectedVersion、name、description，目标固定为当前已验证 Scope；不接收另一个目标范围。额外要求当前
+WORKSPACE_UPDATE、人工决定及显式宿主写授权，默认 `arte.ai-new-tool-write.enabled=false`。只有隔离开发验收显式开启才登记写来源／适配器，完整节点清单随之变化。
+
+预览费用文案明确业务写风险；审批详情显示目标 Scope、版本及完整参数。成功结果 sideEffect=CONFIRMED，outputJson 含
+workspaceId、name、字符串 version、领域 operationId。`TOOL_RESOURCE_VERSION_CONFLICT` 表示当前版本已变且本次未修改，
+`TOOL_RESOURCE_ACCESS_DENIED` 表示领域当前权限拒绝；原调用 UNKNOWN 时保留编号，不更换键重发。参数、部署、领域事务与 S3-04／05
+边界见 [写工具说明](TOOL_WRITE.md)。

@@ -4,6 +4,7 @@ import com.arte.ainew.api.execution.ExecutionControl;
 import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.application.execution.InvocationBudgetStatusResolver;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
+import com.arte.ainew.application.tool.approval.ToolApprovalService;
 import com.arte.ainew.application.tool.management.ToolManagementService;
 import com.arte.ainew.config.*;
 import com.arte.ainew.context.ExecutionContextFactory;
@@ -11,10 +12,7 @@ import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
-import com.arte.ainew.web.controller.NewAiInvocationController;
-import com.arte.ainew.web.controller.NewAiToolController;
-import com.arte.ainew.web.controller.NewAiToolInvocationController;
-import com.arte.ainew.web.controller.NewAiToolSubmissionController;
+import com.arte.ainew.web.controller.*;
 import com.arte.app.platform.ai.AiControlData;
 import com.arte.app.platform.ai.PlatformToolExecutionConfiguration;
 import com.arte.app.platform.ai.PlatformToolInvocationConfiguration;
@@ -126,7 +124,7 @@ final class ToolAcceptanceRig implements AutoCloseable {
 
     MockMvc mvc(ApplicationContext c, boolean observed) {
         var http = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
-        var builder = standaloneSetup(new NewAiToolController(c.getBean(ToolManagementService.class),
+        var builder = standaloneSetup(new NewAiToolApprovalController(c.getBeanProvider(ToolApprovalService.class), http, c.getBean(NewAiProperties.class)), new NewAiToolController(c.getBean(ToolManagementService.class),
                         c.getBean(ToolManagementAccess.class)),
                 new NewAiToolSubmissionController(c.getBeanProvider(ToolAdmissionService.class), http, c.getBean(NewAiProperties.class)),
                 new NewAiInvocationController(c.getBean(ExecutionControl.class),

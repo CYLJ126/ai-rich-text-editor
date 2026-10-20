@@ -1,5 +1,8 @@
 # 最小 AI 数据契约 v1
 
+> S3-03：受控领域写工具的 tool-execution-snapshot 使用 v3；只读无审批 v1、只读人工模式 v2 保持原义，版本与副作用／政策严格匹配。旧只读受理
+> SPI 默认拒绝写工具，不能自动获得写资格。详见 [写工具说明](TOOL_WRITE.md)。
+
 > S3-01：Invocation 新增非终态 WAITING_APPROVAL；无审批 tool-execution-snapshot 保持 v1，带审批政策使用 v2。
 > 新增 tool-approval v1／tool-approval-receipt v1，审批版本独立于 Invocation，旧版本不支持新状态。
 > S3-02 增加公开审批白名单与参与者索引，不更改上述编码版本；预览摘要包含固定人工政策，实际到期只由可靠受理固定。

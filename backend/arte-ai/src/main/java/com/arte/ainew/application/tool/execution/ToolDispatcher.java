@@ -11,6 +11,7 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.*;
+import com.arte.ainew.pojo.tool.ToolExecutionRules;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.pojo.tool.ToolResult;
@@ -40,7 +41,7 @@ import java.util.function.Function;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 独立本地免费只读 TOOL 的一次耐久派发：读取原快照、复核资格、原子准备、调用网关并提交结果／终态。
+ * 独立本地免费 TOOL 的一次耐久派发：读取原快照、复核资格、原子准备、调用网关并提交结果／终态。
  * 只使用本次新取得的发送许可；重复领取不调用工具，基础设施故障保留未 ACK 工作项。当前不自动重试或核对业务结果。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -109,6 +110,7 @@ public final class ToolDispatcher {
                                 .flatMap(ready -> {
                                     if (!ready.ready() || ready.billingMode() != DispatchPreparationStore.BillingMode.FREE)
                                         return Mono.error(new IllegalStateException("Tool dispatch requires fresh FREE preparation"));
+                                    // 通过 Session.run() 执行工具调用并处理结果
                                     return new Session(message, prepared, ready.attempt()).run();
                                 }));
             });
@@ -138,7 +140,7 @@ public final class ToolDispatcher {
                                         var max = Math.min(snapshot.policy().maxOutputBytes(), invocation.request().options().maxOutputBytes());
                                         if (!ToolCatalogDigests.schema(output.document()).equals(output.checksum())
                                                 || !result.callId().equals(snapshot.request().input().callId())
-                                                || result.sideEffect() != ExecutionError.SideEffect.NONE && result.outcome() != ToolResult.Outcome.UNKNOWN
+                                                || !ToolExecutionRules.resultAllowed(snapshot.binding().tool().tool().risk(), result)
                                                 || CanonicalJson.normalize(codec.encode(saved.result())).getBytes(StandardCharsets.UTF_8).length > max
                                                 || result.output() != null && !new ToolSchemaValidator().compile(output.definition(), output.document(),
                                                 ToolSchemaValidator.Purpose.OUTPUT).validate(result.output(), max).valid())
@@ -180,7 +182,7 @@ public final class ToolDispatcher {
                     .flatMap(fixed -> {
                         require(fixed.successful() && snapshot.binding().equals(fixed.value()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
                         // 复用宿主的免费使用资格预检；网关在真正进入业务适配前另通过 ToolExecutionAccess 重验当前资源权限。
-                        return Mono.defer(() -> access.authorizeFreeReadOnly(snapshot.input(), runtime.execution(), snapshot.binding()))
+                        return Mono.defer(() -> access.authorizeFree(snapshot.input(), runtime.execution(), snapshot.binding()))
                                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED)));
                     }).publishOn(scheduler).map(permit -> {
                         var current = Objects.requireNonNull(permit.authorization());
@@ -260,6 +262,7 @@ public final class ToolDispatcher {
                         if (!clock.instant().isBefore(prepared.runtime().execution().deadline()))
                             return Mono.just(notInvoked("TOOL_DEADLINE_EXCEEDED"));
                         if (prepared.runtime().cancellation().isCancelled()) return Mono.just(notInvoked("TOOL_CANCELLED"));
+                        // 调用工具（通过 ToolGateway 调用工具适配器，进而执行工具逻辑）
                         return Mono.firstWithSignal(ToolObservation.mono(GATEWAY, prepared.runtime().execution(), () -> gateway.invoke(call)), prepared.runtime().cancellation().signal()
                                 .map(ignored -> unknown("TOOL_CANCELLED")));
                     }).switchIfEmpty(Mono.error(new IllegalStateException("Empty tool gateway result")))
@@ -286,13 +289,12 @@ public final class ToolDispatcher {
         }
 
         /**
-         * 自定义网关也不能提交错身份、越限输出或与只读画像冲突的结果。异常事实归为 UNKNOWN，不重发。
+         * 自定义网关也不能提交错身份、越限输出或与固定风险画像冲突的结果。异常事实归为 UNKNOWN，不重发。
          */
         private ToolResult checked(ToolResult result) {
             var snapshot = prepared.snapshot();
             var max = Math.min(snapshot.policy().maxOutputBytes(), snapshot.request().options().maxOutputBytes());
-            if (!result.callId().equals(snapshot.request().input().callId()) || result.sideEffect() != ExecutionError.SideEffect.NONE
-                    && result.outcome() != ToolResult.Outcome.UNKNOWN
+            if (!result.callId().equals(snapshot.request().input().callId()) || !ToolExecutionRules.resultAllowed(snapshot.binding().tool().tool().risk(), result)
                     || result.output() != null && !prepared.output().validate(result.output(), max).valid())
                 return unknown("TOOL_OUTPUT_INVALID");
             if (bytes(result) > max) return unknown("TOOL_OUTPUT_LIMIT");

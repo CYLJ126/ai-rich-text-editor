@@ -182,6 +182,11 @@ export default function ToolApprovalPanel({context, approvalId, invocationId, on
             children: <Typography.Text copyable code>{detail.invocationId}</Typography.Text>
           },
           {key: 'title', label: '工具', children: `${detail.title} / ${detail.toolVersion}`},
+          {
+            key: 'scope',
+            label: '本次目标范围',
+            children: `租户 ${context.scope.tenantId} / 工作空间 ${context.scope.workspaceId}`
+          },
           {key: 'binding', label: '固定配置版本', children: detail.bindingVersion},
           {
             key: 'mode',
@@ -200,7 +205,7 @@ export default function ToolApprovalPanel({context, approvalId, invocationId, on
           {
             key: 'effect',
             label: '副作用',
-            children: detail.sideEffect === 'READ_ONLY' ? '只读，无业务写入' : detail.sideEffect
+            children: detail.sideEffect === 'READ_ONLY' ? '只读，无业务写入' : detail.sideEffect === 'RESOURCE_WRITE' ? '将修改业务资源，请核对目标、全部参数与预期版本' : detail.sideEffect
           },
           {key: 'by', label: '决定者', children: detail.decidedBy || '尚无人工决定'},
         ]}/>

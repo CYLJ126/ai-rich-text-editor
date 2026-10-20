@@ -55,4 +55,18 @@ public interface ToolApprovalStore {
     default Mono<Void> requireApproved(GatewayCall<ToolInvocation> call) {
         return Mono.error(new UnsupportedOperationException("Approval dispatch verification unavailable"));
     }
+
+    /**
+     * 业务写入必须在同一物理写事务内持有调用／批准／Attempt 锁；不得以异步初检代替提交门控。
+     */
+    default void requireApprovedInCurrentTransaction(GatewayCall<ToolInvocation> call) {
+        throw new UnsupportedOperationException("Transactional domain write fencing unavailable");
+    }
+
+    /**
+     * 先锁调用／Attempt，再取得当前平台资格，最后调用本门控持有目录／绑定治理锁直到领域提交。
+     */
+    default void requireCurrentBindingInCurrentTransaction(GatewayCall<ToolInvocation> call) {
+        throw new UnsupportedOperationException("Transactional binding governance unavailable");
+    }
 }

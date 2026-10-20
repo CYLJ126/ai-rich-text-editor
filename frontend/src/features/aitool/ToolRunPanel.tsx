@@ -188,7 +188,7 @@ export default function ToolRunPanel({
         type="info"
         showIcon
         title="独立工具调用"
-        description="当前支持已授权的本地免费只读工具。先预览有效版本、参数与配置，再确认执行；不会调用聊天模型。"
+        description="当前支持已授权的本地免费工具。先预览版本、参数与配置；业务写工具须人工决定及当前资源权限，不调用聊天模型。"
       />
       {execution.error && (
         <Alert type="warning" showIcon title={execution.error}/>
@@ -239,7 +239,11 @@ export default function ToolRunPanel({
                     title={
                       execution.status.state === 'UNKNOWN'
                         ? '结果尚不确定，请保留编号核对，勿盲目重新执行。'
-                        : `执行错误：${execution.status.error.code}`
+                        : execution.status.error.code === 'TOOL_RESOURCE_VERSION_CONFLICT'
+                          ? '工作空间版本已变化，本次未修改。请读取当前版本并重新预览。'
+                          : execution.status.error.code === 'TOOL_RESOURCE_ACCESS_DENIED'
+                            ? '当前业务资源权限不足，本次未修改。请确认空间及操作资格。'
+                            : `执行错误：${execution.status.error.code}`
                     }
                     description={`阶段：${execution.status.error.phase}；副作用：${execution.status.error.sideEffect}；追踪：${execution.status.error.correlationId}`}
                   />

@@ -8,7 +8,7 @@ import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import reactor.core.publisher.Mono;
 
 /**
- * 宿主复用现有身份／空间／AI 资格／工具调用及资源权限，明确批准本次本地免收费只读受理；没有默认允许实现。
+ * 宿主复用现有身份／空间／AI 资格／工具调用及资源权限，明确批准本次本地免费受理；只读与领域写入使用独立入口；没有默认允许实现。
  * 不从“没有预算引用”推断免费，不能用 S1 管理资格或 S2 执行网关替代受理资格。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -18,6 +18,22 @@ import reactor.core.publisher.Mono;
 public interface ToolAdmissionAccess {
 
     Mono<Permit> authorizeFreeReadOnly(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding);
+
+    /**
+     * 写工具须由宿主显式实现，旧的只读许可不能自动获得业务写入资格。
+     */
+    default Mono<Permit> authorizeFreeWrite(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+        return Mono.error(new org.springframework.security.access.AccessDeniedException("Explicit domain write access required"));
+    }
+
+    default Mono<Permit> authorizeFree(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+        return switch (binding.tool().tool().risk().sideEffect()) {
+            case READ_ONLY -> authorizeFreeReadOnly(input, context, binding);
+            case RESOURCE_WRITE -> authorizeFreeWrite(input, context, binding);
+            default ->
+                    Mono.error(new org.springframework.security.access.AccessDeniedException("Unsupported tool side effect"));
+        };
+    }
 
     /**
      * 本次操作的可信许可；只允许权限子集，入库及重放仍在真实写事务复核。

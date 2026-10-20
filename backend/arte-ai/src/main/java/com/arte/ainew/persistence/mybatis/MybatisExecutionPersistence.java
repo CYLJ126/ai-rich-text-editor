@@ -959,6 +959,13 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return invocation.userStoppedGeneration() && operation(invocation, CANCEL_REQUEST_KEY) != null;
     }
 
+    /**
+     * 调用方已经持有 Invocation 行锁，业务写入前复核与通用取消同一耐久事实。
+     */
+    boolean cancellationRequestedInCurrentTransaction(Invocation invocation) {
+        return operation(invocation, CANCEL_REQUEST_KEY) != null;
+    }
+
     @Override
     public Mono<Boolean> cancellationRequested(ExecutionOwner owner, String invocationId) {
         return find(owner, invocationId).flatMap(value -> tx(() -> operation(value, CANCEL_REQUEST_KEY) != null))

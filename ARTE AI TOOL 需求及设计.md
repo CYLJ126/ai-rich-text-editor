@@ -1,14 +1,15 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-20。
-> 文档版本：V0.3（S3-01／S3-02 人工控制同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
+> 文档版本：V0.4（S3-03 受控业务写工具同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
 > 按本轮确认范围完成正式宿主接线、本机集成验收及性能基线。
 > arte-app 已提供真实本地工具 `text.countCodePoints@v1` 与受理／执行授权，复用现有身份、RBAC、空间和 AI 开关；不依赖模型、费率或预算账户。
 > 正式参考环境双节点、规定数据量和 30 分钟 W1—W4／PF-01—08 仍待验收，不能将本机结果视为 S2 生产开放通过。S3-01／S3-02
-> 已实现等待／决定事务、公开本人确认／独立审批、当前授权及页面；写工具、远端、付费工具和工具聊天未实现。
+> 已实现等待／决定事务、公开人工控制及 S3-03 工作空间信息写工具；写工具默认关闭，S3-04／05 核对闭环、远端、付费工具和工具聊天未实现。
 > 共享默认配置仍关闭 TOOL、启动发现和分类调度；本机 app.properties 为显式开发配置。未连接或部署配置中的业务数据库／Redis，业务环境的
 > DDL、菜单及授权须按部署步骤执行。正式文本 v1 仍为 30
-> 秒总期限，不足以容纳人工窗口；本批不新增长期限正式工具或修改业务配置，审批执行使用显式测试契约验收。部署及范围见 [审批说明](backend/arte-ai/TOOL_APPROVAL.md)。
+> 秒总期限，不足以容纳人工窗口；S3-03
+> 新增独立的工作空间写工具契约，默认关闭，未修改业务配置。部署及范围见 [写工具说明](backend/arte-ai/TOOL_WRITE.md)。
 >
 > 本文定义 ARTE AI TOOL 的功能需求、领域模型、执行规则、接口、界面及验收要求。实现以 arte_dev 的
 > backend/arte-ai/src/main/java/com/arte/ainew 为基础，arte-app 负责现有平台及业务适配，不复制参考项目的认证、空间或执行系统。
@@ -383,7 +384,7 @@ S2-02 已实现内部本地只读网关：`GatewayCall<ToolInvocation>` → 当�
 | FixedControlCatalog／AdmissionInvocationCoordinator 按生成校验             | S2-03／04 内部 TOOL 受理及派发路由已实现；公开入口待后续 | 不放宽原生成 Schema、费率和能力检查；工具不伪装生成                                                                 |
 | DispatchPreparationStore 原命令必填 amount、rate，成功结果必有 reservation | S2-01 已实现 FREE／CHARGE 计费计划                       | FREE 限无预算引用的 TOOL；旧 Java 构造及访问器保留 CHARGE；内部命令不持久化，无命令解码变更；预算不足与取消仍不发送 |
 | ExecutionContext.child() 继承单一 budgetRef                                | S4 增加受信子预算选择，见 §6.7                           | 原 helper 保持含义；新选择只能来自 Run 固定映射且重验当前资格，不能扩展主体／空间／scopes                           |
-| Invocation 增加 WAITING_APPROVAL                                           | S3-01／02 已实现等待／决定、公开审批与当前资格           | 非终态、Attempt 前完成、取消及前端状态判断同步；审批快照 v2，未支持节点必须隔离                                     |
+| Invocation 增加 WAITING_APPROVAL                                           | S3-01／02 已实现等待／决定、公开审批与当前资格           | 非终态、Attempt 前完成、取消及前端状态判断同步；人工只读快照 v2／领域写快照 v3，未支持节点必须隔离                  |
 | Turn 用 invocationIds 表达候选                                             | S4 引入带类型候选及活跃执行身份                          | 旧候选解码为 INVOCATION；历史、列表、搜索、重新生成及结果查询逐项回归                                               |
 | OutboxMessage 只有 invocationId 和 DISPATCH／EVENT，claim 无工作类型筛选   | S2 增加受信 workClass 和领取筛选；S4 增加 RUN 类型身份   | 既有消息归为 GENERATION；先升级全部消费者再写新消息，支持停写切换，不把 Run ID 冒充 Invocation                      |
 | BusinessToolAdapter 仅声明能力和 invoke；业务 reconcile 尚未接通           | S3 增加结果查询适配与证据提交，S5 验证远端协议           | 原调用端口保持单次执行；核对不能调用 invoke；无预算预留的免费工具同样能核对                                         |
@@ -817,7 +818,8 @@ HTTP，真实宿主授权和领域工具仍须由组合模块提供。 网关保
 ### 8.2 状态与结果
 
 S3-01 已为通用 Invocation 增加 WAITING_APPROVAL 非终态，并同步状态机、持久化 codec、状态事件、通用查询 DTO 及前端非终态判断。
-S3-01 提供可信内部受理／决定事务；S3-02 已实现公开确认／审批、宿主当前资格及页面。业务写工具留给 S3-03。
+S3-01 提供可信内部受理／决定事务；S3-02 已实现公开确认／审批、宿主当前资格及页面。S3-03 已实现一个真实工作空间信息写工具；默认关闭，自动／人工业务结果核对留给
+S3-04／05。
 
     ACCEPTED → QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED / TIMED_OUT / INTERRUPTED / UNKNOWN
     ACCEPTED → WAITING_APPROVAL → QUEUED
@@ -853,7 +855,7 @@ ID 或不合规输出保守返回 UNKNOWN／POSSIBLE，丢弃无效输出且不�
 一个网关 Publisher 只能订阅一次，再次订阅直接报错，不产生另一份“未执行”结果。此限制不提供跨进程或跨 `invoke`
 的防重，耐久准入、领取／租约维护和结果／终态提交由 S2-03／04 协调层负责。
 阻塞适配入口在有界线程池执行，期限与取消由独立信号终止订阅；取消订阅不证明底层业务已停止。网关不写执行状态或预算，不内置业务操作。
-当前仅允许无费用引用、无人工控制、无外发／Secret 的本地只读工具，写工具、远端、协议特性及付费工具明确拒绝。
+当前允许无费用引用、无外发／Secret 的本地只读及受控领域写工具；写工具必须经过人工决定、领域防重与显式宿主写授权，默认开关关闭。远端、协议特性及付费工具仍拒绝。
 
 S2-04 已实现内部 `ToolDispatcher`，通过通用 Worker／协调器按权威 Invocation.kind 路由，不从外部参数指定能力。 派发读取原
 ToolExecutionSnapshot 和原 p1 方案，重新检查当前治理及免费使用资格，随后执行一次 FREE 原子准备，取得本次新提交的
@@ -945,7 +947,8 @@ Scope、固定其他稳定主体、当前有效成员与显式 aiTool:approve，
 actor／Scope 索引并逐条复核当前资格，结束决定原子关闭 pending 投影，历史保留。
 
 预览固定人工模式、拟选窗口、至少 30 秒余量及审批主体；独立审批必须完整容纳 15 分钟窗口，不能截短。受理固定实际到期，同键并发重放使用原
-Plan，不重新计时。网关在适配器前复核 APPROVED、当前 Attempt、fence 和租约，仍只开放本地免费只读。正式文本 v1 总期限只有 30
+Plan，不重新计时。网关在适配器前复核 APPROVED、当前 Attempt、fence 和租约；S3-03 另扩受控本地领域写入，默认关闭。正式文本 v1
+总期限只有 30
 秒，人工模式明确拒绝，须另有经过发布校验的足够长契约及服务器期限。
 
 决定页面展示精确参数／配置原文、固定版本、风险、身份与到期，不以 JS Number
@@ -1044,8 +1047,12 @@ FIXED 模式要求真实主体、账户名、tenant/workspace 和类别匹配现
 
 允许执行取入口权限、当前主体／空间资格、工具与绑定启用、允许集合、业务资源权限、人工决定、网络／外发许可、期限及限额的交集。
 
-业务适配在实际读取／写入边界检查资源权限和
-expectedVersion，领域事务同时写业务结果及领域幂等记录。审批只准许固定操作，不能授予资源权限或绕过领域冲突。工具执行成功与文章正式保存、用户采纳等领域事实分别呈现。
+业务适配在实际读取／写入边界检查资源权限和 expectedVersion，领域事务同时写业务结果及领域幂等记录。S3-03 的
+`workspace.updateDetails@v1` 已复用现有 WorkspaceService.rename， 只更新当前空间名称及说明，使用当前
+WORKSPACE_UPDATE、字符串版本及原 Invocation 派生操作键。写入前后的同库门控核验批准、Attempt、租约、取消、期限和绑定治理；
+成功完整结果也在领域提交前检查字节上限。写快照使用 v3，只读 v1／v2
+不变，开关默认关闭；核对闭环完成前不作为生产写入开放。详见 [业务写工具说明](backend/arte-ai/TOOL_WRITE.md)
+。审批只准许固定操作，不能授予资源权限或绕过领域冲突。工具执行成功与文章正式保存、用户采纳等领域事实分别呈现。
 
 ### 9.4 护栏和数据处理
 
@@ -1928,7 +1935,7 @@ AC-28／35。所有验收编号都必须在实际验证记录中注明对应需�
 | [聊天接口](backend/arte-ai/CHAT_HTTP_API.md)                                                                        | 现有纯文本行为及 HTTP 约定                       |
 | [通用调用 HTTP](backend/arte-ai/INVOCATION_HTTP_API.md)                                                             | 状态、结果、取消、事件与快照查询                 |
 | [ToolGateway](backend/arte-ai/src/main/java/com/arte/ainew/spi/gateway/ToolGateway.java)                            | 现有单次工具网关契约                             |
-| [本地工具网关](backend/arte-ai/src/main/java/com/arte/ainew/application/gateway/DefaultToolGateway.java)            | S2-02 单次只读执行、当前授权及 Schema／结果边界  |
+| [本地工具网关](backend/arte-ai/src/main/java/com/arte/ainew/application/gateway/DefaultToolGateway.java)            | 单次本地执行、当前授权及 Schema／结果边界        |
 | [BusinessToolAdapter](backend/arte-ai/src/main/java/com/arte/ainew/spi/adapter/BusinessToolAdapter.java)            | 现有领域工具适配契约                             |
 | [TOOL 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/tool)                                               | 调用／结果及 S1-01 新增的定义、风险、能力与策略  |
 | [TOOL 实施记录](backend/arte-ai/TOOL_IMPLEMENTATION.md)                                                             | 各批次实际完成范围、验证证据及未运行项           |

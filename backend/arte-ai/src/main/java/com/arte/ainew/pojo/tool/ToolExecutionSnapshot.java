@@ -14,8 +14,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 独立、本地、免收费只读工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
- * 无审批保持 v1；审批策略写 v2，只能经等待审批事务受理，当前公开 S2 入口仍仅允许 NONE。
+ * 独立、本地、免收费工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
+ * 只读无审批保持 v1，只读人工模式写 v2；受控领域写入写 v3，必须经等待审批事务受理。
  * 固定执行内容不冻结当前授权、工具启停或服务器约束，派发仍须重新核验。
  *
  * @param input      原始业务意图，用于升级／改配置后的幂等比较
@@ -50,10 +50,10 @@ public record ToolExecutionSnapshot(ToolAdmissionInput input, InvocationRequest<
                 && request.input().tool().equals(tool.definition()) && request.input().arguments().equals(input.arguments())
                 && binding.owner().equals(ExecutionOwner.from(request.context())), "Tool snapshot identity mismatch");
         ContractChecks.require(binding.tool().target() instanceof ExecutionTarget.Local
-                        && tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY && !tool.risk().destructive()
+                        && ToolExecutionRules.supported(tool.risk(), policy)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
                         && binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
-                "Snapshot v1 only supports local free read-only tools");
+                "Snapshot requires reviewed local free read-only or confirmed domain write tools");
         ContractChecks.require(request.context().budgetRef() == null && request.context().parentExecutionId() == null
                         && request.options().maxToolSteps() == 0 && request.options().maxConcurrentTools() == 0,
                 "Standalone free tool context required");

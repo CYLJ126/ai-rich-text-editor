@@ -48,6 +48,7 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
     private final TransactionTemplate transaction;
+    private final DataSource source;
 
     public MybatisToolApprovalStore(DataSource source, ExecutionRecordCodec codec, Scheduler scheduler,
                                     MybatisExecutionPersistence executions, MybatisToolBindingStore bindings) {
@@ -57,6 +58,7 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
         snapshots = sessions.getMapper(ToolAdmissionMapper.class);
         execution = sessions.getMapper(ExecutionMapper.class);
         this.executions = executions;
+        this.source = source;
         this.bindings = bindings;
         this.codec = Objects.requireNonNull(codec);
         this.scheduler = Objects.requireNonNull(scheduler);
@@ -108,19 +110,43 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
     @Override
     public Mono<Void> requireApproved(GatewayCall<ToolInvocation> call) {
         return io(() -> {
-            var invocation = invocation(call.request().context().executionId());
-            require(invocation != null && invocation.request().equals(call.request())
-                    && invocation.state() == Invocation.State.RUNNING && call.attempt().attemptId().equals(invocation.activeAttemptId()), INVALID_STATE);
-            var approval = ToolApprovalRecords.read(approvals.find(key(call.request().context().executionId()), true), codec);
-            require(approval != null && approval.state() == ToolApproval.State.APPROVED, INVALID_STATE);
-            var fixed = snapshot(approval, invocation);
-            require(fixed.binding().resolvedBinding().equals(call.binding()), INVALID_STATE);
-            var attempt = codec.decode(Objects.requireNonNull(execution.attemptSnapshot(key(call.attempt().attemptId()), true)), Attempt.class);
-            require(attempt.fencingToken() == call.attempt().fencingToken() && attempt.workerId().equals(call.attempt().workerId())
-                    && attempt.state() == Attempt.State.RUNNING && attempt.dispatch() == Attempt.Dispatch.MAY_HAVE_EXECUTED
-                    && attempt.leaseExpiresAt().isAfter(executions.databaseTimeInCurrentTransaction()), LEASE_LOST);
+            requireApprovedInCurrentTransaction(call);
             return true;
         }).then();
+    }
+
+    @Override
+    public void requireApprovedInCurrentTransaction(GatewayCall<ToolInvocation> call) {
+        requireWritableTransaction();
+        var invocation = invocation(call.request().context().executionId());
+        require(invocation != null && invocation.request().equals(call.request())
+                && invocation.state() == Invocation.State.RUNNING && call.attempt().attemptId().equals(invocation.activeAttemptId()), INVALID_STATE);
+        var approval = ToolApprovalRecords.read(approvals.find(key(call.request().context().executionId()), true), codec);
+        require(approval != null && approval.state() == ToolApproval.State.APPROVED, INVALID_STATE);
+        var fixed = snapshot(approval, invocation);
+        require(fixed.binding().resolvedBinding().equals(call.binding()), INVALID_STATE);
+        var attempt = codec.decode(Objects.requireNonNull(execution.attemptSnapshot(key(call.attempt().attemptId()), true)), Attempt.class);
+        require(attempt.attemptId().equals(call.attempt().attemptId()) && attempt.invocationId().equals(invocation.request().context().executionId())
+                && Objects.equals(attempt.remoteRequestId(), call.attempt().remoteRequestId())
+                && attempt.fencingToken() == call.attempt().fencingToken() && attempt.workerId().equals(call.attempt().workerId())
+                && attempt.state() == Attempt.State.RUNNING && attempt.dispatch() == Attempt.Dispatch.MAY_HAVE_EXECUTED
+                && attempt.leaseExpiresAt().isAfter(executions.databaseTimeInCurrentTransaction()), LEASE_LOST);
+        require(invocation.request().options().deadline().isAfter(executions.databaseTimeInCurrentTransaction())
+                && !executions.cancellationRequestedInCurrentTransaction(invocation), INVALID_STATE);
+    }
+
+    private void requireWritableTransaction() {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                || !org.springframework.transaction.support.TransactionSynchronizationManager.hasResource(source)
+                || org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly())
+            throw new IllegalStateException("Domain write requires the same physical writable datasource transaction");
+    }
+
+    @Override
+    public void requireCurrentBindingInCurrentTransaction(GatewayCall<ToolInvocation> call) {
+        requireWritableTransaction();
+        var fixed = bindings.fixedInCurrentTransaction(ExecutionOwner.from(call.request().context()), call.request().binding());
+        require(fixed.successful() && fixed.value().resolvedBinding().equals(call.binding()), INVALID_STATE);
     }
 
     @Override

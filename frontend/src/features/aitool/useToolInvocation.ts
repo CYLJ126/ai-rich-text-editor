@@ -28,7 +28,7 @@ export function toolInvocationFailure(error: unknown, phase: 'request' | 'submis
     if (error.code === '205050')
       return '当前工具、配置或本节点实现不可用，请刷新配置后确认。';
     if (error.code === '205052')
-      return '当前工具不在已授权的本地免费只读范围内，无法调用。';
+      return '当前工具不在已授权的本地免费范围内，或不满足人工控制要求，无法调用。';
     if (error.code === '205056') return '工具等待队列已满，请稍后重新预览。';
   }
   return toolFailure(error);

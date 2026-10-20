@@ -12,7 +12,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.InvocationRequest;
@@ -217,7 +216,7 @@ public final class ToolAdmissionService {
     }
 
     private Mono<VerifiedPermit> permit(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
-        return Mono.defer(() -> access.authorizeFreeReadOnly(input, context, binding))
+        return Mono.defer(() -> access.authorizeFree(input, context, binding))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED)))
                 .map(permit -> {
                     var current = Objects.requireNonNull(permit.authorization());
@@ -291,8 +290,8 @@ public final class ToolAdmissionService {
     private void validate(ToolAdmissionInput input, ToolBindingResolution binding, List<ToolSchemaDefinition> documents, ToolExecutionPolicy policy) {
         var tool = binding.tool().tool();
         require(binding.tool().target() instanceof ExecutionTarget.Local
-                        && tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY
-                        && !tool.risk().destructive() && (policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE || approvals != null)
+                        && ToolExecutionRules.supported(tool.risk(), policy)
+                        && (policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE || approvals != null)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
                         && binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
                 ResultCodeEnum.AI_TOOL_POLICY_DENIED);

@@ -65,6 +65,19 @@ describe('固定操作人工决定', () => {
     expect(view.container.querySelector('script')).toBeNull();
     expect(decideToolApproval).not.toHaveBeenCalled();
   });
+  it('业务写入明确展示风险和预期版本，批准前不发送命令', async () => {
+    vi.mocked(getToolApproval).mockResolvedValue(response({
+      ...detail,
+      sideEffect: 'RESOURCE_WRITE',
+      title: '更新当前工作空间名称与说明',
+      argumentsJson: '{"expectedVersion":"9007199254740993","name":"新名称","description":"说明"}'
+    }));
+    render(<ToolApprovalPanel context={context} approvalId="approval"/>);
+    await screen.findByText('将修改业务资源，请核对目标、全部参数与预期版本');
+    expect(screen.getByText(/9007199254740993/)).toBeTruthy();
+    expect(screen.queryByText('只读，无业务写入')).toBeNull();
+    expect(decideToolApproval).not.toHaveBeenCalled();
+  });
   it('决定超时后刷新仍沿用同一决定、版本、摘要和幂等键', async () => {
     vi.mocked(decideToolApproval).mockRejectedValue(new TypeError('network'));
     const first = render(<ToolApprovalPanel context={context} approvalId="approval"/>);

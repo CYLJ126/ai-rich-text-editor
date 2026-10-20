@@ -30,6 +30,7 @@ import java.util.Map;
 /**
  * 隔离的内部快照编码器：现有类型保持 v1，resolved-binding 写 v2 并兼容旧远端形状。
  * 默认绑定 ENSURE_DEFAULT 回执单独写 v2，其他绑定回执保持 v1；两种形状严格匹配版本。
+ * 工具执行快照按无审批只读 v1／人工只读 v2／受控领域写入 v3 严格匹配，旧形状不放宽。
  * 稳定别名白名单，不复用应用全局 ObjectMapper。
  * StructuredValue 在此使用显式类型包装的内部格式；HTTP 标准 JSON 编码另由传输适配器负责。
  *
@@ -117,7 +118,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered snapshot type");
         }
         var node = mapper.createObjectNode();
-        node.put("schemaVersion", value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
+        node.put("schemaVersion", value instanceof ToolExecutionSnapshot writeSnapshot
+                && writeSnapshot.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
+                ? 3 : value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
                 && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT
                 || value instanceof ToolExecutionSnapshot snapshot && snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE
                 ? 2 : 1).put("type", alias);
@@ -145,7 +148,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
         if ((version != 1 && !((expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
-                || expectedType == ToolExecutionSnapshot.class) && version == 2))
+                || expectedType == ToolExecutionSnapshot.class) && version == 2)
+                && !(expectedType == ToolExecutionSnapshot.class && version == 3))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
@@ -154,8 +158,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");
         var value = mapper.treeToValue(body, expectedType);
-        if (value instanceof ToolExecutionSnapshot snapshot && (version == 2)
-                != (snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE))
+        if (value instanceof ToolExecutionSnapshot snapshot && version != (snapshot.binding().tool().tool().risk().sideEffect()
+                == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE ? 3
+                : snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE ? 2 : 1))
             throw new IllegalArgumentException("Tool approval policy does not match snapshot version");
         if (value instanceof ToolBindingReceipt receipt && (version == 2)
                 != (receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT))
