@@ -8,8 +8,8 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 与现有当前授权接线完成。S2-08 已完成调用预览／可靠提交／结果和恢复页面；S2-09 已补齐正式宿主执行授权、真实文本工具及本机集成验收／性能基线，正式参考环境性能待验，详见
 §17。 TOOL 与分类调度 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量、TOOL RBAC 定义及 S2-07 菜单 DML 本轮未在配置中的业务数据库执行。
 
-S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； 工具聊天
-Run、自动子调用、累计预算及前端入口仍待后续批次，本批不开放工具聊天。
+S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
+Run 存储、检查点、步骤计划和耐久工作项，见 §33。Turn／历史兼容、自动子调用、累计预算及前端入口仍待后续批次，本批不开放工具聊天。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2016,3 +2016,35 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl art
 初次 HTTP 回归被沙箱禁止监听本地端口；允许临时本地监听后同组通过。 测试使用临时 H2 与回环
 HTTP，不读取业务库、不调用真实模型或领域工具；未运行全量后端测试、真实供应商、MySQL、多节点、性能或浏览器验收。 运行时仍出现既有
 macOS Netty 原生 DNS 库缺失、回退系统解析器的日志，不影响本组测试结果，本批未调整该环境依赖。
+
+## 33. S4-02：ToolChatRun 存储与推进基础（2026-10-20）
+
+完成 `ToolChatRunSnapshot`、`ToolChatRun`、`ToolChatStep`、内部命令及 `ToolChatRunStore`，通过同一物理数据源和有界 JDBC
+Scheduler 持久化。 根受理固定输入／模型／工具集合／原期限与首工作项；推进固定稳定子执行
+ID／operationKey、检查点、累计计划数、下一次唤醒及命令回执，整体提交或回滚。 同键同义重放原身份及原步骤，异义、版本冲突、跨
+owner、失租及不合法阶段拒绝。快照摘要、白名单和结构容量继续封闭验证。
+
+工作项使用数据库毫秒时钟、递增 fencing 及有界领取；Worker 重建可读取原输入与步骤，领取时收到的唤醒用信号版本保留，不被后续
+park 覆盖。 审批／UNKNOWN 等待不重新计划工具；总期限不可延长，终态禁用工作项。Schema 与受理大记录预处理在事务前完成；没有网络或领域调用进入事务。
+
+新增四张 Run 专用表及 [增量 DDL](scripts/arte-ai-tool-chat-run-migration.sql)，完整基线同步；新增四个 v1
+根别名及两种步骤输入子类型，原快照版本未改变。 独立存储装配受现有 AI／TOOL 双开关控制，装配不执行 SQL、不启动
+Worker；未修改业务配置或运行环境。 接口、授权回调约束、数据库部署及后续接线见 [S4-02 说明](TOOL_CHAT_RUN.md)。
+
+本批步骤是逻辑计划，不是已受理的 Invocation；真实子调用受理／派发、结果来源核验和循环仍留 S4-05。 Turn／通用 Outbox／Run
+事件和历史兼容留 S4-03，总预算及子账户留 S4-04，前端留 S4-06。未直接放宽独立 TOOL 的 parentExecutionId 限制。
+
+验证：JDK 21 编译通过，组合回归 204 项通过；随后补充独立 JVM 摘要稳定性验证，最终新增 Run 存储 16 项、装配 2 项、DDL 升级 1
+项再次定向通过。 本轮累计 205 项，0 失败／错误／跳过。最后复验包括批次容量、事务前编码及三次独立 JVM 启动，避免 Set
+遍历顺序改变导致原意图摘要漂移。 相邻覆盖原模型生成／本地 HTTP／Worker、独立 TOOL 受理／派发、 S4-01 集合与协议、旧 codec 契约及
+S3 DDL 边界；既有人工核对增量验证改为明确截取 S3-05 段，不包含新增 S4-02 DDL。
+
+```bash
+cd backend
+runTests='ToolChatRunStoreTest,ToolChatRunAssemblyTest,ToolChatRunMigrationTest,ToolReviewMigrationTest,ToolOutcomeMigrationTest,ToolChatProtocolTest,ToolSetServiceTest,ResolvedBindingCodecTest,DataContractsTest,InvocationApiContractsTest,ToolAdmissionIntegrationTest,AdmissionIntegrationTest,DispatchIntegrationTest,ToolDispatchIntegrationTest,GenerationGatewayTest,GenerationAssemblyTest'
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl arte-ai -am -Dtest="$runTests" -Dsurefire.failIfNoSpecifiedTests=false test -q
+```
+
+最初生成集成测试被沙箱拒绝监听回环端口，允许本地监听后同组通过。约束故障日志来自测试主动注入，用于证明两处写入失败的完整回滚。
+未连接／部署业务 MySQL 或 Redis，未执行配置环境 DDL、数据回填或应用重启；未运行全量后端、真实供应商、多节点、性能、前端或浏览器验收。
+H2 及本地 HTTP 通过不代表生产锁等待、隔离级别、吞吐和真实 Run 循环已验收。

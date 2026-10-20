@@ -49,6 +49,10 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
+            Map.entry(ToolChatRunSnapshot.class, "tool-chat-run-input"),
+            Map.entry(ToolChatRun.class, "tool-chat-run"),
+            Map.entry(ToolChatStep.class, "tool-chat-step"),
+            Map.entry(ToolChatCommands.Receipt.class, "tool-chat-run-receipt"),
             Map.entry(ToolApproval.class, "tool-approval"),
             Map.entry(ToolApprovalReceipt.class, "tool-approval-receipt"),
             Map.entry(ToolExecutionSnapshot.class, "tool-execution-snapshot"),
@@ -80,10 +84,12 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         builder.addMixIn(Money.class, MoneyShape.class);
         for (var base : new Class<?>[]{CapabilityInput.class, ChatMessage.ContentPart.class,
                 GenerationRequest.OutputFormat.class, GenerationEvent.class, ExecutionEvent.Payload.class, StructuredValue.class,
-                InvocationResult.class, ExecutionTarget.class}) {
+                InvocationResult.class, ExecutionTarget.class, ToolChatStep.Input.class}) {
             builder.addMixIn(base, Named.class);
         }
         builder.registerSubtypes(
+                new NamedType(ToolChatStep.Model.class, "chat-step-model"),
+                new NamedType(ToolChatStep.Tool.class, "chat-step-tool"),
                 new NamedType(ExecutionTarget.Local.class, "target-local"),
                 new NamedType(ExecutionTarget.Remote.class, "target-remote"),
                 new NamedType(InvocationResult.Generation.class, "result-generation"),
@@ -143,7 +149,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
                 || expectedType == ToolBindingDefinition.class || expectedType == ToolBindingRevision.class
                 || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class
-                || expectedType == ToolApproval.class || expectedType == ToolApprovalReceipt.class)
+                || expectedType == ToolApproval.class || expectedType == ToolApprovalReceipt.class
+                || expectedType == ToolChatRunSnapshot.class || expectedType == ToolChatRun.class
+                || expectedType == ToolChatStep.class || expectedType == ToolChatCommands.Receipt.class)
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");

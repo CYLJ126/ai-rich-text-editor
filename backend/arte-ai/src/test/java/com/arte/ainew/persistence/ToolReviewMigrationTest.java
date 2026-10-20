@@ -25,7 +25,7 @@ public class ToolReviewMigrationTest {
         var baseline = new ClassPathResource("arte-ai-new-ddl-mysql.sql");
         var migration = new ClassPathResource("arte-ai-tool-review-migration.sql");
         String full = baseline.getContentAsString(StandardCharsets.UTF_8), part = migration.getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(full.substring(full.indexOf("-- S3-05")).trim(), part.trim());
+        assertEquals(full.substring(full.indexOf("-- S3-05"), full.indexOf("-- S4-02")).trim(), part.trim());
         var ds = new JdbcDataSource();
         ds.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
         var jdbc = new JdbcTemplate(ds);

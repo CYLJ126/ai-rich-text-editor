@@ -42,7 +42,7 @@ public final class ExecutionSqlSessionFactory {
         for (var mapper : new Class<?>[]{SystemMapper.class, ExecutionMapper.class, AdmissionMapper.class, ConversationMetadataMapper.class,
                 BudgetMapper.class, EventMapper.class, OutboxMapper.class, PayloadMapper.class, DispatchLimitMapper.class, SchedulingMapper.class,
                 ToolCatalogMapper.class, ToolReleaseMapper.class, ToolBindingMapper.class, ToolDiscoveryMapper.class, ToolAdmissionMapper.class,
-                ToolApprovalMapper.class, ToolOutcomeMapper.class}) {
+                ToolApprovalMapper.class, ToolOutcomeMapper.class, ToolChatRunMapper.class}) {
             String path = "ainew/persistence/" + mapper.getSimpleName() + ".xml";
             try (var input = new ClassPathResource(path).getInputStream()) {
                 new XMLMapperBuilder(input, configuration, path, configuration.getSqlFragments()).parse();

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper">
+    <resultMap id="Run" type="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper$Row">
+        <constructor>
+            <arg column="run_key" javaType="java.lang.String"/>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="submission_digest" javaType="java.lang.String"/>
+            <arg column="input_digest" javaType="java.lang.String"/>
+            <arg column="input_snapshot" javaType="java.lang.String"/>
+            <arg column="state_digest" javaType="java.lang.String"/>
+            <arg column="state_snapshot" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="deadline" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Work" type="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper$Work">
+        <constructor>
+            <arg column="run_key" javaType="java.lang.String"/>
+            <arg column="available_at" javaType="_long"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="worker_id" javaType="java.lang.String"/>
+            <arg column="lease_until" javaType="_long"/>
+            <arg column="fence" javaType="_long"/>
+            <arg column="signal_version" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Step" type="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper$Step">
+        <constructor>
+            <arg column="child_key" javaType="java.lang.String"/>
+            <arg column="run_key" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Receipt" type="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper$Receipt">
+        <constructor>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="find" resultMap="Run" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_run WHERE run_key=#{run}
+        <if test="lock">FOR UPDATE</if>
+    </select>
+    <select id="accepted" resultMap="Run" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_run WHERE owner_key=#{owner} AND idempotency_key=#{idempotency} FOR UPDATE
+    </select>
+    <insert id="insert">
+        INSERT INTO
+        arte_ai_tool_chat_run(run_key,owner_key,idempotency_key,submission_digest,input_digest,input_snapshot,state_digest,state_snapshot,version,deadline)
+        VALUES(#{r.runKey},#{r.ownerKey},#{r.idempotencyKey},#{r.submissionDigest},#{r.inputDigest},#{r.inputSnapshot},#{r.stateDigest},#{r.stateSnapshot},#{r.version},#{r.deadline})
+    </insert>
+    <update id="update">
+        UPDATE arte_ai_tool_chat_run SET state_digest=#{digest},state_snapshot=#{snapshot},version=#{version}+1 WHERE
+        run_key=#{run} AND version=#{version}
+    </update>
+    <select id="work" resultMap="Work" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_run_work WHERE run_key=#{run} FOR UPDATE
+    </select>
+    <insert id="insertWork">
+        INSERT INTO arte_ai_tool_chat_run_work(run_key,available_at,enabled,worker_id,lease_until,fence,signal_version)
+        VALUES(#{w.runKey},#{w.availableAt},#{w.enabled},#{w.workerId},#{w.leaseUntil},#{w.fence},#{w.signalVersion})
+    </insert>
+    <update id="updateWork">
+        UPDATE arte_ai_tool_chat_run_work SET
+        available_at=#{w.availableAt},enabled=#{w.enabled},worker_id=#{w.workerId},
+        lease_until=#{w.leaseUntil},fence=#{w.fence},signal_version=#{w.signalVersion} WHERE run_key=#{w.runKey}
+    </update>
+    <select id="due" resultType="java.lang.String" useCache="false">
+        SELECT run_key FROM arte_ai_tool_chat_run_work WHERE enabled=TRUE AND available_at &lt;=#{now} AND lease_until
+        &lt;=#{now}
+        ORDER BY available_at,run_key LIMIT #{limit}
+    </select>
+    <select id="steps" resultMap="Step" useCache="false">
+        SELECT child_key,run_key,payload_digest,snapshot FROM arte_ai_tool_chat_run_step WHERE run_key=#{run} ORDER BY
+        child_key LIMIT 133
+    </select>
+    <insert id="insertStep">
+        INSERT INTO arte_ai_tool_chat_run_step(child_key,run_key,payload_digest,snapshot)
+        VALUES(#{s.childKey},#{s.runKey},#{s.payloadDigest},#{s.snapshot})
+    </insert>
+    <select id="receipt" resultMap="Receipt" useCache="false">
+        SELECT request_digest,payload_digest,snapshot FROM arte_ai_tool_chat_run_command WHERE run_key=#{run} AND
+        command_key=#{command}
+    </select>
+    <insert id="insertReceipt">
+        INSERT INTO arte_ai_tool_chat_run_command(run_key,command_key,request_digest,payload_digest,snapshot)
+        VALUES(#{run},#{command},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
+    </insert>
+</mapper>
