@@ -26,6 +26,7 @@ import {
 import {currentAiCredential} from '@/services/arte-ai/request';
 import ConfigurationEditor from './ConfigurationEditor';
 import ToolApprovalPanel from './ToolApprovalPanel';
+import ToolReconciliationPanel from './ToolReconciliationPanel';
 import {toolInvocationFailure, toolTerminal, useToolInvocation,} from './useToolInvocation';
 
 const stateNames: Record<string, string> = {
@@ -193,6 +194,8 @@ export default function ToolRunPanel({
       {execution.error && (
         <Alert type="warning" showIcon title={execution.error}/>
       )}
+      {execution.record?.acceptedId && execution.status?.state === 'UNKNOWN' &&
+        <ToolReconciliationPanel context={context} invocationId={execution.record.acceptedId}/>}
       {execution.record?.acceptedId && execution.status?.state === 'WAITING_APPROVAL' &&
         <ToolApprovalPanel key={execution.record.acceptedId} context={context}
                            invocationId={execution.record.acceptedId} onDecided={execution.refresh}/>}

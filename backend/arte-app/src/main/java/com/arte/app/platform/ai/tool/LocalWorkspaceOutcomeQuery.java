@@ -65,6 +65,14 @@ public final class LocalWorkspaceOutcomeQuery implements ToolOutcomeQueryAdapter
         });
     }
 
+    @Override
+    public ToolOutcomeEvidence readEvidenceInCurrentTransaction(ToolOutcomeCheck.Claim claim) {
+        if (!supports(claim.snapshot()) || !operationKey(claim.snapshot()).equals(claim.work().operationKey()))
+            throw new IllegalArgumentException("Unreviewed domain evidence contract");
+        // 领域 SPI 要求同一物理事务；工作项与操作身份由人工 Store 在此事务锁定并授权。
+        return read(claim);
+    }
+
     private ToolOutcomeEvidence read(ToolOutcomeCheck.Claim claim) {
         var owner = claim.owner();
         var identity = new CommandIdentity(owner.subjectId(), new CommandScope(owner.tenantId(), owner.workspaceId()), "workspace:rename", claim.work().operationKey());

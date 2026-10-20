@@ -76,3 +76,19 @@ SELECT 'aiTool',
        'system',
        CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM arte_rbac_menu_operation
                   WHERE menu_code = 'aiTool' AND operation_code = 'approve');
+
+
+-- S3-05：核对资格不是审批、账单或普通调用权，不由 admin 标记隐式替代。
+INSERT INTO arte_rbac_menu_operation
+(menu_code, operation_code, operation_name, status, description, row_version, create_by, create_time, update_by,
+ update_time)
+SELECT 'aiTool',
+       'reconcile',
+       '核对 AI 工具业务结果',
+       1,
+       '当前空间资源治理与独立证据核验；不能执行工具或修改费用',
+       0,
+       'system',
+       CURRENT_TIMESTAMP,
+       'system',
+       CURRENT_TIMESTAMP WHERE NOT EXISTS(SELECT 1 FROM arte_rbac_menu_operation WHERE menu_code='aiTool' AND operation_code='reconcile');

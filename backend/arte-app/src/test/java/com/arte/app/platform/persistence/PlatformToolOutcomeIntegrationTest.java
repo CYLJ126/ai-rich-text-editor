@@ -328,6 +328,8 @@ class PlatformToolOutcomeIntegrationTest extends ToolWriteAcceptanceRig {
     @Test
     void defaultOffDoesNotInstallWorkerOrRequireOutcomeTables() throws Exception {
         try (var r = new ToolAcceptanceRig()) {
+            r.base.f.jdbc.execute("DROP TABLE arte_ai_tool_outcome_review_command");
+            r.base.f.jdbc.execute("DROP TABLE arte_ai_tool_outcome_review");
             r.base.f.jdbc.execute("DROP TABLE arte_ai_tool_outcome_evidence");
             r.base.f.jdbc.execute("DROP TABLE arte_ai_tool_outcome_check");
             r.base.f.jdbc.execute("DROP TABLE arte_ai_tool_outcome_scan");

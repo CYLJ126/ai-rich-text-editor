@@ -68,4 +68,69 @@
         arte_ai_tool_outcome_evidence(invocation_key,evidence_key,check_no,decision,evidence_ref,evidence_digest,result_digest,recorded_at)
         VALUES(#{invocation},#{key},#{number},#{decision},#{reference},#{digest},#{resultDigest},#{now})
     </insert>
+
+    <resultMap id="Review" type="com.arte.ainew.pojo.tool.ToolReconciliation$Review">
+        <constructor>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="assignee_id" javaType="java.lang.String"/>
+            <arg column="assigned_at" javaType="_long"/>
+            <arg column="next_step" javaType="java.lang.String"/>
+            <arg column="due_at" javaType="_long"/>
+            <arg column="alerted_at" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Audit" type="com.arte.ainew.pojo.tool.ToolReconciliation$Audit">
+        <constructor>
+            <arg column="command_key" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="actor_id" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="outcome" javaType="java.lang.String"/>
+            <arg column="case_version" javaType="_long"/>
+            <arg column="invocation_version" javaType="_long"/>
+            <arg column="case_state" javaType="java.lang.String"/>
+            <arg column="invocation_state" javaType="java.lang.String"/>
+            <arg column="attempt_id" javaType="java.lang.String"/>
+            <arg column="operation_key" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="decision" javaType="java.lang.String"/>
+            <arg column="evidence_ref" javaType="java.lang.String"/>
+            <arg column="evidence_digest" javaType="java.lang.String"/>
+            <arg column="note" javaType="java.lang.String"/>
+            <arg column="next_step" javaType="java.lang.String"/>
+            <arg column="recorded_at" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <select id="review" resultMap="Review" useCache="false">SELECT * FROM arte_ai_tool_outcome_review WHERE
+        invocation_key=#{key}
+    </select>
+    <insert id="insertReview">INSERT INTO
+        arte_ai_tool_outcome_review(invocation_key,assignee_id,assigned_at,next_step,due_at,alerted_at)
+        VALUES(#{r.invocationKey},#{r.assignee},#{r.assignedAt},#{r.nextStep},#{r.dueAt},#{r.alertedAt})
+    </insert>
+    <update id="saveReview">UPDATE arte_ai_tool_outcome_review SET
+        assignee_id=#{r.assignee},assigned_at=#{r.assignedAt},next_step=#{r.nextStep},due_at=#{r.dueAt},alerted_at=#{r.alertedAt}
+        WHERE invocation_key=#{r.invocationKey}
+    </update>
+    <select id="page" resultMap="Case" useCache="false">SELECT * FROM arte_ai_tool_outcome_check WHERE
+        space_key=#{space} AND state &lt;&gt; 'RESOLVED' AND invocation_key &gt; #{after} ORDER BY invocation_key LIMIT
+        #{limit}
+    </select>
+    <select id="command" resultMap="Audit" useCache="false">SELECT * FROM arte_ai_tool_outcome_review_command WHERE
+        command_key=#{key}
+    </select>
+    <select id="history" resultMap="Audit" useCache="false">SELECT * FROM arte_ai_tool_outcome_review_command WHERE
+        invocation_key=#{key} ORDER BY recorded_at DESC,command_key DESC LIMIT 50
+    </select>
+    <insert id="insertCommand">INSERT INTO
+        arte_ai_tool_outcome_review_command(command_key,invocation_key,actor_id,request_digest,action,outcome,case_version,invocation_version,case_state,invocation_state,attempt_id,operation_key,source,decision,evidence_ref,evidence_digest,note,next_step,recorded_at)
+        VALUES(#{r.commandKey},#{r.invocationKey},#{r.actorId},#{r.requestDigest},#{r.action},#{r.outcome},#{r.caseVersion},#{r.invocationVersion},#{r.caseState},#{r.invocationState},#{r.attemptId},#{r.operationKey},#{r.source},#{r.decision},#{r.evidenceRef},#{r.evidenceDigest},#{r.note},#{r.nextStep},#{r.recordedAt})
+    </insert>
+    <select id="alerts" resultMap="Case" useCache="false">
+        SELECT j.* FROM arte_ai_tool_outcome_check j LEFT JOIN arte_ai_tool_outcome_review r ON
+        j.invocation_key=r.invocation_key
+        WHERE j.state IN ('NEEDS_REVIEW','UNRESOLVABLE') AND (r.alerted_at IS NULL OR r.alerted_at &lt;= #{before})
+        AND (r.assignee_id IS NULL OR r.assignee_id='' OR r.due_at &lt;= #{now}) ORDER BY j.invocation_key LIMIT 100
+    </select>
 </mapper>

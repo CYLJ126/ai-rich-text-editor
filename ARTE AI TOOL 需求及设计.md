@@ -1,7 +1,7 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-20。
-> 文档版本：V0.5（S3-04 自动业务结果核对同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
+> 文档版本：V0.6（S3-05 人工核对及界面同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
 > 按本轮确认范围完成正式宿主接线、本机集成验收及性能基线。
 > arte-app 已提供真实本地工具 `text.countCodePoints@v1` 与受理／执行授权，复用现有身份、RBAC、空间和 AI 开关；不依赖模型、费率或预算账户。
 > 正式参考环境双节点、规定数据量和 30 分钟 W1—W4／PF-01—08 仍待验收，不能将本机结果视为 S2 生产开放通过。S3-01／S3-02
@@ -820,7 +820,7 @@ HTTP，真实宿主授权和领域工具仍须由组合模块提供。 网关保
 
 S3-01 已为通用 Invocation 增加 WAITING_APPROVAL 非终态，并同步状态机、持久化 codec、状态事件、通用查询 DTO 及前端非终态判断。
 S3-01 提供可信内部受理／决定事务；S3-02 已实现公开确认／审批、宿主当前资格及页面。S3-03 已实现一个真实工作空间信息写工具，S3-04
-已补充原领域回执自动核对；写工具及自动核对默认关闭，人工证据与核对页面留在 S3-05。
+已补充原领域回执自动核对；写工具及自动核对默认关闭，S3-05 已实现本地域证据核验、无法判定及核对页面。
 
     ACCEPTED → QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED / TIMED_OUT / INTERRUPTED / UNKNOWN
     ACCEPTED → WAITING_APPROVAL → QUEUED
@@ -990,9 +990,17 @@ Run 的执行资格。
 **S3-04 当前实现**：独立本地免费调用的 UNKNOWN 原子登记、历史有界回填、RECONCILE 租约、退避及额度已实现；
 `workspace.updateDetails@v1` 只查询原 `workspace:rename` 命令回执，匹配则确认成功，查无回执继续 UNKNOWN。 原 v1 发布契约及
 `outcomeQuerySupported=false` 不变，通过独立受信历史收尾注册比对完整契约，不推断任意工具具备查询能力。
-确认结果字节、证据、原终态及事件同事务落库；不重发业务写操作、不新建 Attempt、不改预算。 工作项上限后进入
-NEEDS_REVIEW；本批尚无人工证据、责任方分派、核对 HTTP／页面、requestOutcomeCheck 或 UNRESOLVABLE 决定入口。
+确认结果字节、证据、原终态及事件同事务落库；不重发业务写操作、不新建 Attempt、不改预算。 工作项上限后进入 NEEDS_REVIEW。S3-05
+已补当前空间责任池、独立认领、领域证据复验、requestOutcomeCheck、UNRESOLVABLE、提醒及核对 HTTP／页面，见下段。
 部署和实际边界见 [自动核对说明](backend/arte-ai/TOOL_OUTCOME.md)，不得把通用后续设计当作已开放功能。
+
+**S3-05 当前实现**：人工核对要求当前 `aiTool:reconcile` 与原空间 `WORKSPACE_UPDATE`，不修改既有公共角色规则； 菜单
+admin、审批、预算或普通调用权均不替代核对资格。当前支持合格人员认领给本人；独立责任人复核原领域回执，
+提交时重读权威记录，证据／结果／终态／事件／人工命令审计同事务。原发起者不能自审，无法判定仍保持 UNKNOWN。
+未登记材料披露／领域验证器的工具不向管理视图展示私人参数；目前仅当前工作空间信息工具开放领域证据确认。
+外部人工记录来源不因枚举存在而开放，仍需后续受信验证器。处理截止为原自动窗口结束加 24 小时，未认领及超期项有持久化去重提醒。
+原调用者可查看本人进度，管理列表／认领／证据处理在工具页“结果核对”；全部部署、接口、浏览器恢复及实际限制见
+[人工核对说明](backend/arte-ai/TOOL_RECONCILIATION.md)。
 
 **人工核对**：无自动查询能力或到达限额后转 NEEDS_REVIEW，指派当前管理范围内具有 aiTool:reconcile
 资格的责任方。审批者、账单管理员和工具调用者不自动获得该权限；默认禁止调用者批准自己的业务结果证据。人工提交须包含原执行／Attempt／操作键、expectedInvocationVersion、证据来源、证据引用及摘要、结论、必要结果引用和幂等键。允许来源为适配器可信响应、领域幂等回执或经授权人员核验的外部业务记录；浏览器状态、模型文本和无来源的“我确认成功”不作为证据。
@@ -1022,7 +1030,7 @@ ACL 完成。
 S1-08 已实现 `aiTool:list`、`aiTool:invoke`、`aiTool:manage` 的管理入口映射，并交付
 [操作定义脚本](backend/arte-app/scripts/arte-ai-tool-rbac-dml-mysql.sql)，RBAC 基线 DML
 也包含该段。脚本仅补缺失定义，保留已有停用／修改，不自动授予用户或角色，不创建前端菜单；本次未在业务数据库执行。
-执行与审批权限已接入当前平台，S3-04 后台自动核对使用受限系统收尾资格；人工核对权限属 S3-05，操作定义不等于资源权限。
+执行与审批权限已接入当前平台，S3-04 后台自动核对使用受限系统收尾资格；S3-05 已补显式核对资格与原空间治理交集，操作定义不等于资源权限。
 
 | 操作                               | TOOL 资格        | 额外约束                                                        |
 |------------------------------------|------------------|-----------------------------------------------------------------|
@@ -1299,28 +1307,28 @@ S1-08 已实现 16 个 POST 后缀，路径前缀 `/arte/ai-new/tool`：
 S2-07 增加 prepareDefaultBinding 后管理入口为 17 个。S2-08 增加 previewInvocation／invokeTool 两个新调用入口；不计入管理入口数量。
 下面为接口总览，审批已由 S3-02 实现，工具聊天／远端等后续项仍是设计；当前请求布局以 HTTP API 文档及白名单 DTO 为准。
 
-| 操作                     | POST 后缀                               | 主要输入与返回                                                                                     |
-|--------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------------|
-| 目录分页／详情           | listTools / getTool                     | scope、筛选／toolRef；目录与固定版本详情                                                           |
-| 提供者查询               | listProviders                           | scope、分页；当前可见提供者及同步状态                                                              |
-| 提供者同步               | syncProvider                            | scope、providerId、expectedVersion；同步命令结果                                                   |
-| 启停提供者               | setProviderState                        | scope、providerId、state、expectedVersion                                                          |
-| 发布校验／发布           | validateTool / publishTool              | scope、toolRef、expectedVersion；校验结果／发布记录                                                |
-| 停用／废弃               | setToolState                            | scope、toolRef、state、reason、expectedVersion                                                     |
-| 绑定分页／详情           | listBindings / getBinding               | scope、筛选／bindingId                                                                             |
-| 创建／更新绑定           | saveBinding                             | scope、bindingId（新建可空）、工具基准、配置、策略、Secret 引用、expectedVersion                   |
-| 准备默认绑定             | ensureDefaultBinding                    | scope、toolRef；幂等创建或返回本人当前空间默认绑定，不执行工具                                     |
-| 启停绑定                 | setBindingState                         | scope、bindingId、enabled、expectedVersion；新修订                                                 |
-| 升级预览／确认           | previewBindingUpgrade / upgradeBinding  | scope、bindingId、目标版本、expectedVersion                                                        |
-| 可用集合预览             | resolveToolSet                          | scope、bindingIds、策略；模型可见描述及限制，无 Secret                                             |
-| 调用预览（已实现）       | previewInvocation                       | scope、input（bindingId／arguments／期限意图）；有效版本、配置、Schema、planDigest、FREE           |
-| 直接调用（已实现）       | invokeTool                              | scope、input、expectedPlanDigest；Idempotency-Key 必填；AcceptedExecution                          |
-| 审批待办／详情（已实现） | listPendingApprovals / getApproval      | scope、cursor／limit 或 approvalId／invocationId 二选一；当前资格下的固定内容                      |
-| 确认／审批决定（已实现） | decideApproval                          | scope、approvalId、decision、subjectDigest、字符串 expectedVersion；Idempotency-Key 必填，决定回执 |
-| 结果核对列表／详情       | listReconciliations / getReconciliation | scope、筛选／invocationId；当前可见证据摘要及处理责任方                                            |
-| 请求检查原结果           | requestOutcomeCheck                     | scope、invocationId、expectedVersion；只排队有界查询，不重新执行工具                               |
-| 人工提交结果证据         | confirmOutcome                          | scope、原执行／Attempt、expectedVersion、证据身份／结论／结果引用；核对回执                        |
-| 执行列表／统计           | listExecutions / getStatistics          | scope、时间窗口、筛选；授权列表／指标                                                              |
+| 操作                           | POST 后缀                               | 主要输入与返回                                                                                     |
+|--------------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------------|
+| 目录分页／详情                 | listTools / getTool                     | scope、筛选／toolRef；目录与固定版本详情                                                           |
+| 提供者查询                     | listProviders                           | scope、分页；当前可见提供者及同步状态                                                              |
+| 提供者同步                     | syncProvider                            | scope、providerId、expectedVersion；同步命令结果                                                   |
+| 启停提供者                     | setProviderState                        | scope、providerId、state、expectedVersion                                                          |
+| 发布校验／发布                 | validateTool / publishTool              | scope、toolRef、expectedVersion；校验结果／发布记录                                                |
+| 停用／废弃                     | setToolState                            | scope、toolRef、state、reason、expectedVersion                                                     |
+| 绑定分页／详情                 | listBindings / getBinding               | scope、筛选／bindingId                                                                             |
+| 创建／更新绑定                 | saveBinding                             | scope、bindingId（新建可空）、工具基准、配置、策略、Secret 引用、expectedVersion                   |
+| 准备默认绑定                   | ensureDefaultBinding                    | scope、toolRef；幂等创建或返回本人当前空间默认绑定，不执行工具                                     |
+| 启停绑定                       | setBindingState                         | scope、bindingId、enabled、expectedVersion；新修订                                                 |
+| 升级预览／确认                 | previewBindingUpgrade / upgradeBinding  | scope、bindingId、目标版本、expectedVersion                                                        |
+| 可用集合预览                   | resolveToolSet                          | scope、bindingIds、策略；模型可见描述及限制，无 Secret                                             |
+| 调用预览（已实现）             | previewInvocation                       | scope、input（bindingId／arguments／期限意图）；有效版本、配置、Schema、planDigest、FREE           |
+| 直接调用（已实现）             | invokeTool                              | scope、input、expectedPlanDigest；Idempotency-Key 必填；AcceptedExecution                          |
+| 审批待办／详情（已实现）       | listPendingApprovals / getApproval      | scope、cursor／limit 或 approvalId／invocationId 二选一；当前资格下的固定内容                      |
+| 确认／审批决定（已实现）       | decideApproval                          | scope、approvalId、decision、subjectDigest、字符串 expectedVersion；Idempotency-Key 必填，决定回执 |
+| 结果核对列表／详情（已实现）   | listReconciliations / getReconciliation | scope、筛选／invocationId；当前可见证据摘要及处理责任方                                            |
+| 请求检查原结果（已实现）       | requestOutcomeCheck                     | scope、invocationId、expectedVersion；只排队有界查询，不重新执行工具                               |
+| 人工提交领域结果证据（已实现） | confirmOutcome                          | scope、原执行／Attempt、expectedVersion、证据身份／结论／结果引用；核对回执                        |
+| 执行列表／统计                 | listExecutions / getStatistics          | scope、时间窗口、筛选；授权列表／指标                                                              |
 
 提供者为部署登记，不提供任意 URL 的通用新建／编辑入口。当前只查询及完整本地刷新，单提供者同步／启停待后续。远端 Secret 授权实现后
 saveBinding 才能选择有权使用的引用；当前本地绑定拒绝非空 secrets。

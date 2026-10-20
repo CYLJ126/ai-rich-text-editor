@@ -25,13 +25,13 @@ public class ToolOutcomeMigrationTest {
         var baseline = new ClassPathResource("arte-ai-new-ddl-mysql.sql");
         var migration = new ClassPathResource("arte-ai-tool-outcome-migration.sql");
         String full = baseline.getContentAsString(StandardCharsets.UTF_8), incremental = migration.getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(full.substring(full.indexOf("create table arte_ai_tool_outcome_check")).trim(), incremental.substring(incremental.indexOf("create table arte_ai_tool_outcome_check")).trim());
+        assertEquals(full.substring(full.indexOf("create table arte_ai_tool_outcome_check"), full.indexOf("-- S3-05")).trim(), incremental.substring(incremental.indexOf("create table arte_ai_tool_outcome_check")).trim());
         var ds = new JdbcDataSource();
         ds.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
         var jdbc = new JdbcTemplate(ds);
         try {
             new ResourceDatabasePopulator(baseline).execute(ds);
-            for (String table : new String[]{"arte_ai_tool_outcome_evidence", "arte_ai_tool_outcome_check", "arte_ai_tool_outcome_scan"})
+            for (String table : new String[]{"arte_ai_tool_outcome_review_command", "arte_ai_tool_outcome_review", "arte_ai_tool_outcome_evidence", "arte_ai_tool_outcome_check", "arte_ai_tool_outcome_scan"})
                 jdbc.execute("DROP TABLE " + table);
             new ResourceDatabasePopulator(migration).execute(ds);
             assertEquals(Integer.valueOf(0), jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_tool_outcome_check", Integer.class));

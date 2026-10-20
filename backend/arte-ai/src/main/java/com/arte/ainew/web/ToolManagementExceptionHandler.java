@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾
  */
-@RestControllerAdvice(assignableTypes = {NewAiToolController.class, NewAiToolSubmissionController.class, NewAiToolApprovalController.class})
+@RestControllerAdvice(assignableTypes = {NewAiToolController.class, NewAiToolSubmissionController.class, NewAiToolApprovalController.class, com.arte.ainew.web.controller.NewAiToolReconciliationController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ToolManagementExceptionHandler {

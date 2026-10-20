@@ -326,5 +326,14 @@ workspaceId、name、字符串 version、领域 operationId。`TOOL_RESOURCE_VER
 
 本批新增后台工作项，不新增 HTTP 路由、权限操作或页面。已受理的 UNKNOWN 可以由受限后台按原领域回执确认， 原
 getInvocationStatus／getInvocationResult／事件接口返回新的事实，读取继续校验当前 aiTool:list 及归属。 撤销 invoke
-不自动撤销历史读取；读取无权与不存在沿用同样的 404，不因后台收尾恢复权限。 没有 requestOutcomeCheck、人工 confirmOutcome
-或核对列表接口，这些属 S3-05。 自动查询默认关闭，部署及边界见 [自动核对说明](TOOL_OUTCOME.md)。
+不自动撤销历史读取；读取无权与不存在沿用同样的 404，不因后台收尾恢复权限。 S3-05 已补 requestOutcomeCheck、人工领域证据
+confirmOutcome 及核对列表接口，见下一节。 自动查询默认关闭，部署及边界见 [自动核对说明](TOOL_OUTCOME.md)。
+
+## S3-05 人工业务结果核对
+
+已新增 `getReconciliation`、`listReconciliations`、`claimReconciliation`、`requestOutcomeCheck`、`getOutcomeEvidence`、
+`confirmOutcome`、`markOutcomeUnresolvable`，均位于原 `/ai-new/tool` POST 路径。本人进度按 LIST 及原 owner 授权，
+managed=true、列表与写命令要求当前显式 `aiTool:reconcile` + 原空间 WORKSPACE_UPDATE；原调用者不能自审。 写命令以原
+Invocation／Attempt／operationKey、字符串双版本、原因、下一步及幂等键定位，拒绝客户端自报角色或预算。 当前仅开放数据库可复验的
+DOMAIN_RECEIPT，不凭手填来源或浏览器结论提交成功；无法判定保留 UNKNOWN。
+详细请求、响应、额度、超期提醒及部署见 [人工核对说明](TOOL_RECONCILIATION.md)。

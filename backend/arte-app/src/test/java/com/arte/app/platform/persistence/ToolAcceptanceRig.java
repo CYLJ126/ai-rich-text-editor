@@ -124,7 +124,7 @@ final class ToolAcceptanceRig implements AutoCloseable {
 
     MockMvc mvc(ApplicationContext c, boolean observed) {
         var http = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
-        var builder = standaloneSetup(new NewAiToolApprovalController(c.getBeanProvider(ToolApprovalService.class), http, c.getBean(NewAiProperties.class)), new NewAiToolController(c.getBean(ToolManagementService.class),
+        var builder = standaloneSetup(new NewAiToolReconciliationController(c.getBeanProvider(com.arte.ainew.application.tool.outcome.ToolReconciliationService.class), c.getBean(ToolManagementAccess.class)), new NewAiToolApprovalController(c.getBeanProvider(ToolApprovalService.class), http, c.getBean(NewAiProperties.class)), new NewAiToolController(c.getBean(ToolManagementService.class),
                         c.getBean(ToolManagementAccess.class)),
                 new NewAiToolSubmissionController(c.getBeanProvider(ToolAdmissionService.class), http, c.getBean(NewAiProperties.class)),
                 new NewAiInvocationController(c.getBean(ExecutionControl.class),
@@ -145,7 +145,12 @@ final class ToolAcceptanceRig implements AutoCloseable {
     }
 
     MvcResult request(MockMvc mvc, String path, String body, String key) throws Exception {
-        var online = new UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(accountCreatedAt);
+        return requestAs(mvc, path, body, key, 1L, "alice");
+    }
+
+    MvcResult requestAs(MockMvc mvc, String path, String body, String key, long userId, String userName) throws Exception {
+        var created = base.f.jdbc.queryForObject("SELECT create_time FROM arte_rbac_user WHERE id=?", (row, index) -> row.getObject(1, LocalDateTime.class), userId);
+        var online = new UserOnlineInfo().setId(userId).setUserName(userName).setAccountCreatedAt(created);
         var login = UsernamePasswordAuthenticationToken.authenticated(new JwtUserDto(online), null, List.of());
         SecurityContextHolder.getContext().setAuthentication(login);
         try {

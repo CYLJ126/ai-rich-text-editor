@@ -70,6 +70,12 @@ public class NewAiToolExecutionConfiguration {
     /**
      * 与通用 Invocation 共用精确的物理数据源、有界 JDBC 调度器及事务内同步提交方法。
      */
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.ai-new-tool-outcome", name = "enabled", havingValue = "true")
+    com.arte.ainew.application.tool.outcome.ToolReconciliationService toolReconciliationService(MybatisToolOutcomeStore store) {
+        return new com.arte.ainew.application.tool.outcome.ToolReconciliationService(store);
+    }
+
     @Bean("newAiToolAdmissionStore")
     MybatisToolAdmissionStore toolAdmissionStore(NewAiProperties properties, ListableBeanFactory beans, ExecutionRecordCodec codec,
                                                  @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,

@@ -32,8 +32,9 @@ class RbacToolDefinitionScriptTest {
             jdbc.update("INSERT INTO arte_rbac_relation(source,target,binding_type,create_time) VALUES('alice','aiTool:list','user_to_operation',CURRENT_TIMESTAMP)");
             for (int i = 0; i < 2; i++)
                 ScriptUtils.executeSqlScript(connection, new ByteArrayResource(script.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            assertEquals(5, jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_menu_operation", Integer.class));
+            assertEquals(6, jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_menu_operation", Integer.class));
             assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_menu_operation WHERE menu_code='aiTool' AND operation_code='approve'", Integer.class));
+            assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_menu_operation WHERE menu_code='aiTool' AND operation_code='reconcile'", Integer.class));
             assertEquals(3, jdbc.queryForObject("SELECT status FROM arte_rbac_menu_operation WHERE menu_code='aiTool' AND operation_code='list'", Integer.class));
             assertEquals(7, jdbc.queryForObject("SELECT row_version FROM arte_rbac_menu_operation WHERE menu_code='aiTool' AND operation_code='list'", Integer.class));
             assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_relation", Integer.class));

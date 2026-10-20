@@ -301,10 +301,14 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
                 case BINDING_WRITE, BINDING_DISABLE -> "aiTool:invoke";
                 case MANAGE -> "aiTool:manage";
                 case APPROVE -> "aiTool:approve";
+                case RECONCILE -> "aiTool:reconcile";
             };
-            if (operation == Operation.APPROVE ? !operations.contains(requiredOperation)
+            if (operation == Operation.APPROVE || operation == Operation.RECONCILE ? !operations.contains(requiredOperation)
                     : !operations.contains("admin") && (!operations.contains(requiredOperation) || operation == Operation.MANAGE && !operations.contains("aiConfiguration:manage")))
                 throw denied();
+            if (operation == Operation.RECONCILE)
+                authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope,
+                        com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE, "ai-tool-reconciliation"));
             Set<String> scopes;
             if (databaseMode) {
                 boolean aiEnabled = enabled(scope);

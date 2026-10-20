@@ -48,7 +48,7 @@ public final class ToolOutcomeWorker implements SmartLifecycle {
     public Mono<Integer> pollOnce() {
         return Mono.defer(() -> {
             if (!properties.enabled() || !polling.compareAndSet(false, true)) return Mono.just(0);
-            return store.recoverUnknownBatch().then(store.claim(workerId, properties.batchSize())).flatMapMany(Flux::fromIterable).flatMap(claim -> process(claim).onErrorResume(error -> {
+            return store.recoverUnknownBatch().then(store.alertReviews()).then(store.claim(workerId, properties.batchSize())).flatMapMany(Flux::fromIterable).flatMap(claim -> process(claim).onErrorResume(error -> {
                         log.warn("AI_TOOL_OUTCOME work failed invocationId={} type={}", claim.work().invocationId(), error.getClass().getSimpleName());
                         return Mono.just(0);
                     }), properties.batchSize(), 1)

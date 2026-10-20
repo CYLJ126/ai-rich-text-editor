@@ -1,6 +1,7 @@
 package com.arte.ainew.persistence.mybatis.mapper;
 
 import com.arte.ainew.pojo.tool.ToolOutcomeCheck;
+import com.arte.ainew.pojo.tool.ToolReconciliation;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -12,6 +13,22 @@ import java.util.List;
  * @since 2026/10/20 10:48 ✾
  */
 public interface ToolOutcomeMapper {
+
+    ToolReconciliation.Review review(@Param("key") String key);
+
+    int insertReview(@Param("r") ToolReconciliation.Review review);
+
+    int saveReview(@Param("r") ToolReconciliation.Review review);
+
+    List<ToolOutcomeCheck.Case> page(@Param("space") String space, @Param("after") String after, @Param("limit") int limit);
+
+    ToolReconciliation.Audit command(@Param("key") String key);
+
+    int insertCommand(@Param("r") ToolReconciliation.Audit row);
+
+    List<ToolReconciliation.Audit> history(@Param("key") String key);
+
+    List<ToolOutcomeCheck.Case> alerts(@Param("now") long now, @Param("before") long before);
 
     record ScanRow(String idKey) {
     }

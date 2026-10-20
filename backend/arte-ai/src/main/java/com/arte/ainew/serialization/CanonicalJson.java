@@ -41,6 +41,32 @@ public final class CanonicalJson {
         return MAPPER.writeValueAsString(sorted(MAPPER.readValue(json, Object.class)));
     }
 
+    /**
+     * 有界标准 JSON 到工具值树；保留精确数字，不加载类型名。
+     */
+    public static com.arte.ainew.common.value.StructuredValue structured(String json) {
+        if (json == null) return null;
+        com.arte.ainew.common.validation.ContractChecks.require(json.getBytes(StandardCharsets.UTF_8).length <= 32768, "Evidence JSON exceeds limit");
+        return structuredValue(MAPPER.readValue(json, Object.class), 0);
+    }
+
+    private static com.arte.ainew.common.value.StructuredValue structuredValue(Object value, int depth) {
+        com.arte.ainew.common.validation.ContractChecks.require(depth <= 24, "Evidence JSON too deep");
+        if (value == null) return com.arte.ainew.common.value.StructuredValue.NullValue.INSTANCE;
+        if (value instanceof Map<?, ?> map) {
+            var fields = new TreeMap<String, com.arte.ainew.common.value.StructuredValue>();
+            map.forEach((k, v) -> fields.put((String) k, structuredValue(v, depth + 1)));
+            return new com.arte.ainew.common.value.StructuredValue.ObjectValue(fields);
+        }
+        if (value instanceof List<?> list)
+            return new com.arte.ainew.common.value.StructuredValue.ArrayValue(list.stream().map(v -> structuredValue(v, depth + 1)).toList());
+        if (value instanceof String text) return new com.arte.ainew.common.value.StructuredValue.StringValue(text);
+        if (value instanceof Boolean b) return new com.arte.ainew.common.value.StructuredValue.BooleanValue(b);
+        if (value instanceof Number n)
+            return new com.arte.ainew.common.value.StructuredValue.NumberValue(new BigDecimal(n.toString()));
+        throw new IllegalArgumentException("Unsupported evidence JSON");
+    }
+
     private static Object sorted(Object value) {
         if (value instanceof Map<?, ?> map) {
             var result = new TreeMap<String, Object>();
