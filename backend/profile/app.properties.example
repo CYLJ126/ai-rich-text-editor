@@ -320,3 +320,8 @@ arte.ai-new-execution.scheduling.short-threshold=10s
 arte.ai-new-execution.scheduling.short-queue-timeout=10s
 arte.ai-new-execution.scheduling.long-queue-timeout=30s
 arte.ai-new-execution.scheduling.tool-manifest=
+
+# 开启业务写工具
+arte.ai-new-tool-write.enabled=true
+# 启用人工确认与审批
+arte.ai-new-tool-approval.enabled=true
