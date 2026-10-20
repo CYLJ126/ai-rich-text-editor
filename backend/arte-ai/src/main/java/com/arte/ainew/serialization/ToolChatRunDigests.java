@@ -21,11 +21,13 @@ public final class ToolChatRunDigests {
 
     public static String submission(ToolChatRunSnapshot s) {
         var c = s.initialContext();
-        return CanonicalJson.digest(CanonicalJson.fields("format", "tool-chat-run-v1", "owner", ExecutionOwner.from(s.context()),
+        var fields = CanonicalJson.fields("format", s.budgetPlan() == null ? "tool-chat-run-v1" : "tool-chat-run-v2", "owner", ExecutionOwner.from(s.context()),
                 "model", model(s.model()), "messages", c.messages(), "history", c.history(), "fragments", c.fragments(),
                 "contextBudget", c.budget(), "inputTokens", c.inputTokens(), "estimated", c.estimatedTokens(), "tokenizer", c.tokenizerVersion(),
                 "truncations", c.truncations(), "tools", tools(s.tools()), "generation", s.generation(), "limits", s.limits(),
-                "scopeCeiling", new TreeSet<>(s.context().authorization().scopes()), "release", s.context().releaseRef()));
+                "scopeCeiling", new TreeSet<>(s.context().authorization().scopes()), "release", s.context().releaseRef());
+        if (s.budgetPlan() == null) return CanonicalJson.digest(fields);
+        return CanonicalJson.digest(CanonicalJson.fields("input", fields, "budgetPlan", s.budgetPlan()));
     }
 
     /**

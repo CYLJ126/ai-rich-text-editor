@@ -1,7 +1,11 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.api.conversation.ConversationService;
+import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.control.FixedControlCatalog;
+import com.arte.ainew.application.tool.binding.ToolBindingService;
+import com.arte.ainew.application.tool.chat.ToolChatBudgetSelector;
 import com.arte.ainew.application.tool.chat.ToolChatQueryService;
 import com.arte.ainew.persistence.mybatis.MybatisConversationSearchReads;
 import com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore;
@@ -20,6 +24,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import reactor.core.scheduler.Scheduler;
 import javax.sql.DataSource;
+
+import java.time.Clock;
 
 /**
  * S4-03 Run 持久化及只读查询；装配零 SQL，不建表、不启动 Run Worker。
@@ -54,6 +60,16 @@ public class NewAiToolChatConfiguration {
                                               AdmissionAuthorization authorization,
                                               ExecutionStore executions, ExecutionResultStore results) {
         return new ToolChatQueryService(runs, conversations, authorization, executions, results);
+    }
+
+    @Bean
+    @ConditionalOnBean(ConversationService.class)
+    ToolChatBudgetSelector toolChatBudgetSelector(MybatisToolChatRunStore runs,
+                                                  AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                                  BudgetService budgets,
+                                                  ObjectProvider<ToolBindingService> bindings,
+                                                  @Qualifier("newAiClock") Clock clock) {
+        return new ToolChatBudgetSelector(runs, authorization, catalog, budgets, bindings.getIfAvailable(), clock);
     }
 
     @Bean

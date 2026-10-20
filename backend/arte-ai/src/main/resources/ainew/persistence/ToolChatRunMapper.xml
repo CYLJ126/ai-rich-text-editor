@@ -74,6 +74,9 @@
         &lt;=#{now}
         ORDER BY available_at,run_key LIMIT #{limit}
     </select>
+    <select id="step" resultMap="Step" useCache="false">
+        SELECT child_key,run_key,payload_digest,snapshot FROM arte_ai_tool_chat_run_step WHERE child_key=#{child}
+    </select>
     <select id="steps" resultMap="Step" useCache="false">
         SELECT child_key,run_key,payload_digest,snapshot FROM arte_ai_tool_chat_run_step WHERE run_key=#{run} ORDER BY
         child_key LIMIT 133

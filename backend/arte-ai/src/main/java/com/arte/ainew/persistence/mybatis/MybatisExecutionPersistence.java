@@ -31,8 +31,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-
 import javax.sql.DataSource;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -69,6 +69,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     private final AdmissionMapper admission;
     private final ConversationMetadataPersistence conversationMetadata;
     private final BudgetMapper budget;
+    private final ToolChatBudgetPersistence runBudgets;
     private final EventMapper event;
     private final OutboxMapper outbox;
     private final DispatchLimitMapper dispatchLimits;
@@ -120,6 +121,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.execution = sessions.getMapper(ExecutionMapper.class);
         this.admission = sessions.getMapper(AdmissionMapper.class);
         this.budget = sessions.getMapper(BudgetMapper.class);
+        this.runBudgets = new ToolChatBudgetPersistence(sessions, codec);
         this.event = sessions.getMapper(EventMapper.class);
         this.outbox = sessions.getMapper(OutboxMapper.class);
         this.dispatchLimits = sessions.getMapper(DispatchLimitMapper.class);
@@ -784,7 +786,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     @Override
     public Mono<StoreOutcome<Attempt>> createAttempt(CreateAttempt command) {
-        return outcome(() -> StoreOutcome.applied(createAttemptLocked(command, invocation(command.invocation())).attempt()));
+        return outcome(() -> {
+            var invocation = invocation(command.invocation());
+            require(invocation.request().context().parentExecutionId() == null, INVALID_STATE);
+            return StoreOutcome.applied(createAttemptLocked(command, invocation).attempt());
+        });
     }
 
     private record CreatedAttempt(Invocation invocation, Attempt attempt) {
@@ -793,13 +799,14 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     @Override
     public Mono<StoreOutcome<DispatchPreparationStore.PreparedDispatch>> prepareDispatch(DispatchPreparationStore.Command command) {
         return outcome(() -> {
-            // 统一顺序：Invocation -> Outbox -> Account -> Reservation；不在事务中执行网络请求。
+            // 统一顺序：Invocation -> Outbox -> Run 资格／按币种预算 -> Account -> Reservation；无网络请求。
             var invocation = invocation(command.invocation());
             version(invocation, command.invocation());
             var rows = outbox.lockMessage(command.claim().messageId());
             require(!rows.isEmpty(), NOT_FOUND);
             var claim = rows.getFirst();
             claimed(command.claim(), claim);
+            var runGuard = runBudgets.guard(invocation, command.billingPlan(), now());
             boolean free = command.billingPlan() instanceof DispatchPreparationStore.Free;
             if (free) {
                 // FREE 是内部命令，仍禁止模型或带预算引用的调用绕过原有预留。
@@ -826,7 +833,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     command.rate(), command.retention());
             ReservedAttempt reserved;
             try {
-                reserved = reserveLocked(reserve, running, attempt, account, LeasePurpose.EXECUTE);
+                reserved = reserveLocked(reserve, running, attempt, account, LeasePurpose.EXECUTE, runGuard);
             } catch (Rejected rejection) {
                 // available 检查在任何预留写入前执行；只保留可正常结束的未发送 Attempt。
                 if (rejection.code != INSUFFICIENT_BUDGET) throw rejection;
@@ -933,6 +940,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     public Mono<StoreOutcome<Attempt>> markDispatch(Dispatch command) {
         return outcome(() -> {
             var invocation = invocation(command.guard().invocation());
+            require(invocation.request().context().parentExecutionId() == null, INVALID_STATE);
             return StoreOutcome.applied(markDispatchLocked(command, invocation, checked(invocation, command.guard(), null), null));
         });
     }
@@ -1739,6 +1747,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     public Mono<StoreOutcome<BudgetReservation>> reserve(BudgetCommands.Reserve command) {
         return outcome(() -> {
             var invocation = invocation(command.guard().invocation());
+            require(invocation.request().context().parentExecutionId() == null, INVALID_STATE);
             var budgetRef = invocation.request().context().budgetRef();
             require(budgetRef != null, NOT_FOUND);
             var account = workspaceSnapshot(budget.accountSnapshot(hash(budgetRef), true), BudgetCommands.Account.class);
@@ -1761,11 +1770,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     private ReservedAttempt reserveLocked(BudgetCommands.Reserve command, Invocation invocation, Attempt attempt, BudgetCommands.Account account) {
-        return reserveLocked(command, invocation, attempt, account, null);
+        return reserveLocked(command, invocation, attempt, account, null, null);
     }
 
     private ReservedAttempt reserveLocked(BudgetCommands.Reserve command, Invocation invocation, Attempt attempt,
-                                          BudgetCommands.Account account, LeasePurpose knownPurpose) {
+                                          BudgetCommands.Account account, LeasePurpose knownPurpose, ToolChatBudgetPersistence.Guard runGuard) {
         var budgetRef = invocation.request().context().budgetRef();
         require(!invocation.state().terminal() && (knownPurpose == null ? purpose(attempt) : knownPurpose) == LeasePurpose.EXECUTE
                 && attempt.dispatch() == Attempt.Dispatch.NOT_STARTED
@@ -1773,6 +1782,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 && invocation.request().options().deadline().isAfter(now()), INVALID_STATE);
         require(account.limit().currency().equals(command.amount().currency()), CURRENCY_MISMATCH);
         require(account.rateVersion().equals(command.rateVersion()), RATE_MISMATCH);
+        runBudgets.capacity(runGuard, command.amount());
         require(account.available().compareTo(command.amount().amount()) >= 0, INSUFFICIENT_BUDGET);
         lock(hash("reservation-id", command.reservationId()));
         require(workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class) == null,
@@ -1782,6 +1792,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 command.amount(), command.rateVersion(), BudgetReservation.State.RESERVED, 0, reservedAt,
                 reservedAt.plus(command.retention()));
         budget.insertReservation(hash(reservation.reservationId()), hash(budgetRef), hash(id(invocation)), hash(attempt.attemptId()), codec.encode(reservation));
+        runBudgets.hold(runGuard, invocation, attempt, reservation);
         save(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(),
                 new Money(account.held().amount().add(command.amount().amount()), account.held().currency()),
                 account.charged(), account.rateVersion(), account.version() + 1));
@@ -1801,10 +1812,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     private StoreOutcome<BudgetReservation> settleLocked(BudgetCommands.Settle command) {
         var settlement = command.settlement();
-        // 先只读定位，再按统一顺序锁 Invocation -> Account -> Reservation，避免与预留／发送互锁。
+        // 先只读定位，再按统一顺序锁 Invocation -> Run 按币种预算 -> Account -> Reservation。
         var pointer = workspaceSnapshot(budget.reservationSnapshot(hash(settlement.reservationId()), false), BudgetReservation.class);
         require(pointer != null, NOT_FOUND);
         var invocation = invocation(new Version(command.owner(), pointer.invocationId(), 0));
+        var runSettlement = runBudgets.settlementLocks(invocation, pointer);
         var account = workspaceSnapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
         require(account != null && account.owner().equals(command.owner()), OWNER_MISMATCH);
         var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
@@ -1829,6 +1841,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && settlement.state() == BudgetSettlement.State.RELEASED
                     && settlement.charge().amount().signum() == 0, RECONCILIATION_REQUIRED);
         }
+        runBudgets.settle(runSettlement, invocation, reservation, settlement);
         boolean finalSettlement = settlement.state() != BudgetSettlement.State.PENDING_RECONCILIATION;
         if (finalSettlement) {
             require(account.held().amount().compareTo(reservation.reserved().amount()) >= 0, INVALID_STATE);

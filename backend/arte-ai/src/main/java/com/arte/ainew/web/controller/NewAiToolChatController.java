@@ -6,6 +6,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.tool.ToolChatRunEvent;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.request.ToolChatRequests;
+import com.arte.ainew.web.response.ToolChatBudgetResponse;
 import com.arte.ainew.web.response.ToolChatRunStatusResponse;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
@@ -50,6 +51,13 @@ public class NewAiToolChatController {
     public Mono<ResultContext<ToolChatRunStatusResponse>> status(@Valid @RequestBody ToolChatRequests.Query request, Locale locale) {
         return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
                 c -> queries.status(request.runId(), c)).map(r -> ResultContext.success(ToolChatRunStatusResponse.from(r), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getRunBudget")
+    public Mono<ResultContext<List<ToolChatBudgetResponse>>> budgets(@Valid @RequestBody ToolChatRequests.Query request, Locale locale) {
+        return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
+                        c -> queries.budgets(request.runId(), c)).map(values -> values.stream().map(ToolChatBudgetResponse::from).toList())
+                .map(r -> ResultContext.success(r, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getRunResult")

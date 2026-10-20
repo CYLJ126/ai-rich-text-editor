@@ -1,5 +1,8 @@
 # 最小 AI 数据契约 v1
 
+> S4-04：带预算计划的 tool-chat-run-snapshot 使用 v2，旧无计划保持 v1；新增 tool-chat-budget／tool-chat-budget-allocation
+> v1。预算查询金额使用十进制字符串，既有 Invocation／Attempt 和账户编码不变，见 [预算说明](TOOL_CHAT_BUDGET.md)。
+
 > S4-03：Turn 新写 codec v2，兼容读取 v1 为 INVOCATION 类型；新增 AnswerCandidate 和 Run 独立事件 v1。Run 不放入
 > invocationIds，Outbox RUN_EVENT 与原消费者隔离。数据、HTTP 与协调升级边界见 [S4-03 说明](TOOL_CHAT_HISTORY.md)
 > 。下方各阶段说明保留原批次语境。

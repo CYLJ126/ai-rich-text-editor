@@ -8,6 +8,7 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.generation.GenerationOptions;
+import com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,7 +22,15 @@ import java.util.Objects;
  */
 public record ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot initialContext, ResolvedBinding model,
                                   GenerationOptions generation, ToolSetSnapshot tools, Limits limits,
-                                  Instant receivedAt) {
+                                  Instant receivedAt, ToolChatBudgetPlan budgetPlan) {
+
+    /**
+     * S4-02／03 旧快照仅可读取及恢复材料，没有收费子派发资格。
+     */
+    public ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot initialContext, ResolvedBinding model,
+                               GenerationOptions generation, ToolSetSnapshot tools, Limits limits, Instant receivedAt) {
+        this(context, initialContext, model, generation, tools, limits, receivedAt, null);
+    }
 
     public record Limits(Duration timeout, int maxModelRounds, int maxToolCalls, int maxConcurrentTools) {
         public Limits {
@@ -50,6 +59,18 @@ public record ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot init
         ContractChecks.require(initialContext.modelBinding().equals(model.definition()) && tools.owner().equals(ExecutionOwner.from(context)), "Run fixed input mismatch");
         ContractChecks.require(context.authorization().scopes().contains("ai:invoke") && tools.entries().stream()
                 .allMatch(e -> context.authorization().scopes().containsAll(e.binding().tool().tool().risk().requiredScopes())), "Run scope ceiling is insufficient");
+        if (budgetPlan != null) {
+            var selected = budgetPlan.selection(model.definition());
+            ContractChecks.require(selected.kind() == CapabilityDescriptor.Kind.GENERATION && selected.capability().equals(model.capability().definition())
+                    && selected.rate().equals(model.rate()), "Run model budget selection mismatch");
+            ContractChecks.require(budgetPlan.selections().size() == tools.entries().size() + 1, "Run budget bindings must match fixed set");
+            for (var entry : tools.entries()) {
+                var choice = budgetPlan.selection(entry.binding().definition());
+                ContractChecks.require(choice.mode() == BillingMode.FREE
+                        && choice.capability().equals(entry.binding().tool().tool().capability())
+                        && entry.binding().tool().target() instanceof ExecutionTarget.Local, "Run tool requires explicit local FREE selection");
+            }
+        }
         ContractChecks.require(context.deadline().isAfter(receivedAt) && !context.deadline().isAfter(receivedAt.plus(limits.timeout()))
                 && !context.deadline().isAfter(initialContext.expiresAt()), "Run deadline exceeds fixed limits");
     }

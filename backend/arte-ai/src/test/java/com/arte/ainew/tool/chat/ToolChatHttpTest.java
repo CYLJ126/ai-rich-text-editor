@@ -107,6 +107,13 @@ public class ToolChatHttpTest {
     }
 
     @Test
+    public void budgetQueryKeepsLegacyUnknownDistinctFromZeroAndHonorsArchive() throws Exception {
+        assertEquals(0, json.readTree(send("getRunBudget", QUERY, 200)).path("data").size());
+        c.archived.set(true);
+        send("getRunBudget", QUERY, 404);
+    }
+
+    @Test
     public void invalidCursorAndUnknownFieldsFailWithoutCreatingMoreExecutions() throws Exception {
         send("getRunStatus", QUERY.substring(0, QUERY.length() - 1) + ",\"owner\":\"client\"}", 400);
         for (String values : List.of("\"afterSequence\":-1,\"limit\":10", "\"afterSequence\":0,\"limit\":101", "\"afterSequence\":2,\"limit\":10"))

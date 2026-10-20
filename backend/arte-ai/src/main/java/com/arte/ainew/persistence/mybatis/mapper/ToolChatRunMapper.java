@@ -60,6 +60,8 @@ public interface ToolChatRunMapper {
 
     List<String> due(@Param("now") long now, @Param("limit") int limit);
 
+    Step step(@Param("child") String childKey);
+
     List<Step> steps(@Param("run") String runKey);
 
     int insertStep(@Param("s") Step step);

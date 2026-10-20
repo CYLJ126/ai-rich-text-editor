@@ -6,8 +6,8 @@ import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.*;
 import org.mybatis.spring.transaction.SpringManagedTransactionFactory;
 import org.springframework.core.io.ClassPathResource;
-
 import javax.sql.DataSource;
+
 import java.util.Objects;
 
 /**
@@ -42,7 +42,7 @@ public final class ExecutionSqlSessionFactory {
         for (var mapper : new Class<?>[]{SystemMapper.class, ExecutionMapper.class, AdmissionMapper.class, ConversationMetadataMapper.class,
                 BudgetMapper.class, EventMapper.class, OutboxMapper.class, PayloadMapper.class, DispatchLimitMapper.class, SchedulingMapper.class,
                 ToolCatalogMapper.class, ToolReleaseMapper.class, ToolBindingMapper.class, ToolDiscoveryMapper.class, ToolAdmissionMapper.class,
-                ToolApprovalMapper.class, ToolOutcomeMapper.class, ToolChatRunMapper.class}) {
+                ToolApprovalMapper.class, ToolOutcomeMapper.class, ToolChatRunMapper.class, ToolChatBudgetMapper.class}) {
             String path = "ainew/persistence/" + mapper.getSimpleName() + ".xml";
             try (var input = new ClassPathResource(path).getInputStream()) {
                 new XMLMapperBuilder(input, configuration, path, configuration.getSqlFragments()).parse();

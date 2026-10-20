@@ -26,8 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-
 import javax.sql.DataSource;
+
 import java.io.Serial;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -56,6 +56,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
     private final PayloadMapper payloads;
     private final OutboxMapper outbox;
     private final ConversationMetadataPersistence metadata;
+    private final ToolChatBudgetPersistence budgets;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
     private final TransactionTemplate tx;
@@ -64,6 +65,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
     public MybatisToolChatRunStore(DataSource source, ExecutionRecordCodec codec, Scheduler scheduler) {
         var session = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(Objects.requireNonNull(source)));
         mapper = session.getMapper(ToolChatRunMapper.class);
+        budgets = new ToolChatBudgetPersistence(session, codec);
         system = session.getMapper(SystemMapper.class);
         admission = session.getMapper(AdmissionMapper.class);
         executions = session.getMapper(ExecutionMapper.class);
@@ -187,6 +189,22 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
     }
 
     @Override
+    public Mono<ToolChatStep> step(ExecutionOwner owner, String runId, String childExecutionId) {
+        Objects.requireNonNull(owner);
+        id(runId);
+        id(childExecutionId);
+        return io(() -> {
+            if (owned(owner, runId, false) == null) return null;
+            var row = mapper.step(key(childExecutionId));
+            if (row == null || !row.runKey().equals(key(runId))) return null;
+            var value = decode(row.snapshot(), row.payloadDigest(), ToolChatStep.class);
+            if (!value.runId().equals(runId) || !value.childExecutionId().equals(childExecutionId))
+                throw new IllegalStateException("Run single step identity mismatch");
+            return value;
+        });
+    }
+
+    @Override
     public Mono<List<ToolChatStep>> steps(ExecutionOwner owner, String runId) {
         Objects.requireNonNull(owner);
         id(runId);
@@ -240,6 +258,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             mapper.insert(new ToolChatRunMapper.Row(hash, owner, idem, ToolChatRunDigests.submission(candidate), CanonicalJson.sha256(encoded), encoded,
                     CanonicalJson.sha256(state), state, 0, candidate.context().deadline().toEpochMilli()));
             mapper.insertWork(new ToolChatRunMapper.Work(hash, time, true, "", 0, 0, 0));
+            budgets.initialize(candidate);
             if (turn != null) attach(candidate, run, turn, expectedVersion);
             notifyRun(run);
             require(now() < candidate.context().deadline().toEpochMilli(), INVALID_STATE);
@@ -383,6 +402,21 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
                 conversation.chatProfile(), conversation.resources(), conversation.state(), conversation.createdAt(),
                 Instant.ofEpochMilli(Math.max(now(), conversation.updatedAt().toEpochMilli())));
         admission.advanceTypedConversation(updated.version(), null, "TOOL_CHAT_RUN", encode(updated), key(link.conversationId()));
+    }
+
+    @Override
+    public Mono<List<ToolChatBudget>> budgets(ExecutionOwner owner, String runId) {
+        Objects.requireNonNull(owner);
+        id(runId);
+        return io(() -> {
+            var row = owned(owner, runId, false);
+            if (row == null) return List.of();
+            var plan = input(row).budgetPlan();
+            var values = budgets.balances(runId, false);
+            if (plan == null ? !values.isEmpty() : !values.stream().map(ToolChatBudget::limit).toList().equals(plan.limits()))
+                throw new IllegalStateException("Run budget projection is missing or differs from fixed plan");
+            return values;
+        });
     }
 
     private void validate(ToolChatRunSnapshot s) {

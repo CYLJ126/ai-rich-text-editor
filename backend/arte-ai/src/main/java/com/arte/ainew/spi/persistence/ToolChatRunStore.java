@@ -34,9 +34,19 @@ public interface ToolChatRunStore {
      */
     Mono<List<ToolChatRunEvent>> events(ExecutionOwner owner, String runId, long after, int limit);
 
+    /**
+     * 已授权读取方可展示的按币种总预算；旧无预算 Run 返回空列表，不伪造零费用。
+     */
+    Mono<List<ToolChatBudget>> budgets(ExecutionOwner owner, String runId);
+
     Mono<ToolChatRun> find(ExecutionOwner owner, String runId);
 
     Mono<ToolChatRunSnapshot> snapshot(ExecutionOwner owner, String runId);
+
+    /**
+     * 固定子身份的单条输入读取，避免派发及账户选择扫描整个 Run 的历史上下文。
+     */
+    Mono<ToolChatStep> step(ExecutionOwner owner, String runId, String childExecutionId);
 
     Mono<List<ToolChatStep>> steps(ExecutionOwner owner, String runId);
 

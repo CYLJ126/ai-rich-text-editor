@@ -8,6 +8,7 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationResult;
+import com.arte.ainew.pojo.tool.ToolChatBudget;
 import com.arte.ainew.pojo.tool.ToolChatLink;
 import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.pojo.tool.ToolChatRunEvent;
@@ -71,6 +72,14 @@ public final class ToolChatQueryService {
             return runs.events(ExecutionOwner.from(context), id, after, limit)
                     .flatMap(page -> current(id, context).thenReturn(page));
         });
+    }
+
+    /**
+     * 按币种返回 L／C／H 与异常阻断，不暴露子账户引用；旧 Run 返回空列表。
+     */
+    public Mono<List<ToolChatBudget>> budgets(String id, ExecutionContext context) {
+        return current(id, context).flatMap(c -> runs.budgets(ExecutionOwner.from(context), id))
+                .flatMap(values -> current(id, context).thenReturn(values));
     }
 
     public record Answer(String runId, String finalInvocationId, InvocationResult.Generation result) {

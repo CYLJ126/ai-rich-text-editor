@@ -25,7 +25,7 @@ public class ToolChatRunMigrationTest {
         var jdbc = new JdbcTemplate(source);
         try {
             new ResourceDatabasePopulator(baseline).execute(source);
-            for (String table : new String[]{"arte_ai_tool_chat_link", "arte_ai_tool_chat_run_event", "arte_ai_tool_chat_run_command", "arte_ai_tool_chat_run_step", "arte_ai_tool_chat_run_work", "arte_ai_tool_chat_run"})
+            for (String table : new String[]{"arte_ai_tool_chat_budget_allocation", "arte_ai_tool_chat_budget", "arte_ai_tool_chat_link", "arte_ai_tool_chat_run_event", "arte_ai_tool_chat_run_command", "arte_ai_tool_chat_run_step", "arte_ai_tool_chat_run_work", "arte_ai_tool_chat_run"})
                 jdbc.execute("DROP TABLE " + table);
             new ResourceDatabasePopulator(migration).execute(source);
             assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_tool_chat_run", Integer.class).intValue());

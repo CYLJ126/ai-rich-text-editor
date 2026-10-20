@@ -18,7 +18,7 @@ public class ToolChatHistoryMigrationTest {
         var baseline = new ClassPathResource("arte-ai-new-ddl-mysql.sql");
         var migration = new ClassPathResource("arte-ai-tool-chat-history-migration.sql");
         String full = baseline.getContentAsString(StandardCharsets.UTF_8), part = migration.getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(full.substring(full.indexOf("-- S4-03")).trim(), part.trim());
+        assertEquals(full.substring(full.indexOf("-- S4-03"), full.indexOf("-- S4-04")).trim(), part.trim());
         var source = new JdbcDataSource();
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
         var jdbc = new JdbcTemplate(source);

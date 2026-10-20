@@ -10,7 +10,7 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 
 S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
 Run 存储、检查点、步骤计划和耐久工作项，见 §33。S4-03 完成类型化候选、Run 事件／Outbox、会话占用、最终回答投影及只读查询，见
-§34；自动子调用、累计预算、工具聊天提交及前端入口仍待后续批次。
+§34；S4-04 已完成固定预算计划、子账户选择和同库附加预算约束，见 §35。自动子调用、工具聊天提交及前端入口仍待后续批次。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2092,3 +2092,45 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl art
 
 范围仍限 S4-03：没有 Run 总预算、真实子调用受理／自动循环、取消传播、公开工具聊天提交、Run SSE／通知发布器或页面；独立 TOOL 的
 parentExecutionId 安全限制未放宽。后续依次完成 S4-04、S4-05、S4-06，再判断开放资格。
+
+## 35. S4-04：Run 总预算与子账户选择（2026-10-20）
+
+完成 `ToolChatBudgetPlan`、`ToolChatBudget`、`ToolChatBudgetAllocation` 及受信 `ToolChatBudgetSelector`。Run
+根保持无单一账户，固定币种额度、模型账户／费率／价格及本地工具 FREE 映射；子上下文重新检查当前授权、模型／连接／绑定、账户
+owner／rate／currency，保持原 trace／parent／release、权限子集和收紧期限，不从模型或客户端取得可执行预算引用。
+
+在既有 `prepareDispatch` 同库事务中加入 Run 资格与按币种 C／H 检查、唯一 Attempt Allocation、原账户预留。原有 `settle`
+、自动／人工费用收尾共用 Run 与账户的结算事务；未知费用保留 H，已知费用移除 quote 并增加真实
+C，重复命令不重复扣费。根取消／结束及预留到期不退款，可信账单可在根结束后收敛。超过 quote
+或总上限的真实费用如实入账、锁存阻断，不允许借剩余额度或其他币种继续派发。
+
+普通无 parent 调用不增加 Run SQL，FREE 不创建账户预留／Allocation。Run 子调用禁止拆分调用
+createAttempt／reserve／markDispatch 绕过额度检查。单条步骤读取按子 ID 主键查询，避免派发和账户选择扫描全部历史上下文；并未进行生产性能验收。
+
+新增预算安全投影及 `tool-chat/getRunBudget`：当前 READ／CONVERSATION、归档和类型化 Turn 校验沿用 S4-03，金额用十进制字符串，预算版本独立于
+Run 检查点。带预算计划的 Run 输入使用 v2，旧 v1 编码／摘要保持且不猜测额度；旧 Run 可读取，但没有新子派发资格。新增两个内部 v1
+根、两张预算表及 [增量 DDL](scripts/arte-ai-tool-chat-budget-migration.sql)，同步完整基线、Maven 资源和需求文档；原
+Invocation／Attempt／账户快照不改。详见 [S4-04 说明](TOOL_CHAT_BUDGET.md)。
+
+验证使用 JDK 21、临时 H2、真实 MyBatis 事务、MockMvc 和固定回环 HTTP 响应：
+
+- 新增 26 项通过：预算存储 14、当前账户／绑定选择 4、编码／精度／防漂移及故障契约 6、DDL 升级 1、预算 HTTP 兼容／归档
+  1。包括双实例重复派发／结算、未知费用阻止超卖、每次重试独立占用、免费分支、币种隔离、超额报价但仍有总余额也阻断、晚到可信账单，以及派发末尾／结算写入失败的整段回滚。
+- 分组执行并复验变更后，31 个测试类累计 355 项：351 通过、4 个既有跳过，0 失败／错误。相邻覆盖原聊天派发／网关、预算与人工核对、审批／恢复、独立
+  TOOL、S4-01—03、codec 和 SQL 工厂装配。工厂显式白名单校验已同步包含既有 Run Mapper 与新增 Budget Mapper。
+- HTTP 网关／派发用例通过临时回环服务完成，需要本地监听权限；不调用真实供应商。故障 SQL 日志来自主动注入；Netty macOS 原生
+  DNS 提示回退系统解析器。本批未改该环境依赖。
+- `git diff --check` 通过。未运行全量后端、生产 MySQL／Redis／ES、多节点／高负载、前端或浏览器；本批未修改前端功能。S4-03
+  记录的既有搜索空排序问题未在本批修复或重新验收，不把定向预算回归当作项目全量通过。
+
+复现本批组合回归（需可用回环监听）：
+
+```bash
+cd backend
+runTests='ToolChatBudgetStoreTest,ToolChatBudgetSelectorTest,ToolChatBudgetContractTest,ToolChatBudgetMigrationTest,ToolChatRunStoreTest,ToolChatHistoryStoreTest,ToolChatHttpTest,ToolChatRunAssemblyTest,ToolChatRunMigrationTest,ToolChatHistoryMigrationTest,FreeDispatchPreparationIntegrationTest,DispatchPreparationIntegrationTest,RegenerationReconciliationIntegrationTest,DispatchIntegrationTest,GenerationGatewayTest,InvocationHttpIntegrationTest,BudgetHttpIntegrationTest,ToolDispatchIntegrationTest,ToolAdmissionIntegrationTest,ToolApprovalIntegrationTest,ToolApprovalRecoveryTest,ToolReviewMigrationTest,ToolOutcomeMigrationTest,ToolChatProtocolTest,ToolSetServiceTest,ResolvedBindingCodecTest,DataContractsTest,InvocationApiContractsTest,ExecutionAssemblyTest,GenerationAssemblyTest,ExecutionSqlSessionFactoryTest'
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl arte-ai -am -Dtest="$runTests" -Dsurefire.failIfNoSpecifiedTests=false test -q
+```
+
+本轮未连接或修改配置中的业务数据库、执行部署 DDL、改动业务配置或重启应用。已有 S4-03 环境须按预算说明停写、备份并显式升级，全体节点协调后再写
+v2。S4-05 的真实子调用受理／自动循环／审批／取消传播、S4-06 的页面仍未实现；远端／付费工具、自动换账户、每账户独立的 Run
+子上限及问题适配全局自动停用不在本批。
