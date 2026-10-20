@@ -1,6 +1,7 @@
 package com.arte.ainew.spi.search;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Invocation;
 
@@ -23,7 +24,12 @@ public interface ConversationSearchReads {
      * 通过当前可见性校验的命中信息，包含会话标题、消息定位标识及片段回退文本。
      */
     record Visible(String title, String turnId, String messageId, String invocationId, Integer candidateOrdinal,
-                   boolean partial, String fallbackText) {
+                   boolean partial, String fallbackText, AnswerCandidate candidate) {
+
+        public Visible(String title, String turn, String message, String invocation, Integer ordinal, boolean partial, String fallback) {
+            this(title, turn, message, invocation, ordinal, partial, fallback,
+                    invocation == null ? null : AnswerCandidate.invocation(invocation));
+        }
     }
 
     /**

@@ -1,13 +1,13 @@
 # ARTE AI TOOL 需求及设计
 
 > 更新日期：2026-10-20。
-> 文档版本：V0.8（S4-02 Run 存储与推进基础同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
+> 文档版本：V0.9（S4-03 Turn、Outbox、查询与历史兼容同步）。状态：S1-01—S1-08 本地管理基线、S2-01—S2-08 独立免费只读调用及页面已实现；S2-09
 > 按本轮确认范围完成正式宿主接线、本机集成验收及性能基线。
 > arte-app 已提供真实本地工具 `text.countCodePoints@v1` 与受理／执行授权，复用现有身份、RBAC、空间和 AI 开关；不依赖模型、费率或预算账户。
 > 正式参考环境双节点、规定数据量和 30 分钟 W1—W4／PF-01—08 仍待验收，不能将本机结果视为 S2 生产开放通过。S3-01／S3-02
 > 已实现等待／决定事务、公开人工控制及 S3-03 工作空间信息写工具；S3-04 已实现原领域回执自动核对；写工具与自动核对默认关闭，S3-05
 > 人工证据／核对界面已实现。S4-01 已完成内部固定工具集合与单轮模型协议，S4-02 已完成 Run 存储／检查点／步骤计划及耐久工作项；
-> Turn／历史兼容、总预算、真实子调用循环、工具聊天入口、远端及付费工具仍未实现。
+> S4-03 已完成类型化候选、会话占用、最终回答的历史／目录／搜索投影与只读 Run 查询；总预算、真实子调用循环、工具聊天提交／页面、远端及付费工具仍未实现。
 > 共享默认配置仍关闭 TOOL、启动发现和分类调度；本机 app.properties 为显式开发配置。未连接或部署配置中的业务数据库／Redis，业务环境的
 > DDL、菜单及授权须按部署步骤执行。正式文本 v1 仍为 30
 > 秒总期限，不足以容纳人工窗口；S3-03
@@ -1129,8 +1129,9 @@ Run 根执行身份只负责编排，子 ExecutionContext 使用 parentExecution
 
 ### 10.3 轮次与历史契约扩展
 
-当前 Turn 用 invocationIds 表达回答候选，工具聊天实施时计划增加带类型的回答候选引用，支持 INVOCATION 与
-TOOL_CHAT_RUN，保持纯文本候选仍引用原 Invocation。
+S4-03 已实现 Turn.candidates／selectedCandidate，支持 INVOCATION 与 TOOL_CHAT_RUN；旧 invocationIds 仅保留普通 Invocation
+的兼容投影，选中 Run 时 selectedInvocationId 为空。 Turn 新写 codec v2，旧 v1 明确转换为 INVOCATION；会话活动根同时保存类型与
+ID 摘要。实现与协调升级要求见 [S4-03 说明](backend/arte-ai/TOOL_CHAT_HISTORY.md)。
 
 该变更涉及 Turn、会话活跃执行、重新生成、列表摘要、搜索消息事实、结果读取、HTTP DTO、前端类型和内部 codec。已有快照通过版本化解码转换为
 INVOCATION 引用；不得把 runId 写入 invocationIds 冒充 Invocation。
@@ -1138,7 +1139,7 @@ INVOCATION 引用；不得把 runId 写入 invocationIds 冒充 Invocation。
 Run 的最终回答只在最终生成完整成功后关联其结果引用；中间工具提议不作为可选回答。历史加载选中 Run
 的最终用户／助手文本，工具过程独立保留用于审计和本轮恢复。跨轮默认不重放旧工具过程或自动执行旧提议；后续上下文增强另行明确。
 
-本节只规定工具聊天阶段的必要增量，不改变当前纯文本接口的现有事实。
+S4-03 已接通最终回答的历史／目录／搜索和只读查询；原纯文本提交与重新生成语义保留，工具聊天的提交、自动循环和页面仍待后续批次。
 
 ### 10.4 模型工具循环
 
@@ -1164,8 +1165,8 @@ S4-01 的 DeepSeek 适配已支持显式 `TOOL_CALLS`、函数声明、ASSISTANT
 ### 10.5 检查点、事件与恢复
 
 S4-02 已实现原 Run／步骤／工作项恢复，以及 expectedVersion、数据库租约 fencing、推进命令幂等和唤醒信号版本。 步骤 ID 与
-operationKey 从原 Run、轮次、类型和模型 callId 稳定派生，重复推进不重新分配。 工作项最迟在原总期限唤醒；终态禁用，失租拒绝新推进。事件游标、通用
-Outbox 及实际子结果驱动的恢复仍待 S4-03／S4-05。
+operationKey 从原 Run、轮次、类型和模型 callId 稳定派生，重复推进不重新分配。 工作项最迟在原总期限唤醒；终态禁用，失租拒绝新推进。S4-03
+已完成独立 Run 事件游标、RUN_EVENT Outbox 和聊天最终回答的原子投影；实际子结果驱动的 Worker 恢复仍待 S4-05。
 
 检查点固定 roundIndex、生成子 Invocation、modelCallId 到工具子 Invocation
 的映射、结果引用、计数器及下一步动作。子执行创建与映射记录需通过事务／幂等命令形成可靠推进；阶段完成后才允许消费下一步。
@@ -1433,10 +1434,14 @@ ID 及总期限。预览／恢复读取不延长原执行期限，不允许请�
 S2-05 已接通 TOOL 的通用查询及事件，S2-08 页面复用这些入口；工具停止使用 tool/cancelToolInvocation，不能使用原 GENERATION
 停止入口。 WAITING_APPROVAL 及其前端非终态判断已实现；已有纯文本生成语义保持，新增快照和事件仍须版本化。
 
-### 12.5 工具聊天 Run 接口计划
+### 12.5 工具聊天 Run 接口
 
-在 /arte/ai-new/toolChatRun 下计划提供 submit、getStatus、getResult、getEvents、cancel；订阅协议按现有基础设施实现独立 Run
-游标。submit 输入 scope、conversationId、expectedConversationVersion、用户输入、模型选择、bindingIds 和限制；返回 kind=RUN
+S4-03 已提供 `/arte/ai-new/tool-chat/getRunStatus`、`getRunResult`、`replayRunEvents` 三个 POST 只读入口，要求当前 ai:
+read／ai:conversation
+及会话／归档资格；请求、返回、独立游标及安全投影见 [查询说明](backend/arte-ai/TOOL_CHAT_HISTORY.md#4-查询-http)。
+
+后续计划在同一工具聊天命名空间提供 submit、cancel 和订阅，提交及控制的最终路径在实现时明确；订阅使用独立 Run 游标。submit 输入
+scope、conversationId、expectedConversationVersion、用户输入、模型选择、bindingIds 和限制；返回 kind=RUN
 的受理回执。
 
 Run 创建、Turn 候选关联、会话活跃执行、事件及可恢复工作项原子提交；相同键换工具集合／用户输入／模型选择冲突。getResult
@@ -1802,7 +1807,11 @@ S2 开放前必须关闭 FREE 派发、同构节点约束、分类领取／容�
 
 ### 15.4 当前实施范围与批次验收
 
-S4-02 已完成 ToolChatRun 持久化及推进基础；本批不接线 Turn、模型／工具循环和预算累计，未部署业务数据库。
+S4-03 已完成类型化 Turn、会话门闩、Run 事件／Outbox、最终回答投影和只读查询；未开放工具聊天提交、自动模型／工具循环、累计预算或前端流程。
+实现与验证边界见 [S4-03 说明](backend/arte-ai/TOOL_CHAT_HISTORY.md)
+及 [实施记录 §34](backend/arte-ai/TOOL_IMPLEMENTATION.md#34-s4-03turnoutbox查询和历史兼容2026-10-20)。
+
+S4-02 已完成 ToolChatRun 持久化及推进基础；以下为原批次范围，未部署业务数据库。
 验证及具体边界见 [实施记录 §33](backend/arte-ai/TOOL_IMPLEMENTATION.md#33-s4-02toolchatrun-存储与推进基础2026-10-20)。
 
 S4-01 已完成内部允许工具集合和单轮 DeepSeek 工具协议，90 项定向及相邻回归通过；当前尚无工具聊天 Run／HTTP／自动派发。
@@ -1993,7 +2002,7 @@ AC-28／35。所有验收编号都必须在实际验证记录中注明对应需�
 | [执行上下文值对象](backend/arte-ai/src/main/java/com/arte/ainew/common/execution/ExecutionContext.java)             | 当前子上下文继承单一预算的约束                   |
 | [原子派发准备](backend/arte-ai/src/main/java/com/arte/ainew/spi/persistence/DispatchPreparationStore.java)          | S2-01 FREE／CHARGE 计划及原子派发事务契约        |
 | [Outbox 消费端口](backend/arte-ai/src/main/java/com/arte/ainew/spi/persistence/ExecutionOutboxStore.java)           | 当前领取参数及租约语义                           |
-| [Turn 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/conversation/Turn.java)                             | 当前 Invocation 候选结构                         |
+| [Turn 值对象](backend/arte-ai/src/main/java/com/arte/ainew/pojo/conversation/Turn.java)                             | 类型化候选及 Invocation 兼容投影                 |
 | [执行持久化实现](backend/arte-ai/src/main/java/com/arte/ainew/persistence/mybatis/MybatisExecutionPersistence.java) | 当前锁顺序、账本事务及生成专属人工核对           |
 
 ### 16.2 功能参考

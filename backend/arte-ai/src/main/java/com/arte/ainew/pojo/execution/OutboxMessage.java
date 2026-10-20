@@ -2,6 +2,7 @@ package com.arte.ainew.pojo.execution;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -12,10 +13,22 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 23:30 ✾
  */
-public record OutboxMessage(String messageId, String invocationId, ExecutionOwner owner, Kind kind, long eventSequence,
+public record OutboxMessage(String messageId, String executionId, ExecutionOwner owner, Kind kind, long eventSequence,
                             String workerId, long fencingToken, Instant leaseExpiresAt, WorkClass workClass) {
 
-    public enum Kind {DISPATCH, EVENT}
+    public enum Kind {DISPATCH, EVENT, RUN_EVENT}
+
+    /**
+     * 旧派发／事件调用仅适用于 Invocation；Run 消费者必须使用显式 target。
+     */
+    public String invocationId() {
+        ContractChecks.require(kind != Kind.RUN_EVENT, "Run notification is not an Invocation");
+        return executionId;
+    }
+
+    public AnswerCandidate target() {
+        return kind == Kind.RUN_EVENT ? AnswerCandidate.run(executionId) : AnswerCandidate.invocation(executionId);
+    }
 
     public enum WorkClass {GENERATION, TOOL_SHORT, TOOL_LONG, OUTCOME_CHECK}
 
@@ -26,7 +39,7 @@ public record OutboxMessage(String messageId, String invocationId, ExecutionOwne
 
     public OutboxMessage {
         ContractChecks.id(messageId, "messageId");
-        ContractChecks.id(invocationId, "invocationId");
+        ContractChecks.id(executionId, "executionId");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(owner, "owner");
         ContractChecks.range(eventSequence, "eventSequence", 0, Long.MAX_VALUE);

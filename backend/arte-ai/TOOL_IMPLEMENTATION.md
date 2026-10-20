@@ -9,7 +9,8 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 §17。 TOOL 与分类调度 默认关闭；S1-04／S1-06／S1-07／S1-08／S2-03／S2-06 增量、TOOL RBAC 定义及 S2-07 菜单 DML 本轮未在配置中的业务数据库执行。
 
 S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
-Run 存储、检查点、步骤计划和耐久工作项，见 §33。Turn／历史兼容、自动子调用、累计预算及前端入口仍待后续批次，本批不开放工具聊天。
+Run 存储、检查点、步骤计划和耐久工作项，见 §33。S4-03 完成类型化候选、Run 事件／Outbox、会话占用、最终回答投影及只读查询，见
+§34；自动子调用、累计预算、工具聊天提交及前端入口仍待后续批次。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2048,3 +2049,46 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl art
 最初生成集成测试被沙箱拒绝监听回环端口，允许本地监听后同组通过。约束故障日志来自测试主动注入，用于证明两处写入失败的完整回滚。
 未连接／部署业务 MySQL 或 Redis，未执行配置环境 DDL、数据回填或应用重启；未运行全量后端、真实供应商、多节点、性能、前端或浏览器验收。
 H2 及本地 HTTP 通过不代表生产锁等待、隔离级别、吞吐和真实 Run 循环已验收。
+
+## 34. S4-03：Turn、Outbox、查询和历史兼容（2026-10-20）
+
+完成 `AnswerCandidate`、Turn 完整候选／选择及旧 Invocation 投影，Turn codec 新写 v2、兼容
+v1；纯文本重新生成保留完整类型列表。会话门闩增加活动根类型，原文本受理遇到活动 Run 返回忙，重命名不覆盖根类型。
+
+新增可信内部 `acceptChat`：Run／工作项、聊天关联、Turn、会话版本／占用、用户目录事实、首事件和 RUN_EVENT Outbox 同库提交。关联
+Run 的最终成功必须通过真实当前模型子 Invocation、固定输入与模型、owner／parent／trace／权限／期限、结果引用／Attempt 归属／摘要及完整
+STOP 的验证；工具提议不能充当最终回答。根终态、最终来源、Turn 选择、门闩释放、目录助手事实及事件／回执同事务提交，失败重生成保留旧回答。
+
+历史只取最终 USER／ASSISTANT 文本。目录回填识别 Run；搜索使用最终模型子 Invocation 的真实 ID，候选定位及返回值补充 Run
+类型，批量读取根／关联，继续校验当前归档与结果可见性。新增三个独立只读
+HTTP：getRunStatus、getRunResult、replayRunEvents，复用当前身份、READ／CONVERSATION、Locale 和错误处理。Run 游标与子调用分开；通知
+Outbox 与旧消费者按 kind 隔离，通用租约协议支持新的类型指针。
+
+新增 [S4-03 说明](TOOL_CHAT_HISTORY.md)、[增量 DDL](scripts/arte-ai-tool-chat-history-migration.sql)，同步完整基线、Maven
+SQL 资源、需求文档、协议说明及前端服务类型。已有 S4-02 库须停写、备份、执行增量并协调全节点升级；Turn v2
+写入后不能混跑或直接回退旧节点。本轮没有执行业务环境 DDL、改动配置或重启应用。
+
+验证使用 JDK 21、临时 H2、MockMvc 和固定回环 HTTP 模型响应，未调用真实模型或业务工具：
+
+- 本批新增 18 项：关联受理／终态事务与故障回滚、重放／跨会话冲突、原文本忙门闩、结果来源及提议过滤、历史／搜索／归档、失败重生成保留旧回答、目录回填、Outbox
+  租约和独立游标、MVC 当前认证与安全投影、Turn 版本转换及 DDL 升级，全部通过。最后补强历史选择归属及查询发布前复核后，这 18
+  项再次通过。
+- 组合回归共 31 个测试类、367 项：344 通过、20 错误、3 个既有跳过；并非全绿。56 项 HTTP 网关／派发用例最初受沙箱回环监听限制，允许本地监听后通过。约束故障
+  SQL 日志来自测试主动注入；Netty macOS 原生 DNS 日志使用系统解析器回退，不作为真实供应商验证。
+- 20 项错误都发生在未改动的搜索排序契约中：`ConversationSearchIndex.Hit`／`SearchCursor.Page`／`Read` 使用 `List.copyOf`
+  处理含 null 的 ES 排序值，抛出 NPE；其中 Service 15、HTTP 2、回查 2、契约 1。相应源码与 HEAD 一致，调用栈在本批改动路径之前失败，本批保留该既有范围。新增
+  Run 搜索／归档投影用例通过，不代表原搜索全链路已验收。
+- 前端 `api.test.ts`、`conversation-search.test.ts` 共 47 项通过。全量 `tsc --noEmit` 仍有其他文件 106 处错误（如
+  CurrentUser、Article Storage 和已有浏览器脚本类型），本批修改的两个服务契约文件没有报错；未修复全库既有类型问题。
+- `git diff --check` 通过。未运行全量后端、真实 MySQL／Redis／ES、浏览器、多节点、性能或生产环境验收。
+
+复现组合回归：
+
+```bash
+cd backend
+runTests='ToolChatHistoryStoreTest,ToolChatHttpTest,TurnCandidateCodecTest,ToolChatHistoryMigrationTest,ToolChatRunStoreTest,ToolChatRunAssemblyTest,ToolChatRunMigrationTest,ToolReviewMigrationTest,ToolOutcomeMigrationTest,ToolChatProtocolTest,ToolSetServiceTest,ResolvedBindingCodecTest,DataContractsTest,InvocationApiContractsTest,ToolAdmissionIntegrationTest,AdmissionIntegrationTest,DispatchIntegrationTest,ToolDispatchIntegrationTest,GenerationGatewayTest,GenerationAssemblyTest,RegenerationReconciliationIntegrationTest,ConversationHttpIntegrationTest,ChatHttpIntegrationTest,InvocationHttpIntegrationTest,ReadOperationSnapshotTest,ConversationSearchReadPersistenceTest,SearchInvocationVisibilityTest,ConversationSearchServiceTest,ConversationSearchHttpTest,SearchSyncWorkerTest,SearchContractsTest'
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -pl arte-ai -am -Dtest="$runTests" -Dsurefire.failIfNoSpecifiedTests=false test -q
+```
+
+范围仍限 S4-03：没有 Run 总预算、真实子调用受理／自动循环、取消传播、公开工具聊天提交、Run SSE／通知发布器或页面；独立 TOOL 的
+parentExecutionId 安全限制未放宽。后续依次完成 S4-04、S4-05、S4-06，再判断开放资格。

@@ -5,7 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * Run 独立短事务 SQL；不写通用 Invocation、账本或聊天投影。
+ * Run、聊天归属及独立事件 SQL；会话／Turn 复用 AdmissionMapper，不写通用 Invocation 或账本。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/20 16:20 ✾
@@ -25,6 +25,24 @@ public interface ToolChatRunMapper {
 
     record Receipt(String requestDigest, String payloadDigest, String snapshot) {
     }
+
+    record Chat(String runKey, String conversationId, String turnId, long conversationVersion,
+                String requestDigest, String finalInvocationId) {
+    }
+
+    List<Row> findMany(@Param("runs") List<String> runKeys);
+
+    List<Chat> chats(@Param("runs") List<String> runKeys);
+
+    Chat chat(@Param("run") String runKey);
+
+    int insertChat(@Param("c") Chat chat);
+
+    int finishChat(@Param("run") String runKey, @Param("invocation") String invocationId);
+
+    int insertEvent(@Param("run") String runKey, @Param("sequence") long sequence, @Param("snapshot") String snapshot);
+
+    List<String> events(@Param("run") String runKey, @Param("after") long after, @Param("limit") int limit);
 
     Row find(@Param("run") String runKey, @Param("lock") boolean lock);
 

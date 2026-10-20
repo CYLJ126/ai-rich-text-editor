@@ -6,15 +6,18 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.context.ContextRequest;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationResult;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.ModelResult;
+import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
+import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
 import lombok.extern.slf4j.Slf4j;
@@ -67,8 +70,17 @@ public final class ChatHistoryLoader {
     private final ContextSnapshotStore contextSnapshotStore;
     private final ExecutionResultStore executionResultStore;
 
+    private final ToolChatRunStore runs;
+
     public ChatHistoryLoader(ConversationService conversationService, AdmissionAuthorization admissionAuthorization,
                              ExecutionStore executionStore, ContextSnapshotStore contextSnapshotStore, ExecutionResultStore executionResultStore) {
+        this(conversationService, admissionAuthorization, executionStore, contextSnapshotStore, executionResultStore, null);
+    }
+
+    public ChatHistoryLoader(ConversationService conversationService, AdmissionAuthorization admissionAuthorization,
+                             ExecutionStore executionStore, ContextSnapshotStore contextSnapshotStore, ExecutionResultStore executionResultStore,
+                             ToolChatRunStore runs) {
+        this.runs = runs;
         this.conversationService = conversationService;
         this.admissionAuthorization = admissionAuthorization;
         this.executionStore = executionStore;
@@ -156,31 +168,31 @@ public final class ChatHistoryLoader {
                                         pagination.setSize((long) selection.maxTurns());
                                         return conversationService.turns(conversation.conversationId(), conversation.version(), pagination, currentContext);
                                     });
-                        }).flatMapIterable(ConversationPage::records).collectList().flatMap(turns -> {
-                            var recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
-                                    .skip(Math.max(0, turns.size() - selection.maxTurns())).toList();
-                            // 按历史顺序逐轮读取权威执行状态和已提交结果；concatMap 保留顺序。
-                            // 已知终态及耐久停止的生成轮次返回 empty 后跳过，其他活动／未知状态或数据异常终止加载。
-                            return Flux.fromIterable(recent).concatMap(turn -> completed(turn, owner)).collectList();
-                        }).map(completed -> {
-                            var messages = new ArrayList<ChatMessage>();
-                            completed.forEach(turn -> {
-                                messages.add(turn.turn().userMessage());
-                                messages.add(turn.answer());
-                            });
-                            // 将“最近轮次”的选择条件收敛为实际选入的 Turn ID，供快照记录确切历史来源。
-                            // 若没有可用的完整成功回复，history 必须为 null，不能保存空 Turn ID 的历史选择。
-                            var actual = completed.isEmpty() ? null : new ContextRequest.HistorySelection(selection.conversationId(),
-                                    selection.conversationVersion(), completed.stream().map(turn -> turn.turn().turnId()).toList(), selection.maxTurns());
-                            return new Loaded(List.copyOf(messages), actual);
-                        });
+                                }).flatMapIterable(ConversationPage::records).collectList().flatMap(turns -> {
+                                    var recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
+                                            .skip(Math.max(0, turns.size() - selection.maxTurns())).toList();
+                                    // 按历史顺序逐轮读取权威执行状态和已提交结果；concatMap 保留顺序。
+                                    // 已知终态及耐久停止的生成轮次返回 empty 后跳过，其他活动／未知状态或数据异常终止加载。
+                                    return Flux.fromIterable(recent).concatMap(turn -> completed(turn, owner)).collectList();
+                                }).map(completed -> {
+                                    var messages = new ArrayList<ChatMessage>();
+                                    completed.forEach(turn -> {
+                                        messages.add(turn.turn().userMessage());
+                                        messages.add(turn.answer());
+                                    });
+                                    // 将“最近轮次”的选择条件收敛为实际选入的 Turn ID，供快照记录确切历史来源。
+                                    // 若没有可用的完整成功回复，history 必须为 null，不能保存空 Turn ID 的历史选择。
+                                    var actual = completed.isEmpty() ? null : new ContextRequest.HistorySelection(selection.conversationId(),
+                                            selection.conversationVersion(), completed.stream().map(turn -> turn.turn().turnId()).toList(), selection.maxTurns());
+                                    return new Loaded(List.copyOf(messages), actual);
+                                });
                     });
                 })));
     }
 
     /**
      * 从一轮历史中选取可用于后续模型输入的完整纯文本回答。
-     * 优先使用显式选中的 Invocation，未显式选择时使用最后一个候选；仅读取权威提交的结果引用。
+     * 优先使用显式选中的类型化候选，未选择时使用最新候选；Invocation 与 Run 分别核验权威结果。
      *
      * @param turn  待检查的历史轮次，候选关联来自已受理的会话记录。
      * @param owner 当前执行主体的租户、工作空间和主体归属，用于隔离执行及结果读取。
@@ -188,7 +200,11 @@ public final class ChatHistoryLoader {
      * 活动／非用户停止的 UNKNOWN 状态、关联错误、结果字节缺失或不支持的内容通过 onError 拒绝加载。
      */
     private Mono<Completed> completed(Turn turn, ExecutionOwner owner) {
-        var id = turn.selectedInvocationId() != null ? turn.selectedInvocationId() : turn.invocationIds().getLast();
+        var candidate = turn.effectiveCandidate();
+        if (candidate == null) return Mono.empty();
+        if (candidate.kind() == AnswerCandidate.Kind.TOOL_CHAT_RUN)
+            return completedRun(turn, owner, candidate.executionId());
+        var id = candidate.executionId();
         return executionStore.find(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History invocation is missing")))
                 .flatMap(invocation -> {
                     // 候选 Invocation 必须同时关联目标会话和目标 Turn，不能仅凭列表中的 ID 信任其来源。
@@ -217,22 +233,53 @@ public final class ChatHistoryLoader {
                     }
                     return executionResultStore.find(owner, id, invocation.result())
                             .switchIfEmpty(Mono.error(new IllegalStateException("Committed history result bytes are missing")))
-                            .flatMap(result -> {
-                                // 再核对结果字节的能力类型与模型输出完整性，不能只依赖 Invocation 的成功状态。
-                                if (!(result instanceof InvocationResult.Generation(
-                                        ModelResult value
-                                )) || !value.complete()) return Mono.empty();
-                                var outputs = value.outputs();
-                                // 当前历史链路只支持非空的纯文本助手输出；工具调用、工具关联及多模态内容均显式拒绝。
-                                if (outputs.isEmpty() || outputs.stream().anyMatch(message -> !message.toolCalls().isEmpty()
-                                        || message.toolCallId() != null || message.content().stream().anyMatch(part -> !(part instanceof ChatMessage.Text)))) {
-                                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED));
-                                }
-                                // 本阶段为纯文本，不执行工具；合并一轮的完整 assistant 输出并保留次序。
-                                var parts = outputs.stream().flatMap(message -> message.content().stream()).toList();
-                                return Mono.just(new Completed(turn, new ChatMessage("history-" + turn.turnId(),
-                                        ChatMessage.Role.ASSISTANT, parts, List.of(), null)));
-                            });
+                            .flatMap(result -> answer(turn, result));
                 });
     }
+
+    private Mono<Completed> answer(Turn turn, InvocationResult result) {
+        // 再核对结果字节的能力类型与模型输出完整性，不能只依赖 Invocation 的成功状态。
+        if (!(result instanceof InvocationResult.Generation(
+                ModelResult value
+        )) || !value.complete()) return Mono.empty();
+        var outputs = value.outputs();
+        // 当前历史链路只支持非空的纯文本助手输出；工具调用、工具关联及多模态内容均显式拒绝。
+        if (outputs.isEmpty() || outputs.stream().anyMatch(message -> !message.toolCalls().isEmpty()
+                || message.toolCallId() != null || message.content().stream().anyMatch(part -> !(part instanceof ChatMessage.Text)))) {
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED));
+        }
+        // 只合并该轮最终 assistant 文本；工具过程独立保留。
+        var parts = outputs.stream().flatMap(message -> message.content().stream()).toList();
+        return Mono.just(new Completed(turn, new ChatMessage("history-" + turn.turnId(),
+                ChatMessage.Role.ASSISTANT, parts, List.of(), null)));
+    }
+
+    private Mono<Completed> completedRun(Turn turn, ExecutionOwner owner, String id) {
+        if (runs == null) return Mono.error(new IllegalStateException("Run history reader is unavailable"));
+        return runs.find(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History Run is missing"))).flatMap(run ->
+                runs.link(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History Run link is missing"))).flatMap(link -> {
+                    if (!link.conversationId().equals(turn.conversationId()) || !link.turnId().equals(turn.turnId()))
+                        return Mono.error(new IllegalStateException("History Run does not match turn"));
+                    if (!run.state().terminal())
+                        return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY));
+                    if (run.state() != ToolChatRun.State.SUCCEEDED) return Mono.empty();
+                    if (link.finalInvocationId() == null || run.result() == null || run.result().partial())
+                        return Mono.error(new IllegalStateException("Successful Run final answer is missing"));
+                    return executionStore.find(owner, link.finalInvocationId())
+                            .switchIfEmpty(Mono.error(new IllegalStateException("Run final model is missing"))).flatMap(child -> {
+                                if (!id.equals(child.request().context().parentExecutionId()) || child.conversation() != null
+                                        || child.state() != Invocation.State.SUCCEEDED || !run.result().equals(child.result()))
+                                    return Mono.error(new IllegalStateException("Run final model identity mismatch"));
+                                return executionResultStore.find(owner, link.finalInvocationId(), run.result())
+                                        .switchIfEmpty(Mono.error(new IllegalStateException("Run final result is missing")))
+                                        .flatMap(value -> {
+                                            if (!(value instanceof InvocationResult.Generation(ModelResult value1))
+                                                    || value1.finishReason() != ModelResult.FinishReason.STOP)
+                                                return Mono.error(new IllegalStateException("Run final answer is incomplete"));
+                                            return answer(turn, value);
+                                        });
+                            });
+                }));
+    }
+
 }

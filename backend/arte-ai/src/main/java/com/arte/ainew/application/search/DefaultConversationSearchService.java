@@ -223,7 +223,7 @@ public final class DefaultConversationSearchService implements ConversationSearc
         String encoded = fragments.isEmpty() ? StringEscapeUtils.escapeHtml4(current.fallbackText()) : fragments.getFirst();
         var preview = SearchPreview.fromEncodedHighlight(encoded, properties.limits().previewMaxChars());
         return new Item(hit.entryKey(), (String) hit.source().get("conversationId"), current.title(), kind, preview, kind == Kind.MESSAGE,
-                current.turnId(), current.messageId(), current.invocationId(), current.candidateOrdinal(), current.partial());
+                current.turnId(), current.messageId(), current.invocationId(), current.candidateOrdinal(), current.partial(), current.candidate());
     }
 
     @Override

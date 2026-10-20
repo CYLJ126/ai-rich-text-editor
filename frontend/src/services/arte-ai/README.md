@@ -101,3 +101,7 @@ Redis 实现，前端继续使用相同 SSE/HTTP API 与 sequence 游标。
 停止请求正文使用 `{scope, invocationId}`，必须携带稳定 `Idempotency-Key`。202 的 `ACCEPTED` 表示命令已保存； 200 的
 `ALREADY_TERMINAL` 表示无需停止。封装不取消 SSE、不修改本地执行终态，不自动重试或重新发送聊天。 运行中的停止可能保留 UNKNOWN
 和待对账预算，继续以状态接口和终态结果为准。
+
+S4-03：Turn 响应新增 `candidates`／`selectedCandidate`；`invocationIds` 只包含普通 Invocation。搜索命中的 `candidate` 标识回答根，
+`invocationId` 对 Run 最终回答仍是真实模型子调用 ID。工具聊天页面和提交在 S4-06／S4-05 接线，不可把 Run ID 交给 Invocation
+查询。只读 Run API 见 [后端说明](../../../../backend/arte-ai/TOOL_CHAT_HISTORY.md)。

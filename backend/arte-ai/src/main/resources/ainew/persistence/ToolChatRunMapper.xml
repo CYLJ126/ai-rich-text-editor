@@ -90,4 +90,40 @@
         INSERT INTO arte_ai_tool_chat_run_command(run_key,command_key,request_digest,payload_digest,snapshot)
         VALUES(#{run},#{command},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
     </insert>
+    <resultMap id="Chat" type="com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper$Chat">
+        <constructor>
+            <arg column="run_key" javaType="java.lang.String"/>
+            <arg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="turn_id" javaType="java.lang.String"/>
+            <arg column="conversation_version" javaType="_long"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="final_invocation_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="findMany" resultMap="Run" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_run WHERE run_key IN
+        <foreach collection="runs" item="run" open="(" separator="," close=")">#{run}</foreach>
+    </select>
+    <select id="chats" resultMap="Chat" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_link WHERE run_key IN
+        <foreach collection="runs" item="run" open="(" separator="," close=")">#{run}</foreach>
+    </select>
+    <select id="chat" resultMap="Chat" useCache="false">
+        SELECT * FROM arte_ai_tool_chat_link WHERE run_key=#{run}
+    </select>
+    <insert id="insertChat">
+        INSERT INTO arte_ai_tool_chat_link(run_key,conversation_id,turn_id,conversation_version,request_digest)
+        VALUES(#{c.runKey},#{c.conversationId},#{c.turnId},#{c.conversationVersion},#{c.requestDigest})
+    </insert>
+    <update id="finishChat">
+        UPDATE arte_ai_tool_chat_link SET final_invocation_id=#{invocation} WHERE run_key=#{run} AND final_invocation_id
+        IS NULL
+    </update>
+    <insert id="insertEvent">
+        INSERT INTO arte_ai_tool_chat_run_event(run_key,sequence_no,snapshot) VALUES(#{run},#{sequence},#{snapshot})
+    </insert>
+    <select id="events" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_tool_chat_run_event WHERE run_key=#{run} AND sequence_no&gt;#{after}
+        ORDER BY sequence_no LIMIT #{limit}
+    </select>
 </mapper>

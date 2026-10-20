@@ -1,5 +1,6 @@
 package com.arte.ainew.web.response;
 
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.generation.ChatMessage;
 
@@ -15,10 +16,12 @@ import java.util.List;
 public record ConversationTurnResponse(String turnId, String conversationId, long sequence,
                                        String parentTurnId, String supersedesTurnId, ChatMessage userMessage,
                                        List<String> invocationIds, String selectedInvocationId, long version,
-                                       Instant createdAt, Instant updatedAt) {
+                                       Instant createdAt, Instant updatedAt, List<AnswerCandidate> candidates,
+                                       AnswerCandidate selectedCandidate) {
+
     public static ConversationTurnResponse from(Turn turn) {
         return new ConversationTurnResponse(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), turn.invocationIds(), turn.selectedInvocationId(),
-                turn.version(), turn.createdAt(), turn.updatedAt());
+                turn.version(), turn.createdAt(), turn.updatedAt(), turn.candidates(), turn.selectedCandidate());
     }
 }

@@ -4,9 +4,16 @@ import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
-import com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper;
+import com.arte.ainew.persistence.mybatis.mapper.*;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
+import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.ainew.pojo.execution.InvocationResult;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.pojo.generation.ChatMessage;
+import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
@@ -44,6 +51,11 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
 
     private final ToolChatRunMapper mapper;
     private final SystemMapper system;
+    private final AdmissionMapper admission;
+    private final ExecutionMapper executions;
+    private final PayloadMapper payloads;
+    private final OutboxMapper outbox;
+    private final ConversationMetadataPersistence metadata;
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
     private final TransactionTemplate tx;
@@ -53,6 +65,12 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
         var session = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(Objects.requireNonNull(source)));
         mapper = session.getMapper(ToolChatRunMapper.class);
         system = session.getMapper(SystemMapper.class);
+        admission = session.getMapper(AdmissionMapper.class);
+        executions = session.getMapper(ExecutionMapper.class);
+        payloads = session.getMapper(PayloadMapper.class);
+        outbox = session.getMapper(OutboxMapper.class);
+        metadata = new ConversationMetadataPersistence(session.getMapper(ConversationMetadataMapper.class), admission,
+                executions, session.getMapper(EventMapper.class), codec, system::ensureLock, () -> Instant.ofEpochMilli(now()), mapper);
         this.codec = Objects.requireNonNull(codec);
         this.scheduler = Objects.requireNonNull(scheduler);
         tx = new TransactionTemplate(new DataSourceTransactionManager(source));
@@ -180,6 +198,19 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
 
     @Override
     public Mono<StoreOutcome<ToolChatRun>> accept(ToolChatRunSnapshot candidate, Consumer<ToolChatRunSnapshot> authorization) {
+        return accept(candidate, null, 0, authorization);
+    }
+
+    @Override
+    public Mono<StoreOutcome<ToolChatRun>> acceptChat(ToolChatRunSnapshot candidate, Turn turn, long expectedVersion,
+                                                      Consumer<ToolChatRunSnapshot> authorization) {
+        Objects.requireNonNull(turn);
+        ContractChecks.range(expectedVersion, "conversation version", 0, Long.MAX_VALUE - 1);
+        return accept(candidate, turn, expectedVersion, authorization);
+    }
+
+    private Mono<StoreOutcome<ToolChatRun>> accept(ToolChatRunSnapshot candidate, Turn turn, long expectedVersion,
+                                                   Consumer<ToolChatRunSnapshot> authorization) {
         Objects.requireNonNull(candidate);
         Objects.requireNonNull(authorization);
         // Schema 编译和大载荷编码先在有界线程完成，避免占用连接及治理锁做 CPU 预检。
@@ -195,6 +226,8 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
                 var original = input(previous);
                 authorization.accept(original);
                 require(previous.submissionDigest().equals(ToolChatRunDigests.submission(candidate)), IDEMPOTENCY_CONFLICT);
+                var link = mapper.chat(previous.runKey());
+                require(turn == null ? link == null : link != null && link.requestDigest().equals(chatDigest(turn, expectedVersion)), IDEMPOTENCY_CONFLICT);
                 return StoreOutcome.replayed(read(previous));
             }
             require(mapper.find(key(candidate.context().executionId()), true) == null, IDEMPOTENCY_CONFLICT);
@@ -207,9 +240,149 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             mapper.insert(new ToolChatRunMapper.Row(hash, owner, idem, ToolChatRunDigests.submission(candidate), CanonicalJson.sha256(encoded), encoded,
                     CanonicalJson.sha256(state), state, 0, candidate.context().deadline().toEpochMilli()));
             mapper.insertWork(new ToolChatRunMapper.Work(hash, time, true, "", 0, 0, 0));
+            if (turn != null) attach(candidate, run, turn, expectedVersion);
+            notifyRun(run);
             require(now() < candidate.context().deadline().toEpochMilli(), INVALID_STATE);
             return StoreOutcome.applied(run);
         }));
+    }
+
+    private String chatDigest(Turn turn, long version) {
+        return key(Long.toString(version), encode(turn));
+    }
+
+    /**
+     * 持锁顺序为 Run→会话→Turn；子调用不直接占用会话。
+     */
+    private void attach(ToolChatRunSnapshot snapshot, ToolChatRun run, Turn turn, long version) {
+        var bytes = admission.conversationSnapshot(key(turn.conversationId()), true);
+        require(bytes != null, NOT_FOUND);
+        var conversation = codec.decode(bytes, Conversation.class);
+        require(conversation.owner().equals(run.owner()), NOT_FOUND);
+        require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
+        var gate = admission.conversationGateCurrent(key(turn.conversationId()));
+        require(gate.versionNo() == version && conversation.version() == version, VERSION_CONFLICT);
+        require(gate.activeInvocation() == null, CONVERSATION_BUSY);
+        var history = snapshot.initialContext().history();
+        require(history == null || history.conversationId().equals(turn.conversationId()) && history.conversationVersion() == version, INVALID_STATE);
+        var candidate = AnswerCandidate.run(run.runId());
+        require(!turn.candidates().isEmpty() && turn.candidates().getLast().equals(candidate), INVALID_STATE);
+        var messages = snapshot.initialContext().messages();
+        require(!messages.isEmpty() && turn.userMessage().equals(messages.getLast()), INVALID_STATE);
+        String prior = admission.turnSnapshot(key(turn.turnId()), true);
+        String title = conversation.title();
+        if (prior == null) {
+            require(turn.version() == 0 && turn.selectedCandidate() == null && turn.candidates().equals(List.of(candidate)), INVALID_STATE);
+            require(turn.sequence() == admission.maximumTurnSequence(key(turn.conversationId())) + 1, VERSION_CONFLICT);
+            for (String ref : new String[]{turn.parentTurnId(), turn.supersedesTurnId()})
+                if (ref != null) {
+                    String linked = admission.turnSnapshot(key(ref), false);
+                    require(linked != null && codec.decode(linked, Turn.class).conversationId().equals(turn.conversationId()), INVALID_STATE);
+                }
+            admission.insertTurn(key(turn.turnId()), key(turn.conversationId()), turn.sequence(), encode(turn));
+            title = metadata.userMessage(conversation, turn);
+        } else {
+            var old = codec.decode(prior, Turn.class);
+            var expected = new ArrayList<>(old.candidates());
+            expected.add(candidate);
+            require(turn.equals(Turn.typed(old.turnId(), old.conversationId(), old.sequence(), old.parentTurnId(), old.supersedesTurnId(),
+                    old.userMessage(), expected, old.effectiveCandidate(), old.version() + 1, old.createdAt(), turn.updatedAt())), VERSION_CONFLICT);
+            admission.saveTurn(encode(turn), key(turn.turnId()));
+        }
+        var updated = new Conversation(conversation.conversationId(), conversation.owner(), title, version + 1,
+                conversation.chatProfile(), conversation.resources(), conversation.state(), conversation.createdAt(),
+                Instant.ofEpochMilli(Math.max(now(), conversation.updatedAt().toEpochMilli())));
+        admission.advanceTypedConversation(updated.version(), key(run.runId()), "TOOL_CHAT_RUN", encode(updated), key(turn.conversationId()));
+        mapper.insertChat(new ToolChatRunMapper.Chat(key(run.runId()), turn.conversationId(), turn.turnId(), version, chatDigest(turn, version), null));
+    }
+
+    private void notifyRun(ToolChatRun run) {
+        var event = ToolChatRunEvent.of(run);
+        mapper.insertEvent(key(run.runId()), event.sequence(), encode(event));
+        outbox.insertMessage(key(run.runId(), "RUN_EVENT", Long.toString(event.sequence())), key(run.runId()), run.runId(),
+                run.owner().tenantId(), run.owner().workspaceId(), run.owner().subjectId(), "RUN_EVENT", event.sequence());
+    }
+
+    @Override
+    public Mono<ToolChatLink> link(ExecutionOwner owner, String runId) {
+        Objects.requireNonNull(owner);
+        id(runId);
+        return io(() -> {
+            if (owned(owner, runId, false) == null) return null;
+            var c = mapper.chat(key(runId));
+            return c == null ? null : new ToolChatLink(runId, c.conversationId(), c.turnId(), c.conversationVersion(), c.finalInvocationId());
+        });
+    }
+
+    @Override
+    public Mono<List<ToolChatRunEvent>> events(ExecutionOwner owner, String runId, long after, int limit) {
+        Objects.requireNonNull(owner);
+        id(runId);
+        ContractChecks.range(after, "Run cursor", 0, Long.MAX_VALUE);
+        ContractChecks.range(limit, "Run event limit", 1, 100);
+        return io(() -> owned(owner, runId, false) == null ? List.of() : mapper.events(key(runId), after, limit).stream()
+                .map(b -> codec.decode(b, ToolChatRunEvent.class)).peek(e -> {
+                    if (!e.runId().equals(runId) || e.sequence() <= after)
+                        throw new IllegalStateException("Run event identity mismatch");
+                }).toList());
+    }
+
+    private void completeChat(ToolChatRunSnapshot snapshot, ToolChatRun previous, ToolChatRun next, List<ToolChatStep> steps) {
+        var link = mapper.chat(key(next.runId()));
+        if (link == null || !next.state().terminal()) return;
+        var cb = admission.conversationSnapshot(key(link.conversationId()), true);
+        require(cb != null, NOT_FOUND);
+        var conversation = codec.decode(cb, Conversation.class);
+        require(conversation.owner().equals(next.owner()), NOT_FOUND);
+        var turn = codec.decode(admission.turnSnapshot(key(link.turnId()), true), Turn.class);
+        var candidate = AnswerCandidate.run(next.runId());
+        require(turn.conversationId().equals(link.conversationId()) && turn.candidates().getLast().equals(candidate), INVALID_STATE);
+        var gate = admission.conversationGateCurrent(key(link.conversationId()));
+        require(key(next.runId()).equals(gate.activeInvocation()) && "TOOL_CHAT_RUN".equals(gate.activeKind()), INVALID_STATE);
+        if (next.state() == ToolChatRun.State.SUCCEEDED) {
+            require(previous.checkpoint().children().size() == 1, INVALID_STATE);
+            String child = previous.checkpoint().children().getFirst();
+            String bytes = executions.invocationSnapshot(key(child), false);
+            require(bytes != null, INVALID_STATE);
+            var invocation = codec.decode(bytes, Invocation.class);
+            var modelStep = steps.stream().filter(s -> s.childExecutionId().equals(child)).findFirst().orElseThrow();
+            require(modelStep.input() instanceof ToolChatStep.Model, INVALID_STATE);
+            var modelContext = ((ToolChatStep.Model) modelStep.input()).context();
+            require(invocation.request().context().executionId().equals(child)
+                    && next.runId().equals(invocation.request().context().parentExecutionId())
+                    && next.owner().equals(ExecutionOwner.from(invocation.request().context()))
+                    && snapshot.context().traceId().equals(invocation.request().context().traceId())
+                    && !invocation.request().context().deadline().isAfter(snapshot.context().deadline())
+                    && snapshot.context().authorization().scopes().containsAll(invocation.request().context().authorization().scopes())
+                    && Objects.equals(invocation.contextSnapshotId(), modelContext.snapshotId())
+                    && invocation.request().input() instanceof GenerationRequest generation
+                    && generation.messages().equals(modelContext.messages()) && generation.options().equals(snapshot.generation())
+                    && invocation.request().capability().equals(snapshot.model().capability().definition())
+                    && invocation.conversation() == null && invocation.state() == Invocation.State.SUCCEEDED
+                    && invocation.request().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION
+                    && invocation.request().binding().equals(snapshot.model().definition())
+                    && Objects.equals(invocation.result(), next.result()) && !next.result().partial(), INVALID_STATE);
+            var ref = next.result();
+            var row = payloads.result(ref.resultId());
+            require(row != null && row.ownerKey().equals(ownerKey(next.owner())) && row.invocationKey().equals(key(child))
+                    && row.attemptKey().equals(key(invocation.activeAttemptId())) && row.resultType().equals("model-result")
+                    && ref.resultType().equals(row.resultType()) && ref.schemaVersion() == row.schemaVersion()
+                    && row.partial() == 0 && ref.contentDigest().equals(row.payloadDigest()), INVALID_STATE);
+            var result = decode(row.workspaceSnapshot(), row.payloadDigest(), InvocationResult.class);
+            require(result instanceof InvocationResult.Generation, INVALID_STATE);
+            var model = ((InvocationResult.Generation) result).value();
+            require(model.complete() && model.finishReason() == ModelResult.FinishReason.STOP && !model.outputs().isEmpty()
+                    && model.outputs().stream().allMatch(m -> m.toolCalls().isEmpty() && m.toolCallId() == null
+                    && !m.content().isEmpty() && m.content().stream().allMatch(ChatMessage.Text.class::isInstance)), INVALID_STATE);
+            require(mapper.finishChat(key(next.runId()), child) == 1, INVALID_STATE);
+            admission.saveTurn(encode(Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(), turn.supersedesTurnId(),
+                    turn.userMessage(), turn.candidates(), candidate, turn.version() + 1, turn.createdAt(), next.updatedAt())), key(turn.turnId()));
+            metadata.runAssistantMessage(conversation, invocation, next.updatedAt());
+        }
+        var updated = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(), conversation.version() + 1,
+                conversation.chatProfile(), conversation.resources(), conversation.state(), conversation.createdAt(),
+                Instant.ofEpochMilli(Math.max(now(), conversation.updatedAt().toEpochMilli())));
+        admission.advanceTypedConversation(updated.version(), null, "TOOL_CHAT_RUN", encode(updated), key(link.conversationId()));
     }
 
     private void validate(ToolChatRunSnapshot s) {
@@ -335,6 +508,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             require(c.roundIndex() < snapshot.limits().maxModelRounds(), INVALID_STATE);
             var next = new ToolChatRun(run.runId(), run.owner(), c.state(), Math.incrementExact(run.version()), checkpoint, models, tools,
                     c.result(), c.error(), run.acceptedAt(), Instant.ofEpochMilli(Math.max(time, run.updatedAt().toEpochMilli())));
+            completeChat(snapshot, run, next, previousSteps);
             var result = new ToolChatCommands.Receipt(next, plans);
             String state = encode(next), response = encode(result);
             for (var step : plans) {
@@ -346,6 +520,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             if (work.signalVersion() > c.lease().signalVersion()) due = time;
             mapper.updateWork(new ToolChatRunMapper.Work(row.runKey(), due, !next.state().terminal(), "", 0, work.fence(), work.signalVersion()));
             mapper.insertReceipt(row.runKey(), commandKey, new ToolChatRunMapper.Receipt(digest, CanonicalJson.sha256(response), response));
+            notifyRun(next);
             require(holds(work, c.lease(), now()), LEASE_LOST);
             require(now() < row.deadline() || next.state() == ToolChatRun.State.TIMED_OUT || next.state() == ToolChatRun.State.CANCELLED, INVALID_STATE);
             return StoreOutcome.applied(result);

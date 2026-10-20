@@ -27,6 +27,7 @@ import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,8 +38,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-
 import javax.sql.DataSource;
+
 import java.time.Clock;
 
 /**
@@ -287,9 +288,10 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiContextService")
     ContextService contextService(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisPayloadPersistence store,
                                   NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
-                                  ConversationService conversations, MybatisExecutionPersistence executions) {
+                                  ConversationService conversations, MybatisExecutionPersistence executions,
+                                  ObjectProvider<ToolChatRunStore> runs) {
         return new TextContextService(authorization, catalog, store, properties, clock,
-                new ChatHistoryLoader(conversations, authorization, executions, store, store));
+                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()));
     }
 
     /**

@@ -2,6 +2,7 @@ package com.arte.ainew.pojo.search;
 
 import com.arte.ainew.common.search.SearchText;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Turn;
 
 import java.util.List;
@@ -76,7 +77,13 @@ public final class ConversationSearch {
      */
     public record Item(String entryKey, String conversationId, String title, Kind matchKind, Snippet snippet,
                        boolean canLocateMessage, String turnId, String messageId, String invocationId,
-                       Integer candidateOrdinal, boolean partial) {
+                       Integer candidateOrdinal, boolean partial, AnswerCandidate candidate) {
+
+        public Item(String key, String conversation, String title, Kind kind, Snippet snippet, boolean canLocate,
+                    String turn, String message, String invocation, Integer ordinal, boolean partial) {
+            this(key, conversation, title, kind, snippet, canLocate, turn, message, invocation, ordinal, partial,
+                    invocation == null ? null : AnswerCandidate.invocation(invocation));
+        }
 
         public Item {
             ContractChecks.digest(entryKey, "entryKey");
@@ -84,6 +91,9 @@ public final class ConversationSearch {
             ContractChecks.text(title, "title", ContractChecks.MAX_TEXT_CHARS + ContractChecks.MAX_PARTS + 2);
             Objects.requireNonNull(matchKind, "matchKind");
             Objects.requireNonNull(snippet, "snippet");
+            ContractChecks.require((invocationId == null) == (candidate == null), "Typed candidate identity mismatch");
+            if (candidate != null && candidate.kind() == AnswerCandidate.Kind.INVOCATION)
+                ContractChecks.require(candidate.executionId().equals(invocationId), "Invocation candidate mismatch");
             if (matchKind == Kind.TITLE) {
                 ContractChecks.require(!canLocateMessage && turnId == null && messageId == null
                         && invocationId == null && candidateOrdinal == null && !partial, "Title cannot locate message");

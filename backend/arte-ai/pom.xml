@@ -191,6 +191,7 @@
                     <include>arte-ai-tool-outcome-migration.sql</include>
                     <include>arte-ai-tool-review-migration.sql</include>
                     <include>arte-ai-tool-chat-run-migration.sql</include>
+                    <include>arte-ai-tool-chat-history-migration.sql</include>
                     <include>arte-ai-dispatch-scheduling-migration.sql</include>
                 </includes>
             </testResource>

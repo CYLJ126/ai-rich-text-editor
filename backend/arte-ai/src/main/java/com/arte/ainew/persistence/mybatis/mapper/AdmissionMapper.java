@@ -3,6 +3,7 @@ package com.arte.ainew.persistence.mybatis.mapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationCreationRow;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.ConversationGateRow;
 import org.apache.ibatis.annotations.Param;
+
 import java.util.List;
 
 /**
@@ -44,6 +45,10 @@ public interface AdmissionMapper {
             @Param("activeInvocation") String activeInvocation,
             @Param("workspaceSnapshot") String workspaceSnapshot,
             @Param("idKey") String idKey);
+
+    int advanceTypedConversation(@Param("versionNo") long versionNo, @Param("activeInvocation") String active,
+                                 @Param("activeKind") String kind, @Param("workspaceSnapshot") String snapshot,
+                                 @Param("idKey") String id);
 
     int releaseConversation(@Param("idKey") String idKey, @Param("activeInvocation") String activeInvocation);
 

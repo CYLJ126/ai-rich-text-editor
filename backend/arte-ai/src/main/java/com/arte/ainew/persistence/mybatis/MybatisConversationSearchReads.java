@@ -6,6 +6,7 @@ import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows;
 import com.arte.ainew.persistence.mybatis.mapper.SearchReadMapper;
+import com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -23,8 +24,8 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-
 import javax.sql.DataSource;
+
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,6 +43,7 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
 
     private final SearchReadMapper mapper;
     private final PayloadMapper payloads;
+    private final ToolChatRunMapper runs;
     private final ExecutionRecordCodec codec;
     private final ConversationArchiveReader archives;
     private final TransactionTemplate read;
@@ -53,6 +55,7 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
         var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource));
         mapper = sessions.getMapper(SearchReadMapper.class);
         payloads = sessions.getMapper(PayloadMapper.class);
+        runs = sessions.getMapper(ToolChatRunMapper.class);
         this.codec = codec;
         this.archives = archives;
         read = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
@@ -128,6 +131,7 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
             excluded.forEach(conversations::remove);
             var turns = turns(conversations.keySet(), candidates.stream().map(h -> string(h.source(), "turnId")).filter(Objects::nonNull).collect(Collectors.toSet()));
             var invocations = invocations(owner, candidates.stream().map(h -> string(h.source(), "invocationId")).filter(Objects::nonNull).collect(Collectors.toSet()));
+            var runLinks = ToolChatProjection.finalChats(runs, codec, invocations.values());
             var resultIds = invocations.values().stream().filter(i -> i.result() != null && i.state().terminal()).map(i -> i.result().resultId()).distinct().toList();
             var results = new HashMap<String, PersistenceRows.ResultBatchRow>();
             if (!resultIds.isEmpty())
@@ -156,15 +160,15 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
                     continue;
                 }
                 var invocation = invocations.get(invocationId);
-                int ordinal = turn.invocationIds().indexOf(invocationId);
-                if (!"ASSISTANT".equals(s.get("role")) || ordinal < 0 || invocation == null || !linked(invocation, convId, turnId) || !invocation.state().terminal() || invocation.result() == null)
+                int ordinal = invocation == null ? -1 : turn.candidates().indexOf(ToolChatProjection.candidate(invocation));
+                if (!"ASSISTANT".equals(s.get("role")) || ordinal < 0 || invocation == null || !linked(invocation, convId, turnId, runLinks.get(invocationId)) || !invocation.state().terminal() || invocation.result() == null)
                     continue;
                 var row = results.get(invocation.result().resultId());
                 if (row == null) continue;
                 var generation = decoded.computeIfAbsent(invocationId, id -> generation(owner, invocation, row));
                 if (generation == null) continue;
                 generation.value().outputs().stream().filter(m -> m.messageId().equals(messageId) && !text(m).isBlank()).findFirst().ifPresent(m ->
-                        output.put(hit.entryKey(), new Visible(c.title(), turnId, messageId, invocationId, ordinal + 1, Boolean.TRUE.equals(s.get("partial")), text(m))));
+                        output.put(hit.entryKey(), new Visible(c.title(), turnId, messageId, invocationId, ordinal + 1, row.partial() == 1, text(m), ToolChatProjection.candidate(invocation))));
             }
             return Map.copyOf(output);
         });
@@ -185,25 +189,38 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
         return g;
     }
 
-    private static boolean linked(Invocation i, String conv, String turn) {
-        return i.conversation() != null && i.conversation().conversationId().equals(conv) && i.conversation().turnId().equals(turn);
+    private static boolean linked(Invocation i, String conv, String turn, ToolChatRunMapper.Chat chat) {
+        if (i.conversation() != null)
+            return i.conversation().conversationId().equals(conv) && i.conversation().turnId().equals(turn);
+        return chat != null && chat.conversationId().equals(conv) && chat.turnId().equals(turn);
     }
 
     @Override
     public Set<String> readableInvocations(ExecutionOwner owner, Map<String, Invocation> invocations) {
         if (invocations.size() > 20) throw new IllegalArgumentException("Invocation visibility batch exceeds limit");
-        var ids = invocations.values().stream().filter(i -> i.conversation() != null).map(i -> i.conversation().conversationId()).collect(Collectors.toSet());
+        // 先取得父 Run 归属以批量校验归档；事务内再次核验最终子调用及 Turn，避免孤儿 ID 绕过会话可见性。
+        var links = ToolChatProjection.finalChats(runs, codec, invocations.values());
+        var ids = new HashSet<String>();
+        invocations.values().stream().filter(i -> i.conversation() != null).forEach(i -> ids.add(i.conversation().conversationId()));
+        links.values().forEach(c -> ids.add(c.conversationId()));
         var excluded = archived(owner, ids);
         return read.execute(status -> {
+            var currentLinks = ToolChatProjection.finalChats(runs, codec, invocations.values());
             var cs = conversations(owner, ids);
             excluded.forEach(cs::remove);
-            var ts = turns(cs.keySet(), invocations.values().stream().filter(i -> i.conversation() != null).map(i -> i.conversation().turnId()).collect(Collectors.toSet()));
+            var turnIds = new HashSet<String>();
+            invocations.values().stream().filter(i -> i.conversation() != null).forEach(i -> turnIds.add(i.conversation().turnId()));
+            links.values().forEach(c -> turnIds.add(c.turnId()));
+            var ts = turns(cs.keySet(), turnIds);
             return invocations.entrySet().stream().filter(e -> {
                 var i = e.getValue();
                 if (!ExecutionOwner.from(i.request().context()).equals(owner)) return false;
-                if (i.conversation() == null) return true;
-                var t = ts.get(i.conversation().turnId());
-                return cs.containsKey(i.conversation().conversationId()) && t != null && linked(i, t.conversationId(), t.turnId()) && t.invocationIds().contains(e.getKey());
+                if (i.conversation() == null && i.request().context().parentExecutionId() == null) return true;
+                var chat = currentLinks.get(e.getKey());
+                String conv = i.conversation() != null ? i.conversation().conversationId() : chat == null ? null : chat.conversationId();
+                String turn = i.conversation() != null ? i.conversation().turnId() : chat == null ? null : chat.turnId();
+                var t = ts.get(turn);
+                return cs.containsKey(conv) && t != null && linked(i, conv, turn, chat) && t.candidates().contains(ToolChatProjection.candidate(i));
             }).map(Map.Entry::getKey).collect(Collectors.toUnmodifiableSet());
         });
     }

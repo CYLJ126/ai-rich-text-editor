@@ -4,10 +4,8 @@ import com.arte.ainew.application.conversation.ConversationText;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.persistence.mybatis.mapper.AdmissionMapper;
-import com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper;
-import com.arte.ainew.persistence.mybatis.mapper.EventMapper;
-import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
+import com.arte.ainew.persistence.mybatis.mapper.*;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -15,6 +13,7 @@ import com.arte.ainew.pojo.execution.ExecutionPayload;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.generation.GenerationEvent;
+import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import tools.jackson.databind.json.JsonMapper;
@@ -38,6 +37,7 @@ final class ConversationMetadataPersistence {
     private final ConversationMetadataMapper metadata;
     private final AdmissionMapper admission;
     private final ExecutionMapper execution;
+    private final ToolChatRunMapper runs;
     private final EventMapper events;
     private final ExecutionRecordCodec codec;
     private final Consumer<String> lock;
@@ -46,7 +46,8 @@ final class ConversationMetadataPersistence {
 
     ConversationMetadataPersistence(ConversationMetadataMapper metadata, AdmissionMapper admission,
                                     ExecutionMapper execution, EventMapper events, ExecutionRecordCodec codec,
-                                    Consumer<String> lock, Supplier<Instant> now) {
+                                    Consumer<String> lock, Supplier<Instant> now, ToolChatRunMapper runs) {
+        this.runs = runs;
         this.metadata = metadata;
         this.admission = admission;
         this.execution = execution;
@@ -155,7 +156,8 @@ final class ConversationMetadataPersistence {
         if (at.isBefore(c.updatedAt())) at = c.updatedAt();
         var changed = new Conversation(c.conversationId(), c.owner(), title, c.version(), c.chatProfile(), c.resources(),
                 c.state(), c.createdAt(), at);
-        admission.advanceConversation(c.version(), admission.conversationGateCurrent(id).activeInvocation(), codec.encode(changed), id);
+        var gate = admission.conversationGateCurrent(id);
+        admission.advanceTypedConversation(c.version(), gate.activeInvocation(), gate.activeKind(), codec.encode(changed), id);
     }
 
     ConversationList.CommandResult receipt(ExecutionOwner owner, String commandId) {
@@ -215,6 +217,22 @@ final class ConversationMetadataPersistence {
         metadata.insertFact(id, fact, "ASSISTANT", micros(e.occurredAt()));
         var r = metadata.findCurrent(id, ownerKey(c.owner()));
         var last = r.lastMessageMicros() == null ? micros(e.occurredAt()) : Math.max(r.lastMessageMicros(), micros(e.occurredAt()));
+        metadata.saveStatistics(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), r.title(),
+                r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(), r.previewText(),
+                r.userMessageCount(), last, last, r.createdMicros(), r.statisticsReady()));
+    }
+
+    /**
+     * Run 只在最终回答提交时记录可见助手消息；模型中间提议及工具正文不产生目录预览。
+     */
+    void runAssistantMessage(Conversation c, Invocation finalModel, Instant at) {
+        initialize(c, false);
+        var id = key(c.conversationId());
+        var fact = key("ASSISTANT", finalModel.request().context().executionId(), finalModel.activeAttemptId());
+        if (metadata.factCurrent(id, fact) != null) return;
+        metadata.insertFact(id, fact, "ASSISTANT", micros(at));
+        var r = metadata.findCurrent(id, ownerKey(c.owner()));
+        var last = r.lastMessageMicros() == null ? micros(at) : Math.max(micros(at), r.lastMessageMicros());
         metadata.saveStatistics(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), r.title(),
                 r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(), r.previewText(),
                 r.userMessageCount(), last, last, r.createdMicros(), r.statisticsReady()));
@@ -315,11 +333,30 @@ final class ConversationMetadataPersistence {
         if (metadata.factCurrent(queued.idKey(), fact) == null)
             metadata.insertFact(queued.idKey(), fact, "USER", micros(turn.createdAt()));
         metadata.backfillPreview(queued.idKey(), turn.sequence(), ConversationText.shorten(ConversationText.question(turn.userMessage()), 30));
-        if (job.invocationIndex() >= turn.invocationIds().size()) {
+        if (job.invocationIndex() >= turn.candidates().size()) {
             metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), turn.sequence(), 0, 0, job.incomplete()));
             return;
         }
-        var invocationKey = key(turn.invocationIds().get(job.invocationIndex()));
+        var candidate = turn.candidates().get(job.invocationIndex());
+        if (candidate.kind() == AnswerCandidate.Kind.TOOL_CHAT_RUN) {
+            var link = runs.chat(key(candidate.executionId()));
+            boolean incomplete = job.incomplete();
+            if (link == null || !link.conversationId().equals(c.conversationId()) || !link.turnId().equals(turn.turnId())) {
+                incomplete = true;
+            } else if (link.finalInvocationId() != null) {
+                var childBytes = execution.invocationSnapshot(key(link.finalInvocationId()), false);
+                var child = childBytes == null ? null : codec.decode(childBytes, Invocation.class);
+                var finalLink = child == null ? null : ToolChatProjection.finalChat(runs, codec, child);
+                if (finalLink == null || !finalLink.runKey().equals(key(candidate.executionId()))) incomplete = true;
+                else {
+                    var run = codec.decode(runs.find(finalLink.runKey(), false).stateSnapshot(), ToolChatRun.class);
+                    runAssistantMessage(c, child, run.updatedAt());
+                }
+            }
+            metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex() + 1, 0, incomplete));
+            return;
+        }
+        var invocationKey = key(candidate.executionId());
         var invSnapshot = execution.invocationSnapshot(invocationKey, false);
         if (invSnapshot == null) {
             metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex() + 1, 0, true));

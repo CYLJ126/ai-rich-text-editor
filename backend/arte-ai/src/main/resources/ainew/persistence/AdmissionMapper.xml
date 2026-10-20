@@ -21,6 +21,7 @@
         <constructor>
             <arg column="version_no" javaType="_long"/>
             <arg column="active_invocation" javaType="java.lang.String"/>
+            <arg column="active_kind" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
     <insert id="insertConversation">
@@ -28,7 +29,7 @@
         (#{idKey},#{ownerKey},#{versionNo},NULL,#{workspaceSnapshot})
     </insert>
     <select id="conversationGate" resultMap="ConversationGateRow" useCache="false">
-        SELECT version_no,active_invocation FROM arte_ai_conversation_new WHERE id_key=#{idKey}
+        SELECT version_no,active_invocation,active_kind FROM arte_ai_conversation_new WHERE id_key=#{idKey}
     </select>
     <select id="maximumTurnSequence" resultType="java.lang.Long" useCache="false">
         SELECT COALESCE(MAX(sequence_no),0) FROM arte_ai_turn WHERE conversation_key=#{conversationKey}
@@ -45,12 +46,13 @@
     </update>
     <update id="advanceConversation">
         UPDATE arte_ai_conversation_new SET
-        version_no=#{versionNo},active_invocation=#{activeInvocation},workspace_snapshot=#{workspaceSnapshot} WHERE
+        version_no=#{versionNo},active_invocation=#{activeInvocation},active_kind='INVOCATION',workspace_snapshot=#{workspaceSnapshot}
+        WHERE
         id_key=#{idKey}
     </update>
     <update id="releaseConversation">
         UPDATE arte_ai_conversation_new SET active_invocation=NULL WHERE id_key=#{idKey} AND
-        active_invocation=#{activeInvocation}
+        active_invocation=#{activeInvocation} AND active_kind='INVOCATION'
     </update>
     <select id="conversationSnapshot" resultType="java.lang.String" useCache="false">
         SELECT workspace_snapshot FROM arte_ai_conversation_new WHERE id_key=#{idKey}
@@ -79,6 +81,10 @@
         ORDER BY sequence_no LIMIT #{limit}
     </select>
     <select id="conversationGateCurrent" resultMap="ConversationGateRow" useCache="false">
-        SELECT version_no,active_invocation FROM arte_ai_conversation_new WHERE id_key=#{idKey} FOR UPDATE
+        SELECT version_no,active_invocation,active_kind FROM arte_ai_conversation_new WHERE id_key=#{idKey} FOR UPDATE
     </select>
+    <update id="advanceTypedConversation">
+        UPDATE arte_ai_conversation_new SET version_no=#{versionNo},active_invocation=#{activeInvocation},
+        active_kind=#{activeKind},workspace_snapshot=#{workspaceSnapshot} WHERE id_key=#{idKey}
+    </update>
 </mapper>

@@ -51,6 +51,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     private static final Map<Class<?>, String> ROOTS = Map.ofEntries(
             Map.entry(ToolChatRunSnapshot.class, "tool-chat-run-input"),
             Map.entry(ToolChatRun.class, "tool-chat-run"),
+            Map.entry(ToolChatRunEvent.class, "tool-chat-run-event"),
             Map.entry(ToolChatStep.class, "tool-chat-step"),
             Map.entry(ToolChatCommands.Receipt.class, "tool-chat-run-receipt"),
             Map.entry(ToolApproval.class, "tool-approval"),
@@ -126,7 +127,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         var node = mapper.createObjectNode();
         node.put("schemaVersion", value instanceof ToolExecutionSnapshot writeSnapshot
                 && writeSnapshot.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
-                ? 3 : value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
+                ? 3 : value instanceof Turn || value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
                 && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT
                 || value instanceof ToolExecutionSnapshot snapshot && snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE
                 ? 2 : 1).put("type", alias);
@@ -151,17 +152,20 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class
                 || expectedType == ToolApproval.class || expectedType == ToolApprovalReceipt.class
                 || expectedType == ToolChatRunSnapshot.class || expectedType == ToolChatRun.class
-                || expectedType == ToolChatStep.class || expectedType == ToolChatCommands.Receipt.class)
+                || expectedType == ToolChatStep.class || expectedType == ToolChatCommands.Receipt.class || expectedType == ToolChatRunEvent.class || expectedType == Turn.class)
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
-        if ((version != 1 && !((expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
+        if ((version != 1 && !((expectedType == Turn.class || expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
                 || expectedType == ToolExecutionSnapshot.class) && version == 2)
                 && !(expectedType == ToolExecutionSnapshot.class && version == 3))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
         var body = node.required("body");
+        if (expectedType == Turn.class && (!body.isObject() || version == 1 && (body.has("candidates") || body.has("selectedCandidate"))
+                || version == 2 && (!body.hasNonNull("candidates") || !body.has("selectedCandidate"))))
+            throw new IllegalArgumentException("Turn shape does not match snapshot version");
         if (expectedType == ResolvedBinding.class
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");

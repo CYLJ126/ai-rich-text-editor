@@ -46,7 +46,7 @@ public class ToolChatRunStoreTest {
     private static final Duration WAIT = Duration.ofSeconds(15);
     private static final Duration LEASE = Duration.ofSeconds(10);
 
-    private static final class Rig implements AutoCloseable {
+    static final class Rig implements AutoCloseable {
         final JdbcDataSource source = new JdbcDataSource();
         final reactor.core.scheduler.Scheduler io = Schedulers.newBoundedElastic(8, 64, "tool-chat-db-test");
         final JdbcTemplate jdbc;

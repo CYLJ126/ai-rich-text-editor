@@ -4,6 +4,7 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper;
+import com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -17,8 +18,8 @@ import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.search.ConversationSearchSource;
 import org.mybatis.spring.SqlSessionTemplate;
-
 import javax.sql.DataSource;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -37,6 +38,7 @@ public final class MybatisConversationSearchSource implements ConversationSearch
 
     private final SearchSourceMapper source;
     private final PayloadMapper payloads;
+    private final ToolChatRunMapper runs;
     private final ExecutionRecordCodec codec;
     private final ConversationArchiveReader archives;
 
@@ -49,6 +51,7 @@ public final class MybatisConversationSearchSource implements ConversationSearch
         var sessions = new SqlSessionTemplate(SearchSqlSessionFactory.create(dataSource, diagnostics));
         source = sessions.getMapper(SearchSourceMapper.class);
         payloads = sessions.getMapper(PayloadMapper.class);
+        runs = sessions.getMapper(ToolChatRunMapper.class);
         this.codec = Objects.requireNonNull(codec);
         this.archives = Objects.requireNonNull(archives);
     }
@@ -82,7 +85,7 @@ public final class MybatisConversationSearchSource implements ConversationSearch
                 }
                 case I -> {
                     var i = read(Kind.I, work.unit().key(), Invocation.class);
-                    yield i == null || i.conversation() == null ? null : i.conversation().conversationId();
+                    yield i == null ? null : conversationId(i);
                 }
             };
             if (conversationId == null) return work.scope();
@@ -140,7 +143,7 @@ public final class MybatisConversationSearchSource implements ConversationSearch
         String conversationId = switch (value) {
             case Conversation c -> c.conversationId();
             case Turn t -> t.conversationId();
-            case Invocation i -> i.conversation() == null ? null : i.conversation().conversationId();
+            case Invocation i -> conversationId(i);
             default -> throw new IllegalStateException("Unsupported source");
         };
         if (conversationId == null) return new Snapshot(unit, null, Disposition.SKIP, List.of());
@@ -171,8 +174,10 @@ public final class MybatisConversationSearchSource implements ConversationSearch
                 throw new IllegalStateException("Invocation owner mismatch");
             if (i.request().kind() != com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION)
                 return new Snapshot(unit, scope, Disposition.LIVE, List.of());
-            var turn = read(Kind.T, key(i.conversation().turnId()), Turn.class);
-            int ordinal = turn == null ? -1 : turn.invocationIds().indexOf(i.request().context().executionId());
+            var chat = i.conversation() == null ? ToolChatProjection.finalChat(runs, codec, i) : null;
+            String turnId = i.conversation() != null ? i.conversation().turnId() : chat == null ? null : chat.turnId();
+            var turn = turnId == null ? null : read(Kind.T, key(turnId), Turn.class);
+            int ordinal = turn == null ? -1 : turn.candidates().indexOf(ToolChatProjection.candidate(i));
             if (turn != null && !turn.conversationId().equals(c.conversationId()))
                 throw new IllegalStateException("Turn scope mismatch");
             if (ordinal >= 0 && i.state().terminal() && i.result() != null) {
@@ -203,6 +208,12 @@ public final class MybatisConversationSearchSource implements ConversationSearch
             }
         }
         return new Snapshot(unit, scope, Disposition.LIVE, records);
+    }
+
+    private String conversationId(Invocation i) {
+        if (i.conversation() != null) return i.conversation().conversationId();
+        var chat = ToolChatProjection.finalChat(runs, codec, i);
+        return chat == null ? null : chat.conversationId();
     }
 
     private Snapshot missing(Unit unit, Scope scope, java.util.function.Predicate<Scope> archived) {

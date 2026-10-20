@@ -1,5 +1,9 @@
 # 最小 AI 数据契约 v1
 
+> S4-03：Turn 新写 codec v2，兼容读取 v1 为 INVOCATION 类型；新增 AnswerCandidate 和 Run 独立事件 v1。Run 不放入
+> invocationIds，Outbox RUN_EVENT 与原消费者隔离。数据、HTTP 与协调升级边界见 [S4-03 说明](TOOL_CHAT_HISTORY.md)
+> 。下方各阶段说明保留原批次语境。
+
 > S3-03：受控领域写工具的 tool-execution-snapshot 使用 v3；只读无审批 v1、只读人工模式 v2 保持原义，版本与副作用／政策严格匹配。旧只读受理
 > SPI 默认拒绝写工具，不能自动获得写资格。详见 [写工具说明](TOOL_WRITE.md)。
 

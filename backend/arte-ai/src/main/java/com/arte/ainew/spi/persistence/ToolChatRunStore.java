@@ -1,11 +1,9 @@
 package com.arte.ainew.spi.persistence;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.StoreOutcome;
-import com.arte.ainew.pojo.tool.ToolChatCommands;
-import com.arte.ainew.pojo.tool.ToolChatRun;
-import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
-import com.arte.ainew.pojo.tool.ToolChatStep;
+import com.arte.ainew.pojo.tool.*;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -21,6 +19,20 @@ import java.util.function.Consumer;
 public interface ToolChatRunStore {
 
     Mono<StoreOutcome<ToolChatRun>> accept(ToolChatRunSnapshot snapshot, Consumer<ToolChatRunSnapshot> authorization);
+
+    /**
+     * 同一事务受理 Run、类型化 Turn、会话占用和通知；authorization 在持锁事务内复核资格。
+     */
+    Mono<StoreOutcome<ToolChatRun>> acceptChat(ToolChatRunSnapshot snapshot,
+                                               Turn turn, long expectedConversationVersion,
+                                               Consumer<ToolChatRunSnapshot> authorization);
+
+    Mono<ToolChatLink> link(ExecutionOwner owner, String runId);
+
+    /**
+     * 独立 Run 游标，after 为排他序号，最多 100 条；不包含模型正文或工具参数。
+     */
+    Mono<List<ToolChatRunEvent>> events(ExecutionOwner owner, String runId, long after, int limit);
 
     Mono<ToolChatRun> find(ExecutionOwner owner, String runId);
 

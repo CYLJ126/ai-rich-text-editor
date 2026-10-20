@@ -14,10 +14,7 @@ import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OperationRow;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.conversation.Conversation;
-import com.arte.ainew.pojo.conversation.ConversationList;
-import com.arte.ainew.pojo.conversation.ConversationPage;
-import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.pojo.conversation.*;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolInvocation;
@@ -142,7 +139,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         this.readTransaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
         this.conversationMetadata = new ConversationMetadataPersistence(sessions.getMapper(ConversationMetadataMapper.class),
-                admission, execution, event, codec, this::lock, this::now);
+                admission, execution, event, codec, this::lock, this::now, sessions.getMapper(ToolChatRunMapper.class));
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
@@ -544,6 +541,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var row = admission.conversationGate(hash(link.conversationId()));
             require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
             if (row.activeInvocation() != null) {
+                require("INVOCATION".equals(row.activeKind()), CONVERSATION_BUSY);
                 // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
                 var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
                 require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
@@ -557,7 +555,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             if (oldTurn == null) {
                 require(candidate.replacesInvocationId() == null, INVALID_STATE);
                 require(turn.version() == 0 && turn.selectedInvocationId() == null
-                        && turn.invocationIds().equals(List.of(id(candidate))), VERSION_CONFLICT);
+                        && turn.candidates().equals(List.of(AnswerCandidate.invocation(id(candidate)))), VERSION_CONFLICT);
                 long maximum = admission.maximumTurnSequence(hash(link.conversationId()));
                 require(turn.sequence() == Math.addExact(maximum, 1), VERSION_CONFLICT);
                 require(admission.countTurnSequence(hash(link.conversationId()), turn.sequence()) == 0, VERSION_CONFLICT);
@@ -581,12 +579,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                         && turn.version() == oldTurn.version() + 1 && oldTurn.userMessage().equals(turn.userMessage())
                         && Objects.equals(oldTurn.parentTurnId(), turn.parentTurnId())
                         && Objects.equals(oldTurn.supersedesTurnId(), turn.supersedesTurnId())
-                        && turn.invocationIds().size() == oldTurn.invocationIds().size() + 1
-                        && turn.invocationIds().subList(0, oldTurn.invocationIds().size()).equals(oldTurn.invocationIds())
-                        && turn.invocationIds().getLast().equals(id(candidate))
+                        && turn.candidates().size() == oldTurn.candidates().size() + 1
+                        && turn.candidates().subList(0, oldTurn.candidates().size()).equals(oldTurn.candidates())
+                        && turn.candidates().getLast().equals(AnswerCandidate.invocation(id(candidate)))
                         && turn.createdAt().equals(oldTurn.createdAt())
-                        && Objects.equals(turn.selectedInvocationId(), oldTurn.selectedInvocationId() != null
-                        ? oldTurn.selectedInvocationId() : oldTurn.invocationIds().getLast()), VERSION_CONFLICT);
+                        && Objects.equals(turn.selectedCandidate(), oldTurn.effectiveCandidate()), VERSION_CONFLICT);
                 admission.saveTurn(codec.encode(turn), hash(turn.turnId()));
             }
             var title = oldTurn == null ? conversationMetadata.userMessage(conversation, turn) : conversation.title();
@@ -1410,15 +1407,15 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         // 与 accept 相同顺序：先会话，再轮次；完整成功后才替换历史中采用的答案。
         var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
         var turn = workspaceSnapshot(admission.turnSnapshot(hash(link.turnId()), true), Turn.class);
-        require(turn != null && turn.invocationIds().getLast().equals(id(completed)), INVALID_STATE);
-        admission.saveTurn(codec.encode(new Turn(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
-                turn.supersedesTurnId(), turn.userMessage(), turn.invocationIds(), id(completed), turn.version() + 1,
+        require(turn != null && turn.candidates().getLast().equals(AnswerCandidate.invocation(id(completed))), INVALID_STATE);
+        admission.saveTurn(codec.encode(Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
+                turn.supersedesTurnId(), turn.userMessage(), turn.candidates(), AnswerCandidate.invocation(id(completed)), turn.version() + 1,
                 turn.createdAt(), now())), hash(turn.turnId()));
         var updated = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
                 conversation.version() + 1, conversation.chatProfile(), conversation.resources(), conversation.state(),
                 conversation.createdAt(), conversationUpdateTime(conversation));
-        admission.advanceConversation(updated.version(), admission.conversationGate(hash(link.conversationId())).activeInvocation(),
-                codec.encode(updated), hash(link.conversationId()));
+        var gate = admission.conversationGate(hash(link.conversationId()));
+        admission.advanceTypedConversation(updated.version(), gate.activeInvocation(), gate.activeKind(), codec.encode(updated), hash(link.conversationId()));
     }
 
     private ExecutionEvent<?> event(Invocation invocation, String attemptId, ExecutionPayload payload) {
@@ -1582,7 +1579,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var row = rows.getFirst();
             require(message.workerId().equals(row.workerId())
                     && message.fencingToken() == row.token()
-                    && hash(message.invocationId()).equals(row.invocationKey())
+                    && hash(message.executionId()).equals(row.invocationKey())
                     && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(),
                     row.ownerSubject()))
                     && message.kind().name().equals(row.kind())
@@ -1600,7 +1597,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     private void claimed(OutboxMessage message, OutboxRow row) {
         require(message.workerId().equals(row.workerId()) && message.fencingToken() == row.token()
-                && hash(message.invocationId()).equals(row.invocationKey())
+                && hash(message.executionId()).equals(row.invocationKey())
                 && message.owner().equals(new ExecutionOwner(row.ownerTenant(), row.ownerWorkspace(), row.ownerSubject()))
                 && message.kind().name().equals(row.kind()) && message.eventSequence() == row.sequenceNo()
                 && row.delivered() == 0 && row.leaseUntil() > now().toEpochMilli(), LEASE_LOST);
@@ -1633,7 +1630,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             if (message.kind() == OutboxMessage.Kind.DISPATCH) {
                 dispatchLimits.renew(message.messageId(), message.fencingToken(), expiry.toEpochMilli());
             }
-            return StoreOutcome.applied(new OutboxMessage(message.messageId(), message.invocationId(), message.owner(), message.kind(),
+            return StoreOutcome.applied(new OutboxMessage(message.messageId(), message.executionId(), message.owner(), message.kind(),
                     message.eventSequence(), message.workerId(), message.fencingToken(), expiry, message.workClass()));
         });
     }

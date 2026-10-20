@@ -199,6 +199,12 @@ export interface ChatMessage {
   toolCallId: string | null;
 }
 
+/** 回答候选的根执行引用；Run ID 不放入 invocationIds。 */
+export interface AnswerCandidate {
+  kind: 'INVOCATION' | 'TOOL_CHAT_RUN';
+  executionId: string;
+}
+
 export interface ConversationTurnResponse {
   turnId: string;
   conversationId: string;
@@ -206,8 +212,12 @@ export interface ConversationTurnResponse {
   parentTurnId: string | null;
   supersedesTurnId: string | null;
   userMessage: ChatMessage;
+  /** 普通 Invocation 的兼容投影。 */
   invocationIds: string[];
   selectedInvocationId: string | null;
+  /** 旧服务端可能缺省；新服务端始终返回完整类型化候选。 */
+  candidates?: AnswerCandidate[];
+  selectedCandidate?: AnswerCandidate | null;
   version: number;
   createdAt: string;
   updatedAt: string;

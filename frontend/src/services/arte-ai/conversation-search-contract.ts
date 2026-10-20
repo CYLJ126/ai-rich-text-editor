@@ -1,4 +1,4 @@
-import type {AiScope, ConversationTurnResponse} from './types';
+import type {AiScope, AnswerCandidate, ConversationTurnResponse} from './types';
 
 /** S3 后端契约；前端交互在第四阶段接入。 */
 export interface SearchConversationsRequest {
@@ -16,6 +16,7 @@ export interface ConversationSearchSnippet {
 }
 
 interface SearchItemBase {
+  candidate?: AnswerCandidate | null;
   entryKey: string;
   conversationId: string;
   title: string;

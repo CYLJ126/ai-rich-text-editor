@@ -31,7 +31,10 @@ public final class PersistenceRows {
     public record PayloadRow(String ownerKey, String invocationKey, String attemptKey, String resultType,
                              int schemaVersion, int partial, String payloadDigest, String workspaceSnapshot) { }
 
-    public record ConversationGateRow(long versionNo, String activeInvocation) {
+    public record ConversationGateRow(long versionNo, String activeInvocation, String activeKind) {
+        public ConversationGateRow(long versionNo, String activeInvocation) {
+            this(versionNo, activeInvocation, "INVOCATION");
+        }
     }
 
     public record AttemptCountersRow(int nextAttempt, long nextFence) {

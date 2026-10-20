@@ -14,6 +14,7 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.entry.EntryRequests;
@@ -155,12 +156,12 @@ public final class DefaultChatService implements ChatService {
                 saved.messages(), saved.fragments(), saved.budget(), saved.inputTokens(), saved.estimatedTokens(),
                 saved.tokenizerVersion(), saved.truncations(), saved.contentDigest(), at,
                 at.plus(properties.limits().snapshotRetention()));
-        var candidates = new ArrayList<>(turn.invocationIds());
-        if (!replay) candidates.add(context.executionId());
+        var candidates = new ArrayList<>(turn.candidates());
+        if (!replay) candidates.add(AnswerCandidate.invocation(context.executionId()));
         // 重放不追加候选（包括候选已达到上限时）；协调器仍核对完整语义摘要。
-        var updated = replay ? turn : new Turn(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
+        var updated = replay ? turn : Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), candidates,
-                turn.selectedInvocationId() != null ? turn.selectedInvocationId() : turn.invocationIds().getLast(),
+                turn.effectiveCandidate(),
                 turn.version() + 1, turn.createdAt(), at);
         var generation = (GenerationRequest) original.request().input();
         var input = new GenerationRequest(snapshot.messages(), generation.options(), generation.tools(), generation.outputFormat());
