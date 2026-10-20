@@ -51,8 +51,8 @@ public class NewAiToolSubmissionController {
     public Mono<ResultContext<ToolInvocationPreviewResponse>> preview(@Valid @RequestBody ToolInvocationRequests.Preview request, Locale locale) {
         var input = request.input().value();
         return contexts.read(new ConversationRequests.Scope(request.scope().tenantId(), request.scope().workspaceId()),
-                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), metadataTimeout(), false,
-                        context -> service().preview(input, context))
+                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), requestTimeout(input.requestedTimeout()), false,
+                        context -> service().previewPlan(input, context))
                 .map(value -> ResultContext.success(ToolInvocationPreviewResponse.from(value), ResultCodeEnum.SUCCESS, locale));
     }
 
@@ -79,10 +79,6 @@ public class NewAiToolSubmissionController {
      */
     private Duration requestTimeout(Duration requested) {
         return requested == null || requested.compareTo(timeout) > 0 ? timeout : requested;
-    }
-
-    private Duration metadataTimeout() {
-        return timeout.compareTo(Duration.ofSeconds(30)) < 0 ? timeout : Duration.ofSeconds(30);
     }
 
     private static ExecutionContext withKey(ExecutionContext context, String key) {

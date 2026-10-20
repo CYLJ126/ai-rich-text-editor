@@ -25,6 +25,7 @@ import {
 } from '@/services/arte-ai/toolInvocation';
 import {currentAiCredential} from '@/services/arte-ai/request';
 import ConfigurationEditor from './ConfigurationEditor';
+import ToolApprovalPanel from './ToolApprovalPanel';
 import {toolInvocationFailure, toolTerminal, useToolInvocation,} from './useToolInvocation';
 
 const stateNames: Record<string, string> = {
@@ -156,7 +157,7 @@ export default function ToolRunPanel({
       ) {
         if (
           body.data.billingMode !== 'FREE' ||
-          body.data.approvalMode !== 'NONE' ||
+          !['NONE', 'REQUESTER_CONFIRMATION', 'INDEPENDENT_APPROVAL'].includes(body.data.approvalMode) ||
           !/^[0-9a-f]{64}$/.test(body.data.planDigest)
         )
           throw new Error('工具超出当前支持范围，无法确认调用。');
@@ -192,6 +193,9 @@ export default function ToolRunPanel({
       {execution.error && (
         <Alert type="warning" showIcon title={execution.error}/>
       )}
+      {execution.record?.acceptedId && execution.status?.state === 'WAITING_APPROVAL' &&
+        <ToolApprovalPanel key={execution.record.acceptedId} context={context}
+                           invocationId={execution.record.acceptedId} onDecided={execution.refresh}/>}
       {execution.record ? (
         <Card title="当前调用" size="small">
           <Flex vertical gap={12}>
@@ -468,6 +472,10 @@ export default function ToolRunPanel({
                       label: '费用',
                       children: preview.value.costDescription,
                     },
+                    {
+                      key: 'approval', label: '人工控制', children: preview.value.approvalMode === 'NONE' ? '无需审批'
+                        : `${preview.value.approvalMode === 'REQUESTER_CONFIRMATION' ? '本人确认' : '指定主体独立审批'}；窗口约 ${Math.floor((preview.value.approvalWindowMillis ?? 0) / 1000)} 秒；执行余量 ${(preview.value.executionMarginMillis ?? 0) / 1000} 秒；${(preview.value.approverSubjectIds ?? []).join('、') || '原发起者本人'}`
+                    },
                   ]}
                 />
                 <Typography.Text type="secondary">
@@ -504,7 +512,7 @@ export default function ToolRunPanel({
                     )
                   }
                 >
-                  确认并执行工具
+                  {preview.value.approvalMode === 'NONE' ? '确认并执行工具' : '提交并等待人工决定'}
                 </Button>
               </Flex>
             </Card>

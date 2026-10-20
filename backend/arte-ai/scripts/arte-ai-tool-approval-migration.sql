@@ -1,4 +1,6 @@
 -- AI TOOL S3-01：先安装通用执行及 S2 受理表，停写、备份后显式执行一次。
+-- 先运行 arte-ai-tool-approval-schema-check-mysql.sql；旧版同名表 request_id/call_id/status 不能复用。
+-- 旧表保留归档并释放表名后再执行；不要用 IF NOT EXISTS 掩盖结构冲突，处理见 TOOL_APPROVAL.md。
 -- 本脚本不开放审批 HTTP／写工具、不创建审批人；运行时不建表。
 -- 所有共享库消费者升级到支持 WAITING_APPROVAL／tool-execution-snapshot v2 后才开放审批受理。
 create table arte_ai_tool_approval

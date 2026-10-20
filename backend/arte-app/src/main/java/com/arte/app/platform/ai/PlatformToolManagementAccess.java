@@ -162,6 +162,43 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
     }
 
     /**
+     * 审批组合事务复用当前 AI／资源使用资格；调用前由审批适配器按序预锁完整主体集合。
+     */
+    public void requireUseInCurrentTransaction(ExecutionContext context, Set<String> scopes) {
+        transactions.requireWritable();
+        checkUse(context, useActor(context), new Scope(context.authorization().tenantId(), context.authorization().workspaceId()), scopes);
+    }
+
+    /**
+     * 审批操作不由 admin 标记替代，当前公共成员门控、AI grant 与 RBAC 都必须通过。
+     */
+    public void requireApprovalReadInCurrentTransaction(ExecutionContext context, boolean independent) {
+        requireApprovalOperation(context, independent ? Operation.APPROVE : Operation.LIST, Set.of(AdmissionAuthorization.READ));
+    }
+
+    /**
+     * 本人决定的 HTTP 读取上下文不必预授予 INVOKE；仍在当前平台权威中独立要求完整调用资格。
+     */
+    public void requireConfirmationInCurrentTransaction(ExecutionContext context, Set<String> required) {
+        var scopes = new java.util.HashSet<>(required);
+        scopes.add(AdmissionAuthorization.INVOKE);
+        requireApprovalOperation(context, Operation.BINDING_WRITE, Set.copyOf(scopes));
+    }
+
+    private void requireApprovalOperation(ExecutionContext context, Operation operation, Set<String> required) {
+        transactions.requireWritable();
+        var expected = context.authorization().principal();
+        if (expected.kind() != ExecutionPrincipal.Kind.USER) throw denied();
+        var principal = identities.findCurrentExecutionPrincipal(expected).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE).orElseThrow(PlatformToolManagementAccess::denied);
+        var actor = new TrustedActor(principal, clock.instant());
+        checkCurrent(actor, expected.subjectName(), new Scope(context.authorization().tenantId(), context.authorization().workspaceId()),
+                operation, required, context.deadline(), () -> {
+                    if (!identities.findCurrentExecutionPrincipal(expected).orElseThrow(PlatformToolManagementAccess::denied).equals(principal))
+                        throw denied();
+                });
+    }
+
+    /**
      * 复用公共资格规则，并在门控持锁期间核对执行主体的当前名称、状态及账户生命周期。
      */
     private Set<String> checkUse(ExecutionContext context, TrustedActor actor, Scope scope, Set<String> required) {
@@ -263,12 +300,15 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
                 case LIST -> "aiTool:list";
                 case BINDING_WRITE, BINDING_DISABLE -> "aiTool:invoke";
                 case MANAGE -> "aiTool:manage";
+                case APPROVE -> "aiTool:approve";
             };
-            if (!operations.contains("admin") && (!operations.contains(requiredOperation) || operation == Operation.MANAGE && !operations.contains("aiConfiguration:manage")))
+            if (operation == Operation.APPROVE ? !operations.contains(requiredOperation)
+                    : !operations.contains("admin") && (!operations.contains(requiredOperation) || operation == Operation.MANAGE && !operations.contains("aiConfiguration:manage")))
                 throw denied();
             Set<String> scopes;
             if (databaseMode) {
                 boolean aiEnabled = enabled(scope);
+                if (operation == Operation.APPROVE && !aiEnabled) throw denied();
                 // 写入门控刚以同一事务的当前事实验证过 AI_USE，不再退出授权批次后重复整轮锁读。
                 boolean mayInvoke = aiEnabled && operation == Operation.BINDING_WRITE;
                 if (aiEnabled && operation != Operation.BINDING_WRITE) {

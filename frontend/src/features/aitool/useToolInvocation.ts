@@ -8,6 +8,10 @@ import {toolFailure} from './useToolCommand';
 
 export function toolInvocationFailure(error: unknown, phase: 'request' | 'submission' | 'confirmation' = 'request'): string {
   if (error instanceof AiApiError) {
+    if (error.code === '205057')
+      return '原总期限不足以容纳人工窗口和至少 30 秒执行余量；独立审批需要完整 15 分钟窗口。请核对工具、服务器和请求总上限，绑定不能延长工具契约。';
+    if (error.code === '205058')
+      return '人工确认／审批尚未启用，或当前空间没有合法的独立审批人。请联系管理员核对服务端策略。';
     if (error.httpStatus === 504 || error.code === '205005') {
       if (phase === 'confirmation')
         return '确认请求超时，原调用仍待确认。可稍后继续确认，或暂存后开始新的独立调用。';

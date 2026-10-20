@@ -47,7 +47,7 @@ import static com.arte.ainew.application.support.ToolObservation.Stage.*;
  * <p>
  * 固定材料复核、当前授权、Schema、期限及输出检查，不重试或推进执行／预算状态。
  * 调用方必须先原子准备派发并持续维护领取／执行租约；网关内存状态不代替数据库 fencing。
- * 写工具、审批、网络与 Secret 尚未接线，遇到相关要求明确拒绝。
+ * 人工模式在适配器前复核当前 Attempt 与批准事实；写工具、网络与 Secret 仍明确拒绝。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
@@ -62,6 +62,7 @@ public final class DefaultToolGateway implements ToolGateway {
     private final ExecutionRecordCodec codec;
     private final Scheduler scheduler;
     private final Clock clock;
+    private final java.util.function.Function<GatewayCall<ToolInvocation>, Mono<Void>> approvals;
 
     /**
      * Scheduler 由组合模块管理；隔离 Schema 编译、同步适配入口及结果编码，不在构造时访问存储或执行工具。
@@ -69,6 +70,15 @@ public final class DefaultToolGateway implements ToolGateway {
     public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
                               ToolExecutionAccess access, ToolSchemaValidator schemas, ExecutionRecordCodec codec,
                               Scheduler scheduler, Clock clock) {
+        this(bindings, catalog, registry, access, schemas, codec, scheduler, clock,
+                call -> Mono.error(new Rejected("TOOL_APPROVAL_UNSUPPORTED")));
+    }
+
+    public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
+                              ToolExecutionAccess access, ToolSchemaValidator schemas, ExecutionRecordCodec codec,
+                              Scheduler scheduler, Clock clock,
+                              java.util.function.Function<GatewayCall<ToolInvocation>, Mono<Void>> approvals) {
+        this.approvals = Objects.requireNonNull(approvals);
         this.bindings = Objects.requireNonNull(bindings);
         this.catalog = Objects.requireNonNull(catalog);
         this.registry = Objects.requireNonNull(registry);
@@ -141,7 +151,8 @@ public final class DefaultToolGateway implements ToolGateway {
                     return prepared;
                 })))
                 // 调用本地工具（适配器）
-                .flatMap(prepared -> invokeAdapter(prepared, entry, phase))
+                .flatMap(prepared -> (binding.effectivePolicy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE
+                        ? Mono.<Void>empty() : approvals.apply(prepared.call().call())).then(Mono.defer(() -> invokeAdapter(prepared, entry, phase))))
                 // 调用超时检查
                 .timeout(remaining(call));
     }
@@ -175,7 +186,7 @@ public final class DefaultToolGateway implements ToolGateway {
         var policy = binding.effectivePolicy();
         require(binding.tool().target() instanceof ExecutionTarget.Local, "TOOL_REMOTE_UNSUPPORTED");
         require(tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY
-                        && !tool.risk().destructive() && policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE,
+                        && !tool.risk().destructive(),
                 "TOOL_APPROVAL_UNSUPPORTED");
         require(binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty()
                 && binding.secrets().isEmpty(), "TOOL_EXTERNAL_ACCESS_UNSUPPORTED");

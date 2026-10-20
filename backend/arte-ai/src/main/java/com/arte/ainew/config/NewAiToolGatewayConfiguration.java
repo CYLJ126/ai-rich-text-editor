@@ -7,7 +7,9 @@ import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.ainew.spi.persistence.ToolApprovalStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -45,7 +47,12 @@ public class NewAiToolGatewayConfiguration {
     ToolGateway gateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
                         ToolExecutionAccess access, ExecutionRecordCodec codec,
                         @Qualifier("newAiToolInvocationScheduler") Scheduler scheduler,
-                        @Qualifier("newAiClock") Clock clock) {
-        return new DefaultToolGateway(bindings, catalog, registry, access, new ToolSchemaValidator(), codec, scheduler, clock);
+                        @Qualifier("newAiClock") Clock clock, ObjectProvider<ToolApprovalStore> approvals) {
+        return new DefaultToolGateway(bindings, catalog, registry, access, new ToolSchemaValidator(), codec, scheduler, clock,
+                call -> {
+                    var store = approvals.getIfAvailable();
+                    return store == null ? reactor.core.publisher.Mono.error(new org.springframework.security.access.AccessDeniedException("Approval store unavailable"))
+                            : store.requireApproved(call);
+                });
     }
 }

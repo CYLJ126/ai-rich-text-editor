@@ -5,6 +5,8 @@ import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolAdmissionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolApprovalMapper;
+import com.arte.ainew.pojo.execution.Attempt;
+import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
@@ -78,6 +80,47 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
             var found = ToolApprovalRecords.read(approvals.find(key(invocationId), false), codec);
             return found != null && found.owner().equals(owner) ? found : null;
         });
+    }
+
+    @Override
+    public Mono<ToolApproval> visible(ExecutionOwner actor, String approvalId, String invocationId) {
+        Objects.requireNonNull(actor);
+        ContractChecks.require((approvalId == null) != (invocationId == null), "Exactly one approval locator required");
+        ContractChecks.optionalId(approvalId, "approvalId");
+        ContractChecks.optionalId(invocationId, "invocationId");
+        return io(() -> ToolApprovalRecords.read(approvals.visible(key(actor.tenantId(), actor.workspaceId(), actor.subjectId()),
+                approvalId == null ? null : key(approvalId), invocationId == null ? null : key(invocationId)), codec));
+    }
+
+    @Override
+    public Mono<Inbox> inbox(ExecutionOwner actor, String cursor, int limit) {
+        ContractChecks.range(limit, "approval inbox limit", 1, 50);
+        if (cursor != null) ContractChecks.digest(cursor, "approval cursor");
+        return io(() -> {
+            var rows = approvals.inbox(key(actor.tenantId(), actor.workspaceId(), actor.subjectId()), cursor, limit + 1);
+            boolean exhausted = rows.size() <= limit;
+            var shown = rows.stream().limit(limit).toList();
+            return new Inbox(shown.stream().map(row -> ToolApprovalRecords.read(row, codec)).toList(),
+                    exhausted || shown.isEmpty() ? null : shown.getLast().invocationKey(), exhausted);
+        });
+    }
+
+    @Override
+    public Mono<Void> requireApproved(GatewayCall<ToolInvocation> call) {
+        return io(() -> {
+            var invocation = invocation(call.request().context().executionId());
+            require(invocation != null && invocation.request().equals(call.request())
+                    && invocation.state() == Invocation.State.RUNNING && call.attempt().attemptId().equals(invocation.activeAttemptId()), INVALID_STATE);
+            var approval = ToolApprovalRecords.read(approvals.find(key(call.request().context().executionId()), true), codec);
+            require(approval != null && approval.state() == ToolApproval.State.APPROVED, INVALID_STATE);
+            var fixed = snapshot(approval, invocation);
+            require(fixed.binding().resolvedBinding().equals(call.binding()), INVALID_STATE);
+            var attempt = codec.decode(Objects.requireNonNull(execution.attemptSnapshot(key(call.attempt().attemptId()), true)), Attempt.class);
+            require(attempt.fencingToken() == call.attempt().fencingToken() && attempt.workerId().equals(call.attempt().workerId())
+                    && attempt.state() == Attempt.State.RUNNING && attempt.dispatch() == Attempt.Dispatch.MAY_HAVE_EXECUTED
+                    && attempt.leaseExpiresAt().isAfter(executions.databaseTimeInCurrentTransaction()), LEASE_LOST);
+            return true;
+        }).then();
     }
 
     @Override
@@ -171,6 +214,7 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
 
     private void save(ToolApproval approval, long expected) {
         require(approvals.save(ToolApprovalRecords.row(approval, codec), expected) == 1, VERSION_CONFLICT);
+        approvals.closeAudience(key(approval.invocationId()));
     }
 
     private static void require(boolean condition, StoreOutcome.Code code) {

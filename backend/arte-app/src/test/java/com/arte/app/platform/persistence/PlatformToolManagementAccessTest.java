@@ -462,6 +462,130 @@ class PlatformToolManagementAccessTest {
                 properties(List.of()), true, scheduler, clock);
     }
 
+    @Test
+    void independentApprovalRequiresExplicitCurrentOperationEvenForAdmin() {
+        var context = invocationContext();
+        grant("admin");
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            access.requireApprovalReadInCurrentTransaction(context, true);
+            return true;
+        }));
+        grant("aiTool:approve");
+        assertTrue(f.tx.required(() -> {
+            access.requireApprovalReadInCurrentTransaction(context, true);
+            return true;
+        }));
+        revoke("aiTool:approve");
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            access.requireApprovalReadInCurrentTransaction(context, true);
+            return true;
+        }));
+    }
+
+    @Test
+    void requesterConfirmationRechecksInvokeFromReadContextWithoutExpandingExecutionScopes() {
+        var context = invocationContext();
+        assertTrue(f.tx.required(() -> {
+            access.requireConfirmationInCurrentTransaction(context, Set.of("ai:invoke"));
+            return true;
+        }));
+        assertEquals(Set.of("ai:read"), context.authorization().scopes());
+        revoke("aiTool:invoke");
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            access.requireConfirmationInCurrentTransaction(context, Set.of());
+            return true;
+        }));
+    }
+
+    @Test
+    void disabledAiRejectsNewApprovalButRequesterCanReadExistingContent() {
+        grant("aiTool:approve");
+        var context = invocationContext();
+        enabled(false);
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            access.requireApprovalReadInCurrentTransaction(context, true);
+            return true;
+        }));
+        assertTrue(f.tx.required(() -> {
+            access.requireApprovalReadInCurrentTransaction(context, false);
+            return true;
+        }));
+    }
+
+    @Test
+    void configuredApprovalSubjectNameUsesCurrentStableIdentityAndNeverCreatesUnknownIdentity() {
+        assertEquals("alice", f.tx.required(() -> identities.currentSubjectName(f.actor.principal().subjectId()).orElseThrow()));
+        assertTrue(f.tx.required(() -> identities.currentSubjectName("unknown").isEmpty()));
+        f.jdbc.update("UPDATE arte_rbac_user SET status=3 WHERE id=1");
+        assertTrue(f.tx.required(() -> identities.currentSubjectName(f.actor.principal().subjectId()).isEmpty()));
+    }
+
+    @Test
+    void approvalPlanPermitRechecksRequesterPermissionInActualTransaction() {
+        var snapshot = approvalSnapshot(ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION);
+        var plan = new ToolApproval.Plan(snapshot.policy().approvalMode(), Set.of(), snapshot.receivedAt().plusSeconds(90), Duration.ofSeconds(30));
+        var approvals = approvalAdapter(snapshot, List.of());
+        var permit = approvals.authorizePlan(snapshot, plan, snapshot.request().context()).block(wait);
+        assertTrue(f.tx.required(() -> {
+            permit.requireInCurrentTransaction(snapshot, plan);
+            return true;
+        }));
+        revoke("aiTool:invoke");
+        assertThrows(RuntimeException.class, () -> f.tx.required(() -> {
+            permit.requireInCurrentTransaction(snapshot, plan);
+            return true;
+        }));
+    }
+
+    @Test
+    void configuredApproverOperationDoesNotSubstituteForWorkspaceMembership() {
+        f.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+        var bob = identities.resolveAuthenticatedName("bob").orElseThrow();
+        relation("bob", "user_to_operation", "aiTool:approve");
+        var snapshot = approvalSnapshot(ToolExecutionPolicy.ApprovalMode.INDEPENDENT_APPROVAL);
+        var plan = new ToolApproval.Plan(snapshot.policy().approvalMode(), Set.of(bob.subjectId()), snapshot.receivedAt().plusSeconds(900), Duration.ofSeconds(30));
+        var approvals = approvalAdapter(snapshot, List.of(new com.arte.ainew.config.NewAiToolApprovalProperties.Approvers(scope.tenantId(), scope.workspaceId(), Set.of(bob.subjectId()))));
+        assertThrows(RuntimeException.class, () -> approvals.authorizePlan(snapshot, plan, snapshot.request().context()).block(wait));
+    }
+
+    /**
+     * 仅替换正式文本工具的免费白名单为明确的长时测试契约；身份、成员、治理门控、RBAC 与事务均使用真实实现。
+     */
+    private com.arte.app.platform.ai.PlatformToolApprovalAccess approvalAdapter(ToolExecutionSnapshot snapshot,
+                                                                                List<com.arte.ainew.config.NewAiToolApprovalProperties.Approvers> names) {
+        var tools = org.mockito.Mockito.mock(com.arte.app.platform.ai.tool.LocalTextTools.class);
+        org.mockito.Mockito.doAnswer(call -> {
+                    assertEquals(snapshot.binding(), call.getArgument(1));
+                    return null;
+                }).when(tools)
+                .requireFree(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        return new com.arte.app.platform.ai.PlatformToolApprovalAccess(access, identities,
+                new com.arte.core.application.workspace.WorkspaceGovernanceLocks(f.tx, f.tenants, f.workspaces, f.tenantMembers, f.workspaceMembers, f.preferences),
+                f.tx, tools, new com.arte.ainew.config.NewAiToolApprovalProperties(true, null, 0, names), scheduler, clock);
+    }
+
+    private ToolExecutionSnapshot approvalSnapshot(ToolExecutionPolicy.ApprovalMode mode) {
+        var p = new ToolExecutionPolicy(Duration.ofMinutes(16), 1, Duration.ZERO, 1024, 1024, mode);
+        var original = tool.tool();
+        var unsigned = new ToolDefinition(original.definition(), original.providerId(), original.title(), original.description(), original.tags(), original.capability(),
+                original.inputSchema(), original.outputSchema(), original.configurationSchema(), original.defaultConfiguration(), original.capabilities(), original.risk(), p, "0".repeat(64));
+        var signed = new ToolDefinition(unsigned.definition(), unsigned.providerId(), unsigned.title(), unsigned.description(), unsigned.tags(), unsigned.capability(),
+                unsigned.inputSchema(), unsigned.outputSchema(), unsigned.configurationSchema(), unsigned.defaultConfiguration(), unsigned.capabilities(), unsigned.risk(), p, ToolCatalogDigests.tool(unsigned));
+        var old = invocationContext();
+        var at = clock.instant();
+        var context = new ExecutionContext("approval-execution", "trace", new ExecutionAuthorization(old.authorization().principal(), scope.tenantId(), scope.workspaceId(), Set.of("ai:read", "ai:invoke"), "grant"),
+                at.plusSeconds(960), null, null, "release", "approval-key");
+        var owner = ExecutionOwner.from(context);
+        var empty = new StructuredValue.ObjectValue(Map.of());
+        var binding = new ToolBindingResolution(new DefinitionRef("binding", "approval-binding", "p1-" + "a".repeat(64)), new DefinitionRef("binding", "approval-binding", "r1"), owner,
+                new ToolDefinitionRevision(signed, tool.provider(), tool.target()), "b".repeat(64), empty, ToolCatalogDigests.configuration(empty), p, Set.of(), Map.of());
+        var input = new ToolAdmissionInput("approval-binding", empty, null, null, null);
+        var invocation = new ToolInvocation(com.arte.ainew.serialization.ToolAdmissionDigests.callId(owner, input.bindingId(), context.idempotencyKey()), signed.definition(), empty);
+        var request = new InvocationRequest<>(signed.capability(), binding.definition(), CapabilityDescriptor.Kind.TOOL, invocation,
+                new ExecutionOptions(context.deadline(), 1, 1024, 0, 0, Duration.ofMinutes(16)), context);
+        return new ToolExecutionSnapshot(input, request, binding, p, List.of(catalog.findSchema(signed.inputSchema()).block(wait)), at);
+    }
+
     private ExecutionContext invocationContext() {
         return new ExecutionContext("invocation", "trace",
                 new ExecutionAuthorization(new ExecutionPrincipal(f.actor.principal().subjectId(), "alice", ExecutionPrincipal.Kind.USER),

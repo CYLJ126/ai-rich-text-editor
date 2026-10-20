@@ -368,8 +368,17 @@ export default function BindingEditor({
                             />
                           </Form.Item>
                         ))}
+                      {settings.policy && <Form.Item label="人工控制">
+                        <Select aria-label="人工控制模式" value={settings.policy.approvalMode}
+                                onChange={approvalMode => {
+                                  if (settings.policy) change({policy: {...settings.policy, approvalMode}});
+                                }} options={[{value: 'NONE', label: '无需人工决定（仅政策允许）'},
+                          {value: 'REQUESTER_CONFIRMATION', label: '发起者本人确认'},
+                          {value: 'INDEPENDENT_APPROVAL', label: '指定其他主体独立审批'}]}/>
+                      </Form.Item>}
                       <Typography.Text type="secondary">
-                        限制取工具、服务器与本人配置的交集；不扩大权限。当前页面不接入远端凭据。
+                        限制取工具、服务器与本人配置的交集；不能降低人工要求。人工决定至少预留 30 秒执行时间，独立审批须完整容纳
+                        15 分钟窗口。工具总期限过短时不能通过绑定延长。
                       </Typography.Text>
                       <Descriptions
                         column={1}

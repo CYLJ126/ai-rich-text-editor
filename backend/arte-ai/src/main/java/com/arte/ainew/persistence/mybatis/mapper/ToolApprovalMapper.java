@@ -23,4 +23,13 @@ public interface ToolApprovalMapper {
     int save(@Param("r") Row row, @Param("expected") long expected);
 
     List<String> expired(@Param("now") long now, @Param("limit") int limit);
+
+    int addAudience(@Param("invocation") String invocation, @Param("actors") List<String> actorKeys);
+
+    int closeAudience(@Param("invocation") String invocation);
+
+    Row visible(@Param("actor") String actorKey, @Param("approval") String approvalKey,
+                @Param("invocation") String invocationKey);
+
+    List<Row> inbox(@Param("actor") String actorKey, @Param("after") String after, @Param("limit") int limit);
 }

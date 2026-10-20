@@ -102,6 +102,17 @@ public final class RbacIdentityProvider implements IdentityProvider {
     }
 
     /**
+     * 受信审批名单按稳定主体解析当前账户名；核验映射、生命周期与启用状态，不创建身份。
+     */
+    public Optional<String> currentSubjectName(String subjectId) {
+        accounts.requireTransaction();
+        return identities.findAccountBinding(subjectId, true).flatMap(binding -> {
+            if (principal(binding, true).status() != PrincipalStatusEnum.ACTIVE) return Optional.empty();
+            return accounts.findCurrentById(Long.parseLong(binding.identity().externalUserId())).map(RbacAccountReader.Account::name);
+        });
+    }
+
+    /**
      * Worker 的可信执行主体没有 HTTP 会话；锁定现有映射及账户，核对稳定主体、当前名称和账户生命周期。
      * 不根据任务里的名称创建身份，不重建 JWT，也不把旧执行快照当作当前账户资格。
      */

@@ -33,4 +33,25 @@
         WHERE state='PENDING' AND expires_at &lt;= #{now}
         ORDER BY expires_at,invocation_key LIMIT #{limit}
     </select>
+    <insert id="addAudience">
+        INSERT INTO arte_ai_tool_approval_audience(actor_key,invocation_key) VALUES
+        <foreach collection="actors" item="actor" separator=",">(#{actor},#{invocation})</foreach>
+    </insert>
+    <update id="closeAudience">
+        UPDATE arte_ai_tool_approval_audience SET pending=0 WHERE invocation_key=#{invocation} AND pending=1
+    </update>
+    <select id="visible" resultMap="Row" useCache="false">
+        SELECT a.invocation_key,a.owner_key,a.approval_key,a.state,a.version_no,a.expires_at,a.payload_digest,a.snapshot
+        FROM arte_ai_tool_approval a JOIN arte_ai_tool_approval_audience p ON p.invocation_key=a.invocation_key
+        WHERE p.actor_key=#{actor}
+        <if test="approval != null">AND a.approval_key=#{approval}</if>
+        <if test="invocation != null">AND a.invocation_key=#{invocation}</if>
+    </select>
+    <select id="inbox" resultMap="Row" useCache="false">
+        SELECT a.invocation_key,a.owner_key,a.approval_key,a.state,a.version_no,a.expires_at,a.payload_digest,a.snapshot
+        FROM arte_ai_tool_approval_audience p JOIN arte_ai_tool_approval a ON a.invocation_key=p.invocation_key
+        WHERE p.actor_key=#{actor} AND p.pending=1 AND a.state='PENDING'
+        <if test="after != null">AND p.invocation_key &gt; #{after}</if>
+        ORDER BY p.invocation_key LIMIT #{limit}
+    </select>
 </mapper>

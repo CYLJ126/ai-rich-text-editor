@@ -2,6 +2,7 @@ package com.arte.ainew.web;
 
 import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.web.controller.NewAiToolApprovalController;
 import com.arte.ainew.web.controller.NewAiToolController;
 import com.arte.ainew.web.controller.NewAiToolSubmissionController;
 import com.arte.core.enums.ResultCodeEnum;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾
  */
-@RestControllerAdvice(assignableTypes = {NewAiToolController.class, NewAiToolSubmissionController.class})
+@RestControllerAdvice(assignableTypes = {NewAiToolController.class, NewAiToolSubmissionController.class, NewAiToolApprovalController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ToolManagementExceptionHandler {

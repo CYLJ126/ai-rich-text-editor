@@ -1,13 +1,12 @@
 package com.arte.ainew.spi.persistence;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.StoreOutcome;
-import com.arte.ainew.pojo.tool.ToolApproval;
-import com.arte.ainew.pojo.tool.ToolApprovalCommand;
-import com.arte.ainew.pojo.tool.ToolApprovalReceipt;
-import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
+import com.arte.ainew.pojo.tool.*;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
@@ -35,4 +34,25 @@ public interface ToolApprovalStore {
      * 有界系统恢复，每条独立事务，与决定和取消共用 Invocation 行锁；多实例可重复扫描。
      */
     Mono<Integer> expire(int limit);
+
+    /**
+     * 按当前身份完整范围的耐久参与者索引定位；不接受正文提供其他 owner。仍须应用层当前授权。
+     */
+    default Mono<ToolApproval> visible(ExecutionOwner actor, String approvalId, String invocationId) {
+        return Mono.error(new UnsupportedOperationException("Approval audience lookup unavailable"));
+    }
+
+    record Inbox(List<ToolApproval> records, String nextCursor, boolean exhausted) {
+    }
+
+    default Mono<Inbox> inbox(ExecutionOwner actor, String cursor, int limit) {
+        return Mono.error(new UnsupportedOperationException("Approval inbox unavailable"));
+    }
+
+    /**
+     * 网关必须验证批准与当前真实 Attempt，不能只检查调用参数中声明已批准。
+     */
+    default Mono<Void> requireApproved(GatewayCall<ToolInvocation> call) {
+        return Mono.error(new UnsupportedOperationException("Approval dispatch verification unavailable"));
+    }
 }

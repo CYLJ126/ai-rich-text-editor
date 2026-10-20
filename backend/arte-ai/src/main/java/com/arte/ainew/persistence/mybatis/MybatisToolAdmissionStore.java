@@ -236,6 +236,11 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                                 throw new DeadlineExceeded();
                             if (approvals.insert(ToolApprovalRecords.row(ToolApproval.pending(candidate, plan), codec)) != 1)
                                 throw new IllegalStateException("Tool approval was not recorded");
+                            var actors = new java.util.TreeSet<String>();
+                            actors.add(ownerKey);
+                            plan.approverSubjectIds().forEach(subject -> actors.add(key(owner.tenantId(), owner.workspaceId(), subject)));
+                            if (approvals.addAudience(key(context.executionId()), java.util.List.copyOf(actors)) != actors.size())
+                                throw new IllegalStateException("Tool approval audience was not recorded");
                         }
                         requireUnexpired(candidate);
                         newlyAccepted.set(true);

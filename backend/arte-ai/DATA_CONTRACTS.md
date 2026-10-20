@@ -2,6 +2,7 @@
 
 > S3-01：Invocation 新增非终态 WAITING_APPROVAL；无审批 tool-execution-snapshot 保持 v1，带审批政策使用 v2。
 > 新增 tool-approval v1／tool-approval-receipt v1，审批版本独立于 Invocation，旧版本不支持新状态。
+> S3-02 增加公开审批白名单与参与者索引，不更改上述编码版本；预览摘要包含固定人工政策，实际到期只由可靠受理固定。
 > 固定摘要、模式／版本校验和兼容部署见 [审批事务说明](TOOL_APPROVAL.md)。
 
 > 2026-10-17 TOOL 设计关联：[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)以现有

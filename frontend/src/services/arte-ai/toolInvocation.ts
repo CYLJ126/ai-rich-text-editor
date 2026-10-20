@@ -16,7 +16,10 @@ export interface ToolInvocationPreview {
   maxAttempts: number;
   maxInputBytes: number;
   maxOutputBytes: number;
-  approvalMode: 'NONE';
+  approvalMode: 'NONE' | 'REQUESTER_CONFIRMATION' | 'INDEPENDENT_APPROVAL';
+  approvalWindowMillis?: number;
+  executionMarginMillis?: number;
+  approverSubjectIds?: string[];
   billingMode: 'FREE';
   costDescription: string;
 }

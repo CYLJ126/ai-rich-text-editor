@@ -650,6 +650,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         var next = terminal == Invocation.State.CANCELLED ? ToolApproval.State.CANCELLED
                 : terminal == Invocation.State.TIMED_OUT ? ToolApproval.State.EXPIRED : ToolApproval.State.CANCELLED;
         require(toolApprovals.save(ToolApprovalRecords.row(approval.decided(next, null, now()), codec), approval.version()) == 1, VERSION_CONFLICT);
+        toolApprovals.closeAudience(hash(id(source)));
     }
 
     @Override

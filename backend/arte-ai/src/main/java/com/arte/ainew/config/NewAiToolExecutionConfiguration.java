@@ -1,17 +1,21 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
+import com.arte.ainew.application.tool.approval.ToolApprovalPolicy;
 import com.arte.ainew.application.tool.approval.ToolApprovalRecovery;
+import com.arte.ainew.application.tool.approval.ToolApprovalService;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
+import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -49,7 +53,7 @@ public class NewAiToolExecutionConfiguration {
     }
 
     /**
-     * 内部事务能力；公开审批入口及其宿主授权在 S3-02 接入，本批不注册 HTTP 或默认审批人。
+     * 审批事务 Store 不自带授权或启动 IO；公开用例另行要求显式宿主能力。
      */
     @Bean("newAiToolApprovalStore")
     MybatisToolApprovalStore toolApprovalStore(NewAiProperties properties, ListableBeanFactory beans, ExecutionRecordCodec codec,
@@ -71,11 +75,21 @@ public class NewAiToolExecutionConfiguration {
     @Bean("newAiToolAdmissionService")
     ToolAdmissionService toolAdmissionService(ToolBindingService bindings, MybatisToolCatalogStore catalog,
                                               MybatisToolAdmissionStore store, ToolAdmissionAccess access, NewAiProperties properties,
-                                              @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock) {
+                                              @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock,
+                                              NewAiToolApprovalProperties approvals, ObjectProvider<ToolApprovalAccess> approvalAccess,
+                                              MybatisToolApprovalStore approvalStore) {
         var limits = properties.limits();
         var policy = new ToolExecutionPolicy(limits.maximumTimeout(), 10, Duration.ZERO, limits.maxInputBytes(), limits.maxOutputBytes(),
                 ToolExecutionPolicy.ApprovalMode.NONE);
-        return new ToolAdmissionService(bindings, catalog, store, access, new ToolSchemaValidator(), policy, scheduler, clock);
+        return new ToolAdmissionService(bindings, catalog, store, access, new ToolSchemaValidator(), policy, scheduler, clock,
+                new ToolApprovalPolicy(approvals, approvalAccess.getIfAvailable(), approvalStore));
+    }
+
+    @Bean
+    @ConditionalOnBean(ToolApprovalAccess.class)
+    ToolApprovalService toolApprovalService(MybatisToolApprovalStore approvals, MybatisToolAdmissionStore snapshots,
+                                            MybatisExecutionPersistence executions, ToolApprovalAccess access) {
+        return new ToolApprovalService(approvals, snapshots, executions, access);
     }
 
     /**

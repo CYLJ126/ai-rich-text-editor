@@ -1,5 +1,7 @@
 package com.arte.ainew.web.response;
 
+import com.arte.ainew.application.tool.admission.ToolAdmissionService;
+import com.arte.ainew.application.tool.approval.ToolApprovalPolicy;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
@@ -19,7 +21,17 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                                             String configurationJson, ToolManagementResponses.Schema inputSchema,
                                             long timeoutMillis, int maxAttempts,
                                             long maxInputBytes, long maxOutputBytes, String approvalMode,
-                                            String billingMode, String costDescription) {
+                                            String billingMode, String costDescription, long approvalWindowMillis,
+                                            long executionMarginMillis, java.util.List<String> approverSubjectIds) {
+    public static ToolInvocationPreviewResponse from(ToolAdmissionService.Preview preview) {
+        var basic = from(preview.snapshot());
+        return new ToolInvocationPreviewResponse(ToolApprovalPolicy.previewDigest(preview.snapshot(), preview.approval()), basic.binding(), basic.revision(),
+                basic.tool(), basic.title(), basic.argumentsJson(), basic.configurationJson(), basic.inputSchema(), basic.timeoutMillis(),
+                basic.maxAttempts(), basic.maxInputBytes(), basic.maxOutputBytes(), preview.snapshot().policy().approvalMode().name(), basic.billingMode(),
+                basic.costDescription(), preview.approval() == null ? 0 : java.time.Duration.between(preview.snapshot().receivedAt(), preview.approval().expiresAt()).toMillis(),
+                preview.approval() == null ? 0 : preview.approval().executionMargin().toMillis(),
+                preview.approval() == null ? java.util.List.of() : preview.approval().approverSubjectIds().stream().sorted().toList());
+    }
     public static ToolInvocationPreviewResponse from(ToolExecutionSnapshot snapshot) {
         var options = snapshot.request().options();
         var binding = snapshot.binding();
@@ -30,7 +42,7 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                 ToolManagementResponses.schema(snapshot.schemas().stream()
                         .filter(schema -> schema.definition().equals(binding.tool().tool().inputSchema())).findFirst().orElseThrow()),
                 options.requestedTimeout().toMillis(),
-                options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), "NONE", "FREE",
-                "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。");
+                options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), snapshot.policy().approvalMode().name(), "FREE",
+                "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。", 0, 0, java.util.List.of());
     }
 }

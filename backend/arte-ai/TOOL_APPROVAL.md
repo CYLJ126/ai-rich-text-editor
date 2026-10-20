@@ -1,8 +1,9 @@
-# AI TOOL S3-01：审批等待状态与决定事务
+# AI TOOL：本人确认与独立审批（S3-01／S3-02）
 
-本批完成可信后端事务基础，沿用 `com.arte.ainew`、同一物理数据源、通用 Invocation／事件／Outbox 和现有分类调度。 不开放审批
-HTTP、审批界面、平台审批人授权或业务写工具。原 S2 免费只读公开入口、宿主执行授权和网关仍要求 `approvalMode=NONE`。
-因此本批完成后，现有文本工具不会自动进入审批，批准事实也不会绕过原网关限制执行工具。
+更新：2026-10-20。已完成同库等待／决定事务、公开审批 API、当前宿主资格、待办与决定页面，沿用现有身份、RBAC、空间及执行链路。只支持本地免费只读工具，写工具和未知业务结果核对仍属后续阶段。
+
+正式 `text.countCodePoints@v1` 仍为 30 秒总期限，不能容纳人工窗口与至少 30
+秒执行余量，选择人工模式会明确拒绝。绑定或请求不能延长工具契约。本批不新增长期限正式工具、不修改业务配置；审批执行闭环以显式长期限测试契约验证，不能宣称正式文本工具已开放人工模式。
 
 ## 内部调用与授权责任
 
@@ -19,7 +20,7 @@ HTTP、审批界面、平台审批人授权或业务写工具。原 S2 免费只
 
 审批 `Plan` 包含模式、稳定审批主体集合、固定 expiresAt 和 executionMargin；不能直接绑定 HTTP。 事务层要求模式匹配固定执行策略、独立审批人不含本人，以及
 `receivedAt < expiresAt <= originalDeadline - executionMargin`，余量至少 30 秒。 本人确认默认 2 分钟总期限得到 90
-秒有效窗口、独立审批需明确容纳 15 分钟窗口等产品选择规则， 由 S3-02 可信政策／预览入口实现；本批不改变现有文本工具的 30
+秒有效窗口、独立审批需明确容纳 15 分钟窗口等产品选择规则， 已由 S3-02 可信政策／预览入口实现；不改变现有文本工具的 30
 秒总期限或服务器上限。
 
 ## 状态和决定
@@ -47,8 +48,8 @@ WAITING_APPROVAL 和无 Attempt。 命令还携带稳定审批 ID、原执行 ID
 - 到期保存 EXPIRED 与 TIMED_OUT／`TOOL_APPROVAL_EXPIRED`。决定、取消和到期以 Invocation → approval 顺序取锁，最多一个待审批决定生效。
 - 幂等键作用于该 Invocation 的审批决定；摘要包含决定、版本、主体和审批摘要。同键同命令返回原回执；
   同键异义、不同键的相反决定、过期／旧版本命令拒绝。重放先重新验证当前资格，不延长期限或重复排队。
-- Attempt 创建前重新读取 APPROVED 和固定快照／摘要；材料损坏或变化拒绝。批准者不改原 request／scopes，
-  后续公开审批执行接线仍须以原发起者重新授权，不能把审批资格作为执行资格。
+- Attempt 创建前重新读取 APPROVED 和固定快照／摘要；材料损坏或变化拒绝。批准者不改原 request／scopes， Worker
+  以原发起者重新授权，网关在进入适配器前重验当前 RUNNING Attempt、fence、存活租约和 APPROVED；审批资格不能作为执行资格。
 
 决定、终态、事件和 Outbox 的写入都在同一 DataSource 的物理事务内。事务回滚不唤醒 Worker；提交后提示失败仍由既有 Outbox 扫描恢复。
 数据库／材料损坏通过错误传播；到期批次中单条错误保留原事实并记录稳定键告警，继续处理其他记录，不伪造修复或 ACK。
@@ -71,10 +72,97 @@ WAITING_APPROVAL 和无 Attempt。 命令还携带稳定审批 ID、原执行 ID
    ```
 
    新开关默认 false；pollInterval 允许 100ms～1min，batchSize 允许 1～256。 串行恢复每批完成后延迟再扫描；单批故障不会停掉后续扫描。关闭
-   Worker 或恢复只停止自动扫描，不取消已有调用。 手动 `expire` 使用相同事务且可跨实例重复调用。开关不授权任何用户，也不开放审批受理
-   HTTP。
+   Worker 或恢复只停止自动扫描，不取消已有调用。 手动 `expire`
+   使用相同事务且可跨实例重复调用。开关同时控制审批入口注册及人工受理政策，不授予任何用户权限。关闭后公开审批入口不可用，已有等待事实保留；关闭空间
+   AI 后，原发起者仍可按当前读取／控制资格查看和取消历史，不能据此继续执行。
 5. 原 NONE 调用在未安装审批表时仍可按 S2 受理／重放，不因本批自动访问新表。缺审批表的等待受理明确失败并回滚全部写入。
 
 本次只提供代码、SQL 与测试，未执行任何业务数据库 DDL、修改业务配置、重启应用或连接外部模型。 后端验收使用隔离 H2 的真实
 JDBC／MyBatis 事务及虚拟时钟；不代表已通过生产 MySQL、多节点部署或性能压测。
-验证清单及结果见 [实施记录 §27](TOOL_IMPLEMENTATION.md#27-s3-01审批等待状态与决定事务2026-10-19)。
+验证清单及结果见 [实施记录](TOOL_IMPLEMENTATION.md) §27—28。
+
+## S3-02 公开入口与当前资格
+
+- `getApproval`：以审批编号或原调用编号二选一定位，先按当前 actor／Scope 查参与者索引，再验证当前资格；编号不授予读取权。
+- `listPendingApprovals`：参与者索引分页，默认 10、最大 20，稳定键游标。逐条复核当前资格；过滤撤权记录后允许空页携带
+  nextCursor，客户端继续扫描。列表不返回参数，详情返回固定工具／配置版本、原文 JSON 参数与配置、风险、原发起主体、固定审批主体、实际到期和原总期限。
+- `decideApproval`：只接受 Scope、approvalId、字符串 expectedVersion、subjectDigest、APPROVE／REJECT；必须携带
+  Idempotency-Key。不接受 owner、actor、审批人名单、scopes 或 ExecutionContext。HTTP 202 只代表决定事实，批准后查询原调用结果。
+
+本人确认需要原发起者当前 `aiTool:invoke`、AI INVOKE 和工具 requiredScopes；读取仅需当前 `aiTool:list`、AI
+READ。独立审批人必须在固定稳定主体集合中、与原调用同一有效 Scope、仍为有效账户／空间成员，且具有当前 `aiTool:approve` 及 AI
+使用资格。独立审批不允许本人，admin 不绕过显式 approve 操作。DATABASE 模式关闭空间 AI
+后，独立审批人不再有审批读取／决定资格，原发起者按原规则保留历史读取与取消资格。
+
+可信配置在受理时固定名单，随后新增配置主体不进入旧记录，移除固定主体后其决定资格失效。应用层及决定事务都重验当前资格；同键重放也不跳过。事务按稳定主体排序获取治理门锁，再获取租户／空间锁，与现有公共治理顺序一致。批准不替换原发起者或扩充原
+scopes。
+
+```properties
+# 以下是部署示例，不是已修改的业务配置。沿用已有 AI、TOOL、执行及 Worker 开关。
+arte.ai-new-tool-approval.enabled=true
+arte.ai-new-tool-approval.approvers[0].tenant-id=tenant-example
+arte.ai-new-tool-approval.approvers[0].workspace-id=workspace-example
+arte.ai-new-tool-approval.approvers[0].subject-ids[0]=stable-subject-id
+```
+
+每个 Scope 最多 32 个稳定主体，最多 256 个 Scope，不建新身份体系。本人确认不需要独立名单；独立模式必须有其他合法主体，并逐个验证当前资格，缺失或无法验证时拒绝。独立审批需完整
+15 分钟窗口与至少 30 秒余量；本人确认窗口为 min (2 分钟, 原期限减 30 秒)
+，必须为正。预览摘要覆盖模式、排序后的固定主体与窗口政策，绝对时间由可靠受理固定；同键并发重放使用获胜记录的原 Plan，不重置窗口。
+
+## S3-02 页面与决定恢复
+
+工具中心新增“确认与审批”，调用面板在 WAITING_APPROVAL 展示同一决定组件。实际参数与配置以文本呈现，不执行 HTML、不经 JS
+Number 转换；决定前再次核对固定内容。倒计时以服务端时间校准，最终到期以数据库事务为准，到零隐藏新决定按钮。决定成功提示与执行成功分开。
+
+发送前先将完整原命令及原幂等键写入按账户／Scope／审批编号隔离的
+sessionStorage。超时／刷新后只允许“继续确认原决定”，不自动发起相反决定；存储损坏或保存失败时不发送新命令。切换账户／空间、卸载及重新读取取消旧请求，迟到响应不能覆盖新上下文。sessionStorage
+只覆盖当前浏览器会话，清除会话后仍可通过审批编号查询权威状态。
+
+## S3-02 数据库与权限增量
+
+### 先区分旧版同名审批表与 S3-01 审批表
+
+部署前执行只读 `scripts/arte-ai-tool-approval-schema-check-mysql.sql`。`arte_ai_tool_approval` 表名存在不代表已经安装
+S3-01；audience 表有自己的 Invocation 外键，也不依赖旧审批表列，因此单独建 audience 成功不能证明前置条件成立。
+
+| 结构               | 识别字段                                                                                                | audience-backfill 是否适用                             |
+|--------------------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 参考项目旧版审批表 | id、request_id、call_id、status、display_arguments、DATETIME expires_at                                 | 不适用；这是旧审批，不具有新 Invocation 的固定执行材料 |
+| S3-01 同库审批事实 | invocation_key、owner_key、approval_key、state、version_no、BIGINT expires_at、payload_digest、snapshot | 适用于已有此结构且需补参与者索引的记录                 |
+
+发现旧同名表时，不能把 status 简单换成 state，也不能补几个空列继续回填。旧表缺少固定 owner、Invocation、完整参数／配置／授权上限及可信审批
+Plan，不应将旧批准赋予新调用执行权。
+
+仅供已停止旧消费者并备份的开发环境：先核对引用旧表的外键、程序及归档目标不存在，再保留旧数据并释放原表名：
+
+```sql
+RENAME TABLE arte_ai_tool_approval TO arte_ai_tool_approval_legacy_before_s3;
+```
+
+随后显式执行 `scripts/arte-ai-tool-approval-migration.sql` 创建新的 S3-01
+表。上述重命名不会迁移旧记录；归档中的旧待审批应按旧系统规则处理，新功能重新预览和可靠受理。不得在仍需同时运行旧消费者的环境直接重命名；该环境需要另外设计表名隔离方案。
+
+audience 若已按 S3-02 安装，不重复执行建表脚本；核对其结构及是否存在孤立行。新 S3-01 表为空时无需执行
+audience-backfill，旧归档记录不在回填范围。存在真实 S3-01 记录时才运行回填，随后核对原 owner 及固定审批主体索引。
+
+2026-10-20 对项目配置的开发库仅作只读核查：原 approval 为旧版结构、共有 2 行；audience 已有三列结构、0 行，未查到指向旧
+approval 的外键。此为当时环境观测，执行任何 DDL 前仍须复核。此次没有修改业务数据库；新只读检查脚本已对该库验证，归档／新建／回填均未执行。
+
+### 标准安装与回填
+
+全新库的 `arte-ai-new-ddl-mysql.sql` 已含审批及 audience 表。已有 S2 库先执行 S3-01 的 approval-migration，再执行 S3-02 的
+audience-migration；已有 S3-01 库从以下步骤开始：
+
+1. 停写、备份并统一升级读写节点／消费者，执行 `scripts/arte-ai-tool-approval-audience-migration.sql`。
+2. 有符合上述新结构的 S3-01 审批记录时执行 `scripts/arte-ai-tool-approval-audience-backfill-mysql.sql`（MySQL
+   8.0+），按快照固定主体回填；核对每条审批至少含原 owner，以及固定独立审批主体对应索引。脚本不授予权限。全新空库不需要回填。
+3. 执行 arte-app 的 `scripts/arte-ai-tool-approval-rbac-dml-mysql.sql`，只增加 aiTool:approve
+   操作定义；现有管理机制向实际审核者明确分配此操作，不自动授予角色或用户。
+4. 配置足够长且经过发布校验的只读工具契约、服务器总期限及可信名单，再开启人工模式。仅安装表或增加审批操作不等于可使用人工模式。
+
+`arte_ai_tool_approval_audience` 只作参与者定位投影，主键为 actor_key／invocation_key，含 pending
+及其复合索引。等待事务原子写入原主体和固定审批主体；决定、取消及到期原子清除
+pending，历史行保留。查询同时验证权威审批状态、固定材料和当前权限，不把该索引视为授权。避免待办请求扫描已结束的历史记录。
+
+本批没有执行业务库 DDL／回填、权限分配或业务配置修改；MySQL 回填脚本未在真实 MySQL 执行。H2 事务回归不能替代 MySQL
+部署、多节点及性能验收。

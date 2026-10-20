@@ -88,8 +88,7 @@ public final class LocalTextTools {
      */
     public void requireFree(ToolAdmissionInput input, ToolBindingResolution binding) {
         if (!input.bindingId().equals(binding.definition().id()) || !revision.equals(binding.tool())
-                || !binding.effectiveConfiguration().equals(EMPTY) || !binding.secrets().isEmpty() || !binding.networkOrigins().isEmpty()
-                || binding.effectivePolicy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE)
+                || !binding.effectiveConfiguration().equals(EMPTY) || !binding.secrets().isEmpty() || !binding.networkOrigins().isEmpty())
             throw new AccessDeniedException("Tool is not covered by the reviewed local free policy");
     }
 

@@ -42,6 +42,37 @@ import static org.junit.Assert.*;
 public class ToolExecutionAssemblyTest {
 
     @Test
+    public void explicitApprovalHostAssemblesWithoutStartupIoAndBindsScopedSubjects() {
+        try (var context = base()) {
+            ports(context, true, true);
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("approval", Map.of(
+                    "arte.ai-new-tool-approval.enabled", true,
+                    "arte.ai-new-tool-approval.approvers[0].tenant-id", "tenant",
+                    "arte.ai-new-tool-approval.approvers[0].workspace-id", "workspace",
+                    "arte.ai-new-tool-approval.approvers[0].subject-ids[0]", "reviewer")));
+            context.registerBean(com.arte.ainew.spi.auth.ToolApprovalAccess.class, () -> new com.arte.ainew.spi.auth.ToolApprovalAccess() {
+                public reactor.core.publisher.Mono<PlanPermit> authorizePlan(com.arte.ainew.pojo.tool.ToolExecutionSnapshot s,
+                                                                             com.arte.ainew.pojo.tool.ToolApproval.Plan p, com.arte.ainew.common.execution.ExecutionContext c) {
+                    throw new AssertionError("No startup approval plan authorization");
+                }
+
+                public reactor.core.publisher.Mono<Permit> authorize(com.arte.ainew.pojo.tool.ToolApproval a,
+                                                                     com.arte.ainew.pojo.tool.ToolExecutionSnapshot s, com.arte.ainew.common.execution.ExecutionContext c, boolean deciding) {
+                    throw new AssertionError("No startup approval actor authorization");
+                }
+            });
+            refresh(context);
+            assertNotNull(context.getBean(com.arte.ainew.application.tool.approval.ToolApprovalService.class));
+            assertNotNull(context.getBean(ToolGateway.class));
+            var scope = context.getBean(NewAiToolApprovalProperties.class).approvers().getFirst();
+            assertEquals("tenant", scope.tenantId());
+            assertEquals("workspace", scope.workspaceId());
+            assertEquals(java.util.Set.of("reviewer"), scope.subjectIds());
+            assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalRecovery.class).isEmpty());
+        }
+    }
+
+    @Test
     public void toolOnlyAssemblesWithoutModelDefinitionsGatewayOrStartupIo() {
         Scheduler metadata, persistence;
         try (var context = base()) {
@@ -49,6 +80,7 @@ public class ToolExecutionAssemblyTest {
             refresh(context);
             assertNotNull(context.getBean(ToolAdmissionService.class));
             assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolApprovalStore.class));
+            assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalService.class).isEmpty());
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalRecovery.class).isEmpty());
             assertNotNull(context.getBean(ToolDispatcher.class));
             assertNotNull(context.getBean(ToolGateway.class));

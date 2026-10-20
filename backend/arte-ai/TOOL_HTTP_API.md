@@ -1,9 +1,9 @@
 # AI TOOL HTTP API（管理与独立调用）
 
-S3-01 补充：通用状态可能包含非终态 `WAITING_APPROVAL`，前端按进行中处理。现有独立提交仍仅支持 NONE， 本批没有新增确认／审批
-HTTP；内部等待／决定事务、数据库部署与后续接线边界见 [审批事务说明](TOOL_APPROVAL.md)。
+S3-02：已新增当前资格下的本人确认／独立审批与待办，WAITING_APPROVAL 为非终态。仅本地免费只读，正式文本 v1
+期限不足，不能直接启用人工模式。详见 [审批说明](TOOL_APPROVAL.md)。
 
-更新：2026-10-19，S2-09。本接口提供本地目录、发布、当前空间内本人绑定管理及独立免费只读调用。需求见
+更新：2026-10-20，S3-02。本接口提供本地目录、发布、当前空间内本人绑定管理及独立免费只读调用。需求见
 [需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 ，实现与验证见 [实施记录 §8](TOOL_IMPLEMENTATION.md#8-s1-08管理-api-与现有当前授权)。
 
@@ -218,7 +218,8 @@ publishTool 只提交 scope／reason 时，返回
 建议本地联调顺序：登记真实来源／适配器 → 管理刷新 → managed 目录读取草稿 → 审核预检 → 发布 → 普通目录读取 → 新建本人绑定 →
 修订／历史读取 → 升级预览／确认 → 停用。
 
-当前没有 invokeTool、ensureDefaultBinding、resolveToolSet、审批、工具聊天等接口。 提供者单独 syncProvider／setProviderState
+管理阶段未提供的 invokeTool 与审批入口现已在后续章节实现；ensureDefaultBinding、resolveToolSet、工具聊天仍未提供。 提供者单独
+syncProvider／setProviderState
 须配合后续可变治理及远端接入实现；当前完整刷新不提供任意 URL 或客户端注册适配器的入口。
 
 ## 分类调度拒绝（S2-06）
@@ -245,7 +246,7 @@ maxOutputBytes 为 1～33554432，实际值取工具／绑定／服务端上限�
 owner、actor、scopes、target、budgetRef、费用事实等额外字段。
 
 预览返回 planDigest、binding（p1）、revision（rN）、tool、title、inputSchema、argumentsJson、configurationJson、
-timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode=NONE、billingMode=FREE、costDescription。
+timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode（NONE／REQUESTER_CONFIRMATION／INDEPENDENT_APPROVAL）、billingMode=FREE、costDescription。
 不暴露内部执行目标、临时授权或完整快照。预览只规划，不预占队列；正式提交仍需分类调度就绪。
 
 摘要覆盖真实 owner、完整参数／限制意图、固定工具／配置／策略、权限上限和 Schema；忽略临时 ID、trace、绝对期限。 参数、有效版本或限制变化使新提交返回
@@ -254,7 +255,7 @@ timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode=NONE
 budgetRef，不调用模型、不预留或扣减模型预算；不是独立收费账户，也不扩展付费工具／工具聊天。
 
 状态／结果沿用 invocation/getInvocationStatus、getInvocationResult；TOOL 结果追加 outputJson，页面按纯文本显示精确 JSON。 停止用
-tool/cancelToolInvocation；停止回执只说明命令事实。审批、写工具、远端与费用核对仍在后续阶段。
+tool/cancelToolInvocation；停止回执只说明命令事实。人工审批入口见下节；写工具、远端与费用核对仍在后续阶段。
 
 受理期限耗尽返回 HTTP 504／code=205005；调用总期限包含预检、当前授权、数据库持锁等待、排队和执行，不能通过前端传入更长时长
 放宽工具策略。HTTP 超时、断开或回执丢失均不能推断受理事务已经结束。页面对提交明确显示“工具调用受理超时，提交结果尚待确认”，
@@ -279,3 +280,33 @@ READ_ONLY 推断。
 `arte.ai-new-tool.discovery.refresh-on-startup=true` 可使每个节点在 Worker 启动前完整发现（最多等待 30 秒）；默认
 false，失败拒绝启动。它不构造管理用户或管理审计回执，不自动发布／建绑／授权。`refreshLocalCatalog` 继续是有当前 MANAGE
 检查、命令审计及幂等回执的显式管理入口。已知清单及首次发布 JSON 见 [使用与验收](TOOL_ACCEPTANCE.md)。
+
+## S3-02 本人确认／独立审批
+
+额外要求 `arte.ai-new-tool-approval.enabled=true` 和显式宿主 ToolApprovalAccess；其余
+AI／TOOL／执行及当前平台基础沿用独立调用。不安装新表不开启人工受理。独立审批还需受信 Scope 名单及当前 aiTool:approve，admin
+不自动具备该操作；本人确认需要当前 invoke 资格。具体部署见 [审批说明](TOOL_APPROVAL.md)。
+
+三个接口均为 POST `/arte/ai-new/tool/...`，返回现有 ResultContext 包装，不接受 owner／actor／scopes／审批名单。以下 Scope 使用现有
+tenantId／workspaceId。
+
+| 路径                 | 请求正文                                                                                                                  | 返回 data                          |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| getApproval          | `{scope, approvalId}` 或 `{scope, invocationId}`，定位字段必须二选一                                                      | 详情白名单                         |
+| listPendingApprovals | `{scope, cursor?, limit?}`，默认 10、上限 20                                                                              | `{records, nextCursor, exhausted}` |
+| decideApproval       | `{scope, approvalId, expectedVersion:"0", subjectDigest, decision:"APPROVE"}`；decision 也可 REJECT；Idempotency-Key 必填 | HTTP 202 决定回执                  |
+
+详情包含 approvalId、invocationId、字符串 version、subjectDigest、mode、state、requesterSubjectId、固定
+approverSubjectIds、title、toolVersion、bindingVersion、argumentsJson、configurationJson、sideEffect、expiresAt、executeNotAfter、decidedBy、decidedAt、invocationState、mayDecide、requester、serverTime。JSON
+原文保持精确数值；不返回内部授权、Secret 或执行器。mayDecide 是读取时提示，决定仍重新授权并在事务内检查数据库期限。
+
+列表仅返回编号、工具标题、模式、expiresAt 和 mayDecide；按 actor／Scope
+的参与者索引及稳定游标查询，当前权限过滤后可能空页且仍有下一游标。不得以列表为空推断所有记录已处理。历史按编号读取仍需当前资格。
+
+回执包含 approvalId、invocationId、字符串 version、state、invocationState、decidedAt。version 是审批版本，与 Invocation
+版本分开。客户端先保存完整命令与键，结果不明时使用同键同正文确认；旧版本、摘要变更或相反决定不能覆盖已生效决定。批准只表示原调用进入排队，执行结果继续走原查询／事件流。
+
+预览增加 approvalWindowMillis、executionMarginMillis、approverSubjectIds。窗口覆盖在原调用总期限内，不额外增加执行时间；独立审批必须完整容纳
+15 分钟及至少 30 秒执行余量。错误 `205057 AI_TOOL_APPROVAL_WINDOW_INVALID` 表示期限不足，
+`205058 AI_TOOL_APPROVAL_UNAVAILABLE` 表示未开启或缺可信审批政策／名单；按现有 AdmissionException 映射返回错误，不静默降级。正式
+text.countCodePoints@v1 30 秒契约仍不能承担人工模式。

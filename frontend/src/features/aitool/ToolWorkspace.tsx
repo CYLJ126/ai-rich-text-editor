@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import ToolApprovalInbox from './ToolApprovalInbox';
 import {
   Alert,
   Button,
@@ -155,6 +156,7 @@ export default function ToolWorkspace({
         activeKey={tab}
         onChange={setTab}
         items={[
+          {key: 'approvals', label: '确认与审批', children: <ToolApprovalInbox context={{userId, scope}}/>},
           {
             key: 'run', label: '工具调用', forceRender: true,
             children: <ToolRunPanel context={{userId, scope}} bindings={bindings.records} selectedBindingId={runBinding}

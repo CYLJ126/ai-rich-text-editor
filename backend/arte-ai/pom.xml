@@ -187,6 +187,7 @@
                     <include>arte-ai-tool-management-migration.sql</include>
                     <include>arte-ai-tool-admission-migration.sql</include>
                     <include>arte-ai-tool-approval-migration.sql</include>
+                    <include>arte-ai-tool-approval-audience-migration.sql</include>
                     <include>arte-ai-dispatch-scheduling-migration.sql</include>
                 </includes>
             </testResource>

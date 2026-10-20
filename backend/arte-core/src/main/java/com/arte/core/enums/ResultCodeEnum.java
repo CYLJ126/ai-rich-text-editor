@@ -223,6 +223,8 @@ public enum ResultCodeEnum {
     AI_TOOL_PLAN_CHANGED("205053", "result.ai.tool.planChanged"),
     AI_TOOL_SECRET_UNSUPPORTED("205054", "result.ai.tool.secretUnsupported"),
     AI_TOOL_INVALID_REQUEST("205055", "result.ai.tool.invalidRequest"),
+    AI_TOOL_APPROVAL_WINDOW_INVALID("205057", "result.ai.tool.approvalWindowInvalid"),
+    AI_TOOL_APPROVAL_UNAVAILABLE("205058", "result.ai.tool.approvalUnavailable"),
     AI_TOOL_MANAGEMENT_UNAVAILABLE("305002", "result.ai.tool.managementUnavailable"),
 
     AI_SEARCH_EXPIRED("205044", "result.ai.search.expired"),

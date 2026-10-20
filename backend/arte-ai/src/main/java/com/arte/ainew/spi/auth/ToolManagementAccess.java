@@ -19,7 +19,7 @@ public interface ToolManagementAccess {
     /**
      * 中央映射的操作类别；平台目录治理与个人绑定管理分开授权。
      */
-    enum Operation {LIST, BINDING_WRITE, BINDING_DISABLE, MANAGE}
+    enum Operation {LIST, BINDING_WRITE, BINDING_DISABLE, MANAGE, APPROVE}
 
     /**
      * 必须在 MVC 请求线程捕获不可变会话证据，异步代码不再读取 ThreadLocal。
