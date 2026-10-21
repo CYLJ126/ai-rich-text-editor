@@ -2,6 +2,8 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
 import com.arte.ainew.config.NewAiToolApprovalProperties;
+import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
+import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
@@ -80,8 +82,8 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     @Primary
-    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http,
-                                            ObjectProvider<com.arte.ainew.infrastructure.http.McpHealthToolAdapter> mcp) {
+    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<HttpHealthToolAdapter> http,
+                                            ObjectProvider<McpHealthToolAdapter> mcp) {
         return new LocalToolPolicy() {
             public void requireFree(com.arte.ainew.pojo.tool.ToolAdmissionInput input, com.arte.ainew.pojo.tool.ToolBindingResolution binding) {
                 if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote) {
@@ -111,8 +113,8 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     LocalToolRegistry localToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
-                                        ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http,
-                                        ObjectProvider<com.arte.ainew.infrastructure.http.McpHealthToolAdapter> mcp) {
+                                        ObjectProvider<HttpHealthToolAdapter> http,
+                                        ObjectProvider<McpHealthToolAdapter> mcp) {
         var registrations = new java.util.ArrayList<>(tools.registry().registrations());
         if (properties.enabled()) registrations.add(writes.registration());
         http.ifAvailable(remote -> registrations.add(remote.registration()));

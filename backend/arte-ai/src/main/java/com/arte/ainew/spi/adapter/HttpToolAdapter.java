@@ -9,9 +9,11 @@ import com.arte.ainew.pojo.tool.ToolResult;
 import reactor.core.publisher.Mono;
 
 /**
- * 规定受控 HTTP 工具如何声明固定契约、接收调用并返回结果。
+ * 规定受控 HTTP 工具适配器
  * <p>
  * 受信代码登记的固定 HTTP 只读契约；发现阶段只读取元数据，不执行网络探测。
+ * <p>
+ * 声明固定契约、接收调用并返回结果。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/21 12:50 ✾

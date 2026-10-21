@@ -16,10 +16,9 @@ Worker、结果查询、停止和工具聊天。 首个产品操作是远端 MCP
 | 结果     | structuredContent 必须为单字段 `{status}`，值为 UP／DOWN／OUT_OF_SERVICE／UNKNOWN；content 可为空或一段相同 JSON 的 text        |
 | 未支持   | stdio／本机命令、任意 URL／参数映射、其他工具、图像／音频／资源／资源链接、文本任意拼接、异步任务、收费 MCP、写入、远端结果核对 |
 
-JSON-RPC 通过现有 HTTP runtime 实现有界适配，不另起 SDK 的直连网络／透明重试。基础规范参考
-[MCP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)、
-[lifecycle](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle) 和
-[tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)。 这是一份明确的受控能力子集，不能当作完整通用
+JSON-RPC 通过现有 HTTP runtime 实现有界适配，不另起 SDK
+的直连网络／透明重试。基础规范参考 [MCP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)、[lifecycle](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle)
+和 [tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)。 这是一份明确的受控能力子集，不能当作完整通用
 MCP 客户端。
 
 SSE 仅接收本次请求的一个最终响应，允许有界 progress／message 通知；通知正文不存储或回传模型。 未登记的服务器请求（包括

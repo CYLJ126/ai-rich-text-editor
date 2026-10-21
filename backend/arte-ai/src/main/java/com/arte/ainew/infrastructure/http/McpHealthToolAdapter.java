@@ -16,11 +16,13 @@ import com.arte.ainew.spi.adapter.McpToolAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -39,15 +41,23 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
     private static final StructuredValue.ObjectValue EMPTY = object(Map.of());
     private static final Set<String> STATUSES = Set.of("UP", "DOWN", "OUT_OF_SERVICE", "UNKNOWN");
     private final ConnectionDefinition connection;
-    private final McpStreamableHttpTransport transport;
+    private final McpStreamableHttpTransport streamableTransport;
     private final ToolProviderDefinition provider;
     private final ToolDefinitionRevision revision;
     private final List<ToolSchemaDefinition> schemas;
-    private final tools.jackson.databind.JsonNode inputDocument, outputDocument;
+    private final JsonNode inputDocument, outputDocument;
 
-    public McpHealthToolAdapter(ConnectionDefinition connection, McpStreamableHttpTransport transport) {
-        this.connection = java.util.Objects.requireNonNull(connection);
-        this.transport = java.util.Objects.requireNonNull(transport);
+    /**
+     * 创建 MCP 状态查询工具适配器。
+     * <p>
+     * 定义工具名称、输入／输出 Schema、免费只读策略及固定连接
+     *
+     * @param connection          MCP 连接定义
+     * @param streamableTransport MCP 流式 HTTP 传输
+     */
+    public McpHealthToolAdapter(ConnectionDefinition connection, McpStreamableHttpTransport streamableTransport) {
+        this.connection = Objects.requireNonNull(connection);
+        this.streamableTransport = Objects.requireNonNull(streamableTransport);
         if (!connection.protocol().equals(ToolDefinitionRevision.MCP_PROTOCOL) || connection.credential() != null
                 || connection.state() != ConnectionDefinition.State.ENABLED || connection.maxResponseBytes() > 65536)
             throw new IllegalArgumentException("Health tool requires an enabled bounded anonymous MCP connection");
@@ -81,6 +91,7 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
         revision = new ToolDefinitionRevision(tool, provider.definition(), new ExecutionTarget.Remote(connection.definition(), OPERATION), ToolDefinitionRevision.MCP_PROTOCOL);
     }
 
+    @Override
     public ToolDefinitionRevision revision() {
         return revision;
     }
@@ -106,7 +117,7 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
     public Mono<ToolResult> invoke(RemoteToolCall call) {
         return Mono.defer(() -> {
             requireFree(new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
-            return transport.call(connection, call.call().runtime(), OPERATION, inputDocument, outputDocument, Map.of()).map(result -> {
+            return streamableTransport.call(connection, call.call().runtime(), OPERATION, inputDocument, outputDocument, Map.of()).map(result -> {
                 if (result.has("isError") && !result.path("isError").isBoolean())
                     throw GenerationException.beforeSend("TOOL_MCP_RESULT_INVALID");
                 if (result.path("isError").asBoolean(false))
@@ -118,7 +129,7 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
                     throw GenerationException.beforeSend("TOOL_MCP_RESULT_UNSUPPORTED");
                 for (var content : result.path("content")) {
                     if (!content.path("type").asString().equals("text") || !content.path("text").isString()
-                            || !CanonicalJson.normalize(transport.parse(content.path("text").asString()).toString()).equals(CanonicalJson.normalize(structured.toString())))
+                            || !CanonicalJson.normalize(streamableTransport.parse(content.path("text").asString()).toString()).equals(CanonicalJson.normalize(structured.toString())))
                         throw GenerationException.beforeSend("TOOL_MCP_RESULT_UNSUPPORTED");
                 }
                 if (result.properties().stream().anyMatch(e -> !Set.of("content", "structuredContent", "isError", "_meta").contains(e.getKey())))
@@ -127,13 +138,14 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
                         object(Map.of("status", text(structured.path("status").asString()))), List.of(), List.of(), ExecutionError.SideEffect.NONE, null);
             });
         }).onErrorResume(error -> {
+            String traceId = call.call().request().context().traceId();
             if (!(error instanceof GenerationException) && !(error instanceof AccessDeniedException))
                 log.error("MCP tool failed, invocationId={}, traceId={}, type={}", call.call().request().context().executionId(),
-                        call.call().request().context().traceId(), error.getClass().getName(), com.arte.core.diagnostics.SafeExceptionDiagnostics.forLogging(error));
+                        traceId, error.getClass().getName(), com.arte.core.diagnostics.SafeExceptionDiagnostics.forLogging(error));
             String code = error instanceof AccessDeniedException ? "TOOL_ACCESS_DENIED" : error instanceof GenerationException known
-                    ? known.error(call.call().request().context().traceId()).code() : "TOOL_MCP_RESPONSE_FAILED";
+                    ? known.error(traceId).code() : "TOOL_MCP_RESPONSE_FAILED";
             var failure = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.NONE,
-                    ExecutionError.Certainty.KNOWN, call.call().request().context().traceId());
+                    ExecutionError.Certainty.KNOWN, traceId);
             return Mono.just(new ToolResult(call.call().request().input().callId(), ToolResult.Outcome.FAILED, null, List.of(), List.of(), failure.sideEffect(), failure));
         });
     }
