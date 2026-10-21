@@ -94,6 +94,7 @@ public class ToolChatLoopTest {
         final com.arte.ainew.persistence.mybatis.MybatisToolApprovalStore approvals;
         MybatisToolChatRunStore runs;
         ToolChatService service;
+        ModelGateway gateway;
         ToolChatCoordinator coordinator;
         boolean unknownModel;
         boolean finalFirst;
@@ -111,6 +112,10 @@ public class ToolChatLoopTest {
         }
 
         Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect) throws Exception {
+            this(confirmation, effect, true);
+        }
+
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools) throws Exception {
             f = new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
                     new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
@@ -133,7 +138,8 @@ public class ToolChatLoopTest {
                     new com.arte.ainew.application.tool.approval.ToolApprovalPolicy(new NewAiToolApprovalProperties(confirmation, null, 0), approvalAccess, approvals));
             var scopes = Set.of("ai:invoke", "ai:read", "ai:conversation", "resource:read");
             var capability = new CapabilityDescriptor(ref("capability", "model"), CapabilityDescriptor.Kind.GENERATION, FixedControlCatalog.INPUT_SCHEMA,
-                    FixedControlCatalog.OUTPUT_SCHEMA, Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS),
+                    FixedControlCatalog.OUTPUT_SCHEMA, supportsTools ? Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS)
+                    : Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
                     CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
             model = new ResolvedBinding(ref("binding", "model"), capability, ref("connection", "model"), "model", 32768L, ref("rate", "model"));
             var connection = new ConnectionDefinition(model.connection(), "provider", ref("protocol", "http"), URI.create("https://example.invalid/v1"), ref("secret", "test"),
@@ -184,7 +190,10 @@ public class ToolChatLoopTest {
                 }
             });
             var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, f.executions, f.payloads, f.executions, properties, f.clock);
-            ModelGateway gateway = new ModelGateway() {
+            gateway = new ModelGateway() {
+                public boolean supportsToolChat(ResolvedBinding binding, ConnectionDefinition connection) {
+                    return supportsTools;
+                }
                 public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call) {
                     return Flux.error(new AssertionError("Tool snapshot missing"));
                 }
@@ -227,7 +236,7 @@ public class ToolChatLoopTest {
             var selector = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock);
             service = new ToolChatService(runs, conversations, f.executions, catalog,
                     new TextContextService(authorization, catalog, f.payloads, properties, f.clock, history),
-                    new ToolSetService(f.bindingService, f.catalog, f.metadata, Duration.ofSeconds(5)), selector, authorization, access, properties, f.clock);
+                    new ToolSetService(f.bindingService, f.catalog, f.metadata, Duration.ofSeconds(5)), selector, authorization, access, properties, f.clock, () -> gateway);
             coordinator = new ToolChatCoordinator(runs, f.executions, f.payloads, invocationCoordinator, toolAdmission, selector, authorization, access, f.store, properties, f.clock, Duration.ofMillis(100));
         }
 

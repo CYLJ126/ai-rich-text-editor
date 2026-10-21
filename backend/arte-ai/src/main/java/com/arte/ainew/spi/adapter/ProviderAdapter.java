@@ -39,6 +39,13 @@ public interface ProviderAdapter<I extends CapabilityInput, Q, S, R extends Seri
     List<CapabilityDescriptor> capabilities();
 
     /**
+     * 已授权目录解析后的契约兼容判断；默认仅接受登记的完整固定版本。
+     */
+    default boolean supports(CapabilityDescriptor capability) {
+        return capabilities().contains(capability);
+    }
+
+    /**
      * 纯映射，包含特性／参数兼容性检查；不能默默丢弃不支持的参数。
      * Q／S 是实现内部的协议或 SDK 类型，不进入持久化、业务 API 或日志。
      * R 为已登记的平台专有结果 DTO；一个适配实例处理一种类型化输入。

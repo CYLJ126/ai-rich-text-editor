@@ -11,7 +11,7 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
 Run 存储、检查点、步骤计划和耐久工作项，见 §33。S4-03 完成类型化候选、Run 事件／Outbox、会话占用、最终回答投影及只读查询，见
 §34；S4-04 已完成固定预算计划、子账户选择和同库附加预算约束，见 §35。S4-05 已完成真实受理、自动子调用、审批／停止／UNKNOWN 恢复与
-Run 通知消费，见 §36；S4-06 已接通 ChatNew 及显式后续动作，见 §37。
+Run 通知消费，见 §36；S4-06 已接通 ChatNew 及显式后续动作，见 §37。模型工具能力的版本发布与空间启用补齐见 §38。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2244,3 +2244,32 @@ freshnessPolicy、原始工具结果复用、远端／付费工具尚未实现�
 app.properties、未启用任何运行时 Worker、未执行数据库操作或重启后端。 用户在本机 app.properties 显式开启
 enabled／worker-enabled 后，需要重新构建资源并重启后端，再点击“重新检查工具”。 JDK 21 离线运行
 ToolChatProfileConfigurationTest、ToolChatRuntimeAssemblyTest，共 6 项通过；覆盖真实过滤后的配置、默认关闭和显式覆盖绑定。
+
+## 38. 模型工具能力版本发布与聊天前置校验（2026-10-21）
+
+针对数据库目录中的旧模型未声明 TOOL_CALLS，提交在 Run 快照构造时退化为通用 IllegalArgumentException 的问题，补齐配置升级与清晰拒绝流程。
+
+- 发布目录允许追加能力版本及对应模型绑定；旧完整定义必须保留，同一引用重定义、重复引用、删除旧定义及 latest
+  仍被拒绝。连接、费率、兼容授权及预算定义的既有约束不变。
+- 平台“发布新模型”可基于已有可执行文本能力增加
+  TOOL_CALLS，指定新能力及模型固定版本，原子发布。随后须发布默认模板的模型批准名单，再由已有空间显式选择新模型；不会覆盖原空间、账户或历史快照。
+- DeepSeek 适配器按已登记 Schema 和已实现特性判断新能力版本的兼容性，不依赖启动时完整能力对象相等，不新增每轮
+  SQL／凭据读取／远端探测。网关、供应商适配端口默认不宣称支持工具协议，自定义实现须显式开放。
+- 配置发现增加 toolCallsSupported；ChatNew 标记可用模型，不支持时阻止开启或发送工具聊天，已有工具选择仍能关闭。原待确认操作继续使用原请求／幂等键。
+- 新 Run 在准备工具集合、组装历史和建立预算计划前检查当前模型与实际网关，不支持时返回 205003；保留领域快照的最终不变量检查。
+
+验证：
+
+```shell
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home   mvn -o -f backend/pom.xml -pl arte-app -am   -Dtest=ToolChatFrontendContractTest,ToolChatLoopTest,ToolChatProtocolTest,ConfigurationHttpIntegrationTest,GenerationAssemblyTest,ToolChatRuntimeAssemblyTest,ToolChatCommandHttpTest,DatabaseAiControlIntegrationTest   -Dsurefire.failIfNoSpecifiedTests=false test
+
+# 在 frontend 目录运行
+npx vitest run src/features/ainew src/features/aitool src/pages/AI/ChatNew src/services/arte-ai --maxWorkers=2
+npm run build
+```
+
+后端 AI 定向 58 项与平台隔离 H2 集成 11 项通过；前端最终全量定向回归 30 文件、301 项通过，生产构建通过。
+前端首次扩大回归有一项搜索跳转时序测试失败，单文件 16 项及最终完整定向回归均通过。全项目 tsc 仍有 106 项既有错误，涉及本次修改文件的新增错误为
+0；定向 Biome 无错误，保留既有风格警告。 最初平台测试受到沙箱中 Mockito JVM
+代理限制，允许本机测试代理后复验通过。未连接业务数据库、重启运行实例、发布实际目录、启用工作空间新模型或调用真实供应商；无新增
+DDL，不代表生产性能或真实业务闭环验收。 操作见 [执行说明 §6.1](TOOL_CHAT_EXECUTION.md#61-模型工具能力发布与空间启用)。

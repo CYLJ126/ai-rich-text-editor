@@ -58,7 +58,10 @@ public final class ChatConfigurationQueryService {
                         var defaults = new ChatConfigurationOptions.Defaults(Math.min(32_768L, window - outputDefault),
                                 outputDefault, Math.min(60L, limits.maxTimeoutSeconds()));
                         return new ChatConfigurationOptions.ModelOption(binding.remoteOperation(), binding.definition(),
-                                binding.capability().definition(), window, limits, defaults, budgets);
+                                binding.capability().definition(), window, limits, defaults, budgets,
+                                binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
+                                        && configuration.connections().stream().anyMatch(connection -> connection.definition().equals(binding.connection())
+                                        && modelGateway.supportsToolChat(binding, connection)));
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
                     .collectList().map(ChatConfigurationOptions::new);

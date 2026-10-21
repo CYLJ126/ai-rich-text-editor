@@ -12,12 +12,14 @@ export default function ToolChatSettings({
                                            onChange,
                                            disabled,
                                            currency,
+                                           modelSupportsTools = false,
                                          }: {
   context: BrowserContext;
   value: ToolChatChoice | null;
   onChange: (value: ToolChatChoice | null) => void;
   disabled: boolean;
   currency?: string;
+  modelSupportsTools?: boolean;
 }) {
   const [open, setOpen] = useState(false),
     [enabled, setEnabled] = useState(false),
@@ -98,6 +100,7 @@ export default function ToolChatSettings({
       <Drawer title="本次聊天的工具" open={open} onClose={() => setOpen(false)}>
         <Flex vertical gap={12}>
           {error && <Alert type="warning" title={error}/>}
+          {!modelSupportsTools && <Alert type="warning" title="当前模型不支持工具调用，请切换到支持工具调用的模型。"/>}
           {!enabled && !loading && !error && (
             <Alert type="info" title="此环境尚未开放工具聊天"/>
           )}
@@ -115,7 +118,7 @@ export default function ToolChatSettings({
               <Switch
                 aria-label="允许助手调用工具"
                 checked={!!value}
-                disabled={disabled || (!enabled && !value)}
+                disabled={disabled || ((!enabled || !modelSupportsTools) && !value)}
                 onChange={(checked) => onChange(checked ? choice : null)}
               />
             </Form.Item>

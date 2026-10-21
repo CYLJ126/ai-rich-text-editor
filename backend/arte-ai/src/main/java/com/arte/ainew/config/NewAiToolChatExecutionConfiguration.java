@@ -10,7 +10,9 @@ import com.arte.ainew.application.tool.chat.*;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.spi.auth.ToolChatAccess;
+import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -42,8 +44,9 @@ public class NewAiToolChatExecutionConfiguration {
     ToolChatService toolChatService(ToolChatRunStore runs, ConversationService conversations, MybatisExecutionPersistence executions,
                                     FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                                     AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties,
-                                    @Qualifier("newAiClock") Clock clock) {
-        return new ToolChatService(runs, conversations, executions, catalog, contexts, sets, budgets, authorization, access, properties, clock);
+                                    @Qualifier("newAiClock") Clock clock,
+                                    ObjectProvider<ModelGateway> gateways) {
+        return new ToolChatService(runs, conversations, executions, catalog, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable);
     }
 
     @Bean

@@ -111,6 +111,10 @@ public class ConfigurationHttpIntegrationTest {
                 return delegate.supportsTextChat(binding, connection);
             }
 
+            public boolean supportsToolChat(ResolvedBinding binding, ConnectionDefinition connection) {
+                return delegate.supportsToolChat(binding, connection);
+            }
+
             @Override
             public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call) {
                 throw new AssertionError("Discovery must never generate, reserve budget or contact a provider");
@@ -174,7 +178,8 @@ public class ConfigurationHttpIntegrationTest {
         var values = options();
         assertEquals(1, values.size());
         var option = values.get(0);
-        assertEquals(Set.of("displayName", "binding", "capability", "contextWindowTokens", "limits", "defaults", "budgetRefs"), option.propertyNames());
+        assertEquals(Set.of("displayName", "binding", "capability", "contextWindowTokens", "limits", "defaults", "budgetRefs", "toolCallsSupported"), option.propertyNames());
+        assertFalse(option.path("toolCallsSupported").asBoolean());
         assertEquals("test-model", option.path("displayName").asString());
         assertEquals(json.valueToTree(AdmissionFixture.BINDING), option.path("binding"));
         assertEquals(json.valueToTree(AdmissionFixture.CAP), option.path("capability"));
@@ -194,6 +199,33 @@ public class ConfigurationHttpIntegrationTest {
         }
         login("bob");
         assertEquals(json.valueToTree(List.of("bob-budget")), options().get(0).path("budgetRefs"));
+    }
+
+    @Test
+    public void toolFlagRequiresBothDeclaredFeatureAndGatewayProtocolSupport() throws Exception {
+        var old = properties.capabilities().getFirst();
+        var features = new HashSet<>(old.features());
+        features.add(CapabilityDescriptor.Feature.TOOL_CALLS);
+        var capability = new CapabilityDescriptor(old.definition(), old.kind(), old.inputSchema(), old.outputSchema(), features, old.sideEffect(), old.availability());
+        var model = properties.bindings().getFirst();
+        var binding = new ResolvedBinding(model.definition(), capability, model.connection(), model.remoteOperation(), model.contextWindowTokens(), model.rate());
+        properties = copy(properties, properties.grants(), List.of(capability), List.of(binding), properties.connections(), properties.rates(), properties.budgets(), properties.limits());
+        configure(properties, true);
+        assertTrue(options().get(0).path("toolCallsSupported").asBoolean());
+        var auth = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock);
+        ModelGateway textGateway = new ModelGateway() {
+            public boolean supportsTextChat(ResolvedBinding b, ConnectionDefinition c) {
+                return true;
+            }
+
+            public Flux<GenerationSignal> generate(GatewayCall<GenerationRequest> call) {
+                throw new AssertionError("Read only");
+            }
+        };
+        var service = new ChatConfigurationQueryService(properties, auth, catalog, () -> textGateway);
+        var context = factory.create(UsernamePasswordAuthenticationToken.authenticated("alice", "unused", List.of()),
+                new ExecutionContextRequest("tenant", "workspace", Set.of(AdmissionAuthorization.INVOKE), Duration.ofSeconds(5), null, null, null, null)).block(Duration.ofSeconds(5));
+        assertFalse(service.discover(context).block(Duration.ofSeconds(5)).options().getFirst().toolCallsSupported());
     }
 
     @Test

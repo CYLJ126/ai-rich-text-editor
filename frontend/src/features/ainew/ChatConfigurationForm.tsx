@@ -351,7 +351,7 @@ export default function ChatConfigurationForm({
           disabled={!discovery.options.length || discovery.loading}
           options={discovery.options.map((option) => ({
             value: modelOptionKey(option),
-            label: `${option.displayName} · ${option.binding.id}@${option.binding.version}`,
+            label: `${option.displayName} · ${option.binding.id}@${option.binding.version}${option.toolCallsSupported ? ' · 支持工具调用' : ''}`,
           }))}
           onChange={(key) => {
             markDirty();

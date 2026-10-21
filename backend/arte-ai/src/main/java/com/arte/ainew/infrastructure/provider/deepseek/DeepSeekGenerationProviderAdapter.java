@@ -63,6 +63,26 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
         return capabilities;
     }
 
+    /**
+     * 新发布版本复用已登记 Schema；只判断本地协议契约，授权及固定版本仍由目录校验。
+     */
+    @Override
+    public boolean supports(CapabilityDescriptor capability) {
+        return capability.kind() == kind()
+                && capability.availability() == CapabilityDescriptor.Availability.EXECUTABLE
+                && capability.sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY
+                && capability.features().containsAll(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING))
+                && Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING,
+                CapabilityDescriptor.Feature.USAGE_REPORTING, CapabilityDescriptor.Feature.TOOL_CALLS).containsAll(capability.features())
+                && capabilities.stream().anyMatch(registered -> Objects.equals(registered.inputSchema(), capability.inputSchema())
+                && Objects.equals(registered.outputSchema(), capability.outputSchema()));
+    }
+
+    @Override
+    public boolean supportsToolChat(CapabilityDescriptor capability) {
+        return supports(capability) && capability.features().contains(CapabilityDescriptor.Feature.TOOL_CALLS);
+    }
+
     @Override
     public DeepSeekWire.Request mapRequest(GatewayCall<GenerationRequest> call) {
         return mapRequest(call, null);
@@ -71,7 +91,7 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
     @Override
     public DeepSeekWire.Request mapRequest(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {
         var input = call.request().input();
-        if (!capabilities.contains(call.binding().capability())
+        if (!supports(call.binding().capability())
                 || !call.binding().capability().features().contains(CapabilityDescriptor.Feature.STREAMING)
                 || !(input.outputFormat() instanceof GenerationRequest.TextOutput)) {
             throw GenerationException.beforeSend("UNSUPPORTED_GENERATION_FEATURE");

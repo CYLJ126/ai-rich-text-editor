@@ -78,6 +78,7 @@ export default function BusinessChatPanel({
   const runBusy = runGateIds.some(id => !runStates[id]?.status || !!runStates[id].error || !runTerminal(runStates[id].status?.state ?? 'ACCEPTED'));
   const toolPending = !!toolCommand.saved && !toolCommand.saved.acceptedId;
   const toolBlocked = toolCommand.blocked || toolCommand.storageError || toolCommand.busy || toolPending || runBusy || !!toolCommand.stop;
+  const toolModelUnsupported = !!toolChoice && option?.toolCallsSupported !== true;
   const toolChoiceInvalid = !!toolChoice && (!toolChoice.toolBindingIds.length || !chat.budget || toolChoice.budgetLimits.some(b => b.currency !== chat.budget?.currency || !/^[0-9]{1,18}(\.[0-9]{1,18})?$/.test(b.amount)));
 
   function sendMessage() {
@@ -85,7 +86,7 @@ export default function BusinessChatPanel({
       void chat.send();
       return;
     }
-    if (!config || !chat.budget || toolBlocked || toolChoiceInvalid) return;
+    if (!config || !chat.budget || toolBlocked || toolChoiceInvalid || toolModelUnsupported) return;
     void toolCommand.send({
       scope: context.scope,
       conversationId: conversation.conversationId,
@@ -161,7 +162,7 @@ export default function BusinessChatPanel({
   const composing = useRef(false);
   const available = !!chat.budget && hasAvailableBudget(chat.budget.available);
   const pending = !!chat.pending || !!chat.pendingRegeneration;
-  const blocked = toolBlocked || toolChoiceInvalid || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
+  const blocked = toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
   const regenerationBlocked = toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
   const tooLarge = !!option && new TextEncoder().encode(chat.draft.trim()).length > option.limits.maxInputBytes;
   useEffect(() => {
@@ -245,7 +246,7 @@ export default function BusinessChatPanel({
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
-  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolChoiceInvalid ? '请选择工具并填写与模型预算同币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
+  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。' : toolChoiceInvalid ? '请选择工具并填写与模型预算同币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">
@@ -423,7 +424,9 @@ export default function BusinessChatPanel({
                action={!toolCommand.blocked &&
                  <Button onClick={toolCommand.recheckStorage}>重新检查恢复存储</Button>}/>}
       {toolCommand.error != null && <Alert type="warning" title="工具聊天请求未能确认"
-                                           description={toolCommand.error instanceof Error ? toolCommand.error.message : '请确认原请求。'}/>}
+                                           description={toolCommand.error instanceof AiApiError && toolCommand.error.code === '205003'
+                                             ? '当前模型或网关不支持工具调用，请选择支持工具调用的模型后重新发送。'
+                                             : toolCommand.error instanceof Error ? toolCommand.error.message : '请确认原请求。'}/>}
       {toolPending && <Button loading={toolCommand.busy} disabled={toolCommand.blocked || !writable}
                               onClick={() => void toolCommand.send()}>继续确认原工具聊天提交</Button>}
       {toolCommand.stop &&
@@ -457,7 +460,7 @@ export default function BusinessChatPanel({
       <Flex align="center" gap={8} wrap className="ainew-compose-actions">
         <ToolChatSettings context={context} value={toolChoice} onChange={setToolChoice}
                           disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
-                          currency={chat.budget?.currency}/>
+                          currency={chat.budget?.currency} modelSupportsTools={option?.toolCallsSupported === true}/>
         <Select aria-label="当前发送模型" placeholder="选择模型" value={config ? modelOptionKey({
           binding: {
             type: 'binding',
@@ -466,7 +469,7 @@ export default function BusinessChatPanel({
           }
         }) : undefined} options={options.map(item => ({
           value: modelOptionKey(item),
-          label: `${item.displayName} · ${item.binding.id}@${item.binding.version}`
+          label: `${item.displayName} · ${item.binding.id}@${item.binding.version}${item.toolCallsSupported ? ' · 支持工具调用' : ''}`
         }))} onChange={onChooseModel}/>
         <Typography.Text type="secondary" className="ainew-muted"
                          role="status">{tooLarge ? '本轮文本超过模型输入字节上限。' : reason}</Typography.Text>

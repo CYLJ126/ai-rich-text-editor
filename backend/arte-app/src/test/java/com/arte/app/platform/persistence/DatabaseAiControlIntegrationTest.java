@@ -141,6 +141,10 @@ class DatabaseAiControlIntegrationTest {
                         return true;
                     }
 
+                    public boolean supportsToolChat(ResolvedBinding b, ConnectionDefinition c) {
+                        return b.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS);
+                    }
+
                     public Flux<com.arte.ainew.pojo.generation.GenerationSignal> generate(com.arte.ainew.pojo.execution.GatewayCall<com.arte.ainew.pojo.generation.GenerationRequest> call) {
                         return Flux.error(new AssertionError("Discovery must not invoke provider"));
                     }
@@ -149,6 +153,58 @@ class DatabaseAiControlIntegrationTest {
 
     CommandMeta meta(String key) {
         return new CommandMeta(key, "database-ai-test");
+    }
+
+    @Test
+    void capabilityUpgradeAppendsImmutableVersionsAndRequiresExplicitWorkspaceSelection() {
+        var scope = f.initialize().value().workspace().scope();
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("import"));
+            var workspace = db.ensure(f.actor, scope);
+            var old = db.catalog().catalog();
+            var v1 = old.capabilities().getFirst();
+            var features = new HashSet<>(v1.features());
+            features.add(CapabilityDescriptor.Feature.TOOL_CALLS);
+            var v2 = new CapabilityDescriptor(new DefinitionRef("capability", v1.definition().id(), "v2"), v1.kind(),
+                    v1.inputSchema(), v1.outputSchema(), features, v1.sideEffect(), v1.availability());
+            var modelV1 = old.bindings().getFirst();
+            var modelV2 = new ResolvedBinding(new DefinitionRef("binding", modelV1.definition().id(), "v2"), v2,
+                    modelV1.connection(), modelV1.remoteOperation(), modelV1.contextWindowTokens(), modelV1.rate());
+            var upgraded = new AiControlData.Catalog(List.of(v1, v2), List.of(modelV1, modelV2), old.connections(), old.rates(),
+                    old.legacyGrants(), old.legacyBudgets(), old.defaults());
+            var receipt = db.publish(f.actor, meta("upgrade"), 1, upgraded);
+            assertEquals(2, receipt.resultVersion());
+            assertEquals(receipt.operationId(), db.publish(f.actor, meta("upgrade"), 1, upgraded).operationId());
+            assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
+            var discovery = c.getBean(ChatConfigurationQueryService.class);
+            var current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
+            assertFalse(discovery.discover(current).block(WAIT).options().getFirst().toolCallsSupported());
+            var preset = new AiControlData.Preset(true, List.of(modelV2.definition()), workspace.configuration().preset().budgets());
+            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.update(f.actor, meta("unapproved-v2"), scope,
+                    workspace.workspaceVersion(), workspace.configuration().version(), preset));
+            var approved = new AiControlData.Preset(true, List.of(modelV1.definition(), modelV2.definition()), old.defaults().budgets());
+            db.publish(f.actor, meta("approve-v2"), 2, new AiControlData.Catalog(upgraded.capabilities(), upgraded.bindings(), old.connections(), old.rates(),
+                    old.legacyGrants(), old.legacyBudgets(), approved));
+            assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
+            db.update(f.actor, meta("select-v2"), scope, workspace.workspaceVersion(), workspace.configuration().version(), preset);
+            current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
+            var option = discovery.discover(current).block(WAIT).options().getFirst();
+            assertEquals(modelV2.definition(), option.binding());
+            assertTrue(option.toolCallsSupported());
+            assertEquals(v1, db.catalog().catalog().capabilities().getFirst());
+
+            var redefined = new CapabilityDescriptor(v1.definition(), v1.kind(), v1.inputSchema(), v1.outputSchema(), features, v1.sideEffect(), v1.availability());
+            assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("rewrite"), 3,
+                    new AiControlData.Catalog(List.of(redefined, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+            assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("remove"), 3,
+                    new AiControlData.Catalog(List.of(v2), List.of(modelV2), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+            assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("duplicate"), 3,
+                    new AiControlData.Catalog(List.of(v1, v2, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+            assertThrows(IllegalArgumentException.class, () -> new DefinitionRef("capability", v1.definition().id(), "latest"));
+            assertEquals(3, db.catalog().version());
+        });
     }
 
     ExecutionContext execution(DatabaseAiControlService source, Scope scope, Set<String> scopes, String key) {

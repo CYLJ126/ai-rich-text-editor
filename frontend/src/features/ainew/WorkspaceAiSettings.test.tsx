@@ -103,3 +103,80 @@ it('keeps consumers unmounted after rejected provisioning and supports explicit 
   fireEvent.click(screen.getByRole('button', {name: '重新检查'}));
   await screen.findByText('聊天消费者');
 });
+
+const textCapability = {
+  definition: {type: 'capability', id: 'text', version: 'v1'}, kind: 'GENERATION',
+  inputSchema: {type: 'schema', id: 'generation-request', version: 'v1'},
+  outputSchema: {type: 'schema', id: 'model-result', version: 'v1'},
+  features: ['TEXT_INPUT', 'STREAMING', 'USAGE_REPORTING'], sideEffect: 'READ_ONLY', availability: 'EXECUTABLE'
+};
+const originalCatalog: api.AiCatalog = {
+  capabilities: [textCapability],
+  bindings: [{
+    definition: binding, capability: textCapability, connection: view.models[0].connection,
+    remoteOperation: 'deepseek-chat', contextWindowTokens: 65536, rate
+  }],
+  connections: [{definition: view.models[0].connection, providerId: 'deepseek', endpoint: 'https://example.invalid'}],
+  rates: [{
+    definition: rate,
+    inputPerMillion: {amount: '1', currency: 'CNY'},
+    outputPerMillion: {amount: '2', currency: 'CNY'}
+  }],
+  legacyGrants: [], legacyBudgets: [], defaults: preset
+};
+
+async function selectField(label: string, option: string) {
+  fireEvent.mouseDown(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByText(option, {selector: '.ant-select-item-option-content'}));
+}
+
+async function prepareUpgrade() {
+  vi.mocked(api.getAiCatalog).mockResolvedValue(response({version: 1, catalog: structuredClone(originalCatalog)}));
+  render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '发布新模型'}));
+  fireEvent.change(screen.getByLabelText('模型标识'), {target: {value: 'model'}});
+  fireEvent.change(screen.getByLabelText('固定版本'), {target: {value: 'v2'}});
+  fireEvent.change(screen.getByLabelText('供应商模型名称'), {target: {value: 'deepseek-chat'}});
+  fireEvent.change(screen.getByLabelText('上下文容量'), {target: {value: '65536'}});
+  await selectField('已发布能力', 'text@v1 · 纯文本');
+  fireEvent.click(await screen.findByRole('switch', {name: '为此模型发布工具调用能力'}));
+  fireEvent.change(await screen.findByLabelText('新能力固定版本'), {target: {value: 'v2'}});
+  await selectField('已审核连接', 'deepseek · connection');
+  await selectField('固定费率', 'price · CNY');
+}
+
+it('publishes a new tool capability and model atomically while preserving old versions and workspace defaults', async () => {
+  vi.mocked(api.publishAiCatalog).mockRejectedValueOnce(new TypeError('uncertain'));
+  await prepareUpgrade();
+  fireEvent.click(screen.getByRole('button', {name: /^(确\s*定|OK)$/}));
+  await waitFor(() => expect(api.publishAiCatalog).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(api.publishAiCatalog).mock.calls[0];
+  expect(original[0]).toMatchObject({
+    expectedVersion: 1, catalog: {
+      capabilities: [textCapability, {
+        ...textCapability,
+        definition: {...textCapability.definition, version: 'v2'},
+        features: [...textCapability.features, 'TOOL_CALLS']
+      }],
+      bindings: [originalCatalog.bindings[0], {
+        definition: {...binding, version: 'v2'},
+        capability: {definition: {...textCapability.definition, version: 'v2'}}
+      }],
+      defaults: preset
+    }
+  });
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+  await screen.findByText('保存结果待确认，请保留本页并按原操作重试。');
+  cleanup();
+  render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '重试确认原配置操作'}));
+  await waitFor(() => expect(api.publishAiCatalog).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(api.publishAiCatalog).mock.calls[1]).toEqual(original);
+});
+it('rejects reuse of an existing capability version before publishing', async () => {
+  await prepareUpgrade();
+  fireEvent.change(screen.getByLabelText('新能力固定版本'), {target: {value: 'v1'}});
+  fireEvent.click(screen.getByRole('button', {name: /^(确\s*定|OK)$/}));
+  await screen.findByText('请填写未发布的能力版本，例如 v2');
+  expect(api.publishAiCatalog).not.toHaveBeenCalled();
+});

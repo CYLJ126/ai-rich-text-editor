@@ -47,6 +47,26 @@ public class ToolChatProtocolTest {
             CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
     private final DeepSeekGenerationProviderAdapter adapter = new DeepSeekGenerationProviderAdapter(List.of(capability), GenerationJson.mapper(65536));
 
+    @Test
+    public void laterToolCapabilityVersionUsesRegisteredSchemasWithoutRestartOrProviderProbe() {
+        var text = new CapabilityDescriptor(ref("capability", "generation", "v0"), capability.kind(), capability.inputSchema(), capability.outputSchema(),
+                Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING), capability.sideEffect(), capability.availability());
+        var beforePublication = new DeepSeekGenerationProviderAdapter(List.of(text), GenerationJson.mapper(65536));
+        assertFalse(beforePublication.capabilities().contains(capability));
+        assertTrue(beforePublication.supportsToolChat(capability));
+        assertFalse(beforePublication.supportsToolChat(text));
+        assertFalse(beforePublication.mapRequest(call(), snapshot).tools().isEmpty());
+        var unknownSchema = new CapabilityDescriptor(capability.definition(), capability.kind(), ref("schema", "unknown", "v1"), capability.outputSchema(),
+                capability.features(), capability.sideEffect(), capability.availability());
+        assertFalse(beforePublication.supports(unknownSchema));
+        var unsupportedFeatures = new java.util.HashSet<>(capability.features());
+        unsupportedFeatures.add(CapabilityDescriptor.Feature.IMAGE_INPUT);
+        assertFalse(beforePublication.supports(new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(), capability.outputSchema(),
+                unsupportedFeatures, capability.sideEffect(), capability.availability())));
+        assertFalse(beforePublication.supports(new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(), capability.outputSchema(),
+                capability.features(), capability.sideEffect(), CapabilityDescriptor.Availability.DISABLED)));
+    }
+
     private ToolSetSnapshot snapshot() {
         var document = object("$schema", text("urn:arte:ai-tool:schema:v1"), "type", text("object"), "properties", object(
                 "text", object("type", text("string")), "amount", object("type", text("number")),

@@ -28,6 +28,13 @@ public interface ModelGateway {
     }
 
     /**
+     * 绑定及连接已解析后，本地确认工具提议协议；默认关闭，不探测供应商。
+     */
+    default boolean supportsToolChat(ResolvedBinding binding, ConnectionDefinition connection) {
+        return false;
+    }
+
+    /**
      * 每次订阅至多发送一次模型请求；同一流返回增量及最终 Result／Failure，不拆成两次远端调用。
      * 冷 Publisher，仅 Coordinator 订阅；不内部 subscribe、retry 或推进 Invocation 状态。
      * 遵守期限、取消与输出上限；无结束信号的流结束不能当成成功。

@@ -20,6 +20,13 @@ import reactor.core.publisher.Flux;
 public interface GenerationProviderAdapter<Q, S> extends ProviderAdapter<GenerationRequest, Q, S, ModelResult> {
 
     /**
+     * 工具协议须显式实现，纯文本适配器不因能力声明带有 TOOL_CALLS 而自动开放。
+     */
+    default boolean supportsToolChat(com.arte.ainew.pojo.control.CapabilityDescriptor capability) {
+        return false;
+    }
+
+    /**
      * 显式固定集合的协议入口；未实现工具协议的适配器默认拒绝。
      */
     default Q mapRequest(GatewayCall<GenerationRequest> call, ToolSetSnapshot tools) {

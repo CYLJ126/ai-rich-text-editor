@@ -17,6 +17,32 @@ import static org.junit.Assert.*;
 public class ToolChatFrontendContractTest {
 
     @Test
+    public void textOnlyModelFailsWithExplicitCodeBeforeCreatingRunOrDispatchingChildren() throws Exception {
+        try (var r = new ToolChatLoopTest.Rig(false, CapabilityDescriptor.SideEffect.READ_ONLY, false)) {
+            var failure = assertThrows(AdmissionException.class, () -> r.service.submit(r.input(), r.session, r.context).block(ToolChatLoopTest.WAIT));
+            assertEquals(com.arte.core.enums.ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY, failure.getResultCode());
+            assertEquals(0, r.count("arte_ai_tool_chat_run"));
+            assertEquals(0, r.count("arte_ai_invocation"));
+            assertEquals(0, r.modelCalls.get());
+        }
+    }
+
+    @Test
+    public void toolDeclarationAloneDoesNotEnableAnUnsupportedGateway() throws Exception {
+        try (var r = new ToolChatLoopTest.Rig()) {
+            r.gateway = new com.arte.ainew.spi.gateway.ModelGateway() {
+                public reactor.core.publisher.Flux<com.arte.ainew.pojo.generation.GenerationSignal> generate(com.arte.ainew.pojo.execution.GatewayCall<com.arte.ainew.pojo.generation.GenerationRequest> call) {
+                    throw new AssertionError("Must reject before dispatch");
+                }
+            };
+            var failure = assertThrows(AdmissionException.class, () -> r.service.submit(r.input(), r.session, r.context).block(ToolChatLoopTest.WAIT));
+            assertEquals(com.arte.core.enums.ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY, failure.getResultCode());
+            assertEquals(0, r.count("arte_ai_tool_chat_run"));
+            assertEquals(0, r.count("arte_ai_invocation"));
+        }
+    }
+
+    @Test
     public void readOnlyRefreshAcceptsAndReplaysOneOriginalRun() throws Exception {
         try (var r = new ToolChatLoopTest.Rig()) {
             var first = r.service.submit(r.input(), r.session, r.context, true).block(ToolChatLoopTest.WAIT);

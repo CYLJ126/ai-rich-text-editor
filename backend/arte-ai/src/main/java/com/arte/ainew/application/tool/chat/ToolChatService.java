@@ -12,6 +12,8 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -22,6 +24,7 @@ import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
 import com.arte.ainew.pojo.tool.ToolChatSubmission;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
+import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import com.arte.core.enums.ResultCodeEnum;
@@ -33,6 +36,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * 工具聊天受理及停止；受理完成才返回 RUN 回执，不在 HTTP 请求内执行循环。
@@ -53,10 +57,12 @@ public final class ToolChatService {
     private final ToolChatAccess access;
     private final NewAiProperties properties;
     private final Clock clock;
+    private final Supplier<ModelGateway> gateway;
 
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
                            FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
-                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock) {
+                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
+                           Supplier<ModelGateway> gateway) {
         this.runs = runs;
         this.conversations = conversations;
         this.catalogStore = catalogStore;
@@ -68,6 +74,7 @@ public final class ToolChatService {
         this.access = access;
         this.properties = properties;
         this.clock = clock;
+        this.gateway = gateway;
     }
 
     public Mono<AcceptedExecution> submit(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext context) {
@@ -95,9 +102,9 @@ public final class ToolChatService {
         return conversations.find(input.conversationId(), current).flatMap(conversation -> {
             if (conversation.state() != Conversation.State.ACTIVE || conversation.chatProfile() != null || !conversation.resources().isEmpty())
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_CHAT_SELECTION_NOT_SUPPORTED));
-            return sets.prepare(session, new Scope(current.authorization().tenantId(), current.authorization().workspaceId()),
-                    input.toolBindingIds().stream().map(id -> new ToolSetService.Selection(id, null)).toList()).flatMap(set ->
-                    catalog.resolve(input.binding(), input.capability(), current).flatMap(model -> {
+            return toolModel(input, current).flatMap(model -> sets.prepare(session,
+                    new Scope(current.authorization().tenantId(), current.authorization().workspaceId()),
+                    input.toolBindingIds().stream().map(id -> new ToolSetService.Selection(id, null)).toList()).flatMap(set -> {
                         requireReadOnly(set, readOnly);
                         var user = new ChatMessage(com.arte.ainew.serialization.CanonicalJson.key("tool-chat-user-v1", current.authorization().tenantId(),
                                 current.authorization().workspaceId(), current.authorization().principal().subjectId(), current.idempotencyKey()),
@@ -121,6 +128,22 @@ public final class ToolChatService {
                         });
                     }));
         });
+    }
+
+    /**
+     * 在工具准备、历史读取及预算计划前检查当前模型与实际网关，不用声明替代协议实现。
+     */
+    private Mono<ResolvedBinding> toolModel(ToolChatSubmission input, ExecutionContext current) {
+        return catalog.resolve(input.binding(), input.capability(), current).flatMap(model ->
+                catalog.resolveConnection(model.connection(), current).map(connection -> {
+                    var modelGateway = gateway.get();
+                    if (model.capability().kind() != CapabilityDescriptor.Kind.GENERATION
+                            || !model.capability().features().containsAll(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT,
+                            CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS))
+                            || modelGateway == null || !modelGateway.supportsToolChat(model, connection))
+                        throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
+                    return model;
+                }));
     }
 
     private Mono<AcceptedExecution> replay(ToolChatSubmission input, ToolChatRun run, ExecutionContext current, boolean readOnly) {

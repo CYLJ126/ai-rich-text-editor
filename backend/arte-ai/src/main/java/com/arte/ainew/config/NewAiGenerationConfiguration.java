@@ -78,6 +78,7 @@ public class NewAiGenerationConfiguration {
      * <p>
      * 从固定绑定中提取使用 deepseek 供应商及 chat-completions-sse/v1 协议的能力，去重后登记。
      * 缺少匹配绑定时装配失败；适配器使用独立、有界 JSON 编解码器，映射过程不执行网络调用。
+     * 新发布能力可复用已登记 Schema 及适配器支持的特性，精确版本与当前资格仍由控制目录逐次验证。
      *
      * @param admission 已登记的固定能力、绑定和连接配置
      * @param generation 单次生成配置，包含响应帧解析上限

@@ -34,6 +34,7 @@ const model = {
     timeoutSeconds: 120,
   },
   budgetRefs: ['wallet'],
+  toolCallsSupported: true,
 };
 
 function App() {

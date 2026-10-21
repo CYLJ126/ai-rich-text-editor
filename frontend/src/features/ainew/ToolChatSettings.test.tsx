@@ -41,3 +41,16 @@ it('a disabled or revoked service still lets the user turn off an existing tool 
   fireEvent.click(toggle);
   expect(changed).toHaveBeenCalledWith(null);
 });
+
+it('does not enable tools for a text-only model even when the service is open', async () => {
+  vi.mocked(discoverToolChat).mockResolvedValue(reply({enabled: true}));
+  vi.mocked(listToolBindings).mockResolvedValue(reply({records: [], scanned: 0, exhausted: true, nextCursor: null}));
+  const changed = vi.fn();
+  render(<ToolChatSettings context={context} value={null} onChange={changed} disabled={false} currency="CNY"
+                           modelSupportsTools={false}/>);
+  fireEvent.click(screen.getByRole('button', {name: '工具设置'}));
+  await screen.findByText('当前模型不支持工具调用，请切换到支持工具调用的模型。');
+  await waitFor(() => expect(listToolBindings).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole('switch', {name: '允许助手调用工具'})).toBeDisabled();
+  expect(changed).not.toHaveBeenCalled();
+});

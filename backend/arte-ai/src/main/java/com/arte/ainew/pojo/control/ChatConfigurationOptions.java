@@ -17,7 +17,8 @@ public record ChatConfigurationOptions(List<ModelOption> options) {
     }
 
     public record ModelOption(String displayName, DefinitionRef binding, DefinitionRef capability,
-                              long contextWindowTokens, Limits limits, Defaults defaults, List<String> budgetRefs) {
+                              long contextWindowTokens, Limits limits, Defaults defaults, List<String> budgetRefs,
+                              boolean toolCallsSupported) {
         public ModelOption {
             budgetRefs = List.copyOf(budgetRefs);
         }

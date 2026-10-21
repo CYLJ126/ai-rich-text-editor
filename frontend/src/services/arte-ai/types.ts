@@ -27,6 +27,8 @@ export interface ChatModelOption {
     timeoutSeconds: number;
   };
   budgetRefs: string[];
+  /** 由当前网关及固定模型契约共同确认；旧服务未返回时按不支持处理。 */
+  toolCallsSupported?: boolean;
 }
 
 export interface ChatConfigurationResponse {

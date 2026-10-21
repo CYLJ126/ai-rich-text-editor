@@ -628,9 +628,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     validate(data, data.defaults());
                     if (expected > 0) {
                         var old = published(true).catalog();
+                        // 模型与能力只追加完整固定版本；重复引用仍由目录索引拒绝，旧契约不能重写或删除。
                         if (!old.legacyGrants().equals(data.legacyGrants()) || !old.legacyBudgets().equals(data.legacyBudgets())
                                 || !data.bindings().containsAll(old.bindings()) || !old.connections().equals(data.connections())
-                                || !old.capabilities().equals(data.capabilities()) || !old.rates().equals(data.rates()))
+                                || !data.capabilities().containsAll(old.capabilities()) || !old.rates().equals(data.rates()))
                             throw new IllegalArgumentException("Published resource versions and legacy ownership are immutable");
                     }
                     long next = Math.incrementExact(expected);

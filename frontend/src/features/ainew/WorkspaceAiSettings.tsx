@@ -48,6 +48,16 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   const [saving, setSaving] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelForm] = Form.useForm();
+  const capabilityKey = Form.useWatch('capability', modelForm);
+  const upgradeTools = Form.useWatch('upgradeTools', modelForm);
+  const selectedCapability = catalog?.catalog?.capabilities.find(c => refKey(c.definition) === capabilityKey);
+  const hasToolCalls = (capability: {
+    [key: string]: unknown
+  }) => Array.isArray(capability.features) && capability.features.includes('TOOL_CALLS');
+  const canUpgradeTools = selectedCapability?.kind === 'GENERATION' && selectedCapability.availability === 'EXECUTABLE'
+    && selectedCapability.sideEffect === 'READ_ONLY' && Array.isArray(selectedCapability.features)
+    && ['TEXT_INPUT', 'STREAMING'].every(f => (selectedCapability.features as string[]).includes(f))
+    && !hasToolCalls(selectedCapability);
   const pending = useRef<{
     kind: 'workspace' | 'import' | 'publish';
     key: string;
@@ -141,8 +151,11 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     setPreset({
       ...preset,
       bindings: selected.map(m => m.binding),
-      budgets: rates.map(rate => preset.budgets.find(b => refKey(b.rate) === refKey(rate))
-        ?? view.defaults?.budgets.find(b => refKey(b.rate) === refKey(rate))!).filter(Boolean)
+      budgets: rates.flatMap(rate => {
+        const budget = preset.budgets.find(b => refKey(b.rate) === refKey(rate))
+          ?? view.defaults?.budgets.find(b => refKey(b.rate) === refKey(rate));
+        return budget ? [budget] : [];
+      })
     });
   }
 
@@ -192,8 +205,12 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     <Button disabled={saving || uncertain || unsafe}
             onClick={() => void readCatalog()}>维护已发布模型与默认模板</Button>
     {catalogEditable && catalog?.catalog && <>
-      <Typography.Paragraph>发布版本：{catalog.version}。新增模型使用已审核连接、能力及费率，不修改历史版本。</Typography.Paragraph>
-      <Button disabled={saving || uncertain || unsafe} onClick={() => setModelOpen(true)}>发布新模型</Button>
+      <Typography.Paragraph>发布版本：{catalog.version}。新增模型或能力使用新的固定版本，保留历史配置。发布模型后，在下方“新空间默认模型”中选中并发布模板，批准空间选用；已有空间再到空间
+        AI 设置选择新模型并保存，配置不会自动覆盖。</Typography.Paragraph>
+      <Button disabled={saving || uncertain || unsafe} onClick={() => {
+        modelForm.resetFields();
+        setModelOpen(true);
+      }}>发布新模型</Button>
       <Form component="div" layout="vertical" className="ai-management-form">
       <Form.Item label="新空间自动启用 AI"><Switch aria-label="新空间自动启用 AI"
                                                    disabled={saving || uncertain || unsafe}
@@ -254,35 +271,69 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
       })}>发布新空间默认模板</Button>
     </>}
     <Modal title="发布新模型" open={modelOpen} onCancel={() => !saving && setModelOpen(false)} confirmLoading={saving}
-           okButtonProps={{disabled: uncertain}} onOk={() => void modelForm.validateFields().then(values => {
+           okButtonProps={{disabled: uncertain || unsafe}} onOk={() => void modelForm.validateFields().then(values => {
       if (!catalog?.catalog) return;
       const data = catalog.catalog;
-      const capability = data.capabilities.find(c => refKey(c.definition) === values.capability)!;
-      const connection = data.connections.find(c => refKey(c.definition) === values.connection)!.definition;
-      const rate = data.rates.find(r => refKey(r.definition) === values.rate)!.definition;
+      const baseCapability = data.capabilities.find(c => refKey(c.definition) === values.capability);
+      const connection = data.connections.find(c => refKey(c.definition) === values.connection)?.definition;
+      const rate = data.rates.find(r => refKey(r.definition) === values.rate)?.definition;
+      if (!baseCapability || !connection || !rate) {
+        setError('所选发布资源已不可用，请重新读取配置后选择。');
+        return;
+      }
+      const capability = values.upgradeTools && canUpgradeTools ? {
+        ...baseCapability,
+        definition: {...baseCapability.definition, version: values.capabilityVersion.trim()},
+        features: [...(baseCapability.features as string[]), 'TOOL_CALLS']
+      } : baseCapability;
       const binding = {
         definition: {type: 'binding', id: values.id.trim(), version: values.version.trim()}, capability, connection,
         rate, remoteOperation: values.remoteOperation.trim(), contextWindowTokens: values.contextWindowTokens
       };
       return run('publish', {
         expectedVersion: catalog.version,
-        catalog: {...data, bindings: [...data.bindings, binding]}
+        catalog: {
+          ...data,
+          capabilities: capability === baseCapability ? data.capabilities : [...data.capabilities, capability],
+          bindings: [...data.bindings, binding]
+        }
       });
     }).catch(() => {
     })}>
       <Form form={modelForm} layout="vertical">
         <Form.Item name="id" label="模型标识" rules={[{required: true, whitespace: true}]}><Input
           maxLength={256}/></Form.Item>
-        <Form.Item name="version" label="固定版本" rules={[{required: true, whitespace: true}]}><Input maxLength={256}/></Form.Item>
+        <Form.Item name="version" label="固定版本" rules={[{required: true, whitespace: true}, {
+          validator: (_, value) =>
+            value?.trim().toLowerCase() === 'latest' || catalog?.catalog?.bindings.some(b => b.definition.id === modelForm.getFieldValue('id')?.trim() && b.definition.version === value?.trim())
+              ? Promise.reject(new Error('请填写未发布的固定模型版本，例如 v2')) : Promise.resolve()
+        }]}><Input maxLength={256}/></Form.Item>
         <Form.Item name="remoteOperation" label="供应商模型名称" rules={[{required: true, whitespace: true}]}><Input
           maxLength={256}/></Form.Item>
         <Form.Item name="contextWindowTokens" label="上下文容量" rules={[{required: true}]}><InputNumber min={2}
                                                                                                          max={10000000}/></Form.Item>
         <Form.Item name="capability" label="已发布能力" rules={[{required: true}]}><Select
+          onChange={() => {
+            modelForm.setFieldsValue({upgradeTools: false, capabilityVersion: undefined});
+          }}
           options={catalog?.catalog?.capabilities.map(c => ({
-            label: c.definition.id,
+            label: `${c.definition.id}@${c.definition.version} · ${hasToolCalls(c) ? '支持工具调用' : '纯文本'}`,
             value: refKey(c.definition)
           }))}/></Form.Item>
+        {canUpgradeTools && <Form.Item name="upgradeTools" label="为此模型发布工具调用能力" valuePropName="checked">
+          <Switch aria-label="为此模型发布工具调用能力"/>
+        </Form.Item>}
+        {canUpgradeTools && upgradeTools && <>
+          <Alert type="info"
+                 title="在原能力基础上增加 TOOL_CALLS，并与新模型版本一同发布。请确认供应商模型支持工具调用；当前内置适配器支持 DeepSeek Chat Completions SSE。"/>
+          <Form.Item name="capabilityVersion" label="新能力固定版本" rules={[{required: true, whitespace: true}, {
+            validator: (_, value) =>
+              value?.trim().toLowerCase() === 'latest' || catalog?.catalog?.capabilities.some(c => c.definition.id === selectedCapability?.definition.id && c.definition.version === value?.trim())
+                ? Promise.reject(new Error('请填写未发布的能力版本，例如 v2')) : Promise.resolve()
+          }]}>
+            <Input maxLength={256} placeholder="例如 v2"/>
+          </Form.Item>
+        </>}
         <Form.Item name="connection" label="已审核连接" rules={[{required: true}]}><Select
           options={catalog?.catalog?.connections.map(c => ({
             label: `${c.providerId} · ${c.definition.id}`,

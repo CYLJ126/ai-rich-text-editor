@@ -1,5 +1,8 @@
 # 新 AI 聊天配置发现接口
 
+> 2026-10-21 更新：配置来源支持现有 FIXED／DATABASE 模式。发现选项新增 `toolCallsSupported`，同时依据固定能力的
+> TOOL_CALLS 和实际网关的工具协议支持判断；不返回个人工具列表，不授予调用资格。以下较早的阶段说明以本更新为准。
+
 > 2026-10-17 TOOL 设计关联：本接口继续表示当前纯文本聊天配置，不能把其模型绑定、窗口和 Token
 > 费率规则直接用于本地工具。[AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 > S1-08 已提供独立的 [TOOL 管理 API](TOOL_HTTP_API.md)，包括本地目录、发布和本人绑定；实际调用及允许工具集合查询仍待后续。
@@ -60,7 +63,8 @@ HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.options`。以下�
         "maxOutputTokens": 512,
         "timeoutSeconds": 60
       },
-      "budgetRefs": ["example-budget"]
+      "budgetRefs": ["example-budget"],
+      "toolCallsSupported": false
     }
   ]
 }
@@ -78,6 +82,7 @@ HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.options`。以下�
 | limits.maxTimeoutSeconds | 服务器最大执行超时的整秒部分，与 turnsForChat.timeoutSeconds 相同单位                                     |
 | defaults                 | 表单初始化推荐值，不替代生成参数默认值，也不保证预算足以支付                                              |
 | budgetRefs               | 当前主体被授权、归属于当前主体、费率固定版本与此 binding 完全匹配的预算引用                               |
+| toolCallsSupported       | 能力声明包含 TOOL_CALLS 且当前网关明确支持此绑定和连接的工具协议；不表示供应商健康或工具执行权限          |
 
 推荐输出为 `min(512, limits.maxOutputTokens)`；推荐输入为
 `min(32768, contextWindowTokens - 推荐输出)`；推荐超时为
@@ -98,8 +103,10 @@ HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.options`。以下�
 4. 至少有一个当前主体授权、归属和费率版本均匹配的预算定义。
 
 授权有效但没有符合条件的配置时，返回 HTTP 200 和 `data.options=[]`，不是 404。 未注册模型网关时同样返回空列表；仅开启受理层不会把未支持的模型展示为可选项。
-默认 DefaultModelGateway 根据供应商 ID、协议固定版本、适配器登记的能力和文本／流式特性判断支持， 不访问供应商。自定义
-ModelGateway 需覆盖 `supportsTextChat`；默认返回 false，不影响已有 generate 调用行为。
+默认 DefaultModelGateway 根据供应商 ID、协议固定版本、适配器兼容的 Schema 与特性判断支持，不访问供应商。 DeepSeek 可以识别新发布的相同
+Schema 能力版本，无需重建适配器，也不额外读取数据库。 自定义 ModelGateway 需覆盖 `supportsTextChat`；支持工具协议时还须覆盖
+`supportsToolChat`，两者默认返回 false。 自定义 GenerationProviderAdapter 的工具支持同样默认关闭，不能只在能力上添加
+TOOL_CALLS 就宣称适配器支持工具协议。
 
 未初始化、余额为零或不足的预算仍会作为兼容引用返回，因为发现不读取账本。 选中预算后通过 [getBudget](BUDGET_HTTP_API.md)
 查询账户状态和精确余额；金额保持十进制字符串。 预算未初始化及配置与账本冲突继续由 getBudget 报告。发现不初始化、修复或重置账户。

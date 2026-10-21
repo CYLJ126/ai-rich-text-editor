@@ -59,9 +59,16 @@ public final class DefaultModelGateway<Q, S, H> implements ModelGateway {
         return binding.target() instanceof ExecutionTarget.Remote remote
                 && remote.connection().equals(connection.definition())
                 && provider.providerId().equals(connection.providerId()) && protocol.definition().equals(connection.protocol())
-                && provider.kind() == CapabilityDescriptor.Kind.GENERATION && provider.capabilities().contains(binding.capability())
+                && provider.kind() == CapabilityDescriptor.Kind.GENERATION && provider.supports(binding.capability())
                 && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
                 && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING);
+    }
+
+    @Override
+    public boolean supportsToolChat(ResolvedBinding binding, ConnectionDefinition connection) {
+        return supportsTextChat(binding, connection)
+                && binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
+                && provider.supportsToolChat(binding.capability());
     }
 
     @Override
