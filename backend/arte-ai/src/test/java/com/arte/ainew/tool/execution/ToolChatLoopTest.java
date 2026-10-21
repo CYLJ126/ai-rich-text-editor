@@ -123,7 +123,11 @@ public class ToolChatLoopTest {
 
         Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools,
             com.arte.ainew.infrastructure.http.HttpHealthToolAdapter http) throws Exception {
-            f = http != null ? new ToolExecutionFixture(http) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
+            this(confirmation, effect, supportsTools, http, null);
+        }
+
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools, com.arte.ainew.infrastructure.http.HttpHealthToolAdapter http, ToolPrice paidPrice) throws Exception {
+            f = paidPrice != null ? new ToolExecutionFixture(paidPrice) : http != null ? new ToolExecutionFixture(http) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
                     new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
                     new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE));
@@ -153,13 +157,21 @@ public class ToolChatLoopTest {
                     ConnectionDefinition.State.ENABLED, Duration.ofSeconds(5), Duration.ofSeconds(120), 65536);
             properties = new NewAiProperties(true, "test", "release", null,
                     new NewAiProperties.Limits(65536, 1024, 65536, Duration.ofSeconds(120), Duration.ofMinutes(10)),
-                    List.of(new NewAiProperties.Grant("user", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true, scopes, Set.of("model"), Set.of("wallet"))),
-                    List.of(capability), List.of(model), List.of(connection), List.of(new NewAiProperties.Rate(model.rate(), money("1"), money("2"))),
-                    List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate())));
+                    List.of(new NewAiProperties.Grant("user", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true, scopes, Set.of("model"), paidPrice == null ? Set.of("wallet") : Set.of("wallet", "tool-wallet"))),
+                    List.of(capability), List.of(model), List.of(connection), paidPrice == null ? List.of(new NewAiProperties.Rate(model.rate(), money("1"), money("2")))
+                    : List.of(new NewAiProperties.Rate(model.rate(), money("1"), money("2")), new NewAiProperties.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
+                    paidPrice == null ? List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate()))
+                            : List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate()), new NewAiProperties.Budget("tool-wallet", f.owner,
+                            new Money(new BigDecimal("10"), paidPrice.perCall().currency()), paidPrice.rate())));
             var resolver = new FixedExecutionAuthorizationResolver(properties);
             authorization = new AdmissionAuthorization((name, tenant, workspace, required) -> allowed.get() ? resolver.resolve(name, tenant, workspace, required)
                     : Mono.error(new AccessDeniedException("revoked")), properties, f.clock);
             catalog = new FixedControlCatalog(properties, authorization, f.clock);
+            if (paidPrice != null) {
+                f.billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, f.executions, f.executions, f.executions);
+                f.service.paid(f.billing);
+                toolAdmission.paid(f.billing);
+            }
             var auth = new ExecutionAuthorization(new ExecutionPrincipal("subject", "user", ExecutionPrincipal.Kind.USER), "tenant", "workspace", scopes, "grant");
             context = new ExecutionContext("run", "root-trace", auth, Instant.now().plusSeconds(90), null, null, "release", "submit");
             conversations = new DefaultConversationService(f.executions, authorization, f.clock);
@@ -167,7 +179,7 @@ public class ToolChatLoopTest {
             conversation = conversations.create("chat", null, List.of(), create).block(WAIT).conversationId();
             runs = new MybatisToolChatRunStore(f.source, f.codec, f.io);
             history = new ChatHistoryLoader(conversations, authorization, f.executions, f.payloads, f.payloads, runs);
-            budgets = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock);
+            budgets = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock).paid(f.billing);
             f.executions.createAccount(new BudgetCommands.Account("wallet", f.owner, money("100"), money("0"), money("0"), model.rate(), 0)).block(WAIT);
             access = (current, cancelling) -> Mono.just(fixed -> {
                 assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
@@ -233,14 +245,14 @@ public class ToolChatLoopTest {
             var gatewayTools = new com.arte.ainew.application.gateway.DefaultToolGateway(f.bindingService, f.catalog, f.registry,
                     call -> Mono.just(call.call().runtime().execution().authorization()), new com.arte.ainew.application.tool.schema.ToolSchemaValidator(),
                     f.codec, f.toolIo, f.clock, approvals::requireApproved);
-            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, http == null ? gatewayTools : f.gateway));
+            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, http == null && paidPrice == null ? gatewayTools : f.gateway));
             dispatch = new InvocationDispatchWorker(f.executions, f.executions, invocationCoordinator, f.executionProperties, f.timer);
             restart();
         }
 
         void restart() {
             runs = new MybatisToolChatRunStore(f.source, f.codec, f.io);
-            var selector = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock);
+            var selector = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock).paid(f.billing);
             service = new ToolChatService(runs, conversations, f.executions, catalog,
                     new TextContextService(authorization, catalog, f.payloads, properties, f.clock, history),
                     new ToolSetService(f.bindingService, f.catalog, f.metadata, Duration.ofSeconds(5)), selector, authorization, access, properties, f.clock, () -> gateway);
@@ -254,7 +266,7 @@ public class ToolChatLoopTest {
         ToolChatSubmission input(String text, int rounds, int calls, String limit) {
             return new ToolChatSubmission(conversation, 0, text, model.definition(), model.capability().definition(), "wallet", 20000,
                     new GenerationOptions(128, null, null, List.of()), List.of(f.binding.bindingId()),
-                    new ToolChatRunSnapshot.Limits(Duration.ofSeconds(90), rounds, calls, 1), List.of(money(limit)));
+                    new ToolChatRunSnapshot.Limits(Duration.ofSeconds(90), rounds, calls, 1), List.of(money(limit)), f.v1.revision().tool().price() == null ? java.util.Map.of() : java.util.Map.of(f.binding.bindingId(), "tool-wallet"));
         }
 
         void submit() {

@@ -20,9 +20,24 @@ export interface ToolInvocationPreview {
   approvalWindowMillis?: number;
   executionMarginMillis?: number;
   approverSubjectIds?: string[];
-  billingMode: 'FREE';
+  billingMode: 'FREE' | 'CHARGE';
+  budgetRef?: string;
+  price?: ToolPrice | null;
   costDescription: string;
 }
+
+export interface ToolPrice {
+  rate: DefinitionRef;
+  perCall: { amount: string; currency: string }
+}
+
+export interface ToolBudgetOptions {
+  price: ToolPrice | null;
+  accounts: { budgetRef: string; currency: string; available: string }[]
+}
+
+export const availableToolBudgets = (scope: AiScope, bindingId: string, options?: AiRequestOptions) =>
+  postResult<ToolBudgetOptions>('tool/availableToolBudgets', {scope, bindingId}, options);
 
 export interface ToolAccepted {
   executionId: string;
@@ -40,12 +55,13 @@ export interface ToolResult {
 }
 
 /** 参数以经过有界校验的原文嵌入；禁止透传 owner、预算、权限或运行时对象。 */
-export function toolInvocationRequest(scope: AiScope, bindingId: string, argumentsJson: string, timeoutSeconds: number) {
+export function toolInvocationRequest(scope: AiScope, bindingId: string, argumentsJson: string, timeoutSeconds: number, budgetRef?: string) {
   parseConfiguration(argumentsJson, 'arguments');
   if (!bindingId || !Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600)
     throw new Error('调用期限须为 1～3600 秒。');
   return `${JSON.stringify({scope}).slice(0, -1)},"input":${JSON.stringify({
     bindingId,
+    ...(budgetRef ? {budgetRef} : {}),
     timeoutSeconds
   }).slice(0, -1)},"arguments":${argumentsJson}}}`;
 }

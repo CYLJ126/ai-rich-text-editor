@@ -116,7 +116,20 @@ final class ToolExecutionFixture implements AutoCloseable {
     };
     Function<ExecutionAuthorization, ExecutionAuthorization> permissions = value -> value;
 
-    final ToolAdmissionAccess access = this::authorize;
+    com.arte.ainew.application.tool.billing.ToolBillingService billing;
+    private final ToolPrice paidPrice;
+    final ToolAdmissionAccess access = new ToolAdmissionAccess() {
+        public Mono<Permit> authorizeFreeReadOnly(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+            if (binding.tool().tool().price() != null) return Mono.error(new AccessDeniedException("Not free"));
+            return ToolExecutionFixture.this.authorize(input, context, binding);
+        }
+
+        public Mono<Permit> authorizeCharged(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+            if (binding.tool().tool().price() == null || input.budgetRef() == null)
+                return Mono.error(new AccessDeniedException("Not paid"));
+            return ToolExecutionFixture.this.authorize(input, context, binding);
+        }
+    };
 
     private Mono<ToolAdmissionAccess.Permit> authorize(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution plan) {
         return Mono.defer(() -> {
@@ -165,6 +178,17 @@ final class ToolExecutionFixture implements AutoCloseable {
 
     ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits,
                          HttpHealthToolAdapter http) throws Exception {
+        this(policy, risk, limits, http, null);
+    }
+
+    ToolExecutionFixture(ToolPrice price) throws Exception {
+        this(new ToolExecutionPolicy(Duration.ofSeconds(30), 1, Duration.ZERO, 1024, 4096, ToolExecutionPolicy.ApprovalMode.NONE),
+                new ToolRiskProfile(CapabilityDescriptor.SideEffect.READ_ONLY, false, ToolRiskProfile.Idempotency.NONE, Set.of("resource:read"), Set.of()),
+                new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), null, price);
+    }
+
+    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits, HttpHealthToolAdapter http, ToolPrice price) throws Exception {
+        paidPrice = price;
         this.limits = limits;
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
         ddl = source.getConnection();
@@ -178,6 +202,18 @@ final class ToolExecutionFixture implements AutoCloseable {
         releases = new MybatisToolReleaseStore(source, codec, io, clock);
         bindings = new MybatisToolBindingStore(source, codec, io, clock, limits, catalog, releases);
         executions = new MybatisExecutionPersistence(source, codec, io, wakeups::incrementAndGet, wakeups::incrementAndGet);
+        if (paidPrice != null) {
+            var limit = new com.arte.ainew.pojo.budget.Money(new java.math.BigDecimal("10"), paidPrice.perCall().currency());
+            var properties = new NewAiProperties(false, "test", "release", null, null,
+                    List.of(new NewAiProperties.Grant("alice", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true,
+                            Set.of("ai:invoke", "resource:read", "ai:read", "ai:budget:admin", "ai:conversation"), Set.of(), Set.of("tool-wallet"))), List.of(), List.of(), List.of(),
+                    List.of(new NewAiProperties.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
+                    List.of(new NewAiProperties.Budget("tool-wallet", owner, limit, paidPrice.rate())));
+            var authorization = new AdmissionAuthorization(new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(properties), properties, clock);
+            billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, new FixedControlCatalog(properties, authorization, clock), executions, executions, executions);
+            executions.createAccount(new com.arte.ainew.pojo.budget.BudgetCommands.Account("tool-wallet", owner, limit,
+                    new com.arte.ainew.pojo.budget.Money(java.math.BigDecimal.ZERO, limit.currency()), new com.arte.ainew.pojo.budget.Money(java.math.BigDecimal.ZERO, limit.currency()), paidPrice.rate(), 0)).block(Duration.ofSeconds(10));
+        }
         store = new MybatisToolAdmissionStore(source, codec, io, executions, bindings, catalog);
         v1 = tool("v1", policy, risk);
         v2 = tool("v2", policy, risk);
@@ -216,6 +252,9 @@ final class ToolExecutionFixture implements AutoCloseable {
                 return executionAllowed.get() ? Mono.just(call.call().runtime().execution().authorization()) : Mono.error(new AccessDeniedException("Test execution denied"));
             }
 
+            public Mono<ExecutionAuthorization> authorizeCharged(ToolExecutionCall call) {
+                return executionAllowed.get() && paidPrice != null ? Mono.just(call.call().runtime().execution().authorization()) : Mono.error(new AccessDeniedException("Paid denied"));
+            }
             public Mono<ExecutionAuthorization> authorizeRemote(RemoteToolCall call) {
                 if (!executionAllowed.get() || http == null)
                     return Mono.error(new AccessDeniedException("Remote execution denied"));
@@ -227,7 +266,15 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     private BusinessToolAdapter implementation(Fixture fixture) {
-        return new BusinessToolAdapter() {
+        return new com.arte.ainew.spi.adapter.PaidToolAdapter() {
+            public ToolDefinitionRevision revision() {
+                return fixture.revision();
+            }
+
+            public void requireCharge(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+                if (paidPrice == null || !binding.tool().equals(fixture.revision()) || input.budgetRef() == null)
+                    throw new AccessDeniedException("Unreviewed price");
+            }
             public CapabilityDescriptor capability() {
                 return fixture.revision().tool().discoveredCapability();
             }
@@ -251,7 +298,7 @@ final class ToolExecutionFixture implements AutoCloseable {
 
     ToolDispatcher dispatcher(ExecutionStore storage, ExecutionResultStore results, ToolGateway gateway) {
         return new ToolDispatcher(storage, executions, executions, store, bindingService, access, gateway, results, codec, metadata, clock,
-                executionProperties.attemptLease());
+                executionProperties.attemptLease()).paid(billing);
     }
 
     InvocationCoordinator coordinator(ToolDispatcher tools) {
@@ -312,7 +359,7 @@ final class ToolExecutionFixture implements AutoCloseable {
         var base = fixture("text", version);
         var old = base.revision().tool();
         var tool = new ToolDefinition(old.definition(), old.providerId(), old.title(), old.description(), old.tags(), old.capability(),
-                old.inputSchema(), old.outputSchema(), old.configurationSchema(), old.defaultConfiguration(), old.capabilities(), risk, policy, "0".repeat(64));
+                old.inputSchema(), old.outputSchema(), old.configurationSchema(), old.defaultConfiguration(), old.capabilities(), risk, policy, "0".repeat(64), paidPrice);
         return new Fixture(base.provider(), base.schema(), new ToolDefinitionRevision(withTitle(tool, tool.title()), base.provider().definition(), base.revision().target()), base.adapterRef());
     }
 
@@ -338,11 +385,11 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     ToolAdmissionInput input() {
-        return new ToolAdmissionInput(binding.bindingId(), object(), null, null, null);
+        return new ToolAdmissionInput(binding.bindingId(), object(), null, null, null, paidPrice == null ? null : "tool-wallet");
     }
 
     ToolAdmissionService service(ToolAdmissionStore storage, ToolAdmissionAccess authorization, Clock current) {
-        return new ToolAdmissionService(bindingService, catalog, storage, authorization, new ToolSchemaValidator(), limits, metadata, current);
+        return new ToolAdmissionService(bindingService, catalog, storage, authorization, new ToolSchemaValidator(), limits, metadata, current).paid(billing);
     }
 
     void disable() {

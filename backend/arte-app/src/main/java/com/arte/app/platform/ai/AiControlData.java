@@ -70,7 +70,11 @@ public final class AiControlData {
     }
 
     public record WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion,
-                                boolean canManage, boolean needsImport, List<Model> models, Preset defaults) {
+                                boolean canManage, boolean needsImport, List<Model> models, Preset defaults,
+                                List<NewAiProperties.Rate> toolRates) {
+        public WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion, boolean canManage, boolean needsImport, List<Model> models, Preset defaults) {
+            this(mode, configuration, workspaceVersion, canManage, needsImport, models, defaults, List.of());
+        }
     }
 
     public record CatalogView(long version, Catalog catalog) {

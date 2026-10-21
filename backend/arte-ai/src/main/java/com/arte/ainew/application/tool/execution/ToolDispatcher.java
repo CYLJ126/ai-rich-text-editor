@@ -63,6 +63,16 @@ public final class ToolDispatcher {
     private final Scheduler scheduler;
     private final Clock clock;
     private final Duration attemptLease;
+    private com.arte.ainew.application.tool.billing.ToolBillingService billing;
+
+    public ToolDispatcher paid(com.arte.ainew.application.tool.billing.ToolBillingService service) {
+        this.billing = service;
+        return this;
+    }
+
+    private Mono<Void> settle(Invocation invocation) {
+        return billing == null ? Mono.empty() : billing.settle(invocation);
+    }
 
     /**
      * 所有存储由组合模块使用同库实现；构造不读库、不授权、不调用工具，调度器生命周期归容器。
@@ -99,7 +109,7 @@ public final class ToolDispatcher {
             return ToolObservation.mono(DISPATCH_LOAD, runtime.execution(), () -> committed(outbox.validateClaim(message))
                     .then(load(message))).flatMap(invocation -> {
                 verifyRuntime(invocation, runtime);
-                if (invocation.state().terminal()) return Mono.empty();
+                if (invocation.state().terminal()) return settle(invocation);
                 if (invocation.activeAttemptId() != null) {
                     return ToolObservation.mono(RECOVERY, runtime.execution(), () -> recover(message, invocation));
                 }
@@ -107,10 +117,15 @@ public final class ToolDispatcher {
                         .onErrorResume(error -> predictable(error)
                                 ? reject(invocation, error).then(Mono.empty()) : Mono.error(error))
                         .flatMap(prepared -> ToolObservation.mono(PREPARE_DISPATCH, runtime.execution(), () -> committed(preparation.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
-                                        CanonicalJson.key(message.invocationId(), "tool-attempt-1"), attemptLease, new DispatchPreparationStore.Free()))))
+                                        CanonicalJson.key(message.invocationId(), "tool-attempt-1"), attemptLease, (prepared.snapshot().binding().tool().tool().price() == null ? new DispatchPreparationStore.Free() : billing.plan(prepared.snapshot()))))))
                                 .flatMap(ready -> {
-                                    if (!ready.ready() || ready.billingMode() != DispatchPreparationStore.BillingMode.FREE)
-                                        return Mono.error(new IllegalStateException("Tool dispatch requires fresh FREE preparation"));
+                                    var expected = prepared.snapshot().binding().tool().tool().price() == null ? DispatchPreparationStore.BillingMode.FREE : DispatchPreparationStore.BillingMode.CHARGE;
+                                    if (ready.billingMode() != expected)
+                                        return Mono.error(new IllegalStateException("Tool billing preparation mismatch"));
+                                    if (!ready.ready())
+                                        return new Session(message, prepared, ready.attempt()).finish(new ToolResult(prepared.snapshot().request().input().callId(),
+                                                ToolResult.Outcome.FAILED, null, List.of(), List.of(), ExecutionError.SideEffect.NONE,
+                                                new ExecutionError("INSUFFICIENT_BUDGET", ExecutionError.Phase.DISPATCH, false, ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, runtime.execution().traceId())));
                                     // 通过 Session.run() 执行工具调用并处理结果
                                     return new Session(message, prepared, ready.attempt()).run();
                                 }));
@@ -149,9 +164,9 @@ public final class ToolDispatcher {
                                         if (!(executions instanceof ToolRecoveryStore recovery))
                                             return Mono.error(new IllegalStateException("Atomic tool recovery is unavailable"));
                                         return committed(recovery.completeStoredToolResult(new ToolRecoveryStore.CompleteStored(version(invocation), message,
-                                                new ExecutionPayload.Terminal(terminalState(result), saved.reference(), result.error()))));
+                                                new ExecutionPayload.Terminal(terminalState(result), saved.reference(), result.error())))).flatMap(recovered -> settle(recovered).thenReturn(recovered));
                                     }))
-                            .switchIfEmpty(Mono.defer(() -> committed(executions.stopExpired(version(invocation))))).then();
+                            .switchIfEmpty(Mono.defer(() -> committed(executions.stopExpired(version(invocation))).flatMap(stopped -> settle(stopped).thenReturn(stopped)))).then();
                 });
     }
 
@@ -178,12 +193,16 @@ public final class ToolDispatcher {
         }).flatMap(snapshot -> {
             if (!snapshot.request().equals(invocation.request()) || !snapshot.requestDigest().equals(invocation.requestDigest()))
                 return Mono.error(new IllegalStateException("Tool dispatch snapshot mismatch"));
-            return bindings.fixed(snapshot.binding().owner(), snapshot.binding().definition())
+            if (snapshot.binding().tool().tool().price() != null && billing == null)
+                return Mono.error(new AccessDeniedException("Tool billing disabled"));
+            return (snapshot.binding().tool().tool().price() == null ? Mono.<Void>empty()
+                    : billing.requireAccount(snapshot.input().budgetRef(), snapshot.binding().tool().tool().price(), runtime.execution()).then())
+                    .then(bindings.fixed(snapshot.binding().owner(), snapshot.binding().definition()))
                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE)))
                     .flatMap(fixed -> {
                         require(fixed.successful() && snapshot.binding().equals(fixed.value()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
-                        // 复用宿主的免费使用资格预检；网关在真正进入业务适配前另通过 ToolExecutionAccess 重验当前资源权限。
-                        return Mono.defer(() -> access.authorizeFree(snapshot.input(), runtime.execution(), snapshot.binding()))
+                        // 复用宿主的免费／收费使用资格预检；网关在真正进入业务适配前另通过 ToolExecutionAccess 重验当前资源权限。
+                        return Mono.defer(() -> access.authorize(snapshot.input(), runtime.execution(), snapshot.binding()))
                                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED)));
                     }).publishOn(scheduler).map(permit -> {
                         var current = Objects.requireNonNull(permit.authorization());
@@ -194,7 +213,7 @@ public final class ToolDispatcher {
                                 && current.scopes().containsAll(snapshot.binding().tool().tool().risk().requiredScopes()), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
                         require(clock.instant().isBefore(runtime.execution().deadline()), ResultCodeEnum.AI_DEADLINE_EXCEEDED);
                         var context = runtime.execution();
-                        var effective = new ExecutionContext(context.executionId(), context.traceId(), current, context.deadline(), context.parentExecutionId(), null,
+                        var effective = new ExecutionContext(context.executionId(), context.traceId(), current, context.deadline(), context.parentExecutionId(), context.budgetRef(),
                                 context.releaseRef(), context.idempotencyKey());
                         var output = snapshot.schemas().stream().filter(value -> value.definition().equals(snapshot.binding().tool().tool().outputSchema()))
                                 .findFirst().orElseThrow();
@@ -218,7 +237,7 @@ public final class ToolDispatcher {
         require(accepted.context().authorization().principal().kind() == current.authorization().principal().kind()
                 && accepted.context().authorization().scopes().containsAll(current.authorization().scopes())
                 && Objects.equals(accepted.context().releaseRef(), current.releaseRef())
-                && current.budgetRef() == null && accepted.context().budgetRef() == null
+                && Objects.equals(current.budgetRef(), accepted.context().budgetRef())
                 && Objects.equals(current.parentExecutionId(), accepted.context().parentExecutionId())
                 && !current.deadline().isAfter(accepted.options().deadline()), ResultCodeEnum.AI_OWNER_MISMATCH);
     }
@@ -277,6 +296,9 @@ public final class ToolDispatcher {
                         }
                         return Mono.just(unknown(error instanceof TimeoutException ? "TOOL_DEADLINE_EXCEEDED" : "TOOL_GATEWAY_FAILURE"));
                     })
+                    .flatMap(result -> billing != null && prepared.snapshot().binding().tool().tool().price() != null
+                            && result.callId().equals(prepared.snapshot().request().input().callId())
+                            ? billing.record(message.owner(), message.invocationId(), claimed.attemptId(), result.charge()).thenReturn(result) : Mono.just(result))
                     .publishOn(scheduler).map(this::checked)
                     .onErrorResume(IllegalArgumentException.class, invalid -> {
                         log.error("AI tool output invalid, invocationId={}, traceId={}, attemptId={}, type={}",
@@ -308,7 +330,7 @@ public final class ToolDispatcher {
         private ToolResult checked(ToolResult result) {
             var snapshot = prepared.snapshot();
             var max = Math.min(snapshot.policy().maxOutputBytes(), snapshot.request().options().maxOutputBytes());
-            if (!result.callId().equals(snapshot.request().input().callId()) || !ToolExecutionRules.resultAllowed(snapshot.binding().tool().tool().risk(), result)
+            if (snapshot.binding().tool().tool().price() == null && result.charge() != null || !result.callId().equals(snapshot.request().input().callId()) || !ToolExecutionRules.resultAllowed(snapshot.binding().tool().tool().risk(), result)
                     || result.output() != null && !prepared.output().validate(result.output(), max).valid())
                 return unknown("TOOL_OUTPUT_INVALID");
             if (bytes(result) > max) return unknown("TOOL_OUTPUT_LIMIT");
@@ -326,7 +348,7 @@ public final class ToolDispatcher {
         }
 
         private ToolResult unknown(String code) {
-            if (prepared.snapshot().binding().tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote
+            if (prepared.snapshot().binding().tool().tool().price() != null || prepared.snapshot().binding().tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote
                     && ToolExecutionRules.httpReadOnly(prepared.snapshot().binding().tool().tool(), prepared.snapshot().policy()))
                 return readOnlyFailure(code);
             var fact = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.POSSIBLE,
@@ -351,6 +373,7 @@ public final class ToolDispatcher {
                 return ToolObservation.mono(TERMINAL_COMMIT, prepared.runtime().execution(), () -> guarded(guard -> executions.commitCompletion(new ExecutionCommands.Complete(guard,
                                 CanonicalJson.key(claimed.attemptId(), "tool-completion"), new ExecutionPayload.Terminal(state, reference.orElse(null), result.error()),
                                 Usage.unknown(), null)), 3))
+                        .flatMap(value -> settle(value).thenReturn(value))
                         .doOnNext(value -> {
                             completed.set(true);
                             log.info("AI tool terminal committed, invocationId={}, traceId={}, attemptId={}, state={}", message.invocationId(),

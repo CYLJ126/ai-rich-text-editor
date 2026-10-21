@@ -66,7 +66,8 @@ public record ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot init
             ContractChecks.require(budgetPlan.selections().size() == tools.entries().size() + 1, "Run budget bindings must match fixed set");
             for (var entry : tools.entries()) {
                 var choice = budgetPlan.selection(entry.binding().definition());
-                ContractChecks.require(choice.mode() == BillingMode.FREE
+                ContractChecks.require((entry.binding().tool().tool().price() == null ? choice.mode() == BillingMode.FREE
+                        : choice.mode() == BillingMode.CHARGE && entry.binding().tool().tool().price().equals(choice.toolPrice()))
                         && choice.capability().equals(entry.binding().tool().tool().capability())
                         && ToolExecutionRules.supportedTarget(entry.binding(), entry.binding().effectivePolicy()), "Run tool requires explicit reviewed FREE selection");
             }

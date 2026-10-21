@@ -63,6 +63,6 @@ public record ToolBindingResolution(DefinitionRef definition, DefinitionRef revi
     public ResolvedBinding resolvedBinding() {
         var capability = tool.tool().discoveredCapability();
         return new ResolvedBinding(definition, new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(),
-                capability.outputSchema(), capability.features(), capability.sideEffect(), CapabilityDescriptor.Availability.EXECUTABLE), tool.target(), null, null);
+                capability.outputSchema(), capability.features(), capability.sideEffect(), CapabilityDescriptor.Availability.EXECUTABLE), tool.target(), null, tool.tool().price() == null ? null : tool.tool().price().rate());
     }
 }

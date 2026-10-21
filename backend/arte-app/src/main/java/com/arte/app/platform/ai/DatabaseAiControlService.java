@@ -427,11 +427,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         }
         for (var budget : preset.budgets()) {
             var rate = catalog.rates().stream().filter(r -> r.definition().equals(budget.rate())).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published rate"));
-            if (!rate.inputPerMillion().currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0)
+            if (!rate.currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0)
                 throw new IllegalArgumentException("Invalid budget currency or limit");
         }
-        if (preset.enabled() && (preset.bindings().isEmpty() || preset.budgets().isEmpty()))
-            throw new IllegalArgumentException("Enabled AI requires models and budgets");
+        if (preset.enabled() && (preset.budgets().isEmpty() || preset.bindings().isEmpty()
+                && preset.budgets().stream().noneMatch(b -> catalog.rates().stream().anyMatch(r -> r.definition().equals(b.rate()) && r.toolPerCall() != null))))
+            throw new IllegalArgumentException("Enabled AI requires approved model or tool budgets");
     }
 
     @Override
@@ -529,7 +530,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 published == null ? List.of() : published.catalog().bindings().stream().filter(b -> published.catalog().defaults().bindings().contains(b.definition())
                                 || config != null && config.preset().bindings().contains(b.definition()))
                         .map(b -> new Model(b.definition(), b.remoteOperation(), b.connection(), b.rate())).toList(),
-                published == null ? null : published.catalog().defaults());
+                published == null ? null : published.catalog().defaults(), published == null ? List.of() : published.catalog().rates().stream()
+                .filter(r -> r.toolPerCall() != null && (published.catalog().defaults().budgets().stream().anyMatch(b -> b.rate().equals(r.definition()))
+                        || config != null && config.preset().budgets().stream().anyMatch(b -> b.rate().equals(r.definition())))).toList());
     }
 
     public CommandReceipt<WorkspaceView> update(TrustedActor actor, CommandMeta meta, Scope scope, long expectedWorkspaceVersion, long expectedVersion, Preset preset) {
@@ -628,10 +631,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     validate(data, data.defaults());
                     if (expected > 0) {
                         var old = published(true).catalog();
-                        // 模型与能力只追加完整固定版本；重复引用仍由目录索引拒绝，旧契约不能重写或删除。
+                        // 模型、能力与费率只追加完整固定版本；重复引用仍由目录索引拒绝，旧契约不能重写或删除。
                         if (!old.legacyGrants().equals(data.legacyGrants()) || !old.legacyBudgets().equals(data.legacyBudgets())
                                 || !data.bindings().containsAll(old.bindings()) || !old.connections().equals(data.connections())
-                                || !data.capabilities().containsAll(old.capabilities()) || !old.rates().equals(data.rates()))
+                                || !data.capabilities().containsAll(old.capabilities()) || !data.rates().containsAll(old.rates()))
                             throw new IllegalArgumentException("Published resource versions and legacy ownership are immutable");
                     }
                     long next = Math.incrementExact(expected);

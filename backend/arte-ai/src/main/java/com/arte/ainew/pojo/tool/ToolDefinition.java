@@ -30,7 +30,15 @@ public record ToolDefinition(DefinitionRef definition, String providerId, String
                              DefinitionRef outputSchema, DefinitionRef configurationSchema,
                              StructuredValue.ObjectValue defaultConfiguration, ToolCapabilities capabilities,
                              ToolRiskProfile risk, ToolExecutionPolicy defaultPolicy,
-                             String checksum) implements Serializable {
+                             String checksum,
+                             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) ToolPrice price) implements Serializable {
+    public ToolDefinition(DefinitionRef definition, String providerId, String title, String description, Set<String> tags,
+                          DefinitionRef capability, DefinitionRef inputSchema, DefinitionRef outputSchema, DefinitionRef configurationSchema,
+                          StructuredValue.ObjectValue defaultConfiguration, ToolCapabilities capabilities, ToolRiskProfile risk,
+                          ToolExecutionPolicy defaultPolicy, String checksum) {
+        this(definition, providerId, title, description, tags, capability, inputSchema, outputSchema, configurationSchema,
+                defaultConfiguration, capabilities, risk, defaultPolicy, checksum, null);
+    }
     private static final Pattern TOOL_ID = Pattern.compile("[A-Za-z][A-Za-z0-9_-]*(?:\\.[A-Za-z][A-Za-z0-9_-]*)+");
 
     public ToolDefinition {
@@ -51,6 +59,9 @@ public record ToolDefinition(DefinitionRef definition, String providerId, String
         Objects.requireNonNull(defaultPolicy, "defaultPolicy");
         ContractChecks.require(defaultPolicy.approvalMode().satisfies(risk.minimumApprovalMode()),
                 "Tool policy cannot weaken required risk approval");
+        ContractChecks.require(price == null || risk.sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY
+                        && defaultPolicy.maxAttempts() == 1 && defaultPolicy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE,
+                "Paid tools require single-attempt read-only policy");
         ContractChecks.digest(checksum, "checksum");
     }
 

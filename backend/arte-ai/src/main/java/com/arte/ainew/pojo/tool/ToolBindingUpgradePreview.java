@@ -26,7 +26,7 @@ public record ToolBindingUpgradePreview(String bindingId, long expectedVersion, 
                                         DefinitionRef currentTool, boolean compatible, List<Change> changes,
                                         ToolBindingResult<ToolBindingResolution> proposed, String digest) {
 
-    public enum Change {TOOL_VERSION, VERSION_POLICY, CONFIGURATION, SECRET_REFERENCES, EXECUTION_POLICY, NETWORK_ORIGINS, RISK, CAPABILITIES, ENABLED, NAME}
+    public enum Change {PRICE, TOOL_VERSION, VERSION_POLICY, CONFIGURATION, SECRET_REFERENCES, EXECUTION_POLICY, NETWORK_ORIGINS, RISK, CAPABILITIES, ENABLED, NAME}
 
     public ToolBindingUpgradePreview {
         ContractChecks.id(bindingId, "bindingId");

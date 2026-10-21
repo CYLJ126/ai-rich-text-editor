@@ -1,3 +1,4 @@
+import ToolBudgetPicker from './ToolBudgetPicker';
 import React, {useEffect, useRef, useState} from 'react';
 import {
   Alert,
@@ -56,6 +57,8 @@ export default function ToolRunPanel({
 }) {
   const execution = useToolInvocation(context);
   const [modal, modalContext] = Modal.useModal();
+  const [budgetRef, setBudgetRef] = useState<string>();
+  const [paid, setPaid] = useState(false);
   const [bindingId, setBindingId] = useState(selectedBindingId ?? '');
   const [argumentsJson, setArgumentsJson] = useState('{}');
   const [timeoutSeconds, setTimeoutSeconds] = useState(30);
@@ -90,6 +93,8 @@ export default function ToolRunPanel({
     setPreviewing(false);
     setPreview(null);
     setSchema(null);
+    setBudgetRef(undefined);
+    setPaid(false);
     setError(null);
     if (bindingId) {
       const credential = currentAiCredential();
@@ -105,8 +110,10 @@ export default function ToolRunPanel({
           if (
             !controller.signal.aborted &&
             currentAiCredential() === credential
-          )
+          ) {
             setSchema(body.data.inputSchema);
+            setPaid(!!body.data.tool.price);
+          }
         })
         .catch((failure) => {
           if (
@@ -147,6 +154,7 @@ export default function ToolRunPanel({
         bindingId,
         argumentsJson,
         timeoutSeconds,
+        budgetRef,
       );
       const {body} = await previewToolInvocation(requestJson, {
         signal: controller.signal,
@@ -157,7 +165,9 @@ export default function ToolRunPanel({
         currentAiCredential() === credential
       ) {
         if (
-          body.data.billingMode !== 'FREE' ||
+          !['FREE', 'CHARGE'].includes(body.data.billingMode) ||
+          (body.data.billingMode === 'CHARGE' &&
+            (!body.data.price || body.data.budgetRef !== budgetRef)) ||
           !['NONE', 'REQUESTER_CONFIRMATION', 'INDEPENDENT_APPROVAL'].includes(body.data.approvalMode) ||
           !/^[0-9a-f]{64}$/.test(body.data.planDigest)
         )
@@ -189,16 +199,18 @@ export default function ToolRunPanel({
         type="info"
         showIcon
         title="独立工具调用"
-        description="当前支持已授权的本地免费工具。先预览版本、参数与配置；业务写工具须人工决定及当前资源权限，不调用聊天模型。"
+        description="先预览工具版本、参数、费用及账户；收费工具先预留报价上界，未知费用保留占用。业务写工具仍须人工决定及当前资源权限。"
       />
       {execution.error && (
         <Alert type="warning" showIcon title={execution.error}/>
       )}
-      {execution.record?.acceptedId && execution.status?.state === 'UNKNOWN' &&
-        <ToolReconciliationPanel context={context} invocationId={execution.record.acceptedId}/>}
-      {execution.record?.acceptedId && execution.status?.state === 'WAITING_APPROVAL' &&
+      {execution.record?.acceptedId && execution.status?.state === 'UNKNOWN' && (
+        <ToolReconciliationPanel context={context} invocationId={execution.record.acceptedId}/>
+      )}
+      {execution.record?.acceptedId && execution.status?.state === 'WAITING_APPROVAL' && (
         <ToolApprovalPanel key={execution.record.acceptedId} context={context}
-                           invocationId={execution.record.acceptedId} onDecided={execution.refresh}/>}
+                           invocationId={execution.record.acceptedId} onDecided={execution.refresh}/>
+      )}
       {execution.record ? (
         <Card title="当前调用" size="small">
           <Flex vertical gap={12}>
@@ -384,6 +396,18 @@ export default function ToolRunPanel({
         </Card>
       ) : (
         <>
+          {paid && !execution.record && (
+            <ToolBudgetPicker
+              scope={context.scope}
+              bindingId={bindingId}
+              value={budgetRef}
+              onChange={(ref) => {
+                setBudgetRef(ref);
+                invalid();
+              }}
+              disabled={previewing}
+            />
+          )}
           {error && <Alert type="warning" showIcon title={error}/>}
           <Form layout="vertical">
             <Form.Item label="工具配置">
@@ -565,7 +589,8 @@ export default function ToolRunPanel({
             </Typography.Text>
             {execution.pending.map((operation, index) => {
               const body = JSON.parse(operation.requestJson);
-              const name = bindings.find(binding => binding.bindingId === body.input.bindingId)?.name ?? '工具调用';
+              const name = bindings.find(
+                (binding) => binding.bindingId === body.input.bindingId)?.name ?? '工具调用';
               return (
                 <Flex key={operation.key} wrap gap={8} justify="space-between" align="center">
                   <Typography.Text>{index + 1}. {name} · {operation.key.slice(0, 8)}</Typography.Text>

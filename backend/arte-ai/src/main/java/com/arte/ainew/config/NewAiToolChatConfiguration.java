@@ -68,8 +68,8 @@ public class NewAiToolChatConfiguration {
                                                   AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                                   BudgetService budgets,
                                                   ObjectProvider<ToolBindingService> bindings,
-                                                  @Qualifier("newAiClock") Clock clock) {
-        return new ToolChatBudgetSelector(runs, authorization, catalog, budgets, bindings.getIfAvailable(), clock);
+                                                  @Qualifier("newAiClock") Clock clock, ObjectProvider<com.arte.ainew.application.tool.billing.ToolBillingService> billing) {
+        return new ToolChatBudgetSelector(runs, authorization, catalog, budgets, bindings.getIfAvailable(), clock).paid(billing.getIfAvailable());
     }
 
     @Bean

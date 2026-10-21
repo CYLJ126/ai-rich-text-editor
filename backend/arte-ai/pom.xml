@@ -193,6 +193,7 @@
                     <include>arte-ai-tool-chat-run-migration.sql</include>
                     <include>arte-ai-tool-chat-history-migration.sql</include>
                     <include>arte-ai-tool-chat-budget-migration.sql</include>
+                    <include>arte-ai-tool-billing-migration.sql</include>
                     <include>arte-ai-dispatch-scheduling-migration.sql</include>
                 </includes>
             </testResource>

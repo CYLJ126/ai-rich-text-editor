@@ -151,11 +151,11 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     setPreset({
       ...preset,
       bindings: selected.map(m => m.binding),
-      budgets: rates.flatMap(rate => {
+      budgets: [...preset.budgets.filter(b => view.toolRates?.some(r => refKey(r.definition) === refKey(b.rate))), ...rates.flatMap(rate => {
         const budget = preset.budgets.find(b => refKey(b.rate) === refKey(rate))
           ?? view.defaults?.budgets.find(b => refKey(b.rate) === refKey(rate));
         return budget ? [budget] : [];
-      })
+      })]
     });
   }
 
@@ -181,6 +181,22 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
                                                   label: `${m.name} · ${m.binding.version}`,
                                                   value: refKey(m.binding)
                                                 }))} onChange={choose}/></Form.Item>
+        {!!view.toolRates?.length &&
+          <Form.Item label="工具费用预算"><Select aria-label="工具费用预算" mode="multiple" disabled={!canEdit}
+                                                  value={preset.budgets.filter(b => view.toolRates?.some(r => refKey(r.definition) === refKey(b.rate))).map(b => refKey(b.rate))}
+                                                  options={view.toolRates.map(r => ({
+                                                    value: refKey(r.definition),
+                                                    label: `${r.definition.id} · ${r.toolPerCall.currency} · 按次上界 ${r.toolPerCall.amount}`
+                                                  }))}
+                                                  onChange={keys => setPreset({
+                                                    ...preset,
+                                                    budgets: [...preset.budgets.filter(b => !view.toolRates?.some(r => refKey(r.definition) === refKey(b.rate))),
+                                                      ...view.toolRates!.filter(r => keys.includes(refKey(r.definition))).map(r => preset.budgets.find(b => refKey(b.rate) === refKey(r.definition))
+                                                        ?? {
+                                                          rate: r.definition,
+                                                          limit: {currency: r.toolPerCall.currency, amount: '0'}
+                                                        })]
+                                                  })}/></Form.Item>}
         {preset.budgets.map((budget, index) => <Form.Item key={refKey(budget.rate)}
                                                           label={`独立预算额度 · ${budget.limit.currency} · ${budget.rate.id}@${budget.rate.version}`}>
           <InputNumber aria-label={`预算额度 ${budget.rate.id}`} style={{width: '100%'}} stringMode min="0"
@@ -232,22 +248,51 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
                                                 onChange={keys => {
                                                   const data = catalog.catalog!;
                                                   const selected = data.bindings.filter(b => keys.includes(refKey(b.definition)));
+                                                  const retainedTools = data.defaults.budgets.filter(b => data.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate)));
                                                   const rates = selected.map(b => b.rate).filter((rate, index, all) => all.findIndex(r => refKey(r) === refKey(rate)) === index);
                                                   setCatalog({
                                                     ...catalog, catalog: {
                                                       ...data, defaults: {
                                                         ...data.defaults, bindings: selected.map(b => b.definition),
-                                                        budgets: rates.map(rate => data.defaults.budgets.find(b => refKey(b.rate) === refKey(rate)) ?? {
+                                                        budgets: [...retainedTools, ...rates.map(rate => data.defaults.budgets.find(b => refKey(b.rate) === refKey(rate)) ?? {
                                                           rate,
                                                           limit: {
                                                             amount: '0',
-                                                            currency: data.rates.find(r => refKey(r.definition) === refKey(rate))!.inputPerMillion.currency
+                                                            currency: data.rates.find(r => refKey(r.definition) === refKey(rate))!.inputPerMillion!.currency
                                                           }
-                                                        })
+                                                        })]
                                                       }
                                                     }
                                                   });
                                                 }}/></Form.Item>
+        {catalog.catalog.rates.some(r => r.toolPerCall) &&
+          <Form.Item label="新空间默认工具预算"><Select aria-label="新空间默认工具预算" mode="multiple"
+                                                        disabled={saving || uncertain || unsafe}
+                                                        value={catalog.catalog.defaults.budgets.filter(b => catalog.catalog!.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate))).map(b => refKey(b.rate))}
+                                                        options={catalog.catalog.rates.filter(r => r.toolPerCall).map(r => ({
+                                                          value: refKey(r.definition),
+                                                          label: `${r.definition.id} · ${r.toolPerCall!.currency}`
+                                                        }))}
+                                                        onChange={keys => {
+                                                          const data = catalog.catalog!;
+                                                          setCatalog({
+                                                            ...catalog, catalog: {
+                                                              ...data, defaults: {
+                                                                ...data.defaults, budgets: [
+                                                                  ...data.defaults.budgets.filter(b => !data.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate))),
+                                                                  ...data.rates.filter(r => r.toolPerCall && keys.includes(refKey(r.definition))).map(r => data.defaults.budgets.find(b => refKey(b.rate) === refKey(r.definition))
+                                                                    ?? {
+                                                                      rate: r.definition,
+                                                                      limit: {
+                                                                        currency: r.toolPerCall!.currency,
+                                                                        amount: '0'
+                                                                      }
+                                                                    })
+                                                                ]
+                                                              }
+                                                            }
+                                                          });
+                                                        }}/></Form.Item>}
       {catalog.catalog.defaults.budgets.map((budget, index) => <Form.Item key={refKey(budget.rate)}
                                                                           label={`新空间默认额度 · ${budget.limit.currency} · ${budget.rate.id}`}>
         <InputNumber aria-label={`默认预算额度 ${budget.rate.id}`} stringMode min="0" max="1000000000"
@@ -340,8 +385,8 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
             value: refKey(c.definition)
           }))}/></Form.Item>
         <Form.Item name="rate" label="固定费率" rules={[{required: true}]}><Select
-          options={catalog?.catalog?.rates.map(r => ({
-            label: `${r.definition.id} · ${r.inputPerMillion.currency}`,
+          options={catalog?.catalog?.rates.filter(r => !r.toolPerCall).map(r => ({
+            label: `${r.definition.id} · ${r.inputPerMillion!.currency}`,
             value: refKey(r.definition)
           }))}/></Form.Item>
       </Form>

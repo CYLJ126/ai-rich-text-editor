@@ -311,7 +311,7 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         var original = Objects.requireNonNull(catalog.releaseArtifacts(from), "Missing compatibility predecessor");
         var old = original.tools().getFirst().tool();
         var next = target.tools().getFirst().tool();
-        if (!old.definition().id().equals(next.definition().id()) || !old.risk().equals(next.risk())
+        if (!Objects.equals(old.price(), next.price()) || !old.definition().id().equals(next.definition().id()) || !old.risk().equals(next.risk())
                 || !old.capabilities().equals(next.capabilities()) || !old.defaultPolicy().equals(next.defaultPolicy())
                 || !old.defaultConfiguration().equals(next.defaultConfiguration())) return INCOMPATIBLE;
         var oldDocuments = new HashMap<DefinitionRef, String>();

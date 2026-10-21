@@ -18,10 +18,15 @@ import java.util.Objects;
  * @since 2026/10/18 16:30 ✾
  */
 public record ToolAdmissionInput(String bindingId, StructuredValue.ObjectValue arguments, Duration requestedTimeout,
-                                 Integer maxAttempts, Long maxOutputBytes) {
+                                 Integer maxAttempts, Long maxOutputBytes,
+                                 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String budgetRef) {
+    public ToolAdmissionInput(String bindingId, StructuredValue.ObjectValue arguments, Duration requestedTimeout, Integer maxAttempts, Long maxOutputBytes) {
+        this(bindingId, arguments, requestedTimeout, maxAttempts, maxOutputBytes, null);
+    }
 
     public ToolAdmissionInput {
         ContractChecks.id(bindingId, "bindingId");
+        ContractChecks.optionalId(budgetRef, "tool budgetRef");
         Objects.requireNonNull(arguments);
         if (requestedTimeout != null) ContractChecks.require(requestedTimeout.compareTo(Duration.ofSeconds(1)) >= 0
                 && requestedTimeout.compareTo(Duration.ofHours(1)) <= 0, "Invalid tool requested timeout");

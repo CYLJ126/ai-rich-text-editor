@@ -66,6 +66,7 @@ export interface RunAnswer {
 
 export interface ToolChatChoice {
   toolBindingIds: string[];
+  toolBudgetRefs?: Record<string, string>;
   maxModelRounds: number;
   maxToolCalls: number;
   maxConcurrentTools: number;

@@ -23,7 +23,7 @@ public record ToolChatBudgetAllocation(String runId, String invocationId, String
         ContractChecks.id(invocationId, "allocation invocation");
         ContractChecks.id(attemptId, "allocation attempt");
         ContractChecks.range(attemptNumber, "allocation attempt number", 1, 10);
-        ContractChecks.require("MODEL".equals(chargeKind), "Paid tool allocation is not enabled");
+        ContractChecks.require("MODEL".equals(chargeKind) || "TOOL".equals(chargeKind), "Unknown charge kind");
         ContractChecks.id(budgetRef, "allocation budget");
         Objects.requireNonNull(rate).requireType("rate");
         ContractChecks.id(reservationId, "allocation reservation");

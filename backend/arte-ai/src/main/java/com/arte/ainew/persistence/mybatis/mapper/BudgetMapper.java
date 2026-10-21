@@ -48,4 +48,17 @@ public interface BudgetMapper {
     String accountSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);
 
     String reservationSnapshot(@Param("idKey") String idKey, @Param("forUpdate") boolean forUpdate);
+
+    record ToolBill(String ownerKey, String invocationKey, String attemptKey, String digest, String snapshot) {
+    }
+
+    ToolBill toolBill(@Param("attempt") String attempt);
+
+    int insertToolBill(@Param("r") ToolBill row);
+
+    int ensureToolPriceGuard(@Param("rate") String rate);
+
+    Boolean toolPriceBlocked(@Param("rate") String rate);
+
+    int blockToolPrice(@Param("rate") String rate, @Param("evidence") String evidence);
 }

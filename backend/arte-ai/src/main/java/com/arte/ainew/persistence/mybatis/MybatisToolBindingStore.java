@@ -265,6 +265,8 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
             var oldArtifacts = catalog.releaseArtifacts(actual);
             if (oldArtifacts != null) {
                 var original = oldArtifacts.tools().getFirst().tool();
+                if (!Objects.equals(original.price(), plan.tool().tool().price()))
+                    changes.add(ToolBindingUpgradePreview.Change.PRICE);
                 if (!original.risk().equals(plan.tool().tool().risk()))
                     changes.add(ToolBindingUpgradePreview.Change.RISK);
                 if (!original.capabilities().equals(plan.tool().tool().capabilities()))

@@ -37,6 +37,7 @@ export interface WorkspaceAiView {
   canManage: boolean;
   needsImport: boolean;
   models: AiModel[];
+  toolRates?: { definition: DefinitionRef; toolPerCall: Money }[];
   defaults: AiPreset | null;
 }
 
@@ -53,7 +54,12 @@ export interface AiCatalog {
   capabilities: { definition: DefinitionRef; [key: string]: unknown }[];
   bindings: PublishedBinding[];
   connections: { definition: DefinitionRef; providerId: string; endpoint: string; [key: string]: unknown }[];
-  rates: { definition: DefinitionRef; inputPerMillion: Money; outputPerMillion: Money }[];
+  rates: {
+    definition: DefinitionRef;
+    inputPerMillion: Money | null;
+    outputPerMillion: Money | null;
+    toolPerCall?: Money | null
+  }[];
   legacyGrants: unknown[];
   legacyBudgets: unknown[];
   defaults: AiPreset;

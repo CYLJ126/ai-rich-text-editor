@@ -27,4 +27,11 @@ public interface ToolExecutionAccess {
     default Mono<ExecutionAuthorization> authorizeRemote(com.arte.ainew.pojo.tool.RemoteToolCall call) {
         return Mono.error(new org.springframework.security.access.AccessDeniedException("Remote tool access denied"));
     }
+
+    /**
+     * 收费执行须显式实现，不能复用免费许可。
+     */
+    default Mono<ExecutionAuthorization> authorizeCharged(com.arte.ainew.pojo.tool.ToolExecutionCall call) {
+        return Mono.error(new org.springframework.security.access.AccessDeniedException("Paid tool execution denied"));
+    }
 }

@@ -31,12 +31,20 @@ public final class ToolChatRequests {
                          @Min(1) @Max(32) int maxModelRounds,
                          @Min(1) @Max(100) int maxToolCalls,
                          @Min(1) @Max(16) int maxConcurrentTools,
-                         @NotEmpty @Size(max = 8) java.util.List<@Valid Limit> budgetLimits) implements ToolManagementRequests.Strict {
+                         @NotEmpty @Size(max = 8) java.util.List<@Valid Limit> budgetLimits,
+                         @Size(max = 32) java.util.Map<String, String> toolBudgetRefs) implements ToolManagementRequests.Strict {
+        public Submit(ConversationRequests.Scope scope, String conversationId, long expectedVersion, String text,
+                      com.arte.ainew.common.reference.DefinitionRef binding, com.arte.ainew.common.reference.DefinitionRef capability,
+                      String modelBudgetRef, long maxInputTokens, com.arte.ainew.pojo.generation.GenerationOptions generationOptions,
+                      java.util.List<String> toolBindingIds, long timeoutSeconds, int maxModelRounds, int maxToolCalls, int maxConcurrentTools, java.util.List<Limit> budgetLimits) {
+            this(scope, conversationId, expectedVersion, text, binding, capability, modelBudgetRef, maxInputTokens, generationOptions, toolBindingIds,
+                    timeoutSeconds, maxModelRounds, maxToolCalls, maxConcurrentTools, budgetLimits, java.util.Map.of());
+        }
         public com.arte.ainew.pojo.tool.ToolChatSubmission input() {
             return new com.arte.ainew.pojo.tool.ToolChatSubmission(conversationId, expectedVersion, text, binding, capability, modelBudgetRef,
                     maxInputTokens, generationOptions, toolBindingIds,
                     new com.arte.ainew.pojo.tool.ToolChatRunSnapshot.Limits(java.time.Duration.ofSeconds(timeoutSeconds), maxModelRounds, maxToolCalls, maxConcurrentTools),
-                    budgetLimits.stream().map(l -> new com.arte.ainew.pojo.budget.Money(new java.math.BigDecimal(l.amount()), java.util.Currency.getInstance(l.currency()))).toList());
+                    budgetLimits.stream().map(l -> new com.arte.ainew.pojo.budget.Money(new java.math.BigDecimal(l.amount()), java.util.Currency.getInstance(l.currency()))).toList(), toolBudgetRefs);
         }
     }
 

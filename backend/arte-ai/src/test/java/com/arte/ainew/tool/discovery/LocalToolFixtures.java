@@ -65,10 +65,10 @@ public final class LocalToolFixtures {
     public static ToolDefinition withTitle(ToolDefinition tool, String title) {
         var unsigned = new ToolDefinition(tool.definition(), tool.providerId(), title, tool.description(), tool.tags(), tool.capability(),
                 tool.inputSchema(), tool.outputSchema(), tool.configurationSchema(), tool.defaultConfiguration(), tool.capabilities(),
-                tool.risk(), tool.defaultPolicy(), "0".repeat(64));
+                tool.risk(), tool.defaultPolicy(), "0".repeat(64), tool.price());
         return new ToolDefinition(unsigned.definition(), unsigned.providerId(), unsigned.title(), unsigned.description(), unsigned.tags(),
                 unsigned.capability(), unsigned.inputSchema(), unsigned.outputSchema(), unsigned.configurationSchema(), unsigned.defaultConfiguration(),
-                unsigned.capabilities(), unsigned.risk(), unsigned.defaultPolicy(), ToolCatalogDigests.tool(unsigned));
+                unsigned.capabilities(), unsigned.risk(), unsigned.defaultPolicy(), ToolCatalogDigests.tool(unsigned), tool.price());
     }
 
     public static BusinessToolAdapter adapter(CapabilityDescriptor capability) {

@@ -19,6 +19,7 @@ export interface ToolPolicy {
 }
 
 export interface ToolSummary {
+  price?: import('./toolInvocation').ToolPrice | null;
   tool: DefinitionRef;
   provider: DefinitionRef;
   title: string;

@@ -55,7 +55,7 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  * @since 2026/10/4 23:30 ✾
  */
 @Slf4j
-public final class MybatisExecutionPersistence implements ExecutionStore, ExecutionReadStore, ExecutionEventStore,
+public final class MybatisExecutionPersistence implements ToolBillingStore, ExecutionStore, ExecutionReadStore, ExecutionEventStore,
         ExecutionOutboxStore, AdmissionCatalogStore, BudgetService, ReconciliationStore, DispatchLimitStore, DispatchPreparationStore, ToolRecoveryStore, DispatchSchedulingStore {
 
     private final DispatchSchedulingPersistence scheduling;
@@ -813,6 +813,17 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             claimed(command.claim(), claim);
             var runGuard = runBudgets.guard(invocation, command.billingPlan(), now());
             boolean free = command.billingPlan() instanceof DispatchPreparationStore.Free;
+            if (!free) require(invocation.request().context().budgetRef() != null, NOT_FOUND);
+            if (invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && !free) {
+                var fixed = toolSnapshots.toolSnapshot(hash(id(invocation)), ownerKey(command.invocation().owner()));
+                require(fixed != null && CanonicalJson.sha256(fixed.snapshot()).equals(fixed.payloadDigest()), INVALID_STATE);
+                var snapshot = codec.decode(fixed.snapshot(), com.arte.ainew.pojo.tool.ToolExecutionSnapshot.class);
+                var price = snapshot.binding().tool().tool().price();
+                require(snapshot.request().equals(invocation.request()) && price != null && price.rate().equals(command.rate())
+                        && price.perCall().equals(command.amount()), INVALID_STATE);
+                budget.ensureToolPriceGuard(hash(price.rate().toString()));
+                require(!budget.toolPriceBlocked(hash(price.rate().toString())), INVALID_STATE);
+            }
             if (free) {
                 // FREE 是内部命令，仍禁止模型或带预算引用的调用绕过原有预留。
                 require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.request().context().budgetRef() == null, INVALID_STATE);
@@ -1327,13 +1338,13 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     Attempt claimToolOutcomeInCurrentTransaction(Invocation expected, String worker, Duration lease) {
         var current = invocation(new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
         require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL
-                && current.request().context().budgetRef() == null && current.activeAttemptId() != null, INVALID_STATE);
+                && current.activeAttemptId() != null, INVALID_STATE);
         version(current, new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
         var old = workspaceSnapshot(execution.attemptSnapshot(hash(current.activeAttemptId()), true), Attempt.class);
-        require(old != null && old.state() == Attempt.State.UNKNOWN && old.dispatch() != Attempt.Dispatch.NOT_STARTED && old.budgetReservationId() == null, INVALID_STATE);
+        require(old != null && old.state() == Attempt.State.UNKNOWN && old.dispatch() != Attempt.Dispatch.NOT_STARTED, INVALID_STATE);
         require(purpose(old) != LeasePurpose.RECONCILE || !old.leaseExpiresAt().isAfter(now()), LEASE_LOST);
         long fence = Math.addExact(execution.nextFence(hash(id(current))), 1);
-        var claimed = changed(old, old.state(), old.dispatch(), old.remoteRequestId(), null, old.usage(), old.error(), worker, fence, now().plus(lease));
+        var claimed = changed(old, old.state(), old.dispatch(), old.remoteRequestId(), old.budgetReservationId(), old.usage(), old.error(), worker, fence, now().plus(lease));
         save(claimed);
         execution.savePurpose(LeasePurpose.RECONCILE.name(), hash(old.attemptId()));
         execution.saveNextFence(fence, hash(id(current)));
@@ -1342,8 +1353,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
 
     StoreOutcome<Invocation> completeToolOutcomeInCurrentTransaction(Complete command) {
         var current = invocation(command.guard().invocation());
-        require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL
-                && current.request().context().budgetRef() == null, INVALID_STATE);
+        require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL, INVALID_STATE);
         return completeLocked(command);
     }
 
@@ -1357,7 +1367,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         return outcome(() -> {
             var invocation = invocation(command.invocation());
             version(invocation, command.invocation());
-            require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.request().context().budgetRef() == null
+            require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL
                     && !invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
             var messages = outbox.lockMessage(command.claim().messageId());
             require(!messages.isEmpty() && command.claim().kind() == OutboxMessage.Kind.DISPATCH
@@ -1365,7 +1375,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && command.claim().invocationId().equals(id(invocation)), INVALID_STATE);
             claimed(command.claim(), messages.getFirst());
             var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
-            require(attempt != null && attempt.invocationId().equals(id(invocation)) && attempt.budgetReservationId() == null, INVALID_STATE);
+            require(attempt != null && attempt.invocationId().equals(id(invocation)), INVALID_STATE);
             require(!attempt.leaseExpiresAt().isAfter(now()), LEASE_LOST);
             require(attempt.dispatch() != Attempt.Dispatch.NOT_STARTED, INVALID_STATE);
             var terminal = Objects.requireNonNull(command.terminal());
@@ -1376,7 +1386,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             long fence = Math.addExact(execution.nextFence(hash(id(invocation))), 1);
             var completed = state(invocation, terminal.state(), attempt.attemptId(), terminal.result(), terminal.error());
             save(changed(attempt, Attempt.State.valueOf(terminal.state().name()), terminal.state() == Invocation.State.SUCCEEDED
-                            ? Attempt.Dispatch.CONFIRMED : attempt.dispatch(), attempt.remoteRequestId(), null, attempt.usage(), terminal.error(),
+                            ? Attempt.Dispatch.CONFIRMED : attempt.dispatch(), attempt.remoteRequestId(), attempt.budgetReservationId(), attempt.usage(), terminal.error(),
                     command.claim().workerId(), fence, attempt.leaseExpiresAt()));
             execution.saveNextFence(fence, hash(id(invocation)));
             save(completed);
@@ -1811,6 +1821,43 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
     }
 
     @Override
+    public Mono<Boolean> toolPriceBlocked(com.arte.ainew.common.reference.DefinitionRef rate) {
+        return tx(() -> Boolean.TRUE.equals(budget.toolPriceBlocked(hash(rate.toString()))));
+    }
+
+    @Override
+    public Mono<Void> recordToolCharge(ExecutionOwner owner, String invocationId, String attemptId, com.arte.ainew.pojo.tool.ToolCharge charge) {
+        return tx(() -> {
+            var invocation = invocation(new Version(owner, invocationId, 0));
+            require(invocation.request().kind() == CapabilityDescriptor.Kind.TOOL && invocation.request().context().budgetRef() != null, INVALID_STATE);
+            var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(attemptId), true), Attempt.class);
+            require(attempt != null && attempt.invocationId().equals(invocationId) && attempt.budgetReservationId() != null, INVALID_STATE);
+            var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(attempt.budgetReservationId()), false), BudgetReservation.class);
+            require(reservation != null && charge.amount().currency().equals(reservation.reserved().currency()), CURRENCY_MISMATCH);
+            var previous = budget.toolBill(hash(attemptId));
+            String bytes = codec.encode(charge);
+            if (previous != null) {
+                require(previous.digest().equals(CanonicalJson.sha256(bytes)), IDEMPOTENCY_CONFLICT);
+                return true;
+            }
+            budget.insertToolBill(new BudgetMapper.ToolBill(ownerKey(owner), hash(invocationId), hash(attemptId), CanonicalJson.sha256(bytes), bytes));
+            return true;
+        }).then();
+    }
+
+    @Override
+    public Mono<com.arte.ainew.pojo.tool.ToolCharge> toolCharge(ExecutionOwner owner, String invocationId, String attemptId) {
+        return tx(() -> {
+            var row = budget.toolBill(hash(attemptId));
+            if (row == null || !row.ownerKey().equals(ownerKey(owner)) || !row.invocationKey().equals(hash(invocationId)))
+                return null;
+            if (!row.digest().equals(CanonicalJson.sha256(row.snapshot())))
+                throw new IllegalStateException("Tool bill checksum mismatch");
+            return codec.decode(row.snapshot(), com.arte.ainew.pojo.tool.ToolCharge.class);
+        });
+    }
+
+    @Override
     public Mono<StoreOutcome<BudgetReservation>> settle(BudgetCommands.Settle command) {
         return outcome(() -> settleLocked(command));
     }
@@ -1822,6 +1869,11 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
         require(pointer != null, NOT_FOUND);
         var invocation = invocation(new Version(command.owner(), pointer.invocationId(), 0));
         var runSettlement = runBudgets.settlementLocks(invocation, pointer);
+        boolean paidTool = invocation.request().kind() == CapabilityDescriptor.Kind.TOOL;
+        if (paidTool) {
+            budget.ensureToolPriceGuard(hash(pointer.rateVersion().toString()));
+            budget.toolPriceBlocked(hash(pointer.rateVersion().toString()));
+        }
         var account = workspaceSnapshot(budget.accountSnapshot(hash(pointer.budgetRef()), true), BudgetCommands.Account.class);
         require(account != null && account.owner().equals(command.owner()), OWNER_MISMATCH);
         var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(pointer.reservationId()), true), BudgetReservation.class);
@@ -1847,6 +1899,8 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                     && settlement.charge().amount().signum() == 0, RECONCILIATION_REQUIRED);
         }
         runBudgets.settle(runSettlement, invocation, reservation, settlement);
+        if (paidTool && settlement.charge() != null && settlement.charge().amount().compareTo(reservation.reserved().amount()) > 0)
+            budget.blockToolPrice(hash(reservation.rateVersion().toString()), command.evidenceRef());
         boolean finalSettlement = settlement.state() != BudgetSettlement.State.PENDING_RECONCILIATION;
         if (finalSettlement) {
             require(account.held().amount().compareTo(reservation.reserved().amount()) >= 0, INVALID_STATE);
@@ -1899,7 +1953,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
                 return StoreOutcome.replayed(codec.decode(previous.resultSnapshot(), Reconciliation.Receipt.class));
             }
             version(invocation, new Version(command.owner(), command.invocationId(), command.invocationVersion()));
-            require(invocation.request().kind() == CapabilityDescriptor.Kind.GENERATION
+            require((invocation.request().kind() == CapabilityDescriptor.Kind.GENERATION || invocation.request().kind() == CapabilityDescriptor.Kind.TOOL)
                     && invocation.state().terminal() && invocation.activeAttemptId() != null, INVALID_STATE);
             var reservation = workspaceSnapshot(budget.reservationSnapshot(hash(command.reservationId()), false), BudgetReservation.class);
             require(reservation != null && reservation.invocationId().equals(id(invocation))
@@ -1913,7 +1967,7 @@ public final class MybatisExecutionPersistence implements ExecutionStore, Execut
             var settled = settleLocked(new BudgetCommands.Settle(command.owner(), command.reservationVersion(),
                     new BudgetSettlement("manual-" + hash(command.key()), reservation.reservationId(), BudgetSettlement.State.SETTLED,
                             recordedAttempt.usage(), command.charge(), now()), BudgetCommands.Evidence.MANUAL_PROVIDER_BILL, command.evidenceRef()));
-            if (invocation.state() == Invocation.State.UNKNOWN) {
+            if (invocation.state() == Invocation.State.UNKNOWN && invocation.request().kind() == CapabilityDescriptor.Kind.GENERATION) {
                 var oldError = invocation.error();
                 var stopped = userStoppedGeneration(invocation);
                 var knownError = new ExecutionError(stopped ? "INVOCATION_CANCELLED" : "GENERATION_RECONCILED",

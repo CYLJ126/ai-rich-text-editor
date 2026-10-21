@@ -26,7 +26,14 @@ public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, T
     private final PlatformToolManagementAccess platform;
     private final LocalToolPolicy tools;
 
+    private final PlatformPaidToolAccess paid;
+
     public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools) {
+        this(platform, tools, null);
+    }
+
+    public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools, PlatformPaidToolAccess paid) {
+        this.paid = paid;
         this.platform = platform;
         this.tools = tools;
     }
@@ -83,6 +90,19 @@ public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, T
         var input = new ToolAdmissionInput(call.binding().definition().id(), request.input().arguments(),
                 request.options().requestedTimeout(), request.options().maxAttempts(), request.options().maxOutputBytes());
         return authorizeFreeReadOnly(input, call.call().runtime().execution(), call.binding()).map(Permit::authorization);
+    }
+
+    @Override
+    public Mono<Permit> authorizeCharged(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+        return paid == null ? Mono.error(denied()) : paid.authorize(input, context, binding);
+    }
+
+    @Override
+    public Mono<ExecutionAuthorization> authorizeCharged(com.arte.ainew.pojo.tool.ToolExecutionCall call) {
+        var request = call.call().request();
+        var input = new ToolAdmissionInput(call.binding().definition().id(), request.input().arguments(), request.options().requestedTimeout(),
+                request.options().maxAttempts(), request.options().maxOutputBytes(), request.context().budgetRef());
+        return authorizeCharged(input, call.call().runtime().execution(), call.binding()).map(Permit::authorization);
     }
 
     private void verify(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {

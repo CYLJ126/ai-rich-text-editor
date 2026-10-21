@@ -39,23 +39,27 @@ public record ToolChatBudgetPlan(List<Money> limits, List<Selection> selections)
     }
 
     /**
-     * 每个固定绑定只使用一个已授权账户；本批模型 CHARGE、本地工具 FREE，付费工具不开放。
+     * 每个固定绑定只使用一个已授权账户；模型与收费工具 CHARGE，免费工具无账户；Token 单价与工具按次上界分别表达。
      */
     public record Selection(DefinitionRef binding, DefinitionRef capability, CapabilityDescriptor.Kind kind,
-                            BillingMode mode, String budgetRef, DefinitionRef rate, ModelPrice price) {
+                            BillingMode mode, String budgetRef, DefinitionRef rate, ModelPrice price,
+                            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) ToolPrice toolPrice) {
+        public Selection(DefinitionRef binding, DefinitionRef capability, CapabilityDescriptor.Kind kind, BillingMode mode, String budgetRef, DefinitionRef rate, ModelPrice price) {
+            this(binding, capability, kind, mode, budgetRef, rate, price, null);
+        }
         public Selection {
             Objects.requireNonNull(binding).requireType("binding");
             Objects.requireNonNull(capability).requireType("capability");
             Objects.requireNonNull(kind);
             Objects.requireNonNull(mode);
             if (mode == BillingMode.FREE) {
-                ContractChecks.require(kind == CapabilityDescriptor.Kind.TOOL && budgetRef == null && rate == null && price == null,
+                ContractChecks.require(kind == CapabilityDescriptor.Kind.TOOL && budgetRef == null && rate == null && price == null && toolPrice == null,
                         "FREE selection must be an account-neutral tool");
             } else {
-                ContractChecks.require(kind == CapabilityDescriptor.Kind.GENERATION, "Paid tool pricing is not enabled");
+                ContractChecks.require(kind == CapabilityDescriptor.Kind.GENERATION ? price != null && toolPrice == null
+                        : kind == CapabilityDescriptor.Kind.TOOL && price == null && toolPrice != null && toolPrice.rate().equals(rate), "Pricing kind mismatch");
                 ContractChecks.id(budgetRef, "selected budgetRef");
                 Objects.requireNonNull(rate).requireType("rate");
-                Objects.requireNonNull(price);
             }
         }
     }
@@ -68,8 +72,8 @@ public record ToolChatBudgetPlan(List<Money> limits, List<Selection> selections)
                 .sorted(Comparator.comparing((Selection s) -> s.binding().type()).thenComparing(s -> s.binding().id()).thenComparing(s -> s.binding().version())).toList();
         ContractChecks.unique(selections.stream().map(Selection::binding).toList(), "Run selected bindings");
         for (var s : selections)
-            if (s.price() != null)
-                ContractChecks.require(limits.stream().anyMatch(l -> l.currency().equals(s.price().inputPerMillion().currency())), "Missing Run currency limit");
+            if (s.mode() == BillingMode.CHARGE)
+                ContractChecks.require(limits.stream().anyMatch(l -> l.currency().equals(s.toolPrice() == null ? s.price().inputPerMillion().currency() : s.toolPrice().perCall().currency())), "Missing Run currency limit");
     }
 
     public Selection selection(DefinitionRef binding) {

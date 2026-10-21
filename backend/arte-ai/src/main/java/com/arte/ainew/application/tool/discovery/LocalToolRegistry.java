@@ -57,7 +57,8 @@ public final class LocalToolRegistry {
         return registrations.stream().filter(r -> r.provider().definition().equals(revision.provider())).findFirst()
                 .flatMap(r -> revision.target() instanceof ExecutionTarget.Local local ? Optional.ofNullable(r.adapters().get(local.adapter()))
                         : Optional.ofNullable(r.httpAdapters().get(revision.target()))
-                        .filter(a -> a.revision().equals(revision)).map(a -> (BusinessToolAdapter) a));
+                        .filter(a -> a.revision().equals(revision)).map(a -> (BusinessToolAdapter) a))
+                .filter(a -> revision.tool().price() == null || a instanceof com.arte.ainew.spi.adapter.PaidToolAdapter paid && paid.revision().equals(revision));
     }
 
     /**

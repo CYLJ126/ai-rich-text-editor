@@ -119,7 +119,7 @@ public final class ToolChatService {
                             var root = new ExecutionContext(current.executionId(), current.traceId(), current.authorization(), deadline, null, null,
                                     current.releaseRef(), current.idempotencyKey());
                             var prepared = new ToolChatRunSnapshot(root, fixedInput, model, input.generation(), set, input.limits(), received);
-                            return budgets.prepare(prepared, input.budgetLimits(), input.modelBudgetRef(), current).flatMap(plan -> {
+                            return budgets.prepare(prepared, input.budgetLimits(), input.modelBudgetRef(), input.toolBudgetRefs(), current).flatMap(plan -> {
                                 var fixed = new ToolChatRunSnapshot(root, fixedInput, model, input.generation(), set, input.limits(), received, plan);
                                 return catalogStore.nextTurnSequence(ExecutionOwner.from(current), input.conversationId())
                                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
@@ -151,7 +151,9 @@ public final class ToolChatService {
                 .flatMap(fixed -> runs.link(run.owner(), run.runId()).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT))).flatMap(link -> {
                     requireReadOnly(fixed.tools(), readOnly);
                     var user = fixed.initialContext().messages().getLast();
-                    boolean same = link.conversationId().equals(input.conversationId()) && link.conversationVersion() == input.expectedVersion()
+                    var toolAccounts = fixed.budgetPlan() == null ? java.util.Map.<String, String>of() : fixed.budgetPlan().selections().stream().filter(s -> s.kind() == CapabilityDescriptor.Kind.TOOL && s.budgetRef() != null)
+                            .collect(java.util.stream.Collectors.toMap(s -> s.binding().id(), com.arte.ainew.pojo.tool.ToolChatBudgetPlan.Selection::budgetRef));
+                    boolean same = toolAccounts.equals(input.toolBudgetRefs()) && link.conversationId().equals(input.conversationId()) && link.conversationVersion() == input.expectedVersion()
                             && user.content().equals(List.of(new ChatMessage.Text(input.text()))) && fixed.model().definition().equals(input.binding())
                             && fixed.model().capability().definition().equals(input.capability()) && fixed.generation().equals(input.generation())
                             && fixed.initialContext().budget().maxInputTokens() == input.maxInputTokens() && fixed.limits().equals(input.limits())
@@ -160,7 +162,7 @@ public final class ToolChatService {
                             && fixed.budgetPlan().selection(fixed.model().definition()).budgetRef().equals(input.modelBudgetRef());
                     if (!same) return Mono.error(new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT));
                     return conversations.turn(link.conversationId(), link.turnId(), current)
-                            .flatMap(turn -> budgets.prepare(fixed, fixed.budgetPlan().limits(), input.modelBudgetRef(), current)
+                            .flatMap(turn -> budgets.prepare(fixed, fixed.budgetPlan().limits(), input.modelBudgetRef(), input.toolBudgetRefs(), current)
                                     .flatMap(plan -> {
                                         if (!plan.equals(fixed.budgetPlan()))
                                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));

@@ -337,3 +337,6 @@ arte.ai-new-tool-http.enabled=false
 arte.ai-new-tool-http.version=v1
 arte.ai-new-tool-http.endpoint=
 arte.ai-new-tool-http.allowed-origins=
+
+# S5-02: apply billing migration and upgrade consumers before enabling.
+arte.ai-new-tool-billing.enabled=false

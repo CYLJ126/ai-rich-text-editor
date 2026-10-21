@@ -7,7 +7,7 @@ import WorkspaceAiPreparation from './WorkspaceAiPreparation';
 import {AiApiError} from '@/services/arte-ai';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
-vi.mock('@/services/platform/ai', async original => ({
+vi.mock('@/services/platform/ai', async (original) => ({
   ...(await original<typeof import('@/services/platform/ai')>()),
   ensureWorkspaceAi: vi.fn(),
   getWorkspaceAi: vi.fn(),
@@ -46,7 +46,7 @@ afterEach(cleanup);
 
 it('prepares scope configuration before mounting conversation and discovery consumers', async () => {
   let finish!: () => void;
-  vi.mocked(api.ensureWorkspaceAi).mockImplementation(() => new Promise(resolve => {
+  vi.mocked(api.ensureWorkspaceAi).mockImplementation(() => new Promise((resolve) => {
     finish = () => resolve(response(view));
   }));
   render(<WorkspaceAiPreparation scope={scope} context={context} legacy={false}><p>聊天消费者</p>
@@ -179,4 +179,45 @@ it('rejects reuse of an existing capability version before publishing', async ()
   fireEvent.click(screen.getByRole('button', {name: /^(确\s*定|OK)$/}));
   await screen.findByText('请填写未发布的能力版本，例如 v2');
   expect(api.publishAiCatalog).not.toHaveBeenCalled();
+});
+
+it('shows and saves approved tool budgets alongside the existing model account', async () => {
+  const toolRate = {type: 'rate', id: 'search', version: 'v1'};
+  const paidPreset = {
+    ...preset,
+    budgets: [
+      ...preset.budgets,
+      {rate: toolRate, limit: {amount: '5', currency: 'USD'}},
+    ],
+  };
+  vi.mocked(api.getWorkspaceAi).mockResolvedValue(
+    response({
+      ...view,
+      toolRates: [
+        {
+          definition: toolRate,
+          toolPerCall: {amount: '0.1', currency: 'USD'},
+        },
+      ],
+      configuration: {...view.configuration!, preset: paidPreset},
+    }),
+  );
+  render(
+    <WorkspaceAiSettings scope={scope} context={context} onUpdated={vi.fn()}/>,
+  );
+  expect(await screen.findByLabelText('工具费用预算')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('预算额度 search'), {
+    target: {value: '4'},
+  });
+  fireEvent.click(screen.getByRole('button', {name: '保存空间 AI 配置'}));
+  await waitFor(() => expect(api.updateWorkspaceAi).toHaveBeenCalledTimes(1));
+  expect(
+    vi.mocked(api.updateWorkspaceAi).mock.calls[0][0].preset,
+  ).toMatchObject({
+    bindings: [binding],
+    budgets: [
+      preset.budgets[0],
+      {rate: toolRate, limit: {currency: 'USD', amount: '4'}},
+    ],
+  });
 });

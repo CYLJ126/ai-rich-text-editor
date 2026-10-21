@@ -1,3 +1,4 @@
+import ToolBudgetPicker from '@/features/aitool/ToolBudgetPicker';
 import React, {useEffect, useState} from 'react';
 import {Alert, Button, Drawer, Flex, Form, Input, InputNumber, Select, Switch, Typography,} from 'antd';
 import {discoverToolChat, type ToolChatChoice,} from '@/services/arte-ai/toolChat';
@@ -100,7 +101,9 @@ export default function ToolChatSettings({
       <Drawer title="本次聊天的工具" open={open} onClose={() => setOpen(false)}>
         <Flex vertical gap={12}>
           {error && <Alert type="warning" title={error}/>}
-          {!modelSupportsTools && <Alert type="warning" title="当前模型不支持工具调用，请切换到支持工具调用的模型。"/>}
+          {!modelSupportsTools && (
+            <Alert type="warning" title="当前模型不支持工具调用，请切换到支持工具调用的模型。"/>
+          )}
           {!enabled && !loading && !error && (
             <Alert type="info" title="此环境尚未开放工具聊天"/>
           )}
@@ -142,7 +145,14 @@ export default function ToolChatSettings({
                         label: b.name,
                         disabled: !b.enabled,
                       }))}
-                    onChange={(toolBindingIds) => change({toolBindingIds})}
+                    onChange={(toolBindingIds) => change({
+                      toolBindingIds,
+                      toolBudgetRefs: Object.fromEntries(
+                        Object.entries(value.toolBudgetRefs ?? {}).filter(
+                          ([id]) => toolBindingIds.includes(id),
+                        ),
+                      ),
+                    })}
                   />
                 </Form.Item>
                 {hasMore && (
@@ -153,27 +163,71 @@ export default function ToolChatSettings({
                     加载更多工具
                   </Button>
                 )}
-                <Form.Item
-                  label={`本次总费用上限（${currency ?? '预算币种待读取'}）`}
+                {value.toolBindingIds.map((bindingId) => (
+                  <Form.Item
+                    key={bindingId}
+                    label={`工具费用 · ${bindings.find((b) => b.bindingId === bindingId)?.name ?? bindingId}`}
+                  >
+                    <ToolBudgetPicker
+                      scope={context.scope}
+                      bindingId={bindingId}
+                      value={value.toolBudgetRefs?.[bindingId]}
+                      disabled={disabled}
+                      onChange={(budgetRef, price) => {
+                        const mapping = {...value.toolBudgetRefs};
+                        if (budgetRef) mapping[bindingId] = budgetRef;
+                        else delete mapping[bindingId];
+                        const limits =
+                          price &&
+                          !value.budgetLimits.some(
+                            (l) => l.currency === price.perCall.currency,
+                          )
+                            ? [
+                              ...value.budgetLimits,
+                              {
+                                currency: price.perCall.currency,
+                                amount: '0.00',
+                              },
+                            ]
+                            : value.budgetLimits;
+                        change({
+                          toolBudgetRefs: mapping,
+                          budgetLimits: limits,
+                        });
+                      }}
+                    />
+                  </Form.Item>
+                ))}
+                {value.budgetLimits.map((limit, index) => (
+                  <Form.Item
+                    key={limit.currency}
+                    label={`本次总费用上限（${limit.currency}）`}
                 >
                   <Input
-                    aria-label="工具聊天总费用上限"
+                    aria-label={
+                      index === 0
+                        ? '工具聊天总费用上限'
+                        : `工具聊天总费用上限 ${limit.currency}`
+                    }
                     disabled={disabled}
-                    value={value.budgetLimits[0]?.amount ?? ''}
+                    value={limit.amount}
                     onChange={(event) =>
                       change({
-                        budgetLimits: [
-                          {
-                            currency: currency ?? 'CNY',
+                        budgetLimits: value.budgetLimits.map((old, i) =>
+                          i === index
+                            ? {
+                              ...old,
                             amount: event.target.value,
-                          },
-                        ],
+                            }
+                            : old,
+                        ),
                       })
                     }
                   />
                 </Form.Item>
+                ))}
                 <Typography.Paragraph type="secondary">
-                  这是本次模型与工具循环的共同上限，同时受原模型账户余额约束。当前本地工具免费；所有模型轮次计费。金额使用十进制字符串。
+                  这是本次模型与工具循环的共同上限，同时受原模型账户余额约束。收费工具须选择独立费用账户；模型轮次按模型账户计费。每种币种分别限制，金额使用十进制字符串。
                 </Typography.Paragraph>
                 {value.readOnly && (
                   <Alert

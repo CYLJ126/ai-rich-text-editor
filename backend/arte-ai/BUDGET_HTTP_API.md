@@ -1,5 +1,8 @@
 # 新 AI 预算账户查询 HTTP 接口
 
+> S5-02 增量：工具按次价格、可信费用证据、独立／Run 账户、费用核对及升级要求见 [工具计费说明](TOOL_BILLING.md)
+> 。下文保留原批次边界，当前收费能力以该说明为准。
+
 `NewAiBudgetController` 查询当前用户授权范围内的预算账本，沿用新 AI HTTP 接口的 POST、`@Valid`、`Mono<ResultContext<...>>`
 和请求 Locale。只需 `arte.ai-new.enabled=true`；查询不依赖生成／执行开关或 Worker，也不调用模型。
 

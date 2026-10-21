@@ -28,6 +28,7 @@ const savedSchema = z.object({
       stopSequences: z.array(z.string()),
     }),
     toolBindingIds: z.array(id).min(1).max(128),
+    toolBudgetRefs: z.record(id, id).optional(),
     timeoutSeconds: z.number().int().min(1).max(3600),
     maxModelRounds: z.number().int().min(1).max(32),
     maxToolCalls: z.number().int().min(1).max(100),

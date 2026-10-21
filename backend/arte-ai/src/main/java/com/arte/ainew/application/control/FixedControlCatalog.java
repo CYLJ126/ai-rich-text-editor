@@ -67,11 +67,11 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
             ContractChecks.require(binding.target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote,
                     "Fixed generation catalog requires remote bindings");
             ContractChecks.require(binding.capability().equals(capabilities.get(binding.capability().definition()))
-                    && connections.containsKey(binding.connection()) && binding.rate() != null && rates.containsKey(binding.rate()), "Unresolved binding dependency");
+                    && connections.containsKey(binding.connection()) && binding.rate() != null && rates.containsKey(binding.rate()) && rates.get(binding.rate()).toolPerCall() == null, "Unresolved binding dependency");
         }
         for (var budget : budgets.values()) {
             ContractChecks.require(rates.containsKey(budget.rate())
-                    && rates.get(budget.rate()).inputPerMillion().currency().equals(budget.limit().currency()), "Unresolved budget rate/currency");
+                    && rates.get(budget.rate()).currency().equals(budget.limit().currency()), "Unresolved budget rate/currency");
         }
         for (var grant : properties.grants()) {
             ContractChecks.require(new HashSet<>(bindings.keySet().stream().map(DefinitionRef::id).toList()).containsAll(grant.bindingIds())

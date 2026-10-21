@@ -37,9 +37,18 @@ public final class NewAiHttpContext {
 
     public <T> Mono<T> read(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
                             boolean includeConfiguration, java.util.function.Function<ExecutionContext, Mono<T>> work) {
-        validate(scope, timeout, null, null);
+        return read(scope, scopes, timeout, includeConfiguration, null, work);
+    }
+
+    /**
+     * 在创建读取快照时固定幂等键，调用链不能改写已绑定的授权上下文。
+     */
+    public <T> Mono<T> read(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,
+                            boolean includeConfiguration, String idempotencyKey,
+                            java.util.function.Function<ExecutionContext, Mono<T>> work) {
+        validate(scope, timeout, null, idempotencyKey);
         return RequestObservation.observe(executionContextFactory.readCurrent(new ExecutionContextRequest(scope.tenantId(), scope.workspaceId(), scopes,
-                timeout, RequestObservation.currentTraceId(), null, properties.releaseRef(), null), includeConfiguration, work));
+                timeout, RequestObservation.currentTraceId(), null, properties.releaseRef(), idempotencyKey), includeConfiguration, work));
     }
 
     public Mono<ExecutionContext> create(ConversationRequests.Scope scope, Set<String> scopes, Duration timeout,

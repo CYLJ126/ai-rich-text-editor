@@ -69,6 +69,12 @@ public final class ToolAdmissionService {
     private final Scheduler scheduler;
     private final Clock clock;
     private final ToolApprovalPolicy approvals;
+    private com.arte.ainew.application.tool.billing.ToolBillingService billing;
+
+    public ToolAdmissionService paid(com.arte.ainew.application.tool.billing.ToolBillingService service) {
+        this.billing = service;
+        return this;
+    }
 
     /**
      * 注入当前服务端上限及受信宿主授权；构造零 SQL／零工具调用，Scheduler 由容器或调用方管理。
@@ -95,8 +101,23 @@ public final class ToolAdmissionService {
     }
 
     /**
-     * 当前授权且真实受理事务提交成功后才返回回执；相同意图重放返回原身份和原受理时间。
+     * 当前工具报价及已授权、已初始化的账户；查询不预留、不初始化、不执行工具。
      */
+    public record Budgets(com.arte.ainew.pojo.tool.ToolPrice price,
+                          java.util.List<com.arte.ainew.pojo.budget.BudgetCommands.Account> accounts) {
+    }
+
+    public Mono<Budgets> availableBudgets(String bindingId, ExecutionContext current) {
+        return bindings.inspect(ExecutionOwner.from(current), bindingId).flatMap(result -> {
+            require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
+            var price = result.value().tool().tool().price();
+            if (price == null) return Mono.just(new Budgets(null, java.util.List.of()));
+            if (billing == null)
+                return Mono.error(new org.springframework.security.access.AccessDeniedException("Tool billing disabled"));
+            return billing.available(price, current).map(accounts -> new Budgets(price, accounts));
+        }).subscribeOn(scheduler);
+    }
+
     public Mono<AcceptedExecution> submit(ToolAdmissionInput input, ExecutionContext context) {
         return submit(input, null, context);
     }
@@ -109,12 +130,12 @@ public final class ToolAdmissionService {
         return Mono.defer(() -> {
             require(step.input() instanceof ToolChatStep.Tool && root.context().executionId().equals(step.runId())
                     && step.runId().equals(context.parentExecutionId()) && step.childExecutionId().equals(context.executionId())
-                    && root.context().traceId().equals(context.traceId()) && context.budgetRef() == null
+                    && root.context().traceId().equals(context.traceId())
                     && ExecutionOwner.from(root.context()).equals(ExecutionOwner.from(context)), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
             var call = ((ToolChatStep.Tool) step.input()).call();
             var entry = root.tools().tool(call.tool());
             var input = new ToolAdmissionInput(entry.binding().definition().id(), call.arguments(), entry.policy().timeout(),
-                    entry.policy().maxAttempts(), entry.policy().maxOutputBytes());
+                    entry.policy().maxAttempts(), entry.policy().maxOutputBytes(), context.budgetRef());
             return store.snapshot(ExecutionOwner.from(context), step.childExecutionId()).flatMap(previous -> {
                 require(previous.request().input().callId().equals(call.callId()) && previous.request().input().arguments().equals(call.arguments())
                                 && previous.binding().equals(entry.binding()) && previous.policy().equals(ToolBindingConstraints.intersect(entry.policy(), limits)),
@@ -130,7 +151,7 @@ public final class ToolAdmissionService {
                         Instant deadline = earlier(context.deadline(), step.plannedAt().plus(policy.timeout()));
                         remaining(deadline);
                         var child = new ExecutionContext(context.executionId(), context.traceId(), p.authorization(), deadline,
-                                step.runId(), null, context.releaseRef(), context.idempotencyKey());
+                                step.runId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
                         var invocation = new ToolInvocation(call.callId(), call.tool(), call.arguments());
                         var options = new ExecutionOptions(deadline, policy.maxAttempts(), policy.maxOutputBytes(), 0, 0, policy.timeout());
                         var request = new InvocationRequest<>(entry.binding().tool().tool().capability(), entry.binding().definition(), invocation.kind(), invocation, options, child);
@@ -242,7 +263,7 @@ public final class ToolAdmissionService {
             return ToolObservation.mono(HOST_AUTHORIZATION, original, deadline, () -> permit(input, original, binding)).flatMap(permit -> {
                 remaining(deadline);
                 var context = new ExecutionContext(original.executionId(), original.traceId(), permit.authorization(), deadline,
-                        null, null, original.releaseRef(), original.idempotencyKey());
+                        null, input.budgetRef(), original.releaseRef(), original.idempotencyKey());
                 var invocation = new ToolInvocation(ToolAdmissionDigests.callId(binding.owner(), input.bindingId(), context.idempotencyKey()),
                         binding.tool().tool().definition(), input.arguments());
                 var options = new ExecutionOptions(deadline, Math.min(policy.maxAttempts(), input.maxAttempts() == null ? policy.maxAttempts() : input.maxAttempts()),
@@ -256,7 +277,13 @@ public final class ToolAdmissionService {
     }
 
     private Mono<VerifiedPermit> permit(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
-        return Mono.defer(() -> access.authorizeFree(input, context, binding))
+        return Mono.defer(() -> {
+                    var price = binding.tool().tool().price();
+                    if (price != null && billing == null)
+                        return Mono.error(new org.springframework.security.access.AccessDeniedException("Tool billing disabled"));
+                    return (price == null ? Mono.<Void>empty() : billing.requireAccount(input.budgetRef(), price, context).then())
+                            .then(Mono.defer(() -> access.authorize(input, context, binding)));
+        })
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED)))
                 .map(permit -> {
                     var current = Objects.requireNonNull(permit.authorization());
@@ -325,10 +352,11 @@ public final class ToolAdmissionService {
     }
 
     /**
-     * 人工模式要求可信审批政策；HTTP 只开放独立白名单的只读分支，不开放付费或扩展协议特性。
+     * 人工模式要求可信审批政策；目标协议和免费／收费均须有实际执行器与宿主授权，不因预算存在放开协议特性。
      */
     private void validate(ToolAdmissionInput input, ToolBindingResolution binding, List<ToolSchemaDefinition> documents, ToolExecutionPolicy policy) {
         var tool = binding.tool().tool();
+        require(tool.price() == null ? input.budgetRef() == null : input.budgetRef() != null, ResultCodeEnum.AI_TOOL_POLICY_DENIED);
         require(ToolExecutionRules.supportedTarget(binding, policy)
                         && ToolExecutionRules.supported(tool.risk(), policy)
                         && (policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE || approvals != null)

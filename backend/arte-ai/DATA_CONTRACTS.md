@@ -1,5 +1,8 @@
 # 最小 AI 数据契约 v1
 
+> S5-02 增量：工具按次价格、可信费用证据、独立／Run 账户、费用核对及升级要求见 [工具计费说明](TOOL_BILLING.md)
+> 。下文保留原批次边界，当前收费能力以该说明为准。
+
 > S5-01：受控 HTTP 独立／Run 子工具的 tool-execution-snapshot 使用 v5，按 Remote 目标严格区分；本地 v1—v4 保持原义，禁止降级重标。
 > RemoteToolCall／ToolExecutionCall 仅为进程内授权材料，不增加持久化根别名。HTTP 合同包含固定连接摘要，不保存凭据或原远端响应；无新增
 > DDL。

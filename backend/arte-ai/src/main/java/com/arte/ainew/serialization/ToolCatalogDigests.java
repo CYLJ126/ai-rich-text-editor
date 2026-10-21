@@ -38,7 +38,7 @@ public final class ToolCatalogDigests {
 
     public static String tool(ToolDefinition tool) {
         var risk = tool.risk();
-        return CanonicalJson.digest(CanonicalJson.fields(
+        var fields = CanonicalJson.fields(
                 "definition", tool.definition(), "providerId", tool.providerId(), "title", tool.title(),
                 "description", tool.description(), "tags", tool.tags().stream().sorted().toList(),
                 "capability", tool.capability(), "inputSchema", tool.inputSchema(), "outputSchema", tool.outputSchema(),
@@ -48,7 +48,9 @@ public final class ToolCatalogDigests {
                 "risk", CanonicalJson.fields("sideEffect", risk.sideEffect(), "destructive", risk.destructive(),
                         "idempotency", risk.idempotency(), "requiredScopes", risk.requiredScopes().stream().sorted().toList(),
                         "allowedNetworkOrigins", risk.allowedNetworkOrigins().stream().map(Object::toString).sorted().toList()),
-                "defaultPolicy", tool.defaultPolicy()));
+                "defaultPolicy", tool.defaultPolicy());
+        if (tool.price() != null) fields.put("price", tool.price());
+        return CanonicalJson.digest(fields);
     }
 
     /**

@@ -19,7 +19,12 @@ import java.util.Objects;
  */
 public record ToolResult(String callId, Outcome outcome, StructuredValue output, List<SourceRef> sources,
                          List<ArtifactRef> artifacts, ExecutionError.SideEffect sideEffect,
-                         ExecutionError error) implements Serializable {
+                         ExecutionError error,
+                         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) ToolCharge charge) implements Serializable {
+    public ToolResult(String callId, Outcome outcome, StructuredValue output, List<SourceRef> sources, List<ArtifactRef> artifacts,
+                      ExecutionError.SideEffect sideEffect, ExecutionError error) {
+        this(callId, outcome, output, sources, artifacts, sideEffect, error, null);
+    }
     public enum Outcome {SUCCEEDED, FAILED, UNKNOWN}
 
     public ToolResult {

@@ -22,7 +22,8 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                                             long timeoutMillis, int maxAttempts,
                                             long maxInputBytes, long maxOutputBytes, String approvalMode,
                                             String billingMode, String costDescription, long approvalWindowMillis,
-                                            long executionMarginMillis, java.util.List<String> approverSubjectIds) {
+                                            long executionMarginMillis, java.util.List<String> approverSubjectIds,
+                                            String budgetRef, com.arte.ainew.pojo.tool.ToolPrice price) {
     public static ToolInvocationPreviewResponse from(ToolAdmissionService.Preview preview) {
         var basic = from(preview.snapshot());
         return new ToolInvocationPreviewResponse(ToolApprovalPolicy.previewDigest(preview.snapshot(), preview.approval()), basic.binding(), basic.revision(),
@@ -30,7 +31,7 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                 basic.maxAttempts(), basic.maxInputBytes(), basic.maxOutputBytes(), preview.snapshot().policy().approvalMode().name(), basic.billingMode(),
                 basic.costDescription(), preview.approval() == null ? 0 : java.time.Duration.between(preview.snapshot().receivedAt(), preview.approval().expiresAt()).toMillis(),
                 preview.approval() == null ? 0 : preview.approval().executionMargin().toMillis(),
-                preview.approval() == null ? java.util.List.of() : preview.approval().approverSubjectIds().stream().sorted().toList());
+                preview.approval() == null ? java.util.List.of() : preview.approval().approverSubjectIds().stream().sorted().toList(), basic.budgetRef(), basic.price());
     }
     public static ToolInvocationPreviewResponse from(ToolExecutionSnapshot snapshot) {
         var options = snapshot.request().options();
@@ -42,9 +43,9 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                 ToolManagementResponses.schema(snapshot.schemas().stream()
                         .filter(schema -> schema.definition().equals(binding.tool().tool().inputSchema())).findFirst().orElseThrow()),
                 options.requestedTimeout().toMillis(),
-                options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), snapshot.policy().approvalMode().name(), "FREE",
-                (binding.tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
+                options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), snapshot.policy().approvalMode().name(), binding.tool().tool().price() == null ? "FREE" : "CHARGE",
+                (binding.tool().tool().price() != null ? "本次按次收费，先预留报价上界；实际费用以可信账单结算，未知费用保留占用。" : binding.tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
                         ? "本次为本地免费业务写工具，须人工决定及当前资源权限；不调用聊天模型，不预留或扣减模型预算。"
-                        : "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。"), 0, 0, java.util.List.of());
+                        : "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。"), 0, 0, java.util.List.of(), snapshot.input().budgetRef(), binding.tool().tool().price());
     }
 }

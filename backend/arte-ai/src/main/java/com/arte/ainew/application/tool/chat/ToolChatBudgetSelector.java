@@ -39,6 +39,12 @@ public final class ToolChatBudgetSelector {
     private final BudgetService budgets;
     private final ToolBindingService bindings;
     private final Clock clock;
+    private com.arte.ainew.application.tool.billing.ToolBillingService billing;
+
+    public ToolChatBudgetSelector paid(com.arte.ainew.application.tool.billing.ToolBillingService service) {
+        this.billing = service;
+        return this;
+    }
 
     public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                   BudgetService budgets, ToolBindingService bindings, Clock clock) {
@@ -63,7 +69,7 @@ public final class ToolChatBudgetSelector {
                     var rate = configuration.rates().stream().filter(r -> r.definition().equals(model.rate())).findFirst().orElse(null);
                     var configured = configuration.budgets().stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst().orElse(null);
                     var owner = ExecutionOwner.from(current);
-                    if (rate == null || configured == null || !configured.owner().equals(owner) || !configured.rate().equals(model.rate())
+                    if (rate == null || rate.toolPerCall() != null || configured == null || !configured.owner().equals(owner) || !configured.rate().equals(model.rate())
                             || !configured.limit().currency().equals(rate.inputPerMillion().currency()))
                         return denied();
                     return budgets.account(owner, budgetRef).switchIfEmpty(denied()).flatMap(account -> {
@@ -78,6 +84,7 @@ public final class ToolChatBudgetSelector {
     }
 
     private Mono<ToolChatBudgetPlan.Selection> free(ToolSetSnapshot.Entry entry, ExecutionContext current) {
+        if (entry.binding().tool().tool().price() != null) return denied();
         if (bindings == null) return denied();
         return bindings.fixed(ExecutionOwner.from(current), entry.binding().definition()).flatMap(result -> {
             if (!result.successful() || !result.value().equals(entry.binding())
@@ -89,15 +96,31 @@ public final class ToolChatBudgetSelector {
         }).switchIfEmpty(denied());
     }
 
+    private Mono<ToolChatBudgetPlan.Selection> tool(ToolSetSnapshot.Entry entry, String budgetRef, ExecutionContext current) {
+        var price = entry.binding().tool().tool().price();
+        if (price == null) return budgetRef == null ? free(entry, current) : denied();
+        if (billing == null || bindings == null) return denied();
+        return bindings.fixed(ExecutionOwner.from(current), entry.binding().definition()).flatMap(result -> {
+            if (!result.successful() || !result.value().equals(entry.binding()) || !current.authorization().scopes().containsAll(entry.binding().tool().tool().risk().requiredScopes()))
+                return denied();
+            return billing.requireAccount(budgetRef, price, current).map(account -> new ToolChatBudgetPlan.Selection(entry.binding().definition(),
+                    entry.binding().tool().tool().capability(), CapabilityDescriptor.Kind.TOOL, BillingMode.CHARGE, budgetRef, price.rate(), null, price));
+        }).switchIfEmpty(denied());
+    }
+
     /**
-     * 受理前准备：预算上限可收紧，账户必须来自当前 grant 与实际账本，工具显式 FREE。
+     * 受理前准备：预算上限可收紧，账户必须来自当前 grant 与实际账本，工具按固定合同选择 FREE／CHARGE。
      */
     public Mono<ToolChatBudgetPlan> prepare(ToolChatRunSnapshot fixed, List<Money> limits, String modelBudgetRef, ExecutionContext context) {
+        return prepare(fixed, limits, modelBudgetRef, java.util.Map.of(), context);
+    }
+
+    public Mono<ToolChatBudgetPlan> prepare(ToolChatRunSnapshot fixed, List<Money> limits, String modelBudgetRef, java.util.Map<String, String> toolBudgets, ExecutionContext context) {
         ContractChecks.id(modelBudgetRef, "model budgetRef");
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> {
             if (!ExecutionOwner.from(current).equals(ExecutionOwner.from(fixed.context()))) return denied();
             return model(fixed, modelBudgetRef, current).flatMap(model -> Flux.fromIterable(fixed.tools().entries())
-                    .concatMap(entry -> free(entry, current)).collectList().map(tools -> {
+                    .concatMap(entry -> tool(entry, toolBudgets.get(entry.binding().definition().id()), current)).collectList().map(tools -> {
                         var selections = new ArrayList<>(tools);
                         selections.add(model);
                         return new ToolChatBudgetPlan(limits, selections);
@@ -132,7 +155,7 @@ public final class ToolChatBudgetSelector {
                             if (!scopes.containsAll(entry.binding().tool().tool().risk().requiredScopes()))
                                 return denied();
                             selected = fixed.budgetPlan().selection(entry.binding().definition());
-                            refreshed = free(entry, current);
+                            refreshed = tool(entry, selected.budgetRef(), current);
                         }
                         return refreshed.flatMap(choice -> {
                             if (!choice.equals(selected)) return denied();

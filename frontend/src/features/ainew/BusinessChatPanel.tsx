@@ -79,7 +79,7 @@ export default function BusinessChatPanel({
   const toolPending = !!toolCommand.saved && !toolCommand.saved.acceptedId;
   const toolBlocked = toolCommand.blocked || toolCommand.storageError || toolCommand.busy || toolPending || runBusy || !!toolCommand.stop;
   const toolModelUnsupported = !!toolChoice && option?.toolCallsSupported !== true;
-  const toolChoiceInvalid = !!toolChoice && (!toolChoice.toolBindingIds.length || !chat.budget || toolChoice.budgetLimits.some(b => b.currency !== chat.budget?.currency || !/^[0-9]{1,18}(\.[0-9]{1,18})?$/.test(b.amount)));
+  const toolChoiceInvalid = !!toolChoice && (!toolChoice.toolBindingIds.length || !chat.budget || !toolChoice.budgetLimits.some(b => b.currency === chat.budget?.currency) || toolChoice.budgetLimits.some(b => !/^[0-9]{1,18}(\.[0-9]{1,18})?$/.test(b.amount)));
 
   function sendMessage() {
     if (!toolChoice) {
@@ -104,6 +104,7 @@ export default function BusinessChatPanel({
       },
       timeoutSeconds: config.timeoutSeconds,
       toolBindingIds: toolChoice.toolBindingIds,
+      ...(toolChoice.toolBudgetRefs ? {toolBudgetRefs: toolChoice.toolBudgetRefs} : {}),
       maxModelRounds: toolChoice.maxModelRounds,
       maxToolCalls: toolChoice.maxToolCalls,
       maxConcurrentTools: toolChoice.maxConcurrentTools,
@@ -246,7 +247,7 @@ export default function BusinessChatPanel({
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
-  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。' : toolChoiceInvalid ? '请选择工具并填写与模型预算同币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
+  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。' : toolChoiceInvalid ? '请选择工具并填写模型及工具所需币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">

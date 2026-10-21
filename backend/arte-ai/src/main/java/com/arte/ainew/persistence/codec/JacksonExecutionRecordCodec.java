@@ -59,6 +59,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             Map.entry(ToolApproval.class, "tool-approval"),
             Map.entry(ToolApprovalReceipt.class, "tool-approval-receipt"),
             Map.entry(ToolExecutionSnapshot.class, "tool-execution-snapshot"),
+            Map.entry(ToolCharge.class, "tool-charge"),
             Map.entry(ToolDiscoveryReceipt.class, "tool-discovery-receipt"),
             Map.entry(ToolBindingDefinition.class, "tool-binding"),
             Map.entry(ToolBindingRevision.class, "tool-binding-revision"),
@@ -127,13 +128,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             throw new IllegalArgumentException("Unregistered snapshot type");
         }
         var node = mapper.createObjectNode();
-        node.put("schemaVersion", value instanceof ToolExecutionSnapshot remote && remote.binding().tool().target() instanceof ExecutionTarget.Remote ? 5 : value instanceof ToolExecutionSnapshot childSnapshot && childSnapshot.request().context().parentExecutionId() != null
-                ? 4 : value instanceof ToolExecutionSnapshot writeSnapshot
-                && writeSnapshot.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
-                ? 3 : value instanceof ToolChatRunSnapshot run && run.budgetPlan() != null || value instanceof Turn || value instanceof ResolvedBinding || value instanceof ToolBindingReceipt receipt
-                && receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT
-                || value instanceof ToolExecutionSnapshot snapshot && snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE
-                ? 2 : 1).put("type", alias);
+        node.put("schemaVersion", schemaVersion(value)).put("type", alias);
         node.set("body", mapper.valueToTree(value));
         if (value instanceof ToolChatRunSnapshot run && run.budgetPlan() == null)
             ((tools.jackson.databind.node.ObjectNode) node.get("body")).remove("budgetPlan");
@@ -152,7 +147,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         }
         var node = mapper.readTree(json);
         int version = node.path("schemaVersion").asInt();
-        if ((expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
+        if ((expectedType == ToolCharge.class || expectedType == ToolDefinitionRevision.class || expectedType == InvocationResult.class || expectedType == ResolvedBinding.class || expectedType == ToolRelease.class || expectedType == ToolReleaseReceipt.class || expectedType == ToolDiscoveryReceipt.class
                 || expectedType == ToolBindingDefinition.class || expectedType == ToolBindingRevision.class
                 || expectedType == ToolBindingResolution.class || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class
                 || expectedType == ToolApproval.class || expectedType == ToolApprovalReceipt.class
@@ -161,9 +156,10 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
-        if ((version != 1 && !((expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
+        if ((version != 1 && !((expectedType == InvocationResult.class || expectedType == ToolDefinitionRevision.class || expectedType == ToolBindingResolution.class || expectedType == ToolChatBudgetAllocation.class || expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
                 || expectedType == ToolExecutionSnapshot.class) && version == 2)
-                && !(expectedType == ToolExecutionSnapshot.class && (version == 3 || version == 4 || version == 5)))
+                && !(expectedType == ToolExecutionSnapshot.class && (version == 3 || version == 4 || version == 5 || version == 6))
+                && !(expectedType == ToolChatRunSnapshot.class && version == 3))
                 || !alias.equals(node.path("type").asString())) {
             throw new IllegalArgumentException("Unsupported snapshot schema");
         }
@@ -178,15 +174,32 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!body.isObject() || version == 1 && body.has("target") || version == 2 && !body.has("target")))
             throw new IllegalArgumentException("Binding snapshot shape does not match version");
         var value = mapper.treeToValue(body, expectedType);
-        if (value instanceof ToolExecutionSnapshot snapshot && version != (snapshot.binding().tool().target() instanceof ExecutionTarget.Remote ? 5 : snapshot.request().context().parentExecutionId() != null ? 4 : snapshot.binding().tool().tool().risk().sideEffect()
-                == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE ? 3
-                : snapshot.policy().approvalMode() != ToolExecutionPolicy.ApprovalMode.NONE ? 2 : 1))
-            throw new IllegalArgumentException("Tool approval policy does not match snapshot version");
+        if ((value instanceof ToolExecutionSnapshot || value instanceof ToolDefinitionRevision || value instanceof ToolBindingResolution
+                || value instanceof ToolChatRunSnapshot || value instanceof ToolChatBudgetAllocation || value instanceof InvocationResult)
+                && version != schemaVersion(value))
+            throw new IllegalArgumentException("Paid snapshot shape does not match version");
         if (value instanceof ToolBindingReceipt receipt && (version == 2)
                 != (receipt.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT))
             throw new IllegalArgumentException("Binding command does not match snapshot version");
         validate(value);
         return value;
+    }
+
+    private static int schemaVersion(Object value) {
+        if (value instanceof ToolExecutionSnapshot s) {
+            if (s.binding().tool().tool().price() != null) return 6;
+            if (s.binding().tool().target() instanceof ExecutionTarget.Remote) return 5;
+            if (s.request().context().parentExecutionId() != null) return 4;
+            if (s.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE)
+                return 3;
+            return s.policy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE ? 1 : 2;
+        }
+        if (value instanceof ToolChatRunSnapshot s)
+            return s.budgetPlan() == null ? 1 : s.tools().entries().stream().anyMatch(e -> e.binding().tool().tool().price() != null) ? 3 : 2;
+        if (value instanceof ToolDefinitionRevision r && r.tool().price() != null || value instanceof ToolBindingResolution binding && binding.tool().tool().price() != null
+                || value instanceof ToolChatBudgetAllocation a && a.chargeKind().equals("TOOL")
+                || value instanceof InvocationResult.Tool result && result.value().charge() != null) return 2;
+        return value instanceof Turn || value instanceof ResolvedBinding || value instanceof ToolBindingReceipt r && r.command().action() == ToolBindingCommand.Action.ENSURE_DEFAULT ? 2 : 1;
     }
 
     private void validate(Object value) {

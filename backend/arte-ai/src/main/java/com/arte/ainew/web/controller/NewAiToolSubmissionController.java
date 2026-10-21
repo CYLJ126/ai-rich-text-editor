@@ -3,7 +3,6 @@ package com.arte.ainew.web.controller;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.common.execution.AcceptedExecution;
-import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.web.NewAiHttpContext;
@@ -47,11 +46,23 @@ public class NewAiToolSubmissionController {
         this.timeout = properties.limits().maximumTimeout();
     }
 
+    public record ToolBudgets(com.arte.ainew.pojo.tool.ToolPrice price,
+                              java.util.List<com.arte.ainew.web.response.BudgetAccountResponse> accounts) {
+    }
+
+    @PostMapping("/availableToolBudgets")
+    public Mono<ResultContext<ToolBudgets>> available(@Valid @RequestBody ToolInvocationRequests.Budgets request, Locale locale) {
+        return contexts.read(new ConversationRequests.Scope(request.scope().tenantId(), request.scope().workspaceId()),
+                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), timeout, true,
+                        current -> service().availableBudgets(request.bindingId(), current))
+                .map(value -> ResultContext.success(new ToolBudgets(value.price(), value.accounts().stream().map(com.arte.ainew.web.response.BudgetAccountResponse::from).toList()), ResultCodeEnum.SUCCESS, locale));
+    }
+
     @PostMapping("/previewInvocation")
     public Mono<ResultContext<ToolInvocationPreviewResponse>> preview(@Valid @RequestBody ToolInvocationRequests.Preview request, Locale locale) {
         var input = request.input().value();
         return contexts.read(new ConversationRequests.Scope(request.scope().tenantId(), request.scope().workspaceId()),
-                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), requestTimeout(input.requestedTimeout()), false,
+                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), requestTimeout(input.requestedTimeout()), input.budgetRef() != null, "preview",
                         context -> service().previewPlan(input, context))
                 .map(value -> ResultContext.success(ToolInvocationPreviewResponse.from(value), ResultCodeEnum.SUCCESS, locale));
     }
@@ -62,8 +73,8 @@ public class NewAiToolSubmissionController {
         ContractChecks.id(key, "Idempotency-Key");
         var input = request.input().value();
         return contexts.read(new ConversationRequests.Scope(request.scope().tenantId(), request.scope().workspaceId()),
-                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), requestTimeout(input.requestedTimeout()), false,
-                        context -> service().submit(input, request.expectedPlanDigest(), withKey(context, key)))
+                        Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), requestTimeout(input.requestedTimeout()), input.budgetRef() != null, key,
+                        context -> service().submit(input, request.expectedPlanDigest(), context))
                 .map(value -> ResponseEntity.accepted().body(ResultContext.success(value, ResultCodeEnum.SUCCESS, locale)));
     }
 
@@ -81,8 +92,4 @@ public class NewAiToolSubmissionController {
         return requested == null || requested.compareTo(timeout) > 0 ? timeout : requested;
     }
 
-    private static ExecutionContext withKey(ExecutionContext context, String key) {
-        return new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(),
-                null, null, context.releaseRef(), key);
-    }
 }

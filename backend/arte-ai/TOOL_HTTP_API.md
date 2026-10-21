@@ -1,5 +1,8 @@
 # AI TOOL HTTP API（管理与独立调用）
 
+> S5-02 增量：工具按次价格、可信费用证据、独立／Run 账户、费用核对及升级要求见 [工具计费说明](TOOL_BILLING.md)
+> 。下文保留原批次边界，当前收费能力以该说明为准。
+
 S5-01 更新：新增 `arte.http.health` 受控免费 HTTP 只读工具，复用本文发布、默认绑定、预览、提交、查询和停止接口；
 `refreshLocalCatalog` 现在也刷新部署代码登记的 HTTP 元数据，不发起远端发现或探测。认证、网络、快照 v5、部署清单和预算边界见
 [受控 HTTP 工具说明](TOOL_HTTP_REMOTE.md)。下文按原批次保留历史范围。
@@ -244,19 +247,20 @@ aiTool:invoke、当前免费只读和实际资源资格；该端口在真实受�
 | previewInvocation | `{scope,input}` | HTTP 200，`ToolInvocationPreviewResponse`，不执行或写入 |
 | invokeTool | `{scope,input,expectedPlanDigest}`，必填 Idempotency-Key | HTTP 202，AcceptedExecution；受理后异步执行 |
 
-`input={bindingId,arguments,timeoutSeconds?,maxAttempts?,maxOutputBytes?}`。arguments 为标准 JSON 对象，保留精确数值，
+`input={bindingId,arguments,timeoutSeconds?,maxAttempts?,maxOutputBytes?,budgetRef?}`。arguments 为标准 JSON 对象，保留精确数值，
 拒绝重复键／过深／过大输入；业务参数仍由固定输入 Schema 独立校验。timeoutSeconds 为 1～3600 整数，maxAttempts 为 1～10，
 maxOutputBytes 为 1～33554432，实际值取工具／绑定／服务端上限交集。次数上限不授权自动重试。 白名单拒绝
-owner、actor、scopes、target、budgetRef、费用事实等额外字段。
+owner、actor、scopes、target、余额／费率／费用事实等额外字段。S5-02 仅增加已授权账户选择 budgetRef：收费必填，免费禁止。
 
 预览返回 planDigest、binding（p1）、revision（rN）、tool、title、inputSchema、argumentsJson、configurationJson、
-timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode（NONE／REQUESTER_CONFIRMATION／INDEPENDENT_APPROVAL）、billingMode=FREE、costDescription。
+timeoutMillis／maxAttempts／maxInputBytes／maxOutputBytes、approvalMode（NONE／REQUESTER_CONFIRMATION／INDEPENDENT_APPROVAL）、billingMode（FREE／CHARGE）、costDescription，以及收费时的
+budgetRef／price。
 不暴露内部执行目标、临时授权或完整快照。预览只规划，不预占队列；正式提交仍需分类调度就绪。
 
 摘要覆盖真实 owner、完整参数／限制意图、固定工具／配置／策略、权限上限和 Schema；忽略临时 ID、trace、绝对期限。 参数、有效版本或限制变化使新提交返回
 409／205053，需重新预览。同键重放从原快照比较意图与摘要，返回原执行编号及受理时间， 不跟随新的兼容版本；异义冲突为
 409／205027。提交事务对真正胜出的原／新快照再次门控，不能借并发重放绕过摘要校验。 当前受理免费工具无
-budgetRef，不调用模型、不预留或扣减模型预算；不是独立收费账户，也不扩展付费工具／工具聊天。
+budgetRef，不调用模型、不预留或扣减模型预算。S5-02 收费调用使用已批准工具费率账户及原账本，见 [计费说明](TOOL_BILLING.md)。
 
 状态／结果沿用 invocation/getInvocationStatus、getInvocationResult；TOOL 结果追加 outputJson，页面按纯文本显示精确 JSON。 停止用
 tool/cancelToolInvocation；停止回执只说明命令事实。人工审批入口见下节；写工具、远端与费用核对仍在后续阶段。
@@ -341,3 +345,11 @@ managed=true、列表与写命令要求当前显式 `aiTool:reconcile` + 原空�
 Invocation／Attempt／operationKey、字符串双版本、原因、下一步及幂等键定位，拒绝客户端自报角色或预算。 当前仅开放数据库可复验的
 DOMAIN_RECEIPT，不凭手填来源或浏览器结论提交成功；无法判定保留 UNKNOWN。
 详细请求、响应、额度、超期提醒及部署见 [人工核对说明](TOOL_RECONCILIATION.md)。
+
+## S5-02 账户选择与预览
+
+新增 `POST /ai-new/tool/availableToolBudgets`，输入 `{scope,bindingId}`；要求当前 READ／INVOKE，返回 `{price,accounts}`。
+免费合同 price=null，accounts=[]；收费只列当前批准、已初始化、owner／rate／currency／limit 相符的账户。
+模型账户不自动继承，查询失败不能解释为免费。preview／submit 的 budgetRef 纳入确认及幂等摘要，账户或报价变化须重新预览。 Run
+提交在 toolBindingIds 外增加 toolBudgetRefs，币种限额涵盖模型和收费工具的共同累计费用。
+完整收费边界、费用核对及部署顺序见 [计费说明](TOOL_BILLING.md)。

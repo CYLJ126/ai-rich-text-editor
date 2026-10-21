@@ -93,12 +93,25 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
     /**
      * 单价固定到每百万输入／输出 token；计费实现将在派发阶段接入，未知用量不推导零费用。
      */
-    public record Rate(DefinitionRef definition, Money inputPerMillion, Money outputPerMillion) {
+    public record Rate(DefinitionRef definition, Money inputPerMillion, Money outputPerMillion,
+                       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) Money toolPerCall) {
+        public Rate(DefinitionRef definition, Money inputPerMillion, Money outputPerMillion) {
+            this(definition, inputPerMillion, outputPerMillion, null);
+        }
+
+        public java.util.Currency currency() {
+            return toolPerCall == null ? inputPerMillion.currency() : toolPerCall.currency();
+        }
+
+        @ConstructorBinding
         public Rate {
             Objects.requireNonNull(definition).requireType("rate");
-            Objects.requireNonNull(inputPerMillion);
-            Objects.requireNonNull(outputPerMillion);
-            ContractChecks.require(inputPerMillion.currency().equals(outputPerMillion.currency()), "Rate currency mismatch");
+            if (toolPerCall == null) {
+                Objects.requireNonNull(inputPerMillion);
+                Objects.requireNonNull(outputPerMillion);
+                ContractChecks.require(inputPerMillion.currency().equals(outputPerMillion.currency()), "Rate currency mismatch");
+            } else
+                ContractChecks.require(inputPerMillion == null && outputPerMillion == null, "Tool rate must not contain Token prices");
         }
     }
 

@@ -19,6 +19,7 @@ final class GenerationPricing {
     }
 
     static Money amount(NewAiProperties.Rate rate, long input, long output) {
+        if (rate.toolPerCall() != null) throw new IllegalArgumentException("Generation requires Token pricing");
         var cost = rate.inputPerMillion().amount().multiply(BigDecimal.valueOf(input))
                 .add(rate.outputPerMillion().amount().multiply(BigDecimal.valueOf(output)))
                 .divide(BigDecimal.valueOf(1_000_000), 18, RoundingMode.HALF_UP);

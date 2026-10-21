@@ -674,7 +674,7 @@ create table arte_ai_tool_chat_budget_allocation
     invocation_key  char(64)    not null comment '收费子 Invocation ID 的长度前缀 SHA-256 摘要',
     attempt_key     char(64)    not null comment '收费 Attempt ID 的长度前缀 SHA-256 摘要，全局唯一',
     attempt_number  int         not null comment '子 Invocation 内的尝试序号，从 1 开始；重试独立占用额度',
-    charge_kind     varchar(16) not null comment '费用类别；当前仅支持 MODEL（模型调用），付费工具尚未开放',
+    charge_kind varchar(16) not null comment '费用类别；MODEL 模型调用或 TOOL 按次收费工具',
     reservation_key char(64)    not null comment '账户 Reservation ID 的长度前缀 SHA-256 摘要，与本分配记录一一对应',
     digest          char(64)    not null comment 'snapshot 编码内容的 SHA-256 摘要，用于读取时校验完整性',
     snapshot        longtext    not null comment '分配快照：固定报价、费率、账户引用、预留身份、费用状态、实际费用及版本；未知费用保留报价预留',
@@ -683,3 +683,21 @@ create table arte_ai_tool_chat_budget_allocation
     unique key uk_tool_chat_allocation_reservation(reservation_key),
     constraint fk_tool_chat_allocation_run foreign key (run_key) references arte_ai_tool_chat_run (run_key)
 ) engine=InnoDB comment '收费 Attempt 唯一 Run 预留事实；未知费用不因到期或取消释放';
+
+-- S5-02：已有环境在升级消费者后、启用收费工具前执行一次；不修改既有账户或历史费用。
+create table arte_ai_tool_bill
+(
+    attempt_key     char(64) not null primary key comment '收费 Attempt 摘要，一次尝试仅一份不可变费用事实',
+    invocation_key  char(64) not null comment '所属 Invocation 摘要',
+    owner_key       char(64) not null comment '主体和空间归属摘要',
+    payload_digest  char(64) not null comment '费用快照 SHA-256 摘要',
+    charge_snapshot longtext not null comment '可信账单或未进入适配器的零费用证据；不含密钥及原始响应',
+    constraint fk_tool_bill_attempt foreign key (attempt_key) references arte_ai_attempt (id_key),
+    constraint fk_tool_bill_invocation foreign key (invocation_key) references arte_ai_invocation (id_key)
+) engine=InnoDB comment '工具独立费用证据，业务结果保存失败时仍可恢复结算';
+create table arte_ai_tool_price_guard
+(
+    rate_key     char(64) not null primary key comment '固定工具费率引用摘要，跨账户及 Run 共享',
+    blocked      boolean  not null default false comment '真实费用超过报价后锁存，禁止该费率新派发',
+    evidence_ref varchar(256) null comment '触发阻断的可信费用证据引用'
+) engine=InnoDB comment '工具报价上界失效阻断，不自动复位';

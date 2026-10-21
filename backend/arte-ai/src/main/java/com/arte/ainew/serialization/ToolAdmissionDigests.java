@@ -22,9 +22,11 @@ public final class ToolAdmissionDigests {
      * 重放定位后的语义比较不重新选择绑定版本，也不比较当前服务器默认策略。
      */
     public static String submission(ExecutionOwner owner, ToolAdmissionInput input) {
-        return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-submission-v1", "owner", owner,
+        var fields = CanonicalJson.fields("format", "local-free-tool-submission-v1", "owner", owner,
                 "bindingId", input.bindingId(), "arguments", ToolCatalogDigests.configuration(input.arguments()),
-                "requestedTimeout", input.requestedTimeout(), "maxAttempts", input.maxAttempts(), "maxOutputBytes", input.maxOutputBytes()));
+                "requestedTimeout", input.requestedTimeout(), "maxAttempts", input.maxAttempts(), "maxOutputBytes", input.maxOutputBytes());
+        if (input.budgetRef() != null) fields.put("budgetRef", input.budgetRef());
+        return CanonicalJson.digest(fields);
     }
 
     /**
@@ -33,6 +35,16 @@ public final class ToolAdmissionDigests {
     public static String request(ToolExecutionSnapshot snapshot) {
         var request = snapshot.request();
         var plan = snapshot.binding();
+        if (plan.tool().tool().price() != null)
+            return CanonicalJson.digest(CanonicalJson.fields("format", "paid-tool-request-v1",
+                    "submission", snapshot.submissionDigest(), "binding", plan.definition(), "revision", plan.revision(),
+                    "owner", plan.owner(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
+                    "target", plan.tool().target(), "price", plan.tool().tool().price(), "policy", snapshot.policy(),
+                    "parent", request.context().parentExecutionId(), "budgetRef", request.context().budgetRef(),
+                    "options", request.options(), "call", request.input(),
+                    "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
+                            .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                    "scopes", new TreeSet<>(request.context().authorization().scopes())));
         if (request.context().parentExecutionId() != null)
             return CanonicalJson.digest(CanonicalJson.fields("format", "tool-chat-tool-execution-v1",
                     "parent", request.context().parentExecutionId(), "child", request.context().executionId(),
@@ -59,9 +71,19 @@ public final class ToolAdmissionDigests {
     public static String plan(ToolExecutionSnapshot snapshot) {
         var request = snapshot.request();
         var plan = snapshot.binding();
+        if (plan.tool().tool().price() != null)
+            return CanonicalJson.digest(CanonicalJson.fields("format", "paid-tool-preview-v1",
+                    "submission", snapshot.submissionDigest(), "binding", plan.definition(), "revision", plan.revision(),
+                    "owner", plan.owner(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
+                    "target", plan.tool().target(), "price", plan.tool().tool().price(), "policy", snapshot.policy(),
+                    "billingMode", "CHARGE", "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
+                    "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
+                            .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                    "maxAttempts", request.options().maxAttempts(), "maxOutputBytes", request.options().maxOutputBytes(),
+                    "timeout", request.options().requestedTimeout()));
         return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-preview-v1",
                 "submission", snapshot.submissionDigest(), "binding", plan, "policy", snapshot.policy(),
-                "billingMode", "FREE", "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
+                "billingMode", plan.tool().tool().price() == null ? "FREE" : "CHARGE", "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
                 "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
                         .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
                 "maxAttempts", request.options().maxAttempts(), "maxOutputBytes", request.options().maxOutputBytes(),

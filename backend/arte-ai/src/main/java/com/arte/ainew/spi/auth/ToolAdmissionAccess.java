@@ -35,6 +35,14 @@ public interface ToolAdmissionAccess {
         };
     }
 
+    default Mono<Permit> authorizeCharged(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+        return Mono.error(new org.springframework.security.access.AccessDeniedException("Paid tool access denied"));
+    }
+
+    default Mono<Permit> authorize(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
+        return binding.tool().tool().price() == null ? authorizeFree(input, context, binding) : authorizeCharged(input, context, binding);
+    }
+
     /**
      * 本次操作的可信许可；只允许权限子集，入库及重放仍在真实写事务复核。
      */

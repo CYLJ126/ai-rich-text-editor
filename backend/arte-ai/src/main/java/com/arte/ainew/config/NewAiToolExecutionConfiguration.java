@@ -42,6 +42,14 @@ import java.time.Duration;
 public class NewAiToolExecutionConfiguration {
 
     @Bean
+    @ConditionalOnBean({com.arte.ainew.application.auth.AdmissionAuthorization.class, com.arte.ainew.application.control.FixedControlCatalog.class})
+    com.arte.ainew.application.tool.billing.ToolBillingService toolBillingService(com.arte.ainew.application.auth.AdmissionAuthorization authorization,
+                                                                                  com.arte.ainew.application.control.FixedControlCatalog catalog, MybatisExecutionPersistence executions, org.springframework.core.env.Environment environment) {
+        return new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, executions, executions, executions)
+                .enabled(environment.getProperty("arte.ai-new-tool-billing.enabled", Boolean.class, false));
+    }
+
+    @Bean
     com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry toolOutcomeQueryRegistry(
             ObjectProvider<com.arte.ainew.spi.adapter.ToolOutcomeQueryAdapter> adapters) {
         return new com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry(adapters.orderedStream().toList());
@@ -109,12 +117,12 @@ public class NewAiToolExecutionConfiguration {
                                               MybatisToolAdmissionStore store, ToolAdmissionAccess access, NewAiProperties properties,
                                               @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock,
                                               NewAiToolApprovalProperties approvals, ObjectProvider<ToolApprovalAccess> approvalAccess,
-                                              MybatisToolApprovalStore approvalStore) {
+                                              MybatisToolApprovalStore approvalStore, ObjectProvider<com.arte.ainew.application.tool.billing.ToolBillingService> billing) {
         var limits = properties.limits();
         var policy = new ToolExecutionPolicy(limits.maximumTimeout(), 10, Duration.ZERO, limits.maxInputBytes(), limits.maxOutputBytes(),
                 ToolExecutionPolicy.ApprovalMode.NONE);
         return new ToolAdmissionService(bindings, catalog, store, access, new ToolSchemaValidator(), policy, scheduler, clock,
-                new ToolApprovalPolicy(approvals, approvalAccess.getIfAvailable(), approvalStore));
+                new ToolApprovalPolicy(approvals, approvalAccess.getIfAvailable(), approvalStore)).paid(billing.getIfAvailable());
     }
 
     @Bean
@@ -131,8 +139,8 @@ public class NewAiToolExecutionConfiguration {
     ToolDispatcher toolDispatcher(MybatisExecutionPersistence executions, MybatisToolAdmissionStore snapshots,
                                   ToolBindingService bindings, ToolAdmissionAccess access, ToolGateway gateway,
                                   MybatisPayloadPersistence results, ExecutionRecordCodec codec, NewAiExecutionProperties properties,
-                                  @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock) {
+                                  @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock, ObjectProvider<com.arte.ainew.application.tool.billing.ToolBillingService> billing) {
         return new ToolDispatcher(executions, executions, executions, snapshots, bindings, access, gateway, results, codec, scheduler, clock,
-                properties.attemptLease());
+                properties.attemptLease()).paid(billing.getIfAvailable());
     }
 }

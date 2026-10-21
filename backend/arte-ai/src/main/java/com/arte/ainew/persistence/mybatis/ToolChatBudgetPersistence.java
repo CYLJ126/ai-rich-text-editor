@@ -100,10 +100,9 @@ final class ToolChatBudgetPersistence {
             var stored = runs.step(key(child.request().context().executionId()));
             require(stored != null, INVALID_STATE);
             var step = decode(stored.snapshot(), stored.payloadDigest(), ToolChatStep.class);
-            require(step.input() instanceof ToolChatStep.Model, INVALID_STATE);
-            var model = (ToolChatStep.Model) step.input();
-            billing = new DispatchPreparationStore.Charge(selection.price().quote(model.context().budget().maxInputTokens(), fixed.generation().maxOutputTokens()),
-                    selection.rate(), java.time.Duration.ofHours(1));
+            var amount = selection.kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.TOOL ? selection.toolPrice().perCall()
+                    : selection.price().quote(((ToolChatStep.Model) step.input()).context().budget().maxInputTokens(), fixed.generation().maxOutputTokens());
+            billing = new DispatchPreparationStore.Charge(amount, selection.rate(), java.time.Duration.ofHours(1));
         }
         guard(child, billing, time);
     }
@@ -158,7 +157,7 @@ final class ToolChatBudgetPersistence {
         }
         require(selection.capability().equals(invocation.request().capability()) && selection.kind() == invocation.request().kind()
                 && selection.mode() == billing.mode() && Objects.equals(selection.budgetRef(), child.budgetRef()), INVALID_STATE);
-        if (billing instanceof DispatchPreparationStore.Charge charge) {
+        if (billing instanceof DispatchPreparationStore.Charge charge && selection.kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION) {
             require(step.input() instanceof ToolChatStep.Model && root.checkpoint().phase() == ToolChatRun.Phase.WAITING_MODEL, INVALID_STATE);
             var context = ((ToolChatStep.Model) step.input()).context();
             require(invocation.request().input() instanceof GenerationRequest, INVALID_STATE);
@@ -173,6 +172,8 @@ final class ToolChatBudgetPersistence {
                     && invocation.request().input() instanceof ToolInvocation, INVALID_STATE);
             var call = ((ToolChatStep.Tool) step.input()).call();
             var actual = (ToolInvocation) invocation.request().input();
+            if (billing instanceof DispatchPreparationStore.Charge charge)
+                require(selection.toolPrice() != null && selection.rate().equals(charge.rate()) && selection.toolPrice().perCall().equals(charge.amount()), INVALID_STATE);
             require(call.callId().equals(actual.callId()) && call.tool().equals(actual.tool()) && call.arguments().equals(actual.arguments()), INVALID_STATE);
         }
         var budgets = balances(root.runId(), true);
@@ -197,7 +198,7 @@ final class ToolChatBudgetPersistence {
         var b = guard.budgets().stream().filter(x -> x.limit().currency().equals(reservation.reserved().currency())).findFirst().orElseThrow();
         capacity(guard, reservation.reserved());
         mapper.insertAllocation(row(new ToolChatBudgetAllocation(b.runId(), reservation.invocationId(), attempt.attemptId(), attempt.attemptNumber(),
-                "MODEL", reservation.budgetRef(), reservation.rateVersion(), reservation.reservationId(), reservation.reserved(), BudgetReservation.State.RESERVED, null, 0)));
+                invocation.request().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.TOOL ? "TOOL" : "MODEL", reservation.budgetRef(), reservation.rateVersion(), reservation.reservationId(), reservation.reserved(), BudgetReservation.State.RESERVED, null, 0)));
         save(new ToolChatBudget(b.runId(), b.limit(), b.charged(), new Money(b.held().amount().add(reservation.reserved().amount()), b.held().currency()),
                 b.blocked(), b.version() + 1), b.version());
     }

@@ -40,7 +40,8 @@ public final class ToolManagementResponses {
     public record Tool(DefinitionRef tool, DefinitionRef provider, String title, String description, Set<String> tags,
                        Set<com.arte.ainew.pojo.control.CapabilityDescriptor.Feature> features,
                        boolean outcomeQuerySupported,
-                       Risk risk, ToolManagementRequests.Policy defaultPolicy, Release release, String checksum) {
+                       Risk risk, ToolManagementRequests.Policy defaultPolicy, Release release, String checksum,
+                       com.arte.ainew.pojo.tool.ToolPrice price) {
     }
 
     public record Schema(DefinitionRef definition, Object document, String documentJson, String checksum) {
@@ -126,7 +127,7 @@ public final class ToolManagementResponses {
         var risk = tool.risk();
         return new Tool(tool.definition(), value.definition().provider(), tool.title(), tool.description(), tool.tags(), tool.capabilities().features(),
                 tool.capabilities().outcomeQuerySupported(), new Risk(risk.sideEffect(), risk.destructive(), risk.idempotency(), risk.requiredScopes(),
-                origins(risk.allowedNetworkOrigins())), policy(tool.defaultPolicy()), release(value.release()), tool.checksum());
+                origins(risk.allowedNetworkOrigins())), policy(tool.defaultPolicy()), release(value.release()), tool.checksum(), tool.price());
     }
 
     public static ToolDetail detail(ToolManagementService.ToolDetail value, boolean managed) {

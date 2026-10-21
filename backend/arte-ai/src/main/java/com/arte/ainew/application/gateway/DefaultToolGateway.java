@@ -101,6 +101,8 @@ public final class DefaultToolGateway implements ToolGateway {
             // 0=尚未进入，1=已进入，2=已停止；取消与适配入口竞争同一 CAS，避免返回“未执行”后又进入业务。
             var entry = new AtomicInteger();
             var phase = new AtomicReference<>(ExecutionError.Phase.VALIDATION);
+            var charge = new AtomicReference<ToolCharge>();
+            var price = new AtomicReference<ToolPrice>();
             var work = Mono.defer(() -> {
                 // 检查是否被取消
                 active(call);
@@ -109,7 +111,10 @@ public final class DefaultToolGateway implements ToolGateway {
                 // fixed()：读取本次工具调用，并做相关校验
                 // execute()：执行工具调用，并返回结果
                 return ToolObservation.mono(GATEWAY_BINDING, call.runtime().execution(), () -> fixed(call))
-                        .flatMap(binding -> execute(call, binding, entry, phase));
+                        .flatMap(binding -> {
+                            price.set(binding.tool().tool().price());
+                            return execute(call, binding, entry, phase, charge);
+                        });
             }).subscribeOn(scheduler);
             var remaining = Duration.between(clock.instant(), call.runtime().execution().deadline());
             Mono<ToolResult> deadline = remaining.isNegative() || remaining.isZero()
@@ -127,7 +132,7 @@ public final class DefaultToolGateway implements ToolGateway {
                                     call.request().context().executionId(), call.request().context().traceId(), call.attempt().attemptId(), phase.get(),
                                     entered, code(error, entered), error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                         }
-                        return Mono.just(failure(call, code(error, entered), phase.get(), entered));
+                        return Mono.just(failure(call, code(error, entered), phase.get(), entered, charge.get(), price.get()));
                     }).doOnCancel(() -> entry.compareAndSet(0, 2));
         });
     }
@@ -137,7 +142,7 @@ public final class DefaultToolGateway implements ToolGateway {
      * 包含排队时间的产品总期限须由受理层固定到 ExecutionOptions；这里不重新分配逻辑 deadline。
      */
     private Mono<ToolResult> execute(GatewayCall<ToolInvocation> original, ToolBindingResolution binding,
-                                     AtomicInteger entry, AtomicReference<ExecutionError.Phase> phase) {
+                                     AtomicInteger entry, AtomicReference<ExecutionError.Phase> phase, AtomicReference<ToolCharge> charge) {
         var before = original.runtime().execution();
         var deadline = before.deadline();
         var policyDeadline = original.attempt().createdAt().plus(binding.effectivePolicy().timeout());
@@ -149,7 +154,7 @@ public final class DefaultToolGateway implements ToolGateway {
         active(call);
         return ToolObservation.mono(GATEWAY_PREFLIGHT, call.runtime().execution(), () -> Mono.defer(() -> prepare(call, binding)).flatMap(prepared -> {
                             phase.set(ExecutionError.Phase.AUTHORIZATION);
-                            return Mono.defer(() -> prepared.call() instanceof LocalToolCall local ? access.authorize(local) : access.authorizeRemote((RemoteToolCall) prepared.call()))
+                            return Mono.defer(() -> binding.tool().tool().price() != null ? access.authorizeCharged(prepared.call()) : prepared.call() instanceof LocalToolCall local ? access.authorize(local) : access.authorizeRemote((RemoteToolCall) prepared.call()))
                                     .switchIfEmpty(Mono.error(new Rejected("TOOL_ACCESS_DENIED")))
                                     .map(authorization -> authorized(prepared, authorization));
                         })
@@ -160,7 +165,7 @@ public final class DefaultToolGateway implements ToolGateway {
                         })))
                 // 调用已登记的本地或受控 HTTP 适配器
                 .flatMap(prepared -> (binding.effectivePolicy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE
-                        ? Mono.<Void>empty() : approvals.apply(prepared.call().call())).then(Mono.defer(() -> invokeAdapter(prepared, entry, phase))))
+                        ? Mono.<Void>empty() : approvals.apply(prepared.call().call())).then(Mono.defer(() -> invokeAdapter(prepared, entry, phase, charge))))
                 // 调用超时检查
                 .timeout(remaining(call));
     }
@@ -200,8 +205,10 @@ public final class DefaultToolGateway implements ToolGateway {
                 "TOOL_APPROVAL_UNSUPPORTED");
 
         require(tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported(), "TOOL_CAPABILITY_UNSUPPORTED");
-        require(call.request().context().budgetRef() == null && call.runtime().execution().budgetRef() == null && call.attempt().budgetReservationId() == null
-                && call.binding().rate() == null, "TOOL_CHARGE_UNSUPPORTED");
+        require(tool.price() == null ? call.request().context().budgetRef() == null && call.runtime().execution().budgetRef() == null
+                && call.attempt().budgetReservationId() == null && call.binding().rate() == null
+                : call.request().context().budgetRef() != null && call.request().context().budgetRef().equals(call.runtime().execution().budgetRef())
+                && call.attempt().budgetReservationId() != null && tool.price().rate().equals(call.binding().rate()), tool.price() == null ? "TOOL_CHARGE_UNSUPPORTED" : "TOOL_BILLING_MISMATCH");
         require(call.attempt().attemptNumber() <= policy.maxAttempts(), "TOOL_ATTEMPT_LIMIT");
         require(call.runtime().execution().authorization().scopes().containsAll(tool.risk().requiredScopes()), "TOOL_ACCESS_DENIED");
         var adapter = registry.executor(binding.tool())
@@ -253,7 +260,7 @@ public final class DefaultToolGateway implements ToolGateway {
         return new Prepared(executionCall(current, local.binding()), prepared.adapter(), prepared.output());
     }
 
-    private Mono<ToolResult> invokeAdapter(Prepared prepared, AtomicInteger entry, AtomicReference<ExecutionError.Phase> phase) {
+    private Mono<ToolResult> invokeAdapter(Prepared prepared, AtomicInteger entry, AtomicReference<ExecutionError.Phase> phase, AtomicReference<ToolCharge> charge) {
         return Mono.defer(() -> {
             var call = prepared.call().call();
             active(call);
@@ -268,10 +275,20 @@ public final class DefaultToolGateway implements ToolGateway {
                                 ? prepared.adapter().invoke(local) : ((com.arte.ainew.spi.adapter.HttpToolAdapter) prepared.adapter()).invoke((RemoteToolCall) prepared.call()));
                     }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY"))))
                     // 输出结果检查
+                    .doOnNext(value -> {
+                        var price = prepared.call().binding().tool().tool().price();
+                        if (price != null && value.callId().equals(call.request().input().callId()) && value.charge() != null
+                                && value.charge().kind() == ToolCharge.Kind.PROVIDER_BILL
+                                && value.charge().amount().currency().equals(price.perCall().currency()))
+                            charge.set(value.charge());
+                    })
                     .publishOn(scheduler).map(value -> ToolObservation.call(OUTPUT_VALIDATION, call.runtime().execution(), () -> {
                         phase.set(ExecutionError.Phase.OUTPUT);
                         require(value.callId().equals(call.request().input().callId())
                                 && ToolExecutionRules.resultAllowed(prepared.call().binding().tool().tool().risk(), value), "TOOL_RESULT_INVALID");
+                        var price = prepared.call().binding().tool().tool().price();
+                        require(value.charge() == null || price != null && value.charge().kind() == ToolCharge.Kind.PROVIDER_BILL
+                                && value.charge().amount().currency().equals(price.perCall().currency()), "TOOL_BILL_INVALID");
                         // 最大输出字节检查
                         long maxBytes = prepared.call().binding().effectivePolicy().maxOutputBytes();
                         if (value.output() != null) {
@@ -323,15 +340,18 @@ public final class DefaultToolGateway implements ToolGateway {
         return entered ? "TOOL_INVOCATION_ERROR" : "TOOL_PREFLIGHT_ERROR";
     }
 
-    private static ToolResult failure(GatewayCall<ToolInvocation> call, String code, ExecutionError.Phase phase, boolean entered) {
-        // 本批固定 GET 只读没有业务写入；超时／取消不制造待核对的业务副作用，也不触发自动重试。
-        entered = entered && !(call.binding().target() instanceof ExecutionTarget.Remote
+    private static ToolResult failure(GatewayCall<ToolInvocation> call, String code, ExecutionError.Phase phase, boolean entered, ToolCharge charge, ToolPrice price) {
+        if (!entered && price != null && charge == null)
+            charge = new ToolCharge(new com.arte.ainew.pojo.budget.Money(java.math.BigDecimal.ZERO, price.perCall().currency()),
+                    com.arte.ainew.serialization.CanonicalJson.key("tool-not-entered", call.attempt().attemptId()), ToolCharge.Kind.NO_INVOCATION);
+        // 已验收的远端／收费只读合同没有业务写入；未知费用仍交由账本保留，不能据此按零结算。
+        entered = entered && !((call.binding().target() instanceof ExecutionTarget.Remote || call.binding().rate() != null)
                 && call.binding().capability().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY);
         var sideEffect = entered ? ExecutionError.SideEffect.POSSIBLE : ExecutionError.SideEffect.NONE;
         var error = new ExecutionError(code, phase, false, sideEffect,
                 entered ? ExecutionError.Certainty.UNKNOWN : ExecutionError.Certainty.KNOWN, call.request().context().traceId());
         return new ToolResult(call.request().input().callId(), entered ? ToolResult.Outcome.UNKNOWN : ToolResult.Outcome.FAILED,
-                null, List.of(), List.of(), sideEffect, error);
+                null, List.of(), List.of(), sideEffect, error, charge);
     }
 
     /**

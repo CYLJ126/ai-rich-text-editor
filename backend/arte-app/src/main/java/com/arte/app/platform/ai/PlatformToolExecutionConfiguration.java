@@ -111,8 +111,16 @@ public class PlatformToolExecutionConfiguration {
     }
 
     @Bean
-    PlatformToolExecutionAccess toolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools) {
-        return new PlatformToolExecutionAccess(platform, tools);
+    @ConditionalOnProperty(prefix = "arte.ai-new-tool-billing", name = "enabled", havingValue = "true")
+    PlatformPaidToolAccess paidToolAccess(PlatformToolManagementAccess platform, LocalToolRegistry registry,
+                                          com.arte.ainew.config.NewAiProperties properties,
+                                          ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources) {
+        return new PlatformPaidToolAccess(platform, registry, properties, sources);
+    }
+
+    @Bean
+    PlatformToolExecutionAccess toolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools, ObjectProvider<PlatformPaidToolAccess> paid) {
+        return new PlatformToolExecutionAccess(platform, tools, paid.getIfAvailable());
     }
 
     @Bean

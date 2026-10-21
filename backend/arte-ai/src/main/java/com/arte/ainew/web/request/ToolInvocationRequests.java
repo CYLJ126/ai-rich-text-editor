@@ -9,7 +9,7 @@ import tools.jackson.databind.JsonNode;
 import java.time.Duration;
 
 /**
- * 独立 TOOL 调用白名单；仅提交意图，不接受身份、执行器、预算或权限快照。
+ * 独立 TOOL 调用白名单；仅提交意图及账户选择，不接受身份、执行器、余额、费率或权限快照。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/19 09:47 ✾
@@ -22,11 +22,19 @@ public final class ToolInvocationRequests {
                         @NotNull @tools.jackson.databind.annotation.JsonDeserialize(using = com.arte.ainew.web.ToolJsonNodeDeserializer.class) JsonNode arguments,
                         @Min(1) @Max(3600) Integer timeoutSeconds,
                         @Min(1) @Max(10) Integer maxAttempts,
-                        @Min(1) @Max(33554432) Long maxOutputBytes) implements ToolManagementRequests.Strict {
+                        @Min(1) @Max(33554432) Long maxOutputBytes,
+                        @Size(max = 256) String budgetRef) implements ToolManagementRequests.Strict {
+        public Input(String bindingId, JsonNode arguments, Integer timeoutSeconds, Integer maxAttempts, Long maxOutputBytes) {
+            this(bindingId, arguments, timeoutSeconds, maxAttempts, maxOutputBytes, null);
+        }
         public ToolAdmissionInput value() {
             return new ToolAdmissionInput(bindingId, ToolManagementValues.object(arguments, false),
-                    timeoutSeconds == null ? null : Duration.ofSeconds(timeoutSeconds), maxAttempts, maxOutputBytes);
+                    timeoutSeconds == null ? null : Duration.ofSeconds(timeoutSeconds), maxAttempts, maxOutputBytes, budgetRef);
         }
+    }
+
+    public record Budgets(@NotNull @Valid ToolManagementRequests.ToolScope scope,
+                          @NotBlank @Size(max = 256) String bindingId) implements ToolManagementRequests.Strict {
     }
 
     public record Preview(@NotNull @Valid ToolManagementRequests.ToolScope scope,

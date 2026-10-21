@@ -49,7 +49,7 @@
         WHERE r.account_key=#{accountKey} AND a.owner_key=#{ownerKey} AND i.owner_key=#{ownerKey}
         AND (r.workspace_snapshot LIKE '%"state":"RESERVED"%' OR r.workspace_snapshot LIKE
         '%"state":"PENDING_RECONCILIATION"%')
-        AND i.workspace_snapshot LIKE '%"kind":"GENERATION"%'
+        AND (i.workspace_snapshot LIKE '%"kind":"GENERATION"%' OR i.workspace_snapshot LIKE '%"kind":"TOOL"%')
         AND (i.workspace_snapshot LIKE '%"state":"UNKNOWN"%' OR i.workspace_snapshot LIKE '%"state":"SUCCEEDED"%'
         OR i.workspace_snapshot LIKE '%"state":"FAILED"%' OR i.workspace_snapshot LIKE '%"state":"CANCELLED"%'
         OR i.workspace_snapshot LIKE '%"state":"TIMED_OUT"%' OR i.workspace_snapshot LIKE '%"state":"INTERRUPTED"%')
@@ -68,4 +68,23 @@
         SELECT workspace_snapshot FROM arte_ai_reservation WHERE id_key IN
         <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
     </select>
+    <select id="toolBill" resultType="com.arte.ainew.persistence.mybatis.mapper.BudgetMapper$ToolBill" useCache="false"
+            flushCache="true">
+        SELECT owner_key AS ownerKey, invocation_key AS invocationKey, attempt_key AS attemptKey, payload_digest AS
+        digest, charge_snapshot AS snapshot
+        FROM arte_ai_tool_bill WHERE attempt_key=#{attempt}
+    </select>
+    <insert id="insertToolBill">INSERT INTO
+        arte_ai_tool_bill(owner_key,invocation_key,attempt_key,payload_digest,charge_snapshot)
+        VALUES(#{r.ownerKey},#{r.invocationKey},#{r.attemptKey},#{r.digest},#{r.snapshot})
+    </insert>
+    <insert id="ensureToolPriceGuard">INSERT IGNORE INTO arte_ai_tool_price_guard(rate_key,blocked)
+        VALUES(#{rate},false)
+    </insert>
+    <select id="toolPriceBlocked" resultType="boolean" useCache="false" flushCache="true">SELECT blocked FROM
+        arte_ai_tool_price_guard WHERE rate_key=#{rate} FOR UPDATE
+    </select>
+    <update id="blockToolPrice">UPDATE arte_ai_tool_price_guard SET blocked=true,evidence_ref=#{evidence} WHERE
+        rate_key=#{rate}
+    </update>
 </mapper>

@@ -17,7 +17,13 @@ import java.util.Objects;
 public record ToolChatSubmission(String conversationId, long expectedVersion, String text, DefinitionRef binding,
                                  DefinitionRef capability, String modelBudgetRef, long maxInputTokens,
                                  GenerationOptions generation, List<String> toolBindingIds,
-                                 ToolChatRunSnapshot.Limits limits, List<Money> budgetLimits) {
+                                 ToolChatRunSnapshot.Limits limits, List<Money> budgetLimits,
+                                 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY) java.util.Map<String, String> toolBudgetRefs) {
+    public ToolChatSubmission(String conversationId, long expectedVersion, String text, DefinitionRef binding, DefinitionRef capability,
+                              String modelBudgetRef, long maxInputTokens, GenerationOptions generation, List<String> toolBindingIds,
+                              ToolChatRunSnapshot.Limits limits, List<Money> budgetLimits) {
+        this(conversationId, expectedVersion, text, binding, capability, modelBudgetRef, maxInputTokens, generation, toolBindingIds, limits, budgetLimits, java.util.Map.of());
+    }
 
     public ToolChatSubmission {
         ContractChecks.id(conversationId, "conversationId");
@@ -32,6 +38,9 @@ public record ToolChatSubmission(String conversationId, long expectedVersion, St
         toolBindingIds = ContractChecks.list(toolBindingIds, "selected tools", 1, ContractChecks.MAX_TOOLS);
         toolBindingIds.forEach(id -> ContractChecks.id(id, "tool binding ID"));
         ContractChecks.unique(toolBindingIds, "selected tool binding IDs");
+        toolBudgetRefs = toolBudgetRefs == null ? java.util.Map.of() : java.util.Map.copyOf(toolBudgetRefs);
+        ContractChecks.require(toolBindingIds.containsAll(toolBudgetRefs.keySet()), "Tool budget mapping outside selected set");
+        toolBudgetRefs.values().forEach(ref -> ContractChecks.id(ref, "selected tool budget"));
         budgetLimits = ContractChecks.list(budgetLimits, "Run currency limits", 1, 8);
         ContractChecks.unique(budgetLimits.stream().map(Money::currency).toList(), "Run currencies");
     }

@@ -53,10 +53,11 @@ public record ToolExecutionSnapshot(ToolAdmissionInput input, InvocationRequest<
                         && ToolExecutionRules.supported(tool.risk(), policy)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
                 ,
-                "Snapshot requires reviewed local free read-only or confirmed domain write tools");
-        ContractChecks.require(request.context().budgetRef() == null
+                "Snapshot requires a reviewed supported tool contract");
+        ContractChecks.require(Objects.equals(request.context().budgetRef(), input.budgetRef())
+                        && (tool.price() == null ? input.budgetRef() == null : input.budgetRef() != null)
                         && request.options().maxToolSteps() == 0 && request.options().maxConcurrentTools() == 0,
-                "Local free tool context required");
+                "Tool billing context must match the fixed contract");
         ContractChecks.require(request.context().authorization().scopes().containsAll(tool.risk().requiredScopes()), "Tool scopes missing");
         ContractChecks.require(request.context().parentExecutionId() != null || request.input().callId().equals(ToolAdmissionDigests.callId(binding.owner(), input.bindingId(), request.context().idempotencyKey())),
                 "Invalid standalone tool call identity");
