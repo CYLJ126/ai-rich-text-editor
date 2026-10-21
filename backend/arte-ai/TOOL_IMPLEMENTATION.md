@@ -1,6 +1,6 @@
 # AI TOOL 实施记录
 
-日期：2026-10-20。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
+日期：2026-10-21。需求基线见 [ARTE AI TOOL 需求及设计](../../ARTE%20AI%20TOOL%20需求及设计.md)
 。本记录按批次更新，只有明确完成的批次表示已有代码和验证证据。
 
 当前完成：S1-01—S1-08 本地管理后端基线、S2-01 FREE／CHARGE 原子派发准备，S2-02 内部本地只读网关、S2-03 内部可靠受理／执行快照及
@@ -11,7 +11,7 @@ S2-04 TOOL Worker 派发／完成、S2-05 查询／取消／本地恢复、S2-06
 S3-01—S3-05 的审批、业务写工具、自动及人工核对按 §27—§31 记录。S4-01 已完成内部固定工具集合与单轮模型协议，见 §32； S4-02 已完成
 Run 存储、检查点、步骤计划和耐久工作项，见 §33。S4-03 完成类型化候选、Run 事件／Outbox、会话占用、最终回答投影及只读查询，见
 §34；S4-04 已完成固定预算计划、子账户选择和同库附加预算约束，见 §35。S4-05 已完成真实受理、自动子调用、审批／停止／UNKNOWN 恢复与
-Run 通知消费，见 §36；页面与工具聊天重新生成留 S4-06。
+Run 通知消费，见 §36；S4-06 已接通 ChatNew 及显式后续动作，见 §37。
 
 §1—§13 保留各批完成时的范围与验证记录；管理入口见 §8、派发准备见 §9、网关见 §10、可靠受理见 §11、Worker 见 §12、查询／取消及恢复见
 §13、分类容量与排队见 §14，目录与绑定页面见 §15，调用预览与结果页面见 §16，本机集成与首次使用见 §17。
@@ -2202,3 +2202,37 @@ ToolRunBrowserAcceptanceTest， 再追加
 PlatformToolChatAccessIntegrationTest、PlatformToolExecutionIntegrationTest、PlatformToolWriteIntegrationTest、
 PlatformToolOutcomeIntegrationTest、PlatformToolManagementAccessTest，以 `-pl arte-app -am` 运行。 共享／本机业务配置、业务库
 DDL／回填和应用重启均未执行；本批不声明生产开放或性能验收完成。
+
+## 37. S4-06：ChatNew 工具聊天与显式再生成（2026-10-21）
+
+实现说明见 [TOOL_CHAT_FRONTEND.md](TOOL_CHAT_FRONTEND.md)。本批接入 ChatNew 工具集合／Run 上限设置、可靠提交恢复、Run
+类型化历史与搜索定位、模型真实子 ID 的文字预览、过程／预算／审批／核对与停止。普通文本入口、目录窗口与主布局保留。
+
+后端补齐 `discoverToolChat`、成功原 Run 的 `getRunActions` 和 `submitReadOnlyToolChat`。只读刷新在实际固定集合及原键重放时拒绝非
+READ_ONLY 工具，测试覆盖初次拒绝无 Run／子调用、原允许写 Run 不能转为只读刷新。新增接口复用当前 READ／CONVERSATION／INVOKE
+和宿主授权，不复制身份或工作空间逻辑。
+
+三个动作先准备新草稿或进入原工具页：只改写使用用户确认的完整最终回答与生成时间，关闭工具；资料刷新新建只读
+Run；写操作重新选择、核对参数、预览和审批，不隐式重发。新草稿发送后是新的 Turn，不冒充旧候选。工具级
+freshnessPolicy、原始工具结果复用、远端／付费工具尚未实现。独立聊天开关仍默认关闭，不增加 DDL，不修改业务配置。
+
+验证：
+
+- JDK 21、离线 Maven：
+  `mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest=ToolChatFrontendContractTest,ToolChatCommandHttpTest,ToolChatLoopTest,ToolChatRuntimeAssemblyTest,ToolChatHistoryTest,ToolChatHttpTest -Dsurefire.failIfNoSpecifiedTests=false test`
+  ，实际命中的五个测试类共 **29 项通过**，无失败／错误／跳过。包含新增三项服务端边界测试和一项 HTTP 契约测试。
+- `frontend` 下
+  `vitest run src/features/ainew src/features/aitool src/pages/AI/ChatNew src/services/arte-ai --maxWorkers=2`： **29
+  个文件、295 项通过**。随后新增配置关闭／失权可退出工具模式和存储复查共三项，并对 `useToolChat`、`ToolChatSettings`、
+  `recovery` 重跑 **32 项通过**；本批相关覆盖合计 **298 项**。不是另做的一次 298 项全量运行。
+- 定向 Biome lint 无错误；既有代码的非空断言警告仍在。全项目 `tsc --noEmit` 仍报告 **106 项既有错误**
+  ，集中在未修改的文章编辑器、通用组件与脚本；本批修改／新增文件无类型错误。
+- `npm run build` 第一次因 Utoopack 子进程本机监听被沙箱拒绝而失败；允许本机监听后重跑成功，生成 `AI/ChatNew/index.html`
+  等产物。不是通过安装依赖或修改业务构建配置绕过。
+- 真实浏览器、固定模拟 HTTP：检查选择工具与金额、一次 RUN 提交、模型子文字预览、审批内容／期限展示、UNKNOWN
+  不显示重执行、同版本停止事实、刷新后恢复原 Run、旧回答快照确认与仅准备草稿、只读刷新模式。未在浏览器完成真实审批写决定或真实业务工具执行；已有审批和后端循环测试分别覆盖其契约。
+
+隔离浏览器服务位于 `frontend/scripts/tool-chat-s406-browser`，仅监听 `127.0.0.1:5246`，请求可从 `/fixture/calls`
+读取。模拟服务不证明真实账号／RBAC、生产 MySQL／Redis、供应商工具协议、多节点或性能达标。真实环境联调和生产开放验收仍待执行；未执行任何数据库脚本、未启用业务开关、未重启正式后端。
+
+截图及 375px 几何检查记录见 [S4-06 浏览器验收](../../frontend/src/pages/AI/ChatNew/TOOL_CHAT_S4_06_ACCEPTANCE.md)。

@@ -1,3 +1,4 @@
+import type {AnswerCandidate} from '@/services/arte-ai';
 import {
   AiApiError,
   type AiScope,
@@ -13,6 +14,7 @@ import type {
   ConversationTurnsAroundPage
 } from '@/services/arte-ai/conversation-search-contract';
 import {SearchTargetUnavailable} from './useConversationSearch';
+import {getRunResult, turnCandidates} from '@/services/arte-ai/toolChat';
 import type {InvocationView} from './useChatSession';
 
 export interface LocatedHistory {
@@ -22,6 +24,7 @@ export interface LocatedHistory {
   turnId: string;
   messageId: string;
   invocationId: string | null;
+  candidate?: AnswerCandidate | null;
   conversation: ConversationResponse;
   page: ConversationTurnsAroundPage;
   views: Record<string, InvocationView>;
@@ -36,12 +39,20 @@ export function validateSnapshot(value: InvocationSnapshotResponse, turn: Conver
 
 export async function historyViews(scope: AiScope, page: ConversationTurnsAroundPage, signal: AbortSignal, target?: {
   turnId: string;
-  invocationId: string | null
+  invocationId: string | null; candidate?: AnswerCandidate | null
 }) {
   const views: Record<string, InvocationView> = {};
   await Promise.all(page.records.map(async turn => {
     const id = target?.turnId === turn.turnId && target.invocationId ? target.invocationId : turn.selectedInvocationId ?? turn.invocationIds.at(-1);
     if (!id) return;
+    const candidate = target?.turnId === turn.turnId && target.invocationId ? target.candidate : turn.selectedCandidate;
+    if (candidate?.kind === 'TOOL_CHAT_RUN') {
+      if (!turnCandidates(turn).some(c => c.kind === candidate.kind && c.executionId === candidate.executionId)) throw new SearchTargetUnavailable('entry');
+      const answer = (await getRunResult(scope, candidate.executionId, {signal})).body.data;
+      if (answer.runId !== candidate.executionId || answer.finalInvocationId !== id) throw new SearchTargetUnavailable('entry');
+      views[id] = {result: {invocationId: id, kind: 'GENERATION', result: answer.result}};
+      return;
+    }
     try {
       views[id] = validateSnapshot(await getInvocationSnapshot({scope, invocationId: id}, {signal}), turn, id);
     } catch (error) {
@@ -78,7 +89,7 @@ export async function locateSearchMessage(scope: AiScope, item: ConversationSear
   }
   const turn = page.records.find(value => value.turnId === item.turnId);
   if (!turn || turn.conversationId !== item.conversationId) throw new SearchTargetUnavailable('entry');
-  if (item.invocationId ? !turn.invocationIds.includes(item.invocationId) : turn.userMessage.messageId !== item.messageId)
+  if (item.invocationId ? item.candidate?.kind === 'TOOL_CHAT_RUN' ? !turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === item.candidate?.executionId) : !turn.invocationIds.includes(item.invocationId) : turn.userMessage.messageId !== item.messageId)
     throw new SearchTargetUnavailable('entry');
   const views = await historyViews(scope, page, signal, item);
   if (item.invocationId) {
@@ -88,7 +99,7 @@ export async function locateSearchMessage(scope: AiScope, item: ConversationSear
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   return {
     id: crypto.randomUUID(), entryKey: item.entryKey, conversationId: item.conversationId, turnId: item.turnId,
-    messageId: item.messageId, invocationId: item.invocationId, conversation, page, views
+    messageId: item.messageId, invocationId: item.invocationId, candidate: item.candidate, conversation, page, views
   };
 
   async function around(c: ConversationResponse) {

@@ -71,19 +71,26 @@ public final class ToolChatService {
     }
 
     public Mono<AcceptedExecution> submit(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext context) {
+        return submit(input, session, context, false);
+    }
+
+    /**
+     * 重新读取资料仅允许只读工具；检查固定集合，避免检查后配置变化引入写工具。
+     */
+    public Mono<AcceptedExecution> submit(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext context, boolean readOnly) {
         return authorization.prepare(context, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), true, current -> {
             if (current.parentExecutionId() != null || current.budgetRef() != null)
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED));
-            return runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current))
-                    .switchIfEmpty(Mono.defer(() -> create(input, session, current)))
+            return runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
+                    .switchIfEmpty(Mono.defer(() -> create(input, session, current, readOnly)))
                     .onErrorResume(AdmissionException.class, error -> (error.getResultCode() == ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT
                             || error.getResultCode() == ResultCodeEnum.AI_VERSION_CONFLICT || error.getResultCode() == ResultCodeEnum.AI_CONVERSATION_BUSY)
-                            ? runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current))
+                            ? runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
                             .switchIfEmpty(Mono.error(error)) : Mono.error(error));
         });
     }
 
-    private Mono<AcceptedExecution> create(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext current) {
+    private Mono<AcceptedExecution> create(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext current, boolean readOnly) {
         var received = clock.instant();
         return conversations.find(input.conversationId(), current).flatMap(conversation -> {
             if (conversation.state() != Conversation.State.ACTIVE || conversation.chatProfile() != null || !conversation.resources().isEmpty())
@@ -91,6 +98,7 @@ public final class ToolChatService {
             return sets.prepare(session, new Scope(current.authorization().tenantId(), current.authorization().workspaceId()),
                     input.toolBindingIds().stream().map(id -> new ToolSetService.Selection(id, null)).toList()).flatMap(set ->
                     catalog.resolve(input.binding(), input.capability(), current).flatMap(model -> {
+                        requireReadOnly(set, readOnly);
                         var user = new ChatMessage(com.arte.ainew.serialization.CanonicalJson.key("tool-chat-user-v1", current.authorization().tenantId(),
                                 current.authorization().workspaceId(), current.authorization().principal().subjectId(), current.idempotencyKey()),
                                 ChatMessage.Role.USER, List.of(new ChatMessage.Text(input.text())), List.of(), null);
@@ -115,9 +123,10 @@ public final class ToolChatService {
         });
     }
 
-    private Mono<AcceptedExecution> replay(ToolChatSubmission input, ToolChatRun run, ExecutionContext current) {
+    private Mono<AcceptedExecution> replay(ToolChatSubmission input, ToolChatRun run, ExecutionContext current, boolean readOnly) {
         return runs.snapshot(run.owner(), run.runId()).switchIfEmpty(Mono.error(new IllegalStateException("Run snapshot missing")))
                 .flatMap(fixed -> runs.link(run.owner(), run.runId()).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT))).flatMap(link -> {
+                    requireReadOnly(fixed.tools(), readOnly);
                     var user = fixed.initialContext().messages().getLast();
                     boolean same = link.conversationId().equals(input.conversationId()) && link.conversationVersion() == input.expectedVersion()
                             && user.content().equals(List.of(new ChatMessage.Text(input.text()))) && fixed.model().definition().equals(input.binding())
@@ -135,6 +144,11 @@ public final class ToolChatService {
                                         return commit(fixed, link.conversationId(), link.turnId(), turn.sequence(), link.conversationVersion(), current);
                                     }));
                 }));
+    }
+
+    private static void requireReadOnly(com.arte.ainew.pojo.tool.ToolSetSnapshot tools, boolean required) {
+        if (required && tools.entries().stream().anyMatch(e -> e.binding().tool().tool().risk().sideEffect() != com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY))
+            throw new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED);
     }
 
     private Mono<AcceptedExecution> commit(ToolChatRunSnapshot fixed, String conversationId, String turnId, long sequence,

@@ -65,6 +65,28 @@ public final class ToolChatQueryService {
         return current(id, context).map(Current::run);
     }
 
+    /**
+     * 重新生成的准备信息；仅返回原问题及选择引用，不返回配置、参数或旧授权。
+     */
+    public record Actions(String runId, String text, java.time.Instant answeredAt,
+                          List<String> readOnlyBindingIds, List<String> writeBindingIds) {
+    }
+
+    public Mono<Actions> actions(String id, ExecutionContext context) {
+        return current(id, context).flatMap(c -> {
+            if (c.run().state() != ToolChatRun.State.SUCCEEDED)
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
+            return runs.snapshot(ExecutionOwner.from(context), id).switchIfEmpty(missing()).map(fixed -> {
+                var entries = fixed.tools().entries();
+                return new Actions(id, ((com.arte.ainew.pojo.generation.ChatMessage.Text) fixed.initialContext().messages().getLast().content().getFirst()).text(),
+                        c.run().updatedAt(), entries.stream().filter(e -> e.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY)
+                        .map(e -> e.binding().definition().id()).toList(),
+                        entries.stream().filter(e -> e.binding().tool().tool().risk().sideEffect() != com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY)
+                                .map(e -> e.binding().definition().id()).toList());
+            });
+        }).flatMap(value -> current(id, context).thenReturn(value));
+    }
+
     public record Status(ToolChatRun run, boolean cancellationRequested) {
     }
 

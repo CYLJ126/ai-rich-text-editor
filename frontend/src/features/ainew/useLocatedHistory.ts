@@ -77,7 +77,10 @@ export function useLocatedHistory(seed: LocatedHistory | null | undefined, conve
         entryKey: seed.entryKey, conversationId: seed.conversationId, title: '', matchKind: 'MESSAGE',
         snippet: {text: '', highlights: []}, canLocateMessage: true, turnId: target?.turnId ?? seed.turnId,
         messageId: retainTarget ? seed.messageId : target?.userMessage.messageId ?? seed.messageId,
-        invocationId: retainTarget ? seed.invocationId : null, candidateOrdinal: null, partial: false
+        invocationId: retainTarget ? seed.invocationId : null,
+        candidate: retainTarget ? seed.candidate : null,
+        candidateOrdinal: null,
+        partial: false
       }, controller.signal);
       if (batch !== epoch.current || controller.signal.aborted) return;
       setState({...seedState(next), id: seed.id, revision: (current.current?.revision ?? 0) + 1});

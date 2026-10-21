@@ -398,3 +398,45 @@ describe('progressive history and asynchronous notification refresh', () => {
     }
   });
 });
+
+it('external Run acceptance invalidates a concurrent history read before its old version can be published', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof api.queryTurnsOfConversation>>) => void;
+  vi.mocked(api.queryTurnsOfConversation).mockImplementationOnce(() => new Promise(done => {
+    resolve = done;
+  }));
+  vi.mocked(api.getConversation).mockResolvedValue(result({...conversation, version: 4}));
+  const updated = vi.fn();
+  const hook = renderHook(() => useChatSession(config, conversation, updated, undefined, undefined, context));
+  await waitFor(() => expect(api.queryTurnsOfConversation).toHaveBeenCalledTimes(1));
+  act(() => hook.result.current.refreshAfterExternalExecution());
+  await act(async () => {
+    resolve(page<api.ConversationTurnResponse>());
+  });
+  await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+  expect(api.queryTurnsOfConversation).toHaveBeenCalledTimes(2);
+  expect(updated).toHaveBeenCalledTimes(1);
+  expect(updated.mock.calls[0][0].version).toBe(4);
+});
+
+it('typed Run history does not read its final model child as a standalone conversation candidate', async () => {
+  const candidate = {kind: 'TOOL_CHAT_RUN' as const, executionId: 'run'};
+  vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([{
+    turnId: 'turn',
+    conversationId: conversation.conversationId,
+    sequence: 1,
+    parentTurnId: null,
+    supersedesTurnId: null,
+    userMessage: {messageId: 'user', role: 'USER', content: [{text: 'question'}], toolCalls: [], toolCallId: null},
+    invocationIds: [],
+    selectedInvocationId: 'final-child',
+    candidates: [candidate],
+    selectedCandidate: candidate,
+    version: 1,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt
+  }]));
+  const hook = session();
+  await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+  expect(hook.result.current.turns[0].selectedCandidate?.executionId).toBe('run');
+  expect(api.getInvocationSnapshot).not.toHaveBeenCalled();
+});

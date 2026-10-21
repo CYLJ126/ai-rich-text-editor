@@ -4,6 +4,13 @@ import * as api from '@/services/arte-ai';
 import {type LocatedHistory, locateSearchMessage} from './searchNavigation';
 import {SearchTargetUnavailable} from './useConversationSearch';
 import {useLocatedHistory} from './useLocatedHistory';
+import {getRunResult} from '@/services/arte-ai/toolChat';
+import {toolChatAnswer} from './toolChat.testdata';
+
+vi.mock('@/services/arte-ai/toolChat', async original => ({
+  ...await original<typeof import('@/services/arte-ai/toolChat')>(),
+  getRunResult: vi.fn()
+}));
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/arte-ai', async original => ({
@@ -145,4 +152,34 @@ it('does not replay cached location after dismissal and clears the view on expli
   expect(h.result.current.active).toBe(false);
   expect(h.result.current.turns).toEqual([]);
   expect(denied).toHaveBeenCalledOnce();
+});
+
+it('locates a typed Run answer without validating its final model child as an ordinary Turn invocation', async () => {
+  const root = {kind: 'TOOL_CHAT_RUN' as const, executionId: 'run'};
+  const t = {...turn(50), candidates: [root], selectedCandidate: root, selectedInvocationId: 'final-child'};
+  vi.mocked(api.queryTurnsAround).mockResolvedValue(reply({...page(46), records: [t]}));
+  vi.mocked(getRunResult).mockResolvedValue(reply(toolChatAnswer));
+  const found = await locateSearchMessage(scope, {
+    ...item,
+    invocationId: 'final-child',
+    candidate: root,
+    candidateOrdinal: 1,
+    messageId: 'answer-message'
+  }, new AbortController().signal);
+  expect(found.candidate).toEqual(root);
+  expect(found.views['final-child'].result?.kind).toBe('GENERATION');
+  expect(api.getInvocationSnapshot).not.toHaveBeenCalled();
+});
+it('rejects a Run search hit whose claimed final child differs from the authorized Run answer', async () => {
+  const root = {kind: 'TOOL_CHAT_RUN' as const, executionId: 'run'};
+  const t = {...turn(50), candidates: [root], selectedCandidate: root, selectedInvocationId: 'final-child'};
+  vi.mocked(api.queryTurnsAround).mockResolvedValue(reply({...page(46), records: [t]}));
+  vi.mocked(getRunResult).mockResolvedValue(reply(toolChatAnswer));
+  await expect(locateSearchMessage(scope, {
+    ...item,
+    invocationId: 'unrelated-child',
+    candidate: root,
+    candidateOrdinal: 1,
+    messageId: 'answer-message'
+  }, new AbortController().signal)).rejects.toBeInstanceOf(SearchTargetUnavailable);
 });

@@ -107,9 +107,13 @@ public class ToolChatLoopTest {
         }
 
         Rig(boolean confirmation) throws Exception {
+            this(confirmation, CapabilityDescriptor.SideEffect.READ_ONLY);
+        }
+
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect) throws Exception {
             f = new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
-                    new ToolRiskProfile(CapabilityDescriptor.SideEffect.READ_ONLY, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
+                    new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
                     new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE));
             approvals = new com.arte.ainew.persistence.mybatis.MybatisToolApprovalStore(f.source, f.codec, f.io, f.executions, f.bindings);
             var approvalAccess = new ToolApprovalAccess() {

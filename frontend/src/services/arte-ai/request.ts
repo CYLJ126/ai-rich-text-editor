@@ -58,6 +58,8 @@ const readPaths = new Set([
   'conversation/queryConversationWindow', 'conversation/listConversationsCursor', 'conversation/getConversationMetadata', 'conversation/getMetadataCommandReceipt',
   'conversation/getConversation', 'conversation/listConversations', 'conversation/queryTurnsOfConversation',
   'invocation/getInvocationStatus', 'invocation/getInvocationResult', 'invocation/getInvocationSnapshots',
+  'tool-chat/discoverToolChat', 'tool-chat/getRunStatus', 'tool-chat/getRunResult',
+  'tool-chat/getRunBudget', 'tool-chat/replayRunEvents', 'tool-chat/getRunActions',
 ]);
 
 function stable(value: unknown): unknown {

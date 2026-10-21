@@ -119,4 +119,13 @@ public class ToolChatCommandHttpTest {
         send("submitToolChat", body().replace("question", "changed"), "http-submit", 409);
         assertEquals(1, r.count("arte_ai_tool_chat_run"));
     }
+
+    @Test
+    public void frontendAvailabilityReadOnlySubmitAndActionPreparationUseRealContracts() throws Exception {
+        var availability = json.readTree(send("discoverToolChat", "{\"scope\":{\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"}}", "read", 200));
+        assertFalse(availability.path("data").path("enabled").asBoolean());
+        String id = json.readTree(send("submitReadOnlyToolChat", body(), "refresh", 202)).path("data").path("executionId").asString();
+        String query = "{\"scope\":{\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"},\"runId\":\"" + id + "\"}";
+        send("getRunActions", query, "read", 400);
+    }
 }

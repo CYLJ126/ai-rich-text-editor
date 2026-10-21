@@ -1,5 +1,7 @@
 # S4-03：Turn、Outbox、查询和历史兼容
 
+> 当前界面已由 S4-06 接入，显式后续动作、新增 API 及验证边界见 [ChatNew 工具聊天说明](TOOL_CHAT_FRONTEND.md)。下文按原批次记录后端能力。
+
 > S4-05 已接通真实子调用、循环、审批等待与停止恢复，见 [执行说明](TOOL_CHAT_EXECUTION.md)；页面和工具聊天重新生成仍留 S4-06。
 
 > 后续 S4-04 已完成 [Run 总预算与子账户选择](TOOL_CHAT_BUDGET.md)，并新增 getRunBudget 只读查询；下文保留 S4-03 的批次范围。

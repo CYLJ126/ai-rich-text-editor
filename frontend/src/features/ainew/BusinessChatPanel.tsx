@@ -15,6 +15,16 @@ import MarkdownText, {copyText} from './MarkdownText';
 import ReconciliationPanel from './ReconciliationPanel';
 import {useLocatedHistory} from './useLocatedHistory';
 import type {LocatedHistory} from './searchNavigation';
+import {
+  candidateKey,
+  runTerminal,
+  type ToolChatChoice,
+  type ToolChatStatus,
+  turnCandidates
+} from '@/services/arte-ai/toolChat';
+import ToolChatRunPanel, {type RunPreparation} from './ToolChatRunPanel';
+import ToolChatSettings from './ToolChatSettings';
+import {useToolChatCommand} from './useToolChatCommand';
 
 const messageText = (message: ChatMessage) => message.content.map(part => 'text' in part ? part.text : `[${part.modality}]`).join('\n');
 
@@ -53,6 +63,87 @@ export default function BusinessChatPanel({
   const option = options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion);
   const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable, writable, onTitleUpdated);
   const located = useLocatedHistory(location, conversation, context.scope, (error, target) => onLocationInvalidated?.(error, target));
+  const [toolChoice, setToolChoice] = useState<ToolChatChoice | null>(null);
+  const [runContentRevision, setRunContentRevision] = useState(0);
+  const [runStates, setRunStates] = useState<Record<string, { status: ToolChatStatus | null; error?: unknown }>>({});
+  const toolCommand = useToolChatCommand(context, conversation.conversationId, (_id, text) => {
+    chat.setDraft(previous => previous.trim() === text ? '' : previous);
+    chat.refreshAfterExternalExecution();
+  });
+  const runGateIds = [...new Set([...chat.turns.flatMap(turn => {
+    const latest = turnCandidates(turn).at(-1);
+    return latest?.kind === 'TOOL_CHAT_RUN' ? [latest.executionId] : [];
+  }), ...Object.entries(runStates).flatMap(([id, value]) => value.status && !runTerminal(value.status.state) ? [id] : []),
+    ...(toolCommand.stop ? [toolCommand.stop.runId] : []), ...(toolCommand.saved?.acceptedId ? [toolCommand.saved.acceptedId] : [])])];
+  const runBusy = runGateIds.some(id => !runStates[id]?.status || !!runStates[id].error || !runTerminal(runStates[id].status?.state ?? 'ACCEPTED'));
+  const toolPending = !!toolCommand.saved && !toolCommand.saved.acceptedId;
+  const toolBlocked = toolCommand.blocked || toolCommand.storageError || toolCommand.busy || toolPending || runBusy || !!toolCommand.stop;
+  const toolChoiceInvalid = !!toolChoice && (!toolChoice.toolBindingIds.length || !chat.budget || toolChoice.budgetLimits.some(b => b.currency !== chat.budget?.currency || !/^[0-9]{1,18}(\.[0-9]{1,18})?$/.test(b.amount)));
+
+  function sendMessage() {
+    if (!toolChoice) {
+      void chat.send();
+      return;
+    }
+    if (!config || !chat.budget || toolBlocked || toolChoiceInvalid) return;
+    void toolCommand.send({
+      scope: context.scope,
+      conversationId: conversation.conversationId,
+      expectedVersion: conversation.version,
+      text: chat.draft.trim(),
+      binding: {type: 'binding', id: config.bindingId, version: config.bindingVersion},
+      capability: {type: 'capability', id: config.capabilityId, version: config.capabilityVersion},
+      modelBudgetRef: config.budgetRef,
+      maxInputTokens: config.maxInputTokens,
+      generationOptions: {
+        maxOutputTokens: config.maxOutputTokens,
+        temperature: config.temperature,
+        topP: config.topP,
+        stopSequences: []
+      },
+      timeoutSeconds: config.timeoutSeconds,
+      toolBindingIds: toolChoice.toolBindingIds,
+      maxModelRounds: toolChoice.maxModelRounds,
+      maxToolCalls: toolChoice.maxToolCalls,
+      maxConcurrentTools: toolChoice.maxConcurrentTools,
+      budgetLimits: toolChoice.budgetLimits
+    }, !!toolChoice.readOnly);
+  }
+
+  function prepareRun(value: RunPreparation) {
+    if (value.kind === 'rewrite') {
+      setToolChoice(null);
+      chat.setDraft(`请只改写以下历史回答，保留事实并改善表达。不调用工具、不读取最新数据。旧回答生成于 ${value.actions.answeredAt}，本次未核实来源时效。\n原问题：${value.actions.text}\n历史回答：\n${value.answer}`);
+    } else {
+      setToolChoice({
+        toolBindingIds: value.actions.readOnlyBindingIds,
+        readOnly: true,
+        maxModelRounds: 8,
+        maxToolCalls: 16,
+        maxConcurrentTools: 2,
+        budgetLimits: [{currency: chat.budget?.currency ?? 'CNY', amount: '1.00'}]
+      });
+      chat.setDraft(value.actions.text);
+    }
+  }
+
+  function renderRun(id: string, allowActions = true) {
+    return <ToolChatRunPanel key={id} context={context} runId={id} allowActions={allowActions}
+                             onContent={() => setRunContentRevision(n => n + 1)}
+                             onStatus={(status, error) => {
+                               if (status) toolCommand.observed(status);
+                               setRunStates(previous => {
+                                 const old = previous[id];
+                                 if (old?.status?.version === status?.version && old?.status?.cancellationRequested === status?.cancellationRequested && old?.error === error) return previous;
+                                 return {...previous, [id]: {status, error}};
+                               });
+                             }} onSettled={() => {
+      if (allowActions || toolCommand.saved?.acceptedId === id) chat.refreshAfterExternalExecution();
+    }}
+                             onStop={() => void toolCommand.cancel(id)} stopPending={toolCommand.stop?.runId === id}
+                             disabled={!writable || dirty || toolBlocked || chat.activeIds.length > 0 || !!chat.pending || !!chat.pendingRegeneration}
+                             onPrepare={prepareRun}/>;
+  }
   const [viewed, setViewed] = useState<Record<string, string>>({});
   const [olderCache, setOlderCache] = useState<{
     version: number;
@@ -70,16 +161,16 @@ export default function BusinessChatPanel({
   const composing = useRef(false);
   const available = !!chat.budget && hasAvailableBudget(chat.budget.available);
   const pending = !!chat.pending || !!chat.pendingRegeneration;
-  const blocked = !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
-  const regenerationBlocked = !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
+  const blocked = toolBlocked || toolChoiceInvalid || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
+  const regenerationBlocked = toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
   const tooLarge = !!option && new TextEncoder().encode(chat.draft.trim()).length > option.limits.maxInputBytes;
   useEffect(() => {
     onInteraction({
-      pending: pending || !!chat.pendingStop || chat.submitting || chat.stopping,
-      active: chat.activeIds.length > 0,
-      unsafeToLeave: unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
+      pending: toolPending || toolCommand.busy || !!toolCommand.stop || pending || !!chat.pendingStop || chat.submitting || chat.stopping,
+      active: runBusy || chat.activeIds.length > 0,
+      unsafeToLeave: toolCommand.storageError || unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
     });
-  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation]);
+  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy]);
   const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
   const visibleViews = located.active ? located.views : chat.invocations;
   const locatedAnchor = useRef<{ id: string; offset: number } | null>(null);
@@ -114,7 +205,7 @@ export default function BusinessChatPanel({
       const turn = [...node.querySelectorAll<HTMLElement>('[data-turn-id]')].find(value => value.dataset.turnId === saved.id);
       if (turn) node.scrollTop += turn.getBoundingClientRect().top - node.getBoundingClientRect().top - saved.offset;
     }
-  }, [location?.id, located.revision, located.active]);
+  }, [location?.id, located.revision, located.active, runContentRevision]);
   useEffect(() => {
     if (!highlight) return;
     const timer = setTimeout(() => setHighlight(null), 2400);
@@ -150,11 +241,11 @@ export default function BusinessChatPanel({
     } else if (following.current) {
       node.scrollTop = node.scrollHeight;
     } else setNewContent(true);
-  }, [chat.turns, chat.invocations, chat.historyLoading, located.active]);
+  }, [chat.turns, chat.invocations, chat.historyLoading, runStates, runContentRevision, located.active]);
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
-  const reason = !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
+  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolChoiceInvalid ? '请选择工具并填写与模型预算同币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">
@@ -205,9 +296,20 @@ export default function BusinessChatPanel({
         </Flex>}
       {!chat.historyLoading && !chat.historyError && !allTurns.length && <Empty description="开始你的第一个问题"/>}
       {allTurns.map(turn => {
+        const candidates = turnCandidates(turn);
+        const latestCandidate = candidates.at(-1);
+        const latestRun = latestCandidate?.kind === 'TOOL_CHAT_RUN' ? latestCandidate : null;
+        const selected = turn.selectedCandidate ?? candidates.find(c => c.executionId === turn.selectedInvocationId) ?? latestCandidate;
+        const viewedKey = viewed[turn.turnId] ?? (located.active && located.viewed[turn.turnId] ? `INVOCATION:${located.viewed[turn.turnId]}` : undefined);
+        const latestStatus = latestCandidate?.kind === 'INVOCATION' ? visibleViews[latestCandidate.executionId]?.status : undefined;
+        const activeCandidate = latestRun && !runTerminal(runStates[latestRun.executionId]?.status?.state ?? 'ACCEPTED')
+          ? latestRun : latestStatus && isActive(latestStatus) ? latestCandidate : selected;
+        const candidate = candidates.find(c => candidateKey(c) === viewedKey || c.executionId === viewedKey)
+          ?? (located.active && location?.turnId === turn.turnId && location.candidate ? location.candidate : activeCandidate);
+        const runCandidate = candidate?.kind === 'TOOL_CHAT_RUN' ? candidate : null;
         const latestId = turn.invocationIds.at(-1);
         const latest = latestId ? visibleViews[latestId]?.status : undefined;
-        const id = (located.active ? located.viewed[turn.turnId] : viewed[turn.turnId]) ?? (latest && isActive(latest) ? latestId : turn.selectedInvocationId ?? latestId);
+        const id = (located.active ? located.viewed[turn.turnId] : candidate?.kind === 'INVOCATION' ? candidate.executionId : undefined) ?? (latest && isActive(latest) ? latestId : turn.selectedInvocationId ?? latestId);
         const invocation = id ? visibleViews[id] : undefined;
         const result = invocation?.result?.kind === 'GENERATION' ? invocation.result.result.value : null;
         const text = result ? result.outputs.map(messageText).join('\n\n') : invocation?.streamText ?? '';
@@ -223,19 +325,24 @@ export default function BusinessChatPanel({
               {invocation?.status &&
                 <Tag>{t(isUserStoppedGeneration(invocation.status) ? 'stoppedGeneration' : `execution.${invocation.status.state}`)}</Tag>}
               {result && !result.complete && <Tag color="orange">部分回复</Tag>}
-              {turn.invocationIds.length > 1 && <Select aria-label={`浏览第 ${turn.sequence} 轮候选回复`} value={id}
-                                                        options={turn.invocationIds.map((candidate, index) => ({
-                                                          value: candidate,
-                                                          label: `回复 ${index + 1}${candidate === turn.selectedInvocationId ? ' · 后续上下文采用' : ''}`
+              {candidates.length > 1 && <Select aria-label={`浏览第 ${turn.sequence} 轮候选回复`}
+                                                value={candidate ? candidateKey(candidate) : id}
+                                                options={candidates.map((candidate, index) => ({
+                                                  value: candidateKey(candidate),
+                                                  label: `回复 ${index + 1}${candidate.executionId === selected?.executionId ? ' · 后续上下文采用' : ''}`
                                                         }))} onChange={candidate => {
                 if (located.active) {
-                  void located.choose(turn.turnId, candidate);
+                  const chosen = candidates.find(c => candidateKey(c) === candidate);
+                  if (chosen?.kind === 'INVOCATION') void located.choose(turn.turnId, chosen.executionId);
+                  else setViewed(previous => ({...previous, [turn.turnId]: candidate}));
                   return;
                 }
                 setViewed(previous => ({...previous, [turn.turnId]: candidate}));
-                void chat.inspectCandidate(candidate);
+                const chosen = candidates.find(c => candidateKey(c) === candidate);
+                if (chosen?.kind === 'INVOCATION') void chat.inspectCandidate(chosen.executionId);
               }}/>}
             </Flex>
+            {runCandidate ? renderRun(runCandidate.executionId, !located.active && turn.sequence === chat.total) : <>
             {result ? result.outputs.map(message => <div key={message.messageId} data-message-id={message.messageId}
                                                          className={highlight === message.messageId ? 'is-search-target' : undefined}>
               <MarkdownText text={messageText(message)} invocationId={id}/></div>) : text ?
@@ -286,9 +393,15 @@ export default function BusinessChatPanel({
                             ]}/>
                         }]}/>
             </Flex>
+            </>}
+            {latestRun && latestRun.executionId !== runCandidate?.executionId &&
+              <div hidden>{renderRun(latestRun.executionId, false)}</div>}
           </Flex>
         </Flex>;
       })}
+      {toolCommand.saved?.acceptedId && !allTurns.some(turn => turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === toolCommand.saved?.acceptedId)) && renderRun(toolCommand.saved.acceptedId, false)}
+      {runGateIds.filter(id => id !== toolCommand.saved?.acceptedId && !allTurns.some(turn => turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === id))).map(id =>
+        <div hidden key={id}>{renderRun(id, false)}</div>)}
       {located.active && located.after && <Button loading={located.loading} onClick={() => {
         captureLocatedAnchor();
         void located.load('after');
@@ -305,6 +418,17 @@ export default function BusinessChatPanel({
       setNewContent(false);
     }}>有新内容 · 回到最新</Button>}
     <Flex vertical gap={8} className="ainew-composer">
+      {toolCommand.storageError &&
+        <Alert type="warning" title="工具聊天恢复记录无法安全保存或读取，请保留页面并检查浏览器存储。"
+               action={!toolCommand.blocked &&
+                 <Button onClick={toolCommand.recheckStorage}>重新检查恢复存储</Button>}/>}
+      {toolCommand.error != null && <Alert type="warning" title="工具聊天请求未能确认"
+                                           description={toolCommand.error instanceof Error ? toolCommand.error.message : '请确认原请求。'}/>}
+      {toolPending && <Button loading={toolCommand.busy} disabled={toolCommand.blocked || !writable}
+                              onClick={() => void toolCommand.send()}>继续确认原工具聊天提交</Button>}
+      {toolCommand.stop &&
+        <Button loading={toolCommand.busy} disabled={toolCommand.blocked} onClick={() => void toolCommand.cancel()}>继续确认原
+          Run 停止请求</Button>}
       {notice && <Typography.Paragraph role="status">{notice}</Typography.Paragraph>}
       {chat.storageWarning && <Alert type="warning" title={chat.storageWarning}/>}
       {error(chat.submitError)}{error(chat.stopError, chat.retryStop)}
@@ -327,10 +451,13 @@ export default function BusinessChatPanel({
                       onKeyDown={event => {
                         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229) {
                           event.preventDefault();
-                          if (!blocked && !tooLarge && chat.draft.trim()) void chat.send();
+                          if (!blocked && !tooLarge && chat.draft.trim()) sendMessage();
                         }
                       }}/>
       <Flex align="center" gap={8} wrap className="ainew-compose-actions">
+        <ToolChatSettings context={context} value={toolChoice} onChange={setToolChoice}
+                          disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
+                          currency={chat.budget?.currency}/>
         <Select aria-label="当前发送模型" placeholder="选择模型" value={config ? modelOptionKey({
           binding: {
             type: 'binding',
@@ -346,8 +473,8 @@ export default function BusinessChatPanel({
         {chat.activeIds.length > 0 &&
           <Button loading={chat.stopping} disabled={chat.stopRequested === chat.activeIds[0]}
                   onClick={() => void chat.stop(chat.activeIds[0])}>{chat.stopRequested ? '正在请求停止' : '停止生成'}</Button>}
-        <Button aria-label="发送" type="primary" loading={chat.submitting}
-                disabled={blocked || tooLarge || !chat.draft.trim()} onClick={() => void chat.send()}>发送</Button>
+        <Button aria-label="发送" type="primary" loading={chat.submitting || toolCommand.busy}
+                disabled={blocked || tooLarge || !chat.draft.trim()} onClick={sendMessage}>发送</Button>
       </Flex>
     </Flex>
     <Drawer title="预算与费用" open={fees} forceRender onClose={() => setFees(false)}>

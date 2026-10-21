@@ -753,7 +753,7 @@ export function useChatSession(
           if (controller.signal.aborted || !alive.current) return;
           if (revision !== historyRevision.current) continue;
           const ids = [...new Set([...history.records.flatMap((turn) => {
-            const selected = turn.selectedInvocationId ?? turn.invocationIds.at(-1);
+            const selected = turn.selectedCandidate?.kind === 'TOOL_CHAT_RUN' ? undefined : turn.selectedInvocationId ?? turn.invocationIds.at(-1);
             const latest = turn.invocationIds.at(-1);
             return [selected, latest].filter((id): id is string => !!id);
           }), ...Object.entries(views.current).filter(([, view]) => blocksConversation(view.status)).map(([id]) => id)])];
@@ -1151,6 +1151,12 @@ export function useChatSession(
     historyLoading,
     historyError,
     loadHistory,
+    /** Run 受理／完成可能与历史读取并发，先作废旧版本再复用现有刷新队列。 */
+    refreshAfterExternalExecution: () => {
+      historyRevision.current++;
+      void loadHistory();
+      void loadBudget(true);
+    },
     budget,
     budgetLoading,
     budgetError,

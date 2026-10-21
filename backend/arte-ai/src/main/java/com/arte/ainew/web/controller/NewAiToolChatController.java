@@ -36,6 +36,11 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled"}, havingValue = "true")
 public class NewAiToolChatController {
 
+    @org.springframework.beans.factory.annotation.Value("${arte.ai-new-execution.enabled:false}")
+    private boolean executionEnabled;
+    @org.springframework.beans.factory.annotation.Value("${arte.ai-new-tool-chat.enabled:false}")
+    private boolean chatEnabled;
+
     private final ToolChatQueryService queries;
     private final NewAiHttpContext contexts;
     private final Duration timeout;
@@ -51,6 +56,22 @@ public class NewAiToolChatController {
     public Mono<ResultContext<ToolChatRunStatusResponse>> status(@Valid @RequestBody ToolChatRequests.Query request, Locale locale) {
         return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
                 c -> queries.statusView(request.runId(), c)).map(r -> ResultContext.success(ToolChatRunStatusResponse.from(r.run(), r.cancellationRequested()), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    public record Availability(boolean enabled) {
+    }
+
+    @PostMapping("/discoverToolChat")
+    public Mono<ResultContext<Availability>> discover(@Valid @RequestBody com.arte.ainew.web.request.ConfigurationRequests.DiscoverChatOptions request, Locale locale) {
+        return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
+                        c -> Mono.just(new Availability(executionEnabled && chatEnabled)))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getRunActions")
+    public Mono<ResultContext<ToolChatQueryService.Actions>> actions(@Valid @RequestBody ToolChatRequests.Query request, Locale locale) {
+        return contexts.read(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), timeout, false,
+                c -> queries.actions(request.runId(), c)).map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getRunBudget")

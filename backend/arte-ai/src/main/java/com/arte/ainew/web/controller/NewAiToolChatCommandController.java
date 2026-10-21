@@ -69,4 +69,16 @@ public class NewAiToolChatCommandController {
                 .flatMap(c -> service.cancel(request.runId(), key, c))
                 .map(run -> ResultContext.success(ToolChatRunStatusResponse.from(run, !run.state().terminal() || run.state() == com.arte.ainew.pojo.tool.ToolChatRun.State.CANCELLED), ResultCodeEnum.SUCCESS, locale));
     }
+
+    @PostMapping("/submitReadOnlyToolChat")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public Mono<ResultContext<AcceptedExecution>> submitReadOnly(@Valid @RequestBody ToolChatRequests.Submit request,
+                                                                 @RequestHeader("Idempotency-Key") String key,
+                                                                 Authentication authentication, Locale locale) {
+        var session = access.capture(authentication);
+        var input = request.input();
+        return contexts.prepare(request.scope(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
+                        input.limits().timeout(), null, key, c -> service.submit(input, session, c, true))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
 }
