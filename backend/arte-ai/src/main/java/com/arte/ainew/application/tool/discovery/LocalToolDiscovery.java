@@ -299,8 +299,12 @@ public final class LocalToolDiscovery {
                 "schemas", batch.schemas().stream().sorted(Comparator.comparing(ToolSchemaDefinition::definition, REFERENCES))
                         .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
                 "tools", batch.tools().stream().sorted(Comparator.comparing(t -> t.tool().definition(), REFERENCES))
-                        .map(t -> CanonicalJson.fields("definition", t.tool().definition(), "checksum", t.tool().checksum(),
-                                "provider", t.provider(), "target", t.target())).toList()));
+                        .map(t -> {
+                            var fields = CanonicalJson.fields("definition", t.tool().definition(), "checksum", t.tool().checksum(),
+                                    "provider", t.provider(), "target", t.target());
+                            if (t.protocol() != null) fields.put("protocol", t.protocol());
+                            return fields;
+                        }).toList()));
     }
 
     private RefreshResult install(ToolCatalogStore.Batch batch, StoreOutcome<ToolCatalogStore.Batch> outcome) {

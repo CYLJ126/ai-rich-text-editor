@@ -14,12 +14,27 @@ import java.util.Objects;
  * @since 2026/10/17 13:52 ✾
  */
 public record ToolDefinitionRevision(ToolDefinition tool, DefinitionRef provider,
-                                     ExecutionTarget target) implements Serializable {
+                                     ExecutionTarget target,
+                                     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) DefinitionRef protocol) implements Serializable {
+    public ToolDefinitionRevision(ToolDefinition tool, DefinitionRef provider, ExecutionTarget target) {
+        this(tool, provider, target, null);
+    }
+
+    public static final DefinitionRef MCP_PROTOCOL = new DefinitionRef("protocol", "mcp-streamable-http", "2025-06-18");
+
+    public boolean mcp() {
+        return MCP_PROTOCOL.equals(protocol);
+    }
 
     public ToolDefinitionRevision {
         Objects.requireNonNull(tool, "tool");
         Objects.requireNonNull(provider, "provider").requireType("tool-provider");
         ContractChecks.require(provider.id().equals(tool.providerId()), "Tool provider identity mismatch");
         Objects.requireNonNull(target, "target");
+        if (protocol != null) {
+            protocol.requireType("protocol");
+            ContractChecks.require(target instanceof ExecutionTarget.Remote && protocol.equals(MCP_PROTOCOL)
+                    && tool.price() == null, "Only reviewed free MCP protocol is supported");
+        }
     }
 }

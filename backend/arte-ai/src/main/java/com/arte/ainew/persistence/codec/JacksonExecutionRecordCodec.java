@@ -156,13 +156,16 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 && (!node.path("schemaVersion").isIntegralNumber()
                 || !node.path("schemaVersion").canConvertToInt()))
             throw new IllegalArgumentException("Snapshot version must be an integer");
-        if ((version != 1 && !((expectedType == InvocationResult.class || expectedType == ToolDefinitionRevision.class || expectedType == ToolBindingResolution.class || expectedType == ToolChatBudgetAllocation.class || expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class || expectedType == ToolBindingReceipt.class
-                || expectedType == ToolExecutionSnapshot.class) && version == 2)
-                && !(expectedType == ToolExecutionSnapshot.class && (version == 3 || version == 4 || version == 5 || version == 6))
-                && !(expectedType == ToolChatRunSnapshot.class && version == 3))
-                || !alias.equals(node.path("type").asString())) {
+        boolean supported = version == 1
+                || version == 2 && (expectedType == InvocationResult.class || expectedType == ToolDefinitionRevision.class
+                || expectedType == ToolBindingResolution.class || expectedType == ToolChatBudgetAllocation.class
+                || expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class
+                || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class)
+                || expectedType == ToolExecutionSnapshot.class && version >= 3 && version <= 7
+                || expectedType == ToolChatRunSnapshot.class && (version == 3 || version == 4)
+                || (expectedType == ToolDefinitionRevision.class || expectedType == ToolBindingResolution.class) && version == 3;
+        if (!supported || !alias.equals(node.path("type").asString()))
             throw new IllegalArgumentException("Unsupported snapshot schema");
-        }
         var body = node.required("body");
         if (expectedType == ToolChatRunSnapshot.class && (!body.isObject() || version == 1 && body.has("budgetPlan")
                 || version == 2 && !body.hasNonNull("budgetPlan")))
@@ -187,6 +190,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
 
     private static int schemaVersion(Object value) {
         if (value instanceof ToolExecutionSnapshot s) {
+            if (s.binding().tool().mcp()) return 7;
             if (s.binding().tool().tool().price() != null) return 6;
             if (s.binding().tool().target() instanceof ExecutionTarget.Remote) return 5;
             if (s.request().context().parentExecutionId() != null) return 4;
@@ -195,7 +199,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
             return s.policy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE ? 1 : 2;
         }
         if (value instanceof ToolChatRunSnapshot s)
-            return s.budgetPlan() == null ? 1 : s.tools().entries().stream().anyMatch(e -> e.binding().tool().tool().price() != null) ? 3 : 2;
+            return s.tools().entries().stream().anyMatch(e -> e.binding().tool().mcp()) ? 4 : s.budgetPlan() == null ? 1 : s.tools().entries().stream().anyMatch(e -> e.binding().tool().tool().price() != null) ? 3 : 2;
+        if (value instanceof ToolDefinitionRevision r && r.mcp() || value instanceof ToolBindingResolution b && b.tool().mcp())
+            return 3;
         if (value instanceof ToolDefinitionRevision r && r.tool().price() != null || value instanceof ToolBindingResolution binding && binding.tool().tool().price() != null
                 || value instanceof ToolChatBudgetAllocation a && a.chargeKind().equals("TOOL")
                 || value instanceof InvocationResult.Tool result && result.value().charge() != null) return 2;

@@ -27,9 +27,11 @@ public final class ToolReleaseDigests {
      */
     public static String contract(ToolDefinitionRevision tool, ToolProviderDefinition provider, Collection<ToolSchemaDefinition> schemas) {
         var order = Comparator.comparing(DefinitionRef::type).thenComparing(DefinitionRef::id).thenComparing(DefinitionRef::version);
-        return CanonicalJson.digest(CanonicalJson.fields("format", "tool-release-contract-v1", "tool", tool.tool().definition(),
+        var fields = CanonicalJson.fields("format", "tool-release-contract-v1", "tool", tool.tool().definition(),
                 "checksum", tool.tool().checksum(), "provider", provider, "target", tool.target(),
                 "schemas", schemas.stream().sorted(Comparator.comparing(ToolSchemaDefinition::definition, order))
-                        .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList()));
+                        .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList());
+        if (tool.protocol() != null) fields.put("protocol", tool.protocol());
+        return CanonicalJson.digest(fields);
     }
 }

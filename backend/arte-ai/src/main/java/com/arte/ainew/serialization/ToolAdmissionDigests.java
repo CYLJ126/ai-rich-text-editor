@@ -71,6 +71,16 @@ public final class ToolAdmissionDigests {
     public static String plan(ToolExecutionSnapshot snapshot) {
         var request = snapshot.request();
         var plan = snapshot.binding();
+        if (plan.tool().mcp())
+            return CanonicalJson.digest(CanonicalJson.fields("format", "mcp-tool-preview-v1",
+                    "submission", snapshot.submissionDigest(), "binding", plan.definition(), "revision", plan.revision(),
+                    "owner", plan.owner(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
+                    "target", plan.tool().target(), "protocol", plan.tool().protocol(), "policy", snapshot.policy(),
+                    "billingMode", "FREE", "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),
+                    "schemas", snapshot.schemas().stream().sorted(Comparator.comparing(s -> s.definition().toString()))
+                            .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
+                    "maxAttempts", request.options().maxAttempts(), "maxOutputBytes", request.options().maxOutputBytes(),
+                    "timeout", request.options().requestedTimeout()));
         if (plan.tool().tool().price() != null)
             return CanonicalJson.digest(CanonicalJson.fields("format", "paid-tool-preview-v1",
                     "submission", snapshot.submissionDigest(), "binding", plan.definition(), "revision", plan.revision(),

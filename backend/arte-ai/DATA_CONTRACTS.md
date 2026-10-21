@@ -1,5 +1,12 @@
 # 最小 AI 数据契约 v1
 
+> S5-03：ToolDefinitionRevision 增加可选固定 protocol；MCP 必须显式标记 mcp-streamable-http@2025-06-18。
+> MCP tool-definition-revision／tool-binding-resolution 使用 v3，tool-execution-snapshot 使用 v7，含 MCP 的
+> tool-chat-run-snapshot 使用 v4。
+> 原本地／HTTP／收费编码与摘要保持原义，MCP 新材料禁止降级重标；发布／部署清单摘要包含协议标记。所有读者与 Worker 先升级，无新增
+> DDL。
+> 具体协议子集和运行规则见 [MCP 说明](TOOL_MCP.md)。
+
 > S5-02 增量：工具按次价格、可信费用证据、独立／Run 账户、费用核对及升级要求见 [工具计费说明](TOOL_BILLING.md)
 > 。下文保留原批次边界，当前收费能力以该说明为准。
 

@@ -80,10 +80,18 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     @Primary
-    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http) {
+    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http,
+                                            ObjectProvider<com.arte.ainew.infrastructure.http.McpHealthToolAdapter> mcp) {
         return new LocalToolPolicy() {
             public void requireFree(com.arte.ainew.pojo.tool.ToolAdmissionInput input, com.arte.ainew.pojo.tool.ToolBindingResolution binding) {
                 if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote) {
+                    if (binding.tool().mcp()) {
+                        var remoteMcp = mcp.getIfAvailable();
+                        if (remoteMcp == null)
+                            throw new org.springframework.security.access.AccessDeniedException("MCP tool disabled");
+                        remoteMcp.requireFree(input, binding);
+                        return;
+                    }
                     var remote = http.getIfAvailable();
                     if (remote == null)
                         throw new org.springframework.security.access.AccessDeniedException("HTTP tool disabled");
@@ -103,10 +111,12 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     LocalToolRegistry localToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
-                                        ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http) {
+                                        ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http,
+                                        ObjectProvider<com.arte.ainew.infrastructure.http.McpHealthToolAdapter> mcp) {
         var registrations = new java.util.ArrayList<>(tools.registry().registrations());
         if (properties.enabled()) registrations.add(writes.registration());
         http.ifAvailable(remote -> registrations.add(remote.registration()));
+        mcp.ifAvailable(remote -> registrations.add(remote.registration()));
         return new LocalToolRegistry(registrations);
     }
 

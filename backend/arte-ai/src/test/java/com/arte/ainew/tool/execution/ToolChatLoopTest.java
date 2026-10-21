@@ -122,11 +122,11 @@ public class ToolChatLoopTest {
         }
 
         Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools,
-            com.arte.ainew.infrastructure.http.HttpHealthToolAdapter http) throws Exception {
+            com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
             this(confirmation, effect, supportsTools, http, null);
         }
 
-        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools, com.arte.ainew.infrastructure.http.HttpHealthToolAdapter http, ToolPrice paidPrice) throws Exception {
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools, com.arte.ainew.spi.adapter.HttpToolAdapter http, ToolPrice paidPrice) throws Exception {
             f = paidPrice != null ? new ToolExecutionFixture(paidPrice) : http != null ? new ToolExecutionFixture(http) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
                     new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),

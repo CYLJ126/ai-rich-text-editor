@@ -158,6 +158,8 @@ public final class MybatisToolCatalogStore implements ToolCatalogStore {
             if (provider == null || input == null || output == null || configuration == null)
                 return StoreOutcome.rejected(NOT_FOUND);
             boolean local = revision.target() instanceof ExecutionTarget.Local;
+            if (revision.mcp() != (provider.kind() == ToolProviderDefinition.Kind.MCP))
+                throw new IllegalArgumentException("Tool protocol and provider kind mismatch");
             if (local != (provider.kind() == ToolProviderDefinition.Kind.LOCAL))
                 return StoreOutcome.rejected(INVALID_STATE);
             if (revision.target() instanceof ExecutionTarget.Remote remote && !remote.connection().equals(provider.connection()))

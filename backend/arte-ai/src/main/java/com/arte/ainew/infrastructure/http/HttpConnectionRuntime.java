@@ -170,7 +170,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
 
     @Override
     public Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
-        return acquire(definition, runtime, false);
+        return acquire(definition, runtime, Mode.MODEL);
     }
 
     /**
@@ -179,10 +179,21 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
     public Mono<Lease<Handle>> acquireReadOnly(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
         if (!definition.protocol().equals(HttpJsonGetTransport.PROTOCOL) || definition.credential() != null)
             return Mono.error(GenerationException.beforeSend("TOOL_HTTP_PROTOCOL_UNSUPPORTED"));
-        return acquire(definition, runtime, true);
+        return acquire(definition, runtime, Mode.GET);
     }
 
-    private Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime, boolean readOnly) {
+    private enum Mode {MODEL, GET, MCP}
+
+    /**
+     * MCP 仅使用完整固定 endpoint 上的 POST／DELETE；不放宽 GET 或模型连接。
+     */
+    public Mono<Lease<Handle>> acquireMcp(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
+        if (!definition.protocol().equals(com.arte.ainew.pojo.tool.ToolDefinitionRevision.MCP_PROTOCOL))
+            return Mono.error(GenerationException.beforeSend("TOOL_MCP_PROTOCOL_UNSUPPORTED"));
+        return acquire(definition, runtime, Mode.MCP);
+    }
+
+    private Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime, Mode mode) {
         return Mono.<Lease<Handle>>defer(() -> {
                     checkActive(runtime);
                     egress.validateOrigin(definition.endpoint());
@@ -192,7 +203,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                         }
                         return Mono.fromCallable(() -> egress.validateAddresses(definition.endpoint(), InetAddress.getAllByName(definition.endpoint().getHost())))
                                 .subscribeOn(dns).timeout(properties.acquireTimeout())
-                                .map(addresses -> borrow(definition, runtime, addresses, readOnly));
+                                .map(addresses -> borrow(definition, runtime, addresses, mode));
                     });
                 }).doOnError(error -> log.warn("AI HTTP connection acquisition failed, invocationId={}, traceId={}, connectionId={}, code={}, type={}",
                         runtime.execution().executionId(), runtime.execution().traceId(), definition.definition().id(),
@@ -203,7 +214,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                         : GenerationException.beforeSend("CONNECTION_ACQUIRE_FAILED"));
     }
 
-    private Borrowed borrow(ConnectionDefinition definition, ExecutionRuntimeContext runtime, List<InetAddress> addresses, boolean readOnly) {
+    private Borrowed borrow(ConnectionDefinition definition, ExecutionRuntimeContext runtime, List<InetAddress> addresses, Mode mode) {
         checkActive(runtime);
         var key = new PoolKey(definition, ExecutionOwner.from(runtime.execution()), addresses);
         Pool pool = reserve(key);
@@ -224,7 +235,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                     .doAfterRequest((request, connection) -> request.currentContextView().<InvocationTiming>getOrEmpty(InvocationTiming.class)
                             .ifPresent(timing -> timing.mark("PROVIDER_REQUEST_SENT")));
             String base = definition.endpoint().toString();
-            var uri = readOnly ? definition.endpoint() : URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/chat/completions");
+            var uri = mode != Mode.MODEL ? definition.endpoint() : URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/chat/completions");
             var client = WebClient.builder().clientConnector(new ReactorClientHttpConnector(http))
                     .codecs(codecs -> {
                         codecs.defaultCodecs().maxInMemorySize(properties.maxFrameBytes());
@@ -233,7 +244,8 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                     .filter((request, next) -> Mono.deferContextual(values -> {
                         lease.active();
                         checkActive(runtime);
-                        if (!request.url().equals(uri) || readOnly && request.method() != org.springframework.http.HttpMethod.GET || !lease.sent.compareAndSet(false, true)) {
+                        if (!request.url().equals(uri) || mode == Mode.GET && request.method() != org.springframework.http.HttpMethod.GET
+                                || mode == Mode.MCP && request.method() != org.springframework.http.HttpMethod.POST && request.method() != org.springframework.http.HttpMethod.DELETE || !lease.sent.compareAndSet(false, true)) {
                             return Mono.error(GenerationException.beforeSend("CONNECTION_REQUEST_NOT_ALLOWED"));
                         }
                         com.arte.ainew.pojo.execution.GatewayCall<?> call = values.getOrDefault(com.arte.ainew.pojo.execution.GatewayCall.class, null);
@@ -247,7 +259,8 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                             }
                             lease.active();
                             checkActive(runtime);
-                            if (readOnly) return next.exchange(request);
+                            if (mode == Mode.GET || mode == Mode.MCP && definition.credential() == null)
+                                return next.exchange(request);
                             if (definition.credential() == null) {
                                 return Mono.error(GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE"));
                             }

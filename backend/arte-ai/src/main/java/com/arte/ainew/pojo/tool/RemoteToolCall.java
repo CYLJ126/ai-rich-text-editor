@@ -8,7 +8,7 @@ import com.arte.ainew.pojo.execution.GatewayCall;
 import java.util.Objects;
 
 /**
- * 网关交给受控 HTTP 适配的单次调用材料；不持久化、不从 HTTP 绑定，也不授予资源访问权。
+ * 网关交给受控 HTTP／MCP 适配的单次调用材料；不持久化、不从 HTTP 绑定，也不授予资源访问权。
  *
  * @param call    已有耐久派发身份的调用，运行上下文携带本次重新核验的授权及剩余期限
  * @param binding 固定版本、有效配置与策略；适配器不得重新选择 latest 或读取当前绑定来替换它

@@ -275,7 +275,9 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         var provider = artifacts.providers().getFirst();
         var target = artifacts.tools().getFirst().target();
         boolean supported = provider.kind() == ToolProviderDefinition.Kind.LOCAL && target instanceof ExecutionTarget.Local
-                || provider.kind() == ToolProviderDefinition.Kind.HTTP && target instanceof ExecutionTarget.Remote remote
+                || (provider.kind() == ToolProviderDefinition.Kind.HTTP && !artifacts.tools().getFirst().mcp()
+                || provider.kind() == ToolProviderDefinition.Kind.MCP && artifacts.tools().getFirst().mcp())
+                && target instanceof ExecutionTarget.Remote remote
                 && remote.connection().equals(provider.connection()) && ToolExecutionRules.httpReadOnly(tool, tool.defaultPolicy());
         if (!supported || !tool.capabilities().features().isEmpty() || tool.capabilities().outcomeQuerySupported()
                 || tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.UNKNOWN
@@ -311,7 +313,8 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
         var original = Objects.requireNonNull(catalog.releaseArtifacts(from), "Missing compatibility predecessor");
         var old = original.tools().getFirst().tool();
         var next = target.tools().getFirst().tool();
-        if (!Objects.equals(old.price(), next.price()) || !old.definition().id().equals(next.definition().id()) || !old.risk().equals(next.risk())
+        if (!Objects.equals(original.tools().getFirst().protocol(), target.tools().getFirst().protocol())
+                || !Objects.equals(old.price(), next.price()) || !old.definition().id().equals(next.definition().id()) || !old.risk().equals(next.risk())
                 || !old.capabilities().equals(next.capabilities()) || !old.defaultPolicy().equals(next.defaultPolicy())
                 || !old.defaultConfiguration().equals(next.defaultConfiguration())) return INCOMPATIBLE;
         var oldDocuments = new HashMap<DefinitionRef, String>();

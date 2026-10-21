@@ -21,6 +21,7 @@ import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
+import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -158,6 +159,15 @@ final class ToolExecutionFixture implements AutoCloseable {
         });
     }
 
+    private static LocalToolRegistry.Registration remoteRegistration(com.arte.ainew.spi.adapter.HttpToolAdapter tool) {
+        return tool instanceof McpHealthToolAdapter mcp ? mcp.registration() : ((HttpHealthToolAdapter) tool).registration();
+    }
+
+    private static void remoteFree(com.arte.ainew.spi.adapter.HttpToolAdapter tool, ToolAdmissionInput input, ToolBindingResolution binding) {
+        if (tool instanceof McpHealthToolAdapter mcp) mcp.requireFree(input, binding);
+        else ((HttpHealthToolAdapter) tool).requireFree(input, binding);
+    }
+
     ToolExecutionFixture() throws Exception {
         this(new ToolExecutionPolicy(Duration.ofSeconds(30), 3, Duration.ZERO, 1024, 4096, ToolExecutionPolicy.ApprovalMode.NONE),
                 new ToolRiskProfile(CapabilityDescriptor.SideEffect.READ_ONLY, false, ToolRiskProfile.Idempotency.NONE, Set.of("resource:read"), Set.of()));
@@ -171,13 +181,13 @@ final class ToolExecutionFixture implements AutoCloseable {
         this(policy, risk, limits, null);
     }
 
-    ToolExecutionFixture(HttpHealthToolAdapter http) throws Exception {
+    ToolExecutionFixture(com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
         this(http.revision().tool().defaultPolicy(), http.revision().tool().risk(),
                 new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), http);
     }
 
     ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits,
-                         HttpHealthToolAdapter http) throws Exception {
+                         com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
         this(policy, risk, limits, http, null);
     }
 
@@ -187,7 +197,7 @@ final class ToolExecutionFixture implements AutoCloseable {
                 new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), null, price);
     }
 
-    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits, HttpHealthToolAdapter http, ToolPrice price) throws Exception {
+    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits, com.arte.ainew.spi.adapter.HttpToolAdapter http, ToolPrice price) throws Exception {
         paidPrice = price;
         this.limits = limits;
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
@@ -223,7 +233,7 @@ final class ToolExecutionFixture implements AutoCloseable {
         if (http == null)
             registrations.add(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
                     Map.of(v1.adapterRef(), implementation(v1), v2.adapterRef(), implementation(v2))));
-        else registrations.add(http.registration());
+        else registrations.add(remoteRegistration(http));
         registry = new LocalToolRegistry(registrations);
         discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(Duration.ofSeconds(10)).state().discoveryHealthy());
@@ -243,7 +253,7 @@ final class ToolExecutionFixture implements AutoCloseable {
                     "HTTP health", true, object(), Map.of(), null, null);
             binding = bindings.execute(actor, owner, new ToolBindingCommand(ToolBindingCommand.Action.SAVE, null, 0, "create-http", "create",
                     settings, null, null, false)).block(Duration.ofSeconds(10)).value().result().value();
-            commitHook = snapshot -> http.requireFree(snapshot.input(), snapshot.binding());
+            commitHook = snapshot -> remoteFree(http, snapshot.input(), snapshot.binding());
         }
         service = service(store, access, clock);
         payloads = new MybatisPayloadPersistence(source, codec, io);
@@ -258,7 +268,7 @@ final class ToolExecutionFixture implements AutoCloseable {
             public Mono<ExecutionAuthorization> authorizeRemote(RemoteToolCall call) {
                 if (!executionAllowed.get() || http == null)
                     return Mono.error(new AccessDeniedException("Remote execution denied"));
-                http.requireFree(new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
+                remoteFree(http, new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
                 return Mono.just(call.call().runtime().execution().authorization());
             }
         }, new ToolSchemaValidator(), codec, toolIo, clock);

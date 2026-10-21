@@ -46,6 +46,6 @@ public record ToolInvocationPreviewResponse(String planDigest, DefinitionRef bin
                 options.maxAttempts(), snapshot.policy().maxInputBytes(), options.maxOutputBytes(), snapshot.policy().approvalMode().name(), binding.tool().tool().price() == null ? "FREE" : "CHARGE",
                 (binding.tool().tool().price() != null ? "本次按次收费，先预留报价上界；实际费用以可信账单结算，未知费用保留占用。" : binding.tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.RESOURCE_WRITE
                         ? "本次为本地免费业务写工具，须人工决定及当前资源权限；不调用聊天模型，不预留或扣减模型预算。"
-                        : "本次为已授权的本地免费只读工具；不调用聊天模型，不预留或扣减模型预算。"), 0, 0, java.util.List.of(), snapshot.input().budgetRef(), binding.tool().tool().price());
+                        : "本次为已授权的" + (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote ? "远端" : "本地") + "免费只读工具；不调用聊天模型，不预留或扣减模型预算。"), 0, 0, java.util.List.of(), snapshot.input().budgetRef(), binding.tool().tool().price());
     }
 }

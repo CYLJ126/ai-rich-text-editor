@@ -2425,3 +2425,65 @@ CHARGE、不足额未调用、越权／错账户、Run 同币种累计与跨币�
 
 验证未覆盖生产 MySQL 锁竞争、多节点、真实 HTTPS／收费供应商、生产负载或人工浏览器验收。 未应用业务库
 DDL、启用运行环境开关、变更真实费率／账户或重启后端。测试中的收费计数实现只存在于测试源码，不会进入生产工具目录。
+
+## 44. S5-03：受管 MCP 只读工具
+
+日期：2026-10-21。完成首个 `arte.mcp.health`：固定 MCP 2025-06-18／Streamable HTTP，JSON 与
+SSE、initialize／initialized、远端固定目录校验、tools/call 及私有会话收尾。 该工具复用现有发布、绑定、受理、分类 Worker、结果、停止和聊天
+Run，不新增旁路同步调用或另建身份／预算体系。 当前正式范围与服务端必须满足的 Schema、会话
+TTL、配置及开放步骤见 [MCP 说明](TOOL_MCP.md)。
+
+### 44.1 实现与约束
+
+- 增加独立 `McpToolAdapter` 登记槽，MCP 提供方、实际实例、固定协议／连接／操作必须相符；不能放入 HTTP／LOCAL 登记绕过审核。
+- 增加可选 ToolDefinitionRevision.protocol，仅 MCP 新合同携带；协议参与发布摘要和完整节点清单，原非 MCP
+  摘要保持原义。固定报价分支不受影响，收费 MCP 本批仍拒绝。
+- HTTP runtime 增加隔离 MCP 方法模式，限定固定 endpoint 上 POST／DELETE，复用原出口、固定 DNS、池容量、当前授权与每借用一次发送规则；免费
+  GET／模型原方法和凭据约束不变。
+- 每个 TOOL 使用独立生命周期和 session，不共享用户／空间／Run；正常完成尝试 DELETE，不持久化 session。取消、撤权、截止后不延长资格做清理，服务端须有
+  TTL。
+- 工具定义从部署元数据加载，启动、发现和发布不外联；运行时 tools/list 验证已审核的固定名称和完整 Schema。远端
+  descriptions、instructions、annotations 不授予资源权或直接替换模型可见定义。
+- 请求／响应／SSE／JSON 有界；支持 JSON 或 SSE 一个最终 JSON-RPC 响应，拒绝不匹配 ID、版本／会话漂移、错误信封、批量、重复 JSON
+  字段、目录分页／重复名称、未支持内容、服务器请求和未完成任务。不通过丢弃 image／resource 等业务内容伪造完整成功。
+- NONE 认证、显式 FREE／READ_ONLY、一次 Attempt、无审批。只接收 `{}` 并返回单枚举 status；原 MCP `_meta`
+  ／通知／错误不回传模型。模型仍按自身账本承担工具描述和结果 Token 费用。
+- 本地停止释放订阅／lease，不冒充远端 notifications/cancelled 确认；不为断流／404 重新 initialize 后补发 tools/call。已观察只读失败为
+  NONE／KNOWN，崩溃／失租恢复保留原通用事实规则。
+- 新 MCP 编码为 tool-definition-revision v3、tool-binding-resolution v3、tool-execution-snapshot v7、含 MCP 的
+  tool-chat-run-snapshot v4，拒绝降级。无新表或 DDL；全部消费者升级和完整 manifest 协调后才能开启，默认 false。
+
+没有开放 stdio、本机启动命令、任意 MCP 工具／URL、OAuth／Bearer 正式装配、收费 MCP、写入／长任务／远端结果核对或通用 Tavily 适配。
+这次交付是首个可验证协议与产品子集，不能据此宣称所有 MCP 服务均可接入。
+
+### 44.2 验证
+
+JDK 21，临时 H2、实际 MyBatis 事务、正式宿主 MockMvc／RBAC 和真实本机回环 MCP／HTTP；不连接业务数据库或真实供应商。
+
+新增 `McpToolIntegrationTest` **14 项**、`PlatformMcpToolIntegrationTest` **4 项**，覆盖：
+
+- 静态发现／发布／建绑无外联，完整握手及真实工具调用、私有／无会话服务器、JSON／SSE、正常 DELETE、幂等重放不重执行、结果投影及无工具预算写入。
+- Schema／工具名／分页／重复名称／版本／请求 ID／RPC 错误／重复字段／尾随 JSON、图片／任意文本／不相符文本／任务／超大响应、HTTP
+  302／401／403／429／500 均明确拒绝且不回退／重试。
+- 出口拒绝、目录校验后撤权、超长／变更 session、SSE 通知超限、服务器 sampling 请求、未知 URL 参数和旧本地授权拒绝 MCP。
+- 取消后连接容量释放并可执行新调用、总期限／TIMED_OUT、无伪造业务 UNKNOWN 工作、相同版本改连接拒绝、HTTP 登记不能冒充
+  MCP、快照防降级。
+- 真实工具聊天循环和重启恢复，模型两轮费用和 MCP FREE 隔离；正式宿主默认关闭、配置校验、profile／example／过滤资源一致、公开预览确认／提交／查询及撤权后原键重放拒绝。
+
+第一轮相邻回归为 **46 类、545 项通过**，日志 `/private/tmp/s503-regression.log`。
+随后加强响应拒绝路径的大小限制、校验服务器标识、增加会话与授权边界用例，并修正远端预览的“本地”措辞；最后复核 **10 类、127
+项通过**，日志 `/private/tmp/s503-final.log`。 两轮覆盖的最终对应报告合计 **46 类、547 项通过，零失败／错误／跳过**
+（新增用例不重复计数）；不是一次全仓全量运行。 相邻覆盖包括原 HTTP、付费工具／账本、模型出口、发布／绑定、受理／Worker、Run
+预算、审批、写工具／核对和平台配置。
+
+复现最后一轮（仓库根目录）：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn -q -f backend/pom.xml -pl arte-app -am -Dtest=McpToolIntegrationTest,PlatformMcpToolIntegrationTest,ToolReleaseTest,ToolInvocationPreviewTest,ToolDefinitionContractsTest,DataContractsTest,HttpToolIntegrationTest,PlatformHttpToolIntegrationTest,GenerationEgressTest,GenerationGatewayTest -Dsurefire.failIfNoSpecifiedTests=false -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider -Dlog4j2.loggerContextFactory=org.apache.logging.log4j.core.impl.Log4jContextFactory test
+```
+
+测试需要允许本机端口监听与 Mockito 测试代理。日志中的 malformed JSON／超限／撤权错误为预期故障用例，异常诊断移除正文；既有
+Netty macOS DNS native fallback 提示不等于本批网络失败。
+`git diff --check` 通过。本批无前端源码变更，未另跑前端全仓类型检查／构建；未执行生产 MySQL、多节点、真实
+HTTPS／MCP、浏览器人工验收或性能压测。 没有执行业务库脚本、设置真实 endpoint、开启运行环境开关或重启后端，测试成功不表示生产开放和
+SLA 已验收。
