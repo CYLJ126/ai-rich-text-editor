@@ -68,7 +68,7 @@ public record ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot init
                 var choice = budgetPlan.selection(entry.binding().definition());
                 ContractChecks.require(choice.mode() == BillingMode.FREE
                         && choice.capability().equals(entry.binding().tool().tool().capability())
-                        && entry.binding().tool().target() instanceof ExecutionTarget.Local, "Run tool requires explicit local FREE selection");
+                        && ToolExecutionRules.supportedTarget(entry.binding(), entry.binding().effectivePolicy()), "Run tool requires explicit reviewed FREE selection");
             }
         }
         ContractChecks.require(context.deadline().isAfter(receivedAt) && !context.deadline().isAfter(receivedAt.plus(limits.timeout()))

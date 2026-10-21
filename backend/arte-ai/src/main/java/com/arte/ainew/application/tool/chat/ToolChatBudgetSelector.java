@@ -10,7 +10,6 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode;
@@ -82,7 +81,7 @@ public final class ToolChatBudgetSelector {
         if (bindings == null) return denied();
         return bindings.fixed(ExecutionOwner.from(current), entry.binding().definition()).flatMap(result -> {
             if (!result.successful() || !result.value().equals(entry.binding())
-                    || !(result.value().tool().target() instanceof ExecutionTarget.Local)
+                    || !com.arte.ainew.pojo.tool.ToolExecutionRules.supportedTarget(result.value(), result.value().effectivePolicy())
                     || !current.authorization().scopes().containsAll(entry.binding().tool().tool().risk().requiredScopes()))
                 return denied();
             return Mono.just(new ToolChatBudgetPlan.Selection(entry.binding().definition(), entry.binding().tool().tool().capability(),

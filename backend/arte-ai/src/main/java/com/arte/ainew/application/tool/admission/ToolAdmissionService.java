@@ -12,7 +12,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.execution.StoreOutcome;
@@ -41,7 +40,7 @@ import java.util.function.BiFunction;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 本地免费 TOOL 的内部可靠受理；独立意图与受信 Run 子调用使用明确分开的入口。
+ * 受信免费 TOOL 的内部可靠受理；独立意图与受信 Run 子调用使用明确分开的入口。
  * <p>
  * 不调用 Gateway、不创建 Attempt，也不选择模型或预算。
  * 先按稳定绑定定位重放，再对原材料重新授权；新调用固定参数／配置／Schema／总期限后经同库事务提交。
@@ -326,15 +325,15 @@ public final class ToolAdmissionService {
     }
 
     /**
-     * 人工模式要求可信审批政策；当前不开放外发、付费或协议特性，只读声明不代替资源权限。
+     * 人工模式要求可信审批政策；HTTP 只开放独立白名单的只读分支，不开放付费或扩展协议特性。
      */
     private void validate(ToolAdmissionInput input, ToolBindingResolution binding, List<ToolSchemaDefinition> documents, ToolExecutionPolicy policy) {
         var tool = binding.tool().tool();
-        require(binding.tool().target() instanceof ExecutionTarget.Local
+        require(ToolExecutionRules.supportedTarget(binding, policy)
                         && ToolExecutionRules.supported(tool.risk(), policy)
                         && (policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE || approvals != null)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
-                        && binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
+                ,
                 ResultCodeEnum.AI_TOOL_POLICY_DENIED);
         for (var document : documents)
             if (!ToolCatalogDigests.schema(document.document()).equals(document.checksum()))

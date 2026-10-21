@@ -3,7 +3,6 @@ package com.arte.ainew.pojo.tool;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
 
@@ -14,8 +13,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 本地免收费工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
- * 独立工具无审批保持 v1、只读人工模式 v2、受控领域写入 v3；Run 子工具使用 v4，并在入库及派发时校验原步骤和收紧政策。
+ * 受信免收费工具的耐久执行快照，按 Invocation ID 一对一保存；不包含运行对象或凭据值。
+ * 独立工具无审批保持 v1、只读人工模式 v2、受控领域写入 v3；本地 Run 子工具使用 v4，受控 HTTP 独立及 Run 子工具使用 v5，并在入库及派发时校验原步骤和收紧政策。
  * 人工模式必须经等待审批事务受理，父身份本身不授予审批或业务资源资格。
  * 固定执行内容不冻结当前授权、工具启停或服务器约束，派发仍须重新核验。
  *
@@ -50,10 +49,10 @@ public record ToolExecutionSnapshot(ToolAdmissionInput input, InvocationRequest<
                 && request.binding().equals(binding.definition()) && request.capability().equals(tool.capability())
                 && request.input().tool().equals(tool.definition()) && request.input().arguments().equals(input.arguments())
                 && binding.owner().equals(ExecutionOwner.from(request.context())), "Tool snapshot identity mismatch");
-        ContractChecks.require(binding.tool().target() instanceof ExecutionTarget.Local
+        ContractChecks.require(ToolExecutionRules.supportedTarget(binding, policy)
                         && ToolExecutionRules.supported(tool.risk(), policy)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()
-                        && binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
+                ,
                 "Snapshot requires reviewed local free read-only or confirmed domain write tools");
         ContractChecks.require(request.context().budgetRef() == null
                         && request.options().maxToolSteps() == 0 && request.options().maxConcurrentTools() == 0,

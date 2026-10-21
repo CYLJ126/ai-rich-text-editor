@@ -6,7 +6,6 @@ import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.persistence.ToolBindingStore;
@@ -20,7 +19,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * 内部本地绑定管理及固定解析
+ * 内部静态工具绑定管理及固定解析
  * <p>
  * 成功解析前复核当前节点的受信实现声明，不调用 invoke。
  * 这里保留内部解析职责；公开管理入口由 ToolManagementService 复核当前资格，S2 派发仍须再次检查。
@@ -91,9 +90,9 @@ public final class ToolBindingService {
     private boolean available(ToolBindingResolution plan) {
         var state = discovery.state();
         var revision = plan.tool();
-        if (!state.discoveryHealthy() || !revision.equals(state.snapshot().tools().get(revision.tool().definition()))
-                || !(revision.target() instanceof ExecutionTarget.Local(DefinitionRef adapter1))) return false;
-        var adapter = registry.findAdapter(adapter1).orElse(null);
+        if (!state.discoveryHealthy() || !revision.equals(state.snapshot().tools().get(revision.tool().definition())))
+            return false;
+        var adapter = registry.executor(revision).orElse(null);
         if (adapter == null) return false;
         var actual = adapter.capability();
         return actual != null && actual.availability() != CapabilityDescriptor.Availability.DISABLED

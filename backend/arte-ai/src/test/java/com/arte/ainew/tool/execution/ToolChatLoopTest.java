@@ -118,7 +118,12 @@ public class ToolChatLoopTest {
         }
 
         Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools) throws Exception {
-            f = new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
+            this(confirmation, effect, supportsTools, null);
+        }
+
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools,
+            com.arte.ainew.infrastructure.http.HttpHealthToolAdapter http) throws Exception {
+            f = http != null ? new ToolExecutionFixture(http) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
                     new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
                     new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE));
@@ -210,7 +215,7 @@ public class ToolChatLoopTest {
                         boolean proposal = !finalFirst && (repeatProposal || call.request().input().messages().stream().noneMatch(m -> m.role() == ChatMessage.Role.TOOL));
                         var calls = new ArrayList<ToolCall>();
                         if (proposal) for (int i = 0; i < proposedCalls; i++)
-                            calls.add(new ToolCall("call-" + i, f.v1.revision().tool().definition(), object()));
+                            calls.add(new ToolCall("call-" + i, tools.entries().getFirst().binding().tool().tool().definition(), object()));
                         var output = new ChatMessage("answer-" + modelCalls.get(), ChatMessage.Role.ASSISTANT,
                                 proposal ? List.of() : List.of(new ChatMessage.Text("completed")), calls, null);
                         var usage = providerUsage;
@@ -228,7 +233,7 @@ public class ToolChatLoopTest {
             var gatewayTools = new com.arte.ainew.application.gateway.DefaultToolGateway(f.bindingService, f.catalog, f.registry,
                     call -> Mono.just(call.call().runtime().execution().authorization()), new com.arte.ainew.application.tool.schema.ToolSchemaValidator(),
                     f.codec, f.toolIo, f.clock, approvals::requireApproved);
-            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, gatewayTools));
+            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, http == null ? gatewayTools : f.gateway));
             dispatch = new InvocationDispatchWorker(f.executions, f.executions, invocationCoordinator, f.executionProperties, f.timer);
             restart();
         }

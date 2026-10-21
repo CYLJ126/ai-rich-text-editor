@@ -1,5 +1,10 @@
 # 最小 AI 数据契约 v1
 
+> S5-01：受控 HTTP 独立／Run 子工具的 tool-execution-snapshot 使用 v5，按 Remote 目标严格区分；本地 v1—v4 保持原义，禁止降级重标。
+> RemoteToolCall／ToolExecutionCall 仅为进程内授权材料，不增加持久化根别名。HTTP 合同包含固定连接摘要，不保存凭据或原远端响应；无新增
+> DDL。
+> 所有消费者先升级，再协调完整工具 manifest，详见 [HTTP 工具说明](TOOL_HTTP_REMOTE.md)。
+
 > S4-05：Run 子工具的 tool-execution-snapshot 使用 v4，父 Run、模型 callId 和收紧政策经耐久步骤校验；旧独立 v1／v2／v3
 > 不变。子模型使用独立受理摘要，普通文本摘要不变；Run 输入仍 v2、Run 状态及账本版本不变，无新增 DDL。Run 状态 HTTP 增加
 > cancellationRequested；升级与命令命名空间见 [执行说明](TOOL_CHAT_EXECUTION.md)。

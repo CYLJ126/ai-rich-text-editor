@@ -44,11 +44,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 单次本地免费 TOOL 网关
+ * 单次受信免费 TOOL 网关
  * <p>
  * 固定材料复核、当前授权、Schema、期限及输出检查，不重试或推进执行／预算状态。
  * 调用方必须先原子准备派发并持续维护领取／执行租约；网关内存状态不代替数据库 fencing。
- * 人工模式在适配器前复核当前 Attempt 与批准事实；领域写入须显式宿主授权，网络与 Secret 仍拒绝。
+ * 人工模式复核当前 Attempt 与批准事实；HTTP 分支只接受显式登记、独立授权的无认证只读 GET，Secret 仍拒绝。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
@@ -148,17 +148,17 @@ public final class DefaultToolGateway implements ToolGateway {
                 new ExecutionRuntimeContext(context, original.runtime().cancellation()));
         active(call);
         return ToolObservation.mono(GATEWAY_PREFLIGHT, call.runtime().execution(), () -> Mono.defer(() -> prepare(call, binding)).flatMap(prepared -> {
-                    phase.set(ExecutionError.Phase.AUTHORIZATION);
-                    return Mono.defer(() -> access.authorize(prepared.call()))
-                            .switchIfEmpty(Mono.error(new Rejected("TOOL_ACCESS_DENIED")))
-                            .map(authorization -> authorized(prepared, authorization));
-                })
-                // 授权或元数据读取可能等待；真正进入领域适配前再次复核治理／节点状态，不能重选版本。
-                .flatMap(prepared -> fixed(prepared.call().call()).map(current -> {
-                    require(current.equals(prepared.call().binding()), "TOOL_FIXED_BINDING_CHANGED");
-                    return prepared;
-                })))
-                // 调用本地工具（适配器）
+                            phase.set(ExecutionError.Phase.AUTHORIZATION);
+                            return Mono.defer(() -> prepared.call() instanceof LocalToolCall local ? access.authorize(local) : access.authorizeRemote((RemoteToolCall) prepared.call()))
+                                    .switchIfEmpty(Mono.error(new Rejected("TOOL_ACCESS_DENIED")))
+                                    .map(authorization -> authorized(prepared, authorization));
+                        })
+                        // 授权或元数据读取可能等待；真正进入领域适配前再次复核治理／节点状态，不能重选版本。
+                        .flatMap(prepared -> fixed(prepared.call().call()).map(current -> {
+                            require(current.equals(prepared.call().binding()), "TOOL_FIXED_BINDING_CHANGED");
+                            return prepared;
+                        })))
+                // 调用已登记的本地或受控 HTTP 适配器
                 .flatMap(prepared -> (binding.effectivePolicy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE
                         ? Mono.<Void>empty() : approvals.apply(prepared.call().call())).then(Mono.defer(() -> invokeAdapter(prepared, entry, phase))))
                 // 调用超时检查
@@ -192,17 +192,19 @@ public final class DefaultToolGateway implements ToolGateway {
     private Mono<Prepared> prepare(GatewayCall<ToolInvocation> call, ToolBindingResolution binding) {
         var tool = binding.tool().tool();
         var policy = binding.effectivePolicy();
-        require(binding.tool().target() instanceof ExecutionTarget.Local, "TOOL_REMOTE_UNSUPPORTED");
+        if (binding.tool().target() instanceof ExecutionTarget.Local)
+            require(binding.secrets().isEmpty() && binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty(),
+                    "TOOL_EXTERNAL_ACCESS_UNSUPPORTED");
+        require(ToolExecutionRules.supportedTarget(binding, policy), "TOOL_TARGET_UNSUPPORTED");
         require(ToolExecutionRules.supported(tool.risk(), policy),
                 "TOOL_APPROVAL_UNSUPPORTED");
-        require(binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty()
-                && binding.secrets().isEmpty(), "TOOL_EXTERNAL_ACCESS_UNSUPPORTED");
+
         require(tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported(), "TOOL_CAPABILITY_UNSUPPORTED");
         require(call.request().context().budgetRef() == null && call.runtime().execution().budgetRef() == null && call.attempt().budgetReservationId() == null
                 && call.binding().rate() == null, "TOOL_CHARGE_UNSUPPORTED");
         require(call.attempt().attemptNumber() <= policy.maxAttempts(), "TOOL_ATTEMPT_LIMIT");
         require(call.runtime().execution().authorization().scopes().containsAll(tool.risk().requiredScopes()), "TOOL_ACCESS_DENIED");
-        var adapter = registry.findAdapter(((ExecutionTarget.Local) binding.tool().target()).adapter())
+        var adapter = registry.executor(binding.tool())
                 .orElseThrow(() -> new Rejected("TOOL_EXECUTOR_UNAVAILABLE"));
         var refs = List.copyOf(new LinkedHashSet<>(List.of(tool.inputSchema(), tool.outputSchema(), tool.configurationSchema())));
         return catalog.findArtifacts(tool.definition()).switchIfEmpty(Mono.error(new Rejected("TOOL_SCHEMA_UNAVAILABLE")))
@@ -221,7 +223,7 @@ public final class DefaultToolGateway implements ToolGateway {
                             "TOOL_CONFIGURATION_INVALID");
                     require(ToolCatalogDigests.configuration(binding.effectiveConfiguration()).equals(binding.configurationDigest()),
                             "TOOL_CONFIGURATION_INVALID");
-                    return new Prepared(new LocalToolCall(call, binding), adapter, output);
+                    return new Prepared(executionCall(call, binding), adapter, output);
                 });
     }
 
@@ -248,7 +250,7 @@ public final class DefaultToolGateway implements ToolGateway {
                 before.parentExecutionId(), before.budgetRef(), before.releaseRef(), before.idempotencyKey());
         var current = new GatewayCall<>(original.request(), original.binding(), original.attempt(),
                 new ExecutionRuntimeContext(context, original.runtime().cancellation()));
-        return new Prepared(new LocalToolCall(current, local.binding()), prepared.adapter(), prepared.output());
+        return new Prepared(executionCall(current, local.binding()), prepared.adapter(), prepared.output());
     }
 
     private Mono<ToolResult> invokeAdapter(Prepared prepared, AtomicInteger entry, AtomicReference<ExecutionError.Phase> phase) {
@@ -261,8 +263,9 @@ public final class DefaultToolGateway implements ToolGateway {
             var result = ToolObservation.mono(ADAPTER, call.runtime().execution(), () -> Mono.defer(() -> {
                         active(call);
                         require(entry.compareAndSet(0, 1), "TOOL_CANCELLED");
-                        // 调用本地工具 BusinessToolAdapter
-                        return Objects.requireNonNull(prepared.adapter().invoke(prepared.call()));
+                        // 保持本地领域入口与远端 HTTP 入口的授权材料类型隔离
+                        return Objects.requireNonNull(prepared.call() instanceof LocalToolCall local
+                                ? prepared.adapter().invoke(local) : ((com.arte.ainew.spi.adapter.HttpToolAdapter) prepared.adapter()).invoke((RemoteToolCall) prepared.call()));
                     }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY"))))
                     // 输出结果检查
                     .publishOn(scheduler).map(value -> ToolObservation.call(OUTPUT_VALIDATION, call.runtime().execution(), () -> {
@@ -282,6 +285,10 @@ public final class DefaultToolGateway implements ToolGateway {
             // 调用超时检查
             return result.timeout(remaining);
         });
+    }
+
+    private static ToolExecutionCall executionCall(GatewayCall<ToolInvocation> call, ToolBindingResolution binding) {
+        return binding.tool().target() instanceof ExecutionTarget.Local ? new LocalToolCall(call, binding) : new RemoteToolCall(call, binding);
     }
 
     private static void require(boolean condition, String code) {
@@ -317,6 +324,9 @@ public final class DefaultToolGateway implements ToolGateway {
     }
 
     private static ToolResult failure(GatewayCall<ToolInvocation> call, String code, ExecutionError.Phase phase, boolean entered) {
+        // 本批固定 GET 只读没有业务写入；超时／取消不制造待核对的业务副作用，也不触发自动重试。
+        entered = entered && !(call.binding().target() instanceof ExecutionTarget.Remote
+                && call.binding().capability().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY);
         var sideEffect = entered ? ExecutionError.SideEffect.POSSIBLE : ExecutionError.SideEffect.NONE;
         var error = new ExecutionError(code, phase, false, sideEffect,
                 entered ? ExecutionError.Certainty.UNKNOWN : ExecutionError.Certainty.KNOWN, call.request().context().traceId());
@@ -327,7 +337,7 @@ public final class DefaultToolGateway implements ToolGateway {
     /**
      * 本次已验证的固定调用、显式适配器及输出校验计划；授权更新只替换运行上下文，不更换配置或目标。
      */
-    private record Prepared(LocalToolCall call, BusinessToolAdapter adapter,
+    private record Prepared(ToolExecutionCall call, BusinessToolAdapter adapter,
                             ToolSchemaValidator.CompiledSchema output) {
     }
 

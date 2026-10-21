@@ -77,6 +77,14 @@ public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, T
         return authorizeFree(input, call.call().runtime().execution(), call.binding()).map(Permit::authorization);
     }
 
+    @Override
+    public Mono<ExecutionAuthorization> authorizeRemote(com.arte.ainew.pojo.tool.RemoteToolCall call) {
+        var request = call.call().request();
+        var input = new ToolAdmissionInput(call.binding().definition().id(), request.input().arguments(),
+                request.options().requestedTimeout(), request.options().maxAttempts(), request.options().maxOutputBytes());
+        return authorizeFreeReadOnly(input, call.call().runtime().execution(), call.binding()).map(Permit::authorization);
+    }
+
     private void verify(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
         if (context.budgetRef() != null || !binding.owner().equals(ExecutionOwner.from(context)))
             throw denied();

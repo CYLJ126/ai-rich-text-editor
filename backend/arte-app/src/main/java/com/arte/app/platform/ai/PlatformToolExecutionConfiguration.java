@@ -80,10 +80,15 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     @Primary
-    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes) {
+    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http) {
         return new LocalToolPolicy() {
             public void requireFree(com.arte.ainew.pojo.tool.ToolAdmissionInput input, com.arte.ainew.pojo.tool.ToolBindingResolution binding) {
-                if (binding.tool().tool().definition().equals(LocalWorkspaceTools.TOOL))
+                if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote) {
+                    var remote = http.getIfAvailable();
+                    if (remote == null)
+                        throw new org.springframework.security.access.AccessDeniedException("HTTP tool disabled");
+                    remote.requireFree(input, binding);
+                } else if (binding.tool().tool().definition().equals(LocalWorkspaceTools.TOOL))
                     writes.requireFree(input, binding);
                 else text.requireFree(input, binding);
             }
@@ -97,9 +102,11 @@ public class PlatformToolExecutionConfiguration {
     }
 
     @Bean
-    LocalToolRegistry localToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties) {
+    LocalToolRegistry localToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
+                                        ObjectProvider<com.arte.ainew.infrastructure.http.HttpHealthToolAdapter> http) {
         var registrations = new java.util.ArrayList<>(tools.registry().registrations());
         if (properties.enabled()) registrations.add(writes.registration());
+        http.ifAvailable(remote -> registrations.add(remote.registration()));
         return new LocalToolRegistry(registrations);
     }
 

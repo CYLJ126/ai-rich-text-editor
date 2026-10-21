@@ -20,6 +20,7 @@ import com.arte.ainew.common.execution.*;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
+import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -154,6 +155,16 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits) throws Exception {
+        this(policy, risk, limits, null);
+    }
+
+    ToolExecutionFixture(HttpHealthToolAdapter http) throws Exception {
+        this(http.revision().tool().defaultPolicy(), http.revision().tool().risk(),
+                new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), http);
+    }
+
+    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits,
+                         HttpHealthToolAdapter http) throws Exception {
         this.limits = limits;
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
         ddl = source.getConnection();
@@ -171,20 +182,47 @@ final class ToolExecutionFixture implements AutoCloseable {
         v1 = tool("v1", policy, risk);
         v2 = tool("v2", policy, risk);
         var definitions = new LocalToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
-        registry = new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
-                Map.of(v1.adapterRef(), implementation(v1), v2.adapterRef(), implementation(v2)))));
+        var registrations = new java.util.ArrayList<LocalToolRegistry.Registration>();
+        // 本地测试契约不声明远端 origin；HTTP 测试只登记真正的受控适配器。
+        if (http == null)
+            registrations.add(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
+                    Map.of(v1.adapterRef(), implementation(v1), v2.adapterRef(), implementation(v2))));
+        else registrations.add(http.registration());
+        registry = new LocalToolRegistry(registrations);
         discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(Duration.ofSeconds(10)).state().discoveryHealthy());
         var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         releaseService = new ToolReleaseService(releases, validator);
         bindingService = new ToolBindingService(bindings, discovery, registry, metadata, Duration.ofSeconds(2));
-        publish(v1, null);
-        binding = createBinding("binding", ToolBindingSettings.VersionPolicy.FOLLOW_COMPATIBLE);
+        if (http == null) {
+            publish(v1, null);
+            binding = createBinding("binding", ToolBindingSettings.VersionPolicy.FOLLOW_COMPATIBLE);
+        } else {
+            var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object("status", text("UP")))),
+                    "reviewed anonymous read-only GET; no fees or business arguments", null, ToolExecutionPolicy.ApprovalMode.NONE, null, null);
+            var receipt = releaseService.execute(actor, new ToolReleaseCommand(http.revision().tool().definition(), ToolReleaseCommand.Action.PUBLISH,
+                    0, "publish-http", "review", review, null)).block(Duration.ofSeconds(10));
+            assertEquals(ToolReleaseReceipt.Rejection.NONE, receipt.value().rejection());
+            var settings = new ToolBindingSettings(http.revision().tool().definition(), ToolBindingSettings.VersionPolicy.PINNED,
+                    "HTTP health", true, object(), Map.of(), null, null);
+            binding = bindings.execute(actor, owner, new ToolBindingCommand(ToolBindingCommand.Action.SAVE, null, 0, "create-http", "create",
+                    settings, null, null, false)).block(Duration.ofSeconds(10)).value().result().value();
+            commitHook = snapshot -> http.requireFree(snapshot.input(), snapshot.binding());
+        }
         service = service(store, access, clock);
         payloads = new MybatisPayloadPersistence(source, codec, io);
-        gateway = new DefaultToolGateway(bindingService, catalog, registry, call -> Mono.defer(() -> executionAllowed.get()
-                ? Mono.just(call.call().runtime().execution().authorization()) : Mono.error(new AccessDeniedException("Test execution denied"))),
-                new ToolSchemaValidator(), codec, toolIo, clock);
+        gateway = new DefaultToolGateway(bindingService, catalog, registry, new com.arte.ainew.spi.auth.ToolExecutionAccess() {
+            public Mono<ExecutionAuthorization> authorize(LocalToolCall call) {
+                return executionAllowed.get() ? Mono.just(call.call().runtime().execution().authorization()) : Mono.error(new AccessDeniedException("Test execution denied"));
+            }
+
+            public Mono<ExecutionAuthorization> authorizeRemote(RemoteToolCall call) {
+                if (!executionAllowed.get() || http == null)
+                    return Mono.error(new AccessDeniedException("Remote execution denied"));
+                http.requireFree(new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
+                return Mono.just(call.call().runtime().execution().authorization());
+            }
+        }, new ToolSchemaValidator(), codec, toolIo, clock);
         dispatcher = dispatcher(executions, payloads, gateway);
     }
 

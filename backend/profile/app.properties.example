@@ -331,3 +331,9 @@ arte.ai-new-execution.scheduling.tool-manifest=
 arte.ai-new-tool-write.enabled=true
 # 启用人工确认与审批
 arte.ai-new-tool-approval.enabled=true
+
+# S5-01: enable only after reviewing the fixed endpoint, network origin and deployment manifest.
+arte.ai-new-tool-http.enabled=false
+arte.ai-new-tool-http.version=v1
+arte.ai-new-tool-http.endpoint=
+arte.ai-new-tool-http.allowed-origins=

@@ -15,7 +15,8 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
  */
-public record LocalToolCall(GatewayCall<ToolInvocation> call, ToolBindingResolution binding) {
+public record LocalToolCall(GatewayCall<ToolInvocation> call,
+                            ToolBindingResolution binding) implements ToolExecutionCall {
 
     public LocalToolCall {
         Objects.requireNonNull(call);

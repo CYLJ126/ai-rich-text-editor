@@ -2331,3 +2331,56 @@ JDK 21 离线定向回归共 **141 项通过，0 失败／错误／跳过**：
 `/private/tmp/ai-failure-diagnostics-final.log`、`/private/tmp/platform-failure-diagnostics-test.log`。 平台测试在允许本机
 Mockito JVM 代理后通过；数据库集成使用隔离 H2。未执行全仓回归、业务数据库变更、真实供应商调用或运行实例重启；
 本批不证明生产性能改善。日志定位方式见 [执行说明 §8](TOOL_CHAT_EXECUTION.md#8-错误日志与排查)。
+
+## 42. S5-01：首个受控免费 HTTP 工具
+
+日期：2026-10-21。完成 `arte.http.health`：固定登记连接上的无认证 GET JSON，仅接收 `{}`，只投影 status 枚举，不外发聊天内容或回显原响应
+details。 完整范围、配置、失败语义及上线顺序见 [受控 HTTP 工具说明](TOOL_HTTP_REMOTE.md)。没有实施 S5-02 付费工具或 S5-03
+MCP。
+
+### 42.1 实现与现有基础
+
+- 静态 `LocalToolRegistry.Registration` 显式区分 LOCAL 执行器与 HTTP 执行器；HTTP 必须登记真实适配器并精确匹配提供方／连接／操作／固定工具版本；MCP、空
+  HTTP 执行清单及错误类型拒绝。发现与发布不外联、不自动发布或建绑。
+- 发布预检与发布事务支持上述受控 HTTP 只读合同；绑定解析和网关读取相同登记实例，保持本地网络声明原有拒绝码。连接摘要固化在默认配置及
+  const Schema，同引用修改 endpoint／期限／协议等由目录原子拒绝。
+- 新增进程内 `ToolExecutionCall`／`RemoteToolCall` 与 `HttpToolAdapter`。旧 `LocalToolCall` 和领域适配不变；
+  `ToolExecutionAccess.authorizeRemote` 默认拒绝。宿主完整免费白名单与现有当前身份／RBAC／空间／AI 资格接线，提交事务和发送边界均重验资格。
+- 复用 `HttpConnectionRuntime` 的固定 DNS、地址白名单、连接池、禁重定向／禁自动重试和取消释放。HTTP 使用独立运行实例，只给新协议开放完整
+  endpoint 的单次匿名 GET；模型仍保留原路径和凭据强制检查。
+- 可靠受理、Outbox、分类 Worker、结果、查询、停止及 Run 工具集合沿用原流程。HTTP 明确 FREE，不创建工具费用预留／结算／Allocation；模型仍按原
+  CHARGE 和 Run 总上限结算，调用次数／并发／期限并未免除。
+- 新远端 `tool-execution-snapshot` 使用 v5，独立及 Run 子工具均区分于本地 v1—v4，拒绝降级。无新增 DDL。所有消费者须先升级；HTTP
+  开关、固定连接版本及完整部署 manifest 协调配置后才能开放，默认仍关闭。
+
+默认值及运行映射增加 `arte.ai-new-tool-http.enabled=false`、`version=v1`、空 endpoint 和 allowed-origins；同步 profile
+example，不改其既有本地工具启用设置。版本变化须重新审核和处理旧在途工作项，不能把同版本换地址当成普通配置更新。
+
+### 42.2 验证
+
+使用 JDK 21、临时 H2、真实 MyBatis 事务、MockMvc 与模拟回环 HTTP。最终定向回归 **33 类、425 项通过，零失败／错误／跳过**：arte-ai
+29 类 399 项；arte-app 4 类 26 项。
+
+新增 **14 项**：`HttpToolIntegrationTest` 10 项，`PlatformHttpToolIntegrationTest` 4 项，覆盖：
+
+- 静态登记／发现／发布／建绑无外联、真实 HTTP 请求方法及固定路径、仅投影状态、独立幂等受理和原 Worker 结果落库、无工具费用写入。
+- 真实聊天循环及恢复、两轮模型费用、工具结果回传、模型账户隔离和远端子工具 v5；v5 防降级、同版本连接漂移拒绝。
+- 任意 URL 参数拒绝、旧本地授权拒绝远端、发送前撤权及出口拒绝、302／401／403／429／500 不跟随／不重试、非法 JSON／尾随
+  JSON／错误类型／未知状态／分块超限。
+- 超时保存 TIMED_OUT、取消保存 CANCELLED，无业务副作用核对工作；取消后释放 HTTP 资源并允许后续调用。
+- 正式宿主默认关闭、严格配置／独立 origin／版本及资源过滤映射、现有平台权限和公开管理／提交／查询链路、分类部署清单，以及撤权后的幂等重放拒绝。
+
+相邻回归名单：LocalToolDiscoveryTest、LocalToolDiscoveryPersistenceTest、ToolReleaseTest、ToolBindingStoreTest、ToolBindingConstraintsTest、ToolAdmissionIntegrationTest、ToolAdmissionContractTest、ToolChatBudgetSelectorTest、ToolSetServiceTest、ToolGatewayIntegrationTest、ToolGatewayAssemblyTest、ToolDispatchIntegrationTest、ToolChatLoopTest、ToolChatBudgetContractTest、GenerationEgressTest、GenerationGatewayTest、GenerationAssemblyTest、ToolChatProtocolTest、DataContractsTest、ExecutionTargetContractsTest、ToolDefinitionContractsTest、DispatchBillingContractTest、ResolvedBindingCodecTest、TurnCandidateCodecTest、ReadOperationSnapshotTest、ToolApprovalFlowTest、ToolApprovalIntegrationTest、ToolApprovalRecoveryTest、PlatformToolExecutionIntegrationTest、PlatformToolChatAccessIntegrationTest、PlatformToolWriteIntegrationTest。
+
+命令：在仓库根目录设置 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home`，运行
+`mvn -q -f backend/pom.xml -pl arte-app -am`，按上述 33 类设置 `-Dtest`，并使用
+`-Dsurefire.failIfNoSpecifiedTests=false -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider -Dlog4j2.loggerContextFactory=org.apache.logging.log4j.core.impl.Log4jContextFactory test`
+。最终日志 `/private/tmp/s5-final.log`；`git diff --check` 通过。
+
+初次回环测试受沙箱端口监听限制，允许临时本地监听后执行通过。此前扩展还执行 LocalToolDiscoveryAssemblyTest：5 项通过，1 项既有
+profile 比较失败：common 的本地工具 enabled／refresh-on-startup 均为 false，而既有 app.properties.example 均为 true；对应示例与
+HEAD 一致，common 对应值来自本批前已有改动，本批未调整这些值。该项不计入 425 项最终通过名单，不能据此宣称全仓全绿；新增 HTTP
+四项默认值／资源过滤一致性另有正式宿主测试通过。
+
+运行日志包含预期故障注入 SQL 和既有 Netty macOS DNS native fallback 提示。没有运行全量后端、生产 MySQL、多节点、真实 HTTPS
+服务／模型、性能压测或人工浏览器验收；没有修改业务数据库、启用运行环境开关或重启应用。测试通过不代表生产开放或性能 SLA 已验收。

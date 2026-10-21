@@ -2,8 +2,11 @@ package com.arte.ainew.application.tool.discovery;
 
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.ainew.pojo.control.ExecutionTarget;
+import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
+import com.arte.ainew.spi.adapter.HttpToolAdapter;
 import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
 
 import java.util.List;
@@ -12,7 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 组合模块显式提供的本地来源与执行器清单；不按引用反射加载、不枚举 Bean。
+ * 组合模块显式提供的静态来源与本地／受控 HTTP 执行器清单；不按引用反射加载、不枚举 Bean。
  * 构造只检查登记结构，不读取来源或调用适配器；实例构造后不可追加登记。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -48,18 +51,40 @@ public final class LocalToolRegistry {
     }
 
     /**
+     * 本地静态来源也可登记受控 HTTP 契约；不做远端动态发现或 MCP 回退。
+     */
+    public Optional<BusinessToolAdapter> executor(ToolDefinitionRevision revision) {
+        return registrations.stream().filter(r -> r.provider().definition().equals(revision.provider())).findFirst()
+                .flatMap(r -> revision.target() instanceof ExecutionTarget.Local local ? Optional.ofNullable(r.adapters().get(local.adapter()))
+                        : Optional.ofNullable(r.httpAdapters().get(revision.target()))
+                        .filter(a -> a.revision().equals(revision)).map(a -> (BusinessToolAdapter) a));
+    }
+
+    /**
      * 受信代码把来源、提供方契约及执行实例一起登记，不接受用户指定 Bean 名称。
      *
-     * @param provider LOCAL 提供方的固定接入版本，其 adapter 标识本来源适配版本。
+     * @param provider LOCAL／HTTP 提供方的固定接入版本，其 adapter 标识本来源适配版本。
      * @param source   返回该提供方完整定义的来源对象。
      * @param adapters tool-adapter 固定引用到执行实例的不可变映射，最多 128 项。
      */
     public record Registration(ToolProviderDefinition provider, LocalToolDefinitionSource source,
-                               Map<DefinitionRef, BusinessToolAdapter> adapters) {
+                               Map<DefinitionRef, BusinessToolAdapter> adapters,
+                               Map<ExecutionTarget.Remote, HttpToolAdapter> httpAdapters) {
+        public Registration(ToolProviderDefinition provider, LocalToolDefinitionSource source, Map<DefinitionRef, BusinessToolAdapter> adapters) {
+            this(provider, source, adapters, Map.of());
+        }
 
         public Registration {
             Objects.requireNonNull(provider, "provider");
-            ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.LOCAL, "Local registration requires a LOCAL provider");
+            ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.LOCAL || provider.kind() == ToolProviderDefinition.Kind.HTTP,
+                    "Only static LOCAL or reviewed HTTP providers are supported");
+            httpAdapters = Map.copyOf(httpAdapters);
+            ContractChecks.range(httpAdapters.size(), "httpAdapters.size", 0, 128);
+            ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.LOCAL ? httpAdapters.isEmpty() : adapters.isEmpty() && !httpAdapters.isEmpty(), "Provider executor kind mismatch");
+            httpAdapters.forEach((target, adapter) -> ContractChecks.require(target.connection().equals(provider.connection())
+                            && target.equals(adapter.revision().target()) && adapter.revision().provider().equals(provider.definition())
+                            && com.arte.ainew.pojo.tool.ToolExecutionRules.httpReadOnly(adapter.revision().tool(), adapter.revision().tool().defaultPolicy()),
+                    "HTTP adapter must match fixed reviewed read-only contract"));
             Objects.requireNonNull(source, "source");
             Objects.requireNonNull(adapters, "adapters");
             ContractChecks.range(adapters.size(), "adapters.size", 0, 128);

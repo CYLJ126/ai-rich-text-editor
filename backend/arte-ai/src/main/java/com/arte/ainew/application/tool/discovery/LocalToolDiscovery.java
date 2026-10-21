@@ -4,7 +4,6 @@ import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
@@ -276,9 +275,7 @@ public final class LocalToolDiscovery {
     }
 
     private void verifyAdapter(LocalToolRegistry.Registration registration, ToolDefinitionRevision revision) {
-        require(revision.target() instanceof ExecutionTarget.Local, ADAPTER_MISMATCH);
-        var target = (ExecutionTarget.Local) revision.target();
-        var adapter = registration.adapters().get(target.adapter());
+        var adapter = registry.executor(revision).orElse(null);
         require(adapter != null, ADAPTER_MISMATCH);
         CapabilityDescriptor actual;
         try {

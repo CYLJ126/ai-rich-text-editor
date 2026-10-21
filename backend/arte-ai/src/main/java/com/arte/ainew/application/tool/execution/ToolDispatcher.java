@@ -42,7 +42,7 @@ import java.util.function.Function;
 import static com.arte.ainew.application.support.ToolObservation.Stage.*;
 
 /**
- * 独立本地免费 TOOL 的一次耐久派发：读取原快照、复核资格、原子准备、调用网关并提交结果／终态。
+ * 受信免费 TOOL 的一次耐久派发：读取原快照、复核资格、原子准备、调用网关并提交结果／终态。
  * 只使用本次新取得的发送许可；重复领取不调用工具，基础设施故障保留未 ACK 工作项。当前不自动重试或核对业务结果。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -326,9 +326,18 @@ public final class ToolDispatcher {
         }
 
         private ToolResult unknown(String code) {
+            if (prepared.snapshot().binding().tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote
+                    && ToolExecutionRules.httpReadOnly(prepared.snapshot().binding().tool().tool(), prepared.snapshot().policy()))
+                return readOnlyFailure(code);
             var fact = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.POSSIBLE,
                     ExecutionError.Certainty.UNKNOWN, prepared.runtime().execution().traceId());
             return new ToolResult(prepared.snapshot().request().input().callId(), ToolResult.Outcome.UNKNOWN, null, List.of(), List.of(), fact.sideEffect(), fact);
+        }
+
+        private ToolResult readOnlyFailure(String code) {
+            var fact = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.NONE,
+                    ExecutionError.Certainty.KNOWN, prepared.runtime().execution().traceId());
+            return new ToolResult(prepared.snapshot().request().input().callId(), ToolResult.Outcome.FAILED, null, List.of(), List.of(), fact.sideEffect(), fact);
         }
 
         private Mono<Void> finish(ToolResult result) {

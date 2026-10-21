@@ -1,5 +1,9 @@
 # AI TOOL HTTP API（管理与独立调用）
 
+S5-01 更新：新增 `arte.http.health` 受控免费 HTTP 只读工具，复用本文发布、默认绑定、预览、提交、查询和停止接口；
+`refreshLocalCatalog` 现在也刷新部署代码登记的 HTTP 元数据，不发起远端发现或探测。认证、网络、快照 v5、部署清单和预算边界见
+[受控 HTTP 工具说明](TOOL_HTTP_REMOTE.md)。下文按原批次保留历史范围。
+
 S3-02：已新增当前资格下的本人确认／独立审批与待办，WAITING_APPROVAL 为非终态。仅本地免费只读，正式文本 v1
 期限不足，不能直接启用人工模式。详见 [审批说明](TOOL_APPROVAL.md)。
 

@@ -6,7 +6,6 @@ import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolReleaseDigests;
@@ -74,10 +73,8 @@ public final class LocalToolPublicationValidator {
         if (revision == null) return failed(NOT_DISCOVERED);
         if (review == null) return failed(RISK_UNREVIEWED);
         var provider = snapshot.providers().get(revision.provider());
-        if (provider == null || provider.kind() != ToolProviderDefinition.Kind.LOCAL
-                || !(revision.target() instanceof ExecutionTarget.Local(DefinitionRef adapter1)))
-            return failed(IMPLEMENTATION_MISMATCH);
-        var adapter = registry.findAdapter(adapter1).orElse(null);
+        if (provider == null) return failed(IMPLEMENTATION_MISMATCH);
+        var adapter = registry.executor(revision).orElse(null);
         if (adapter == null) return failed(IMPLEMENTATION_MISMATCH);
         var actual = adapter.capability();
         var tool = revision.tool();

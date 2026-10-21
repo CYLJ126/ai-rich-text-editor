@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 有界、独立 HTTP 运行资源
  * <p>
+ * 连接基础设施，负责连接授权、出口白名单、DNS 校验、连接池及网络超时。
+ * <p>
  * 按连接版本／主体／SecretRef 隔离池，发送时重新授权并解析凭据。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -168,27 +170,40 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
 
     @Override
     public Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
+        return acquire(definition, runtime, false);
+    }
+
+    /**
+     * 固定 GET JSON 操作使用完整登记路径；不继承模型路径或放开模型的认证要求。
+     */
+    public Mono<Lease<Handle>> acquireReadOnly(ConnectionDefinition definition, ExecutionRuntimeContext runtime) {
+        if (!definition.protocol().equals(HttpJsonGetTransport.PROTOCOL) || definition.credential() != null)
+            return Mono.error(GenerationException.beforeSend("TOOL_HTTP_PROTOCOL_UNSUPPORTED"));
+        return acquire(definition, runtime, true);
+    }
+
+    private Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime, boolean readOnly) {
         return Mono.<Lease<Handle>>defer(() -> {
-            checkActive(runtime);
-            egress.validateOrigin(definition.endpoint());
-            return connections.resolve(definition.definition(), runtime.execution()).flatMap(current -> {
-                if (!current.equals(definition) || current.state() != ConnectionDefinition.State.ENABLED) {
-                    return Mono.error(GenerationException.beforeSend("CONNECTION_CONFIGURATION_CHANGED"));
-                }
-                return Mono.fromCallable(() -> egress.validateAddresses(definition.endpoint(), InetAddress.getAllByName(definition.endpoint().getHost())))
-                        .subscribeOn(dns).timeout(properties.acquireTimeout())
-                        .map(addresses -> borrow(definition, runtime, addresses));
-            });
+                    checkActive(runtime);
+                    egress.validateOrigin(definition.endpoint());
+                    return connections.resolve(definition.definition(), runtime.execution()).flatMap(current -> {
+                        if (!current.equals(definition) || current.state() != ConnectionDefinition.State.ENABLED) {
+                            return Mono.error(GenerationException.beforeSend("CONNECTION_CONFIGURATION_CHANGED"));
+                        }
+                        return Mono.fromCallable(() -> egress.validateAddresses(definition.endpoint(), InetAddress.getAllByName(definition.endpoint().getHost())))
+                                .subscribeOn(dns).timeout(properties.acquireTimeout())
+                                .map(addresses -> borrow(definition, runtime, addresses, readOnly));
+                    });
                 }).doOnError(error -> log.warn("AI HTTP connection acquisition failed, invocationId={}, traceId={}, connectionId={}, code={}, type={}",
                         runtime.execution().executionId(), runtime.execution().traceId(), definition.definition().id(),
                         error instanceof GenerationException known ? known.error(runtime.execution().traceId()).code() : "CONNECTION_ACQUIRE_FAILED",
                         error.getClass().getName()))
                 .onErrorMap(error -> error instanceof GenerationException
-                || error instanceof org.springframework.security.access.AccessDeniedException ? error
-                : GenerationException.beforeSend("CONNECTION_ACQUIRE_FAILED"));
+                        || error instanceof org.springframework.security.access.AccessDeniedException ? error
+                        : GenerationException.beforeSend("CONNECTION_ACQUIRE_FAILED"));
     }
 
-    private Borrowed borrow(ConnectionDefinition definition, ExecutionRuntimeContext runtime, List<InetAddress> addresses) {
+    private Borrowed borrow(ConnectionDefinition definition, ExecutionRuntimeContext runtime, List<InetAddress> addresses, boolean readOnly) {
         checkActive(runtime);
         var key = new PoolKey(definition, ExecutionOwner.from(runtime.execution()), addresses);
         Pool pool = reserve(key);
@@ -209,7 +224,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                     .doAfterRequest((request, connection) -> request.currentContextView().<InvocationTiming>getOrEmpty(InvocationTiming.class)
                             .ifPresent(timing -> timing.mark("PROVIDER_REQUEST_SENT")));
             String base = definition.endpoint().toString();
-            var uri = URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/chat/completions");
+            var uri = readOnly ? definition.endpoint() : URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/chat/completions");
             var client = WebClient.builder().clientConnector(new ReactorClientHttpConnector(http))
                     .codecs(codecs -> {
                         codecs.defaultCodecs().maxInMemorySize(properties.maxFrameBytes());
@@ -218,7 +233,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                     .filter((request, next) -> Mono.deferContextual(values -> {
                         lease.active();
                         checkActive(runtime);
-                        if (!request.url().equals(uri) || !lease.sent.compareAndSet(false, true)) {
+                        if (!request.url().equals(uri) || readOnly && request.method() != org.springframework.http.HttpMethod.GET || !lease.sent.compareAndSet(false, true)) {
                             return Mono.error(GenerationException.beforeSend("CONNECTION_REQUEST_NOT_ALLOWED"));
                         }
                         com.arte.ainew.pojo.execution.GatewayCall<?> call = values.getOrDefault(com.arte.ainew.pojo.execution.GatewayCall.class, null);
@@ -232,6 +247,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                             }
                             lease.active();
                             checkActive(runtime);
+                            if (readOnly) return next.exchange(request);
                             if (definition.credential() == null) {
                                 return Mono.error(GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE"));
                             }

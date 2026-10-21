@@ -272,9 +272,12 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
      */
     private boolean validProduct(ToolCatalogStore.Batch artifacts, ToolReleaseCommand.Review review) {
         var tool = artifacts.tools().getFirst().tool();
-        if (artifacts.providers().getFirst().kind() != ToolProviderDefinition.Kind.LOCAL
-                || !(artifacts.tools().getFirst().target() instanceof ExecutionTarget.Local)
-                || !tool.capabilities().features().isEmpty() || tool.capabilities().outcomeQuerySupported()
+        var provider = artifacts.providers().getFirst();
+        var target = artifacts.tools().getFirst().target();
+        boolean supported = provider.kind() == ToolProviderDefinition.Kind.LOCAL && target instanceof ExecutionTarget.Local
+                || provider.kind() == ToolProviderDefinition.Kind.HTTP && target instanceof ExecutionTarget.Remote remote
+                && remote.connection().equals(provider.connection()) && ToolExecutionRules.httpReadOnly(tool, tool.defaultPolicy());
+        if (!supported || !tool.capabilities().features().isEmpty() || tool.capabilities().outcomeQuerySupported()
                 || tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.UNKNOWN
                 || tool.risk().idempotency() == ToolRiskProfile.Idempotency.UNVERIFIED
                 || tool.risk().idempotency() != ToolRiskProfile.Idempotency.NONE && review.idempotencyEvidence() == null)
