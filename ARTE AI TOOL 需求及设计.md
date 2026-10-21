@@ -339,6 +339,9 @@ S2-02 已实现内部本地只读网关：`GatewayCall<ToolInvocation>` → 当�
 - 公共身份、空间与授权模型、API 和规则使用 arte-core；core 不反向依赖 AI。
 - arte-app 依赖 AI 端口并组合业务领域工具、登录适配及环境基础设施。
 - 业务工具在组合层实现 BusinessToolAdapter，保留领域授权、expectedVersion、事务和领域幂等。
+- 受控远端工具共用 `RemoteToolAdapter` 的固定版本声明与 `invoke(RemoteToolCall)` 入口；`HttpToolAdapter`、`McpToolAdapter`
+  并列继承该接口，MCP 不再继承 HTTP 工具接口。Gateway 按本地／远端调用材料分派，远端通过共用接口执行。 两种协议继续独立登记及校验；MCP
+  使用 HTTP 传输不等于 HTTP 工具协议，不允许互换登记槽或自动回退协议。
 - 现有 AI 持久化实现继续使用；本功能不要求先搬迁既有 Store 或重构公共基础。
 - Spring AI／MCP SDK、HTTP DTO、序列化及数据库实体局限在适配层；核心请求、定义和结果不暴露 SDK 类型。
 

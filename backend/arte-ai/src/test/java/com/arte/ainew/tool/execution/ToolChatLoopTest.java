@@ -122,12 +122,12 @@ public class ToolChatLoopTest {
         }
 
         Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools,
-            com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
-            this(confirmation, effect, supportsTools, http, null);
+            com.arte.ainew.spi.adapter.RemoteToolAdapter remote) throws Exception {
+            this(confirmation, effect, supportsTools, remote, null);
         }
 
-        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools, com.arte.ainew.spi.adapter.HttpToolAdapter http, ToolPrice paidPrice) throws Exception {
-            f = paidPrice != null ? new ToolExecutionFixture(paidPrice) : http != null ? new ToolExecutionFixture(http) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
+        Rig(boolean confirmation, CapabilityDescriptor.SideEffect effect, boolean supportsTools, com.arte.ainew.spi.adapter.RemoteToolAdapter remote, ToolPrice paidPrice) throws Exception {
+            f = paidPrice != null ? new ToolExecutionFixture(paidPrice) : remote != null ? new ToolExecutionFixture(remote) : new ToolExecutionFixture(new ToolExecutionPolicy(Duration.ofSeconds(120), 1, Duration.ZERO, 4096, 4096,
                     confirmation ? ToolExecutionPolicy.ApprovalMode.REQUESTER_CONFIRMATION : ToolExecutionPolicy.ApprovalMode.NONE),
                     new ToolRiskProfile(effect, false, ToolRiskProfile.Idempotency.NONE, Set.of("ai:invoke"), Set.of()),
                     new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE));
@@ -245,7 +245,7 @@ public class ToolChatLoopTest {
             var gatewayTools = new com.arte.ainew.application.gateway.DefaultToolGateway(f.bindingService, f.catalog, f.registry,
                     call -> Mono.just(call.call().runtime().execution().authorization()), new com.arte.ainew.application.tool.schema.ToolSchemaValidator(),
                     f.codec, f.toolIo, f.clock, approvals::requireApproved);
-            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, http == null && paidPrice == null ? gatewayTools : f.gateway));
+            invocationCoordinator = new DefaultInvocationCoordinator(admission, generation, f.executions, f.dispatcher(f.executions, f.payloads, remote == null && paidPrice == null ? gatewayTools : f.gateway));
             dispatch = new InvocationDispatchWorker(f.executions, f.executions, invocationCoordinator, f.executionProperties, f.timer);
             restart();
         }

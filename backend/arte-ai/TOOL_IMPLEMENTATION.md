@@ -2514,7 +2514,8 @@ LOCAL、HTTP 或 MCP；静态发现只读取元数据，不访问远端工具服
 manifest。
 `LocalToolCall`、`ExecutionTarget.Local`、真实本地工具及其配置仍使用 Local 名称。
 
-本批没有提取 `RemoteToolAdapter`，`McpToolAdapter extends HttpToolAdapter` 及 Gateway 既有协议分派保持原状；接口职责拆分留待第二批。
+第一批没有提取 `RemoteToolAdapter`，当时仍保留 `McpToolAdapter extends HttpToolAdapter` 及 Gateway 既有协议分派；
+接口职责拆分已在后续第二批完成，见 §46。
 没有修改数据库、启用功能开关或重启后端；保留任务开始前已有的工作区改动。
 
 ### 45.2 验证
@@ -2531,3 +2532,48 @@ manifest。
   同时核对两处清单格式标记及既有刷新路径保留，配置值未变，更改内容通过空白差异检查。
 
 未执行生产 MySQL、多节点、真实供应商、浏览器人工验收或性能压测；本批仅整理命名，不据此新增生产能力结论。
+
+## 46. S5 后续整理第二批：拆分远端工具接口
+
+日期：2026-10-21。提取 `spi.adapter.RemoteToolAdapter`，将远端执行的公共契约与 HTTP／MCP 协议身份分开。 MCP 的 Streamable
+HTTP 传输继续沿用现有实现，工具接口不再继承 HTTP 工具接口。
+
+### 46.1 接口关系与调用路径
+
+```text
+BusinessToolAdapter
+  └─ RemoteToolAdapter
+       ├─ HttpToolAdapter
+       └─ McpToolAdapter
+```
+
+- `RemoteToolAdapter` 统一声明 `revision()`、从固定版本读取 `capability()` 及 `invoke(RemoteToolCall)`。 原
+  `invoke(GatewayCall<ToolInvocation>)` 入口仍拒绝执行，错误类型保持 `IllegalArgumentException`，说明统一为
+  `Remote tool requires verified fixed binding`，不访问远端。
+- `HttpToolAdapter`、`McpToolAdapter` 作为并列协议接口，继续由真实 HTTP／MCP 实现分别实现。
+- `DefaultToolGateway` 保留本地／远端调用材料分派，远端通过 `RemoteToolAdapter.invoke(RemoteToolCall)` 调用， 不再将 MCP
+  执行器转换为 `HttpToolAdapter`。固定绑定、当前授权、Schema、期限、收费和输出校验沿用原流程。
+- `StaticToolRegistry` 的代码及登记边界不变：LOCAL／HTTP／MCP 各用独立映射，远端实例仍须精确匹配提供方、连接、目标、版本和协议。
+  共用接口不合并登记槽，不新增通用适配器加载、动态发现、自动协议回退或实际服务支持范围。
+
+测试装配及工具聊天测试改用共用远端接口接收 HTTP／MCP。强化既有两种协议端到端用例，在真正执行前直接调用旧入口，确认拒绝且零网络请求，
+再经正式 Gateway 完成远端调用。MCP 已不能直接放入 HTTP 类型映射；原错误登记用例改为显式 HTTP 包装，继续验证运行时仍拒绝 MCP
+合同混入 HTTP 槽。
+
+同步需求设计、HTTP／MCP 接入说明及实现记录。无配置值、API 路径、持久化别名／版本、Schema、工具定义、manifest 算法或数据库变更，
+不需要切换现有调度池清单；未启用运行开关、设置真实服务地址或重启后端。
+
+### 46.2 验证
+
+JDK 21，`mvn -q -f backend/pom.xml -pl arte-app -am clean test` 配合定向测试名单，清理旧 class 后编译并运行： **53 类、614
+项通过，零失败／错误／跳过**，日志 `/private/tmp/arte-remote-adapter-regression.log`。覆盖本地／HTTP／MCP
+端到端、聊天与重启恢复、免费／收费账本、发布／绑定／发现、授权、审批、Worker、管理接口及模型调用相邻回归。 其中
+`McpToolIntegrationTest` 14 项、`HttpToolIntegrationTest` 10 项、`ToolChatLoopTest` 17
+项全部通过；旧入口拒绝和包装后错误登记断言包含在原用例内，未以新增计数重复报告。
+
+另外单独运行 `StaticToolDiscoveryAssemblyTest`： **5 项通过、1 项既有失败**。仍为
+`toolProfileDefaultsExampleAndFilteredResourceStayConsistent` 在共享配置 false、示例配置 true 时断言不一致，原因同
+§45.2；本批未改配置值、 该测试源码或装配配置。日志 `/private/tmp/arte-remote-adapter-assembly.log`，不将该轮报告为全绿。
+
+`git diff --check` 通过；核对注册表源码未变，生产源码中无 MCP 继承 HTTP 工具接口及 Gateway 转换为 HTTP 工具接口的残留。
+不是全仓全量测试；未执行生产 MySQL、多节点、真实 MCP／HTTPS 服务、前端浏览器验收或性能压测，未进行数据库操作或后端重启。

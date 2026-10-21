@@ -18,6 +18,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolReleaseDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
+import com.arte.ainew.spi.adapter.RemoteToolAdapter;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -48,7 +49,7 @@ import static com.arte.ainew.application.support.ToolObservation.Stage.*;
  * <p>
  * 固定材料复核、当前授权、Schema、期限及输出检查，不重试或推进执行／预算状态。
  * 调用方必须先原子准备派发并持续维护领取／执行租约；网关内存状态不代替数据库 fencing。
- * 人工模式复核当前 Attempt 与批准事实；HTTP 分支只接受显式登记、独立授权的无认证只读 GET，Secret 仍拒绝。
+ * 人工模式复核当前 Attempt 与批准事实；远端分支只接受显式登记、独立授权的受控只读 HTTP／MCP，Secret 仍拒绝。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
@@ -272,7 +273,7 @@ public final class DefaultToolGateway implements ToolGateway {
                         require(entry.compareAndSet(0, 1), "TOOL_CANCELLED");
                         // 保持本地领域入口与远端入口的授权材料类型隔离
                         return Objects.requireNonNull(prepared.call() instanceof LocalToolCall local
-                                ? prepared.adapter().invoke(local) : ((com.arte.ainew.spi.adapter.HttpToolAdapter) prepared.adapter()).invoke((RemoteToolCall) prepared.call()));
+                                ? prepared.adapter().invoke(local) : ((RemoteToolAdapter) prepared.adapter()).invoke((RemoteToolCall) prepared.call()));
                     }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY"))))
                     // 输出结果检查
                     .doOnNext(value -> {

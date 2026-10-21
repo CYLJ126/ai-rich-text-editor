@@ -1,34 +1,11 @@
 package com.arte.ainew.spi.adapter;
 
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.execution.GatewayCall;
-import com.arte.ainew.pojo.tool.RemoteToolCall;
-import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
-import com.arte.ainew.pojo.tool.ToolInvocation;
-import com.arte.ainew.pojo.tool.ToolResult;
-import reactor.core.publisher.Mono;
-
 /**
- * 规定受控 HTTP 工具适配器
- * <p>
- * 受信代码登记的固定 HTTP 只读契约；发现阶段只读取元数据，不执行网络探测。
- * <p>
- * 声明固定契约、接收调用并返回结果。
+ * 受控 HTTP 工具的协议标记；与 MCP 并列，共用远端调用契约。
+ * 受信代码将实例登记到 HTTP 槽，注册及发布预检仍核对固定 HTTP 工具版本与连接。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/21 12:50 ✾
  */
-public interface HttpToolAdapter extends BusinessToolAdapter {
-
-    ToolDefinitionRevision revision();
-
-    default CapabilityDescriptor capability() {
-        return revision().tool().discoveredCapability();
-    }
-
-    Mono<ToolResult> invoke(RemoteToolCall call);
-
-    default Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call) {
-        return Mono.error(new IllegalArgumentException("HTTP tool requires verified fixed binding"));
-    }
+public interface HttpToolAdapter extends RemoteToolAdapter {
 }

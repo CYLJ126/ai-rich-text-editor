@@ -29,6 +29,9 @@ Invocation.UNKNOWN 不同。
 ## 2. 固定目录与协议标记
 
 MCP 提供方显式登记 `McpToolAdapter`，保留独立于 HTTP 执行器的注册槽。
+`McpToolAdapter` 与 `HttpToolAdapter` 并列继承 `RemoteToolAdapter`，共用固定版本声明、能力读取及
+`invoke(RemoteToolCall)`；Gateway 按共用远端接口执行。MCP 的 Streamable HTTP 传输保持原实现，工具接口不继承 HTTP 工具协议。
+缺少已核实固定绑定的旧 `invoke(GatewayCall<ToolInvocation>)` 入口明确拒绝，不发起握手或工具调用。
 `ToolDefinitionRevision.protocol` 固定 `mcp-streamable-http@2025-06-18`，与 MCP 提供方、目标连接、操作和实际实例完全匹配；不能把
 MCP 塞进 HTTP 或 LOCAL 登记绕过预检。 旧无 protocol 的本地／HTTP 合同保持原义，未知协议拒绝。
 

@@ -18,6 +18,7 @@ import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.ainew.spi.adapter.HttpToolAdapter;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
@@ -175,7 +176,11 @@ public class McpToolIntegrationTest {
             assertTrue(r.methods.isEmpty());
             f.submit("one");
             f.service.submit(f.input(), f.context("dup", "one")).block(WAIT);
-            f.worker(f.dispatcher).pollOnce().block(WAIT);
+            f.worker(f.dispatcher(f.executions, f.payloads, call -> {
+                assertThrows(IllegalArgumentException.class, () -> r.adapter.invoke(call).block(WAIT));
+                assertTrue(r.methods.isEmpty()); // 共用旧入口拒绝后，正式远端入口仍可完成握手与调用。
+                return f.gateway.invoke(call);
+            })).pollOnce().block(WAIT);
             assertEquals(String.valueOf(f.invocation("one").error()) + r.methods, Invocation.State.SUCCEEDED, f.invocation("one").state());
             assertEquals(List.of("initialize", "notifications/initialized", "tools/list", "tools/call"), r.methods);
             assertEquals(1, r.calls.get());
@@ -339,7 +344,17 @@ public class McpToolIntegrationTest {
             var replacement = new McpHealthToolAdapter(changed, new McpStreamableHttpTransport(r.runtime));
             assertEquals(StoreOutcome.Code.IDEMPOTENCY_CONFLICT, f.catalog.put(new com.arte.ainew.spi.persistence.ToolCatalogStore.Batch(List.of(replacement.registration().provider()), replacement.definitions().schemas(), replacement.definitions().tools())).block(WAIT).code());
             assertEquals(0, r.methods.size());
-            assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.application.tool.discovery.StaticToolRegistry.Registration(r.adapter.registration().provider(), r.adapter.registration().source(), Map.of(), Map.of((ExecutionTarget.Remote) r.adapter.revision().target(), r.adapter)));
+            // MCP 已无法直接放入 HTTP 类型映射；即使包装成 HTTP 接口，也不能绕过固定协议校验。
+            HttpToolAdapter disguised = new HttpToolAdapter() {
+                public ToolDefinitionRevision revision() {
+                    return r.adapter.revision();
+                }
+
+                public Mono<com.arte.ainew.pojo.tool.ToolResult> invoke(com.arte.ainew.pojo.tool.RemoteToolCall call) {
+                    throw new AssertionError("Registration must not invoke an adapter");
+                }
+            };
+            assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.application.tool.discovery.StaticToolRegistry.Registration(r.adapter.registration().provider(), r.adapter.registration().source(), Map.of(), Map.of((ExecutionTarget.Remote) r.adapter.revision().target(), disguised)));
         }
     }
 

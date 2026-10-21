@@ -98,7 +98,11 @@ public class HttpToolIntegrationTest {
     @Test
     public void reviewedHttpToolPublishesDispatchesReplaysAndHasNoBudgetWrites() throws Exception {
         try (var remote = new Remote(); var f = new ToolExecutionFixture(remote.adapter)) {
-            var worker = f.worker(f.dispatcher);
+            var worker = f.worker(f.dispatcher(f.executions, f.payloads, call -> {
+                assertThrows(IllegalArgumentException.class, () -> remote.adapter.invoke(call).block(WAIT));
+                assertEquals(0, remote.requests.get()); // 缺少 RemoteToolCall 的旧入口不能发送请求。
+                return f.gateway.invoke(call);
+            }));
             assertEquals(0, remote.requests.get()); // 构造、发现、发布和建绑没有外联。
             f.submit("one");
             f.service.submit(f.input(), f.context("duplicate", "one")).block(WAIT);

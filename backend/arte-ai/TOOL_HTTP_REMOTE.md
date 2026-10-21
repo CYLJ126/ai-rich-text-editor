@@ -32,6 +32,10 @@ POST、Bearer、参数／查询串映射、OpenAPI 导入、动态远端发现�
 `HttpToolAdapter`。HTTP 实例必须精确匹配提供方、connection、operation 和工具版本；MCP 不接受登记。`refreshLocalCatalog`
 仍刷新静态部署来源，绝不扫描用户 URL 或探测远端。
 
+接口整理后，`HttpToolAdapter` 与 `McpToolAdapter` 并列继承 `RemoteToolAdapter`；共用接口声明固定版本、能力与
+`invoke(RemoteToolCall)`，Gateway 不再将 MCP 执行器视为 HTTP 工具接口。HTTP 登记槽仍拒绝 MCP，独立 MCP 子集见
+[TOOL_MCP.md](TOOL_MCP.md)；本节所述 GET JSON 传输、契约及授权限制保持原义。
+
 连接原文摘要写入工具默认配置及 const Schema，覆盖路径、协议、版本、期限和响应上限。发现、发布预检、发布事务、绑定解析、受理快照、派发和网关逐层核验；同版本换
 endpoint 或连接合同会被不可变目录拒绝，不静默修改已发布工具。
 

@@ -159,11 +159,11 @@ final class ToolExecutionFixture implements AutoCloseable {
         });
     }
 
-    private static StaticToolRegistry.Registration remoteRegistration(com.arte.ainew.spi.adapter.HttpToolAdapter tool) {
+    private static StaticToolRegistry.Registration remoteRegistration(com.arte.ainew.spi.adapter.RemoteToolAdapter tool) {
         return tool instanceof McpHealthToolAdapter mcp ? mcp.registration() : ((HttpHealthToolAdapter) tool).registration();
     }
 
-    private static void remoteFree(com.arte.ainew.spi.adapter.HttpToolAdapter tool, ToolAdmissionInput input, ToolBindingResolution binding) {
+    private static void remoteFree(com.arte.ainew.spi.adapter.RemoteToolAdapter tool, ToolAdmissionInput input, ToolBindingResolution binding) {
         if (tool instanceof McpHealthToolAdapter mcp) mcp.requireFree(input, binding);
         else ((HttpHealthToolAdapter) tool).requireFree(input, binding);
     }
@@ -181,14 +181,14 @@ final class ToolExecutionFixture implements AutoCloseable {
         this(policy, risk, limits, null);
     }
 
-    ToolExecutionFixture(com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
-        this(http.revision().tool().defaultPolicy(), http.revision().tool().risk(),
-                new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), http);
+    ToolExecutionFixture(com.arte.ainew.spi.adapter.RemoteToolAdapter remote) throws Exception {
+        this(remote.revision().tool().defaultPolicy(), remote.revision().tool().risk(),
+                new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), remote);
     }
 
     ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits,
-                         com.arte.ainew.spi.adapter.HttpToolAdapter http) throws Exception {
-        this(policy, risk, limits, http, null);
+                         com.arte.ainew.spi.adapter.RemoteToolAdapter remote) throws Exception {
+        this(policy, risk, limits, remote, null);
     }
 
     ToolExecutionFixture(ToolPrice price) throws Exception {
@@ -197,7 +197,7 @@ final class ToolExecutionFixture implements AutoCloseable {
                 new ToolExecutionPolicy(Duration.ofSeconds(120), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), null, price);
     }
 
-    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits, com.arte.ainew.spi.adapter.HttpToolAdapter http, ToolPrice price) throws Exception {
+    ToolExecutionFixture(ToolExecutionPolicy policy, ToolRiskProfile risk, ToolExecutionPolicy limits, com.arte.ainew.spi.adapter.RemoteToolAdapter remote, ToolPrice price) throws Exception {
         paidPrice = price;
         this.limits = limits;
         source.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
@@ -229,31 +229,31 @@ final class ToolExecutionFixture implements AutoCloseable {
         v2 = tool("v2", policy, risk);
         var definitions = new StaticToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
         var registrations = new java.util.ArrayList<StaticToolRegistry.Registration>();
-        // 本地测试契约不声明远端 origin；HTTP 测试只登记真正的受控适配器。
-        if (http == null)
+        // 本地测试契约不声明远端 origin；远端测试分别登记真实 HTTP／MCP 适配器。
+        if (remote == null)
             registrations.add(new StaticToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
                     Map.of(v1.adapterRef(), implementation(v1), v2.adapterRef(), implementation(v2))));
-        else registrations.add(remoteRegistration(http));
+        else registrations.add(remoteRegistration(remote));
         registry = new StaticToolRegistry(registrations);
         discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(Duration.ofSeconds(10)).state().discoveryHealthy());
         var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         releaseService = new ToolReleaseService(releases, validator);
         bindingService = new ToolBindingService(bindings, discovery, registry, metadata, Duration.ofSeconds(2));
-        if (http == null) {
+        if (remote == null) {
             publish(v1, null);
             binding = createBinding("binding", ToolBindingSettings.VersionPolicy.FOLLOW_COMPATIBLE);
         } else {
             var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object("status", text("UP")))),
                     "reviewed anonymous read-only GET; no fees or business arguments", null, ToolExecutionPolicy.ApprovalMode.NONE, null, null);
-            var receipt = releaseService.execute(actor, new ToolReleaseCommand(http.revision().tool().definition(), ToolReleaseCommand.Action.PUBLISH,
+            var receipt = releaseService.execute(actor, new ToolReleaseCommand(remote.revision().tool().definition(), ToolReleaseCommand.Action.PUBLISH,
                     0, "publish-http", "review", review, null)).block(Duration.ofSeconds(10));
             assertEquals(ToolReleaseReceipt.Rejection.NONE, receipt.value().rejection());
-            var settings = new ToolBindingSettings(http.revision().tool().definition(), ToolBindingSettings.VersionPolicy.PINNED,
+            var settings = new ToolBindingSettings(remote.revision().tool().definition(), ToolBindingSettings.VersionPolicy.PINNED,
                     "HTTP health", true, object(), Map.of(), null, null);
             binding = bindings.execute(actor, owner, new ToolBindingCommand(ToolBindingCommand.Action.SAVE, null, 0, "create-http", "create",
                     settings, null, null, false)).block(Duration.ofSeconds(10)).value().result().value();
-            commitHook = snapshot -> remoteFree(http, snapshot.input(), snapshot.binding());
+            commitHook = snapshot -> remoteFree(remote, snapshot.input(), snapshot.binding());
         }
         service = service(store, access, clock);
         payloads = new MybatisPayloadPersistence(source, codec, io);
@@ -266,9 +266,9 @@ final class ToolExecutionFixture implements AutoCloseable {
                 return executionAllowed.get() && paidPrice != null ? Mono.just(call.call().runtime().execution().authorization()) : Mono.error(new AccessDeniedException("Paid denied"));
             }
             public Mono<ExecutionAuthorization> authorizeRemote(RemoteToolCall call) {
-                if (!executionAllowed.get() || http == null)
+                if (!executionAllowed.get() || remote == null)
                     return Mono.error(new AccessDeniedException("Remote execution denied"));
-                remoteFree(http, new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
+                remoteFree(remote, new ToolAdmissionInput(call.binding().definition().id(), call.call().request().input().arguments(), null, null, null), call.binding());
                 return Mono.just(call.call().runtime().execution().authorization());
             }
         }, new ToolSchemaValidator(), codec, toolIo, clock);
