@@ -143,11 +143,17 @@ arte.platform.workspace.enabled=true
 arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 LocalToolRegistry Bean。
-arte.ai-new-tool.enabled=false
+arte.ai-new-tool.enabled=true
 arte.ai-new-tool.discovery.source-timeout=10s
-arte.ai-new-tool.discovery.refresh-on-startup=false
+arte.ai-new-tool.discovery.refresh-on-startup=true
+# Tool chat and its Run worker require the S4 migrations and an execution worker.
+arte.ai-new-tool-chat.enabled=true
+arte.ai-new-tool-chat.worker-enabled=true
+arte.ai-new-tool-chat.poll-interval=1s
+arte.ai-new-tool-chat.lease=45s
+arte.ai-new-tool-chat.batch-size=8
 # Set true for the first upgraded startup after applying the metadata migration.
-arte.ai-new.conversation-metadata-backfill.enabled=false
+arte.ai-new.conversation-metadata-backfill.enabled=true
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1
 arte.ai-new.persistence.threads=4

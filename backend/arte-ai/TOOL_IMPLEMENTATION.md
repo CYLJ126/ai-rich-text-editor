@@ -2236,3 +2236,11 @@ freshnessPolicy、原始工具结果复用、远端／付费工具尚未实现�
 读取。模拟服务不证明真实账号／RBAC、生产 MySQL／Redis、供应商工具协议、多节点或性能达标。真实环境联调和生产开放验收仍待执行；未执行任何数据库脚本、未启用业务开关、未重启正式后端。
 
 截图及 375px 几何检查记录见 [S4-06 浏览器验收](../../frontend/src/pages/AI/ChatNew/TOOL_CHAT_S4_06_ACCEPTANCE.md)。
+
+### S4-06 配置映射修复（2026-10-21）
+
+工具设置显示“此环境尚未开放工具聊天”时，发现独立开关缺省关闭且 profile 到模块运行时未映射新属性。 现补齐 common.properties
+的默认关闭值、app.properties.example 和 ainew/config/application.properties 的五项 Maven 过滤映射。 未修改本机
+app.properties、未启用任何运行时 Worker、未执行数据库操作或重启后端。 用户在本机 app.properties 显式开启
+enabled／worker-enabled 后，需要重新构建资源并重启后端，再点击“重新检查工具”。 JDK 21 离线运行
+ToolChatProfileConfigurationTest、ToolChatRuntimeAssemblyTest，共 6 项通过；覆盖真实过滤后的配置、默认关闭和显式覆盖绑定。

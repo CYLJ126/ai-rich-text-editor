@@ -62,6 +62,11 @@ freshnessPolicy、resourceVersion／sourceDigest／maxAge，也不承诺旧资�
 部署仍按 [执行说明](TOOL_CHAT_EXECUTION.md) 的四项服务开关及 Worker 开关操作；本批不修改默认关闭状态、不增加 DDL。真实供应商、真实
 RBAC／业务库、多节点与生产负载验收不由模拟浏览器或 H2 代替。
 
+若提示“此环境尚未开放工具聊天”，在本机 `backend/profile/app.properties` 显式添加
+`arte.ai-new-tool-chat.enabled=true` 和 `arte.ai-new-tool-chat.worker-enabled=true`，确认原
+execution.enabled／worker-enabled 已启用，再重新构建并重启后端。profile 到运行时的五项属性映射已补齐，前序 S4
+表结构须已部署；本批不自动执行 SQL。
+
 隔离浏览器复现：在 `frontend` 运行 `node scripts/tool-chat-s406-browser/server.mjs`，打开
 `http://127.0.0.1:5246/`。页面使用真实 BusinessChatPanel、工具选择、Run 观察和人工控制组件，HTTP 为可查看 `/fixture/calls`
 的固定模拟服务，不具备真实业务授权或执行。测试按钮只切换模拟状态。

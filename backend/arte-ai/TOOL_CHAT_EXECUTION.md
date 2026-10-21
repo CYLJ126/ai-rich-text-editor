@@ -122,8 +122,12 @@ SSE；前端接线前可按 Run 状态、事件及预算接口轮询，不能把
 
 ## 6. 配置、编码与部署
 
+本机开发配置通过 `backend/profile/common.properties`／`app.properties` 经 Maven 过滤进入模块运行时资源
+`ainew/config/application.properties`。工具聊天的五项属性已接入该映射，共享默认关闭。 本机 `app.properties`
+显式覆盖后须重新构建资源并重启后端，仅刷新前端不会生效；不要修改生成的 target/classes 文件。
+
 ```properties
-# 以下仅为部署示例；本批未修改共享或本机业务配置。
+# 以下为显式启用示例；共享默认仍关闭，未代为启用本机业务环境。
 arte.ai-new-tool-chat.enabled=true
 arte.ai-new-tool-chat.worker-enabled=true
 arte.ai-new-tool-chat.poll-interval=1s
