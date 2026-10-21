@@ -349,7 +349,7 @@ public final class ToolDispatcher {
 
         private ToolResult unknown(String code) {
             if (prepared.snapshot().binding().tool().tool().price() != null || prepared.snapshot().binding().tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote
-                    && ToolExecutionRules.httpReadOnly(prepared.snapshot().binding().tool().tool(), prepared.snapshot().policy()))
+                    && ToolExecutionRules.remoteReadOnly(prepared.snapshot().binding().tool().tool(), prepared.snapshot().policy()))
                 return readOnlyFailure(code);
             var fact = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.POSSIBLE,
                     ExecutionError.Certainty.UNKNOWN, prepared.runtime().execution().traceId());

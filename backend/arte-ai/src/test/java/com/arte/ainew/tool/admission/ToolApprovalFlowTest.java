@@ -206,7 +206,7 @@ public class ToolApprovalFlowTest {
                             new com.arte.ainew.common.value.StructuredValue.ObjectValue(Map.of()), List.of(), List.of(), ExecutionError.SideEffect.NONE, null));
                 }
             };
-            var registry = new com.arte.ainew.application.tool.discovery.LocalToolRegistry(List.of(new com.arte.ainew.application.tool.discovery.LocalToolRegistry.Registration(
+            var registry = new com.arte.ainew.application.tool.discovery.StaticToolRegistry(List.of(new com.arte.ainew.application.tool.discovery.StaticToolRegistry.Registration(
                     r.f.v1.provider(), () -> Mono.just(r.f.v1.definitions()), Map.of(r.f.v1.adapterRef(), adapter))));
             var gateway = new DefaultToolGateway(r.f.bindingService, r.f.catalog, registry, call -> Mono.just(call.call().runtime().execution().authorization()),
                     new ToolSchemaValidator(), r.f.codec, r.f.metadata, r.f.clock, r.approvals::requireApproved);

@@ -1,8 +1,8 @@
 package com.arte.app.platform.ai.tool;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -13,7 +13,7 @@ import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
@@ -34,7 +34,7 @@ import java.util.Set;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/19 11:18 ✾
  */
-public final class LocalTextTools implements LocalToolPolicy {
+public final class LocalTextTools implements ToolUsagePolicy {
 
     public static final DefinitionRef TOOL = ref("tool", "text.countCodePoints");
     public static final DefinitionRef ADAPTER = ref("tool-adapter", "arte-text-code-points");
@@ -75,15 +75,15 @@ public final class LocalTextTools implements LocalToolPolicy {
         return revision;
     }
 
-    public LocalToolDefinitionSource.Definitions definitions() {
-        return new LocalToolDefinitionSource.Definitions(List.of(input, output, configuration), List.of(revision));
+    public StaticToolDefinitionSource.Definitions definitions() {
+        return new StaticToolDefinitionSource.Definitions(List.of(input, output, configuration), List.of(revision));
     }
 
     /**
      * 固定受信来源与真实算法一起登记；构造和发现都不执行算法，也不自动发布。
      */
-    public LocalToolRegistry registry() {
-        return new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(ADAPTER, adapter()))));
+    public StaticToolRegistry registry() {
+        return new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(ADAPTER, adapter()))));
     }
 
     /**
@@ -99,7 +99,7 @@ public final class LocalTextTools implements LocalToolPolicy {
      * 仅计算本部署受信清单的预期值；Worker 仍须成功发现并匹配该值。
      */
     public String manifest() {
-        return LocalToolDiscovery.manifest(new ToolCatalogStore.Batch(List.of(provider), definitions().schemas(), List.of(revision)));
+        return StaticToolDiscovery.manifest(new ToolCatalogStore.Batch(List.of(provider), definitions().schemas(), List.of(revision)));
     }
 
     private BusinessToolAdapter adapter() {

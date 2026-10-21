@@ -9,7 +9,7 @@ import com.arte.ainew.pojo.tool.ToolBindingResolution;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
-import com.arte.app.platform.ai.tool.LocalToolPolicy;
+import com.arte.app.platform.ai.tool.ToolUsagePolicy;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 
@@ -24,15 +24,15 @@ import java.util.HashSet;
  */
 public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, ToolExecutionAccess {
     private final PlatformToolManagementAccess platform;
-    private final LocalToolPolicy tools;
+    private final ToolUsagePolicy tools;
 
     private final PlatformPaidToolAccess paid;
 
-    public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools) {
+    public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, ToolUsagePolicy tools) {
         this(platform, tools, null);
     }
 
-    public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools, PlatformPaidToolAccess paid) {
+    public PlatformToolExecutionAccess(PlatformToolManagementAccess platform, ToolUsagePolicy tools, PlatformPaidToolAccess paid) {
         this.paid = paid;
         this.platform = platform;
         this.tools = tools;

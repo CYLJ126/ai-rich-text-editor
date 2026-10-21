@@ -1,8 +1,8 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -13,8 +13,8 @@ import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
 import com.arte.ainew.spi.adapter.PaidToolAdapter;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.app.platform.ai.AiControlData;
 import com.arte.app.platform.ai.DatabaseAiControlService;
@@ -85,16 +85,16 @@ class PlatformToolBillingIntegrationTest {
                     List.of(), List.of(), ExecutionError.SideEffect.NONE, null, new ToolCharge(PRICE.perCall(), "test-invoice-" + call.attempt().attemptId())));
         }
 
-        LocalToolRegistry registry() {
+        StaticToolRegistry registry() {
             var local = text.registry().registrations().getFirst();
-            var adapters = new HashMap<>(local.adapters());
+            var adapters = new HashMap<>(local.localAdapters());
             adapters.put(((ExecutionTarget.Local) revision.target()).adapter(), this);
-            var definitions = new LocalToolDefinitionSource.Definitions(text.definitions().schemas(), List.of(text.revision(), revision));
-            return new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(local.provider(), () -> Mono.just(definitions), adapters)));
+            var definitions = new StaticToolDefinitionSource.Definitions(text.definitions().schemas(), List.of(text.revision(), revision));
+            return new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(local.provider(), () -> Mono.just(definitions), adapters)));
         }
 
         String manifest() {
-            return LocalToolDiscovery.manifest(new ToolCatalogStore.Batch(List.of(text.registry().registrations().getFirst().provider()), text.definitions().schemas(), List.of(text.revision(), revision)));
+            return StaticToolDiscovery.manifest(new ToolCatalogStore.Batch(List.of(text.registry().registrations().getFirst().provider()), text.definitions().schemas(), List.of(text.revision(), revision)));
         }
     }
 
@@ -107,7 +107,7 @@ class PlatformToolBillingIntegrationTest {
 
         @Bean
         @Primary
-        LocalToolRegistry paidRegistry(Contract contract) {
+        StaticToolRegistry paidRegistry(Contract contract) {
             return contract.registry();
         }
     }

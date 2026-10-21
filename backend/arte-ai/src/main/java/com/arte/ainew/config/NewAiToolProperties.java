@@ -7,10 +7,10 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import java.time.Duration;
 
 /**
- * TOOL 独立开关及本地发现限制；只接受已实现的配置项；启动发现须另显式启用，不自动发布或执行。
+ * TOOL 独立开关及静态来源发现限制；只接受已实现的配置项；启动发现须另显式启用，不自动发布或执行。
  *
- * @param enabled   默认关闭；与 ai-new 开关共同开启本地管理 API、发现及治理服务，不自动发布或执行。
- * @param discovery 本地来源读取限制。
+ * @param enabled   默认关闭；与 ai-new 开关共同开启工具管理 API、发现及治理服务，不自动发布或执行。
+ * @param discovery 静态来源读取限制。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */

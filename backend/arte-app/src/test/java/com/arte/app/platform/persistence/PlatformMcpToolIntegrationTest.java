@@ -1,7 +1,7 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
 import com.arte.app.platform.ai.PlatformMcpToolConfiguration;
 import com.arte.app.platform.ai.tool.McpHealthToolProperties;
@@ -33,7 +33,7 @@ class PlatformMcpToolIntegrationTest {
                 assertNull(c.getStartupFailure());
                 assertTrue(c.getBeansOfType(McpHealthToolAdapter.class).isEmpty());
                 assertFalse(c.containsBean("newAiToolMcpRuntime"));
-                assertEquals(1, c.getBean(LocalToolRegistry.class).registrations().size());
+                assertEquals(1, c.getBean(StaticToolRegistry.class).registrations().size());
                 assertFalse(new McpHealthToolProperties(false, null, null, List.of()).enabled());
             });
         }
@@ -116,7 +116,7 @@ class PlatformMcpToolIntegrationTest {
                 var remote = metadata.registration();
                 var localDefinitions = local.source().discover().block();
                 var remoteDefinitions = remote.source().discover().block();
-                manifest = com.arte.ainew.application.tool.discovery.LocalToolDiscovery.manifest(new com.arte.ainew.spi.persistence.ToolCatalogStore.Batch(
+                manifest = com.arte.ainew.application.tool.discovery.StaticToolDiscovery.manifest(new com.arte.ainew.spi.persistence.ToolCatalogStore.Batch(
                         List.of(local.provider(), remote.provider()), java.util.stream.Stream.concat(localDefinitions.schemas().stream(), remoteDefinitions.schemas().stream()).toList(),
                         java.util.stream.Stream.concat(localDefinitions.tools().stream(), remoteDefinitions.tools().stream()).toList()));
             }

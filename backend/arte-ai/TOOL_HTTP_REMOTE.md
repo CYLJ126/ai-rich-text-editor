@@ -28,7 +28,7 @@ POST、Bearer、参数／查询串映射、OpenAPI 导入、动态远端发现�
 
 ## 2. 固定合同、权限和网络边界
 
-`LocalToolRegistry` 保留原类名，但现在表示部署代码提供的静态定义来源：LOCAL 继续登记本地执行器，HTTP 显式登记
+`StaticToolRegistry` 表示部署代码提供的静态定义来源：LOCAL 继续登记本地执行器，HTTP 显式登记
 `HttpToolAdapter`。HTTP 实例必须精确匹配提供方、connection、operation 和工具版本；MCP 不接受登记。`refreshLocalCatalog`
 仍刷新静态部署来源，绝不扫描用户 URL 或探测远端。
 
@@ -79,7 +79,7 @@ Worker。没有自动发布、建绑、授权角色或启动真实远端探测�
 
 1. 停止新提交并按现有部署步骤排空旧工作项、领取和 permits／reservations；所有可能处理新 TOOL／Run 的节点升级解码器。
 2. 为相同部署配置统一 HTTP 版本、endpoint、白名单与完整工具清单。清单可由登记来源的 `discover()` 元数据汇成
-   `ToolCatalogStore.Batch` 后调用 `LocalToolDiscovery.manifest(batch)` 离线计算；该过程不访问网络。管理刷新返回当前节点
+   `ToolCatalogStore.Batch` 后调用 `StaticToolDiscovery.manifest(batch)` 离线计算；该过程不访问网络。管理刷新返回当前节点
    checksum 供复核。
 3. 按既有分类调度方案配置包含本地和 HTTP 工具的完整 `tool-manifest`，协调切换池与节点清单。不能只启用 HTTP
    开关并沿用旧本地清单；清单不一致时保持受理不可用。

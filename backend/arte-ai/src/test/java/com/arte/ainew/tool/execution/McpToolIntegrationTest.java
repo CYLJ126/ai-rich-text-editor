@@ -339,7 +339,7 @@ public class McpToolIntegrationTest {
             var replacement = new McpHealthToolAdapter(changed, new McpStreamableHttpTransport(r.runtime));
             assertEquals(StoreOutcome.Code.IDEMPOTENCY_CONFLICT, f.catalog.put(new com.arte.ainew.spi.persistence.ToolCatalogStore.Batch(List.of(replacement.registration().provider()), replacement.definitions().schemas(), replacement.definitions().tools())).block(WAIT).code());
             assertEquals(0, r.methods.size());
-            assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.application.tool.discovery.LocalToolRegistry.Registration(r.adapter.registration().provider(), r.adapter.registration().source(), Map.of(), Map.of((ExecutionTarget.Remote) r.adapter.revision().target(), r.adapter)));
+            assertThrows(IllegalArgumentException.class, () -> new com.arte.ainew.application.tool.discovery.StaticToolRegistry.Registration(r.adapter.registration().provider(), r.adapter.registration().source(), Map.of(), Map.of((ExecutionTarget.Remote) r.adapter.revision().target(), r.adapter)));
         }
     }
 

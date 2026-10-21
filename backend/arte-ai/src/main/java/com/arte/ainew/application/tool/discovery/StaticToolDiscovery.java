@@ -10,7 +10,7 @@ import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.application.platform.PlatformTimes;
 import lombok.extern.slf4j.Slf4j;
@@ -28,10 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static com.arte.ainew.application.tool.discovery.LocalToolDiscovery.Code.*;
+import static com.arte.ainew.application.tool.discovery.StaticToolDiscovery.Code.*;
 
 /**
- * 节点本地完整发现：显式来源 → 校验整份候选 → 原子登记不可变事实 → 一次替换节点视图。
+ * 节点静态工具完整发现：显式来源 → 校验整份候选 → 原子登记不可变事实 → 一次替换节点视图。
  * 失败保留旧视图并置为不健康；该视图仅供后续管理校验，绝不授予发布、授权或执行资格。
  * 不恢复数据库分页为完整来源快照，不启动后台同步，不调用 BusinessToolAdapter.invoke。
  *
@@ -39,14 +39,14 @@ import static com.arte.ainew.application.tool.discovery.LocalToolDiscovery.Code.
  * @since 2026/10/18 09:30
  */
 @Slf4j
-public final class LocalToolDiscovery {
+public final class StaticToolDiscovery {
     /**
      * 默认配置沿用单条目录记录的绝对字节上限，不是调用参数默认额度。
      */
     private static final long MAX_CONFIGURATION_BYTES = 1_000_000;
     private static final Comparator<DefinitionRef> REFERENCES = Comparator.comparing(DefinitionRef::type)
             .thenComparing(DefinitionRef::id).thenComparing(DefinitionRef::version);
-    private final LocalToolRegistry registry;
+    private final StaticToolRegistry registry;
     private final ToolCatalogStore store;
     private final ToolSchemaValidator schemas;
     private final Scheduler scheduler;
@@ -114,8 +114,8 @@ public final class LocalToolDiscovery {
     public record RefreshResult(Code code, State state) {
     }
 
-    private record Loaded(LocalToolRegistry.Registration registration,
-                          LocalToolDefinitionSource.Definitions definitions) {
+    private record Loaded(StaticToolRegistry.Registration registration,
+                          StaticToolDefinitionSource.Definitions definitions) {
     }
 
     /**
@@ -148,8 +148,8 @@ public final class LocalToolDiscovery {
         }
     }
 
-    public LocalToolDiscovery(LocalToolRegistry registry, ToolCatalogStore store, ToolSchemaValidator schemas,
-                              Scheduler scheduler, Clock clock, Duration sourceTimeout) {
+    public StaticToolDiscovery(StaticToolRegistry registry, ToolCatalogStore store, ToolSchemaValidator schemas,
+                               Scheduler scheduler, Clock clock, Duration sourceTimeout) {
         this.registry = Objects.requireNonNull(registry, "registry");
         this.store = Objects.requireNonNull(store, "store");
         this.schemas = Objects.requireNonNull(schemas, "schemas");
@@ -209,7 +209,7 @@ public final class LocalToolDiscovery {
         }).cache();
     }
 
-    private Mono<Loaded> load(LocalToolRegistry.Registration registration) {
+    private Mono<Loaded> load(StaticToolRegistry.Registration registration) {
         // 即使来源同步读取元数据，也不会阻塞订阅它的 HTTP／事件线程。
         return Mono.defer(registration.source()::discover).subscribeOn(scheduler)
                 .timeout(sourceTimeout)
@@ -274,7 +274,7 @@ public final class LocalToolDiscovery {
         return plans.get(ref).computeIfAbsent(purpose, p -> schemas.compile(ref, documents.get(ref).document(), p));
     }
 
-    private void verifyAdapter(LocalToolRegistry.Registration registration, ToolDefinitionRevision revision) {
+    private void verifyAdapter(StaticToolRegistry.Registration registration, ToolDefinitionRevision revision) {
         var adapter = registry.executor(revision).orElse(null);
         require(adapter != null, ADAPTER_MISMATCH);
         CapabilityDescriptor actual;

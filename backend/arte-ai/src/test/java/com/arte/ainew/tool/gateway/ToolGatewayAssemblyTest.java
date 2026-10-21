@@ -1,8 +1,8 @@
 package com.arte.ainew.tool.gateway;
 
 import com.arte.ainew.application.gateway.DefaultToolGateway;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.config.NewAiToolConfiguration;
 import com.arte.ainew.config.NewAiToolGatewayConfiguration;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -57,7 +57,7 @@ public class ToolGatewayAssemblyTest {
             dependencies(context);
             context.register(NewAiToolConfiguration.class, NewAiToolGatewayConfiguration.class);
             context.refresh();
-            assertNotNull(context.getBean(LocalToolDiscovery.class));
+            assertNotNull(context.getBean(StaticToolDiscovery.class));
             assertTrue(context.getBeansOfType(ToolGateway.class).isEmpty());
             assertFalse(context.containsBean("newAiToolInvocationScheduler"));
         }
@@ -72,7 +72,7 @@ public class ToolGatewayAssemblyTest {
             context.register(NewAiToolConfiguration.class, NewAiToolGatewayConfiguration.class);
             context.refresh();
             assertTrue(context.getBean(ToolGateway.class) instanceof DefaultToolGateway);
-            assertNull(context.getBean(LocalToolDiscovery.class).state().snapshot());
+            assertNull(context.getBean(StaticToolDiscovery.class).state().snapshot());
             invocation = context.getBean("newAiToolInvocationScheduler", Scheduler.class);
             metadata = context.getBean("newAiToolDiscoveryScheduler", Scheduler.class);
             assertFalse(invocation.isDisposed());
@@ -117,9 +117,9 @@ public class ToolGatewayAssemblyTest {
         context.registerBean(ToolReleaseStore.class, () -> noIo(ToolReleaseStore.class));
         context.registerBean(ExecutionRecordCodec.class, JacksonExecutionRecordCodec::new);
         context.registerBean("newAiClock", Clock.class, Clock::systemUTC);
-        context.registerBean(LocalToolRegistry.class, () -> {
+        context.registerBean(StaticToolRegistry.class, () -> {
             var fixture = fixture("text", "v1");
-            return new LocalToolRegistry(List.of(fixture.registration(() -> {
+            return new StaticToolRegistry(List.of(fixture.registration(() -> {
                 throw new AssertionError("No startup discovery");
             })));
         });

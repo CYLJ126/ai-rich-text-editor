@@ -1,6 +1,6 @@
 package com.arte.ainew.tool.discovery;
 
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.value.StructuredValue;
@@ -10,7 +10,7 @@ import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -85,15 +85,15 @@ public final class LocalToolFixtures {
 
     public record Fixture(ToolProviderDefinition provider, ToolSchemaDefinition schema, ToolDefinitionRevision revision,
                    DefinitionRef adapterRef) {
-        public LocalToolDefinitionSource.Definitions definitions() {
-            return new LocalToolDefinitionSource.Definitions(List.of(schema), List.of(revision));
+        public StaticToolDefinitionSource.Definitions definitions() {
+            return new StaticToolDefinitionSource.Definitions(List.of(schema), List.of(revision));
         }
 
-        public LocalToolRegistry.Registration registration(LocalToolDefinitionSource source) {
-            return new LocalToolRegistry.Registration(provider, source, Map.of(adapterRef, adapter(revision.tool().discoveredCapability())));
+        public StaticToolRegistry.Registration registration(StaticToolDefinitionSource source) {
+            return new StaticToolRegistry.Registration(provider, source, Map.of(adapterRef, adapter(revision.tool().discoveredCapability())));
         }
 
-        public LocalToolRegistry.Registration registration() {
+        public StaticToolRegistry.Registration registration() {
             return registration(() -> Mono.just(definitions()));
         }
     }

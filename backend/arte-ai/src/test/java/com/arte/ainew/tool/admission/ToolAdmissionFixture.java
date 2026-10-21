@@ -2,9 +2,9 @@ package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
@@ -15,7 +15,7 @@ import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.*;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.core.enums.platform.PrincipalKindEnum;
@@ -69,8 +69,8 @@ final class ToolAdmissionFixture implements AutoCloseable {
     final MybatisToolBindingStore bindings;
     final MybatisExecutionPersistence executions;
     final MybatisToolAdmissionStore store;
-    final LocalToolDiscovery discovery;
-    final LocalToolRegistry registry;
+    final StaticToolDiscovery discovery;
+    final StaticToolRegistry registry;
     final ToolReleaseService releaseService;
     final ToolBindingService bindingService;
     final ToolAdmissionService service;
@@ -139,12 +139,12 @@ final class ToolAdmissionFixture implements AutoCloseable {
         store = new MybatisToolAdmissionStore(source, codec, io, executions, bindings, catalog);
         v1 = tool("v1", policy, risk);
         v2 = tool("v2", policy, risk);
-        var definitions = new LocalToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
-        registry = new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
+        var definitions = new StaticToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
+        registry = new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
                 Map.of(v1.adapterRef(), adapter(v1.revision().tool().discoveredCapability()), v2.adapterRef(), adapter(v2.revision().tool().discoveredCapability())))));
-        discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(Duration.ofSeconds(10)).state().discoveryHealthy());
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         releaseService = new ToolReleaseService(releases, validator);
         bindingService = new ToolBindingService(bindings, discovery, registry, metadata, Duration.ofSeconds(2));
         publish(v1, null);

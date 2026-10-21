@@ -6,7 +6,7 @@ import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.*;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
@@ -115,7 +115,7 @@ public class NewAiExecutionConfiguration {
     InvocationDispatchWorker worker(MybatisExecutionPersistence executions, InvocationCoordinator coordinator,
                                     NewAiExecutionProperties properties, @Qualifier("newAiWorkerScheduler") Scheduler scheduler,
                                     LocalDispatchNotifier notifier,
-                                    ObjectProvider<LocalToolDiscovery> discovery) {
+                                    ObjectProvider<StaticToolDiscovery> discovery) {
         return new InvocationDispatchWorker(executions, executions, coordinator, properties, scheduler, notifier, properties.scheduling(), () -> {
             var source = discovery.getIfAvailable();
             if (source == null) return null;

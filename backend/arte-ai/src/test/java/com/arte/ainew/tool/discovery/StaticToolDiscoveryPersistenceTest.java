@@ -1,12 +1,12 @@
 package com.arte.ainew.tool.discovery;
 
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
 import org.junit.Before;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.arte.ainew.application.tool.discovery.LocalToolDiscovery.Code.*;
+import static com.arte.ainew.application.tool.discovery.StaticToolDiscovery.Code.*;
 import static com.arte.ainew.tool.discovery.LocalToolFixtures.*;
 import static org.junit.Assert.*;
 
@@ -34,7 +34,7 @@ import static org.junit.Assert.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */
-public class LocalToolDiscoveryPersistenceTest {
+public class StaticToolDiscoveryPersistenceTest {
     private static final Duration WAIT = Duration.ofSeconds(15);
     private Scheduler scheduler;
     private JdbcTemplate jdbc;
@@ -56,8 +56,8 @@ public class LocalToolDiscoveryPersistenceTest {
         jdbc.execute("DROP ALL OBJECTS");
     }
 
-    private LocalToolDiscovery service(LocalToolRegistry.Registration... registrations) {
-        return new LocalToolDiscovery(new LocalToolRegistry(List.of(registrations)), store, new ToolSchemaValidator(), scheduler, Clock.systemUTC(), Duration.ofSeconds(2));
+    private StaticToolDiscovery service(StaticToolRegistry.Registration... registrations) {
+        return new StaticToolDiscovery(new StaticToolRegistry(List.of(registrations)), store, new ToolSchemaValidator(), scheduler, Clock.systemUTC(), Duration.ofSeconds(2));
     }
 
     @Test
@@ -78,7 +78,7 @@ public class LocalToolDiscoveryPersistenceTest {
         service(original.registration()).refresh().block(WAIT);
         var changed = new ToolDefinitionRevision(withTitle(original.revision().tool(), "Changed"), original.provider().definition(), original.revision().target());
         var newProvider = fixture("other", "v1");
-        var restarted = service(original.registration(() -> Mono.just(new LocalToolDefinitionSource.Definitions(List.of(original.schema()), List.of(changed)))), newProvider.registration());
+        var restarted = service(original.registration(() -> Mono.just(new StaticToolDefinitionSource.Definitions(List.of(original.schema()), List.of(changed)))), newProvider.registration());
         assertEquals(CONTRACT_DRIFT, restarted.refresh().block(WAIT).code());
         assertNull(restarted.state().snapshot());
         assertEquals(Integer.valueOf(1), jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_tool_provider", Integer.class));
@@ -94,7 +94,7 @@ public class LocalToolDiscoveryPersistenceTest {
         discovery.refresh().block(WAIT);
         var previous = discovery.state().snapshot();
         var extraSchema = schema(ref("schema", "extra", "v1"), original.schema().document());
-        definitions.set(new LocalToolDefinitionSource.Definitions(List.of(original.schema(), extraSchema), List.of(original.revision())));
+        definitions.set(new StaticToolDefinitionSource.Definitions(List.of(original.schema(), extraSchema), List.of(original.revision())));
         jdbc.execute("ALTER TABLE arte_ai_tool_schema ADD CONSTRAINT injected_failure CHECK (id_key <> '" +
                 com.arte.ainew.serialization.CanonicalJson.key("schema", "extra", "v1") + "')");
         assertEquals(STORE_FAILED, discovery.refresh().block(WAIT).code());

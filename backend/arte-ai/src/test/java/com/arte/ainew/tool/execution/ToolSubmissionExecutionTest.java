@@ -5,7 +5,7 @@ import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.management.ToolManagementService;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -131,7 +131,7 @@ public class ToolSubmissionExecutionTest {
         }
 
         private NewAiToolController management() {
-            var validator = new LocalToolPublicationValidator(f.discovery, f.registry,
+            var validator = new StaticToolPublicationValidator(f.discovery, f.registry,
                     new ToolSchemaValidator(), f.metadata, f.clock, Duration.ofSeconds(2));
             var service = new ToolManagementService(f.catalog, f.releases, f.bindings,
                     f.releaseService, f.bindingService, validator, f.discovery,

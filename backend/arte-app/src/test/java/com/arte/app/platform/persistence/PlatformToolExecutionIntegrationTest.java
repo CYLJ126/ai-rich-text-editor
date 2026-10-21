@@ -2,7 +2,7 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
@@ -182,7 +182,7 @@ class PlatformToolExecutionIntegrationTest {
             // 上一个 Spring 容器已经关闭；只复用物理库，不复用节点发现视图或 Worker。
             rig.context().run(c -> {
                 assertNull(c.getStartupFailure());
-                assertTrue(c.getBean(LocalToolDiscovery.class).state().discoveryHealthy());
+                assertTrue(c.getBean(StaticToolDiscovery.class).state().discoveryHealthy());
                 var mvc = rig.mvc(c);
                 c.getBean(InvocationDispatchWorker.class).pollOnce().block(Duration.ofSeconds(15));
                 assertEquals(id.get(), rig.post(mvc, "tool/invokeTool", command.get(), "restart", 202).get("executionId").asString());
@@ -254,7 +254,7 @@ class PlatformToolExecutionIntegrationTest {
                 var other = new InvocationDispatchWorker(store, store, c.getBean(InvocationCoordinator.class),
                         c.getBean(NewAiExecutionProperties.class), c.getBean("newAiWorkerScheduler", Scheduler.class),
                         null, c.getBean(NewAiExecutionProperties.class).scheduling(),
-                        () -> c.getBean(LocalToolDiscovery.class).state().snapshot().checksum());
+                        () -> c.getBean(StaticToolDiscovery.class).state().snapshot().checksum());
                 CompletableFuture.allOf(CompletableFuture.runAsync(() -> worker.pollOnce().block(Duration.ofSeconds(15))),
                         CompletableFuture.runAsync(() -> other.pollOnce().block(Duration.ofSeconds(15)))).get();
                 var query = Map.of("scope", rig.scope, "invocationId", id);

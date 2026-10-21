@@ -4,7 +4,7 @@ import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 
 /**
- * 本地及受控 HTTP 免费执行的结构下限；实际工具白名单、资源权限和领域防重仍由宿主验证。
+ * 本地及受控远端工具执行的结构下限；实际工具白名单、资源权限和领域防重仍由宿主验证。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/20 09:48 ✾
@@ -22,9 +22,9 @@ public final class ToolExecutionRules {
     }
 
     /**
-     * HTTP 首批仅固定单次 GET JSON、无凭据、只读、无人工模式；免费资格仍由宿主完整白名单证明。
+     * 受控远端单次只读调用的结构约束；具体协议、认证及免费资格由适配器与宿主另行核验。
      */
-    public static boolean httpReadOnly(ToolDefinition tool, ToolExecutionPolicy policy) {
+    public static boolean remoteReadOnly(ToolDefinition tool, ToolExecutionPolicy policy) {
         return tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.READ_ONLY && !tool.risk().destructive()
                 && tool.risk().idempotency() == ToolRiskProfile.Idempotency.NONE
                 && policy.approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE && policy.maxAttempts() == 1
@@ -38,7 +38,7 @@ public final class ToolExecutionRules {
         if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Local)
             return binding.networkOrigins().isEmpty() && tool.risk().allowedNetworkOrigins().isEmpty();
         return binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote
-                && httpReadOnly(tool, policy) && binding.networkOrigins().equals(tool.risk().allowedNetworkOrigins());
+                && remoteReadOnly(tool, policy) && binding.networkOrigins().equals(tool.risk().allowedNetworkOrigins());
     }
 
     /**

@@ -1,7 +1,7 @@
 package com.arte.ainew.application.tool.release;
 
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
@@ -23,7 +23,7 @@ import java.util.Objects;
 import static com.arte.ainew.pojo.tool.ToolPublicationValidation.Issue.*;
 
 /**
- * 本地发布预检
+ * 静态工具发布预检
  * <p>
  * 只读受信元数据并校验审核示例，不试调用、不探测远端、不授予权限。
  * 即使发现曾成功，发布及重新启用仍重新核对当前实例声明和完整契约。
@@ -31,17 +31,17 @@ import static com.arte.ainew.pojo.tool.ToolPublicationValidation.Issue.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:49
  */
-public final class LocalToolPublicationValidator {
+public final class StaticToolPublicationValidator {
 
-    private final LocalToolDiscovery discovery;
-    private final LocalToolRegistry registry;
+    private final StaticToolDiscovery discovery;
+    private final StaticToolRegistry registry;
     private final ToolSchemaValidator schemas;
     private final Scheduler scheduler;
     private final Clock clock;
     private final Duration timeout;
 
-    public LocalToolPublicationValidator(LocalToolDiscovery discovery, LocalToolRegistry registry, ToolSchemaValidator schemas,
-                                         Scheduler scheduler, Clock clock, Duration timeout) {
+    public StaticToolPublicationValidator(StaticToolDiscovery discovery, StaticToolRegistry registry, ToolSchemaValidator schemas,
+                                          Scheduler scheduler, Clock clock, Duration timeout) {
         this.discovery = Objects.requireNonNull(discovery);
         this.registry = Objects.requireNonNull(registry);
         this.schemas = Objects.requireNonNull(schemas);

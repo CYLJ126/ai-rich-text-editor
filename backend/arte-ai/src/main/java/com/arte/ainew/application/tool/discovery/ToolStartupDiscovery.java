@@ -5,7 +5,7 @@ import org.springframework.context.SmartLifecycle;
 import java.time.Duration;
 
 /**
- * 显式启用后在 Worker 启动前安装健康本地清单；总等待有界，只登记部署事实，不发布、建绑或授权。
+ * 显式启用后在 Worker 启动前安装健康静态工具清单；总等待有界，只登记部署事实，不发布、建绑或授权。
  * 发现失败即终止本次启动，避免启用 TOOL 的节点在无可用实现时继续对外接收新调用。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -13,10 +13,10 @@ import java.time.Duration;
  */
 public final class ToolStartupDiscovery implements SmartLifecycle {
 
-    private final LocalToolDiscovery discovery;
+    private final StaticToolDiscovery discovery;
     private volatile boolean running;
 
-    public ToolStartupDiscovery(LocalToolDiscovery discovery) {
+    public ToolStartupDiscovery(StaticToolDiscovery discovery) {
         this.discovery = discovery;
     }
 

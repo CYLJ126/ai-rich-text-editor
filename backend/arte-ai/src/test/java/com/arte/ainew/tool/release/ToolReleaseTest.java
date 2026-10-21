@@ -1,8 +1,8 @@
 package com.arte.ainew.tool.release;
 
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -14,7 +14,7 @@ import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.Principal;
@@ -230,9 +230,9 @@ public class ToolReleaseTest {
 
     @Test
     public void missingToolRejectionCannotTurnIntoAPublicationOnRetry() {
-        var registry = new LocalToolRegistry(List.of(tool.registration()));
-        var discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, WAIT.dividedBy(3));
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, WAIT.dividedBy(3));
+        var registry = new StaticToolRegistry(List.of(tool.registration()));
+        var discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, WAIT.dividedBy(3));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, WAIT.dividedBy(3));
         var service = new ToolReleaseService(first, validator);
         var command = publication(tool, "missing", review(tool, null));
         var missing = service.execute(actor, command).block(WAIT).value();
@@ -270,7 +270,7 @@ public class ToolReleaseTest {
     public void anUnhealthyNodeCanStillDisableAndDeprecateButCannotReenable() {
         var broken = new AtomicReference<>(false);
         var registration = tool.registration(() -> broken.get() ? Mono.error(new IllegalStateException("private-source")) : Mono.just(tool.definitions()));
-        var node = node(new LocalToolRegistry(List.of(registration)));
+        var node = node(new StaticToolRegistry(List.of(registration)));
         node.discovery.refresh().block(WAIT);
         publish(node, tool, "publish");
         broken.set(true);
@@ -294,8 +294,8 @@ public class ToolReleaseTest {
                 throw new AssertionError("No tool execution during publication");
             }
         };
-        var registration = new LocalToolRegistry.Registration(tool.provider(), () -> Mono.just(tool.definitions()), Map.of(tool.adapterRef(), implementation));
-        var node = node(new LocalToolRegistry(List.of(registration)));
+        var registration = new StaticToolRegistry.Registration(tool.provider(), () -> Mono.just(tool.definitions()), Map.of(tool.adapterRef(), implementation));
+        var node = node(new StaticToolRegistry(List.of(registration)));
         node.discovery.refresh().block(WAIT);
         var capability = current.get();
         current.set(new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(), capability.outputSchema(),
@@ -559,7 +559,7 @@ public class ToolReleaseTest {
                 baseline.substring(baseline.indexOf("create table arte_ai_tool_release\n"), baseline.indexOf("-- AI TOOL S1-07")).trim());
     }
 
-    private record Node(LocalToolDiscovery discovery, LocalToolPublicationValidator validator,
+    private record Node(StaticToolDiscovery discovery, StaticToolPublicationValidator validator,
                         ToolReleaseService service) {
     }
 
@@ -567,7 +567,7 @@ public class ToolReleaseTest {
         var groups = new LinkedHashMap<DefinitionRef, List<Fixture>>();
         for (var fixture : fixtures)
             groups.computeIfAbsent(fixture.provider().definition(), ref -> new ArrayList<>()).add(fixture);
-        var registrations = new ArrayList<LocalToolRegistry.Registration>();
+        var registrations = new ArrayList<StaticToolRegistry.Registration>();
         groups.values().forEach(group -> {
             var schemas = new LinkedHashMap<DefinitionRef, ToolSchemaDefinition>();
             var tools = new ArrayList<ToolDefinitionRevision>();
@@ -577,17 +577,17 @@ public class ToolReleaseTest {
                 tools.add(fixture.revision());
                 adapters.put(fixture.adapterRef(), adapter(fixture.revision().tool().discoveredCapability()));
             }
-            var definitions = new LocalToolDefinitionSource.Definitions(List.copyOf(schemas.values()), tools);
-            registrations.add(new LocalToolRegistry.Registration(group.getFirst().provider(), () -> Mono.just(definitions), adapters));
+            var definitions = new StaticToolDefinitionSource.Definitions(List.copyOf(schemas.values()), tools);
+            registrations.add(new StaticToolRegistry.Registration(group.getFirst().provider(), () -> Mono.just(definitions), adapters));
         });
-        var node = node(new LocalToolRegistry(registrations));
+        var node = node(new StaticToolRegistry(registrations));
         assertTrue(node.discovery.refresh().block(WAIT).state().discoveryHealthy());
         return node;
     }
 
-    private Node node(LocalToolRegistry registry) {
-        var discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
+    private Node node(StaticToolRegistry registry) {
+        var discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
         return new Node(discovery, validator, new ToolReleaseService(first, validator));
     }
 

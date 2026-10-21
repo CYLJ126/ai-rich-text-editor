@@ -7,8 +7,8 @@ import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.HttpToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
 import com.arte.ainew.spi.adapter.McpToolAdapter;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 
 import java.util.List;
 import java.util.Map;
@@ -22,15 +22,15 @@ import java.util.Optional;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */
-public final class LocalToolRegistry {
+public final class StaticToolRegistry {
 
     private final List<Registration> registrations;
 
-    public LocalToolRegistry(List<Registration> registrations) {
+    public StaticToolRegistry(List<Registration> registrations) {
         this.registrations = ContractChecks.list(registrations, "local tool registrations", 1, 32);
         // 一个节点清单只选择某个提供方的一版；历史版本仍保留在不可变存储中。
         ContractChecks.unique(this.registrations.stream().map(r -> r.provider().definition().id()).toList(), "provider identities");
-        ContractChecks.unique(this.registrations.stream().flatMap(r -> r.adapters().keySet().stream()).toList(), "adapter references");
+        ContractChecks.unique(this.registrations.stream().flatMap(r -> r.localAdapters().keySet().stream()).toList(), "adapter references");
     }
 
     /**
@@ -48,7 +48,7 @@ public final class LocalToolRegistry {
      */
     public Optional<BusinessToolAdapter> findAdapter(DefinitionRef adapter) {
         Objects.requireNonNull(adapter, "adapter").requireType("tool-adapter");
-        return registrations.stream().map(r -> r.adapters().get(adapter)).filter(Objects::nonNull).findFirst();
+        return registrations.stream().map(r -> r.localAdapters().get(adapter)).filter(Objects::nonNull).findFirst();
     }
 
     /**
@@ -56,7 +56,7 @@ public final class LocalToolRegistry {
      */
     public Optional<BusinessToolAdapter> executor(ToolDefinitionRevision revision) {
         return registrations.stream().filter(r -> r.provider().definition().equals(revision.provider())).findFirst()
-                .flatMap(r -> revision.target() instanceof ExecutionTarget.Local local ? Optional.ofNullable(r.adapters().get(local.adapter()))
+                .flatMap(r -> revision.target() instanceof ExecutionTarget.Local local ? Optional.ofNullable(r.localAdapters().get(local.adapter()))
                         : Optional.ofNullable((revision.mcp() ? r.mcpAdapters() : r.httpAdapters()).get(revision.target()))
                         .filter(a -> a.revision().equals(revision)).map(a -> (BusinessToolAdapter) a))
                 .filter(a -> revision.tool().price() == null || a instanceof com.arte.ainew.spi.adapter.PaidToolAdapter paid && paid.revision().equals(revision));
@@ -65,20 +65,21 @@ public final class LocalToolRegistry {
     /**
      * 受信代码把来源、提供方契约及执行实例一起登记，不接受用户指定 Bean 名称。
      *
-     * @param provider LOCAL／HTTP／MCP 提供方的固定接入版本，其 adapter 标识本来源适配版本。
-     * @param source   返回该提供方完整定义的来源对象。
-     * @param adapters tool-adapter 固定引用到执行实例的不可变映射，最多 128 项。
+     * @param provider      LOCAL／HTTP／MCP 提供方的固定接入版本，其 adapter 标识本来源适配版本。
+     * @param source        返回该提供方完整定义的来源对象。
+     * @param localAdapters 本地 tool-adapter 固定引用到执行实例的不可变映射，最多 128 项。
      */
-    public record Registration(ToolProviderDefinition provider, LocalToolDefinitionSource source,
-                               Map<DefinitionRef, BusinessToolAdapter> adapters,
+    public record Registration(ToolProviderDefinition provider, StaticToolDefinitionSource source,
+                               Map<DefinitionRef, BusinessToolAdapter> localAdapters,
                                Map<ExecutionTarget.Remote, HttpToolAdapter> httpAdapters,
                                Map<ExecutionTarget.Remote, McpToolAdapter> mcpAdapters) {
-        public Registration(ToolProviderDefinition provider, LocalToolDefinitionSource source, Map<DefinitionRef, BusinessToolAdapter> adapters,
+        public Registration(ToolProviderDefinition provider, StaticToolDefinitionSource source, Map<DefinitionRef, BusinessToolAdapter> localAdapters,
                             Map<ExecutionTarget.Remote, HttpToolAdapter> httpAdapters) {
-            this(provider, source, adapters, httpAdapters, Map.of());
+            this(provider, source, localAdapters, httpAdapters, Map.of());
         }
-        public Registration(ToolProviderDefinition provider, LocalToolDefinitionSource source, Map<DefinitionRef, BusinessToolAdapter> adapters) {
-            this(provider, source, adapters, Map.of(), Map.of());
+
+        public Registration(ToolProviderDefinition provider, StaticToolDefinitionSource source, Map<DefinitionRef, BusinessToolAdapter> localAdapters) {
+            this(provider, source, localAdapters, Map.of(), Map.of());
         }
 
         public Registration {
@@ -89,23 +90,23 @@ public final class LocalToolRegistry {
             mcpAdapters = Map.copyOf(mcpAdapters);
             ContractChecks.range(mcpAdapters.size(), "mcpAdapters.size", 0, 128);
             ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.MCP
-                    ? adapters.isEmpty() && httpAdapters.isEmpty() && !mcpAdapters.isEmpty() : mcpAdapters.isEmpty(), "MCP executor kind mismatch");
+                    ? localAdapters.isEmpty() && httpAdapters.isEmpty() && !mcpAdapters.isEmpty() : mcpAdapters.isEmpty(), "MCP executor kind mismatch");
             mcpAdapters.forEach((target, adapter) -> ContractChecks.require(adapter.revision().mcp()
                             && target.connection().equals(provider.connection()) && target.equals(adapter.revision().target())
                             && adapter.revision().provider().equals(provider.definition())
-                            && com.arte.ainew.pojo.tool.ToolExecutionRules.httpReadOnly(adapter.revision().tool(), adapter.revision().tool().defaultPolicy()),
+                            && com.arte.ainew.pojo.tool.ToolExecutionRules.remoteReadOnly(adapter.revision().tool(), adapter.revision().tool().defaultPolicy()),
                     "MCP adapter must match the fixed reviewed contract"));
             ContractChecks.range(httpAdapters.size(), "httpAdapters.size", 0, 128);
-            ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.HTTP ? adapters.isEmpty() && !httpAdapters.isEmpty() : httpAdapters.isEmpty(), "Provider executor kind mismatch");
+            ContractChecks.require(provider.kind() == ToolProviderDefinition.Kind.HTTP ? localAdapters.isEmpty() && !httpAdapters.isEmpty() : httpAdapters.isEmpty(), "Provider executor kind mismatch");
             httpAdapters.forEach((target, adapter) -> ContractChecks.require(!adapter.revision().mcp() && target.connection().equals(provider.connection())
                             && target.equals(adapter.revision().target()) && adapter.revision().provider().equals(provider.definition())
-                            && com.arte.ainew.pojo.tool.ToolExecutionRules.httpReadOnly(adapter.revision().tool(), adapter.revision().tool().defaultPolicy()),
+                            && com.arte.ainew.pojo.tool.ToolExecutionRules.remoteReadOnly(adapter.revision().tool(), adapter.revision().tool().defaultPolicy()),
                     "HTTP adapter must match fixed reviewed read-only contract"));
             Objects.requireNonNull(source, "source");
-            Objects.requireNonNull(adapters, "adapters");
-            ContractChecks.range(adapters.size(), "adapters.size", 0, 128);
-            adapters = Map.copyOf(adapters);
-            adapters.keySet().forEach(ref -> ref.requireType("tool-adapter"));
+            Objects.requireNonNull(localAdapters, "adapters");
+            ContractChecks.range(localAdapters.size(), "adapters.size", 0, 128);
+            localAdapters = Map.copyOf(localAdapters);
+            localAdapters.keySet().forEach(ref -> ref.requireType("tool-adapter"));
         }
     }
 }

@@ -1,10 +1,10 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.discovery.ToolStartupDiscovery;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.spi.persistence.ToolBindingStore;
@@ -21,7 +21,7 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Clock;
 
 /**
- * 显式启用本地 TOOL 发现及内部生命周期治理；组合模块必须提供 LocalToolRegistry，不搜集任意来源／执行器 Bean。
+ * 显式启用静态 TOOL 发现及内部生命周期治理；组合模块必须提供 StaticToolRegistry，不搜集任意来源／执行器 Bean。
  * 构造零 SQL、零发现、零执行，不接入 Worker，不代替后续管理 API 的当前授权及审计事务。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -44,28 +44,28 @@ public class NewAiToolConfiguration {
      * 内部手动发现服务；开启时缺少显式注册表即装配失败，不注册空工具目录掩盖漏配。
      * 来源由组合模块构造，领域依赖继续通过构造器注入业务适配器。
      */
-    @Bean("newAiLocalToolDiscovery")
-    LocalToolDiscovery localToolDiscovery(LocalToolRegistry registry, ToolCatalogStore store,
+    @Bean("newAiStaticToolDiscovery")
+    StaticToolDiscovery staticToolDiscovery(StaticToolRegistry registry, ToolCatalogStore store,
                                           @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler,
                                           @Qualifier("newAiClock") Clock clock, NewAiToolProperties properties) {
-        return new LocalToolDiscovery(registry, store, new ToolSchemaValidator(), scheduler, clock,
+        return new StaticToolDiscovery(registry, store, new ToolSchemaValidator(), scheduler, clock,
                 properties.discovery().sourceTimeout());
     }
 
     @Bean
     @ConditionalOnProperty(prefix = "arte.ai-new-tool.discovery", name = "refresh-on-startup", havingValue = "true")
-    ToolStartupDiscovery toolStartupDiscovery(LocalToolDiscovery discovery) {
+    ToolStartupDiscovery toolStartupDiscovery(StaticToolDiscovery discovery) {
         return new ToolStartupDiscovery(discovery);
     }
 
     /**
-     * 本地发布／重新启用预检；沿用有界元数据线程及读取期限，不试调用工具。
+     * 静态工具发布／重新启用预检；沿用有界元数据线程及读取期限，不试调用工具。
      */
     @Bean("newAiToolPublicationValidator")
-    LocalToolPublicationValidator publicationValidator(LocalToolDiscovery discovery, LocalToolRegistry registry,
+    StaticToolPublicationValidator publicationValidator(StaticToolDiscovery discovery, StaticToolRegistry registry,
                                                        @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler,
                                                        @Qualifier("newAiClock") Clock clock, NewAiToolProperties properties) {
-        return new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock,
+        return new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock,
                 properties.discovery().sourceTimeout());
     }
 
@@ -73,7 +73,7 @@ public class NewAiToolConfiguration {
      * 内部治理服务；不自动发布，不注册管理 HTTP，当前授权接线由 S1-08 完成。
      */
     @Bean("newAiToolReleaseService")
-    ToolReleaseService toolReleaseService(ToolReleaseStore store, LocalToolPublicationValidator validator) {
+    ToolReleaseService toolReleaseService(ToolReleaseStore store, StaticToolPublicationValidator validator) {
         return new ToolReleaseService(store, validator);
     }
 
@@ -81,7 +81,7 @@ public class NewAiToolConfiguration {
      * 个人绑定内部管理／解析，不自动建绑、不接入聊天或 Worker。
      */
     @Bean("newAiToolBindingService")
-    ToolBindingService toolBindingService(ToolBindingStore store, LocalToolDiscovery discovery, LocalToolRegistry registry,
+    ToolBindingService toolBindingService(ToolBindingStore store, StaticToolDiscovery discovery, StaticToolRegistry registry,
                                           @Qualifier("newAiToolDiscoveryScheduler") Scheduler scheduler, NewAiToolProperties properties) {
         return new ToolBindingService(store, discovery, registry, scheduler, properties.discovery().sourceTimeout());
     }

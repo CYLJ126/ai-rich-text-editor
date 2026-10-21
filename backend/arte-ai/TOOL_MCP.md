@@ -80,7 +80,7 @@ arte.ai-new-tool-mcp.allowed-origins=
 
 1. 停止新受理并协调旧在途工作；所有可能处理新材料的 HTTP 节点、目录读者和 Worker 先升级。
 2. 登记 MCP endpoint／工具版本及出口白名单，确认真实服务的协议、免费只读依据、固定 Schema、session TTL 和返回内容。
-3. 离线从包含本地、HTTP、MCP 全部登记来源的 Batch 计算 `LocalToolDiscovery.manifest`，按现有分类调度规则协调池和节点
+3. 离线从包含本地、HTTP、MCP 全部登记来源的 Batch 计算 `StaticToolDiscovery.manifest`，按现有分类调度规则协调池和节点
    tool-manifest；不能只开 MCP 并沿用旧清单。
 4. 有权管理员刷新静态目录、审核发布，用 `{}` → `{"status":"UP"}` 等实际示例验证；用户准备本人绑定，再预览／确认调用或选入
    ChatNew。

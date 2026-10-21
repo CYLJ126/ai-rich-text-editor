@@ -278,7 +278,7 @@ public final class MybatisToolReleaseStore implements ToolReleaseStore {
                 || (provider.kind() == ToolProviderDefinition.Kind.HTTP && !artifacts.tools().getFirst().mcp()
                 || provider.kind() == ToolProviderDefinition.Kind.MCP && artifacts.tools().getFirst().mcp())
                 && target instanceof ExecutionTarget.Remote remote
-                && remote.connection().equals(provider.connection()) && ToolExecutionRules.httpReadOnly(tool, tool.defaultPolicy());
+                && remote.connection().equals(provider.connection()) && ToolExecutionRules.remoteReadOnly(tool, tool.defaultPolicy());
         if (!supported || !tool.capabilities().features().isEmpty() || tool.capabilities().outcomeQuerySupported()
                 || tool.risk().sideEffect() == CapabilityDescriptor.SideEffect.UNKNOWN
                 || tool.risk().idempotency() == ToolRiskProfile.Idempotency.UNVERIFIED

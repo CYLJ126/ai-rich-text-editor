@@ -1,6 +1,6 @@
 package com.arte.app.platform.ai;
 
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
@@ -24,11 +24,11 @@ import reactor.core.publisher.Mono;
 public final class PlatformPaidToolAccess {
 
     private final PlatformToolManagementAccess platform;
-    private final LocalToolRegistry registry;
+    private final StaticToolRegistry registry;
     private final NewAiProperties fixed;
     private final ObjectProvider<AiControlConfigurationSource> sources;
 
-    public PlatformPaidToolAccess(PlatformToolManagementAccess platform, LocalToolRegistry registry, NewAiProperties fixed,
+    public PlatformPaidToolAccess(PlatformToolManagementAccess platform, StaticToolRegistry registry, NewAiProperties fixed,
                                   ObjectProvider<AiControlConfigurationSource> sources) {
         this.platform = platform;
         this.registry = registry;

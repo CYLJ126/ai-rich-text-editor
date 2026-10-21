@@ -142,7 +142,7 @@ arte.platform.workspace.enabled=true
 # Switch to DATABASE after applying the AI control migration; then import the reviewed deployment seed in the page.
 arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
-# TOOL 显式登记与手动发现；开启前须部署目录表并提供 LocalToolRegistry Bean。
+# TOOL 显式登记与手动发现；开启前须部署目录表并提供 StaticToolRegistry Bean。
 arte.ai-new-tool.enabled=true
 arte.ai-new-tool.discovery.source-timeout=10s
 arte.ai-new-tool.discovery.refresh-on-startup=true
@@ -303,7 +303,7 @@ arte.ai-new-search.sync.generation=${ARTE_AI_NEW_SEARCH_GENERATION:conversation-
 
 # S2-06: deploy scheduling migration and drain legacy DISPATCH first; then enable on every worker.
 # When enabled set arte.ai-new-execution.concurrency=6 (2 generation + 2 short + 1 long + 1 reserved outcome).
-# tool-manifest is the reviewed LocalToolDiscovery snapshot SHA-256; empty means no TOOL readiness.
+# tool-manifest is the reviewed StaticToolDiscovery snapshot SHA-256; empty means no TOOL readiness.
 arte.ai-new-execution.scheduling.enabled=false
 arte.ai-new-execution.scheduling.slots.generation=2
 arte.ai-new-execution.scheduling.slots.tool-short=2

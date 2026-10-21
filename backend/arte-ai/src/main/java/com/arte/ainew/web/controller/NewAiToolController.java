@@ -59,6 +59,7 @@ public class NewAiToolController {
         return service.providers(access.capture(auth), request.scope().value(), request.cursor(), size(request.size())).map(page -> success(ToolManagementResponses.page(page, ToolManagementResponses::provider), locale));
     }
 
+    // 保留既有路径；刷新部署登记的完整静态目录，涵盖 LOCAL／HTTP／MCP。
     @PostMapping("/refreshLocalCatalog")
     public Mono<ResponseEntity<ResultContext<ToolManagementResponses.DiscoveryCommand>>> refresh(Authentication auth, @Valid @RequestBody ToolManagementRequests.RefreshLocalCatalog request,
                                                                                                  @RequestHeader("Idempotency-Key") String key, Locale locale) {

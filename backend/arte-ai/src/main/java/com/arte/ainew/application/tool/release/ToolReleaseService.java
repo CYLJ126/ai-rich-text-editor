@@ -22,9 +22,9 @@ import java.util.Optional;
 @Slf4j
 public final class ToolReleaseService {
     private final ToolReleaseStore store;
-    private final LocalToolPublicationValidator validator;
+    private final StaticToolPublicationValidator validator;
 
-    public ToolReleaseService(ToolReleaseStore store, LocalToolPublicationValidator validator) {
+    public ToolReleaseService(ToolReleaseStore store, StaticToolPublicationValidator validator) {
         this.store = Objects.requireNonNull(store);
         this.validator = Objects.requireNonNull(validator);
     }

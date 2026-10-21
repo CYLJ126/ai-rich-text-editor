@@ -1,9 +1,9 @@
 package com.arte.ainew.tool.binding;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionOwner;
@@ -17,7 +17,7 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.Principal;
@@ -547,11 +547,11 @@ public class ToolBindingStoreTest {
         var one = create(settings(v1, PINNED, "one", object()), "create");
         var plan = node.service.resolve(owner, one.bindingId()).block(WAIT);
         assertTrue(plan.successful());
-        var missing = new LocalToolRegistry(List.of(fixture("other", "v1").registration()));
+        var missing = new StaticToolRegistry(List.of(fixture("other", "v1").registration()));
         var unavailable = new ToolBindingService(first, node.discovery, missing, scheduler, Duration.ofSeconds(1));
         assertEquals(EXECUTOR_UNAVAILABLE, unavailable.resolve(owner, one.bindingId()).block(WAIT).rejection());
         assertEquals(EXECUTOR_UNAVAILABLE, unavailable.fixed(owner, plan.value().definition()).block(WAIT).rejection());
-        var unknownDiscovery = new LocalToolDiscovery(node.registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(1));
+        var unknownDiscovery = new StaticToolDiscovery(node.registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(1));
         var unhealthy = new ToolBindingService(first, unknownDiscovery, node.registry, scheduler, Duration.ofSeconds(1));
         assertEquals(EXECUTOR_UNAVAILABLE, unhealthy.resolve(owner, one.bindingId()).block(WAIT).rejection());
         assertTrue(unhealthy.execute(actor, owner, state(one, false, "disable")).block(WAIT).value().result().successful());
@@ -582,7 +582,7 @@ public class ToolBindingStoreTest {
                 throw new AssertionError("No invoke");
             }
         };
-        var registry = new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(v1.definitions()), Map.of(v1.adapterRef(), adapter))));
+        var registry = new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(v1.provider(), () -> Mono.just(v1.definitions()), Map.of(v1.adapterRef(), adapter))));
         var service = new ToolBindingService(first, node.discovery, registry, scheduler, Duration.ofMillis(100));
         assertTrue(service.resolve(owner, one.bindingId()).block(WAIT).successful());
         var expected = live.get();
@@ -622,14 +622,14 @@ public class ToolBindingStoreTest {
         return new MybatisToolBindingStore(ds, codec, scheduler, clock, policy, catalog, releases);
     }
 
-    private record Node(LocalToolRegistry registry, LocalToolDiscovery discovery, ToolReleaseService release,
+    private record Node(StaticToolRegistry registry, StaticToolDiscovery discovery, ToolReleaseService release,
                         ToolBindingService service) {
     }
 
     private Node discover(Fixture... fixtures) {
         var groups = new LinkedHashMap<DefinitionRef, List<Fixture>>();
         for (var f : fixtures) groups.computeIfAbsent(f.provider().definition(), ignored -> new ArrayList<>()).add(f);
-        var registrations = new ArrayList<LocalToolRegistry.Registration>();
+        var registrations = new ArrayList<StaticToolRegistry.Registration>();
         for (var group : groups.values()) {
             var schemas = new LinkedHashMap<DefinitionRef, ToolSchemaDefinition>();
             var tools = new ArrayList<ToolDefinitionRevision>();
@@ -639,13 +639,13 @@ public class ToolBindingStoreTest {
                 tools.add(f.revision());
                 adapters.put(f.adapterRef(), adapter(f.revision().tool().discoveredCapability()));
             }
-            var definitions = new LocalToolDefinitionSource.Definitions(List.copyOf(schemas.values()), tools);
-            registrations.add(new LocalToolRegistry.Registration(group.getFirst().provider(), () -> Mono.just(definitions), adapters));
+            var definitions = new StaticToolDefinitionSource.Definitions(List.copyOf(schemas.values()), tools);
+            registrations.add(new StaticToolRegistry.Registration(group.getFirst().provider(), () -> Mono.just(definitions), adapters));
         }
-        var registry = new LocalToolRegistry(registrations);
-        var discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
+        var registry = new StaticToolRegistry(registrations);
+        var discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
         assertTrue(discovery.refresh().block(WAIT).state().discoveryHealthy());
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(5));
         return new Node(registry, discovery, new ToolReleaseService(releases, validator), new ToolBindingService(first, discovery, registry, scheduler, Duration.ofSeconds(2)));
     }
 

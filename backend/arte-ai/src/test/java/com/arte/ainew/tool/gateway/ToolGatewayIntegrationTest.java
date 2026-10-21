@@ -2,9 +2,9 @@ package com.arte.ainew.tool.gateway;
 
 import com.arte.ainew.application.gateway.DefaultToolGateway;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.*;
@@ -93,8 +93,8 @@ public class ToolGatewayIntegrationTest {
     private MybatisToolReleaseStore releases;
     private MybatisToolBindingStore bindings;
     private MybatisExecutionPersistence executions;
-    private LocalToolRegistry registry;
-    private LocalToolDiscovery discovery;
+    private StaticToolRegistry registry;
+    private StaticToolDiscovery discovery;
     private ToolBindingService service;
     private ToolReleaseService releaseService;
     private ToolBindingDefinition binding;
@@ -154,11 +154,11 @@ public class ToolGatewayIntegrationTest {
                 return operation.apply(call);
             }
         };
-        registry = new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(fixture.provider(),
+        registry = new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(fixture.provider(),
                 () -> Mono.just(fixture.definitions()), Map.of(fixture.adapterRef(), adapter))));
-        discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(WAIT).state().discoveryHealthy());
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         releaseService = new ToolReleaseService(releases, validator);
         var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object())), "review", null,
                 policy.approvalMode(), null, null);

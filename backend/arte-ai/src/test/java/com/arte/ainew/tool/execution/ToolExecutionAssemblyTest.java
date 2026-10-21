@@ -5,8 +5,8 @@ import com.arte.ainew.application.execution.DefaultInvocationCoordinator;
 import com.arte.ainew.application.execution.GenerationDispatcher;
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.config.*;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
@@ -90,7 +90,7 @@ public class ToolExecutionAssemblyTest {
             assertTrue(context.getBean(NewAiProperties.class).capabilities().isEmpty());
             assertTrue(context.getBean(NewAiProperties.class).connections().isEmpty());
             assertTrue(context.getBean(NewAiProperties.class).budgets().isEmpty());
-            assertNull(context.getBean(LocalToolDiscovery.class).state().snapshot());
+            assertNull(context.getBean(StaticToolDiscovery.class).state().snapshot());
             assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
             metadata = context.getBean("newAiToolDiscoveryScheduler", Scheduler.class);
             persistence = context.getBean("newAiPersistenceScheduler", Scheduler.class);
@@ -202,9 +202,9 @@ public class ToolExecutionAssemblyTest {
         context.registerBean(ExecutionAuthorizationResolver.class, () -> (name, tenant, workspace, scopes) -> {
             throw new AssertionError("No startup identity read");
         });
-        context.registerBean(LocalToolRegistry.class, () -> {
+        context.registerBean(StaticToolRegistry.class, () -> {
             var tool = fixture("text", "v1");
-            return new LocalToolRegistry(List.of(tool.registration(() -> {
+            return new StaticToolRegistry(List.of(tool.registration(() -> {
                 throw new AssertionError("No startup discovery");
             })));
         });

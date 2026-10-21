@@ -2,7 +2,7 @@ package com.arte.ainew.config;
 
 import com.arte.ainew.application.gateway.DefaultToolGateway;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
@@ -44,7 +44,7 @@ public class NewAiToolGatewayConfiguration {
      * 构造零 SQL／零执行；注册网关不等于对外开放工具，调度容量和耐久受理仍由后续批次实现。
      */
     @Bean("newAiToolGateway")
-    ToolGateway gateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
+    ToolGateway gateway(ToolBindingService bindings, ToolCatalogStore catalog, StaticToolRegistry registry,
                         ToolExecutionAccess access, ExecutionRecordCodec codec,
                         @Qualifier("newAiToolInvocationScheduler") Scheduler scheduler,
                         @Qualifier("newAiClock") Clock clock, ObjectProvider<ToolApprovalStore> approvals) {

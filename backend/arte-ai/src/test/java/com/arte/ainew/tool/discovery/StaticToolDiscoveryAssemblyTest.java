@@ -1,11 +1,11 @@
 package com.arte.ainew.tool.discovery;
 
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.config.NewAiToolConfiguration;
 import com.arte.ainew.config.NewAiToolProperties;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import org.junit.Test;
 import org.springframework.beans.BeansException;
@@ -38,7 +38,7 @@ import static org.junit.Assert.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */
-public class LocalToolDiscoveryAssemblyTest {
+public class StaticToolDiscoveryAssemblyTest {
 
     @Test
     public void bothSwitchesAreRequiredAndDisabledConfigurationNeedsNoDependencies() {
@@ -47,7 +47,7 @@ public class LocalToolDiscoveryAssemblyTest {
             try (var context = new AnnotationConfigApplicationContext()) {
                 configure(context, properties);
                 context.refresh();
-                assertTrue(context.getBeansOfType(LocalToolDiscovery.class).isEmpty());
+                assertTrue(context.getBeansOfType(StaticToolDiscovery.class).isEmpty());
                 assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.release.ToolReleaseService.class).isEmpty());
                 assertFalse(context.containsBean("newAiToolDiscoveryScheduler"));
             }
@@ -58,15 +58,15 @@ public class LocalToolDiscoveryAssemblyTest {
     public void enabledAssemblyDoesNotReadSourcesWriteSqlOrAutoRegisterUnlistedBeans() {
         var reads = new AtomicInteger();
         var fixture = fixture("text", "v1");
-        var store = new LocalToolDiscoveryTest.MemoryStore();
+        var store = new StaticToolDiscoveryTest.MemoryStore();
         reactor.core.scheduler.Scheduler scheduler;
         try (var context = new AnnotationConfigApplicationContext()) {
             dependencies(context, store);
-            context.registerBean(LocalToolRegistry.class, () -> new LocalToolRegistry(List.of(fixture.registration(() -> {
+            context.registerBean(StaticToolRegistry.class, () -> new StaticToolRegistry(List.of(fixture.registration(() -> {
                 reads.incrementAndGet();
                 return Mono.just(fixture.definitions());
             }))));
-            context.registerBean("unlistedSource", LocalToolDefinitionSource.class, () -> () -> {
+            context.registerBean("unlistedSource", StaticToolDefinitionSource.class, () -> () -> {
                 throw new AssertionError("No arbitrary source scanning");
             });
             context.registerBean("unlistedAdapter", BusinessToolAdapter.class, () -> adapter(fixture("other", "v1").revision().tool().discoveredCapability()));
@@ -74,13 +74,13 @@ public class LocalToolDiscoveryAssemblyTest {
             context.refresh();
             assertEquals(0, reads.get());
             assertEquals(0, store.calls.get());
-            assertNotNull(context.getBean(LocalToolDiscovery.class));
+            assertNotNull(context.getBean(StaticToolDiscovery.class));
             assertNotNull(context.getBean(com.arte.ainew.application.tool.release.ToolReleaseService.class));
-            assertNotNull(context.getBean(com.arte.ainew.application.tool.release.LocalToolPublicationValidator.class));
+            assertNotNull(context.getBean(com.arte.ainew.application.tool.release.StaticToolPublicationValidator.class));
             assertEquals(Duration.ofSeconds(10), context.getBean(NewAiToolProperties.class).discovery().sourceTimeout());
             scheduler = context.getBean("newAiToolDiscoveryScheduler", reactor.core.scheduler.Scheduler.class);
             assertFalse(scheduler.isDisposed());
-            assertEquals(LocalToolDiscovery.Code.APPLIED, context.getBean(LocalToolDiscovery.class).refresh().block(Duration.ofSeconds(10)).code());
+            assertEquals(StaticToolDiscovery.Code.APPLIED, context.getBean(StaticToolDiscovery.class).refresh().block(Duration.ofSeconds(10)).code());
             assertEquals(1, reads.get());
             assertEquals(1, store.calls.get());
         }
@@ -90,8 +90,8 @@ public class LocalToolDiscoveryAssemblyTest {
     @Test
     public void enabledWithoutExplicitRegistryFailsRatherThanScanningSourceBeans() {
         try (var context = new AnnotationConfigApplicationContext()) {
-            dependencies(context, new LocalToolDiscoveryTest.MemoryStore());
-            context.registerBean(LocalToolDefinitionSource.class, () -> () -> Mono.just(fixture("text", "v1").definitions()));
+            dependencies(context, new StaticToolDiscoveryTest.MemoryStore());
+            context.registerBean(StaticToolDefinitionSource.class, () -> () -> Mono.just(fixture("text", "v1").definitions()));
             configure(context, enabled());
             assertThrows(BeansException.class, context::refresh);
         }
@@ -104,8 +104,8 @@ public class LocalToolDiscoveryAssemblyTest {
                 Map.<String, Object>of("arte.ai-new-tool.discovery.source-timeout", "61s"),
                 Map.<String, Object>of("arte.ai-new-tool.discovery.auto-sync-enabled", true))) {
             try (var context = new AnnotationConfigApplicationContext()) {
-                dependencies(context, new LocalToolDiscoveryTest.MemoryStore());
-                context.registerBean(LocalToolRegistry.class, () -> new LocalToolRegistry(List.of(fixture("text", "v1").registration())));
+                dependencies(context, new StaticToolDiscoveryTest.MemoryStore());
+                context.registerBean(StaticToolRegistry.class, () -> new StaticToolRegistry(List.of(fixture("text", "v1").registration())));
                 var values = new java.util.LinkedHashMap<>(enabled());
                 values.putAll(extra);
                 configure(context, values);
@@ -117,8 +117,8 @@ public class LocalToolDiscoveryAssemblyTest {
     @Test
     public void explicitSourceTimeoutBindsWithUnits() {
         try (var context = new AnnotationConfigApplicationContext()) {
-            dependencies(context, new LocalToolDiscoveryTest.MemoryStore());
-            context.registerBean(LocalToolRegistry.class, () -> new LocalToolRegistry(List.of(fixture("text", "v1").registration())));
+            dependencies(context, new StaticToolDiscoveryTest.MemoryStore());
+            context.registerBean(StaticToolRegistry.class, () -> new StaticToolRegistry(List.of(fixture("text", "v1").registration())));
             var values = new java.util.LinkedHashMap<>(enabled());
             values.put("arte.ai-new-tool.discovery.source-timeout", "250ms");
             configure(context, values);

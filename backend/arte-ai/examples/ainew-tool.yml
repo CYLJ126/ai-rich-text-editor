@@ -1,5 +1,5 @@
 # S1-06 装配显式本地来源、手动发现及内部生命周期治理，不开放管理 HTTP、绑定或执行入口。
-# 先升级读端并显式部署 S1-04 目录、S1-06 生命周期增量，再由组合模块提供 LocalToolRegistry Bean。
+# 先升级读端并显式部署 S1-04 目录、S1-06 生命周期增量，再由组合模块提供 StaticToolRegistry Bean。
 # arte.ai-new.enabled 也须开启；这里保持 TOOL 默认关闭，不内置生产示例工具。
 arte:
   ai-new-tool:

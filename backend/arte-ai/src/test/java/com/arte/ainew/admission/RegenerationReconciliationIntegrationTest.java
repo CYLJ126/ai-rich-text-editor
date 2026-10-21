@@ -456,7 +456,7 @@ public class RegenerationReconciliationIntegrationTest {
     }
 
     @Test
-    public void httpReadOnlyGrantCanListButCannotConfirmAndRegenerationRequiresAKey() throws Exception {
+    public void remoteReadOnlyGrantCanListButCannotConfirmAndRegenerationRequiresAKey() throws Exception {
         try {
             login("alice");
             var id = submit(create().conversationId(), "question");

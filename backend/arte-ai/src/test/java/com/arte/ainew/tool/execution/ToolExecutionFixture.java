@@ -10,10 +10,10 @@ import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.application.gateway.DefaultToolGateway;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.*;
@@ -32,7 +32,7 @@ import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
@@ -91,8 +91,8 @@ final class ToolExecutionFixture implements AutoCloseable {
     final MybatisToolBindingStore bindings;
     final MybatisExecutionPersistence executions;
     final MybatisToolAdmissionStore store;
-    final LocalToolDiscovery discovery;
-    final LocalToolRegistry registry;
+    final StaticToolDiscovery discovery;
+    final StaticToolRegistry registry;
     final ToolReleaseService releaseService;
     final ToolBindingService bindingService;
     final ToolAdmissionService service;
@@ -159,7 +159,7 @@ final class ToolExecutionFixture implements AutoCloseable {
         });
     }
 
-    private static LocalToolRegistry.Registration remoteRegistration(com.arte.ainew.spi.adapter.HttpToolAdapter tool) {
+    private static StaticToolRegistry.Registration remoteRegistration(com.arte.ainew.spi.adapter.HttpToolAdapter tool) {
         return tool instanceof McpHealthToolAdapter mcp ? mcp.registration() : ((HttpHealthToolAdapter) tool).registration();
     }
 
@@ -227,17 +227,17 @@ final class ToolExecutionFixture implements AutoCloseable {
         store = new MybatisToolAdmissionStore(source, codec, io, executions, bindings, catalog);
         v1 = tool("v1", policy, risk);
         v2 = tool("v2", policy, risk);
-        var definitions = new LocalToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
-        var registrations = new java.util.ArrayList<LocalToolRegistry.Registration>();
+        var definitions = new StaticToolDefinitionSource.Definitions(List.of(v1.schema()), List.of(v1.revision(), v2.revision()));
+        var registrations = new java.util.ArrayList<StaticToolRegistry.Registration>();
         // 本地测试契约不声明远端 origin；HTTP 测试只登记真正的受控适配器。
         if (http == null)
-            registrations.add(new LocalToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
+            registrations.add(new StaticToolRegistry.Registration(v1.provider(), () -> Mono.just(definitions),
                     Map.of(v1.adapterRef(), implementation(v1), v2.adapterRef(), implementation(v2))));
         else registrations.add(remoteRegistration(http));
-        registry = new LocalToolRegistry(registrations);
-        discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        registry = new StaticToolRegistry(registrations);
+        discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         assertTrue(discovery.refresh().block(Duration.ofSeconds(10)).state().discoveryHealthy());
-        var validator = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
+        var validator = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), metadata, clock, Duration.ofSeconds(2));
         releaseService = new ToolReleaseService(releases, validator);
         bindingService = new ToolBindingService(bindings, discovery, registry, metadata, Duration.ofSeconds(2));
         if (http == null) {

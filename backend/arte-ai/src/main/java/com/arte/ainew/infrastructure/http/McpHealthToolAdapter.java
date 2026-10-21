@@ -1,6 +1,6 @@
 package com.arte.ainew.infrastructure.http;
 
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.reference.DefinitionRef;
@@ -11,8 +11,8 @@ import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
 import com.arte.ainew.spi.adapter.McpToolAdapter;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
@@ -96,12 +96,12 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
         return revision;
     }
 
-    public LocalToolDefinitionSource.Definitions definitions() {
-        return new LocalToolDefinitionSource.Definitions(schemas, List.of(revision));
+    public StaticToolDefinitionSource.Definitions definitions() {
+        return new StaticToolDefinitionSource.Definitions(schemas, List.of(revision));
     }
 
-    public LocalToolRegistry.Registration registration() {
-        return new LocalToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(), Map.of(), Map.of((ExecutionTarget.Remote) revision.target(), this));
+    public StaticToolRegistry.Registration registration() {
+        return new StaticToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(), Map.of(), Map.of((ExecutionTarget.Remote) revision.target(), this));
     }
 
     /**

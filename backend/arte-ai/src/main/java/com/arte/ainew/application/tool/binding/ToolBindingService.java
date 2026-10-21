@@ -1,7 +1,7 @@
 package com.arte.ainew.application.tool.binding;
 
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
@@ -30,12 +30,12 @@ import java.util.function.Consumer;
 public final class ToolBindingService {
 
     private final ToolBindingStore store;
-    private final LocalToolDiscovery discovery;
-    private final LocalToolRegistry registry;
+    private final StaticToolDiscovery discovery;
+    private final StaticToolRegistry registry;
     private final Scheduler metadataScheduler;
     private final Duration timeout;
 
-    public ToolBindingService(ToolBindingStore store, LocalToolDiscovery discovery, LocalToolRegistry registry,
+    public ToolBindingService(ToolBindingStore store, StaticToolDiscovery discovery, StaticToolRegistry registry,
                               Scheduler metadataScheduler, Duration timeout) {
         this.store = Objects.requireNonNull(store);
         this.discovery = Objects.requireNonNull(discovery);

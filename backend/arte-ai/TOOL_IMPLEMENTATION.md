@@ -402,22 +402,22 @@ DISCOVERED，不表达发布、当前授权或可执行性。
 
 | 位置／类型                                         | 职责                                                                                       |
 |----------------------------------------------------|--------------------------------------------------------------------------------------------|
-| spi.adapter.LocalToolDefinitionSource              | 一次返回完整 Definitions（Schema／工具集合）；空 Mono 是异常，不是空目录                   |
-| application.tool.discovery.LocalToolRegistry       | 组合模块显式指定 LOCAL 提供方、来源实例、固定 tool-adapter 引用及 BusinessToolAdapter 实例 |
-| application.tool.discovery.LocalToolDiscovery      | 顺序读取来源，校验完整候选，调用一次 ToolCatalogStore.put，成功后原子替换节点 State        |
-| LocalToolDiscovery.Snapshot                        | 不可变提供方／Schema／工具索引、内容清单摘要及 UTC 微秒装载时间，不保存发布状态            |
+| spi.adapter.StaticToolDefinitionSource             | 一次返回完整 Definitions（Schema／工具集合）；空 Mono 是异常，不是空目录                   |
+| application.tool.discovery.StaticToolRegistry      | 组合模块显式指定 LOCAL 提供方、来源实例、固定 tool-adapter 引用及 BusinessToolAdapter 实例 |
+| application.tool.discovery.StaticToolDiscovery     | 顺序读取来源，校验完整候选，调用一次 ToolCatalogStore.put，成功后原子替换节点 State        |
+| StaticToolDiscovery.Snapshot                       | 不可变提供方／Schema／工具索引、内容清单摘要及 UTC 微秒装载时间，不保存发布状态            |
 | config.NewAiToolConfiguration／NewAiToolProperties | 独立默认关闭开关、严格属性绑定、有界元数据线程池；不启动同步或执行                         |
 
-组合模块通过构造器注入真实领域 Query／Command 给 BusinessToolAdapter，然后显式提供一个 LocalToolRegistry
+组合模块通过构造器注入真实领域 Query／Command 给 BusinessToolAdapter，然后显式提供一个 StaticToolRegistry
 Bean。以下为组合代码示意，变量表示组合模块已构造的对象，不是新增的生产示例类：
 
 ```java
-var registration = new LocalToolRegistry.Registration(
+var registration = new StaticToolRegistry.Registration(
         providerDefinition, // LOCAL；type=tool-provider，adapter 为 type=tool-provider-adapter
-        definitionSource,   // LocalToolDefinitionSource；完整 Schema 及工具版本
+        definitionSource,   // StaticToolDefinitionSource；完整 Schema 及工具版本
         Map.of(adapterRef, businessToolAdapter)); // adapterRef：type=tool-adapter，固定版本
-var registry = new LocalToolRegistry(List.of(registration));
-// LocalToolDiscovery 仅由内部管理流程显式调用；refresh() 返回 Mono，订阅才开始。
+var registry = new StaticToolRegistry(List.of(registration));
+// StaticToolDiscovery 仅由内部管理流程显式调用；refresh() 返回 Mono，订阅才开始。
 var command = discovery.refresh(); // Mono<RefreshResult>
 // 订阅后从 RefreshResult 读取 code()、state().snapshot()，不是工具调用结果。
 ```
@@ -461,10 +461,10 @@ discoveryHealthy 接入 Worker 就绪、领取或公开健康接口。
 已同时落实配置类、[YAML 示例](examples/ainew-tool.yml)、`src/main/resources/ainew/config/application.properties` 过滤模板、
 `../profile/common.properties` 默认值和 `../profile/app.properties.example`。
 
-| 配置                                      | 默认及范围                                                               |
-|-------------------------------------------|--------------------------------------------------------------------------|
-| arte.ai-new-tool.enabled                  | false；AI 主开关也必须为 true；开启时必须提供显式 LocalToolRegistry Bean |
-| arte.ai-new-tool.discovery.source-timeout | 10s；1ms—1m；每个完整来源的读取期限，不是工具调用期限                    |
+| 配置                                      | 默认及范围                                                                |
+|-------------------------------------------|---------------------------------------------------------------------------|
+| arte.ai-new-tool.enabled                  | false；AI 主开关也必须为 true；开启时必须提供显式 StaticToolRegistry Bean |
+| arte.ai-new-tool.discovery.source-timeout | 10s；1ms—1m；每个完整来源的读取期限，不是工具调用期限                     |
 
 专用线程池为 2 线程、每线程队列 16，应用关闭释放。启动不访问数据库、不发现、不发布或执行，也不自动同步。 当前只接受这两个已实现的
 TOOL 参数；auto-sync、执行、审批、聊天及远端配置仍是未来设计，填写时会被严格属性绑定拒绝。
@@ -492,7 +492,7 @@ mvn -o -f backend/pom.xml -pl arte-app -am \
 ```
 
 结果：BUILD SUCCESS；arte-ai 301 项、arte-app 3 项，共 304 项，失败／错误／跳过均为 0，Reactor 编译通过。本批新增 39 项：
-LocalToolDiscoveryTest 30、LocalToolDiscoveryAssemblyTest 6、LocalToolDiscoveryPersistenceTest 3；既有
+StaticToolDiscoveryTest 30、StaticToolDiscoveryAssemblyTest 6、StaticToolDiscoveryPersistenceTest 3；既有
 ConfigurationAssemblyTest 补充 TOOL 默认关闭的断言。
 
 第一次在受限沙箱中运行时，55 项既有受控 HTTP 测试因 Socket Operation not permitted 失败；允许本机临时端口绑定后按同一命令完整重跑通过。
@@ -525,7 +525,7 @@ TOOL 或执行部署 DDL。
 | pojo.tool.ToolReleaseCommand                                                  | 带 expectedVersion、幂等键和原因的管理语义；审核示例、风险／幂等依据、最低人工控制及可选兼容前驱 |
 | pojo.tool.ToolPublicationValidation                                           | 服务端检查结果、固定契约摘要、节点清单摘要和稳定问题码；不携带异常正文                           |
 | pojo.tool.ToolReleaseReceipt                                                  | 实际操作者、原始命令、领域决定、拒绝原因、当时状态及预检结果；同时作为不可变管理审计             |
-| application.tool.release.LocalToolPublicationValidator                        | 当前发现与实现、Schema／示例、风险／幂等／人工控制及已支持协议预检                               |
+| application.tool.release.StaticToolPublicationValidator                       | 当前发现与实现、Schema／示例、风险／幂等／人工控制及已支持协议预检                               |
 | application.tool.release.ToolReleaseService                                   | 受信内部编排；发布／重新启用先预检，停用／废弃不依赖来源健康                                     |
 | spi.persistence.ToolReleaseStore／persistence.mybatis.MybatisToolReleaseStore | 当前状态、原始审计分页与管理事务，不缓存撤销状态，不替代当前授权                                 |
 
@@ -810,7 +810,7 @@ SQL、不刷新来源；两个开关和公共身份／持久化／空间基础�
 ### 8.3 刷新审计与事务
 
 新增 `ToolDiscoveryManagementStore`／`MybatisToolDiscoveryManagementStore` 和 `arte_ai_tool_discovery_command`，与目录事实同库提交。
-`LocalToolDiscovery.refresh(commit)` 允许管理用例在候选校验后注入授权及审计事务，原内部 refresh 仍可使用原存储路径。
+`StaticToolDiscovery.refresh(commit)` 允许管理用例在候选校验后注入授权及审计事务，原内部 refresh 仍可使用原存储路径。
 
 - 命令键由真实主体／类别／Idempotency-Key 派生；请求语义包含完整本地刷新意图、Scope 和原因。
 - 同键同语义返回首次回执，不再次读取来源；不同语义返回冲突。两个并发相同键不覆盖原候选事实。
@@ -1402,7 +1402,7 @@ deadline，避免扫描竞争。已开始或可能已经产生结果的任务仍
 | `workspace-queued`／`subject-queued`                                                     | 100／20；按租户与空间／主体组合身份隔离                                                                   |
 | `short-threshold`                                                                        | 10s，按工具发布契约 timeout 分类                                                                          |
 | `short-queue-timeout`／`long-queue-timeout`                                              | 10s／30s，均不超过原 Invocation deadline                                                                  |
-| `tool-manifest`                                                                          | 默认空；填写经审查的健康 LocalToolDiscovery 快照 SHA-256                                                  |
+| `tool-manifest`                                                                          | 默认空；填写经审查的健康 StaticToolDiscovery 快照 SHA-256                                                 |
 
 队列满为 `AI_DISPATCH_QUEUE_FULL`（205056，HTTP 429，Retry-After: 5）；受理队列权威不可用、池配置／清单不一致或缺失受信方案为
 `AI_DISPATCH_UNAVAILABLE`（305003，HTTP 503），不降级无限执行。消费扫描失败保留耐久工作项并记录稳定错误类型，后续轮询恢复。
@@ -1578,8 +1578,8 @@ ID 查询。正常单飞每秒轮询，失败指数退避到 15 秒，页面隐�
 ### 16.4 生产开放前提与下一批
 
 本节为 S2-08 完成时的记录，后续接线与验收状态见 §17。当时 arte-app 已提供管理和历史读取／停止的当前平台授权，但尚无生产
-ToolAdmissionAccess／ToolExecutionAccess 或真实
-LocalToolRegistry.Registration。 本批保留该显式接入边界，不登记测试适配器、不以只读元数据或管理权限代替免费／资源授权。三开关开启但缺受理服务时，新接口返回
+ToolAdmissionAccess／ToolExecutionAccess 或真实 StaticToolRegistry.Registration。
+本批保留该显式接入边界，不登记测试适配器、不以只读元数据或管理权限代替免费／资源授权。三开关开启但缺受理服务时，新接口返回
 503。 宿主实现必须检查现有稳定身份、当前账号／租户／空间、AI 使用、aiTool:invoke、实际资源及受信计费策略；提交与重放在同库原事务复核，
 执行边界再检查当前资格。实际业务适配仍须使用原领域授权。
 
@@ -1593,8 +1593,8 @@ S2-09 才进行具体业务库／Redis、多节点、故障矩阵、性能与首
 
 ### 17.1 正式实现与宿主授权
 
-- arte-app 新增 `PlatformToolExecutionConfiguration`，按现有包路径显式装配 `LocalToolRegistry`、`LocalTextTools` 和同时实现
-  ToolAdmissionAccess／ToolExecutionAccess 的 `PlatformToolExecutionAccess`。修复开启 TOOL 后缺少 LocalToolRegistry
+- arte-app 新增 `PlatformToolExecutionConfiguration`，按现有包路径显式装配 `StaticToolRegistry`、`LocalTextTools` 和同时实现
+  ToolAdmissionAccess／ToolExecutionAccess 的 `PlatformToolExecutionAccess`。修复开启 TOOL 后缺少 StaticToolRegistry
   的启动缺口，不注册空目录或默认放行端口。
 - 正式工具 `text.countCodePoints@v1` 按 Unicode 码点计数，输入 text，输出 codePoints，配置必须空对象。仅处理本次文本，无
   Secret／网络／文件／模型／业务资源；5 秒／1 次尝试／受控字节上限。完整契约与实际适配器一起登记，免费策略比较完整固定版本及有效配置，不按名称、READ_ONLY
@@ -1614,7 +1614,7 @@ S2-09 才进行具体业务库／Redis、多节点、故障矩阵、性能与首
 启动前完整发现，30 秒总等待上限，失败拒绝启动；仅登记不可变部署事实，不执行 DDL、不自动发布／建绑／授予角色，不伪造管理员会话或管理审计回执。构造发现服务仍零
 SQL，手动管理刷新仍有独立当前授权／审计。
 
-`LocalToolDiscovery.manifest(batch)` 提取原有摘要算法，按提供者／Schema／工具固定排序，忽略来源顺序和加载时间；生产文本清单可在启动前计算，不需要先起服务取值再重启。当前唯一文本工具清单：
+`StaticToolDiscovery.manifest(batch)` 提取原有摘要算法，按提供者／Schema／工具固定排序，忽略来源顺序和加载时间；生产文本清单可在启动前计算，不需要先起服务取值再重启。当前唯一文本工具清单：
 
 ```properties
 arte.ai-new-execution.scheduling.tool-manifest=331756c89f707d42a1142275e1be4d4711b6ef76ef6ac7df4b996ce463cd6569
@@ -2340,7 +2340,7 @@ MCP。
 
 ### 42.1 实现与现有基础
 
-- 静态 `LocalToolRegistry.Registration` 显式区分 LOCAL 执行器与 HTTP 执行器；HTTP 必须登记真实适配器并精确匹配提供方／连接／操作／固定工具版本；MCP、空
+- 静态 `StaticToolRegistry.Registration` 显式区分 LOCAL 执行器与 HTTP 执行器；HTTP 必须登记真实适配器并精确匹配提供方／连接／操作／固定工具版本；MCP、空
   HTTP 执行清单及错误类型拒绝。发现与发布不外联、不自动发布或建绑。
 - 发布预检与发布事务支持上述受控 HTTP 只读合同；绑定解析和网关读取相同登记实例，保持本地网络声明原有拒绝码。连接摘要固化在默认配置及
   const Schema，同引用修改 endpoint／期限／协议等由目录原子拒绝。
@@ -2370,14 +2370,14 @@ example，不改其既有本地工具启用设置。版本变化须重新审核�
 - 超时保存 TIMED_OUT、取消保存 CANCELLED，无业务副作用核对工作；取消后释放 HTTP 资源并允许后续调用。
 - 正式宿主默认关闭、严格配置／独立 origin／版本及资源过滤映射、现有平台权限和公开管理／提交／查询链路、分类部署清单，以及撤权后的幂等重放拒绝。
 
-相邻回归名单：LocalToolDiscoveryTest、LocalToolDiscoveryPersistenceTest、ToolReleaseTest、ToolBindingStoreTest、ToolBindingConstraintsTest、ToolAdmissionIntegrationTest、ToolAdmissionContractTest、ToolChatBudgetSelectorTest、ToolSetServiceTest、ToolGatewayIntegrationTest、ToolGatewayAssemblyTest、ToolDispatchIntegrationTest、ToolChatLoopTest、ToolChatBudgetContractTest、GenerationEgressTest、GenerationGatewayTest、GenerationAssemblyTest、ToolChatProtocolTest、DataContractsTest、ExecutionTargetContractsTest、ToolDefinitionContractsTest、DispatchBillingContractTest、ResolvedBindingCodecTest、TurnCandidateCodecTest、ReadOperationSnapshotTest、ToolApprovalFlowTest、ToolApprovalIntegrationTest、ToolApprovalRecoveryTest、PlatformToolExecutionIntegrationTest、PlatformToolChatAccessIntegrationTest、PlatformToolWriteIntegrationTest。
+相邻回归名单：StaticToolDiscoveryTest、StaticToolDiscoveryPersistenceTest、ToolReleaseTest、ToolBindingStoreTest、ToolBindingConstraintsTest、ToolAdmissionIntegrationTest、ToolAdmissionContractTest、ToolChatBudgetSelectorTest、ToolSetServiceTest、ToolGatewayIntegrationTest、ToolGatewayAssemblyTest、ToolDispatchIntegrationTest、ToolChatLoopTest、ToolChatBudgetContractTest、GenerationEgressTest、GenerationGatewayTest、GenerationAssemblyTest、ToolChatProtocolTest、DataContractsTest、ExecutionTargetContractsTest、ToolDefinitionContractsTest、DispatchBillingContractTest、ResolvedBindingCodecTest、TurnCandidateCodecTest、ReadOperationSnapshotTest、ToolApprovalFlowTest、ToolApprovalIntegrationTest、ToolApprovalRecoveryTest、PlatformToolExecutionIntegrationTest、PlatformToolChatAccessIntegrationTest、PlatformToolWriteIntegrationTest。
 
 命令：在仓库根目录设置 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home`，运行
 `mvn -q -f backend/pom.xml -pl arte-app -am`，按上述 33 类设置 `-Dtest`，并使用
 `-Dsurefire.failIfNoSpecifiedTests=false -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider -Dlog4j2.loggerContextFactory=org.apache.logging.log4j.core.impl.Log4jContextFactory test`
 。最终日志 `/private/tmp/s5-final.log`；`git diff --check` 通过。
 
-初次回环测试受沙箱端口监听限制，允许临时本地监听后执行通过。此前扩展还执行 LocalToolDiscoveryAssemblyTest：5 项通过，1 项既有
+初次回环测试受沙箱端口监听限制，允许临时本地监听后执行通过。此前扩展还执行 StaticToolDiscoveryAssemblyTest：5 项通过，1 项既有
 profile 比较失败：common 的本地工具 enabled／refresh-on-startup 均为 false，而既有 app.properties.example 均为 true；对应示例与
 HEAD 一致，common 对应值来自本批前已有改动，本批未调整这些值。该项不计入 425 项最终通过名单，不能据此宣称全仓全绿；新增 HTTP
 四项默认值／资源过滤一致性另有正式宿主测试通过。
@@ -2487,3 +2487,47 @@ Netty macOS DNS native fallback 提示不等于本批网络失败。
 `git diff --check` 通过。本批无前端源码变更，未另跑前端全仓类型检查／构建；未执行生产 MySQL、多节点、真实
 HTTPS／MCP、浏览器人工验收或性能压测。 没有执行业务库脚本、设置真实 endpoint、开启运行环境开关或重启后端，测试成功不表示生产开放和
 SLA 已验收。
+
+## 45. S5 后续整理第一批：统一静态工具命名
+
+日期：2026-10-21。本批统一职责命名，不改变工具执行、授权、收费或发现摘要算法。Static 表示定义由受信部署代码登记，工具实际可以是
+LOCAL、HTTP 或 MCP；静态发现只读取元数据，不访问远端工具服务。
+
+### 45.1 调整范围与兼容边界
+
+| 职责                               | 当前名称                            |
+|------------------------------------|-------------------------------------|
+| 部署代码登记来源、提供方及执行实例 | `StaticToolRegistry`                |
+| 一次返回完整 Schema／工具元数据    | `StaticToolDefinitionSource`        |
+| 校验完整候选并原子安装节点目录     | `StaticToolDiscovery`               |
+| 发布／重新启用前复核当前实现与契约 | `StaticToolPublicationValidator`    |
+| 宿主工具使用资格及资源复核         | `ToolUsagePolicy`                   |
+| LOCAL 执行实例映射                 | `Registration.localAdapters`        |
+| HTTP／MCP 共用的单次只读结构检查   | `ToolExecutionRules.remoteReadOnly` |
+
+同步调整构造器、引用、内部 Bean／工厂方法、测试类文件名、配置示例注释和相关文档。发现 Bean 为 `newAiStaticToolDiscovery`，
+宿主注册表工厂为 `staticToolRegistry`，资格策略工厂为 `platformToolUsagePolicy`。HTTP／MCP 映射继续分别使用 `httpAdapters`／
+`mcpAdapters`。
+
+保留 `/refreshLocalCatalog` 与 `RefreshLocalCatalog` 请求类型；该路径刷新完整静态目录。保留 `local-tool-discovery-v1`
+摘要格式标记、 摘要输入与排序、配置键和值、持久化类型别名与版本及固定工具引用，因此此次改名无需重新计算或切换调度池
+manifest。
+`LocalToolCall`、`ExecutionTarget.Local`、真实本地工具及其配置仍使用 Local 名称。
+
+本批没有提取 `RemoteToolAdapter`，`McpToolAdapter extends HttpToolAdapter` 及 Gateway 既有协议分派保持原状；接口职责拆分留待第二批。
+没有修改数据库、启用功能开关或重启后端；保留任务开始前已有的工作区改动。
+
+### 45.2 验证
+
+- JDK 21：针对发现／发布／绑定、装配与管理 HTTP、宿主授权、本地工具、受控 HTTP／MCP、付费账本、审批、Worker、聊天与预算执行相邻回归，
+  **53 类、614 项通过，零失败／错误／跳过**。日志 `/private/tmp/arte-static-rename-regression.log`；不是全仓全量测试。
+- `mvn -q -f backend/pom.xml -pl arte-app -am clean test -DskipTests` 成功，清理旧 class 后重新编译全部相关主源码与测试源码，
+  不依赖重命名前残留类。日志 `/private/tmp/arte-static-rename-clean-compile.log`。
+- 单独执行 `StaticToolDiscoveryAssemblyTest`： **5 项通过、1 项既有失败**。失败用例
+  `toolProfileDefaultsExampleAndFilteredResourceStayConsistent` 要求共享配置与示例一致；任务开始时 `common.properties` 中
+  TOOL enabled／refresh-on-startup 为 false，`app.properties.example` 中为 true。本批只改这些文件的类名注释，未修改配置值或该用例断言。
+  日志 `/private/tmp/arte-static-rename-assembly.log`，不将该轮报告为全绿。
+- 对任务开始时的 51 个相关 Java 文件按词法比对：排除注释、空白和约定的标识符／Bean 重命名后，执行代码完全一致；
+  同时核对两处清单格式标记及既有刷新路径保留，配置值未变，更改内容通过空白差异检查。
+
+未执行生产 MySQL、多节点、真实供应商、浏览器人工验收或性能压测；本批仅整理命名，不据此新增生产能力结论。

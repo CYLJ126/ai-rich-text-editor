@@ -1,10 +1,10 @@
 package com.arte.ainew.tool.management;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.management.ToolManagementService;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionOwner;
@@ -18,7 +18,7 @@ import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolRelease;
 import com.arte.ainew.pojo.tool.ToolReleaseCommand;
 import com.arte.ainew.pojo.tool.ToolReleaseReceipt;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
 import com.arte.ainew.web.controller.NewAiToolController;
@@ -89,10 +89,10 @@ public class ToolManagementHttpTest {
     private MybatisToolReleaseStore releases;
     private MybatisToolBindingStore bindings;
     private MybatisToolDiscoveryManagementStore discoveryStore;
-    private LocalToolDiscovery discovery;
+    private StaticToolDiscovery discovery;
     private ToolManagementService service;
-    private LocalToolRegistry registry;
-    private LocalToolPublicationValidator publication;
+    private StaticToolRegistry registry;
+    private StaticToolPublicationValidator publication;
     private ToolReleaseService releaseService;
     private ToolBindingService bindingService;
 
@@ -125,15 +125,15 @@ public class ToolManagementHttpTest {
         releases = new MybatisToolReleaseStore(ds, codec, scheduler, clock);
         bindings = new MybatisToolBindingStore(ds, codec, scheduler, clock, new ToolExecutionPolicy(Duration.ofSeconds(60), 10, Duration.ZERO, 100_000, 100_000, ToolExecutionPolicy.ApprovalMode.NONE), catalog, releases);
         discoveryStore = new MybatisToolDiscoveryManagementStore(ds, codec, scheduler, clock, catalog);
-        registry = new LocalToolRegistry(List.of(new LocalToolRegistry.Registration(v1.provider(), () -> {
+        registry = new StaticToolRegistry(List.of(new StaticToolRegistry.Registration(v1.provider(), () -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             sourceReads.incrementAndGet();
             if (revokeAfterSource.get()) commitRevoked.set(true);
             if (sourceFailed.get()) return Mono.error(new IllegalStateException("do not leak secret-source-value"));
-            return Mono.just(new LocalToolDefinitionSource.Definitions(List.of(v1.schema()), definitions.get().stream().map(Fixture::revision).toList()));
+            return Mono.just(new StaticToolDefinitionSource.Definitions(List.of(v1.schema()), definitions.get().stream().map(Fixture::revision).toList()));
         }, Map.of(v1.adapterRef(), adapter(v1.revision().tool().discoveredCapability()), v2.adapterRef(), adapter(v2.revision().tool().discoveredCapability()), v3.adapterRef(), adapter(v3.revision().tool().discoveredCapability())))));
-        discovery = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
-        publication = new LocalToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
+        discovery = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
+        publication = new StaticToolPublicationValidator(discovery, registry, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
         releaseService = new ToolReleaseService(releases, publication);
         bindingService = new ToolBindingService(bindings, discovery, registry, scheduler, Duration.ofSeconds(3));
         service = service(discovery);
@@ -145,7 +145,7 @@ public class ToolManagementHttpTest {
         mvc = standaloneSetup(new NewAiToolController(service, new TestAccess())).setValidator(beanValidator).setControllerAdvice(new ToolManagementExceptionHandler()).build();
     }
 
-    private ToolManagementService service(LocalToolDiscovery node) {
+    private ToolManagementService service(StaticToolDiscovery node) {
         return new ToolManagementService(catalog, releases, bindings, releaseService, bindingService, publication, node, discoveryStore);
     }
 
@@ -478,7 +478,7 @@ public class ToolManagementHttpTest {
     public void refreshReplaysOnAnotherNodeDoNotInventDiscoveryHealth() {
         var result = service.refresh(new TestAccess().capture(login("alice")), scope(), "refresh", "refresh").block(WAIT);
         assertTrue(result.receipt().value().successful());
-        var otherNode = new LocalToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
+        var otherNode = new StaticToolDiscovery(registry, catalog, new ToolSchemaValidator(), scheduler, clock, Duration.ofSeconds(3));
         var replay = service(otherNode).refresh(new TestAccess().capture(login("alice")), scope(), "refresh", "refresh").block(WAIT);
         assertEquals(StoreOutcome.Code.REPLAYED, replay.receipt().code());
         assertFalse(replay.node().discoveryHealthy());

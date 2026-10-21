@@ -423,12 +423,17 @@ AC，不能以“统一复用”替代契约修改。
 示例工具契约可为 text.countCodePoints/v1：输入 text 字符串，输出 count 整数，无网络、无领域写入、幂等。本文只定义示例行为，不新增生产
 Bean。业务写工具必须提供真实领域版本冲突和幂等用例。
 
-S1-05 已实现 LocalToolDefinitionSource、LocalToolRegistry 和 LocalToolDiscovery。组合模块通过受信代码显式构造注册表，将固定
+S1-05 已实现 StaticToolDefinitionSource、StaticToolRegistry 和 StaticToolDiscovery。组合模块通过受信代码显式构造注册表，将固定
 LOCAL 提供方、完整定义来源、tool-adapter 固定引用及实际 BusinessToolAdapter 实例一起登记；不按字符串选择 Bean，也不收集任意同接口
 Bean。每个节点同一提供方只登记一个接入版本，执行适配引用不能跨来源重复登记。构造过程不调用来源、数据库或工具。
 
+Static 指定义来源由部署代码显式登记，不限定工具在本机执行。LOCAL 执行器使用 `Registration.localAdapters`，HTTP／MCP 分别使用
+`httpAdapters`／`mcpAdapters`；宿主统一通过 `ToolUsagePolicy` 复核使用资格，远端只读结构校验为
+`ToolExecutionRules.remoteReadOnly`。 这些名称调整不改变协议继承、执行策略、配置键或持久化格式。兼容保留
+`/refreshLocalCatalog` 路径及 `local-tool-discovery-v1` 摘要格式标记， 静态目录刷新不访问远端服务。
+
 来源一次提交完整的 Schema／工具集合；不是变更增量。工具依赖的 Schema 必须在该轮全部来源的候选集合中，不从历史分页补齐；相同
-Schema 可跨来源共享，不同内容不得共用引用。每个工具的提供方、LOCAL 目标和已登记实例的固定能力必须一致，Schema／默认配置及真实摘要全部校验后才整批存储。
+Schema 可跨来源共享，不同内容不得共用引用。每个工具的提供方、执行目标和已登记实例的固定能力必须一致，Schema／默认配置及真实摘要全部校验后才整批存储。
 适配器自报 EXECUTABLE 不授予发布资格，DISABLED 或声明不匹配拒绝装载；发现过程不调用 invoke。
 
 ### 5.2 框架适配
@@ -629,7 +634,7 @@ TOOL 消费前，仍须先升级全部读端并落实 §4.6
 
 S1-05 已落地 enabled=false 和 discovery.source-timeout=10s；后者为每个完整来源的读取期限，可配置 1ms 至 1m，不是工具调用超时。
 配置已进入 common.properties 默认值、app.properties.example、运行时过滤模板及 examples/ainew-tool.yml。仅当 AI 主开关及
-TOOL 开关同时打开才装配；缺少显式 LocalToolRegistry 则装配失败。S1-06 在相同开关下新增内部治理服务，发布／重新启用预检沿用
+TOOL 开关同时打开才装配；缺少显式 StaticToolRegistry 则装配失败。S1-06 在相同开关下新增内部治理服务，发布／重新启用预检沿用
 source-timeout，不增加后台开关。 使用独立的有界元数据线程池（2 线程，每线程队列
 16），不在启动时刷新、建表、发布或执行。 除这两项外，下表配置仍是设计计划，当前不能填写未实现的配置项；包括
 discovery.auto-sync-enabled，严格绑定会拒绝。
@@ -1697,7 +1702,7 @@ S3，本批没有该等待状态或计数。
 空间轮转游标按类别耐久保存，饱和空间或提供者跳过，且允许在同一空间继续寻找其他可服务的提供者；每轮每空间最多领取一条。
 独立的排队到期收尾不占业务执行容量，准备事务再次检查 queue_deadline，防止扫描与派发竞争；可能已经执行的任务仍按原恢复规则处理。
 
-工具节点必须先完成健康本地发现，并匹配受信 tool-manifest（LocalToolDiscovery 清单 SHA-256）；数据库同时固定调度配置和清单摘要，
+工具节点必须先完成健康静态目录发现，并匹配受信 tool-manifest（StaticToolDiscovery 清单 SHA-256）；数据库同时固定调度配置和清单摘要，
 不匹配节点停止新领取，Worker 的 toolExecutionReady 为 false，并记录就绪变化／调度故障。
 此清单包含契约、Schema、目标和适配器版本引用，不等于容器镜像或所有传递依赖的二进制摘要；代码镜像同构仍由部署流程核验。
 没有新增异构能力路由或 Kubernetes 就绪探针；执行池门控不代表全应用 HTTP 就绪状态。
@@ -1998,13 +2003,13 @@ NF，并在实施任务中落实负责人。
 | FR-01.1  | 发现的新版本只能进入草稿                       | UT-07        | §5.6         | refreshLocalCatalog（远端 syncProvider 待实现） | AC-01               | S1        |
 | FR-01.2  | 同步失败必须保留完整旧快照                     | UT-07        | §5.6         | ToolProviderDefinition                          | AC-01               | S1        |
 | FR-01.3  | 提供者／Schema／定义固定版本原子登记且禁止漂移 | UT-07        | §3.2、§13.2  | ToolCatalogStore                                | AC-01、AC-03、AC-30 | S1-04     |
-| FR-01.4  | 本地显式登记并按完整来源原子替换节点发现视图   | UT-07        | §5.1、§5.6   | LocalToolRegistry／LocalToolDiscovery           | AC-01、AC-28        | S1-05     |
+| FR-01.4  | 本地显式登记并按完整来源原子替换节点发现视图   | UT-07        | §5.1、§5.6   | StaticToolRegistry／StaticToolDiscovery         | AC-01、AC-28        | S1-05     |
 | FR-02.1  | 目录只返回当前空间可见的工具                   | UT-01        | §3.2、§9.2   | listTools                                       | AC-02、AC-06        | S1        |
 | FR-02.2  | 固定版本详情必须展示实际能力及副作用           | UT-01        | §3.3         | getTool                                         | AC-02               | S1        |
 | FR-03.1  | 发布前必须校验真实执行适配存在                 | UT-07        | §7.2         | publishTool                                     | AC-02               | S1        |
 | FR-03.2  | 停用必须阻止下一敏感执行边界                   | UT-07        | §7.4         | setToolState                                    | AC-02、AC-17        | S2        |
 | FR-03.3  | 生命周期变更须版本检查、防重并原子保存审计     | UT-07        | §7.1、§13.2  | ToolReleaseStore                                | AC-02、AC-08        | S1-06     |
-| FR-03.4  | 本地发布须核对当前实现、审核材料和支持的协议   | UT-07        | §7.2         | LocalToolPublicationValidator                   | AC-02、AC-03        | S1-06     |
+| FR-03.4  | 本地发布须核对当前实现、审核材料和支持的协议   | UT-07        | §7.2         | StaticToolPublicationValidator                  | AC-02、AC-03        | S1-06     |
 | FR-04.1  | 绑定更新必须产生不可变修订                     | UT-07        | §3.4、§6.2   | ToolBindingStore.execute                        | AC-04、AC-08        | S1-07     |
 | FR-04.2  | 并发准备默认绑定只能产生一个默认实例           | UT-01        | §2.5、§11.2  | ensureDefaultBinding                            | AC-37               | S2        |
 | FR-04.3  | 本地工具目标不得依赖虚构连接或模型窗口         | UT-07        | §6.4         | ExecutionTarget／ResolvedBinding                | AC-04、AC-30        | S1-03     |

@@ -1,8 +1,8 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.app.platform.ai.tool.LocalToolWriteProperties;
@@ -49,9 +49,9 @@ class ToolWriteAcceptanceRig {
         schemas.addAll(writes.definitions().schemas());
         var definitions = new ArrayList<>(text.definitions().tools());
         definitions.addAll(writes.definitions().tools());
-        var providers = new ArrayList<>(text.registry().registrations().stream().map(LocalToolRegistry.Registration::provider).toList());
+        var providers = new ArrayList<>(text.registry().registrations().stream().map(StaticToolRegistry.Registration::provider).toList());
         providers.add(writes.registration().provider());
-        String manifest = LocalToolDiscovery.manifest(new ToolCatalogStore.Batch(providers, schemas, definitions));
+        String manifest = StaticToolDiscovery.manifest(new ToolCatalogStore.Batch(providers, schemas, definitions));
         var context = rig.context().withPropertyValues("arte.ai-new-tool-write.enabled=true", "arte.ai-new-tool-approval.enabled=true",
                 "arte.ai-new-execution.scheduling.tool-manifest=" + manifest);
         if (fault == Fault.NONE) return context;

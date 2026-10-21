@@ -1,7 +1,7 @@
 package com.arte.app.platform.ai.tool;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
@@ -15,7 +15,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
-import com.arte.ainew.spi.adapter.LocalToolDefinitionSource;
+import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
 import com.arte.app.platform.ai.PlatformToolManagementAccess;
@@ -55,7 +55,7 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/20 09:48 ✾
  */
-public final class LocalWorkspaceTools implements LocalToolPolicy {
+public final class LocalWorkspaceTools implements ToolUsagePolicy {
 
     public static final DefinitionRef TOOL = ref("tool", "workspace.updateDetails");
     public static final DefinitionRef ADAPTER = ref("tool-adapter", "arte-workspace-details");
@@ -111,12 +111,12 @@ public final class LocalWorkspaceTools implements LocalToolPolicy {
         return revision;
     }
 
-    public LocalToolDefinitionSource.Definitions definitions() {
-        return new LocalToolDefinitionSource.Definitions(List.of(input, output, configuration), List.of(revision));
+    public StaticToolDefinitionSource.Definitions definitions() {
+        return new StaticToolDefinitionSource.Definitions(List.of(input, output, configuration), List.of(revision));
     }
 
-    public LocalToolRegistry.Registration registration() {
-        return new LocalToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(ADAPTER, adapter()));
+    public StaticToolRegistry.Registration registration() {
+        return new StaticToolRegistry.Registration(provider, () -> Mono.just(definitions()), Map.of(ADAPTER, adapter()));
     }
 
     @Override

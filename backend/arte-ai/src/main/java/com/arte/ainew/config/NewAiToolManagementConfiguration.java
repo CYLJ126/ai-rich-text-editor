@@ -2,9 +2,9 @@ package com.arte.ainew.config;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.chat.ToolSetService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.management.ToolManagementService;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.spi.persistence.ToolBindingStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
@@ -38,8 +38,8 @@ public class NewAiToolManagementConfiguration {
 
     @Bean
     ToolManagementService toolManagementService(ToolCatalogStore catalog, ToolReleaseStore releases, ToolBindingStore bindings,
-                                                ToolReleaseService releaseService, ToolBindingService bindingService, LocalToolPublicationValidator validator,
-                                                LocalToolDiscovery discovery, ToolDiscoveryManagementStore discoveryStore) {
+                                                ToolReleaseService releaseService, ToolBindingService bindingService, StaticToolPublicationValidator validator,
+                                                StaticToolDiscovery discovery, ToolDiscoveryManagementStore discoveryStore) {
         return new ToolManagementService(catalog, releases, bindings, releaseService, bindingService, validator, discovery, discoveryStore);
     }
 }

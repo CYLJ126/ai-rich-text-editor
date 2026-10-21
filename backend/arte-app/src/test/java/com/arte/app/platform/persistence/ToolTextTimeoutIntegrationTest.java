@@ -43,7 +43,7 @@ class ToolTextTimeoutIntegrationTest {
         assertEquals("v1", tools.revision().tool().definition().version());
         assertEquals(Duration.ofSeconds(30), tools.revision().tool().defaultPolicy().timeout());
         assertEquals(1, tools.definitions().tools().size());
-        assertEquals(1, tools.registry().registrations().getFirst().adapters().size());
+        assertEquals(1, tools.registry().registrations().getFirst().localAdapters().size());
         assertEquals(tools.revision().tool().discoveredCapability(), tools.registry().findAdapter(LocalTextTools.ADAPTER).orElseThrow().capability());
         assertNotEquals("331756c89f707d42a1142275e1be4d4711b6ef76ef6ac7df4b996ce463cd6569", tools.manifest());
         System.out.println("TEXT_TIMEOUT_MANIFEST=" + tools.manifest());

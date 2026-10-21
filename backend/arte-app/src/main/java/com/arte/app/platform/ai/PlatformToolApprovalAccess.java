@@ -10,7 +10,7 @@ import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
-import com.arte.app.platform.ai.tool.LocalToolPolicy;
+import com.arte.app.platform.ai.tool.ToolUsagePolicy;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
@@ -36,13 +36,13 @@ public final class PlatformToolApprovalAccess implements ToolApprovalAccess {
     private final RbacIdentityProvider identities;
     private final WorkspaceGovernanceLocks locks;
     private final PublicTransactionRunner transactions;
-    private final LocalToolPolicy tools;
+    private final ToolUsagePolicy tools;
     private final NewAiToolApprovalProperties properties;
     private final Scheduler scheduler;
     private final Clock clock;
 
     public PlatformToolApprovalAccess(PlatformToolManagementAccess platform, RbacIdentityProvider identities,
-                                      WorkspaceGovernanceLocks locks, PublicTransactionRunner transactions, LocalToolPolicy tools,
+                                      WorkspaceGovernanceLocks locks, PublicTransactionRunner transactions, ToolUsagePolicy tools,
                                       NewAiToolApprovalProperties properties, Scheduler scheduler, Clock clock) {
         this.platform = platform;
         this.identities = identities;

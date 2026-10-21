@@ -1,8 +1,8 @@
 package com.arte.ainew.application.tool.management;
 
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolDiscovery;
-import com.arte.ainew.application.tool.release.LocalToolPublicationValidator;
+import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
+import com.arte.ainew.application.tool.release.StaticToolPublicationValidator;
 import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
@@ -41,7 +41,7 @@ public final class ToolManagementService {
     public record ToolDetail(ToolView tool, Map<DefinitionRef, ToolSchemaDefinition> schemas) {
     }
 
-    public record Refresh(StoreOutcome<ToolDiscoveryReceipt> receipt, LocalToolDiscovery.State node) {
+    public record Refresh(StoreOutcome<ToolDiscoveryReceipt> receipt, StaticToolDiscovery.State node) {
     }
 
     /**
@@ -58,13 +58,13 @@ public final class ToolManagementService {
     private final ToolBindingStore bindings;
     private final ToolReleaseService releaseService;
     private final ToolBindingService bindingService;
-    private final LocalToolPublicationValidator validator;
-    private final LocalToolDiscovery discovery;
+    private final StaticToolPublicationValidator validator;
+    private final StaticToolDiscovery discovery;
     private final ToolDiscoveryManagementStore discoveryStore;
 
     public ToolManagementService(ToolCatalogStore catalog, ToolReleaseStore releases, ToolBindingStore bindings,
-                                 ToolReleaseService releaseService, ToolBindingService bindingService, LocalToolPublicationValidator validator,
-                                 LocalToolDiscovery discovery, ToolDiscoveryManagementStore discoveryStore) {
+                                 ToolReleaseService releaseService, ToolBindingService bindingService, StaticToolPublicationValidator validator,
+                                 StaticToolDiscovery discovery, ToolDiscoveryManagementStore discoveryStore) {
         this.catalog = catalog;
         this.releases = releases;
         this.bindings = bindings;
@@ -93,9 +93,9 @@ public final class ToolManagementService {
                                     if (failure.get() != null) return Mono.error(failure.get());
                                     if (committed.get() != null)
                                         return Mono.just(new Refresh(committed.get().receipt(), result.state()));
-                                    if (result.code() == LocalToolDiscovery.Code.BUSY)
+                                    if (result.code() == StaticToolDiscovery.Code.BUSY)
                                         return Mono.error(new com.arte.ainew.application.support.AdmissionException(com.arte.core.enums.ResultCodeEnum.AI_INVALID_STATE));
-                                    if (result.code() == LocalToolDiscovery.Code.STORE_FAILED)
+                                    if (result.code() == StaticToolDiscovery.Code.STORE_FAILED)
                                         return Mono.error(new IllegalStateException("Local catalog refresh could not commit"));
                                     return discoveryStore.failure(permit.actor(), scope, key, reason, ToolDiscoveryReceipt.Code.valueOf(result.code().name()), check)
                                             .map(receipt -> new Refresh(receipt, result.state()));

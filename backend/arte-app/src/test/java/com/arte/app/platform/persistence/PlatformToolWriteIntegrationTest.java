@@ -1,6 +1,6 @@
 package com.arte.app.platform.persistence;
 
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.app.platform.ai.tool.LocalToolWriteProperties;
 import com.arte.app.platform.ai.tool.LocalWorkspaceTools;
 import com.arte.core.api.workspace.WorkspaceService;
@@ -26,7 +26,7 @@ class PlatformToolWriteIntegrationTest extends ToolWriteAcceptanceRig {
         try (var r = new ToolAcceptanceRig()) {
             r.context().run(c -> {
                 assertNull(c.getStartupFailure());
-                assertTrue(c.getBean(LocalToolRegistry.class).findAdapter(LocalWorkspaceTools.ADAPTER).isEmpty());
+                assertTrue(c.getBean(StaticToolRegistry.class).findAdapter(LocalWorkspaceTools.ADAPTER).isEmpty());
                 assertFalse(c.getBean(LocalToolWriteProperties.class).enabled());
             });
         }
@@ -177,7 +177,7 @@ class PlatformToolWriteIntegrationTest extends ToolWriteAcceptanceRig {
                         com.arte.ainew.pojo.execution.Usage.unknown(), null, now, now);
                 var call = new com.arte.ainew.pojo.execution.GatewayCall<>(snapshot.request(), snapshot.binding().resolvedBinding(), fake,
                         com.arte.ainew.context.ExecutionRuntimeContext.start(snapshot.request().context()));
-                assertThrows(RuntimeException.class, () -> c.getBean(LocalToolRegistry.class).findAdapter(LocalWorkspaceTools.ADAPTER).orElseThrow().invoke(call).block(WAIT));
+                assertThrows(RuntimeException.class, () -> c.getBean(StaticToolRegistry.class).findAdapter(LocalWorkspaceTools.ADAPTER).orElseThrow().invoke(call).block(WAIT));
                 assertEquals(0, version(r));
                 assertEquals(0, receipts(r));
                 assertEquals("WAITING_APPROVAL", status(r, mvc, p.id()).get("state").asString());

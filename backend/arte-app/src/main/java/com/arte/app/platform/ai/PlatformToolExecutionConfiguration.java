@@ -1,6 +1,6 @@
 package com.arte.app.platform.ai;
 
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.config.NewAiToolApprovalProperties;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
@@ -26,7 +26,7 @@ import reactor.core.scheduler.Scheduler;
 import java.time.Clock;
 
 /**
- * 正式应用的本地文本工具与执行授权装配；不开启功能开关，不自动发布、建绑或授予角色。
+ * 正式应用的静态工具目录与执行授权装配；不开启功能开关，不自动发布、建绑或授予角色。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/19 11:18 ✾
@@ -82,9 +82,9 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     @Primary
-    LocalToolPolicy platformLocalToolPolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<HttpHealthToolAdapter> http,
+    ToolUsagePolicy platformToolUsagePolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<HttpHealthToolAdapter> http,
                                             ObjectProvider<McpHealthToolAdapter> mcp) {
-        return new LocalToolPolicy() {
+        return new ToolUsagePolicy() {
             public void requireFree(com.arte.ainew.pojo.tool.ToolAdmissionInput input, com.arte.ainew.pojo.tool.ToolBindingResolution binding) {
                 if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote) {
                     if (binding.tool().mcp()) {
@@ -112,26 +112,26 @@ public class PlatformToolExecutionConfiguration {
     }
 
     @Bean
-    LocalToolRegistry localToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
+    StaticToolRegistry staticToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
                                         ObjectProvider<HttpHealthToolAdapter> http,
                                         ObjectProvider<McpHealthToolAdapter> mcp) {
         var registrations = new java.util.ArrayList<>(tools.registry().registrations());
         if (properties.enabled()) registrations.add(writes.registration());
         http.ifAvailable(remote -> registrations.add(remote.registration()));
         mcp.ifAvailable(remote -> registrations.add(remote.registration()));
-        return new LocalToolRegistry(registrations);
+        return new StaticToolRegistry(registrations);
     }
 
     @Bean
     @ConditionalOnProperty(prefix = "arte.ai-new-tool-billing", name = "enabled", havingValue = "true")
-    PlatformPaidToolAccess paidToolAccess(PlatformToolManagementAccess platform, LocalToolRegistry registry,
+    PlatformPaidToolAccess paidToolAccess(PlatformToolManagementAccess platform, StaticToolRegistry registry,
                                           com.arte.ainew.config.NewAiProperties properties,
                                           ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources) {
         return new PlatformPaidToolAccess(platform, registry, properties, sources);
     }
 
     @Bean
-    PlatformToolExecutionAccess toolExecutionAccess(PlatformToolManagementAccess platform, LocalToolPolicy tools, ObjectProvider<PlatformPaidToolAccess> paid) {
+    PlatformToolExecutionAccess toolExecutionAccess(PlatformToolManagementAccess platform, ToolUsagePolicy tools, ObjectProvider<PlatformPaidToolAccess> paid) {
         return new PlatformToolExecutionAccess(platform, tools, paid.getIfAvailable());
     }
 
@@ -139,7 +139,7 @@ public class PlatformToolExecutionConfiguration {
     ToolApprovalAccess toolApprovalAccess(PlatformToolManagementAccess platform, RbacIdentityProvider identities,
                                           @Qualifier("platformTransactionRunner") PublicTransactionRunner transactions, TenantStore tenants, WorkspaceStore workspaces,
                                           TenantMembershipStore tenantMembers, WorkspaceMembershipStore workspaceMembers, PreferenceStore preferences,
-                                          LocalToolPolicy tools, NewAiToolApprovalProperties properties,
+                                          ToolUsagePolicy tools, NewAiToolApprovalProperties properties,
                                           @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("newAiClock") Clock clock) {
         return new PlatformToolApprovalAccess(platform, identities,
                 new WorkspaceGovernanceLocks(transactions, tenants, workspaces, tenantMembers, workspaceMembers, preferences),

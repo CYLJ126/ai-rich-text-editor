@@ -8,16 +8,16 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * 本地工具定义来源
+ * 部署代码提供的静态工具定义来源
  * <p>
- * 显式登记的本地 TOOL 定义来源；一次返回完整集合，不返回增量或自动发布工具。
+ * 显式登记 LOCAL／HTTP／MCP 工具元数据；一次返回完整集合，不返回增量或自动发布工具。
  * 只读取受信代码内的元数据，不调用工具、扫描任意 Bean 或访问外部服务。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 09:30
  */
 @FunctionalInterface
-public interface LocalToolDefinitionSource {
+public interface StaticToolDefinitionSource {
 
     /**
      * 加载本提供方的完整定义；空集合须显式返回 Definitions，空 Mono 表示来源异常。

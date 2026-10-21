@@ -2,7 +2,7 @@ package com.arte.ainew.application.gateway;
 
 import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
-import com.arte.ainew.application.tool.discovery.LocalToolRegistry;
+import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -58,7 +58,7 @@ public final class DefaultToolGateway implements ToolGateway {
 
     private final ToolBindingService bindings;
     private final ToolCatalogStore catalog;
-    private final LocalToolRegistry registry;
+    private final StaticToolRegistry registry;
     private final ToolExecutionAccess access;
     private final ToolSchemaValidator schemas;
     private final ExecutionRecordCodec codec;
@@ -69,14 +69,14 @@ public final class DefaultToolGateway implements ToolGateway {
     /**
      * Scheduler 由组合模块管理；隔离 Schema 编译、同步适配入口及结果编码，不在构造时访问存储或执行工具。
      */
-    public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
+    public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, StaticToolRegistry registry,
                               ToolExecutionAccess access, ToolSchemaValidator schemas, ExecutionRecordCodec codec,
                               Scheduler scheduler, Clock clock) {
         this(bindings, catalog, registry, access, schemas, codec, scheduler, clock,
                 call -> Mono.error(new Rejected("TOOL_APPROVAL_UNSUPPORTED")));
     }
 
-    public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, LocalToolRegistry registry,
+    public DefaultToolGateway(ToolBindingService bindings, ToolCatalogStore catalog, StaticToolRegistry registry,
                               ToolExecutionAccess access, ToolSchemaValidator schemas, ExecutionRecordCodec codec,
                               Scheduler scheduler, Clock clock,
                               java.util.function.Function<GatewayCall<ToolInvocation>, Mono<Void>> approvals) {
@@ -163,7 +163,7 @@ public final class DefaultToolGateway implements ToolGateway {
                             require(current.equals(prepared.call().binding()), "TOOL_FIXED_BINDING_CHANGED");
                             return prepared;
                         })))
-                // 调用已登记的本地或受控 HTTP 适配器
+                // 调用已登记的本地、受控 HTTP 或 MCP 适配器
                 .flatMap(prepared -> (binding.effectivePolicy().approvalMode() == ToolExecutionPolicy.ApprovalMode.NONE
                         ? Mono.<Void>empty() : approvals.apply(prepared.call().call())).then(Mono.defer(() -> invokeAdapter(prepared, entry, phase, charge))))
                 // 调用超时检查
@@ -270,7 +270,7 @@ public final class DefaultToolGateway implements ToolGateway {
             var result = ToolObservation.mono(ADAPTER, call.runtime().execution(), () -> Mono.defer(() -> {
                         active(call);
                         require(entry.compareAndSet(0, 1), "TOOL_CANCELLED");
-                        // 保持本地领域入口与远端 HTTP 入口的授权材料类型隔离
+                        // 保持本地领域入口与远端入口的授权材料类型隔离
                         return Objects.requireNonNull(prepared.call() instanceof LocalToolCall local
                                 ? prepared.adapter().invoke(local) : ((com.arte.ainew.spi.adapter.HttpToolAdapter) prepared.adapter()).invoke((RemoteToolCall) prepared.call()));
                     }).subscribeOn(scheduler).switchIfEmpty(Mono.error(new Rejected("TOOL_RESULT_EMPTY"))))
