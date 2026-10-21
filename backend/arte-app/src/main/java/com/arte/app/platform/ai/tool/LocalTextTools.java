@@ -111,12 +111,16 @@ public final class LocalTextTools implements LocalToolPolicy {
             public Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call) {
                 return Mono.fromCallable(() -> {
                     call.runtime().checkActive(clock);
-                    if (!TOOL.equals(call.request().input().tool()) || !new ExecutionTarget.Local(ADAPTER).equals(call.binding().target()))
+                    if (!TOOL.equals(call.request().input().tool()) || !new ExecutionTarget.Local(ADAPTER).equals(call.binding().target())) {
                         throw new AccessDeniedException("Unregistered local text target");
+                    }
                     var arguments = call.request().input().arguments();
-                    if (arguments.fields().size() != 1 || !(arguments.fields().get("text") instanceof StructuredValue.StringValue value))
+                    if (arguments.fields().size() != 1 || !(arguments.fields().get("text") instanceof StructuredValue.StringValue(
+                            String value1
+                    ))) {
                         throw new IllegalArgumentException("Expected one text argument");
-                    int count = value.value().codePointCount(0, value.value().length());
+                    }
+                    int count = value1.codePointCount(0, value1.length());
                     if (count > 65536) throw new IllegalArgumentException("Text exceeds tool limit");
                     call.runtime().checkActive(clock);
                     return new ToolResult(call.request().input().callId(), ToolResult.Outcome.SUCCEEDED,

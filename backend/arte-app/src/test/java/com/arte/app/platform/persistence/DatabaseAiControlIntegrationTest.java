@@ -685,8 +685,81 @@ class DatabaseAiControlIntegrationTest {
                 });
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void httpCatalogUsesStableRemoteFieldsAndPublishesBrowserJsonWithOriginalKeyRecovery() {
+        f.initialize();
+        context().withUserConfiguration(HttpSecurity.class, com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class)
+                .withBean("pcs", com.arte.app.web.security.PermissionCheckService.class, com.arte.app.web.security.PermissionCheckService::new)
+                .run(c -> {
+                    assertNull(c.getStartupFailure());
+                    try {
+                        // 与真实 WebConfig 使用同一 mapper，不依赖 PlatformJson 的持久化专用模块。
+                        var json = com.arte.core.serialize.SerializerFactory.buildJsonMapperWithoutTypeProperty();
+                        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(c.getBean(com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class))
+                                .setControllerAdvice(new com.arte.app.web.advice.PlatformExceptionHandler())
+                                .setMessageConverters(new org.springframework.http.converter.json.JacksonJsonHttpMessageConverter(json)).build();
+                        var online = new com.arte.core.pojo.UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(f.jdbc.queryForObject(
+                                "SELECT create_time FROM arte_rbac_user WHERE id=1", (row, index) -> row.getObject(1, java.time.LocalDateTime.class)));
+                        var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
+                        assertEquals(200, http(mvc, "importConfiguration", "{}", "http-import", auth, online, true));
+                        var response = httpResponse(mvc, "getCatalog", "{}", null, auth, online, true);
+                        assertEquals(200, response.getStatus());
+                        var body = json.readValue(response.getContentAsString(), Map.class);
+                        var data = (Map<String, Object>) body.get("data");
+                        var catalog = (Map<String, Object>) data.get("catalog");
+                        var models = (List<Map<String, Object>>) catalog.get("bindings");
+                        var original = models.getFirst();
+                        assertEquals(Set.of("definition", "capability", "connection", "remoteOperation", "contextWindowTokens", "rate"), original.keySet());
+                        assertEquals("deepseek-chat", original.get("remoteOperation"));
+                        var capabilities = (List<Map<String, Object>>) catalog.get("capabilities");
+                        var capability = new LinkedHashMap<>(capabilities.getFirst());
+                        var capRef = new LinkedHashMap<>((Map<String, Object>) capability.get("definition"));
+                        capRef.put("version", "v2");
+                        capability.put("definition", capRef);
+                        var features = new ArrayList<>((List<String>) capability.get("features"));
+                        features.add("TOOL_CALLS");
+                        capability.put("features", features);
+                        capabilities.add(capability);
+                        var model = new LinkedHashMap<>(original);
+                        var modelRef = new LinkedHashMap<>((Map<String, Object>) model.get("definition"));
+                        modelRef.put("version", "v2");
+                        model.put("definition", modelRef);
+                        model.put("capability", capability);
+                        models.add(model);
+                        var request = Map.of("expectedVersion", 1, "catalog", catalog);
+                        var published = httpResponse(mvc, "publishCatalog", json.writeValueAsString(request), "http-upgrade", auth, online, true);
+                        assertEquals(200, published.getStatus(), published.getContentAsString());
+                        var receipt = json.readTree(published.getContentAsString()).get("data");
+                        assertEquals(2, receipt.get("value").get("version").asLong());
+                        assertEquals("deepseek-chat", receipt.get("value").get("catalog").get("bindings").get(1).get("remoteOperation").asString());
+                        assertFalse(receipt.get("value").get("catalog").get("bindings").get(1).has("target"));
+
+                        // 已有页面可能暂存旧 target 形状；同义转换后仍重放原回执，不追加第三版。
+                        original.put("target", Map.of("connection", original.remove("connection"), "operation", original.remove("remoteOperation")));
+                        var replay = httpResponse(mvc, "publishCatalog", json.writeValueAsString(request), "http-upgrade", auth, online, true);
+                        assertEquals(200, replay.getStatus(), replay.getContentAsString());
+                        assertEquals(receipt.get("operationId"), json.readTree(replay.getContentAsString()).get("data").get("operationId"));
+                        original.put("target", Map.of("kind", "LOCAL", "adapter", ref("tool-adapter", "invalid")));
+                        assertEquals(400, http(mvc, "publishCatalog", json.writeValueAsString(request), "bad-target", auth, online, true));
+                        original.put("target", Map.of("connection", ref("connection", "deepseek"), "operation", "deepseek-chat"));
+                        original.put("remoteOperation", "conflicting-operation");
+                        assertEquals(400, http(mvc, "publishCatalog", json.writeValueAsString(request), "conflicting-target", auth, online, true));
+                        assertEquals(400, http(mvc, "publishCatalog", "{\"expectedVersion\":2,\"catalog\":{}}", "missing-fields", auth, online, true));
+                        assertEquals(2, c.getBean(DatabaseAiControlService.class).catalog().version());
+                    } catch (Exception error) {
+                        throw new RuntimeException(error);
+                    }
+                });
+    }
+
     int http(org.springframework.test.web.servlet.MockMvc mvc, String endpoint, String body, String key,
              org.springframework.security.core.Authentication auth, com.arte.core.pojo.UserOnlineInfo online, boolean administrator) throws Exception {
+        return httpResponse(mvc, endpoint, body, key, auth, online, administrator).getStatus();
+    }
+
+    org.springframework.mock.web.MockHttpServletResponse httpResponse(org.springframework.test.web.servlet.MockMvc mvc, String endpoint, String body, String key,
+                                                                      org.springframework.security.core.Authentication auth, com.arte.core.pojo.UserOnlineInfo online, boolean administrator) throws Exception {
         online.setMenuOperations(administrator ? List.of("aiConfiguration:manage") : List.of());
         com.arte.core.pojo.UserContext.setUserOnlineInfo(online);
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
@@ -699,7 +772,7 @@ class DatabaseAiControlIntegrationTest {
                 result.getAsyncResult(15000);
                 result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(result)).andReturn();
             }
-            return result.getResponse().getStatus();
+            return result.getResponse();
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
             com.arte.core.pojo.UserContext.clear();

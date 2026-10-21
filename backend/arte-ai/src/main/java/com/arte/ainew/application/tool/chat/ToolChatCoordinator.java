@@ -288,8 +288,8 @@ public final class ToolChatCoordinator {
                         throw new IllegalStateException("Wrong model result type");
                     var result = generation.value();
                     var calls = result.outputs().stream().flatMap(m -> m.toolCalls().stream()).toList();
+                    // remoteOperation 是请求模型名，供应商可返回实际服务模型标识；来源由固定子绑定及派发器验证。
                     if (!result.complete() || result.structuredOutput() != null || !result.sources().isEmpty()
-                            || !result.model().modelId().equals(fixed.model().remoteOperation())
                             || (calls.isEmpty() ? result.finishReason() != ModelResult.FinishReason.STOP
                             : result.finishReason() != ModelResult.FinishReason.TOOL_CALLS)
                             || result.outputs().stream().flatMap(m -> m.content().stream()).anyMatch(c -> !(c instanceof ChatMessage.Text)))
@@ -321,6 +321,7 @@ public final class ToolChatCoordinator {
         if (step.input() instanceof ToolChatStep.Model model)
             identity &= child.request().input() instanceof GenerationRequest g && g.messages().equals(model.context().messages())
                     && g.options().equals(fixed.generation()) && g.tools().equals(fixed.tools().descriptions())
+                    && child.request().capability().equals(fixed.model().capability().definition())
                     && child.request().binding().equals(fixed.model().definition()) && Objects.equals(child.contextSnapshotId(), model.context().snapshotId());
         else {
             var call = ((ToolChatStep.Tool) step.input()).call();

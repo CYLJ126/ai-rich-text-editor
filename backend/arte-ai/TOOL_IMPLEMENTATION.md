@@ -2273,3 +2273,35 @@ npm run build
 0；定向 Biome 无错误，保留既有风格警告。 最初平台测试受到沙箱中 Mockito JVM
 代理限制，允许本机测试代理后复验通过。未连接业务数据库、重启运行实例、发布实际目录、启用工作空间新模型或调用真实供应商；无新增
 DDL，不代表生产性能或真实业务闭环验收。 操作见 [执行说明 §6.1](TOOL_CHAT_EXECUTION.md#61-模型工具能力发布与空间启用)。
+
+## 39. 平台模型目录 HTTP 结构修复（2026-10-21）
+
+实际页面发布返回 HTTP 500／HttpMessageConversionException，默认模型名称显示 undefined。只读核对业务目录确认当时 head=1，只有
+default-text@v1，未保存 v2；未执行发布或业务数据写入。 问题源于 ResolvedBinding 内部已改用 ExecutionTarget，平台持久化
+mapper 保留六字段远端格式，而管理 HTTP mapper 没有该映射。原测试覆盖服务发布及持久化 JSON，没有覆盖真实 WebConfig mapper
+的目录读取与浏览器 JSON 发布。
+
+新增 AiCatalogPayload，将 getCatalog、importConfiguration、publishCatalog 的公开请求／回执显式映射为
+connection、remoteOperation 等原六字段，不改全局 mapper、内部快照或数据库格式。输入兼容旧页面已暂存的远端 target
+形状，拒绝本地目标、冲突的双重目标及缺失必要字段；同义转换后沿用原幂等键和摘要，避免要求用户清除待确认操作或重新发布。
+
+新增真实 Web mapper＋MockMvc＋隔离 H2 回归：目录字段白名单、浏览器 JSON 追加 v2、发布回执显示、旧 target
+请求按原键恢复同一回执、LOCAL／冲突／缺失字段返回 400 且不追加版本。DatabaseAiControlIntegrationTest 12 项和
+WebSecurityConfigTest 7 项，共 19 项通过。 命令：JDK 21 下运行
+`mvn -o -f backend/pom.xml -pl arte-app -am -Dtest=DatabaseAiControlIntegrationTest,WebSecurityConfigTest -Dsurefire.failIfNoSpecifiedTests=false test`。
+未重启实际应用、未代为重试发布或调用真实供应商。部署修复后保留原浏览器操作记录，使用“重试确认原配置操作”，再发布模板并由空间选择新模型。
+
+## 40. 工具聊天请求模型名与实际模型标识校验修复（2026-10-21）
+
+按页面追踪号只读核对 Run、原模型子调用及结果元数据：请求 remoteOperation=deepseek-chat，响应
+modelId=deepseek-flash，providerId=deepseek；模型子调用已 SUCCEEDED，结果 complete=true、finishReason=TOOL_CALLS，含一个工具提议，Run
+却在工具计划前以 INVALID_MODEL_OUTPUT 失败。 原因是 ToolChatCoordinator 把供应商实际返回的 modelId
+与请求模型名称作了强相等校验。现移除这项错误条件，完整保留真实响应身份；来源仍由原受信模型子 Invocation、固定绑定及
+GenerationDispatcher 的供应商校验确认，并补充固定能力引用核验。输出完整性、结束原因、工具白名单／参数 Schema、父子身份和预算边界不变。
+
+隔离 H2／固定模型流回归覆盖实际模型名称不一致时完整工具闭环、重启恢复、最终结果真实名称保留、无工具提议时直接完成，以及错误供应商仍被拒绝、进入原未知结果核对并阻止工具执行。ToolChatLoopTest
+17 项、ToolChatProtocolTest 14 项、ToolChatFrontendContractTest 5 项，共 36 项通过。 命令：JDK 21 下运行
+`mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest=ToolChatLoopTest,ToolChatProtocolTest,ToolChatFrontendContractTest -Dsurefire.failIfNoSpecifiedTests=false test`。
+首轮新反例测试误将供应商不匹配预期为 FAILED，按现有外发后未知事实语义修正为 PENDING_RECONCILIATION；未为通过测试改变执行或费用规则。
+本次业务库操作仅只读查询元数据，没有重试模型、执行工具、改数据、重启运行实例或重放原 Run。原失败 Run
+保持终态；部署修复后，用户明确发送新消息才能创建新调用，已经发生的原模型调用费用仍按原账本保留。不需要重新发布 v2 或改写历史结果。

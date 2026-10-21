@@ -1,12 +1,11 @@
 package com.arte.app.web.controller.platform;
 
-import com.arte.app.platform.ai.AiControlData.Catalog;
-import com.arte.app.platform.ai.AiControlData.CatalogView;
 import com.arte.app.platform.ai.AiControlData.Preset;
 import com.arte.app.platform.ai.AiControlData.WorkspaceView;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
+import com.arte.app.web.platform.AiCatalogPayload;
 import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
@@ -58,7 +57,7 @@ public class WorkspaceAiConfigurationController {
                                 @NotNull @Min(0) Long expectedVersion, @NotNull Preset preset) {
     }
 
-    public record PublishRequest(@NotNull @Min(0) Long expectedVersion, @NotNull Catalog catalog) {
+    public record PublishRequest(@NotNull @Min(0) Long expectedVersion, @NotNull AiCatalogPayload catalog) {
     }
 
     private <T> Mono<ResultContext<T>> call(Authentication authentication, Locale locale, java.util.function.Function<TrustedActor, T> work) {
@@ -93,21 +92,22 @@ public class WorkspaceAiConfigurationController {
 
     @PostMapping("/getCatalog")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
-    public Mono<ResultContext<CatalogView>> catalog(Authentication auth, Locale locale) {
-        return call(auth, locale, actor -> service.catalog());
+    public Mono<ResultContext<AiCatalogPayload.View>> catalog(Authentication auth, Locale locale) {
+        return call(auth, locale, actor -> AiCatalogPayload.View.from(service.catalog()));
     }
 
     @PostMapping("/importConfiguration")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
-    public Mono<ResultContext<CommandReceipt<CatalogView>>> importConfiguration(Authentication auth,
+    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> importConfiguration(Authentication auth,
                                                                                 @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return call(auth, locale, actor -> service.importConfiguration(actor, new CommandMeta(key, PlatformHttpContext.traceId(http))));
+        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.importConfiguration(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)))));
     }
 
     @PostMapping("/publishCatalog")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
-    public Mono<ResultContext<CommandReceipt<CatalogView>>> publish(Authentication auth, @Valid @RequestBody PublishRequest request,
+    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> publish(Authentication auth, @Valid @RequestBody PublishRequest request,
                                                                     @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return call(auth, locale, actor -> service.publish(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.catalog()));
+        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.publish(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.catalog().toCatalog())));
     }
 }

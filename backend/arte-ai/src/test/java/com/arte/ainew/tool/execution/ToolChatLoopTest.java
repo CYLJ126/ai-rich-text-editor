@@ -100,6 +100,8 @@ public class ToolChatLoopTest {
         boolean finalFirst;
         boolean partialProposal;
         boolean repeatProposal;
+        String reportedModel = "model";
+        String reportedProvider = "provider";
         Usage providerUsage = new Usage(Usage.Basis.PROVIDER_REPORTED, 100L, 10L, 110L);
         int proposedCalls = 1;
 
@@ -212,7 +214,7 @@ public class ToolChatLoopTest {
                         var output = new ChatMessage("answer-" + modelCalls.get(), ChatMessage.Role.ASSISTANT,
                                 proposal ? List.of() : List.of(new ChatMessage.Text("completed")), calls, null);
                         var usage = providerUsage;
-                        var result = new ModelResult("result-" + modelCalls.get(), new ModelResult.ModelIdentity("provider", "model", null), List.of(output),
+                        var result = new ModelResult("result-" + modelCalls.get(), new ModelResult.ModelIdentity(reportedProvider, reportedModel, null), List.of(output),
                                 proposal ? ModelResult.FinishReason.TOOL_CALLS : ModelResult.FinishReason.STOP, !partialProposal, null, usage, List.of());
                         if (proposal)
                             return Flux.just(new GenerationSignal.Delta(new GenerationEvent.ToolCallDelta(0, "call-0", "tool_0", "{}")),
@@ -284,6 +286,43 @@ public class ToolChatLoopTest {
         public void close() throws Exception {
             dispatch.stop();
             f.close();
+        }
+    }
+
+    @Test
+    public void actualProviderModelMayDifferFromRequestNameAcrossToolLoopAndRecovery() throws Exception {
+        try (var r = new Rig()) {
+            r.reportedModel = "actual-provider-model";
+            r.submit();
+            r.until(run -> run.state() == ToolChatRun.State.WAITING_TOOL);
+            r.restart();
+            r.until(run -> run.state().terminal());
+            assertEquals(r.run().toString(), ToolChatRun.State.SUCCEEDED, r.run().state());
+            assertEquals(2, r.modelCalls.get());
+            assertEquals(1, r.f.invocations.get());
+            var query = new com.arte.ainew.application.tool.chat.ToolChatQueryService(r.runs, r.conversations, r.authorization, r.f.executions, r.f.payloads);
+            assertEquals("actual-provider-model", query.result("run", r.context).block(WAIT).result().value().model().modelId());
+        }
+        try (var r = new Rig()) {
+            r.reportedModel = "actual-provider-model";
+            r.finalFirst = true;
+            r.submit();
+            r.until(run -> run.state().terminal());
+            assertEquals(ToolChatRun.State.SUCCEEDED, r.run().state());
+            assertEquals(0, r.f.invocations.get());
+        }
+    }
+
+    @Test
+    public void differentActualModelDoesNotAuthorizeADifferentProvider() throws Exception {
+        try (var r = new Rig()) {
+            r.reportedModel = "actual-provider-model";
+            r.reportedProvider = "untrusted-provider";
+            r.submit();
+            r.until(run -> run.state() == ToolChatRun.State.PENDING_RECONCILIATION);
+            assertEquals("CHILD_OUTCOME_UNKNOWN", r.run().error().code());
+            assertEquals(0, r.f.invocations.get());
+            assertEquals(0, r.run().toolSteps());
         }
     }
 
