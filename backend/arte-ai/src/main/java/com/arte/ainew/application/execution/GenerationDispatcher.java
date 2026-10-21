@@ -23,6 +23,7 @@ import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.*;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -507,8 +508,17 @@ public final class GenerationDispatcher {
                             ? Flux.just(failure("INVOCATION_CANCELLED")) : Flux.empty()))
                     .doOnComplete(() -> timing.mark("GATEWAY_COMPLETED"))
                     .onErrorResume(error -> {
-                        log.warn("AI gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
-                                message.invocationId(), timing.traceId(), claimed.attemptId(), error.getClass().getName());
+                        if (error instanceof GenerationException known) {
+                            log.warn("AI gateway flow rejected, invocationId={}, traceId={}, attemptId={}, code={}, phase={}, type={}",
+                                    message.invocationId(), timing.traceId(), claimed.attemptId(), known.error(timing.traceId()).code(),
+                                    known.error(timing.traceId()).phase(), error.getClass().getName());
+                        } else if (error instanceof TimeoutException || error instanceof java.util.concurrent.CancellationException) {
+                            log.warn("AI gateway flow stopped, invocationId={}, traceId={}, attemptId={}, deadline={}, observedAt={}, type={}",
+                                    message.invocationId(), timing.traceId(), claimed.attemptId(), call.runtime().execution().deadline(), clock.instant(), error.getClass().getName());
+                        } else {
+                            log.error("AI gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
+                                    message.invocationId(), timing.traceId(), claimed.attemptId(), error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
+                        }
                         if (!call.runtime().cancellation().isCancelled() && error instanceof GenerationException known) {
                             return Flux.just(new GenerationSignal.Failure(known.error(prepared.request().context().traceId()), usage, null));
                         }

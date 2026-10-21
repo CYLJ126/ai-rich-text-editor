@@ -49,4 +49,51 @@ class PlatformExceptionHandlerTest {
         assertInstanceOf(PageView.class, pageResponse.getBody());
         assertTrue(((PageView<?>) pageResponse.getBody()).getRecords().isEmpty());
     }
+
+    @Test
+    void infrastructureFailuresHaveSanitizedStackAndClientRejectionsRemainConcise() {
+        var events = new java.util.concurrent.CopyOnWriteArrayList<org.apache.logging.log4j.core.LogEvent>();
+        var logger = (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(PlatformExceptionHandler.class);
+        var previous = logger.getLevel();
+        var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("platform-http-failure-test", null, null, false,
+                org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            public void append(org.apache.logging.log4j.core.LogEvent event) {
+                events.add(event.toImmutable());
+            }
+        };
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(org.apache.logging.log4j.Level.WARN);
+        try {
+            var request = request("ai/publishCatalog");
+            request.addHeader("Authorization", "Bearer private-header");
+            request.setContent("private-request-body".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            var failure = new org.springframework.http.converter.HttpMessageConversionException("private-model-value",
+                    new IllegalStateException("private-SQL-and-secret"));
+            var response = handler.handle(failure, request, Locale.US);
+            assertEquals(500, response.getStatusCode().value());
+            var event = events.getFirst();
+            assertEquals(org.apache.logging.log4j.Level.ERROR, event.getLevel());
+            assertNotNull(event.getThrown());
+            var text = new java.io.StringWriter();
+            text.append(event.getMessage().getFormattedMessage());
+            event.getThrown().printStackTrace(new java.io.PrintWriter(text));
+            assertTrue(text.toString().contains("traceId="));
+            assertTrue(text.toString().contains("HttpMessageConversionException"));
+            assertTrue(text.toString().contains("java.lang.IllegalStateException"));
+            assertTrue(text.toString().contains("PlatformExceptionHandlerTest.java"));
+            assertFalse(text.toString().contains("private-"));
+            handler.handle(new org.springframework.dao.DataAccessResourceFailureException("private-database-url", new java.sql.SQLException("private-password")), request, Locale.US);
+            assertEquals(org.apache.logging.log4j.Level.ERROR, events.getLast().getLevel());
+            assertNotNull(events.getLast().getThrown());
+            handler.handle(new PlatformException(PlatformErrorCodeEnum.VERSION_CONFLICT, "trace-conflict"), request, Locale.US);
+            assertEquals(org.apache.logging.log4j.Level.WARN, events.getLast().getLevel());
+            assertNull(events.getLast().getThrown());
+        } finally {
+            logger.removeAppender(appender);
+            logger.setLevel(previous);
+            appender.stop();
+        }
+    }
+
 }

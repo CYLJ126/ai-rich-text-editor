@@ -3,6 +3,7 @@ package com.arte.app.web.advice;
 import com.arte.app.web.controller.platform.WorkspaceAccessController;
 import com.arte.app.web.controller.platform.WorkspaceController;
 import com.arte.app.web.platform.PlatformHttpContext;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
@@ -61,9 +62,15 @@ public class PlatformExceptionHandler {
             body = ResultContext.<ErrorDetails>fail(ResultCodeEnum.FAIL, description, locale).setCode(code)
                     .setData(new ErrorDetails(traceId, error == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
         }
-        // 不记录认证头、请求正文、完整认证对象、SQL 或底层异常消息。
-        log.warn("Platform HTTP rejected, method={}, path={}, status={}, code={}, traceId={}, type={}",
-                request.getMethod(), request.getRequestURI(), status.value(), code, traceId, exception.getClass().getName());
+        if (status.is5xxServerError()) {
+            log.error("Platform HTTP failure, method={}, path={}, status={}, code={}, traceId={}, type={}",
+                    request.getMethod(), request.getRequestURI(), status.value(), code, traceId,
+                    exception.getClass().getName(), SafeExceptionDiagnostics.forLogging(exception));
+        } else {
+            // 可预期拒绝不打印正文、异常消息或认证信息。
+            log.warn("Platform HTTP rejected, method={}, path={}, status={}, code={}, traceId={}, type={}",
+                    request.getMethod(), request.getRequestURI(), status.value(), code, traceId, exception.getClass().getName());
+        }
         return ResponseEntity.status(status).header("X-Trace-Id", traceId).body(body);
     }
 

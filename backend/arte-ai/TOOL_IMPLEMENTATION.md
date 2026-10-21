@@ -2305,3 +2305,29 @@ GenerationDispatcher 的供应商校验确认，并补充固定能力引用核�
 首轮新反例测试误将供应商不匹配预期为 FAILED，按现有外发后未知事实语义修正为 PENDING_RECONCILIATION；未为通过测试改变执行或费用规则。
 本次业务库操作仅只读查询元数据，没有重试模型、执行工具、改数据、重启运行实例或重放原 Run。原失败 Run
 保持终态；部署修复后，用户明确发送新消息才能创建新调用，已经发生的原模型调用费用仍按原账本保留。不需要重新发布 v2 或改写历史结果。
+
+## 41. 异常堆栈与 Run 诊断补全（2026-10-21）
+
+补齐平台 HTTP 服务端故障、Run／事件／派发 Worker 和模型／工具异常转换边界的诊断堆栈。共用
+`SafeExceptionDiagnostics` 创建日志专用副本，保留原类型、栈、cause 及有界 suppressed 链，移除原异常消息并限制节点和栈深度，
+避免 SQL 参数、模型内容或凭据进入日志；不修改实际异常。预期业务拒绝、取消和期限到期保留简洁分类。
+
+`INVALID_MODEL_OUTPUT` 增加具体规则原因，包括结果不完整、结构化输出、不支持的来源、结束原因不匹配及非文本内容。 Run 失败提交日志增加
+traceId、原执行阶段、轮次、子 Invocation、错误码、副作用确定性、原期限、观测时间和剩余毫秒数。
+期限到期属于状态机事实，不生成虚构异常。未改变状态转移、租约／ACK、UNKNOWN 核对、权限、预算、超时或重试规则。
+
+JDK 21 离线定向回归共 **141 项通过，0 失败／错误／跳过**：
+
+- arte-core：SafeExceptionDiagnosticsTest，2 项；验证消息脱敏、原异常不变、原因／suppressed 链及循环／深度限制。
+- arte-ai：FailureDiagnosticsTest、ToolChatLoopTest、ToolChatProtocolTest、ToolChatRuntimeAssemblyTest、
+  ToolChatFrontendContractTest、DispatchWorkerIntegrationTest、ToolDispatchIntegrationTest、ConfigurationHttpIntegrationTest，102
+  项。 覆盖真实日志捕获、协议拒绝原因、原期限和阶段、Worker 故障恢复及工具 UNKNOWN 语义。
+- arte-app：PlatformExceptionHandlerTest、DatabaseAiControlIntegrationTest、WebSecurityConfigTest，37 项；覆盖真实日志和管理
+  HTTP 契约。
+
+命令为 `mvn -o -f backend/pom.xml -pl arte-ai -am` 或 `-pl arte-app -am`，按上述类设置 `-Dtest`，并使用
+`-Dsurefire.failIfNoSpecifiedTests=false -Dslf4j.provider=org.apache.logging.slf4j.SLF4JServiceProvider
+-Dlog4j2.loggerContextFactory=org.apache.logging.log4j.core.impl.Log4jContextFactory test`。 最终日志：
+`/private/tmp/ai-failure-diagnostics-final.log`、`/private/tmp/platform-failure-diagnostics-test.log`。 平台测试在允许本机
+Mockito JVM 代理后通过；数据库集成使用隔离 H2。未执行全仓回归、业务数据库变更、真实供应商调用或运行实例重启；
+本批不证明生产性能改善。日志定位方式见 [执行说明 §8](TOOL_CHAT_EXECUTION.md#8-错误日志与排查)。

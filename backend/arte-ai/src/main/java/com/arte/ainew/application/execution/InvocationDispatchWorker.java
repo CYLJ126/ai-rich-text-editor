@@ -13,6 +13,7 @@ import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.diagnostics.RequestObservation;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
@@ -156,6 +157,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
     }
 
     private Mono<Void> process(OutboxMessage message) {
+        var traceId = new java.util.concurrent.atomic.AtomicReference<String>();
         boolean toolWork = message.workClass() == OutboxMessage.WorkClass.TOOL_SHORT || message.workClass() == OutboxMessage.WorkClass.TOOL_LONG;
         Mono<Invocation> loading = toolWork
                 ? OperationObservation.observe(ToolObservation.Stage.WORKER_LOAD.name(), message.invocationId(), null, null,
@@ -165,6 +167,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
         return RequestObservation.background(loading
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(invocation -> {
+                    traceId.set(invocation.request().context().traceId());
                     log.info("AI dispatch message processing, invocationId={}, traceId={}, messageId={}, workerId={}, fencingToken={}, state={}",
                             message.invocationId(), invocation.request().context().traceId(), message.messageId(), workerId, message.fencingToken(), invocation.state());
                     // 这里只读取可信记录；派发边界重新授权，过期／撤销也由协调器耐久结束。
@@ -193,10 +196,16 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                         executionOutboxStore.defer(message, deferred.delay()).flatMap(value -> value.successful() ? Mono.empty()
                                 : Mono.error(AdmissionException.fromStoreRejection(value.code()))).then())
                 .onErrorResume(error -> {
-                    // 不 ACK，留待租约到期重领。只记录稳定错误分类，避免异常正文携带 SQL／凭据／用户输入。
+                    // 不 ACK，留待租约到期重领；非预期故障保留脱敏原因链，不改变恢复语义。
                     String code = error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "WORKER_INFRASTRUCTURE_FAILURE";
-                    log.warn("AI dispatch message not acknowledged; reclaim after lease expiry, invocationId={}, messageId={}, workerId={}, code={}, type={}",
-                            message.invocationId(), message.messageId(), workerId, code, error.getClass().getName());
+                    if (error instanceof AdmissionException || error instanceof org.springframework.security.access.AccessDeniedException) {
+                        log.warn("AI dispatch message not acknowledged; reclaim after lease expiry, invocationId={}, traceId={}, messageId={}, workerId={}, code={}, type={}",
+                                message.invocationId(), traceId.get(), message.messageId(), workerId, code, error.getClass().getName());
+                    } else {
+                        log.error("AI dispatch message not acknowledged; reclaim after lease expiry, invocationId={}, traceId={}, messageId={}, workerId={}, code={}, type={}",
+                                message.invocationId(), traceId.get(), message.messageId(), workerId, code, error.getClass().getName(),
+                                SafeExceptionDiagnostics.forLogging(error));
+                    }
                     return Mono.empty();
                 }));
     }
@@ -224,7 +233,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                             run.tasks.dispose();
                         }
                     }
-                    log.error("AI dispatch worker loop stopped unexpectedly, workerId={}, type={}", workerId, error.getClass().getName());
+                    log.error("AI dispatch worker loop stopped unexpectedly, workerId={}, type={}", workerId, error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                 });
     }
 
@@ -266,7 +275,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                             }
                         });
             }).onErrorResume(error -> {
-                log.warn("AI dispatch outbox recovery scan failed, workerId={}, type={}", workerId, error.getClass().getName());
+                log.error("AI dispatch outbox recovery scan failed, workerId={}, type={}", workerId, error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                 return Mono.just(0);
             }));
         }
@@ -295,7 +304,7 @@ public final class InvocationDispatchWorker implements SmartLifecycle {
                             });
                         }, 1).reduce(0, Integer::sum);
             }).onErrorResume(error -> {
-                log.warn("AI classified dispatch scan failed, workerId={}, type={}", workerId, error.getClass().getName());
+                log.error("AI classified dispatch scan failed, workerId={}, type={}", workerId, error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                 return Mono.just(0);
             });
         }

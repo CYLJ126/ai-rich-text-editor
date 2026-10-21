@@ -20,6 +20,7 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.*;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -268,9 +269,21 @@ public final class ToolDispatcher {
                                 .map(ignored -> unknown("TOOL_CANCELLED")));
                     }).switchIfEmpty(Mono.error(new IllegalStateException("Empty tool gateway result")))
                     .timeout(remaining.isNegative() || remaining.isZero() ? Duration.ofNanos(1) : remaining)
-                    .onErrorResume(error -> Mono.just(unknown(error instanceof TimeoutException ? "TOOL_DEADLINE_EXCEEDED" : "TOOL_GATEWAY_FAILURE")))
+                    .onErrorResume(error -> {
+                        if (!(error instanceof TimeoutException || error instanceof java.util.concurrent.CancellationException)) {
+                            log.error("AI tool gateway flow interrupted, invocationId={}, traceId={}, attemptId={}, type={}",
+                                    message.invocationId(), prepared.runtime().execution().traceId(), claimed.attemptId(), error.getClass().getName(),
+                                    SafeExceptionDiagnostics.forLogging(error));
+                        }
+                        return Mono.just(unknown(error instanceof TimeoutException ? "TOOL_DEADLINE_EXCEEDED" : "TOOL_GATEWAY_FAILURE"));
+                    })
                     .publishOn(scheduler).map(this::checked)
-                    .onErrorResume(IllegalArgumentException.class, invalid -> Mono.just(unknown("TOOL_OUTPUT_INVALID"))).flatMap(this::finish);
+                    .onErrorResume(IllegalArgumentException.class, invalid -> {
+                        log.error("AI tool output invalid, invocationId={}, traceId={}, attemptId={}, type={}",
+                                message.invocationId(), prepared.runtime().execution().traceId(), claimed.attemptId(), invalid.getClass().getName(),
+                                SafeExceptionDiagnostics.forLogging(invalid));
+                        return Mono.just(unknown("TOOL_OUTPUT_INVALID"));
+                    }).flatMap(this::finish);
             // 准备后再读一次耐久停止意图；数据库故障不能被网关异常转换为已完成并 ACK。
             var work = executions.cancellationRequested(message.owner(), message.invocationId())
                     .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))

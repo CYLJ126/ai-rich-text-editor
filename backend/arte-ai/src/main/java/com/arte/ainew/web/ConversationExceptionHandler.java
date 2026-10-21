@@ -3,6 +3,7 @@ package com.arte.ainew.web;
 import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.web.controller.*;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
@@ -47,6 +48,8 @@ public class ConversationExceptionHandler {
             var code = full ? ResultCodeEnum.AI_DISPATCH_QUEUE_FULL : ResultCodeEnum.AI_DISPATCH_UNAVAILABLE;
             var response = ResponseEntity.status(full ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.SERVICE_UNAVAILABLE);
             if (full) response.header("Retry-After", "5");
+            log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, reason={}",
+                    request.getMethod(), request.getRequestURI(), full ? 429 : 503, code.getCode(), scheduling.reason());
             return response.body(ResultContext.fail(code, locale));
         }
         var status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -68,6 +71,8 @@ public class ConversationExceptionHandler {
                 default -> ResultCodeEnum.AI_SEARCH_UNAVAILABLE;
             };
             var body = ResultContext.fail(code, locale);
+            log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, reason={}",
+                    request.getMethod(), request.getRequestURI(), status.value(), code.getCode(), search.code());
             return ResponseEntity.status(status).body(body);
         }
         if (exception instanceof java.util.concurrent.TimeoutException
@@ -107,11 +112,11 @@ public class ConversationExceptionHandler {
         if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
             var root = NestedExceptionUtils.getMostSpecificCause(exception);
             var sql = root instanceof SQLException failure ? failure : null;
-            // 异常作为最后一个参数输出完整 cause/堆栈；不额外序列化请求或绑定参数。
+            // 保留类型与 cause/堆栈；异常消息可能含 SQL 参数或正文，不直接交给日志框架。
             log.error("New AI HTTP failure, method={}, path={}, status={}, context={}, type={}, rootType={}, sqlState={}, vendorCode={}",
                     request.getMethod(), path, status.value(), request.getAttribute(ConversationRequestDiagnostics.ATTRIBUTE),
                     exception.getClass().getName(), root.getClass().getName(), sql == null ? null : sql.getSQLState(),
-                    sql == null ? null : sql.getErrorCode(), exception);
+                    sql == null ? null : sql.getErrorCode(), SafeExceptionDiagnostics.forLogging(exception));
         } else {
             // 可预期拒绝保留标识／分页诊断，不写请求正文、异常原文或认证头。
             log.warn("New AI HTTP rejected, method={}, path={}, status={}, code={}, context={}, type={}",

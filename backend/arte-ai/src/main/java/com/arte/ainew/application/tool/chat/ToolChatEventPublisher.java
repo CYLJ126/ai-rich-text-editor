@@ -5,6 +5,7 @@ import com.arte.ainew.config.NewAiToolChatProperties;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import reactor.core.Disposable;
@@ -65,7 +66,8 @@ public final class ToolChatEventPublisher implements SmartLifecycle {
                             return outbox.acknowledge(message).map(ack -> ack.successful() ? 1 : 0);
                         });
                     }).onErrorResume(error -> {
-                        log.warn("AI tool chat notification deferred, runId={}, sequence={}, type={}", message.executionId(), message.eventSequence(), error.getClass().getSimpleName());
+                        log.error("AI tool chat notification deferred, runId={}, sequence={}, messageId={}, type={}",
+                                message.executionId(), message.eventSequence(), message.messageId(), error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                         return Mono.just(0);
                     }), 1).reduce(0, Integer::sum).doFinally(signal -> polling.set(false));
         });
@@ -76,7 +78,7 @@ public final class ToolChatEventPublisher implements SmartLifecycle {
         if (isRunning()) return;
         loop = Flux.interval(java.time.Duration.ZERO, properties.pollInterval(), scheduler).onBackpressureLatest()
                 .concatMap(tick -> pollOnce().onErrorResume(error -> {
-                    log.warn("AI tool chat event claim deferred, type={}", error.getClass().getSimpleName());
+                    log.error("AI tool chat event claim deferred, workerId={}, type={}", worker, error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
                     return Mono.just(0);
                 }), 1).subscribe();
     }

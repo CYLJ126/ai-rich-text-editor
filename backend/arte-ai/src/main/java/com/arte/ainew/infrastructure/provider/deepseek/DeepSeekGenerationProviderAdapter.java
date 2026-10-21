@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.adapter.GenerationProviderAdapter;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.Exceptions;
@@ -369,9 +370,16 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
 
         GenerationSignal.Failure failure(Throwable error) {
             var mapped = mapError(error, call);
+            var root = Exceptions.unwrap(error);
             log.warn("AI provider interaction failed, invocationId={}, traceId={}, attemptId={}, providerId={}, code={}, phase={}, certainty={}, sideEffect={}, outputBytes={}, usageBasis={}, type={}",
                     call.request().context().executionId(), call.request().context().traceId(), call.attempt().attemptId(), providerId(),
-                    mapped.code(), mapped.phase(), mapped.certainty(), mapped.sideEffect(), bytes, usage.basis(), Exceptions.unwrap(error).getClass().getName());
+                    mapped.code(), mapped.phase(), mapped.certainty(), mapped.sideEffect(), bytes, usage.basis(), root.getClass().getName());
+            if (!(root instanceof GenerationException || root instanceof TimeoutException || root instanceof CancellationException
+                    || root instanceof AccessDeniedException || root instanceof org.springframework.core.io.buffer.DataBufferLimitException)) {
+                log.error("AI provider unexpected failure, invocationId={}, traceId={}, attemptId={}, providerId={}, code={}, type={}",
+                        call.request().context().executionId(), call.request().context().traceId(), call.attempt().attemptId(), providerId(),
+                        mapped.code(), root.getClass().getName(), SafeExceptionDiagnostics.forLogging(root));
+            }
             return new GenerationSignal.Failure(mapped, usage, model == null || text.toString().isBlank() ? null : result(false));
         }
     }

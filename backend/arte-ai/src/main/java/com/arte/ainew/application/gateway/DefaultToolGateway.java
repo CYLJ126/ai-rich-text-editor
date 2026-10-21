@@ -22,6 +22,8 @@ import com.arte.ainew.spi.auth.ToolExecutionAccess;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -51,6 +53,7 @@ import static com.arte.ainew.application.support.ToolObservation.Stage.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 15:21 ✾
  */
+@Slf4j
 public final class DefaultToolGateway implements ToolGateway {
 
     private final ToolBindingService bindings;
@@ -118,6 +121,12 @@ public final class DefaultToolGateway implements ToolGateway {
                     .onErrorResume(error -> {
                         entry.compareAndSet(0, 2);
                         boolean entered = entry.get() == 1;
+                        if (!(error instanceof Rejected || error instanceof TimeoutException || error instanceof CancellationException
+                                || error instanceof AccessDeniedException)) {
+                            log.error("AI tool gateway failed, invocationId={}, traceId={}, attemptId={}, phase={}, adapterEntered={}, code={}, type={}",
+                                    call.request().context().executionId(), call.request().context().traceId(), call.attempt().attemptId(), phase.get(),
+                                    entered, code(error, entered), error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
+                        }
                         return Mono.just(failure(call, code(error, entered), phase.get(), entered));
                     }).doOnCancel(() -> entry.compareAndSet(0, 2));
         });

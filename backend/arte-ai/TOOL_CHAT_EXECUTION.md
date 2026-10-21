@@ -182,3 +182,25 @@ HTTP 500 本身不能证明事务是否提交，不应清空记录或另换键�
 实际命令、结果及扩大回归发现的非本批问题见 [实施记录 §36](TOOL_IMPLEMENTATION.md#36-s4-05工具聊天受理循环与恢复2026-10-20)。
 H2、MockMvc 和本地固定模型／领域响应不能证明真实供应商、生产 MySQL、多节点故障切换或高负载指标。 页面、工具聊天重新生成、真实浏览器交互验收仍属于
 S4-06；本批不声明生产开放或性能验收通过。
+
+## 8. 错误日志与排查
+
+HTTP 202 只表示 Run 已受理；之后的模型、工具或检查点错误由后台执行链处理，通常不会经过
+`ConversationExceptionHandler`。先用页面追踪号检索 `traceId`，再用日志中的 `runId`、`invocationId`、`attemptId`
+串起根执行与子调用；早期读取失败可能只有 Run ID。
+
+| 日志标记                                                   | 诊断用途                                                                                      |
+|------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `New AI HTTP failure`／`Platform HTTP failure`             | HTTP 服务端故障，记录脱敏堆栈及原因链；预期拒绝使用 `HTTP rejected`                           |
+| `AI tool chat protocol rejected`                           | Run 协议拒绝；`code` 为结果码，`reason` 为具体校验规则，如 `FINISH_REASON_MISMATCH`           |
+| `AI tool chat failure committed`                           | 失败事实已持久化；包含原阶段 `previousPhase`、子调用、原 `deadline`、观测时间及 `remainingMs` |
+| `AI tool chat checkpoint failed`                           | Worker 推进失败；非预期异常保留脱敏堆栈，原工作仍按已有租约和恢复规则处理                     |
+| `AI provider unexpected failure`／`AI tool gateway failed` | 模型／工具异常被转换为执行结果之前的诊断记录，关联原 Invocation 和 Attempt                    |
+
+非预期异常保留原异常类型、调用位置、cause 链及有界 suppressed 异常；消息显示 `[message omitted]`，避免底层异常夹带 SQL
+参数、供应商响应、用户正文或凭据。副本仅用于日志，不替换实际抛出或参与状态判断的异常。已知授权拒绝、协议拒绝、
+取消和期限到期保留稳定分类及上下文，不人为生成堆栈；`remainingMs` 是日志时刻的观测值，持久化期限和终态才是执行事实。
+不记录逐片段模型输出或完整请求。
+
+本次诊断改动需要重新构建并重启相关后端节点后生效；历史日志里已经缺失的堆栈无法补回。改动不延长期限、不自动重试业务， 也不改变
+UNKNOWN／核对、预算或审批规则。测试范围见 [实施记录 §41](TOOL_IMPLEMENTATION.md#41-异常堆栈与-run-诊断补全2026-10-21)。

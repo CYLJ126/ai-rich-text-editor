@@ -1,7 +1,9 @@
 package com.arte.ainew.application.tool.chat;
 
+import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.config.NewAiToolChatProperties;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import reactor.core.Disposable;
@@ -48,7 +50,15 @@ public final class ToolChatWorker implements SmartLifecycle {
             return runs.claim(workerId, properties.batchSize(), properties.lease()).flatMap(leases -> Flux.fromIterable(leases)
                             .flatMap(lease -> coordinator.process(lease).timeout(properties.lease().dividedBy(2))
                                     .onErrorResume(error -> {
-                                        log.warn("AI tool chat checkpoint deferred, runId={}, fence={}, type={}", lease.runId(), lease.fence(), error.getClass().getSimpleName());
+                                        if (error instanceof AdmissionException || error instanceof java.util.concurrent.TimeoutException
+                                                || error instanceof org.springframework.security.access.AccessDeniedException) {
+                                            log.warn("AI tool chat checkpoint deferred, runId={}, fence={}, leaseUntil={}, checkpointTimeoutMs={}, code={}, type={}",
+                                                    lease.runId(), lease.fence(), lease.until(), properties.lease().dividedBy(2).toMillis(),
+                                                    error instanceof AdmissionException rejected ? rejected.getResultCode() : null, error.getClass().getName());
+                                        } else {
+                                            log.error("AI tool chat checkpoint failed, runId={}, fence={}, leaseUntil={}, type={}",
+                                                    lease.runId(), lease.fence(), lease.until(), error.getClass().getName(), SafeExceptionDiagnostics.forLogging(error));
+                                        }
                                         // 基础设施故障由租约到期重领；不伪造业务失败或重新分配子调用身份。
                                         return Mono.empty();
                                     }), properties.batchSize()).then(Mono.just(leases.size())))
@@ -61,7 +71,8 @@ public final class ToolChatWorker implements SmartLifecycle {
         if (isRunning()) return;
         subscription = Flux.interval(java.time.Duration.ZERO, properties.pollInterval(), scheduler).onBackpressureLatest()
                 .concatMap(tick -> pollOnce().onErrorResume(error -> {
-                    log.warn("AI tool chat claim deferred, type={}", error.getClass().getSimpleName());
+                    log.error("AI tool chat claim failed, workerId={}, type={}", workerId, error.getClass().getName(),
+                            SafeExceptionDiagnostics.forLogging(error));
                     return Mono.just(0);
                 }), 1).subscribe();
     }

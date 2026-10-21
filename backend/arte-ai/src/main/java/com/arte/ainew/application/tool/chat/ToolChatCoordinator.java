@@ -97,8 +97,12 @@ public final class ToolChatCoordinator {
                                                 return blocked(lease, run, fixed, permit);
                                             return drive(lease, run, fixed, current, permit);
                                         })))
-                        .onErrorResume(ProtocolFailure.class, invalid -> stop(lease, run, fixed, ToolChatRun.State.FAILED,
-                                fact(fixed, invalid.code, false), null))
+                        .onErrorResume(ProtocolFailure.class, invalid -> {
+                            log.warn("AI tool chat protocol rejected, runId={}, traceId={}, phase={}, round={}, childIds={}, code={}, reason={}",
+                                    run.runId(), fixed.context().traceId(), run.checkpoint().phase(), run.checkpoint().roundIndex(),
+                                    run.checkpoint().children(), invalid.code, invalid.reason);
+                            return stop(lease, run, fixed, ToolChatRun.State.FAILED, fact(fixed, invalid.code, false), null);
+                        })
                         .onErrorResume(AccessDeniedException.class, denied -> stop(lease, run, fixed, ToolChatRun.State.FAILED,
                                 fact(fixed, "RUN_AUTHORIZATION_REVOKED", false), null))
                         .onErrorResume(AdmissionException.class, error -> {
@@ -126,7 +130,7 @@ public final class ToolChatCoordinator {
                         .flatMap(result -> {
                             if (result.outputs().stream().anyMatch(m -> !m.toolCalls().isEmpty()))
                                 return Mono.just(false);
-                            return advance(lease, run, ToolChatRun.State.SUCCEEDED, FINISHED, run.checkpoint().roundIndex(), List.of(), child.result(), null, permit)
+                            return advance(lease, run, fixed, ToolChatRun.State.SUCCEEDED, FINISHED, run.checkpoint().roundIndex(), List.of(), child.result(), null, permit)
                                     .thenReturn(true);
                         });
             }).defaultIfEmpty(false).flatMap(finished -> finished ? Mono.empty()
@@ -138,7 +142,7 @@ public final class ToolChatCoordinator {
     private Mono<Void> drive(ToolChatCommands.Lease lease, ToolChatRun run, ToolChatRunSnapshot fixed,
                              ExecutionContext current, ToolChatAccess.Permit permit) {
         if (run.checkpoint().phase() == READY_MODEL)
-            return modelContext(run, fixed).flatMap(context -> advance(lease, run, ToolChatRun.State.RUNNING, WAITING_MODEL,
+            return modelContext(run, fixed).flatMap(context -> advance(lease, run, fixed, ToolChatRun.State.RUNNING, WAITING_MODEL,
                     run.checkpoint().roundIndex(), List.of(new ToolChatStep.Plan(run.checkpoint().roundIndex(), new ToolChatStep.Model(context))), null, null, permit));
         return Flux.fromIterable(run.checkpoint().children()).concatMap(id -> runs.step(run.owner(), run.runId(), id)
                         .switchIfEmpty(Mono.error(new IllegalStateException("Run checkpoint step missing"))))
@@ -151,11 +155,11 @@ public final class ToolChatCoordinator {
                             var unknown = children.values().stream().filter(c -> c.state() == Invocation.State.UNKNOWN).findFirst();
                             if (unknown.isPresent()) {
                                 if (run.checkpoint().phase() == RECONCILING) return park(lease);
-                                return advance(lease, run, ToolChatRun.State.PENDING_RECONCILIATION, RECONCILING,
+                                return advance(lease, run, fixed, ToolChatRun.State.PENDING_RECONCILIATION, RECONCILING,
                                         run.checkpoint().roundIndex(), List.of(), null, fact(fixed, "CHILD_OUTCOME_UNKNOWN", true), permit);
                             }
                             if (run.checkpoint().phase() == RECONCILING)
-                                return advance(lease, run, steps.getFirst().input() instanceof ToolChatStep.Model ? ToolChatRun.State.RUNNING : ToolChatRun.State.WAITING_TOOL,
+                                return advance(lease, run, fixed, steps.getFirst().input() instanceof ToolChatStep.Model ? ToolChatRun.State.RUNNING : ToolChatRun.State.WAITING_TOOL,
                                         steps.getFirst().input() instanceof ToolChatStep.Model ? WAITING_MODEL : WAITING_TOOLS,
                                         run.checkpoint().roundIndex(), List.of(), null, null, permit);
                             var failed = children.values().stream().filter(c -> c.state().terminal() && c.state() != Invocation.State.SUCCEEDED).findFirst();
@@ -181,7 +185,7 @@ public final class ToolChatCoordinator {
         if (child.state() != Invocation.State.SUCCEEDED) return park(lease);
         return modelResult(run, fixed, step, child).flatMap(result -> {
             var calls = result.outputs().stream().flatMap(m -> m.toolCalls().stream()).toList();
-            if (calls.isEmpty()) return advance(lease, run, ToolChatRun.State.SUCCEEDED, FINISHED,
+            if (calls.isEmpty()) return advance(lease, run, fixed, ToolChatRun.State.SUCCEEDED, FINISHED,
                     run.checkpoint().roundIndex(), List.of(), child.result(), null, permit);
             if (run.toolSteps() + calls.size() > fixed.limits().maxToolCalls()
                     || run.modelSteps() >= fixed.limits().maxModelRounds())
@@ -192,7 +196,7 @@ public final class ToolChatCoordinator {
                 for (var call : calls)
                     if (!used.add(call.callId()))
                         return stop(lease, run, fixed, ToolChatRun.State.FAILED, fact(fixed, "DUPLICATE_TOOL_CALL_ID", false), permit);
-                return advance(lease, run, ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, run.checkpoint().roundIndex(),
+                return advance(lease, run, fixed, ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, run.checkpoint().roundIndex(),
                         calls.stream().map(c -> new ToolChatStep.Plan(run.checkpoint().roundIndex(), new ToolChatStep.Tool(c))).toList(), null, null, permit);
             });
         });
@@ -202,9 +206,9 @@ public final class ToolChatCoordinator {
                                  ToolChatAccess.Permit permit, List<ToolChatStep> steps, Map<String, Invocation> children) {
         boolean allDone = children.size() == steps.size() && children.values().stream().allMatch(c -> c.state() == Invocation.State.SUCCEEDED);
         if (allDone && run.checkpoint().phase() == WAITING_APPROVAL)
-            return advance(lease, run, ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, run.checkpoint().roundIndex(), List.of(), null, null, permit);
+            return advance(lease, run, fixed, ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, run.checkpoint().roundIndex(), List.of(), null, null, permit);
         if (allDone)
-            return advance(lease, run, ToolChatRun.State.RUNNING, READY_MODEL, run.checkpoint().roundIndex() + 1, List.of(), null, null, permit);
+            return advance(lease, run, fixed, ToolChatRun.State.RUNNING, READY_MODEL, run.checkpoint().roundIndex() + 1, List.of(), null, null, permit);
         // 任何写提议令整组串行，避免只读和写入在同一资源上交错；审批等待也占本 Run 的并发名额。
         boolean writes = steps.stream().map(s -> ((ToolChatStep.Tool) s.input()).call()).anyMatch(c -> fixed.tools().tool(c.tool())
                 .binding().tool().tool().risk().sideEffect() != com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY);
@@ -218,7 +222,7 @@ public final class ToolChatCoordinator {
         boolean waiting = children.values().stream().anyMatch(c -> c.state() == Invocation.State.WAITING_APPROVAL);
         var phase = waiting ? WAITING_APPROVAL : WAITING_TOOLS;
         if (run.checkpoint().phase() == phase) return park(lease);
-        return advance(lease, run, waiting ? ToolChatRun.State.WAITING_APPROVAL : ToolChatRun.State.WAITING_TOOL,
+        return advance(lease, run, fixed, waiting ? ToolChatRun.State.WAITING_APPROVAL : ToolChatRun.State.WAITING_TOOL,
                 phase, run.checkpoint().roundIndex(), List.of(), null, null, permit);
     }
 
@@ -289,11 +293,13 @@ public final class ToolChatCoordinator {
                     var result = generation.value();
                     var calls = result.outputs().stream().flatMap(m -> m.toolCalls().stream()).toList();
                     // remoteOperation 是请求模型名，供应商可返回实际服务模型标识；来源由固定子绑定及派发器验证。
-                    if (!result.complete() || result.structuredOutput() != null || !result.sources().isEmpty()
-                            || (calls.isEmpty() ? result.finishReason() != ModelResult.FinishReason.STOP
-                            : result.finishReason() != ModelResult.FinishReason.TOOL_CALLS)
-                            || result.outputs().stream().flatMap(m -> m.content().stream()).anyMatch(c -> !(c instanceof ChatMessage.Text)))
-                        throw new ProtocolFailure("INVALID_MODEL_OUTPUT");
+                    String reason = !result.complete() ? "INCOMPLETE_RESULT"
+                            : result.structuredOutput() != null ? "STRUCTURED_OUTPUT_NOT_SUPPORTED"
+                            : !result.sources().isEmpty() ? "UNEXPECTED_SOURCES"
+                            : (calls.isEmpty() ? result.finishReason() != ModelResult.FinishReason.STOP
+                            : result.finishReason() != ModelResult.FinishReason.TOOL_CALLS) ? "FINISH_REASON_MISMATCH"
+                            : result.outputs().stream().flatMap(m -> m.content().stream()).anyMatch(c -> !(c instanceof ChatMessage.Text)) ? "NON_TEXT_CONTENT" : null;
+                    if (reason != null) throw new ProtocolFailure("INVALID_MODEL_OUTPUT", reason);
                     if (!calls.isEmpty() && result.outputs().size() != 1)
                         throw new ProtocolFailure("INVALID_TOOL_MESSAGE_PAIRING");
                     for (var call : calls) {
@@ -343,10 +349,10 @@ public final class ToolChatCoordinator {
                     var control = new ExecutionControlRequest(key, id, key, ControlReceipt.Command.CANCEL);
                     // 受信基础设施传播根停止，不使用到期的用户执行凭据取得新的调用权限。
                     return executions.requestControl(run.owner(), control, () -> verifyChild(fixed, step, child)).flatMap(ToolChatCoordinator::applied).then();
-                }))).then(advance(lease, run, state, FINISHED, run.checkpoint().roundIndex(), List.of(), null, error, permit));
+                }))).then(advance(lease, run, fixed, state, FINISHED, run.checkpoint().roundIndex(), List.of(), null, error, permit));
     }
 
-    private Mono<Void> advance(ToolChatCommands.Lease lease, ToolChatRun run, ToolChatRun.State state, ToolChatRun.Phase phase,
+    private Mono<Void> advance(ToolChatCommands.Lease lease, ToolChatRun run, ToolChatRunSnapshot fixed, ToolChatRun.State state, ToolChatRun.Phase phase,
                                int round, List<ToolChatStep.Plan> plans, ResultRef result, ExecutionError error, ToolChatAccess.Permit permit) {
         String command = CanonicalJson.key("tool-chat-drive-v1", run.runId(), Long.toString(run.version()), state.name(), phase.name());
         Consumer<ToolChatCommands.Guard> guard = actual -> {
@@ -359,8 +365,19 @@ public final class ToolChatCoordinator {
         // 原检查点时间使重复准备的命令输入稳定；存储将过去的唤醒时间箝制到数据库当前时刻。
         return runs.advance(new ToolChatCommands.Advance(lease, run.version(), command, state, phase, round, plans,
                         phase == FINISHED ? null : run.updatedAt(), result, error), guard).flatMap(ToolChatCoordinator::applied)
-                .doOnNext(receipt -> log.info("AI tool chat checkpoint committed, runId={}, version={}, state={}, phase={}, round={}",
-                        receipt.run().runId(), receipt.run().version(), receipt.run().state(), receipt.run().checkpoint().phase(), receipt.run().checkpoint().roundIndex())).then();
+                .doOnNext(receipt -> {
+                    var saved = receipt.run();
+                    if (error == null) {
+                        log.info("AI tool chat checkpoint committed, runId={}, traceId={}, version={}, state={}, phase={}, round={}",
+                                saved.runId(), fixed.context().traceId(), saved.version(), saved.state(), saved.checkpoint().phase(), saved.checkpoint().roundIndex());
+                    } else {
+                        var now = clock.instant();
+                        log.warn("AI tool chat failure committed, runId={}, traceId={}, version={}, state={}, previousPhase={}, round={}, childIds={}, code={}, certainty={}, sideEffect={}, deadline={}, observedAt={}, remainingMs={}",
+                                saved.runId(), fixed.context().traceId(), saved.version(), saved.state(), run.checkpoint().phase(), run.checkpoint().roundIndex(),
+                                run.checkpoint().children(), error.code(), error.certainty(), error.sideEffect(), fixed.context().deadline(), now,
+                                Duration.between(now, fixed.context().deadline()).toMillis());
+                    }
+                }).then();
     }
 
     private Mono<Void> park(ToolChatCommands.Lease lease) {
@@ -378,10 +395,16 @@ public final class ToolChatCoordinator {
      */
     private static final class ProtocolFailure extends RuntimeException {
         private final String code;
+        private final String reason;
 
         private ProtocolFailure(String code) {
+            this(code, code);
+        }
+
+        private ProtocolFailure(String code, String reason) {
             super(code);
             this.code = code;
+            this.reason = reason;
         }
     }
 }
