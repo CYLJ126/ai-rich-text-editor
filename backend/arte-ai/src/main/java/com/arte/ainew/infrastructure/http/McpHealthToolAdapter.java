@@ -48,9 +48,9 @@ public final class McpHealthToolAdapter implements McpToolAdapter {
     private final JsonNode inputDocument, outputDocument;
 
     /**
-     * 创建 MCP 状态查询工具适配器。
+     * 创建 MCP 状态查询工具适配器
      * <p>
-     * 定义工具名称、输入／输出 Schema、免费只读策略及固定连接
+     * 定义工具名称、输入／输出 Schema、免费只读策略及固定连接。
      *
      * @param connection          MCP 连接定义
      * @param streamableTransport MCP 流式 HTTP 传输

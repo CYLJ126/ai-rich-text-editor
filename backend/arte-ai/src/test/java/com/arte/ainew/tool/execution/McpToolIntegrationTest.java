@@ -102,6 +102,12 @@ public class McpToolIntegrationTest {
                         tool.put("name", fault.get().equals("missing") ? "other" : "health");
                         tool.put("inputSchema", ToolCatalogDigests.jsonValue(adapter.definitions().schemas().get(0).document()));
                         tool.put("outputSchema", fault.get().equals("schema") ? Map.of("type", "string") : ToolCatalogDigests.jsonValue(adapter.definitions().schemas().get(1).document()));
+                        if (fault.get().equals("input-schema"))
+                            tool.put("inputSchema", Map.of("type", "object", "properties", Map.of("query", Map.of("type", "string"))));
+                        if (fault.get().equals("no-output-schema")) tool.remove("outputSchema");
+                        if (fault.get().equals("no-input-schema")) tool.remove("inputSchema");
+                        if (fault.get().equals("invalid-input-schema")) tool.put("inputSchema", "invalid");
+                        if (fault.get().equals("invalid-output-schema")) tool.put("outputSchema", "invalid");
                         var list = new HashMap<String, Object>();
                         list.put("tools", fault.get().equals("duplicate") ? List.of(tool, tool) : List.of(tool));
                         if (fault.get().equals("pagination")) list.put("nextCursor", "more");
@@ -209,7 +215,7 @@ public class McpToolIntegrationTest {
 
     @Test
     public void handshakeAndCatalogDriftNeverReachToolCall() throws Exception {
-        for (String fault : List.of("version", "capabilities", "schema", "missing", "duplicate", "pagination", "id", "rpc", "duplicate-json", "trailing"))
+        for (String fault : List.of("version", "capabilities", "schema", "input-schema", "no-output-schema", "missing", "duplicate", "pagination", "id", "rpc", "duplicate-json", "trailing"))
             try (var r = new Remote(); var f = new ToolExecutionFixture(r.adapter)) {
                 r.fault.set(fault);
                 f.submit("one");
@@ -217,6 +223,73 @@ public class McpToolIntegrationTest {
                 assertEquals(fault, Invocation.State.FAILED, f.invocation("one").state());
                 assertEquals(fault, 0, r.calls.get());
                 assertFalse(f.codec.encode(new InvocationResult.Tool(HttpToolIntegrationTest.result(f, "one"))).contains("private-"));
+            }
+    }
+
+    @Test
+    public void schemaComparisonCanBeDisabledForDifferentSchemasAndMissingOutputSchema() throws Exception {
+        for (String type : List.of("application/json", "text/event-stream"))
+            for (String fault : List.of("input-schema", "schema", "no-output-schema"))
+                try (var r = new Remote()) {
+                    r.adapter = new McpHealthToolAdapter(r.connection, new McpStreamableHttpTransport(r.runtime, false));
+                    r.type.set(type);
+                    r.fault.set(fault);
+                    try (var f = new ToolExecutionFixture(r.adapter)) {
+                        f.submit("one");
+                        f.worker(f.dispatcher).pollOnce().block(WAIT);
+                        assertEquals(type + "/" + fault, Invocation.State.SUCCEEDED, f.invocation("one").state());
+                        assertEquals(object("status", text("UP")), HttpToolIntegrationTest.result(f, "one").output());
+                        assertEquals(1, r.calls.get());
+                        assertEquals(1, r.deletes.get());
+                    }
+                }
+    }
+
+    @Test
+    public void schemaOptOutStillRejectsMissingToolsInvalidCatalogsAndRpcFailures() throws Exception {
+        for (String fault : List.of("missing", "duplicate", "pagination", "no-input-schema", "invalid-input-schema",
+                "invalid-output-schema", "version", "id", "rpc"))
+            try (var r = new Remote()) {
+                r.adapter = new McpHealthToolAdapter(r.connection, new McpStreamableHttpTransport(r.runtime, false));
+                r.fault.set(fault);
+                try (var f = new ToolExecutionFixture(r.adapter)) {
+                    f.submit("one");
+                    f.worker(f.dispatcher).pollOnce().block(WAIT);
+                    assertEquals(fault, Invocation.State.FAILED, f.invocation("one").state());
+                    assertEquals(fault, 0, r.calls.get());
+                }
+            }
+    }
+
+    @Test
+    public void schemaOptOutDoesNotBypassEgressOrCurrentAuthorization() throws Exception {
+        for (boolean deniedOrigin : new boolean[]{true, false})
+            try (var r = new Remote(true, deniedOrigin)) {
+                r.adapter = new McpHealthToolAdapter(r.connection, new McpStreamableHttpTransport(r.runtime, false));
+                r.revokeAfterList.set(!deniedOrigin);
+                try (var f = new ToolExecutionFixture(r.adapter)) {
+                    f.submit("one");
+                    f.worker(f.dispatcher).pollOnce().block(WAIT);
+                    assertEquals(Invocation.State.FAILED, f.invocation("one").state());
+                    assertEquals(0, r.calls.get());
+                    if (deniedOrigin) assertTrue(r.methods.isEmpty());
+                }
+            }
+    }
+
+    @Test
+    public void schemaOptOutDoesNotBypassAdapterResultValidation() throws Exception {
+        for (String fault : List.of("raw-text", "mismatch", "error"))
+            try (var r = new Remote()) {
+                r.adapter = new McpHealthToolAdapter(r.connection, new McpStreamableHttpTransport(r.runtime, false));
+                r.fault.set(fault);
+                try (var f = new ToolExecutionFixture(r.adapter)) {
+                    f.submit("one");
+                    f.worker(f.dispatcher).pollOnce().block(WAIT);
+                    assertEquals(fault, Invocation.State.FAILED, f.invocation("one").state());
+                    assertEquals(1, r.calls.get());
+                    assertEquals(ExecutionError.SideEffect.NONE, HttpToolIntegrationTest.result(f, "one").sideEffect());
+                }
             }
     }
 

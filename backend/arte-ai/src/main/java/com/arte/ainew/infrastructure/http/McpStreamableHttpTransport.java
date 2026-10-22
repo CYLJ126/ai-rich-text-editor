@@ -34,13 +34,24 @@ public final class McpStreamableHttpTransport {
     };
     private static final int MAX_BYTES = 65536;
     private final HttpConnectionRuntime runtime;
+    private final boolean verifyRemoteSchema;
     private final JsonMapper json = JsonMapper.builder(JsonFactory.builder()
                     .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                     .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(24).maxStringLength(MAX_BYTES).maxNumberLength(64).build()).build())
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
 
     public McpStreamableHttpTransport(HttpConnectionRuntime runtime) {
+        this(runtime, true);
+    }
+
+    /**
+     * 由受信装配选择是否精确比较远端 Schema，现有单参数构造默认开启。
+     * 关闭时仅跳过 Schema 原文比对，仍校验远端工具存在与 Schema 声明结构；
+     * 本地参数、配置及结果契约继续由 Gateway／适配器校验，不能据此绕过当前授权或出口控制。
+     */
+    public McpStreamableHttpTransport(HttpConnectionRuntime runtime, boolean verifyRemoteSchema) {
         this.runtime = java.util.Objects.requireNonNull(runtime);
+        this.verifyRemoteSchema = verifyRemoteSchema;
     }
 
     public JsonNode parse(String value) {
@@ -59,7 +70,7 @@ public final class McpStreamableHttpTransport {
     }
 
     /**
-     * 先握手与校验固定目录，再调用指定工具；供应商列表不被直接发布为本地工具。
+     * 先握手与校验目录，再调用指定工具；默认精确比较 Schema，供应商列表不被直接发布为本地工具。
      */
     public Mono<JsonNode> call(ConnectionDefinition connection, ExecutionRuntimeContext context, String name,
                                JsonNode inputSchema, JsonNode outputSchema, Map<String, Object> arguments) {
@@ -81,7 +92,15 @@ public final class McpStreamableHttpTransport {
                                         require(tool.isObject() && tool.path("name").isString() && names.add(tool.path("name").asString()), "TOOL_MCP_CATALOG_INVALID");
                                         if (tool.path("name").asString().equals(name)) selected = tool;
                                     }
-                                    require(selected != null && same(selected.path("inputSchema"), inputSchema) && same(selected.path("outputSchema"), outputSchema), "TOOL_MCP_CONTRACT_CHANGED");
+                                    require(selected != null, "TOOL_MCP_CONTRACT_CHANGED");
+                                    if (verifyRemoteSchema) {
+                                        require(same(selected.path("inputSchema"), inputSchema) && same(selected.path("outputSchema"), outputSchema),
+                                                "TOOL_MCP_CONTRACT_CHANGED");
+                                    } else {
+                                        // 远端可以省略 outputSchema；已声明的 Schema 仍须是 JSON 对象。
+                                        require(selected.path("inputSchema").isObject()
+                                                && (!selected.has("outputSchema") || selected.path("outputSchema").isObject()), "TOOL_MCP_CATALOG_INVALID");
+                                    }
                                     return request(connection, context, session, "tools/call", Map.of("name", name, "arguments", arguments), "call");
                                 }), session -> close(connection, context, session), (session, error) -> close(connection, context, session),
                 session -> close(connection, context, session));

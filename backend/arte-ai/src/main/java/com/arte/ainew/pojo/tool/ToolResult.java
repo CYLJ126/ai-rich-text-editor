@@ -5,6 +5,7 @@ import com.arte.ainew.common.reference.ArtifactRef;
 import com.arte.ainew.common.reference.SourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.common.value.StructuredValue;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.Serializable;
 import java.util.List;
@@ -20,7 +21,7 @@ import java.util.Objects;
 public record ToolResult(String callId, Outcome outcome, StructuredValue output, List<SourceRef> sources,
                          List<ArtifactRef> artifacts, ExecutionError.SideEffect sideEffect,
                          ExecutionError error,
-                         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) ToolCharge charge) implements Serializable {
+                         @JsonInclude(JsonInclude.Include.NON_NULL) ToolCharge charge) implements Serializable {
     public ToolResult(String callId, Outcome outcome, StructuredValue output, List<SourceRef> sources, List<ArtifactRef> artifacts,
                       ExecutionError.SideEffect sideEffect, ExecutionError error) {
         this(callId, outcome, output, sources, artifacts, sideEffect, error, null);

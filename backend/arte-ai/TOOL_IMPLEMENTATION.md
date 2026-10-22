@@ -2577,3 +2577,27 @@ JDK 21，`mvn -q -f backend/pom.xml -pl arte-app -am clean test` 配合定向测
 
 `git diff --check` 通过；核对注册表源码未变，生产源码中无 MCP 继承 HTTP 工具接口及 Gateway 转换为 HTTP 工具接口的残留。
 不是全仓全量测试；未执行生产 MySQL、多节点、真实 MCP／HTTPS 服务、前端浏览器验收或性能压测，未进行数据库操作或后端重启。
+
+## 47. MCP transport：实例级远端 Schema 比较选项
+
+日期：2026-10-22。为平台 Schema 与远端声明不同、或服务未声明 outputSchema 的接入场景，新增
+`McpStreamableHttpTransport(HttpConnectionRuntime runtime, boolean verifyRemoteSchema)`。
+
+现有单参数构造委托为 true，health 和其他既有装配继续严格比较输入／输出 Schema 原文。 受信装配可显式传
+false，仅跳过该精确比较；工具仍必须存在，名称重复、目录分页／超限、版本和 JSON-RPC 错误继续拒绝。 此模式仍要求远端 inputSchema
+为对象；outputSchema 可缺省，若存在也须为对象。授权、HTTP 出口控制、会话、期限、取消、响应上限和 适配器／Gateway
+本地契约验证不变，不自动导入、发布或授权远端工具。
+
+没有增加客户端参数、配置键、持久化格式或数据库变更；本批没有修改 Bing 适配器、main 手工入口、UNKNOWN_ERROR， 也没有将 Bing
+登记到平台目录或聊天。后续 Bing 接线需要由其受信装配显式选择 false，并提供自己的本地参数与结果校验。
+
+验证使用 JDK 21、真实回环 HTTP／SSE、临时 H2 和现有宿主测试： **10 类、136 项通过，零失败／错误／跳过**。
+`McpToolIntegrationTest` 从 14 项增至 18 项，新增 4 项矩阵用例，验证：
+
+- JSON／SSE 下关闭比较后，输入／输出声明不同及 outputSchema 缺省仍可完成调用和会话清理； 默认严格路径继续拒绝输入漂移和输出声明缺失。
+- 关闭比较后仍拒绝工具缺失、重复／分页目录、输入声明缺失或类型错误、已声明输出类型错误、版本／RPC／ID 错误，且不进入工具调用。
+- 关闭比较后出口拒绝及目录读取后撤权仍阻止发送，适配器仍拒绝错误或不匹配的结果。
+
+相邻覆盖包括正式 MCP／HTTP 宿主、Gateway、工具聊天、定义及数据契约和手工客户端模拟测试。 日志
+`/private/tmp/arte-mcp-schema-regression.log`，`git diff --check` 通过。不是全仓全量测试；未访问真实 MCP／模型服务或业务库，
+未进行浏览器、生产 MySQL、多节点或性能验收，未开启功能开关或重启后端。

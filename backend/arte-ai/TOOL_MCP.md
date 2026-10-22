@@ -38,10 +38,23 @@ MCP 塞进 HTTP 或 LOCAL 登记绕过预检。 旧无 protocol 的本地／HTTP
 发现、刷新、发布预检只读取受信代码的静态元数据，不在启动或管理事务内探测远端。 连接完整摘要固定
 endpoint、协议、期限及响应上限；同版本改地址或改合同属于漂移，不能覆盖。 运行时 tools/list 只验证已经审核的 health 名称及完整
 inputSchema／outputSchema，不把远端 descriptions／instructions 或 annotations 当成授权依据，也不自动新增本地工具。
-工具名重复、缺失、Schema 变化、分页或超过 64 项均拒绝，须重新审核新固定版本。
+默认严格比较时，工具名重复、缺失、Schema 变化、分页或超过 64 项均拒绝，须重新审核新固定版本。
 
 远端 Schema 必须与 `McpHealthToolAdapter.definitions()` 的输入／输出标准 JSON 完全一致（对象键顺序无关，数组顺序保留），包括
 `$schema` 和额外字段策略。 生产接入前应先与服务提供者确认该合同；协议连通不等于任意服务满足产品合同。
+
+transport 新增实例级 `verifyRemoteSchema` 选项；现有 `new McpStreamableHttpTransport(runtime)` 等价于传入 `true`， 正式
+health 装配保持默认严格比较。受信代码可显式选择：
+
+```java
+var transport = new McpStreamableHttpTransport(runtime, false);
+```
+
+此模式不比较远端 Schema 与传入的本地文档原文，允许远端省略 `outputSchema`，适配平台与服务端采用不同 Schema 的情况。
+工具名称匹配、重复名称／分页／目录上限、握手、JSON-RPC、会话、请求与响应限制、当前授权及出口检查继续执行；
+`inputSchema` 仍须是对象，`outputSchema` 若存在也须是对象。平台自己的参数、配置及输出契约继续由 Gateway／适配器校验，
+远端列表不会自动成为已发布工具。该选项只由受信装配选择，没有新增 HTTP 参数或配置属性，不由客户端或远端响应切换。 本次仅提供
+transport 能力，尚未把 Bing 适配器改为使用此模式，也未增加其目录、授权或聊天接线。
 
 ## 3. 授权、网络与资源
 
