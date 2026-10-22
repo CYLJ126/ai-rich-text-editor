@@ -2601,3 +2601,43 @@ false，仅跳过该精确比较；工具仍必须存在，名称重复、目录
 相邻覆盖包括正式 MCP／HTTP 宿主、Gateway、工具聊天、定义及数据契约和手工客户端模拟测试。 日志
 `/private/tmp/arte-mcp-schema-regression.log`，`git diff --check` 通过。不是全仓全量测试；未访问真实 MCP／模型服务或业务库，
 未进行浏览器、生产 MySQL、多节点或性能验收，未开启功能开关或重启后端。
+
+## 48. S6-01：工作流消费契约与集成用例
+
+日期：2026-10-22。本批完成受信工作流宿主消费 TOOL 的内部调用与恢复边界，对应 FR-16.1／FR-16.2、AC-26， 并验证 UNKNOWN 写入保持
+AC-13 的不确定性。S6-02／S6-03 仍为后续批次。
+
+### 48.1 实现与责任
+
+- `WorkflowToolExecution` 提供 `submit` 与 `snapshot`；`ToolWorkflowStep` 固定 workflowRunId／nodeId／operationId 和完整调用意图。
+  宿主须先耐久保存步骤及由完整 owner 派生的 Invocation ID，再提交。调度 attempt、Worker、绑定和参数变化不产生新操作身份。
+- `WorkflowToolService` 复用既有 `ToolAdmissionService` 与 `ExecutionEventService.snapshots`。响应丢失后重放返回原回执，
+  查询只读取当前授权下的原状态／预算／结果，不调用 Gateway 或创建新 Attempt。改变同操作的绑定、参数、限制或账户会冲突。
+- 并发前置查询同时落空时，继续由现有受理幂等事务及 Invocation ID 唯一锁防重，不依赖进程内锁。首次调用固定版本、配置、
+  策略和期限；恢复或重新授权不能延长原 deadline，终态不被重新推进。
+- 复用当前宿主资格、审批、Worker、免费／收费和结果核对规则；工作流 ID 不授予额外权限。收费使用现有 TOOL 账户， 不自动占用聊天
+  Run C／H。UNKNOWN 保留原副作用事实，消费方必须阻止依赖其成功的步骤。
+- 现有非空 parentExecutionId 具有真实 ToolChatRun 事务含义，本批通过步骤 key 关联独立 Invocation，parent 仍为空。 携带伪
+  parent 或根 budgetRef 的提交明确拒绝，未放宽原独立受理限制。
+- 随既有 TOOL 执行条件装配；构造零 SQL／零业务调用，不新增开关、路由、表、持久化别名、调度清单版本或后台轮询。
+  没有实现工作流画布、DSL、根记录、根预算、停止传播、节点调度或检查点引擎。
+
+新增 [工作流消费说明](TOOL_WORKFLOW.md)，同步需求 §10.7、FR-16 追踪及 HTTP 说明。
+测试夹具补充模拟领域操作键的审核材料，仅用于带本人确认的模拟写工具，不代表正式业务写入或领域防重验收。
+
+### 48.2 验证
+
+验证使用 JDK 21、临时 H2、真实 MyBatis／受理／Gateway／Worker 及回环 HTTP／SSE，不访问业务库或真实模型服务。 定向回归共 **20
+类，300 项通过、零失败／错误，1 项跳过**（总计 301 项）； 跳过项为 `ExecutionAssemblyTest` 的可选 Redis 集成测试，未配置独立本地测试
+Redis。 覆盖受理、审批及恢复、调用／结果、分类调度、收费、聊天 Run、HTTP／MCP、原模型网关和执行装配。
+
+最初的沙箱回归有 48 项因禁止绑定本地测试端口失败；在允许本地回环端口的权限下重跑后上述 HTTP／MCP／模型网关场景通过。 最终回归日志
+`/private/tmp/arte-s6-01-regression-local.log`；不把首次沙箱限制下的结果作为通过证据。
+
+新增 `WorkflowToolIntegrationTest` 的 **13 项全部通过**：覆盖响应丢失和消费服务重建、完成／执行中／等待审批／UNKNOWN 恢复、
+原期限后重放、并发同意图及不同绑定竞争、意图冲突、权限／空间隔离、免费／收费和根上下文拒绝。
+最后强化“两边前置查询均为空”的受控竞争窗口及模拟写权限后，单独重跑该类 **13 项全部通过**， 日志
+`/private/tmp/arte-s6-01-workflow-final.log`，不重复计入上述 300 项。`git diff --check` 通过。
+
+本批不是全仓全量测试或生产 MySQL、多节点接管、真实业务写入、工作流检查点引擎及性能压测验收。
+未执行部署数据库变更、功能开关切换或后端重启；保留任务开始前的其他工作区改动。

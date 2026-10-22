@@ -374,7 +374,9 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     void publish(Fixture fixture, Fixture predecessor) {
-        var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object())), "review", null,
+        var risk = fixture.revision().tool().risk();
+        var review = new ToolReleaseCommand.Review(List.of(new ToolReleaseCommand.Example(object(), object())), "review",
+                risk.idempotency() == ToolRiskProfile.Idempotency.NONE ? null : "test fixture stable domain operation key",
                 fixture.revision().tool().defaultPolicy().approvalMode(), predecessor == null ? null : predecessor.revision().tool().definition(),
                 predecessor == null ? null : "compatible");
         var outcome = releaseService.execute(actor, new ToolReleaseCommand(fixture.revision().tool().definition(), ToolReleaseCommand.Action.PUBLISH,

@@ -133,6 +133,16 @@ public class NewAiToolExecutionConfiguration {
     }
 
     /**
+     * 工作流仅消费既有受理与已授权结果；装配不创建工作流引擎、后台轮询或数据库记录。
+     */
+    @Bean
+    com.arte.ainew.api.orchestrator.WorkflowToolExecution workflowToolExecution(
+            ToolAdmissionService admission, MybatisToolAdmissionStore snapshots,
+            com.arte.ainew.api.execution.ExecutionEventService events, @Qualifier("newAiClock") Clock clock) {
+        return new com.arte.ainew.application.tool.workflow.WorkflowToolService(admission, snapshots, events, clock);
+    }
+
+    /**
      * 构造不访问数据库或业务工具；通用协调器在读取权威能力后路由到本派发器。
      */
     @Bean("newAiToolDispatcher")

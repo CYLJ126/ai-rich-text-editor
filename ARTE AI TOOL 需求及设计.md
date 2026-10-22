@@ -1259,8 +1259,21 @@ attemptId 及 offset 关联，并以 Run 的权威最终结果修复。
 
 ### 10.7 工作流使用边界
 
-未来工作流节点提交相同 TOOL 受理请求，使用 workflowRunId／nodeId 与 parentExecutionId 关联。节点恢复查询保存的
-invocationId；同一逻辑操作身份不随调度 attempt 改变。
+S6-01 提供内部 `WorkflowToolExecution` 调用与恢复契约。工作流宿主首次提交前必须耐久保存
+`ToolWorkflowStep`（workflowRunId／nodeId／operationId、完整 ToolAdmissionInput）及由完整 owner 和步骤 key 派生的 Invocation
+ID；调度重试、接管和响应丢失沿用原步骤及原身份。明确的新业务操作或循环的新一轮才使用新的 operationId，不能因 UNKNOWN
+或读取失败换键重做。
+
+提交复用现有 TOOL 受理、当前授权和同库防重；并发同意图只受理一次，同 key 改绑定、参数、限制或收费账户报幂等冲突。 恢复通过已授权的原
+Invocation 快照读取状态、预算及结果，不受理或派发；成功消费原结果，UNKNOWN 保留原不确定性并阻止依赖成功的步骤。
+未找到、撤权或读取异常不得被解释为可重新执行。恢复或重放不延长原 deadline，不新增 Attempt 或重复收费。
+
+当前非空 parentExecutionId 由真实 ToolChatRun 事务校验。S6-01 通过步骤 key 关联独立 TOOL Invocation，parent 为 null， 不伪造
+workflowRunId 为聊天 Run 父执行。免费／收费沿用现有 TOOL 规则，收费账户由 input.budgetRef 指定； 不自动共享聊天 Run
+配额。本批不提供工作流根预算、停止传播或工作流调度资格的原子联动。 真正建设工作流运行时后，应以持久化根记录和同事务步骤校验扩展父执行能力，不能仅放宽现有
+parent 限制。
+
+契约、宿主检查点责任和集成用例见 [工作流消费 TOOL 说明](backend/arte-ai/TOOL_WORKFLOW.md)。
 
 TOOL 本期只提供调用和恢复契约，不定义 START／ROUTER／JOIN 的完整 DSL、可视化画布或通用检查点引擎。这些功能独立规划时仍须复用本工具网关和领域规则。
 
@@ -2043,8 +2056,8 @@ NF，并在实施任务中落实负责人。
 | FR-14.2  | 重新生成必须遵守用户选择的新鲜度意图           | UT-05        | §10.8        | ToolChatRun.submit                              | AC-39               | S4        |
 | FR-15.1  | 只允许调用已验收的远端协议能力                 | UT-07        | §5.4—5.5     | HTTP／MCP 适配                                  | AC-22               | S5        |
 | FR-15.2  | 远端结果查询不得重发原业务调用                 | UT-06        | §8.8         | ToolOutcomeQueryAdapter                         | AC-33               | S5        |
-| FR-16.1  | 工作流逻辑步骤必须保存原 Invocation 身份       | UT-07        | §10.7        | 工作流消费契约                                  | AC-26               | S6        |
-| FR-16.2  | 工作流调度恢复不得重做未知写入                 | UT-06        | §10.7        | 原结果／UNKNOWN                                 | AC-13、AC-26        | S6        |
+| FR-16.1  | 工作流逻辑步骤必须保存原 Invocation 身份       | UT-07        | §10.7        | ToolWorkflowStep／WorkflowToolExecution         | AC-26               | S6-01     |
+| FR-16.2  | 工作流调度恢复不得重做未知写入                 | UT-06        | §10.7        | snapshot／WorkflowToolIntegrationTest           | AC-13、AC-26        | S6-01     |
 | FR-17.1  | Run 派发必须原子占用费用上界                   | UT-05        | §6.7         | RunBudgetAllocation                             | AC-10、AC-31、AC-32 | S4        |
 | FR-17.2  | 队列和执行容量必须遵守受信分类配额             | UT-02        | §13.7        | workClass／claim                                | AC-35、AC-36        | S2        |
 | FR-18.1  | 统计必须区分调用、尝试与未知事实               | UT-07        | §14.2        | getStatistics                                   | AC-27               | S6        |
