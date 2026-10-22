@@ -1434,7 +1434,7 @@ S2-07 增加 prepareDefaultBinding 后管理入口为 17 个。S2-08 增加 prev
 | 结果核对列表／详情（已实现）   | listReconciliations / getReconciliation | scope、筛选／invocationId；当前可见证据摘要及处理责任方                                                            |
 | 请求检查原结果（已实现）       | requestOutcomeCheck                     | scope、invocationId、expectedVersion；只排队有界查询，不重新执行工具                                               |
 | 人工提交领域结果证据（已实现） | confirmOutcome                          | scope、原执行／Attempt、expectedVersion、证据身份／结论／结果引用；核对回执                                        |
-| 执行列表／统计                 | listExecutions / getStatistics          | scope、时间窗口、筛选；授权列表／指标                                                                              |
+| 执行列表／统计（S6-02 已实现） | listExecutions / getStatistics          | 本人当前空间、受理时间窗口及筛选；有界候选、当前授权列表／样本统计，返回截断及历史覆盖信息                         |
 
 提供者为部署登记，不提供任意 URL 的通用新建／编辑入口。当前只查询及完整本地刷新，单提供者同步／启停待后续。远端 Secret 授权实现后
 saveBinding 才能选择有权使用的引用；当前本地绑定拒绝非空 secrets。
@@ -1759,6 +1759,16 @@ W3 验证。短类执行达到受信上限后保留实际派发事实，不能�
 
 ### 14.2 统计口径
 
+S6-02 已实现当前用户在当前空间的 `listExecutions`／`getStatistics` 和工具页“执行记录与统计”。 窗口按权威
+Invocation.acceptedAt 的 `[from, until)` 筛选，最长 31 天；列表每页最多 20 条、扫描 50 个候选，统计扫描最新 100 个候选。
+owner／时间／绑定使用受理同事务保存的小型查询投影及索引；toolId／状态与当前可见性在候选内过滤。响应明确返回扫描上限、截断、
+历史未回填和已应用窗口，不提供跨用户管理聚合或财务全量报表。增量 SQL 须由部署方执行，启动不执行回填。
+完整契约和升级方法见 [执行记录与统计](backend/arte-ai/TOOL_OBSERVATION.md)。
+
+当前 API 的耗时是受理／审批／Attempt／当前终态之间的耐久记录跨度，不等同于适配器实际执行或物理提交时长。
+这些独立阶段仍由现有阶段日志定位，缺少可靠事实的输出字节及远端业务计量明确不可用；历史输入字节未知时单列，不补零。
+费用按最终账本事实确定，预留与待核对分开，币种及十进制金额不合并或转为浮点数。
+
 - 调用量按逻辑 Invocation 统计，重试 Attempt 单列；幂等重放不重复计数。
 - 成功率按已确定终态统计，UNKNOWN、等待审批和运行中分别展示，不归为普通成功或失败。
 - 展示受理、排队、审批等待、工具实际执行、结果提交及总耗时。
@@ -2060,7 +2070,7 @@ NF，并在实施任务中落实负责人。
 | FR-16.2  | 工作流调度恢复不得重做未知写入                 | UT-06        | §10.7        | snapshot／WorkflowToolIntegrationTest           | AC-13、AC-26        | S6-01     |
 | FR-17.1  | Run 派发必须原子占用费用上界                   | UT-05        | §6.7         | RunBudgetAllocation                             | AC-10、AC-31、AC-32 | S4        |
 | FR-17.2  | 队列和执行容量必须遵守受信分类配额             | UT-02        | §13.7        | workClass／claim                                | AC-35、AC-36        | S2        |
-| FR-18.1  | 统计必须区分调用、尝试与未知事实               | UT-07        | §14.2        | getStatistics                                   | AC-27               | S6        |
+| FR-18.1  | 统计必须区分调用、尝试与未知事实               | UT-07        | §14.2        | ToolObservationService／getStatistics           | AC-27               | S6-02     |
 | FR-18.2  | 成功终态必须引用已持久化的完整结果             | UT-02        | §8.3、§13.3  | getInvocationResult                             | AC-15               | S2        |
 | FR-19.1  | 普通用户必须能完成默认工具首次使用             | UT-01        | §11.2、§11.6 | 默认使用流程                                    | AC-37、AC-40        | S2        |
 | FR-19.2  | 切换空间后的迟到响应不得更新新空间状态         | UT-02        | §11.4        | 前端 scope 隔离                                 | AC-24               | S2        |

@@ -25,5 +25,6 @@ public interface ToolAdmissionMapper {
     Row accepted(@Param("owner") String ownerKey, @Param("binding") String bindingKey,
                  @Param("key") String idempotencyKey, @Param("current") boolean currentRead);
 
-    int insertToolSnapshot(@Param("r") Row row);
+    int insertToolSnapshot(@Param("r") Row row, @Param("acceptedAt") long acceptedAt,
+                           @Param("observation") String observation, @Param("observationDigest") String observationDigest);
 }

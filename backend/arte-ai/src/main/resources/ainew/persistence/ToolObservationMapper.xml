@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.ainew.persistence.mybatis.mapper.ToolObservationMapper">
+    <resultMap id="Row" type="com.arte.ainew.persistence.mybatis.mapper.ToolObservationMapper$Row">
+        <constructor>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="accepted_at" javaType="_long"/>
+            <arg column="observation" javaType="java.lang.String"/>
+            <arg column="observation_digest" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <resultMap id="Bill" type="com.arte.ainew.persistence.mybatis.mapper.BudgetMapper$ToolBill">
+        <constructor>
+            <arg column="owner_key" javaType="java.lang.String"/>
+            <arg column="invocation_key" javaType="java.lang.String"/>
+            <arg column="attempt_key" javaType="java.lang.String"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="snapshot" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="scan" resultMap="Row" useCache="false">
+        SELECT invocation_key,accepted_at,observation,observation_digest FROM arte_ai_tool_execution_snapshot
+        WHERE owner_key=#{owner} AND accepted_at &gt;= #{from} AND accepted_at &lt; #{until}
+        <if test="binding != null">AND binding_key=#{binding}</if>
+        <if test="afterAt != null">AND (accepted_at &lt; #{afterAt} OR (accepted_at=#{afterAt} AND invocation_key &lt;
+            #{afterKey}))
+        </if>
+        ORDER BY accepted_at DESC,invocation_key DESC LIMIT #{limit}
+    </select>
+    <select id="legacy" resultType="java.lang.String" useCache="false">
+        SELECT invocation_key FROM arte_ai_tool_execution_snapshot WHERE owner_key=#{owner} AND accepted_at=0 LIMIT 1
+    </select>
+    <select id="attempts" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_attempt WHERE invocation_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
+        ORDER BY invocation_key,attempt_number
+    </select>
+    <select id="approvals" resultType="java.lang.String" useCache="false">
+        SELECT snapshot FROM arte_ai_tool_approval WHERE owner_key=#{owner} AND invocation_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
+    </select>
+    <select id="settlements" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_settlement WHERE reservation_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
+        LIMIT 2001
+    </select>
+    <select id="bills" resultMap="Bill" useCache="false">
+        SELECT owner_key,invocation_key,attempt_key,payload_digest,charge_snapshot AS snapshot FROM arte_ai_tool_bill
+        WHERE owner_key=#{owner} AND invocation_key IN
+        <foreach collection="keys" item="key" open="(" close=")" separator=",">#{key}</foreach>
+    </select>
+</mapper>

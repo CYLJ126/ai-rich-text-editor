@@ -80,6 +80,7 @@ public class ToolExecutionAssemblyTest {
             refresh(context);
             assertNotNull(context.getBean(ToolAdmissionService.class));
             assertNotNull(context.getBean(com.arte.ainew.api.orchestrator.WorkflowToolExecution.class));
+            assertNotNull(context.getBean(com.arte.ainew.application.tool.observation.ToolObservationService.class));
             assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolApprovalStore.class));
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalService.class).isEmpty());
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.approval.ToolApprovalRecovery.class).isEmpty());

@@ -97,4 +97,38 @@ public class ReadOperationSnapshotTest {
         holder.revoked = true;
         assertThrows(AccessDeniedException.class, () -> auth.requireWrite(context, AdmissionAuthorization.READ).block(Duration.ofSeconds(5)));
     }
+
+    @Test
+    public void freshReadRechecksEligibilityWithoutRemovingReadOnlyBoundary() {
+        login("alice");
+        var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
+        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        factory.readCurrent(request(), false, context -> auth.requireFreshRead(context, AdmissionAuthorization.READ)
+                .flatMap(fresh -> {
+                    assertEquals(context, fresh);
+                    return auth.requireWrite(fresh, AdmissionAuthorization.READ)
+                            .thenReturn(false).onErrorResume(IllegalStateException.class, ignored -> Mono.just(true));
+                })).doOnNext(value -> assertTrue(value)).block(Duration.ofSeconds(5));
+        assertEquals(2, holder.reads.get());
+        assertEquals(0, holder.writes.get());
+
+        assertThrows(AccessDeniedException.class, () -> factory.readCurrent(request(), false, context -> {
+            holder.revoked = true;
+            return auth.requireFreshRead(context, AdmissionAuthorization.READ);
+        }).block(Duration.ofSeconds(5)));
+        assertEquals(4, holder.reads.get());
+        assertEquals(0, holder.writes.get());
+    }
+
+    @Test
+    public void freshReadCannotUseSnapshotBoundToDifferentContext() {
+        login("alice");
+        var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
+        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        assertThrows(AccessDeniedException.class, () -> factory.readCurrent(request(), false,
+                        context -> auth.requireFreshRead(context.child("other", context.deadline(), Set.of(AdmissionAuthorization.READ), null), AdmissionAuthorization.READ))
+                .block(Duration.ofSeconds(5)));
+        assertEquals(1, holder.reads.get());
+        assertEquals(0, holder.writes.get());
+    }
 }

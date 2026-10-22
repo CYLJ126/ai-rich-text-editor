@@ -124,7 +124,8 @@ final class ToolAcceptanceRig implements AutoCloseable {
 
     MockMvc mvc(ApplicationContext c, boolean observed) {
         var http = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
-        var builder = standaloneSetup(new NewAiToolReconciliationController(c.getBeanProvider(com.arte.ainew.application.tool.outcome.ToolReconciliationService.class), c.getBean(ToolManagementAccess.class)), new NewAiToolApprovalController(c.getBeanProvider(ToolApprovalService.class), http, c.getBean(NewAiProperties.class)), new NewAiToolController(c.getBean(ToolManagementService.class),
+        var builder = standaloneSetup(new com.arte.ainew.web.controller.NewAiToolObservationController(c.getBean(com.arte.ainew.application.tool.observation.ToolObservationService.class), http, c.getBean(NewAiProperties.class)),
+                new NewAiToolReconciliationController(c.getBeanProvider(com.arte.ainew.application.tool.outcome.ToolReconciliationService.class), c.getBean(ToolManagementAccess.class)), new NewAiToolApprovalController(c.getBeanProvider(ToolApprovalService.class), http, c.getBean(NewAiProperties.class)), new NewAiToolController(c.getBean(ToolManagementService.class),
                         c.getBean(ToolManagementAccess.class)),
                 new NewAiToolSubmissionController(c.getBeanProvider(ToolAdmissionService.class), http, c.getBean(NewAiProperties.class)),
                 new NewAiInvocationController(c.getBean(ExecutionControl.class),

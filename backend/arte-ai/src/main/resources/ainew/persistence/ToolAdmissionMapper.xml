@@ -27,8 +27,8 @@
     </select>
     <insert id="insertToolSnapshot">
         INSERT INTO arte_ai_tool_execution_snapshot(invocation_key,owner_key,binding_key,idempotency_key,
-        submission_digest,request_digest,payload_digest,snapshot)
+        submission_digest,request_digest,payload_digest,snapshot,accepted_at,observation,observation_digest)
         VALUES(#{r.invocationKey},#{r.ownerKey},#{r.bindingKey},#{r.idempotencyKey},
-        #{r.submissionDigest},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot})
+        #{r.submissionDigest},#{r.requestDigest},#{r.payloadDigest},#{r.snapshot},#{acceptedAt},#{observation},#{observationDigest})
     </insert>
 </mapper>

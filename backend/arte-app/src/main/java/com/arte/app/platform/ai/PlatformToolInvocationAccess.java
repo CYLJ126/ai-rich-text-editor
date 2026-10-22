@@ -5,6 +5,7 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.app.platform.identity.RbacIdentityProvider;
@@ -59,6 +60,25 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
     @Override
     public Mono<Permit> authorize(Invocation invocation, ExecutionContext context, Operation operation) {
         return authorizeOwner(ExecutionOwner.from(invocation.request().context()), context, operation);
+    }
+
+    /**
+     * 本人同空间历史的宿主规则只依赖完整 owner、当前账户、空间和 RBAC。
+     * 每条记录先核对归属，再以一次原有门控取得本批公共资格；返回前下一批必须重新读取。
+     * 不扩大到其他主体／空间，不缓存允许决定，也不提供取消用的写许可。
+     */
+    @Override
+    public Mono<List<ReadPermit>> authorizeReadBatch(List<Invocation> invocations, ExecutionContext context) {
+        var batch = List.copyOf(invocations);
+        if (batch.size() > 100) return Mono.error(new IllegalArgumentException("Tool read batch exceeds limit"));
+        var owner = ExecutionOwner.from(context);
+        for (var invocation : batch)
+            if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL
+                    || !owner.equals(ExecutionOwner.from(invocation.request().context())))
+                return Mono.error(denied());
+        if (batch.isEmpty()) return Mono.just(List.of());
+        return authorizeOwner(owner, context, Operation.READ).map(permit -> batch.stream()
+                .map(invocation -> new ReadPermit(invocation.request().context().executionId(), permit.authorization())).toList());
     }
 
     /**

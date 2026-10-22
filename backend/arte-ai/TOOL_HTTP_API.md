@@ -1,5 +1,8 @@
 # AI TOOL HTTP API（管理与独立调用）
 
+> S6-02 新增 `listExecutions`／`getStatistics` 及工具页“执行记录与统计”，范围为本人当前空间；
+> 需要先部署受理查询投影及索引的增量 SQL。窗口、扫描截断、费用未知及升级步骤见 [执行记录与统计](TOOL_OBSERVATION.md)。
+
 > S6-01 提供内部 Java 工作流消费契约，不新增 HTTP 路由或可视化工作流页面。步骤身份、恢复和现有执行／预算边界见
 > [工作流消费说明](TOOL_WORKFLOW.md)。
 

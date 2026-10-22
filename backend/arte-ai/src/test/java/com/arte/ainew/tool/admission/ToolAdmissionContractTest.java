@@ -67,6 +67,16 @@ public class ToolAdmissionContractTest {
         var incremental = Files.readString(Path.of("scripts/arte-ai-tool-admission-migration.sql"));
         int start = baseline.indexOf("create table arte_ai_tool_execution_snapshot\n");
         int end = baseline.indexOf(';', start) + 1;
-        assertEquals(incremental.substring(incremental.indexOf("create table ")).trim(), baseline.substring(start, end).trim());
+        int incrementalStart = incremental.indexOf("create table ");
+        int incrementalEnd = incremental.indexOf(';', incrementalStart) + 1;
+        assertEquals(incremental.substring(incrementalStart, incrementalEnd).trim().replaceAll("\\s+", " "),
+                baseline.substring(start, end).trim().replaceAll("\\s+", " "));
+        for (var index : java.util.List.of("idx_tool_observation_time", "idx_tool_observation_binding")) {
+            String prefix = "create index " + index;
+            int originalIndex = baseline.indexOf(prefix), incrementalIndex = incremental.indexOf(prefix);
+            assertTrue(originalIndex >= 0 && incrementalIndex >= 0);
+            assertEquals(baseline.substring(originalIndex, baseline.indexOf(';', originalIndex) + 1).replaceAll("\\s+", " "),
+                    incremental.substring(incrementalIndex, incremental.indexOf(';', incrementalIndex) + 1).replaceAll("\\s+", " "));
+        }
     }
 }

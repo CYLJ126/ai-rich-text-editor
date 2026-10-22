@@ -57,6 +57,9 @@ import static com.arte.ainew.serialization.CanonicalJson.key;
 @Slf4j
 public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
 
+    private record Encoded(String snapshot, String observation) {
+    }
+
     public static final int MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
     private final ToolAdmissionMapper mapper;
     private final ToolApprovalMapper approvals;
@@ -168,8 +171,9 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
         return Mono.fromCallable(() -> {
                     String encoded = CanonicalJson.normalize(codec.encode(candidate));
                     ContractChecks.require(encoded.getBytes(StandardCharsets.UTF_8).length <= MAX_SNAPSHOT_BYTES, "Tool execution snapshot exceeds byte limit");
-                    return encoded;
-                }).subscribeOn(scheduler).flatMap(encoded -> io(() -> {
+                    return new Encoded(encoded, com.arte.ainew.pojo.tool.ToolObservationMetadata.from(candidate).encode());
+                }).subscribeOn(scheduler).flatMap(material -> io(() -> {
+                    var encoded = material.snapshot();
                     var context = candidate.request().context();
                     var newlyAccepted = new AtomicBoolean();
                     observeTransaction(context, newlyAccepted);
@@ -232,7 +236,8 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                         executions.validateToolChatSnapshotInCurrentTransaction(candidate);
                         var row = new ToolAdmissionMapper.Row(key(context.executionId()), ownerKey, bindingKey, idem,
                                 candidate.submissionDigest(), candidate.requestDigest(), CanonicalJson.sha256(encoded), encoded);
-                        if (mapper.insertToolSnapshot(row) != 1)
+                        var observation = material.observation();
+                        if (mapper.insertToolSnapshot(row, outcome.value().acceptedAt().toEpochMilli(), observation, CanonicalJson.sha256(observation)) != 1)
                             throw new IllegalStateException("Tool execution snapshot was not recorded");
                         if (plan != null) {
                             if (!executions.databaseTimeInCurrentTransaction().isBefore(plan.expiresAt()))

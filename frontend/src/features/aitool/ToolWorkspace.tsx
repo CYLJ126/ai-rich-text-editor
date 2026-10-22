@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import ToolApprovalInbox from './ToolApprovalInbox';
 import ToolReconciliationInbox from './ToolReconciliationInbox';
+import ToolObservationPanel from './ToolObservationPanel';
 import {
   Alert,
   Button,
@@ -157,6 +158,7 @@ export default function ToolWorkspace({
         activeKey={tab}
         onChange={setTab}
         items={[
+          {key: 'observation', label: '执行记录与统计', children: <ToolObservationPanel context={{userId, scope}}/>},
           {key: 'reconciliations', label: '结果核对', children: <ToolReconciliationInbox context={{userId, scope}}/>},
           {key: 'approvals', label: '确认与审批', children: <ToolApprovalInbox context={{userId, scope}}/>},
           {

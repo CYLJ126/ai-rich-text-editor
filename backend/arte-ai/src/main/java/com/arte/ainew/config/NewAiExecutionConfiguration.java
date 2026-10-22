@@ -39,6 +39,15 @@ import java.time.Clock;
 @EnableConfigurationProperties({NewAiExecutionProperties.class, NewAiEventProperties.class})
 public class NewAiExecutionConfiguration {
 
+    @Bean
+    com.arte.ainew.application.tool.observation.ToolObservationService toolObservationService(
+            NewAiProperties properties, org.springframework.beans.factory.ListableBeanFactory beans, com.arte.ainew.spi.persistence.ExecutionRecordCodec codec,
+            @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock) {
+        return new com.arte.ainew.application.tool.observation.ToolObservationService(
+                new com.arte.ainew.persistence.mybatis.MybatisToolObservationStore(beans.getBean(properties.dataSourceBean(), javax.sql.DataSource.class), codec, scheduler),
+                authorization, clock);
+    }
+
     @Bean("newAiLiveTextNotifier")
     LiveTextNotifier liveTextNotifier() {
         return new LiveTextNotifier();
