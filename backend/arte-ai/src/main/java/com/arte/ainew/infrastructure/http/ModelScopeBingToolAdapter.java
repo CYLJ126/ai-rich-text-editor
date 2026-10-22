@@ -127,9 +127,9 @@ public final class ModelScopeBingToolAdapter implements McpToolAdapter {
     }
 
     private static ConnectionDefinition getConnectionDef() {
-        DefinitionRef definition = new DefinitionRef("connection", "mcp-bing-cn", "1.0.0");
+        DefinitionRef definition = new DefinitionRef("connection", "mcp-bing-cn", "1.0.1");
         String providerId = "modelscope.net";
-        URI endpoint = URI.create("https://mcp.api-inference.modelscope.net/1b80eab7c05340/mcp");
+        URI endpoint = URI.create("https://mcp.api-inference.modelscope.net/207e37952c6c4e/mcp");
         DefinitionRef credential = null;
         ConnectionDefinition.State state = ConnectionDefinition.State.ENABLED;
         Duration connectTimeout = Duration.ofSeconds(10);
@@ -175,7 +175,7 @@ public final class ModelScopeBingToolAdapter implements McpToolAdapter {
                 ),
                 // Demo：总期限 30 秒、一次尝试、输入 4 KiB、输出 32 KiB。
                 new ToolExecutionPolicy(
-                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(60),
                         1,
                         Duration.ZERO,
                         4 * 1024,
