@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import * as api from '@/services/arte-ai';
@@ -9,8 +9,21 @@ import {clearAccountSession, readOperation, readValue, saveOperation, storageKey
 import MarkdownText from './MarkdownText';
 import BusinessChatPanel from './BusinessChatPanel';
 import ReconciliationPanel from './ReconciliationPanel';
+import {discoverToolChat, submitToolChat} from '@/services/arte-ai/toolChat';
+import {listToolBindings} from '@/services/arte-ai/tool';
+import {availableToolBudgets} from '@/services/arte-ai/toolInvocation';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
+vi.mock('@/services/arte-ai/toolChat', async original => ({
+  ...(await original<typeof import('@/services/arte-ai/toolChat')>()),
+  discoverToolChat: vi.fn(),
+  submitToolChat: vi.fn(),
+}));
+vi.mock('@/services/arte-ai/tool', () => ({listToolBindings: vi.fn()}));
+vi.mock('@/services/arte-ai/toolInvocation', async original => ({
+  ...(await original<typeof import('@/services/arte-ai/toolInvocation')>()),
+  availableToolBudgets: vi.fn(),
+}));
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
   getConversation: vi.fn(),
@@ -258,7 +271,7 @@ it('renders GFM tables and code while rejecting raw HTML and unsafe links', () =
 it('keeps Shift+Enter and composing Enter from sending, then allows ordinary Enter', async () => {
   render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
                             t={t} onUpdated={vi.fn()} onConfigurationRejected={vi.fn()} onChooseModel={vi.fn()}
-                            onInteraction={vi.fn()}/>);
+                            onInteraction={vi.fn()} onOpenToolSettings={vi.fn()}/>);
   await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).toBeDisabled());
   const input = screen.getByLabelText('输入问题');
   fireEvent.change(input, {target: {value: '中文问题'}});
@@ -271,6 +284,81 @@ it('keeps Shift+Enter and composing Enter from sending, then allows ordinary Ent
   fireEvent.compositionEnd(input);
   fireEvent.keyDown(input, {key: 'Enter'});
   await waitFor(() => expect(api.turnsForChat).toHaveBeenCalledTimes(1));
+});
+
+it('shares sidebar tool settings with the composer and submission, then resets them for another conversation', async () => {
+  vi.mocked(discoverToolChat).mockResolvedValue(result({enabled: true}));
+  vi.mocked(listToolBindings).mockResolvedValue(result({
+    records: [{
+      bindingId: 'count',
+      toolId: 'count',
+      version: 'v1',
+      name: '文字统计',
+      enabled: true,
+      createdAt: '',
+      updatedAt: ''
+    }],
+    scanned: 1, exhausted: true, nextCursor: null,
+  }));
+  vi.mocked(availableToolBudgets).mockResolvedValue(result({price: null, accounts: []}));
+  vi.mocked(submitToolChat).mockRejectedValue(new TypeError('network'));
+  const options: api.ChatModelOption[] = [{
+    displayName: '工具模型', binding: request.binding, capability: request.capability,
+    contextWindowTokens: 65536, toolCallsSupported: true, budgetRefs: ['budget'],
+    limits: {
+      maxInputTokens: 32768,
+      maxOutputTokens: 4096,
+      maxInputBytes: 100000,
+      maxOutputBytes: 100000,
+      maxTimeoutSeconds: 120
+    },
+    defaults: {maxInputTokens: 32768, maxOutputTokens: 512, timeoutSeconds: 60},
+  }];
+
+  function Harness({conversationId = 'conversation'}: { conversationId?: string }) {
+    const [target, setTarget] = useState<HTMLDivElement | null>(null);
+    const [active, setActive] = useState(false);
+    return <>
+      <aside aria-label="工具侧栏" hidden={!active}>
+        <div ref={setTarget}/>
+      </aside>
+      <button onClick={() => setActive(false)}>收起工具侧栏</button>
+      <BusinessChatPanel key={conversationId} config={config} context={context}
+                         conversation={{...conversation, conversationId}} options={options} dirty={false}
+                         t={t} onUpdated={vi.fn()} onConfigurationRejected={vi.fn()} onChooseModel={vi.fn()}
+                         onInteraction={vi.fn()} onOpenToolSettings={() => setActive(true)}
+                         toolSettingsContainer={target} toolSettingsActive={active}/>
+    </>;
+  }
+
+  const view = render(<Harness/>);
+  expect(discoverToolChat).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '工具设置'}));
+  const toggle = screen.getByRole('switch', {name: '允许助手调用工具'});
+  expect(toggle.closest('aside')).toHaveAccessibleName('工具侧栏');
+  await waitFor(() => expect(toggle).toBeEnabled());
+  fireEvent.click(toggle);
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '允许使用的工具'}));
+  fireEvent.click(await screen.findByText('文字统计'));
+  expect(screen.getByRole('button', {name: '工具已开启 · 1 项'})).toBeEnabled();
+  fireEvent.change(screen.getByRole('textbox', {name: '工具聊天总费用上限'}), {target: {value: '2.50'}});
+  fireEvent.click(screen.getByRole('button', {name: '收起工具侧栏'}));
+  fireEvent.click(screen.getByRole('button', {name: '工具已开启 · 1 项'}));
+  expect(screen.getByRole('textbox', {name: '工具聊天总费用上限'})).toHaveValue('2.50');
+  fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '统计这段文字'}});
+  await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', {name: '发送'}));
+  await waitFor(() => expect(submitToolChat).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(submitToolChat).mock.calls[0][0]).toMatchObject({
+    conversationId: 'conversation', toolBindingIds: ['count'],
+    budgetLimits: [{currency: 'CNY', amount: '2.50'}],
+  });
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+  expect(screen.getByRole('switch', {name: '允许助手调用工具'})).toBeDisabled();
+  view.rerender(<Harness conversationId="another-conversation"/>);
+  expect(screen.getByRole('switch', {name: '允许助手调用工具'})).not.toBeChecked();
+  expect(screen.getByRole('button', {name: '工具设置'})).toBeInTheDocument();
+  expect(screen.queryByRole('textbox', {name: '工具聊天总费用上限'})).toBeNull();
 });
 
 it('restores a reconciliation and queries the receipt without issuing a new charge', async () => {

@@ -2,7 +2,7 @@ import {useCallback, useLayoutEffect, useReducer, useRef} from 'react';
 
 export type ChatRegion = 'list' | 'chat' | 'settings';
 export type ChatLayoutMode = 'three' | 'two' | 'single';
-export const SIDE_MIN = 300;
+export const SIDE_MIN = 350;
 export const CHAT_MIN = 480;
 export const layoutMode = (width: number): ChatLayoutMode => width >= 1080 ? 'three' : width >= 780 ? 'two' : 'single';
 

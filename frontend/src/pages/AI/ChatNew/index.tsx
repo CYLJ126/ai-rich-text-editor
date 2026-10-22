@@ -17,9 +17,19 @@ import {
   Spin,
   Tabs,
   Tag,
+  Tooltip,
   Typography
 } from 'antd';
-import {LockOutlined} from '@ant-design/icons';
+import {
+  AppstoreOutlined,
+  FileWordOutlined,
+  FunctionOutlined,
+  GoldOutlined,
+  HomeOutlined,
+  LockOutlined,
+  MessageOutlined,
+  RobotOutlined
+} from '@ant-design/icons';
 import {aiReadAccessIssue} from '@/features/ainew/accessFeedback';
 import type {AiScope, ChatModelOption} from '@/services/arte-ai';
 import {
@@ -124,6 +134,7 @@ function WorkspaceChat({
   }, [selectedId]);
   const layout = useChatLayout();
   const [tab, setTab] = useState('models');
+  const [toolSettingsContainer, setToolSettingsContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (workspaceRevision > 0) {
       setTab('workspace');
@@ -365,11 +376,19 @@ function WorkspaceChat({
           className="ainew-settings-header"><Typography.Text strong>设置与管理</Typography.Text>
       <Button type="text" aria-label="收起设置侧栏" icon={<DynamicIcon iconName="MenuFoldOutlined"/>}
               onClick={() => layout.close('settings')}/></Flex>
-    <Tabs activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
-      {key: 'workspace', label: '工作空间', forceRender: true, children: workspaceManager},
+    <Tabs className="ainew-settings-tabs" tabBarGutter={0}
+          activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
+      {
+        key: 'workspace',
+        label: '',
+        icon: <Tooltip title='工作空间'><HomeOutlined aria-label="工作空间"/></Tooltip>,
+        forceRender: true,
+        children: workspaceManager
+      },
       {
         key: 'settings',
-        label: '会话设置',
+        label: '',
+        icon: <Tooltip title='会话设置'><MessageOutlined aria-label="会话设置"/></Tooltip>,
         children: <>
           <Descriptions column={1} size="small" className="ainew-info" items={[
             {
@@ -411,7 +430,8 @@ function WorkspaceChat({
       },
       {
         key: 'models',
-        label: '模型管理',
+        label: '',
+        icon: <Tooltip title='模型管理'><AppstoreOutlined aria-label="模型管理"/></Tooltip>,
         children: <>
           <Typography.Paragraph>当前可用目录；连接和发布配置由服务器维护。</Typography.Paragraph>{!options.length &&
           (optionsState?.loading ? <Flex align="center" gap={8} role="status" className="ainew-loading">
@@ -435,8 +455,15 @@ function WorkspaceChat({
           </Card>)}</>
       },
       {
+        key: 'assistants',
+        label: '',
+        icon: <Tooltip title='助手管理'><RobotOutlined aria-label="助手管理"/></Tooltip>,
+        children: <Typography.Paragraph>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</Typography.Paragraph>
+      },
+      {
         key: 'workspace-ai',
-        label: '空间 AI 配置',
+        label: '',
+        icon: <Tooltip title='空间 AI 配置'><GoldOutlined aria-label="空间 AI 配置"/></Tooltip>,
         children: <WorkspaceAiSettings scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
                                        onUpdated={() => {
                                          setDiscoveryRefresh(value => ({
@@ -446,13 +473,18 @@ function WorkspaceChat({
                                        }}/>
       },
       {
-        key: 'assistants',
-        label: '助手管理',
-        children: <Typography.Paragraph>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</Typography.Paragraph>
+        key: 'ai-tool',
+        label: '',
+        icon: <Tooltip title='工具配置'><FunctionOutlined aria-label="工具配置"/></Tooltip>,
+        children: <div ref={setToolSettingsContainer}>
+          {(!conversations.selected || conversations.detailLoading || !!conversations.detailError) &&
+            <Typography.Paragraph>请选择并加载一个会话后设置本次聊天的工具。</Typography.Paragraph>}
+        </div>
       },
       {
         key: 'knowledge',
-        label: '知识库引用',
+        label: '',
+        icon: <Tooltip title='知识库引用'><FileWordOutlined aria-label="知识库引用"/></Tooltip>,
         children: <Typography.Paragraph>知识库引用将在后续版本开放，当前回答不会从文章知识库检索。</Typography.Paragraph>
       },
     ]}/>
@@ -540,6 +572,12 @@ function WorkspaceChat({
                                t={t}
                                onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
                                onInteraction={setInteraction}
+                               onOpenToolSettings={() => {
+                                 setTab('ai-tool');
+                                 layout.open('settings');
+                               }}
+                               toolSettingsContainer={toolSettingsContainer}
+                               toolSettingsActive={layout.visible.settings && tab === 'ai-tool'}
                                writable={workspace.state === 0 || workspace.state === null}/>
             : conversations.listLoading ?
               <Flex vertical align="center" justify="center" gap={16} className="ainew-empty" role="status">

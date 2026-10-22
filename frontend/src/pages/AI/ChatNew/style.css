@@ -437,6 +437,52 @@
   max-width: 100%;
 }
 
+/* 侧栏主标签等宽分配，图标尺寸与间距不影响内容区内的其他 Tabs。 */
+.ainew-settings-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+  flex: 1;
+  width: 100%;
+}
+
+.ainew-settings-tabs > .ant-tabs-nav .ant-tabs-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.ainew-settings-tabs > .ant-tabs-nav .ant-tabs-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 1;
+}
+
+.ainew-settings-tabs > .ant-tabs-nav .ant-tabs-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: 0;
+}
+
+.ainew-settings-tabs > .ant-tabs-nav .anticon {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.ainew-tool-settings,
+.ainew-tool-settings .ant-form-item-control-input-content {
+  min-width: 0;
+}
+
+.ainew-tool-settings .ant-form-item-label > label {
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ainew-model-card.ant-card {
   margin-bottom: 12px;
   min-width: 0;

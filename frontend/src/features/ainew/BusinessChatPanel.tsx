@@ -1,4 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {Alert, Button, Collapse, Descriptions, Drawer, Empty, Flex, Input, Select, Spin, Tag, Typography} from 'antd';
 import {
   AiApiError,
@@ -46,6 +47,9 @@ export default function BusinessChatPanel({
                                             onConfigurationRejected,
                                             onChooseModel,
                                             onInteraction,
+                                            onOpenToolSettings,
+                                            toolSettingsContainer,
+                                            toolSettingsActive = false,
                                             writable = true,
                                             location,
                                             onReturnLatest,
@@ -56,6 +60,9 @@ export default function BusinessChatPanel({
   onTitleUpdated?: (conversationId: string, value: ConversationTitleMetadata) => void;
   onConfigurationRejected: ConfigurationRejected; onChooseModel: (key: string) => void;
   onInteraction: (state: ChatInteractionState) => void; writable?: boolean;
+  onOpenToolSettings: () => void;
+  toolSettingsContainer?: HTMLElement | null;
+  toolSettingsActive?: boolean;
   location?: LocatedHistory | null; onReturnLatest?: () => void;
   onLocationInvalidated?: (error: unknown, target: LocatedHistory) => void;
 }) {
@@ -459,9 +466,10 @@ export default function BusinessChatPanel({
                         }
                       }}/>
       <Flex align="center" gap={8} wrap className="ainew-compose-actions">
-        <ToolChatSettings context={context} value={toolChoice} onChange={setToolChoice}
-                          disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
-                          currency={chat.budget?.currency} modelSupportsTools={option?.toolCallsSupported === true}/>
+        <Button disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
+                onClick={onOpenToolSettings}>
+          {toolChoice ? `工具已开启 · ${toolChoice.toolBindingIds.length} 项` : '工具设置'}
+        </Button>
         <Select aria-label="当前发送模型" placeholder="选择模型" value={config ? modelOptionKey({
           binding: {
             type: 'binding',
@@ -481,6 +489,13 @@ export default function BusinessChatPanel({
                 disabled={blocked || tooLarge || !chat.draft.trim()} onClick={sendMessage}>发送</Button>
       </Flex>
     </Flex>
+    {/* 表单呈现在侧栏，选择与执行限制仍由当前会话统一持有。 */}
+    {toolSettingsContainer && createPortal(
+      <ToolChatSettings context={context} active={toolSettingsActive} value={toolChoice} onChange={setToolChoice}
+                        disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
+                        currency={chat.budget?.currency} modelSupportsTools={option?.toolCallsSupported === true}/>,
+      toolSettingsContainer,
+    )}
     <Drawer title="预算与费用" open={fees} forceRender onClose={() => setFees(false)}>
       {config ? <><Button loading={chat.budgetLoading} onClick={() => void chat.loadBudget()}>刷新余额</Button>
         {chat.budget && <Descriptions column={1} size="small" className="ainew-info ainew-budget-info" items={[

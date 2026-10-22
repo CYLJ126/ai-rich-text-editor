@@ -37,23 +37,23 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 it('default text chat performs no tool discovery and cannot enable a server-disabled feature', async () => {
-  render(<ToolChatSettings context={context} value={null} onChange={vi.fn()} disabled={false} currency="CNY"/>);
+  const props = {context, value: null, onChange: vi.fn(), disabled: false, currency: 'CNY'};
+  const view = render(<ToolChatSettings {...props} active={false}/>);
   expect(discoverToolChat).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', {name: '工具设置'}));
+  view.rerender(<ToolChatSettings {...props} active/>);
   await waitFor(() => expect(discoverToolChat).toHaveBeenCalledTimes(1));
   expect(await screen.findByRole('switch', {name: '允许助手调用工具'})).toBeDisabled();
   expect(listToolBindings).not.toHaveBeenCalled();
 });
 it('a disabled or revoked service still lets the user turn off an existing tool selection', async () => {
   const changed = vi.fn();
-  render(<ToolChatSettings context={context} value={{
+  render(<ToolChatSettings active context={context} value={{
     toolBindingIds: ['count'],
     maxModelRounds: 8,
     maxToolCalls: 16,
     maxConcurrentTools: 2,
     budgetLimits: [{currency: 'CNY', amount: '1.00'}]
   }} onChange={changed} disabled={false} currency="CNY"/>);
-  fireEvent.click(screen.getByRole('button', {name: '工具已开启 · 1 项'}));
   await waitFor(() => expect(discoverToolChat).toHaveBeenCalledTimes(1));
   const toggle = await screen.findByRole('switch', {name: '允许助手调用工具'});
   expect(toggle).toBeEnabled();
@@ -65,9 +65,8 @@ it('does not enable tools for a text-only model even when the service is open', 
   vi.mocked(discoverToolChat).mockResolvedValue(reply({enabled: true}));
   vi.mocked(listToolBindings).mockResolvedValue(reply({records: [], scanned: 0, exhausted: true, nextCursor: null}));
   const changed = vi.fn();
-  render(<ToolChatSettings context={context} value={null} onChange={changed} disabled={false} currency="CNY"
+  render(<ToolChatSettings active context={context} value={null} onChange={changed} disabled={false} currency="CNY"
                            modelSupportsTools={false}/>);
-  fireEvent.click(screen.getByRole('button', {name: '工具设置'}));
   await screen.findByText('当前模型不支持工具调用，请切换到支持工具调用的模型。');
   await waitFor(() => expect(listToolBindings).toHaveBeenCalledTimes(1));
   expect(screen.getByRole('switch', {name: '允许助手调用工具'})).toBeDisabled();
@@ -82,6 +81,7 @@ it('keeps the model limit and adds a separate currency limit and fixed account f
   const changed = vi.fn();
   render(
     <ToolChatSettings
+      active
       context={context}
       value={{
         toolBindingIds: ['search'],
@@ -96,7 +96,6 @@ it('keeps the model limit and adds a separate currency limit and fixed account f
       modelSupportsTools
     />,
   );
-  fireEvent.click(screen.getByRole('button', {name: '工具已开启 · 1 项'}));
   fireEvent.click(await screen.findByRole('button', {name: '选择搜索预算'}));
   expect(changed).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -107,4 +106,30 @@ it('keeps the model limit and adds a separate currency limit and fixed account f
       ],
     }),
   );
+});
+
+it('aborts directory requests when the tab is hidden and checks again when reopened', async () => {
+  vi.mocked(discoverToolChat).mockImplementation(() => new Promise(() => {
+  }));
+  const props = {context, value: null, onChange: vi.fn(), disabled: false};
+  const view = render(<ToolChatSettings {...props} active/>);
+  await waitFor(() => expect(discoverToolChat).toHaveBeenCalledTimes(1));
+  const signal = vi.mocked(discoverToolChat).mock.calls[0][1]?.signal;
+  view.rerender(<ToolChatSettings {...props} active={false}/>);
+  expect(signal?.aborted).toBe(true);
+  expect(listToolBindings).not.toHaveBeenCalled();
+  view.rerender(<ToolChatSettings {...props} active/>);
+  await waitFor(() => expect(discoverToolChat).toHaveBeenCalledTimes(2));
+});
+
+it('keeps all editable settings disabled while the current conversation is busy or read-only', async () => {
+  render(<ToolChatSettings active context={context} value={{
+    toolBindingIds: [], maxModelRounds: 8, maxToolCalls: 16, maxConcurrentTools: 2,
+    budgetLimits: [{currency: 'CNY', amount: '1.00'}],
+  }} onChange={vi.fn()} disabled modelSupportsTools/>);
+  await waitFor(() => expect(discoverToolChat).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole('switch', {name: '允许助手调用工具'})).toBeDisabled();
+  expect(screen.getByRole('combobox', {name: '允许使用的工具'})).toBeDisabled();
+  expect(screen.getByRole('textbox', {name: '工具聊天总费用上限'})).toBeDisabled();
+  for (const input of screen.getAllByRole('spinbutton', {hidden: true})) expect(input).toBeDisabled();
 });

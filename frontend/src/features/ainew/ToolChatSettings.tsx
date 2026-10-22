@@ -1,6 +1,6 @@
 import ToolBudgetPicker from '@/features/aitool/ToolBudgetPicker';
 import React, {useEffect, useState} from 'react';
-import {Alert, Button, Drawer, Flex, Form, Input, InputNumber, Select, Switch, Typography,} from 'antd';
+import {Alert, Button, Flex, Form, Input, InputNumber, Select, Switch, Typography,} from 'antd';
 import {discoverToolChat, type ToolChatChoice,} from '@/services/arte-ai/toolChat';
 import {listToolBindings, type ToolBinding} from '@/services/arte-ai/tool';
 import {currentAiCredential} from '@/services/arte-ai/request';
@@ -9,6 +9,7 @@ import type {BrowserContext} from './storage';
 /** 按需发现当前可见绑定；选择只表达意图，实际可用性与写入审批由受理系统检查。 */
 export default function ToolChatSettings({
                                            context,
+                                           active,
                                            value,
                                            onChange,
                                            disabled,
@@ -16,14 +17,14 @@ export default function ToolChatSettings({
                                            modelSupportsTools = false,
                                          }: {
   context: BrowserContext;
+  active: boolean;
   value: ToolChatChoice | null;
   onChange: (value: ToolChatChoice | null) => void;
   disabled: boolean;
   currency?: string;
   modelSupportsTools?: boolean;
 }) {
-  const [open, setOpen] = useState(false),
-    [enabled, setEnabled] = useState(false),
+  const [enabled, setEnabled] = useState(false),
     [error, setError] = useState('');
   const [bindings, setBindings] = useState<ToolBinding[]>([]),
     [cursor, setCursor] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export default function ToolChatSettings({
     [loading, setLoading] = useState(false),
     [revision, setRevision] = useState(0);
   useEffect(() => {
-    if (!open) return;
+    if (!active) return;
     const controller = new AbortController(),
       credential = currentAiCredential();
     setLoading(true);
@@ -76,7 +77,7 @@ export default function ToolChatSettings({
     })();
     return () => controller.abort();
   }, [
-    open,
+    active,
     cursor,
     revision,
     context.userId,
@@ -94,195 +95,189 @@ export default function ToolChatSettings({
   const change = (patch: Partial<ToolChatChoice>) =>
     onChange({...choice, ...patch});
   return (
-    <>
-      <Button disabled={disabled} onClick={() => setOpen(true)}>
-        {value ? `工具已开启 · ${value.toolBindingIds.length} 项` : '工具设置'}
+    <Flex vertical gap={12} className="ainew-tool-settings">
+      <Typography.Text strong>本次聊天的工具</Typography.Text>
+      {error && <Alert type="warning" title={error}/>}
+      {!modelSupportsTools && (
+        <Alert type="warning" title="当前模型不支持工具调用，请切换到支持工具调用的模型。"/>
+      )}
+      {!enabled && !loading && !error && (
+        <Alert type="info" title="此环境尚未开放工具聊天"/>
+      )}
+      <Button
+        loading={loading}
+        onClick={() => {
+          setCursor(null);
+          setRevision((n) => n + 1);
+        }}
+      >
+        重新检查工具
       </Button>
-      <Drawer title="本次聊天的工具" open={open} onClose={() => setOpen(false)}>
-        <Flex vertical gap={12}>
-          {error && <Alert type="warning" title={error}/>}
-          {!modelSupportsTools && (
-            <Alert type="warning" title="当前模型不支持工具调用，请切换到支持工具调用的模型。"/>
-          )}
-          {!enabled && !loading && !error && (
-            <Alert type="info" title="此环境尚未开放工具聊天"/>
-          )}
-          <Button
-            loading={loading}
-            onClick={() => {
-              setCursor(null);
-              setRevision((n) => n + 1);
-            }}
-          >
-            重新检查工具
-          </Button>
-          <Form layout="vertical">
-            <Form.Item label="允许助手调用工具">
-              <Switch
-                aria-label="允许助手调用工具"
-                checked={!!value}
-                disabled={disabled || ((!enabled || !modelSupportsTools) && !value)}
-                onChange={(checked) => onChange(checked ? choice : null)}
+      <Form layout="vertical">
+        <Form.Item label="允许助手调用工具">
+          <Switch
+            aria-label="允许助手调用工具"
+            checked={!!value}
+            disabled={disabled || ((!enabled || !modelSupportsTools) && !value)}
+            onChange={(checked) => onChange(checked ? choice : null)}
+          />
+        </Form.Item>
+        {value && (
+          <>
+            <Form.Item label="允许使用的工具">
+              <Select
+                mode="multiple"
+                aria-label="允许使用的工具"
+                value={value.toolBindingIds}
+                disabled={disabled || !enabled}
+                optionFilterProp="label"
+                options={bindings
+                  .filter(
+                    (b) =>
+                      b.enabled ||
+                      value.toolBindingIds.includes(b.bindingId),
+                  )
+                  .map((b) => ({
+                    value: b.bindingId,
+                    label: b.name,
+                    disabled: !b.enabled,
+                  }))}
+                onChange={(toolBindingIds) => change({
+                  toolBindingIds,
+                  toolBudgetRefs: Object.fromEntries(
+                    Object.entries(value.toolBudgetRefs ?? {}).filter(
+                      ([id]) => toolBindingIds.includes(id),
+                    ),
+                  ),
+                })}
               />
             </Form.Item>
-            {value && (
-              <>
-                <Form.Item label="允许使用的工具">
-                  <Select
-                    mode="multiple"
-                    aria-label="允许使用的工具"
-                    value={value.toolBindingIds}
-                    disabled={disabled || !enabled}
-                    optionFilterProp="label"
-                    options={bindings
-                      .filter(
-                        (b) =>
-                          b.enabled ||
-                          value.toolBindingIds.includes(b.bindingId),
-                      )
-                      .map((b) => ({
-                        value: b.bindingId,
-                        label: b.name,
-                        disabled: !b.enabled,
-                      }))}
-                    onChange={(toolBindingIds) => change({
-                      toolBindingIds,
-                      toolBudgetRefs: Object.fromEntries(
-                        Object.entries(value.toolBudgetRefs ?? {}).filter(
-                          ([id]) => toolBindingIds.includes(id),
-                        ),
-                      ),
-                    })}
-                  />
-                </Form.Item>
-                {hasMore && (
-                  <Button
-                    loading={loading}
-                    onClick={() => setCursor(nextCursor.current)}
-                  >
-                    加载更多工具
-                  </Button>
-                )}
-                {value.toolBindingIds.map((bindingId) => (
-                  <Form.Item
-                    key={bindingId}
-                    label={`工具费用 · ${bindings.find((b) => b.bindingId === bindingId)?.name ?? bindingId}`}
-                  >
-                    <ToolBudgetPicker
-                      scope={context.scope}
-                      bindingId={bindingId}
-                      value={value.toolBudgetRefs?.[bindingId]}
-                      disabled={disabled}
-                      onChange={(budgetRef, price) => {
-                        const mapping = {...value.toolBudgetRefs};
-                        if (budgetRef) mapping[bindingId] = budgetRef;
-                        else delete mapping[bindingId];
-                        const limits =
-                          price &&
-                          !value.budgetLimits.some(
-                            (l) => l.currency === price.perCall.currency,
-                          )
-                            ? [
-                              ...value.budgetLimits,
-                              {
-                                currency: price.perCall.currency,
-                                amount: '0.00',
-                              },
-                            ]
-                            : value.budgetLimits;
-                        change({
-                          toolBudgetRefs: mapping,
-                          budgetLimits: limits,
-                        });
-                      }}
-                    />
-                  </Form.Item>
-                ))}
-                {value.budgetLimits.map((limit, index) => (
-                  <Form.Item
-                    key={limit.currency}
-                    label={`本次总费用上限（${limit.currency}）`}
-                >
-                  <Input
-                    aria-label={
-                      index === 0
-                        ? '工具聊天总费用上限'
-                        : `工具聊天总费用上限 ${limit.currency}`
-                    }
-                    disabled={disabled}
-                    value={limit.amount}
-                    onChange={(event) =>
-                      change({
-                        budgetLimits: value.budgetLimits.map((old, i) =>
-                          i === index
-                            ? {
-                              ...old,
-                            amount: event.target.value,
-                            }
-                            : old,
-                        ),
-                      })
-                    }
-                  />
-                </Form.Item>
-                ))}
-                <Typography.Paragraph type="secondary">
-                  这是本次模型与工具循环的共同上限，同时受原模型账户余额约束。收费工具须选择独立费用账户；模型轮次按模型账户计费。每种币种分别限制，金额使用十进制字符串。
-                </Typography.Paragraph>
-                {value.readOnly && (
-                  <Alert
-                    type="info"
-                    title="重新读取资料模式：服务端仅允许只读工具"
-                  />
-                )}
-                <details>
-                  <summary>高级限制</summary>
-                  <Form.Item label="最多模型轮数">
-                    <InputNumber
-                      min={1}
-                      max={32}
-                      disabled={disabled}
-                      value={value.maxModelRounds}
-                      onChange={(n) => n && change({maxModelRounds: n})}
-                    />
-                  </Form.Item>
-                  <Form.Item label="最多工具调用">
-                    <InputNumber
-                      min={1}
-                      max={100}
-                      disabled={disabled}
-                      value={value.maxToolCalls}
-                      onChange={(n) =>
-                        n &&
-                        change({
-                          maxToolCalls: n,
-                          maxConcurrentTools: Math.min(
-                            n,
-                            value.maxConcurrentTools,
-                          ),
-                        })
-                      }
-                    />
-                  </Form.Item>
-                  <Form.Item label="只读工具并发上限">
-                    <InputNumber
-                      min={1}
-                      max={Math.min(16, value.maxToolCalls)}
-                      disabled={disabled}
-                      value={value.maxConcurrentTools}
-                      onChange={(n) => n && change({maxConcurrentTools: n})}
-                    />
-                  </Form.Item>
-                </details>
-              </>
+            {hasMore && (
+              <Button
+                loading={loading}
+                onClick={() => setCursor(nextCursor.current)}
+              >
+                加载更多工具
+              </Button>
             )}
-          </Form>
-          <Typography.Paragraph>
-            模型将自行决定是否调用所选工具。写操作仍须经过原有权限与人工控制。总期限沿用已应用的模型设置，人工等待也占用该期限。
-          </Typography.Paragraph>
-          <Button href="/AI/Tools">管理我的工具配置</Button>
-        </Flex>
-      </Drawer>
-    </>
+            {value.toolBindingIds.map((bindingId) => (
+              <Form.Item
+                key={bindingId}
+                label={`工具费用 · ${bindings.find((b) => b.bindingId === bindingId)?.name ?? bindingId}`}
+              >
+                {active && <ToolBudgetPicker
+                  scope={context.scope}
+                  bindingId={bindingId}
+                  value={value.toolBudgetRefs?.[bindingId]}
+                  disabled={disabled}
+                  onChange={(budgetRef, price) => {
+                    const mapping = {...value.toolBudgetRefs};
+                    if (budgetRef) mapping[bindingId] = budgetRef;
+                    else delete mapping[bindingId];
+                    const limits =
+                      price &&
+                      !value.budgetLimits.some(
+                        (l) => l.currency === price.perCall.currency,
+                      )
+                        ? [
+                          ...value.budgetLimits,
+                          {
+                            currency: price.perCall.currency,
+                            amount: '0.00',
+                          },
+                        ]
+                        : value.budgetLimits;
+                    change({
+                      toolBudgetRefs: mapping,
+                      budgetLimits: limits,
+                    });
+                  }}
+                />}
+              </Form.Item>
+            ))}
+            {value.budgetLimits.map((limit, index) => (
+              <Form.Item
+                key={limit.currency}
+                label={`本次总费用上限（${limit.currency}）`}
+              >
+                <Input
+                  aria-label={
+                    index === 0
+                      ? '工具聊天总费用上限'
+                      : `工具聊天总费用上限 ${limit.currency}`
+                  }
+                  disabled={disabled}
+                  value={limit.amount}
+                  onChange={(event) =>
+                    change({
+                      budgetLimits: value.budgetLimits.map((old, i) =>
+                        i === index
+                          ? {
+                            ...old,
+                            amount: event.target.value,
+                          }
+                          : old,
+                      ),
+                    })
+                  }
+                />
+              </Form.Item>
+            ))}
+            <Typography.Paragraph type="secondary">
+              这是本次模型与工具循环的共同上限，同时受原模型账户余额约束。收费工具须选择独立费用账户；模型轮次按模型账户计费。每种币种分别限制，金额使用十进制字符串。
+            </Typography.Paragraph>
+            {value.readOnly && (
+              <Alert
+                type="info"
+                title="重新读取资料模式：服务端仅允许只读工具"
+              />
+            )}
+            <details>
+              <summary>高级限制</summary>
+              <Form.Item label="最多模型轮数">
+                <InputNumber
+                  min={1}
+                  max={32}
+                  disabled={disabled}
+                  value={value.maxModelRounds}
+                  onChange={(n) => n && change({maxModelRounds: n})}
+                />
+              </Form.Item>
+              <Form.Item label="最多工具调用">
+                <InputNumber
+                  min={1}
+                  max={100}
+                  disabled={disabled}
+                  value={value.maxToolCalls}
+                  onChange={(n) =>
+                    n &&
+                    change({
+                      maxToolCalls: n,
+                      maxConcurrentTools: Math.min(
+                        n,
+                        value.maxConcurrentTools,
+                      ),
+                    })
+                  }
+                />
+              </Form.Item>
+              <Form.Item label="只读工具并发上限">
+                <InputNumber
+                  min={1}
+                  max={Math.min(16, value.maxToolCalls)}
+                  disabled={disabled}
+                  value={value.maxConcurrentTools}
+                  onChange={(n) => n && change({maxConcurrentTools: n})}
+                />
+              </Form.Item>
+            </details>
+          </>
+        )}
+      </Form>
+      <Typography.Paragraph>
+        模型将自行决定是否调用所选工具。写操作仍须经过原有权限与人工控制。总期限沿用已应用的模型设置，人工等待也占用该期限。
+      </Typography.Paragraph>
+      <Button href="/AI/Tools">管理我的工具配置</Button>
+    </Flex>
   );
 }

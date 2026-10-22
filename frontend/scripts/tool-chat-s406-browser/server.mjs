@@ -207,6 +207,7 @@ const server = await createServer({
               version: 1,
             };
           else if (endpoint === 'discoverToolChat') data = {enabled: true};
+          else if (endpoint === 'availableToolBudgets') data = {price: null, accounts: []};
           else if (endpoint === 'listBindings')
             data = {
               records: [
