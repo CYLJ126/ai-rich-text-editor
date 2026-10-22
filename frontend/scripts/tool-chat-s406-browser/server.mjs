@@ -146,7 +146,32 @@ const server = await createServer({
           }
           const endpoint = req.url.split('/').at(-1);
           let data;
-          if (endpoint === 'getConversation')
+          if (endpoint === 'getWorkspacePreference')
+            data = {
+              defaultScope: {tenantId: 'tenant', workspaceId: 'workspace'},
+              startupScope: null, lastScope: null, favorites: [], version: 0,
+            };
+          else if (endpoint === 'browseAccessibleWorkspaces')
+            data = {
+              records: Array.from({length: 12}, (_, i) => ({
+                scope: {tenantId: 'tenant', workspaceId: i ? `workspace-${i + 1}` : 'workspace'},
+                name: `验收工作空间 ${i + 1}`, description: '用于验证侧栏竖向滚动',
+                state: 0, currentRole: 0, version: 0, defaultWorkspace: i === 0,
+              })),
+              nextCursor: null, exhausted: true,
+            };
+          else if (endpoint === 'getWorkspace')
+            data = {
+              scope: body.scope,
+              name: '验收工作空间 1',
+              description: '用于验证侧栏竖向滚动',
+              state: 0,
+              currentRole: 0,
+              version: 0
+            };
+          else if (endpoint === 'checkWorkspaceAccess')
+            data = {allowed: false, reason: 'FIXTURE_READ_ONLY', checkedAt: now};
+          else if (endpoint === 'getConversation')
             data = {
               conversationId: 'conversation',
               title: '工具聊天验收',

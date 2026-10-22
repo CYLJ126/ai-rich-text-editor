@@ -13,6 +13,7 @@ import {
 import BusinessChatPanel from '@/features/ainew/BusinessChatPanel';
 import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
 import {useChatLayout} from '@/features/ainew/useChatLayout';
+import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import {toolChatContext as context} from '@/features/ainew/toolChat.testdata';
 import type {ConversationResponse} from '@/services/arte-ai';
 import '@/pages/AI/ChatNew/style.css';
@@ -101,12 +102,17 @@ function App() {
                                    <Typography.Text strong>设置与管理</Typography.Text>
                                    <Button onClick={() => layout.close('settings')}>收起侧栏</Button>
                                  </Flex>
-                                 <Tabs className="ainew-settings-tabs" tabBarGutter={0}
+                                 <Tabs className={`ainew-settings-tabs${tab === 'workspace' ? ' is-workspace' : ''}`}
+                                       tabBarGutter={0}
                                        activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
                                    {
                                      key: 'workspace',
+                                     className: 'ainew-workspace-pane',
                                      label: '',
-                                     icon: <Tooltip title="工作空间"><HomeOutlined aria-label="工作空间"/></Tooltip>
+                                     icon: <Tooltip title="工作空间"><HomeOutlined aria-label="工作空间"/></Tooltip>,
+                                     forceRender: true,
+                                     children: <WorkspacePicker userId="workspace-scroll-fixture"
+                                                                presentation="inline"/>,
                                    },
                                    {
                                      key: 'settings',

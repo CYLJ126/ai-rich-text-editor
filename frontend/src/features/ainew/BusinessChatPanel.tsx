@@ -35,6 +35,7 @@ export interface ChatInteractionState {
   unsafeToLeave?: boolean
 }
 
+/** 聊天记录组件 */
 export default function BusinessChatPanel({
                                             config,
                                             conversation,
@@ -173,6 +174,7 @@ export default function BusinessChatPanel({
   const blocked = toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
   const regenerationBlocked = toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
   const tooLarge = !!option && new TextEncoder().encode(chat.draft.trim()).length > option.limits.maxInputBytes;
+
   useEffect(() => {
     onInteraction({
       pending: toolPending || toolCommand.busy || !!toolCommand.stop || pending || !!chat.pendingStop || chat.submitting || chat.stopping,
@@ -180,6 +182,7 @@ export default function BusinessChatPanel({
       unsafeToLeave: toolCommand.storageError || unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
     });
   }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy]);
+
   const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
   const visibleViews = located.active ? located.views : chat.invocations;
   const locatedAnchor = useRef<{ id: string; offset: number } | null>(null);
@@ -215,12 +218,14 @@ export default function BusinessChatPanel({
       if (turn) node.scrollTop += turn.getBoundingClientRect().top - node.getBoundingClientRect().top - saved.offset;
     }
   }, [location?.id, located.revision, located.active, runContentRevision]);
+
   useEffect(() => {
     if (!highlight) return;
     const timer = setTimeout(() => setHighlight(null), 2400);
     return () => clearTimeout(timer);
   }, [highlight, location?.id]);
   const wasLocated = useRef(located.active);
+
   useEffect(() => {
     if (wasLocated.current && !located.active) {
       following.current = true;
@@ -230,6 +235,7 @@ export default function BusinessChatPanel({
     }
     wasLocated.current = located.active;
   }, [located.active]);
+
   useEffect(() => {
     if (lastVersion.current !== conversation.version) {
       lastVersion.current = conversation.version;
@@ -237,6 +243,7 @@ export default function BusinessChatPanel({
       anchor.current = null;
     }
   }, [conversation.version]);
+
   useLayoutEffect(() => {
     const node = scroll.current;
     if (!node) return;
@@ -251,11 +258,13 @@ export default function BusinessChatPanel({
       node.scrollTop = node.scrollHeight;
     } else setNewContent(true);
   }, [chat.turns, chat.invocations, chat.historyLoading, runStates, runContentRevision, located.active]);
+
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
   const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。' : toolChoiceInvalid ? '请选择工具并填写模型及工具所需币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
+
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">
       <Button loading={located.active ? located.loading : chat.historyLoading} onClick={() => {
@@ -274,6 +283,8 @@ export default function BusinessChatPanel({
       located.dismiss();
       onReturnLatest?.();
     }}>返回最新聊天</Button>}/>}
+
+    {/* 消息记录列表 */}
     <Flex vertical ref={scroll} className="ainew-messages" aria-label="消息历史" onScroll={() => {
       const node = scroll.current!;
       if (located.active) {
@@ -324,6 +335,7 @@ export default function BusinessChatPanel({
         const text = result ? result.outputs.map(messageText).join('\n\n') : invocation?.streamText ?? '';
         const regenerate = !located.active && turn.sequence === chat.total && latest && !isActive(latest) && (latest.state !== 'UNKNOWN' || isUserStoppedGeneration(latest));
         const waitingForReply = !invocation?.status ? chat.historyLoading : isActive(invocation.status);
+
         return <Flex component="article" vertical className="ainew-turn" key={turn.turnId} data-turn-id={turn.turnId}>
           <Flex vertical className={`ainew-user${highlight === turn.userMessage.messageId ? ' is-search-target' : ''}`}
                 data-message-id={turn.userMessage.messageId}><Typography.Text>你</Typography.Text>

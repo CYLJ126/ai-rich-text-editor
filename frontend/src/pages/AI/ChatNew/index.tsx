@@ -132,7 +132,9 @@ function WorkspaceChat({
     setInvalidation(0);
     setExternalModel(undefined);
   }, [selectedId]);
+  // 布局，各栏状态、可见性、尺寸等计算
   const layout = useChatLayout();
+  // 右侧辅助栏显示哪个标签页
   const [tab, setTab] = useState('models');
   const [toolSettingsContainer, setToolSettingsContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -341,45 +343,53 @@ function WorkspaceChat({
     });
   }
 
-  const list = <ConversationDirectorySidebar directory={conversations} readBlocked={readBlocked}
-                                             search={search} onSearchOpen={openSearch}
-                                             writable={workspace.state === 0 || workspace.state === null}
-                                             onCreate={createConversation}
-                                             header={<ConversationDirectoryHeader userId={userId}
-                                                                                  scope={workspace.scope}
-                                                                                  name={workspace.name}
-                                                                                  writable={!readBlocked && (workspace.state === 0 || workspace.state === null)}
-                                                                                  creating={conversations.creating}
-                                                                                  pendingCreate={conversations.hasPendingCreate}
-                                                                                  onCreate={createConversation}
-                                                                                  refreshing={conversations.listLoading}
-                                                                                  searching={search.active}
-                                                                                  onRefresh={() => void conversations.refreshFirst()}
-                                                                                  onConnect={onConnect}
-                                                                                  onPlatformConfig={onPlatformConfig}
-                                                                                  onCollapse={() => layout.close('list')}
-                                                                                  onManage={() => {
-                                                                                    setTab('workspace');
-                                                                                    layout.open('settings');
-                                                                                  }}/>}
-                                             onOpen={id => guard(() => {
-                                               void conversations.select(id).then(opened => {
-                                                 if (opened) {
-                                                   setLocation(null);
-                                                   layout.open('chat');
-                                                 }
-                                               });
-                                             })}/>;
+  // 左侧会话列表
+  const list = <ConversationDirectorySidebar
+    directory={conversations} readBlocked={readBlocked}
+    search={search} onSearchOpen={openSearch}
+    writable={workspace.state === 0 || workspace.state === null}
+    onCreate={createConversation}
+    header={<ConversationDirectoryHeader
+      userId={userId}
+      scope={workspace.scope}
+      name={workspace.name}
+      writable={!readBlocked && (workspace.state === 0 || workspace.state === null)}
+      creating={conversations.creating}
+      pendingCreate={conversations.hasPendingCreate}
+      onCreate={createConversation}
+      refreshing={conversations.listLoading}
+      searching={search.active}
+      onRefresh={() => void conversations.refreshFirst()}
+      onConnect={onConnect}
+      onPlatformConfig={onPlatformConfig}
+      onCollapse={() => layout.close('list')}
+      onManage={() => {
+        setTab('workspace');
+        layout.open('settings');
+      }}/>}
+    onOpen={id => guard(() => {
+      void conversations.select(id).then(opened => {
+        if (opened) {
+          setLocation(null);
+          layout.open('chat');
+        }
+      });
+    })}/>;
 
+  // 右侧辅助栏
   const editor = <Flex component="aside" vertical className="ainew-settings" aria-label="辅助设置">
     <Flex component="header" align="center" justify="space-between" gap={4}
-          className="ainew-settings-header"><Typography.Text strong>设置与管理</Typography.Text>
+          className="ainew-settings-header">
+      <Typography.Text strong>设置与管理</Typography.Text>
       <Button type="text" aria-label="收起设置侧栏" icon={<DynamicIcon iconName="MenuFoldOutlined"/>}
-              onClick={() => layout.close('settings')}/></Flex>
-    <Tabs className="ainew-settings-tabs" tabBarGutter={0}
+              onClick={() => layout.close('settings')}/>
+    </Flex>
+    {/* 右侧辅助栏 */}
+    <Tabs className={`ainew-settings-tabs${tab === 'workspace' ? ' is-workspace' : ''}`} tabBarGutter={0}
           activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
       {
         key: 'workspace',
+        className: 'ainew-workspace-pane',
         label: '',
         icon: <Tooltip title='工作空间'><HomeOutlined aria-label="工作空间"/></Tooltip>,
         forceRender: true,
@@ -488,35 +498,39 @@ function WorkspaceChat({
         children: <Typography.Paragraph>知识库引用将在后续版本开放，当前回答不会从文章知识库检索。</Typography.Paragraph>
       },
     ]}/>
+
     <Flex vertical className="ainew-configuration" hidden={tab !== 'models'}>
       {dirty && <Tag color="orange">有未应用更改</Tag>}
       {cache.warning && <Alert type="warning" title={cache.warning}/>}
-      <ChatConfigurationForm sharedDiscovery={discovery} key={selectedId}
-                             draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
-                             initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
-                             fixedScope={workspace.scope} restored={cache.value} applied={config}
-                             invalidationRevision={editingId === selectedId ? invalidation : 0}
-                             externalModel={editingId === selectedId ? externalModel : undefined}
-                             applyRevision={editingId === selectedId ? applyRevision : 0}
-                             cancelRevision={editingId === selectedId ? cancelRevision : 0}
-                             refreshRevision={discoveryRefresh.id === selectedId ? discoveryRefresh.revision : 0}
-                             onOptions={(items, error, loading) => setOptionsState({
-                               id: selectedId,
-                               options: items,
-                               error,
-                               loading
-                             })}
-                             onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={activate}
-                             onRestore={activate}
-                             onCancel={cancel} onReset={() => {
+      <ChatConfigurationForm
+        sharedDiscovery={discovery} key={selectedId}
+        draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
+        initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
+        fixedScope={workspace.scope} restored={cache.value} applied={config}
+        invalidationRevision={editingId === selectedId ? invalidation : 0}
+        externalModel={editingId === selectedId ? externalModel : undefined}
+        applyRevision={editingId === selectedId ? applyRevision : 0}
+        cancelRevision={editingId === selectedId ? cancelRevision : 0}
+        refreshRevision={discoveryRefresh.id === selectedId ? discoveryRefresh.revision : 0}
+        onOptions={(items, error, loading) => setOptionsState({
+          id: selectedId,
+          options: items,
+          error,
+          loading
+        })}
+        onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={activate}
+        onRestore={activate}
+        onCancel={cancel} onReset={() => {
         setFormDraft(null);
         setConfigState(null);
         setDirtyState({id: selectedId, dirty: false});
         removeValue(storageKey(context, 'configuration', selectedId), true);
       }}
-                             t={t} translate={translate}/>
+        t={t} translate={translate}/>
     </Flex>
   </Flex>;
+
+  // 中间栏：消息列表 + 输入框
   const content = <Flex component="section" vertical className="ainew-main">
     <Flex component="header" align="center" justify="space-between" gap={8} wrap className="ainew-conversation-header">
       <Flex vertical className="ainew-conversation-heading"><Typography.Title
@@ -558,42 +572,48 @@ function WorkspaceChat({
         </Flex> : conversations.detailError ?
           <Alert type="error" title="会话详情读取失败" action={<Button
             onClick={() => conversations.selectedId && void conversations.select(conversations.selectedId)}>重试</Button>}/> : conversations.selected ?
-            <BusinessChatPanel key={conversations.selected.conversationId} context={context} config={config}
-                               location={location?.conversationId === selectedId ? location : null}
-                               onReturnLatest={() => setLocation(null)}
-                               onLocationInvalidated={(error, target) => search.invalidate({
-                                 kind: error instanceof SearchTargetUnavailable ? error.kind : error instanceof AiApiError && [401, 403].includes(error.httpStatus) ? 'scope' : 'entry',
-                                 conversationId: target.conversationId,
-                                 entryKey: target.entryKey
-                               })}
-                               options={options} dirty={dirty} conversation={conversations.selected}
-                               onUpdated={conversations.updateConversation}
-                               onTitleUpdated={conversations.onTitleUpdated}
-                               t={t}
-                               onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
-                               onInteraction={setInteraction}
-                               onOpenToolSettings={() => {
-                                 setTab('ai-tool');
-                                 layout.open('settings');
-                               }}
-                               toolSettingsContainer={toolSettingsContainer}
-                               toolSettingsActive={layout.visible.settings && tab === 'ai-tool'}
-                               writable={workspace.state === 0 || workspace.state === null}/>
+            <BusinessChatPanel
+              key={conversations.selected.conversationId} context={context} config={config}
+              location={location?.conversationId === selectedId ? location : null}
+              onReturnLatest={() => setLocation(null)}
+              onLocationInvalidated={(error, target) => search.invalidate({
+                kind: error instanceof SearchTargetUnavailable ? error.kind : error instanceof AiApiError && [401, 403].includes(error.httpStatus) ? 'scope' : 'entry',
+                conversationId: target.conversationId,
+                entryKey: target.entryKey
+              })}
+              options={options} dirty={dirty} conversation={conversations.selected}
+              onUpdated={conversations.updateConversation}
+              onTitleUpdated={conversations.onTitleUpdated}
+              t={t}
+              onConfigurationRejected={rejectConfiguration} onChooseModel={chooseModel}
+              onInteraction={setInteraction}
+              onOpenToolSettings={() => {
+                setTab('ai-tool');
+                layout.open('settings');
+              }}
+              toolSettingsContainer={toolSettingsContainer}
+              toolSettingsActive={layout.visible.settings && tab === 'ai-tool'}
+              writable={workspace.state === 0 || workspace.state === null}/>
             : conversations.listLoading ?
               <Flex vertical align="center" justify="center" gap={16} className="ainew-empty" role="status">
                 <Spin size="small"/><Typography.Text>正在读取会话列表…</Typography.Text></Flex>
               : conversations.listError ?
-                <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
-                  description="暂时无法加载会话，请稍后重试。"/></Flex>
-                : <Flex vertical align="center" justify="center" gap={16} className="ainew-empty"><Empty
-                  description={search.active ? '从搜索结果打开会话或查看命中消息。' : conversations.total === 0
-                    ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/><Button
-                  onClick={() => {
-                    layout.open('settings');
-                    setTab('models');
-                  }}>查看可用模型</Button></Flex>}
+                <Flex vertical align="center" justify="center" gap={16} className="ainew-empty">
+                  <Empty description="暂时无法加载会话，请稍后重试。"/>
+                </Flex>
+                : <Flex vertical align="center" justify="center" gap={16} className="ainew-empty">
+                  <Empty description={search.active ? '从搜索结果打开会话或查看命中消息。' : conversations.total === 0
+                    ? '此空间还没有会话，可以新建一个会话开始。' : '选择一个会话继续聊天。'}/>
+                  <Button
+                    onClick={() => {
+                      layout.open('settings');
+                      setTab('models');
+                    }}>查看可用模型</Button>
+                </Flex>}
   </Flex>;
+
   return <Flex vertical className="ainew-workspace">
+    {/* 页面完整布局 */}
     <ChatWorkspaceLayout layout={layout} list={list} settings={editor}>
       {content}
     </ChatWorkspaceLayout>
@@ -620,38 +640,48 @@ function WorkspaceChat({
                     ]}/>
                 }]}/>
     </Modal>
-    <Modal title="有未应用配置" open={!!switchAction} footer={<Flex justify="flex-end" gap={8} wrap>
-      <Button onClick={() => {
+    <Modal
+      title="有未应用配置"
+      open={!!switchAction}
+      footer={
+        <Flex justify="flex-end" gap={8} wrap>
+          <Button
+            onClick={() => {
+              cancelSwitch.current?.();
+              cancelSwitch.current = null;
+              setSwitchAction(null);
+              afterApply.current = null;
+            }}>留在当前会话</Button>
+          <Button
+            onClick={() => {
+              const next = switchAction;
+              cancelSwitch.current = null;
+              cancel();
+              setSwitchAction(null);
+              next?.();
+            }}>放弃修改并切换</Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              afterApply.current = switchAction;
+              setSwitchAction(null);
+              layout.open('settings');
+              setTab('models');
+              setApplyRevision(value => value + 1);
+            }}>应用并切换</Button>
+        </Flex>}
+      onCancel={() => {
         cancelSwitch.current?.();
         cancelSwitch.current = null;
         setSwitchAction(null);
         afterApply.current = null;
-      }}>留在当前会话</Button>
-      <Button onClick={() => {
-        const next = switchAction;
-        cancelSwitch.current = null;
-        cancel();
-        setSwitchAction(null);
-        next?.();
-      }}>放弃修改并切换</Button>
-      <Button type="primary" onClick={() => {
-        afterApply.current = switchAction;
-        setSwitchAction(null);
-        layout.open('settings');
-        setTab('models');
-        setApplyRevision(value => value + 1);
-      }}>应用并切换</Button>
-    </Flex>} onCancel={() => {
-      cancelSwitch.current?.();
-      cancelSwitch.current = null;
-      setSwitchAction(null);
-      afterApply.current = null;
-    }}>
+      }}>
       <Typography.Paragraph>配置草稿需要先应用或放弃。{interaction.pending ? '未确认写操作已按原会话保存，返回后确认原操作。' : ''}切换不会停止后端执行。</Typography.Paragraph>
     </Modal>
   </Flex>;
 }
 
+/** 聊天页面主组件 */
 export default function ChatNewPage() {
   const {initialState} = useModel('@@initialState');
   const userId = String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '');
@@ -732,17 +762,22 @@ export default function ChatNewPage() {
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
   // 空间尚未就绪时列表未挂载，保留同一菜单作为连接固定授权空间的入口。
   const workspaceFallback = <>
-    <Flex className="ainew-bootstrap-workspace"><WorkspaceQuickSelect userId={userId} scope={workspace?.scope}
-                                                                      name={workspace?.name}
-                                                                      onManage={() => setWorkspaceRevision(value => value + 1)}
-                                                                      onConnect={() => setConnectionOpen(true)}
-                                                                      onPlatformConfig={() => setCatalogOpen(true)}/>
+    <Flex className="ainew-bootstrap-workspace">
+      {/* 工作空间下拉 */}
+      <WorkspaceQuickSelect
+        userId={userId}
+        scope={workspace?.scope}
+        name={workspace?.name}
+        onManage={() => setWorkspaceRevision(value => value + 1)}
+        onConnect={() => setConnectionOpen(true)}
+        onPlatformConfig={() => setCatalogOpen(true)}/>
     </Flex>
     <WorkspacePicker userId={userId} presentation="inline"/>
   </>;
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">
     {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
+    {/* 平台 AI 配置 */}
     <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} size={640}>
       <WorkspaceAiSettings key={userId} scope={catalogContext.scope} context={catalogContext} adminOnly
                            onUnsafeChange={setCatalogUnsafe}
@@ -755,19 +790,24 @@ export default function ChatNewPage() {
       ]}/>
       用于固定授权过渡。公共默认空间不会自动继承此处模型、预算和历史；后端仍检查当前账号授权。</>}/>}
     {workspace ?
-      <WorkspaceAiPreparation key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
-                              context={{userId, scope: workspace.scope}} legacy={workspace.state === null}
-                              refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}
-                              fallback={workspaceFallback}>
-        <WorkspaceChat userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}
-                       onChooseWorkspace={() => setWorkspaceRevision(value => value + 1)}
-                       workspaceRevision={workspaceRevision}
-                       onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => setCatalogOpen(true)}
-                       workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
+      <WorkspaceAiPreparation
+        key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
+        context={{userId, scope: workspace.scope}} legacy={workspace.state === null}
+        refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}
+        fallback={workspaceFallback}>
+        {/* 页面主体内容：会话列表、聊天内容、右侧辅助栏 */}
+        <WorkspaceChat
+          userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}
+          onChooseWorkspace={() => setWorkspaceRevision(value => value + 1)}
+          workspaceRevision={workspaceRevision}
+          onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => setCatalogOpen(true)}
+          workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
       </WorkspaceAiPreparation>
-      : <Flex vertical className="ainew-bootstrap"><Typography.Paragraph>请选择或初始化个人默认空间；也可连接当前账号已有的合法
-        AI 工作空间。</Typography.Paragraph>
-        {workspaceFallback}</Flex>}
+      : <Flex vertical className="ainew-bootstrap">
+        <Typography.Paragraph>请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。</Typography.Paragraph>
+        {workspaceFallback}
+      </Flex>}
+    {/* 工作空间选择弹窗 */}
     <Modal title="连接已有 AI 工作空间" open={connectionOpen} onCancel={() => setConnectionOpen(false)}
            okButtonProps={{disabled: !chatScopeSchema.safeParse({tenantId, workspaceId}).success}} onOk={() => {
       const scope = chatScopeSchema.parse({tenantId, workspaceId});
@@ -780,6 +820,7 @@ export default function ChatNewPage() {
       if (protect.current) protect.current(proceed); else proceed();
     }}>
       <Typography.Paragraph>填写当前账号已有授权的真实范围。发现、会话及发送仍由后端授权检查。</Typography.Paragraph>
+      {/* 填写租户 ID 和工作空间 ID */}
       <Form layout="vertical" name="ai-new-workspace-connection" component="div" className="ainew-connection-form">
         <Form.Item label="租户 ID" htmlFor="ai-new-tenant-id" required>
           <Input id="ai-new-tenant-id" aria-label="已有 AI 租户 ID" placeholder="租户 ID" maxLength={256}

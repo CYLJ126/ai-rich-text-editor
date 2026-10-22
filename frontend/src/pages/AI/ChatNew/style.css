@@ -218,14 +218,38 @@
 .ainew-settings.ant-flex {
   box-sizing: border-box;
   padding: 12px;
-  overflow: auto;
+  overflow: hidden;
   height: 100%;
   min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 .ainew-settings > * {
   flex-shrink: 0;
+}
+
+/* 工作空间内容独立滚动，保留标题与 Tab 导航，不显示滚动条。 */
+.ainew-settings-tabs.is-workspace.ant-tabs {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ainew-settings-tabs.is-workspace > .ant-tabs-body-holder {
+  overflow: hidden;
+}
+
+.ainew-settings-tabs.is-workspace > .ant-tabs-body-holder > .ant-tabs-body {
+  height: 100%;
+}
+
+.ainew-settings-tabs .ainew-workspace-pane {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.ainew-settings-tabs .ainew-workspace-pane::-webkit-scrollbar {
+  display: none;
 }
 
 .ainew-configuration {
@@ -540,6 +564,17 @@
   overflow: auto;
   padding: 16px 24px;
   scroll-behavior: auto;
+
+  /* 消息记录滚动条样式单独设置 */
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--ant-color-fill-secondary);
+    border-radius: 2px;
+  }
 }
 
 /* 消息保持自然高度，避免 Flex 压缩消息、影响历史锚点和自动跟随。 */

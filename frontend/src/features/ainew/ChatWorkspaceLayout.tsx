@@ -31,7 +31,10 @@ export default function ChatWorkspaceLayout({layout, list, settings, children}: 
     <div ref={layout.container} className="ainew-layout" data-layout-mode={layout.mode}>
       <Splitter onResize={layout.resize}
                 destroyOnHidden={false}
-                className="ainew-splitter" styles={{dragger: {default: single ? {display: 'none'} : undefined}}}>
+                className="ainew-splitter"
+                styles={{dragger: {default: single ? {display: 'none'} : undefined}}}>
+
+        {/* 左侧栏：会话列表 */}
         <Splitter.Panel size={layout.sizes[0]} min={SIDE_MIN} max={single ? '100%' : '50%'}
                         resizable={!single && layout.visible.list} collapsible={!single}>
           <div className="ainew-region ainew-region-side" hidden={!layout.visible.list} inert={!layout.visible.list}
@@ -44,19 +47,22 @@ export default function ChatWorkspaceLayout({layout, list, settings, children}: 
           </div>
         </Splitter.Panel>
 
+        {/* 中间栏：聊天区域 */}
         <Splitter.Panel size={layout.sizes[1]} min={single ? 0 : CHAT_MIN} resizable={!single}>
           <div className="ainew-region" hidden={!layout.visible.chat} inert={!layout.visible.chat}
                data-region="chat" tabIndex={-1}>{children}</div>
         </Splitter.Panel>
 
+        {/* 右侧栏：设置区域 */}
         <Splitter.Panel size={layout.sizes[2]} min={SIDE_MIN} max={single ? '100%' : '50%'}
                         resizable={!single && layout.visible.settings} collapsible={!single}>
           <div className="ainew-region ainew-region-side" hidden={!layout.visible.settings}
                inert={!layout.visible.settings}
                data-region="settings" tabIndex={-1}>
-            {single && <div className="ainew-return-chat"><Button type="text" aria-label="返回聊天"
-                                                                  icon={<DynamicIcon iconName="ArrowLeftOutlined"/>}
-                                                                  onClick={() => openRegion('chat')}>返回聊天</Button>
+            {single && <div className="ainew-return-chat">
+              <Button type="text" aria-label="返回聊天"
+                      icon={<DynamicIcon iconName="ArrowLeftOutlined"/>}
+                      onClick={() => openRegion('chat')}>返回聊天</Button>
             </div>}
             <div className="ainew-region-body">{settings}</div>
           </div>

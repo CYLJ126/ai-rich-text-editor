@@ -91,11 +91,13 @@ export function useChatLayout() {
     observer.observe(root);
     return () => observer.disconnect();
   }, []);
+  // 计算可见性：list-会话列表；chat-聊天内容；settings-右侧设置辅助栏
   const visible = {
     list: state.mode === 'single' ? state.region === 'list' : state.leftOpen,
     chat: state.mode !== 'single' || state.region === 'chat',
     settings: state.mode === 'single' ? state.region === 'settings' : state.rightOpen,
   };
+  // 计算各栏尺寸
   const sizes = state.mode === 'single'
     ? [visible.list ? state.width : 0, visible.chat ? state.width : 0, visible.settings ? state.width : 0]
     : [visible.list ? state.left : 0, state.width - (visible.list ? state.left : 0) - (visible.settings ? state.right : 0), visible.settings ? state.right : 0];

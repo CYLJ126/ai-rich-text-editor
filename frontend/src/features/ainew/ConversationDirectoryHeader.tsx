@@ -35,18 +35,18 @@ export default function ConversationDirectoryHeader({
       <div className="ainew-directory-tools">
         <Tooltip title={searching ? '按 Enter 重新搜索' : '刷新会话列表'}>
           <Button type="text" size="small" aria-label="刷新会话列表" loading={refreshing} disabled={searching}
-                  icon={<DynamicIcon iconName="ReloadOutlined" size={18} color="var(--ant-color-text-tertiary)"/>}
+                  icon={<DynamicIcon iconName="ReloadOutlined" size={18}/>}
                   onClick={onRefresh}/>
         </Tooltip>
         <Tooltip title={createLabel}>
           <Button type="text" size="small" aria-label={createLabel} disabled={!writable || creating}
                   loading={creating}
-                  icon={<DynamicIcon iconName="MessageFilled" size={18} color="var(--ant-color-text-tertiary)"/>}
+                  icon={<DynamicIcon iconName="MessageTwoTone" size={18}/>}
                   onClick={onCreate}/>
         </Tooltip>
         <Tooltip title="临时会话（暂未开放）">
           <Button type="text" size="small" aria-label="临时会话"
-                  icon={<DynamicIcon iconName="MessageOutlined" size={18} color="var(--ant-color-text-tertiary)"/>}
+                  icon={<DynamicIcon iconName="MessageOutlined" size={18}/>}
                   onClick={() => setNotice('临时会话暂未开放，当前聊天保持不变。')}/>
         </Tooltip>
         <Dropdown trigger={['hover', 'click']} menu={{
@@ -56,12 +56,12 @@ export default function ConversationDirectoryHeader({
         }}>
           <Tooltip title="分组方式">
             <Button type="text" size="small" aria-label="分组方式"
-                    icon={<DynamicIcon iconName="GroupOutlined" size={18} color="var(--ant-color-text-tertiary)"/>}/>
+                    icon={<DynamicIcon iconName="GroupOutlined" size={18}/>}/>
           </Tooltip>
         </Dropdown>
         <Tooltip title="收起会话列表">
           <Button type="text" size="small" aria-label="收起会话列表"
-                  icon={<DynamicIcon iconName="MenuFoldOutlined" size={18} color="var(--ant-color-text-tertiary)"/>}
+                  icon={<DynamicIcon iconName="MenuFoldOutlined" size={18}/>}
                   onClick={onCollapse}/>
         </Tooltip>
       </div>
