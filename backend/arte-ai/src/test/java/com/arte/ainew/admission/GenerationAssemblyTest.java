@@ -23,10 +23,13 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Mono;
 
 import javax.sql.DataSource;
+import java.net.URI;
 import java.sql.Connection;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -113,6 +116,27 @@ public class GenerationAssemblyTest {
             assertEquals(List.of("example-budget"), options.options().getFirst().budgetRefs());
             assertEquals(0, credentialReads.get());
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class).secrets().getFirst().environmentVariable());
+        }
+    }
+
+    @Test
+    public void modelGatewayKeepsModelRuntimeWhenToolRuntimesArePresent() throws Exception {
+        for (var names : List.of(List.of("newAiToolMcpRuntime"),
+                List.of("newAiToolMcpRuntime", "newAiToolHttpRuntime"))) {
+            try (var context = context(true)) {
+                for (String name : names) {
+                    context.registerBean(name, HttpConnectionRuntime.class, () -> new HttpConnectionRuntime(
+                            (reference, execution) -> Mono.error(new AssertionError("Assembly must not resolve tool connections")),
+                            null,
+                            (reference, execution) -> Mono.error(new AssertionError("Assembly must not resolve tool credentials")),
+                            new NewAiGenerationProperties(false, List.of(URI.create("https://tool.invalid")),
+                                    List.of(), 0, 0, 0, null, 0, 0), Clock.systemUTC()));
+                }
+                context.refresh();
+                assertEquals(names.size() + 1, context.getBeansOfType(HttpConnectionRuntime.class).size());
+                assertSame(context.getBean("newAiHttpConnectionRuntime"),
+                        ReflectionTestUtils.getField(context.getBean(ModelGateway.class), "runtime"));
+            }
         }
     }
 

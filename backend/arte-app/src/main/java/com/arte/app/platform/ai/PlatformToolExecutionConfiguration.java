@@ -4,6 +4,7 @@ import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.config.NewAiToolApprovalProperties;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
+import com.arte.ainew.infrastructure.http.ModelScopeBingToolAdapter;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
@@ -83,16 +84,27 @@ public class PlatformToolExecutionConfiguration {
     @Bean
     @Primary
     ToolUsagePolicy platformToolUsagePolicy(LocalTextTools text, LocalWorkspaceTools writes, ObjectProvider<HttpHealthToolAdapter> http,
-                                            ObjectProvider<McpHealthToolAdapter> mcp) {
+                                            ObjectProvider<McpHealthToolAdapter> mcp, ObjectProvider<ModelScopeBingToolAdapter> bing) {
         return new ToolUsagePolicy() {
             public void requireFree(com.arte.ainew.pojo.tool.ToolAdmissionInput input, com.arte.ainew.pojo.tool.ToolBindingResolution binding) {
                 if (binding.tool().target() instanceof com.arte.ainew.pojo.control.ExecutionTarget.Remote) {
                     if (binding.tool().mcp()) {
-                        var remoteMcp = mcp.getIfAvailable();
-                        if (remoteMcp == null)
-                            throw new org.springframework.security.access.AccessDeniedException("MCP tool disabled");
-                        remoteMcp.requireFree(input, binding);
-                        return;
+                        var bingAdapter = bing.getIfAvailable();
+                        if (bingAdapter != null
+                                && binding.tool().tool().definition().equals(
+                                bingAdapter.revision().tool().definition())) {
+                            bingAdapter.requireFree(input, binding);
+                            return;
+                        }
+                        var healthAdapter = mcp.getIfAvailable();
+                        if (healthAdapter != null
+                                && binding.tool().tool().definition().equals(
+                                healthAdapter.revision().tool().definition())) {
+                            healthAdapter.requireFree(input, binding);
+                            return;
+                        }
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "MCP tool is not covered by the reviewed free policy");
                     }
                     var remote = http.getIfAvailable();
                     if (remote == null)
@@ -113,12 +125,14 @@ public class PlatformToolExecutionConfiguration {
 
     @Bean
     StaticToolRegistry staticToolRegistry(LocalTextTools tools, LocalWorkspaceTools writes, LocalToolWriteProperties properties,
-                                        ObjectProvider<HttpHealthToolAdapter> http,
-                                        ObjectProvider<McpHealthToolAdapter> mcp) {
+                                          ObjectProvider<HttpHealthToolAdapter> http,
+                                          ObjectProvider<McpHealthToolAdapter> mcp,
+                                          ObjectProvider<ModelScopeBingToolAdapter> bing) {
         var registrations = new java.util.ArrayList<>(tools.registry().registrations());
         if (properties.enabled()) registrations.add(writes.registration());
         http.ifAvailable(remote -> registrations.add(remote.registration()));
         mcp.ifAvailable(remote -> registrations.add(remote.registration()));
+        bing.ifAvailable(remote -> registrations.add(remote.registration()));
         return new StaticToolRegistry(registrations);
     }
 

@@ -342,7 +342,7 @@ arte.ai-new-tool-http.allowed-origins=
 arte.ai-new-tool-billing.enabled=false
 
 # S5-03: reviewed MCP Streamable HTTP health tool; enable only after consumer/manifest upgrade.
-arte.ai-new-tool-mcp.enabled=false
+arte.ai-new-tool-mcp.enabled=true
 arte.ai-new-tool-mcp.version=v1
 arte.ai-new-tool-mcp.endpoint=
 arte.ai-new-tool-mcp.allowed-origins=

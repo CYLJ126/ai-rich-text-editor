@@ -119,14 +119,15 @@ public class NewAiGenerationConfiguration {
      *
      * @param catalog 固定能力与绑定目录，负责当前授权下的解析及请求校验
      * @param connections 当前连接定义的解析入口
-     * @param runtime 受控 HTTP 连接运行时
+     * @param runtime 模型专用的受控 HTTP 连接运行时，与 HTTP／MCP 工具运行时隔离
      * @param provider DeepSeek 请求及响应语义适配器
      * @param protocol Chat Completions SSE 协议适配器
      * @param clock 新 AI 层时钟，用于绝对期限控制
      * @return 内部单次模型交互网关
      */
     @Bean("newAiModelGateway")
-    ModelGateway modelGateway(FixedControlCatalog catalog, ConnectionManager connections, HttpConnectionRuntime runtime,
+    ModelGateway modelGateway(FixedControlCatalog catalog, ConnectionManager connections,
+                              @Qualifier("newAiHttpConnectionRuntime") HttpConnectionRuntime runtime,
                               DeepSeekGenerationProviderAdapter provider, ChatCompletionsSseProtocolAdapter<DeepSeekWire.Request> protocol,
                               @Qualifier("newAiClock") Clock clock) {
         return new DefaultModelGateway<>(catalog, catalog, connections, runtime, provider, protocol, clock);
