@@ -106,6 +106,29 @@ arte.ai-new-tool-mcp.allowed-origins=
 tool-chat-run-snapshot v4。 旧本地／HTTP／收费版本保持原义，新 MCP 材料拒绝降级重标。没有新增数据库表或
 DDL，不重新初始化账本；关开关不表示可让旧二进制读取新材料。
 
+### 离线计算完整部署清单
+
+手工运行 arte-app 测试源码中的
+`com.arte.app.platform.ai.ToolManifestCalculator#calculateCurrentDeploymentManifest`（JDK 21）：
+
+```sh
+mvn -f backend/pom.xml -pl arte-app -am \
+  -Dtest=ToolManifestCalculator \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+该类特意不使用默认 `*Test` 命名，普通测试集不会自动执行；IDE 也可以直接运行该测试方法。 它读取 Maven 过滤后的
+`ainew/config/application.properties`，结合 JVM 系统属性和环境变量，按当前开关创建静态定义； 复用正式 `staticToolRegistry`
+、HTTP／MCP 适配器工厂和 `StaticToolDiscovery` 校验及摘要算法。 当前 MCP 开启时同时包含 health 与
+Bing，关闭的来源不参与。新增装配来源时同步维护测试内的 `metadataRegistry`。
+
+不会启动完整应用、访问数据库、调用模型／MCP、读取凭据值或自动改动配置。控制台和
+`backend/arte-app/target/tool-manifest.properties` 输出工具 ID／版本／期限、可复制的 `tool-manifest` 配置及按新清单计算的
+`policy_digest`。IDE 的报告位置以控制台绝对路径为准。定义或 Schema 校验失败时测试失败，不输出新的计算结果；失败后不要使用遗留报告。
+
+计算时使用的代码、启用来源和连接配置须与实际部署一致；外部覆盖也要给计算测试提供相同配置。计算结果不表示已发布、已建绑或
+Worker 就绪；更新配置和已有数据库调度池仍按前述停受理、协调消费者及空闲检查流程执行，不直接手填策略摘要。
+
 ## 6. 验证
 
 使用隔离 H2、MockMvc 与真实回环模拟 MCP，覆盖成功生命周期、JSON／SSE、有／无会话、Schema 漂移、错误及未支持内容、撤权、出口、限额、取消、期限、Run
