@@ -5,13 +5,16 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * 服务器登记的资源类型名。值对象只验证格式；是否登记由资源／动作注册表判断。
+ * 服务器登记的资源类型名
+ * <p>
+ * 值对象只验证格式；是否登记由资源／动作注册表判断。
  *
+ * @param value 资源类型
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
-public record ResourceType(
-        String value) {
+public record ResourceType(String value) {
+
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public ResourceType {
         PlatformChecks.token(value, "value");

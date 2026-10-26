@@ -15,12 +15,14 @@ import java.util.Objects;
  * @since 2026/10/09 14:25 ✾
  */
 public sealed interface GrantTarget permits GrantTarget.Subject, GrantTarget.SpaceRole, GrantTarget.Space {
+
     GrantTargetKindEnum kind();
 
     /**
      * scope 必须至少含租户；workspace 为空时绑定租户成员代次。
      */
     record Subject(String subjectId, CommandScope scope, long membershipGeneration) implements GrantTarget {
+
         public Subject {
             PlatformChecks.id(subjectId, "subjectId");
             Objects.requireNonNull(scope);

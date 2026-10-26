@@ -6,9 +6,13 @@ import com.arte.core.utils.platform.PlatformChecks;
 import java.util.Objects;
 
 /**
- * 授权定位范围：租户必填，空间可选；仅租户范围不要求空间成员资格。
+ * 授权定位范围
+ * <p>
+ * 租户必填，空间可选；仅租户范围不要求空间成员资格。
  * 该对象不是已验证身份或权限，空间业务仍须提供完整 Scope。
  *
+ * @param tenantId    租户 ID，必填
+ * @param workspaceId 工作空间 ID，可选
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 23:53 ✾
  */
