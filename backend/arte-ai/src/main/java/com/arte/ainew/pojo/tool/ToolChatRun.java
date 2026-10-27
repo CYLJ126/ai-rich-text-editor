@@ -10,7 +10,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Run 的权威检查点；不使用 Invocation ID 冒充 Run，也不复制子调用的权威执行状态。
+ * Run 的权威检查点
+ * <p>
+ * 不使用 Invocation ID 冒充 Run，也不复制子调用的权威执行状态。
  *
  * @param runId      工具聊天根执行的稳定 ID，用于关联固定输入、步骤及耐久工作项。
  * @param owner      Run 所属的租户、工作空间及主体；归属信息不代替当前访问授权。
