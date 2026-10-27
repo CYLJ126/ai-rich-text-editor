@@ -37,6 +37,7 @@ import java.util.Objects;
 public record ExecutionEvent<P extends ExecutionEvent.Payload>(
         int schemaVersion, String executionId, String attemptId, long sequence,
         Kind kind, Instant occurredAt, String payloadType, int payloadVersion, P payload) implements Serializable {
+
     /**
      * 平台事件类别；描述本条事件的业务含义，不直接代表调用当前状态。
      */
@@ -87,6 +88,7 @@ public record ExecutionEvent<P extends ExecutionEvent.Payload>(
      * ExecutionEvent 构造器会检查负载非空，以及 eventKind() 与事件 kind 是否一致。
      */
     public interface Payload extends Serializable {
+
         /**
          * 返回该负载对应的平台事件类别；允许由内容决定，例如状态负载按状态返回 ACCEPTED、STARTED 或 CHECKPOINT。
          *
@@ -123,6 +125,7 @@ public record ExecutionEvent<P extends ExecutionEvent.Payload>(
      * @param afterSequence 已读取位置的事件序号，至少为 0；后续读取仅返回大于该值的事件，0 的唤醒提示不会重置本字段
      */
     public record Cursor(String executionId, long afterSequence) implements Serializable {
+
         public Cursor {
             ContractChecks.id(executionId, "executionId");
             ContractChecks.range(afterSequence, "afterSequence", 0, Long.MAX_VALUE);
