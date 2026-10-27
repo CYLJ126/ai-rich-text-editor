@@ -8,6 +8,8 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
+ * 资源授权记录
+ * <p>
  * 首版仅 ALLOW；一记录一动作，来源独立、防重不覆盖其他来源，撤销保留历史。
  *
  * @param id                授权记录标识。

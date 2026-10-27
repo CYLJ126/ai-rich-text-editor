@@ -6,7 +6,8 @@ import reactor.core.publisher.Mono;
 import java.util.Set;
 
 /**
- * 可信身份与空间授权的组合端口。
+ * 可信身份与空间授权的组合端口
+ * <p>
  * 实现必须从已认证名称解析稳定主体 ID，验证 Tenant／Workspace 归属和请求的权限上限，
  * 拒绝停用、无权访问或无法确认的主体；返回可重检的授权引用。
  * 不允许仅复制请求体、Authentication 的角色集合或旧 ThreadLocal 来模拟资源授权。
