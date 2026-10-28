@@ -5,9 +5,11 @@ import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionDigests;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.TextInputs;
+import com.arte.ainew.application.tool.chat.ToolChatInputs;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
@@ -82,17 +84,19 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     }
 
     private Mono<NewAiProperties> configuration(ExecutionContext context) {
-        return bindingManager instanceof com.arte.ainew.application.control.FixedControlCatalog catalog
+        return bindingManager instanceof FixedControlCatalog catalog
                 ? catalog.configuration(context) : Mono.just(properties);
     }
 
     private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding) {
         var request = submission.request();
         var snapshot = submission.snapshot();
-        if (request.context().parentExecutionId() == null) TextInputs.verify(snapshot, binding, properties.limits());
-        else if (!com.arte.ainew.application.tool.chat.ToolChatInputs.TOKENIZER.equals(snapshot.tokenizerVersion())
-                || !snapshot.modelBinding().equals(binding.definition()) || submission.conversation() != null)
+        if (request.context().parentExecutionId() == null) {
+            TextInputs.verify(snapshot, binding, properties.limits());
+        } else if (!ToolChatInputs.TOKENIZER.equals(snapshot.tokenizerVersion())
+                || !snapshot.modelBinding().equals(binding.definition()) || submission.conversation() != null) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+        }
         if (request.input().options().maxOutputTokens() > snapshot.budget().reservedOutputTokens()) {
             throw new AdmissionException(ResultCodeEnum.AI_OUTPUT_RESERVATION_EXCEEDED);
         }
