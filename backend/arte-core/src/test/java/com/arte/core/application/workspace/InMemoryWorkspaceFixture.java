@@ -76,6 +76,7 @@ final class InMemoryWorkspaceFixture {
     private final ReentrantLock transactionLock = new ReentrantLock();
     private final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
     private final ThreadLocal<Boolean> rollbackOnly = ThreadLocal.withInitial(() -> false);
+    private final ThreadLocal<Boolean> readOnly = ThreadLocal.withInitial(() -> false);
     private final ThreadLocal<Map<Object, Object>> transactionResources = new ThreadLocal<>();
 
     final IdentityProvider identity = new IdentityProvider() {
@@ -101,6 +102,21 @@ final class InMemoryWorkspaceFixture {
             return depth.get() > 0;
         }
 
+        public boolean isReadOnly() {
+            return isTransactionActive() && readOnly.get();
+        }
+
+        public <T> T readOnly(Supplier<T> work) {
+            if (isTransactionActive())
+                throw new IllegalStateException("Read snapshot requires its own transaction boundary");
+            readOnly.set(true);
+            try {
+                return execute(work);
+            } finally {
+                readOnly.remove();
+            }
+        }
+
         @SuppressWarnings("unchecked")
         public <T> T resource(Object key, Supplier<T> factory) {
             requireActive();
@@ -113,6 +129,11 @@ final class InMemoryWorkspaceFixture {
         }
 
         public <T> T required(Supplier<T> work) {
+            if (isReadOnly()) throw new IllegalStateException("Write transaction cannot join a read-only snapshot");
+            return execute(work);
+        }
+
+        private <T> T execute(Supplier<T> work) {
             transactionLock.lock();
             boolean root = depth.get() == 0;
             Snapshot before = root ? snapshot() : null;

@@ -78,3 +78,25 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 ```
 
 上述检查不替代部署、业务库升级、真实供应商、多节点或生产性能验收。
+
+## 后续修复：平台边界与搜索空排序值（2026-10-28）
+
+上表保留迁移验收时的历史失败记录；其中前两项已在本次后续修复中解决，MCP 两项按用户要求暂不处理。
+
+- `PublicTransactionRunner.readOnly` 和 `isReadOnly` 改为适配器必须实现的方法，去掉不支持只读事务的默认异常及固定 false
+  回退。 独立只读事务、可重复读隔离和写门控约束保持明确。仓库 JDBC 实现已提供这两种能力，测试适配器同步补齐；
+  其他自定义实现也需显式实现这两个方法。原包边界断言保持不变。
+- 搜索 `Read.after`、`Hit.sort` 和 `SearchCursor.Page.after` 均使用允许 null 的防御性复制及不可修改包装， 保留缺失字段的
+  null、原排序顺序、完整排序元组及数值精度。修复覆盖 ES 命中到翻页请求、签名游标的整个边界传递链路。
+- 补充回归验证输入列表修改不会污染上述对象、返回列表不可修改、BigDecimal／BigInteger 精度以及游标签名往返。
+  已有正向／反向翻页、重复游标、历史读取资格及 HTTP 搜索回归同时通过。
+
+JDK 21 定向回归按用例去重： **14 类、178 项通过，零失败、零错误、零跳过**。 范围为 core 的平台契约／包边界、命令与空间规则，AI
+搜索契约／服务／HTTP／可见性，以及 app 的
+`PlatformPersistenceIntegrationTest`、`DatabaseAiControlIntegrationTest`、`PlatformToolManagementAccessTest`。 只读隔离及写门控使用真实
+JDBC／临时 H2 验证，未连接业务数据库或执行 MCP 用例。
+
+app 两组测试最初因沙箱禁止 Mockito／Byte Buddy 附加 JVM 而无法初始化 mock，获准在正常环境重跑后 46 项全部通过；
+不将环境失败计为代码缺陷或跳过通过。其余 132 项在沙箱中通过。 日志及去重结果位于
+`/private/tmp/arte-boundary-null-sort-fix.log`、
+`/private/tmp/arte-boundary-null-sort-app-recheck.log`、`/private/tmp/arte-boundary-null-sort-results.json`。

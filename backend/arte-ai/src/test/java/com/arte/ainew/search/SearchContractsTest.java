@@ -3,6 +3,7 @@ package com.arte.ainew.search;
 import com.arte.ainew.application.conversation.NoopConversationArchiveReader;
 import com.arte.ainew.application.conversation.UnsupportedConversationArchiveCommands;
 import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.search.SearchCursor;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.common.search.SearchPreview;
 import com.arte.ainew.common.search.SearchText;
@@ -17,10 +18,7 @@ import org.junit.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.Assert.*;
 
@@ -145,6 +143,32 @@ public class SearchContractsTest {
         assertTrue(request.searchAfter().get(1).isNull());
         assertThrows(IllegalArgumentException.class, () -> new ConversationSearchIndex.Read(OWNER, "会话", List.of(), read.pit(),
                 read.direction(), Arrays.asList(Double.NaN, null, "a".repeat(64), 1L), 20, Duration.ofMinutes(10)));
+    }
+
+    @Test
+    public void nullableSortBoundariesAreDefensivelyCopiedAcrossHitRequestAndCursor() {
+        var decimal = new java.math.BigDecimal("0.12345678901234567890123456789");
+        var integer = new java.math.BigInteger("9007199254740993");
+        String entry = "a".repeat(64);
+        var input = new ArrayList<Object>(Arrays.asList(decimal, null, entry, integer));
+        var expected = Arrays.<Object>asList(decimal, null, entry, integer);
+        var read = new ConversationSearchIndex.Read(OWNER, "会话", List.of(), new ConversationSearchIndex.Pit("pit", "generation"),
+                ConversationSearch.Direction.FORWARD, input, 20, Duration.ofMinutes(10));
+        var hit = new ConversationSearchIndex.Hit(entry, Map.of(), input, Map.of());
+        var cursor = new SearchCursor.Page(java.util.UUID.randomUUID().toString(), "v1", read.direction(), input, true);
+        input.clear();
+        assertEquals(expected, read.after());
+        assertEquals(expected, hit.sort());
+        assertEquals(expected, cursor.after());
+        assertSame(decimal, read.after().getFirst());
+        assertSame(integer, hit.sort().getLast());
+        assertThrows(UnsupportedOperationException.class, () -> read.after().set(1, "changed"));
+        assertThrows(UnsupportedOperationException.class, () -> hit.sort().clear());
+        assertThrows(UnsupportedOperationException.class, () -> cursor.after().add("changed"));
+        String key = SearchCursor.randomKey();
+        var decoded = SearchCursor.verify(SearchCursor.sign(cursor, key), key, SearchCursor.Page.class);
+        assertEquals(expected, decoded.after());
+        assertThrows(UnsupportedOperationException.class, () -> decoded.after().clear());
     }
 
     @Test

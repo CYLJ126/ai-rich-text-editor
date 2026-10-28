@@ -49,7 +49,8 @@ public interface ConversationSearchIndex {
                 ContractChecks.require(!(v instanceof Double d) || Double.isFinite(d), "Invalid sort number");
                 ContractChecks.require(!(v instanceof Float f) || Float.isFinite(f), "Invalid sort number");
             });
-            after = List.copyOf(after);
+            // ES 缺失排序字段可为 null；复制后仍须不可修改，并保留原数值类型与精度。
+            after = Collections.unmodifiableList(new ArrayList<>(after));
             ContractChecks.require(direction != ConversationSearch.Direction.FIRST || after.isEmpty(), "FIRST has no boundary");
             ContractChecks.range(size, "size", 1, 1000);
             ContractChecks.require(keepAlive != null && keepAlive.toMillis() >= 1 && keepAlive.compareTo(Duration.ofHours(24)) <= 0, "Invalid PIT retention");
@@ -64,7 +65,7 @@ public interface ConversationSearchIndex {
             ContractChecks.digest(entryKey, "entryKey");
             source = Collections.unmodifiableMap(new LinkedHashMap<>(source));
             ContractChecks.require(sort.size() == 4, "Complete ES sort required");
-            sort = List.copyOf(sort);
+            sort = Collections.unmodifiableList(new ArrayList<>(sort));
             var copied = new LinkedHashMap<String, List<String>>();
             highlights.forEach((k, v) -> copied.put(k, List.copyOf(v)));
             highlights = Collections.unmodifiableMap(copied);

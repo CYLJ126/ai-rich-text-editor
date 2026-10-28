@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -38,7 +40,8 @@ public final class SearchCursor {
                 throw invalid();
             for (var value : after)
                 if (value != null && !(value instanceof String) && !(value instanceof Number)) throw invalid();
-            after = List.copyOf(after);
+            // 保留 ES 缺失字段的 null 排序边界；防御性复制，不能只包装调用方集合。
+            after = Collections.unmodifiableList(new ArrayList<>(after));
         }
     }
 

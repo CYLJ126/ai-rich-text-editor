@@ -208,15 +208,39 @@ class PlatformContractTest {
 
     @Test
     void transactionCollaboratorsCanRequireActualCallerTransaction() {
+        var mode = new java.util.concurrent.atomic.AtomicReference<Boolean>();
         var runner = new PublicTransactionRunner() {
             @Override
             public <T> T required(Supplier<T> work) {
-                return work.get();
+                if (isReadOnly()) throw new IllegalStateException("Write transaction cannot join a read-only snapshot");
+                return execute(work, false);
+            }
+
+            @Override
+            public <T> T readOnly(Supplier<T> work) {
+                if (isTransactionActive())
+                    throw new IllegalStateException("Read snapshot requires its own transaction boundary");
+                return execute(work, true);
+            }
+
+            private <T> T execute(Supplier<T> work, boolean readOnly) {
+                Boolean previous = mode.get();
+                mode.set(readOnly);
+                try {
+                    return work.get();
+                } finally {
+                    mode.set(previous);
+                }
             }
 
             @Override
             public boolean isTransactionActive() {
-                return false;
+                return mode.get() != null;
+            }
+
+            @Override
+            public boolean isReadOnly() {
+                return Boolean.TRUE.equals(mode.get());
             }
 
             public <T> T resource(Object key, Supplier<T> factory) {
@@ -229,5 +253,25 @@ class PlatformContractTest {
             }
         };
         assertThrows(IllegalStateException.class, runner::requireActive);
+        assertThrows(IllegalStateException.class, runner::requireWritable);
+        runner.required(() -> {
+            assertFalse(runner.isReadOnly());
+            assertDoesNotThrow(runner::requireWritable);
+            return true;
+        });
+        runner.readOnly(() -> {
+            assertTrue(runner.isReadOnly());
+            assertDoesNotThrow(runner::requireActive);
+            assertThrows(IllegalStateException.class, runner::requireWritable);
+            return true;
+        });
+        assertFalse(runner.isReadOnly());
+        assertThrows(IllegalStateException.class, runner::requireActive);
+    }
+
+    @Test
+    void transactionAdaptersMustImplementReadSnapshotsAndModeInsteadOfInheritingFallbacks() throws Exception {
+        assertTrue(java.lang.reflect.Modifier.isAbstract(PublicTransactionRunner.class.getMethod("readOnly", Supplier.class).getModifiers()));
+        assertTrue(java.lang.reflect.Modifier.isAbstract(PublicTransactionRunner.class.getMethod("isReadOnly").getModifiers()));
     }
 }

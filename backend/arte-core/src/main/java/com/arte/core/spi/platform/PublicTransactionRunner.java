@@ -19,14 +19,14 @@ public interface PublicTransactionRunner {
 
     /**
      * 本地只读一致快照；持久化实现须提供只读、可重复读事务，不能取得写门控。
+     * 必须建立独立事务边界，不加入已有事务；实现不能退化为普通写事务。
      */
-    default <T> T readOnly(Supplier<T> work) {
-        throw new UnsupportedOperationException("Read-only snapshots are not supported by this transaction runner");
-    }
+    <T> T readOnly(Supplier<T> work);
 
-    default boolean isReadOnly() {
-        return false;
-    }
+    /**
+     * 当前线程是否处于本适配器管理的只读事务中；事务外返回 false。
+     */
+    boolean isReadOnly();
 
     /**
      * 写门控不能加入展示读取事务。
