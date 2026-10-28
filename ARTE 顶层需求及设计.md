@@ -1,10 +1,10 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.16
+版本：v0.17
 
-日期：2026-10-17（本次同步 AI TOOL 专项入口与职责边界；其他阶段状态以各节为准）
+日期：2026-10-28（本次同步两批公共契约／执行归属迁移及目标依赖方向；其他阶段状态以各节为准）
 
-状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，不限定现有代码结构，不包含具体实现。
+状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
 空间内资源统一归属工作空间，资源访问与处置由空间策略、成员资格及具体动作授权决定；创建者、凭据责任主体和执行身份独立记录，不再把
 USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core` 公共领域／API／规则／SPI、`arte-ai` 消费、`arte-app`
@@ -20,6 +20,10 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 HTTP
 接口，包含空间／偏好、权限检查及成功命令回执查询、参数／分页／错误适配，见 [公共空间 HTTP 说明](backend/arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)
 。资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+
+2026-10-28 已完成两批增量迁移：第一批将中立引用、结构化值及通用校验／规范化／摘要工具提取至 core；第二批将 ExecutionOwner 提取至
+core，并显式对齐公共当前主体与 AI 执行身份快照。具体归属及兼容要求见“顶层接口”第 1.1～1.2、2.2.1 节。本次未提取 ES
+检索组件，也不据此改变产品需求的完成状态。
 
 ## TODO
 
@@ -351,8 +355,8 @@ INFRA -. 公共机制 .-> ARTICLE
 | 公共基础机制       | 存储、可靠消息、审计、观测及通用准入机制           | 通过 SPI 适配；AI 预算账本归 AI，不形成承担所有业务的“公共服务”                          |
 | 应用装配与适配     | 登录身份、数据库、事务、HTTP、缓存和跨领域适配     | 当前由 `arte-app` 实现 SPI 并装配公共与业务服务；不能重复定义公共领域规则                |
 
-业务端口归属于提供能力的模块。文章核心不依赖 AI：`BusinessToolAdapter` 和 `ResourceContextAdapter` 位于组合边界，分别将领域操作与资源读取适配到
-AI 平台。AI 也可在未启用文章模块时运行。
+业务端口归属于提供能力的模块。文章的内容、版本与权限规则保持独立；文章模块的组合层可依赖 AI 公开端口：
+`BusinessToolAdapter` 和 `ResourceContextAdapter` 分别将领域操作与资源读取适配到 AI 平台。AI 也可在未启用文章模块时运行。
 
 ### 3. 概念、核心对象与状态权威
 
@@ -587,19 +591,22 @@ API。需要在公共身份／空间层增量实现这些能力，各领域通�
 `arte-core` 的独立包形成“领域模型 + 公共 API + 规则实现 + SPI”。SPI 表达外部依赖与扩展点，仅一组接口不能代替完整领域体系；AI
 和文章使用公共 API，`arte-app` 实现存储及环境 SPI 并装配服务。
 
-| 层次               | 初期位置与职责                                                                                                                         | 边界                                                                               |
-|--------------------|----------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| 公共领域模型       | `com.arte.core.pojo.platform`、`pojo.workspace`、`pojo.access`；枚举在 `com.arte.core.enums` 的对应子包                                | 不依赖 AI 类型、Controller DTO、MyBatis 实体或供应商 SDK；枚举沿用 StatusEnum 风格 |
-| 公共 API           | `com.arte.core.api.platform`、`api.workspace`、`api.access`：空间／成员应用服务、可信范围解析、通用授权判断                            | 给 AI、文章、HTTP 适配调用；请求来自可信主体上下文，不接受客户端自报授权           |
-| 公共规则与应用实现 | `com.arte.core.application.platform`、`application.workspace`、`application.access`；基础默认服务已实现，成员／ACL／生命周期按批次补齐 | 规则统一实现，调用 SPI；领域状态转换和原子操作要求不得下放为各适配器自选规则       |
-| 公共 SPI           | `com.arte.core.spi.platform`、`spi.workspace`、`spi.access`：存储、身份映射、事务边界、可靠事件、审计及领域关闭参与者                  | 给环境和领域适配实现；明确原子性、版本、错误及同步语义，不暴露 SQL／Mapper         |
-| AI 领域            | `arte-ai` 的 `com.arte.ainew`：模型／连接／绑定／发布、凭据使用、会话、执行和预算                                                      | 消费公共空间与权限；AI 状态、能力、预算与历史仍由 AI 校验和保存                    |
-| 应用与持久化适配   | `arte-app`：数据库实体／Mapper／Store 实现、登录适配、事务、HTTP、缓存及组合配置                                                       | 依赖公共和 AI 模块，实现 SPI；不复制权限算法或在 Controller 中补一套成员规则       |
+| 层次               | 初期位置与职责                                                                                                                                                                                             | 边界                                                                               |
+|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| 公共领域模型       | `com.arte.core.pojo.platform`、`pojo.workspace`、`pojo.access`；枚举在 `com.arte.core.enums` 的对应子包                                                                                                    | 不依赖 AI 类型、Controller DTO、MyBatis 实体或供应商 SDK；枚举沿用 StatusEnum 风格 |
+| 公共值与基础工具   | `com.arte.core.pojo.reference`、`pojo.value`：中立引用与结构化值；`pojo.platform.ExecutionOwner`：执行归属；`utils.validation.ContractChecks`、`serialize.CanonicalJson`、`utils.ContentDigests`：通用算法 | 已按两批迁移落地；不携带 AI 上下文、授权、状态或场景配额，不承担领域业务校验       |
+| 公共 API           | `com.arte.core.api.platform`、`api.workspace`、`api.access`：空间／成员应用服务、可信范围解析、通用授权判断                                                                                                | 给 AI、文章、HTTP 适配调用；请求来自可信主体上下文，不接受客户端自报授权           |
+| 公共规则与应用实现 | `com.arte.core.application.platform`、`application.workspace`、`application.access`；基础默认服务已实现，成员／ACL／生命周期按批次补齐                                                                     | 规则统一实现，调用 SPI；领域状态转换和原子操作要求不得下放为各适配器自选规则       |
+| 公共 SPI           | `com.arte.core.spi.platform`、`spi.workspace`、`spi.access`：存储、身份映射、事务边界、可靠事件、审计及领域关闭参与者                                                                                      | 给环境和领域适配实现；明确原子性、版本、错误及同步语义，不暴露 SQL／Mapper         |
+| AI 领域            | `arte-ai` 的 `com.arte.ainew`：模型／连接／绑定／发布、凭据使用、会话、执行和预算                                                                                                                          | 消费公共空间与权限；AI 状态、能力、预算与历史仍由 AI 校验和保存                    |
+| 应用与持久化适配   | `arte-app`：数据库实体／Mapper／Store 实现、登录适配、事务、HTTP、缓存及组合配置                                                                                                                           | 依赖公共和 AI 模块，实现 SPI；不复制权限算法或在 Controller 中补一套成员规则       |
 
 公共枚举、领域对象、API 与 SPI 的上述包位置已按现有结构落实；后续默认实现继续遵循该边界，公共接口语义及存储职责见“详细设计”第
 3 节。当前 `arte-core`
 已包含基础设施依赖，新领域包仍保持上述边界；本次不要求先清理整个 core。以后可整体提取为 `arte-workspace`／`arte-platform`
 ，保持业务消费契约稳定，不把“core”发展为承载全部业务的包。
+
+当前 Maven 依赖与装配关系如下，尚未拆出 `arte-article`：
 
 ```mermaid
 flowchart BT
@@ -608,9 +615,10 @@ APP[arte-app：身份、数据库、HTTP 与装配] -->|实现 SPI 并装配|COR
 APP -->|接入 AI 端口|AI
 ```
 
-`core` 不反向依赖 `app` 或 `arte-ai`。文章目前位于 `app`，其领域服务消费同一公共
-API；未来拆出文章模块也遵循此方向。模型连接、绑定、发布、凭据和预算的持久化契约归 AI，部署中的数据库适配可以由 `app` 实现；既有已工作的
-AI JDBC 存储不要求为此次分层立即搬迁。
+后续目标主依赖链为 `arte-app → arte-article → arte-ai → arte-core`；各上层可直接使用 core 公共契约。
+`core` 不反向依赖业务模块，AI 不反向依赖文章或 app。文章目前位于 `app`；拆分后文章组合层消费 AI 公开端口，
+内容与版本规则仍由文章领域负责。模型连接、绑定、发布、凭据和预算的持久化契约归 AI，部署中的数据库适配可以由
+`app` 实现；既有已工作的 AI JDBC 存储不要求为此次分层立即搬迁。文章拆包及 ES 公共能力提取均未在这两批迁移中实施。
 
 **公共 API 与 SPI 的区分**
 
@@ -644,7 +652,8 @@ ResourceRef、ResourceOwnership、ResourceGrant
 **与现有 ainew 的增量衔接**
 
 保留 `ExecutionAuthorizationResolver` 作为 AI 侧适配端口，`app` 的实现调用公共主体、范围和授权 API，转换为现有 AI 执行授权；保留
-ExecutionOwner 的 tenantId／workspaceId／subjectId，不以资源 owner 代替。操作、绑定及预算权限仍需 AI 领域校验，公共成员资格不能直接生成无限制
+`com.arte.core.pojo.platform.ExecutionOwner` 的 tenantId／workspaceId／subjectId，由 AI 的
+`ExecutionOwners.from(ExecutionContext)` 转换，不以资源 owner 代替。操作、绑定及预算权限仍需 AI 领域校验，公共成员资格不能直接生成无限制
 AI 授权。
 
 当前 `AdmissionAuthorization.grant()`、固定目录和配置发现仍依赖 NewAiProperties 中的授权与资源配置。动态成员／资源接入时须同步抽出受信
@@ -1119,7 +1128,7 @@ flowchart TB
    AI[AI 层：会话、执行、能力与编排]
 ARTICLE[文章层：内容、版本、检索与协作]
 COMMON[公共接口：身份、授权、资源契约与基础机制]
-INTEGRATION[AI 与文章组合模块：资源、工具与变更适配]
+INTEGRATION[AI 与文章组合层：资源、工具与变更适配]
 AI -->|依赖|COMMON
 ARTICLE -->|依赖|COMMON
 INTEGRATION -->|依赖 AI 端口| AI
@@ -1127,14 +1136,28 @@ INTEGRATION -->|依赖文章端口|ARTICLE
 INTEGRATION -->|使用共用契约|COMMON
 ```
 
-AI 核心不依赖 Article、ArticleRevision、ArticlePatch 或文章 Repository；文章核心不依赖模型 SDK、Conversation 或
-AgentRuntime。组合模块依赖双方的公开端口，提供适配实现。公共基础设施实现按端口接入，数据库、Redis 与消息客户端不成为业务接口类型。
+上图表示职责及端口依赖，不要求独立的组合 Maven 模块；文中的“组合模块”指这一逻辑组合层，未来可位于文章模块内， 由 app 装配。AI
+核心不依赖 Article、ArticleRevision、ArticlePatch 或文章 Repository；文章核心规则不依赖模型 SDK、 Conversation 或
+AgentRuntime，组合层通过公开端口接入 AI。公共基础设施实现按端口接入，数据库、Redis 与消息客户端不成为业务接口类型。
 
 当前 Maven 落地为 `arte-ai → arte-core`、`arte-app → arte-core + arte-ai`；公共规则位于 core 的独立领域包，app 实现 SPI
-并装配。文章目前在 app，其领域代码仍只依赖公共契约；不因 app 同时包含文章和装配就允许 AI 反向导入 app
-类型。第一批中立引用、结构化值及基础工具已提取至 core，见 [公共契约迁移说明](backend/arte-ai/PUBLIC_CONTRACTS_MIGRATION.md)
-；第二批已下沉公共执行归属键并对齐当前主体与执行快照，见 [身份与归属迁移](backend/arte-ai/EXECUTION_IDENTITY_MIGRATION.md)
-。共用执行信封的后续提取与空间领域建设分别安排，不要求整体迁移 ainew.common。
+并装配。后续 `app → article → ai → core` 的目标及当前文章位置见“设计”第 3.3 节，不允许 AI 反向导入 app 或文章类型。
+
+已完成两批提取，表中 Java 包名均以 `com.arte.` 为前缀：
+
+| 批次   | 已迁移类型／职责                              | 当前归属及边界                                                                                                                 |
+|--------|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| 第一批 | DefinitionRef、ArtifactRef、原 AI ResourceRef | `core.pojo.reference`；原 AI ResourceRef 改名为 ResourceVersionRef，与授权定位键分开                                           |
+| 第一批 | StructuredValue                               | `core.pojo.value`；不可变、有界的 JSON 值树，不代替业务 Schema 校验                                                            |
+| 第一批 | 基础结构校验、v1 JSON 规范化、摘要及组合键    | `core.utils.validation.ContractChecks`、`core.serialize.CanonicalJson`、`core.utils.ContentDigests`；AI 保留委托入口与场景限制 |
+| 第二批 | ExecutionOwner                                | `core.pojo.platform`；只含 tenantId／workspaceId／subjectId，AI 的 ExecutionOwners 负责上下文转换                              |
+| 第二批 | 当前主体与执行快照对齐                        | Principal 保留在 core，ExecutionPrincipal 保留在 AI；通过显式转换及稳定身份比对对齐，不合并两类对象                            |
+
+完整说明见 [公共契约迁移说明](backend/arte-ai/PUBLIC_CONTRACTS_MIGRATION.md) 和
+[身份与归属迁移](backend/arte-ai/EXECUTION_IDENTITY_MIGRATION.md)
+。ExecutionAuthorization、ExecutionContext、ExecutionEvent、
+ExecutionError、AcceptedExecution、RemoteTaskRef、LiveTextDelta、SourceRef、预算与搜索组件继续留在 AI。
+下节的共用执行信封是目标契约分类，不代表均已迁至 core；后续按真实复用需求分别评估，不整体搬迁 `ainew.common`。
 
 #### 1.2 公共数据契约
 
@@ -1143,10 +1166,15 @@ AgentRuntime。组合模块依赖双方的公开端口，提供适配实现。�
 | Tenant／Workspace                     | 租户标识与类型；空间标识、tenantId、名称、描述、负责人关系、托管归属、状态、version 及审计时间          | 生命周期为 ACTIVE／ARCHIVED／CLOSING／DELETED 的目标设计；个人托管负责人交接不改变治理账户         |
 | Membership／WorkspaceInvitation       | 主体与租户／空间关系、角色、有效状态；邀请目标、邀请者、目标角色、期限及接受状态                        | 由真实身份验证，邀请接受幂等；访客仅获目标范围，不开放整个租户                                     |
 | WorkspacePreference                   | 用户的系统个人默认空间关联、启动偏好、最近访问及收藏                                                    | 默认关联每用户唯一，空间偏好不授予访问权；默认空间失效需明确恢复处理                               |
+| Principal／ExecutionOwner             | 当前主体的稳定 subjectId、类型及状态；执行归属的 tenantId／workspaceId／subjectId 三元组                | 均在 core；当前身份状态、执行归属与资源治理归属分别表达，归属键不含名称且不授予权限                |
 | ResourceOwnership／ResourceGrant      | 治理租户、归属范围 WORKSPACE／TENANT 及适用主空间、可见范围；授权目标、动作、有效期、来源操作及版本     | 不设通用 USER owner，空间 owner 与主空间一致；主体动作、凭据责任及执行归属独立，描述由领域可信提供 |
 | AccessDecision／ClosureBlocker        | 动作判断、适度原因码及授权版本；领域关闭阻塞项、类别、状态及允许的处理动作                              | 不泄露未授权资源；公共关闭流程不引用 AI／文章专有状态                                              |
 | ExecutionContext                      | 执行身份、经验证的主体／租户／空间、traceId、父执行、deadline、授权范围、预算引用、发布引用、适用幂等键 | 服务端构建、可持久化；进程内取消信号单独放在运行上下文；预算与发布使用通用引用，不引入 AI 专有实体 |
-| ResourceRef／SourceRef                | 资源类型、ID、版本标识、草稿标识、范围引用与内容摘要                                                    | 范围结构由资源领域解释；查看及重用时重新授权                                                       |
+| ResourceRef                           | tenantId、资源类型、resourceId                                                                          | `core.pojo.access` 的授权定位键，不包含内容版本、草稿或正文；持有键不代表获授权                    |
+| ResourceVersionRef                    | 资源类型、ID、固定版本／草稿标识、范围引用与内容摘要                                                    | `core.pojo.reference`；范围由资源领域解释，草稿必须有摘要，查看及重用时重新授权                    |
+| DefinitionRef／ArtifactRef            | 定义类型、ID、固定版本；产物 ID、版本、媒体类型、摘要及字节数                                           | `core.pojo.reference`；引用不携带定义正文、凭据或临时下载地址，不授予使用资格                      |
+| StructuredValue                       | 对象、数组、文本、精确数字、布尔及空值组成的不可变值树                                                  | `core.pojo.value`；限制容量与深度，业务 Schema、证据一致性与授权由消费方验证                       |
+| SourceRef                             | citationId、ResourceVersionRef、实际摘录的 excerptDigest                                                | 当前仍在 AI；关联快照／结果内的来源，摘要是内容哈希，不能替代再次读取或外发授权                    |
 | AcceptedExecution                     | executionId、执行种类、受理时间；HTTP 层生成状态与事件查询地址                                          | 只在受理记录与可恢复派发依据提交后返回，不表示生成、业务保存或应用完成                             |
 | ExecutionEvent                        | 执行／尝试标识、执行内跨 Attempt 单调序号、事件类型、时间、负载类型与 Schema 版本                       | 平台事件在保存后发布；供应商增量与耐久事件分开；事件类型与负载由所属模块扩展，重放不重新执行业务   |
 | ExecutionError                        | 稳定错误码、失败阶段、可重试性、副作用情况、结果确定性、关联 ID                                         | 不泄露凭据／全文；具体错误扩展由各模块定义                                                         |
@@ -1236,24 +1264,42 @@ BT --> D
 
 #### 2.2 AI 专有数据契约
 
-| 契约 | 最小内容 | 约束 |
-|---|---|---|
-| ContextRequest／ContextSnapshot | 显式选入资料、历史／记忆、目标范围、实际片段、来源、内容预算及裁剪说明 | 使用公共 ResourceRef／SourceRef；不要求资料必须来自文章 |
-| CapabilityDescriptor | 操作类型、输入输出 Schema、能力特性、副作用、版本 | 能力发现与实际使用授权分离 |
-| InvocationRequest | 能力／绑定引用、类型化输入、执行选项、ExecutionContext | 不携带凭据或任意远端地址，不统一为无类型调用参数 |
-| GenerationRequest／ModelResult | 消息、内容部件、模型选项、工具请求、生成输出及用量 | 保留文本／多模态与结构化输出语义，工具请求由运行时决定执行 |
-| EmbeddingRequest／向量结果 | 输入内容、向量、维度及模型版本 | 与聊天契约分开，不混用不同模型向量空间 |
-| 媒体请求／任务／产物结果 | 生成输入、远端任务、状态、产物引用及用量 | 同步结果、异步任务与取消能力分别声明 |
-| ToolInvocation／ToolResult | 工具、Schema 约束的输入、结构化结果、来源或产物 | 参数验证、授权与副作用检查后执行 |
-| 远程应用请求／RemoteApplicationResult | 应用输入、远端会话／任务、结果及控制能力 | 保留远端生命周期，不伪装为普通模型响应 |
+| 契约                                  | 最小内容                                                               | 约束                                                                                 |
+|---------------------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| ContextRequest／ContextSnapshot       | 显式选入资料、历史／记忆、目标范围、实际片段、来源、内容预算及裁剪说明 | 使用 core ResourceVersionRef 与 AI SourceRef；不要求资料必须来自文章，引用不授予权限 |
+| CapabilityDescriptor                  | 操作类型、输入输出 Schema、能力特性、副作用、版本                      | 能力发现与实际使用授权分离                                                           |
+| InvocationRequest                     | 能力／绑定引用、类型化输入、执行选项、ExecutionContext                 | 不携带凭据或任意远端地址，不统一为无类型调用参数                                     |
+| GenerationRequest／ModelResult        | 消息、内容部件、模型选项、工具请求、生成输出及用量                     | 保留文本／多模态与结构化输出语义，工具请求由运行时决定执行                           |
+| EmbeddingRequest／向量结果            | 输入内容、向量、维度及模型版本                                         | 与聊天契约分开，不混用不同模型向量空间                                               |
+| 媒体请求／任务／产物结果              | 生成输入、远端任务、状态、产物引用及用量                               | 同步结果、异步任务与取消能力分别声明                                                 |
+| ToolInvocation／ToolResult            | 工具、Schema 约束的输入、结构化结果、来源或产物                        | 参数验证、授权与副作用检查后执行                                                     |
+| 远程应用请求／RemoteApplicationResult | 应用输入、远端会话／任务、结果及控制能力                               | 保留远端生命周期，不伪装为普通模型响应                                               |
 
 #### 2.2.1 最小 AI 数据契约与身份规则
 
-首批可实现的数据契约、字段与校验见 [最小 AI 数据契约 v1](backend/arte-ai/DATA_CONTRACTS.md)。AI 专属源码位于
-`com.arte.ainew`，复用现有不可变执行身份与授权数据；固定定义、资源版本、产物引用及结构化值已迁至
-`com.arte.core.pojo.reference`／`value`，执行归属键已迁至 `com.arte.core.pojo.platform.ExecutionOwner`，由 AI
-`ExecutionOwners` 转换上下文。 执行身份快照与 core 当前主体显式对齐，其他执行信封与 AI 来源引用仍留在 `ainew.common`，不修改旧
-`ai` 或文章实现。
+最小数据契约、字段与校验见 [最小 AI 数据契约 v1](backend/arte-ai/DATA_CONTRACTS.md)，两批迁移后的归属见第 1.1～1.2 节。 AI
+专属源码位于 `com.arte.ainew`；公共值对象与算法的提取不改变 AI 执行、预算、来源解释或文章版本的权威归属。
+
+**迁移后的身份及兼容规则**
+
+- core `Principal` 表示当前权威主体；AI `ExecutionPrincipal(subjectId, subjectName, kind)` 表示执行时快照。
+  `ExecutionPrincipal.from(current, currentSubjectName)` 仅接收可信边界提供的当前 ACTIVE 主体及其名称；
+  `sameIdentityAs(current)` 只比较稳定 ID 与类型，不能代替当前状态、名称绑定、成员资格或操作授权校验，也不能从旧快照反向制造
+  ACTIVE 主体。
+- `subjectName` 保留执行时的认证／展示名称，仍用于既有固定配置解析与旧上下文桥接，不进入执行归属键。
+  改名后重新核验当前配置与授权，同名新账号不能继承历史身份或数据。core 主体类型沿用数字 JSON 编码，AI
+  `ExecutionPrincipal.Kind` 保留 USER／SERVICE 字符串编码并显式映射，避免改变已有快照与配置。
+- 两批迁移保持 HTTP 字段、内部稳定类型别名、快照版本、规范化 JSON、摘要、存储键和幂等键不变。 无需新 DDL 或历史 JSON 回填；Java
+  调用方更新类型导入及 `ExecutionOwners.from(context)` 后统一重编，不能混用新旧二进制。 版本化 JSON 的兼容不等于承诺旧
+  Java 原生序列化字节的跨包名兼容。
+- core `ContractChecks.id` 保留旧契约的非空白及 256 个 UTF-16 单元上限，不与更严格的 `PlatformChecks.id` 合并。
+  StructuredValue 保留自身的容量／深度限制；AI 的消息／工具数量、证据 JSON 解析限制仍归 AI。 CanonicalJson 是既有内部 v1
+  算法，不宣称符合 RFC 8785；摘要及组合键算法不因迁包改变。
+
+两批迁移已完成干净重编、旧快照／摘要兼容及定向回归，具体范围见上述迁移说明；平台只读事务契约和搜索 null 排序值的两项既有失败已另行修复，MCP
+两项按约定暂未处理。此处不代表全仓、生产或多节点验收通过，ES 组件提取仍暂缓。
+
+**执行与数据规则**
 
 - Conversation 组织交流，Turn 固定一次用户输入与回答候选，Invocation 保存一次逻辑调用，Attempt 保存实际尝试与执行归属；会话不复制执行终态作为第二权威。
 - 主动重新生成建立新 Invocation 并关联原调用／Turn；自动重试只增加原 Invocation 的 Attempt。编辑重发建立新 Turn，原输入与历史分支保持可追溯。相同作用域幂等键、相同规范化请求摘要返回原受理，不以新分配 ID 覆盖原身份。
@@ -1407,23 +1453,24 @@ ArticleCommandService 组织规则校验与领域事务，领域对象不依赖 
 
 #### 3.3 核心读写、格式、检索与协作接口
 
-| 接口族 | 主要操作 | 边界 |
-|---|---|---|
-| ArticleQueryService | 文章／版本读取、列表、最近记录、内容范围查询 | 授权后读取领域事实，不返回未授权历史或附件 |
-| ArticleCommandService | 创建、保存、应用文章补丁、删除／恢复、版本恢复 | 人工、AI、协作的正式正文修改统一进入；检查当前权限、版本与幂等 |
-| ArticleFormatService | Markdown 导入／导出、节点验证、渲染／格式转换 | 使用同一内容契约，转换后由 Command 保存，导出声明降级范围 |
-| SearchService | 文章关键词／语义检索、匹配定位、资料集合选择 | 关键词可独立运行，语义能力依赖已注册向量提供者；索引非权威，读取及外发重新授权 |
-| CitationService | 来源登记、解析、定位、失效／过期状态查询 | 引用不授予来源权限；通用 SourceRef 的文章解析由此服务提供 |
-| KnowledgeCaptureService | 选择目标、准备采纳内容、保存或更新文章、查询保存结果 | 属于文章应用流程，可接收通用成果与来源；保存由领域事务提交，不调用具体模型 |
-| CollaborationService | 成员、资源分享、评论、回复、处理状态和通知 | 使用公共身份／授权；正文修订走 Command，评论等使用各自领域操作 |
-| RealtimeCollaborationService | 加入文档、同步操作、在线状态、检查点恢复 | P2 接入领域文档，不旁路保存与授权 |
-| 文章持久化与索引端口 | 正文、版本、引用／采纳／评论读取保存，索引更新 | 具体 Repository 后续细化，事务与版本契约属于文章模块 |
+| 接口族                       | 主要操作                                             | 边界                                                                                    |
+|------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| ArticleQueryService          | 文章／版本读取、列表、最近记录、内容范围查询         | 授权后读取领域事实，不返回未授权历史或附件                                              |
+| ArticleCommandService        | 创建、保存、应用文章补丁、删除／恢复、版本恢复       | 人工、AI、协作的正式正文修改统一进入；检查当前权限、版本与幂等                          |
+| ArticleFormatService         | Markdown 导入／导出、节点验证、渲染／格式转换        | 使用同一内容契约，转换后由 Command 保存，导出声明降级范围                               |
+| SearchService                | 文章关键词／语义检索、匹配定位、资料集合选择         | 关键词可独立运行，语义能力依赖已注册向量提供者；索引非权威，读取及外发重新授权          |
+| CitationService              | 来源登记、解析、定位、失效／过期状态查询             | 引用不授予来源权限；解析 ResourceVersionRef 定位的文章内容，AI SourceRef 在组合边界适配 |
+| KnowledgeCaptureService      | 选择目标、准备采纳内容、保存或更新文章、查询保存结果 | 属于文章应用流程，可接收通用成果与来源；保存由领域事务提交，不调用具体模型              |
+| CollaborationService         | 成员、资源分享、评论、回复、处理状态和通知           | 使用公共身份／授权；正文修订走 Command，评论等使用各自领域操作                          |
+| RealtimeCollaborationService | 加入文档、同步操作、在线状态、检查点恢复             | P2 接入领域文档，不旁路保存与授权                                                       |
+| 文章持久化与索引端口         | 正文、版本、引用／采纳／评论读取保存，索引更新       | 具体 Repository 后续细化，事务与版本契约属于文章模块                                    |
 
 保存正文、正式版本、采纳来源、应用防重与 Outbox 在一个文章事务中提交。索引和通知随后更新，不将索引就绪作为正文保存成功的前提。针对当前草稿的采纳先成为待保存编辑，正式保存后形成持久化知识资产。
 
 #### 3.4 AI 与文章组合接口
 
-以下实现归组合模块；相关端口的契约所有者仍是公共模块或 AI 模块，文章核心不反向依赖 AI。
+以下实现归逻辑组合层，未来可随文章模块落地并由 app 装配；相关端口的契约所有者仍是公共模块或 AI 模块。
+文章核心规则通过端口保持独立，文章模块可依赖 AI 公开契约，AI 不反向依赖文章实现。
 
 | 组合适配 | 依赖与调用关系 | 启用后的功能 |
 |---|---|---|
@@ -1446,8 +1493,8 @@ AI 不直接访问文章数据库；文章不直接调用模型 Gateway。文章
 | 分享与协作 | 分享撤销、评论回复、修订与通知；P2 实时同步 | 明确角色权限、版本与并发修改处理 |
 | 采纳成果 | Capture／Application，或随文章保存提交采纳引用 | 来源为可验证通用引用；AI 未启用时普通内容保存仍可用 |
 
-文章层只依赖公共契约和机制即可完成编辑、保存、关键词检索、引用与协作；语义检索等扩展在所需提供者就绪后启用。组合适配接入后复用同一领域规则完成
-AI 知识回流，不建立另一套 AI 专用文章写入路径。
+文章基础能力的目标是无需启用 AI 调用即可完成编辑、保存、关键词检索、引用与协作；这与目标文章模块依赖 AI 公开端口的方向并不冲突。
+语义检索等扩展在所需提供者就绪后启用。组合适配接入后复用同一领域规则完成 AI 知识回流，不建立另一套 AI 专用文章写入路径。
 
 ## 详细设计
 
@@ -1464,7 +1511,9 @@ ACL、成员治理、生命周期及 AI 接入仍分步实施；app 已完成身
 #### 2.1 主体、成员资格及角色
 
 - 可信主体为 `Principal(subjectId, kind, status)`；subjectId 为不可变标识，kind 为 USER 或
-  SERVICE。用户名仅作认证入口和显示，不作为成员、授权或账本关联键。
+  SERVICE。用户名用于认证入口、显示及既有固定配置的名称绑定校验，不作为成员、授权或账本的稳定关联键。 AI 的
+  ExecutionPrincipal 保存历史身份及名称，当前状态仍重新查询 Principal；ExecutionOwner 使用稳定主体 ID，
+  名称变化不改写历史归属，也不自动延续旧名称下的当前授权。转换与身份比对规则见“顶层接口”第 2.2.1 节。
 - 租户成员角色为 OWNER、ADMIN、MEMBER、GUEST，空间角色也采用这四个名称，但使用不同类型，互不隐式继承。租户 OWNER 是治理责任主体，空间
   OWNER 是负责人；租户管理员不会自动成为所有空间的负责人或正文读者。
 - 个人租户初始化时，本人是租户 OWNER 及默认空间 OWNER。组织租户创建采用有资格用户发起的独立命令，创建者成为首位租户
