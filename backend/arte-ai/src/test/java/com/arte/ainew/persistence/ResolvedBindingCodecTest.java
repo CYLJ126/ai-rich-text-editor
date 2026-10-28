@@ -1,11 +1,11 @@
 package com.arte.ainew.persistence;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.serialization.ResolvedBindingJson;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import tools.jackson.databind.json.JsonMapper;
 

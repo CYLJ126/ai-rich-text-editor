@@ -1,7 +1,6 @@
 package com.arte.ainew.persistence.codec;
 
 import com.arte.ainew.common.execution.ExecutionEvent;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.budget.*;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.ExecutionTarget;
@@ -19,6 +18,7 @@ import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.value.StructuredValue;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import tools.jackson.databind.DeserializationFeature;

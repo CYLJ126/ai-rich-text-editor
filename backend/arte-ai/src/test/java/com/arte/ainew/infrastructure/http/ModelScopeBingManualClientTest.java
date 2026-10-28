@@ -1,8 +1,8 @@
 package com.arte.ainew.infrastructure.http;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

@@ -1,8 +1,8 @@
 package com.arte.ainew.web.request;
 
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.core.pojo.PageParam;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
@@ -29,7 +29,7 @@ public final class ConversationRequests {
      * 幂等键通过 Idempotency-Key 请求头传入；profile/资料仍由现有 Service 检查支持范围。
      */
     public record Create(@NotNull @Valid Scope scope, @NotBlank @Size(max = 256) String title,
-                         DefinitionRef chatProfile, @Size(max = 256) List<ResourceRef> resources) {
+                         DefinitionRef chatProfile, @Size(max = 256) List<ResourceVersionRef> resources) {
     }
 
     public record CreateDefault(@NotNull @Valid Scope scope,

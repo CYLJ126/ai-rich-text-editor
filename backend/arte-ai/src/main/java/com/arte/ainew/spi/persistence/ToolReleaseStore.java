@@ -1,12 +1,12 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolPublicationValidation;
 import com.arte.ainew.pojo.tool.ToolRelease;
 import com.arte.ainew.pojo.tool.ToolReleaseCommand;
 import com.arte.ainew.pojo.tool.ToolReleaseReceipt;
 import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 /**

@@ -17,14 +17,14 @@ public record McpHealthToolProperties(boolean enabled, String version, URI endpo
 
     public McpHealthToolProperties {
         version = version == null ? "v1" : version;
-        new com.arte.ainew.common.reference.DefinitionRef("connection", "arte-mcp-health", version);
+        new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-mcp-health", version);
         allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
         if (enabled && (endpoint == null || allowedOrigins.isEmpty()))
             throw new IllegalArgumentException("MCP tool requires endpoint and explicit allowed origins");
         if (!allowedOrigins.isEmpty()) {
             var transport = new NewAiGenerationProperties(false, allowedOrigins, List.of(), 0, 0, 0, null, 0, 0);
             if (enabled) {
-                new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.ainew.common.reference.DefinitionRef("connection", "arte-mcp-health", version),
+                new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-mcp-health", version),
                         "arte-mcp-health", com.arte.ainew.pojo.tool.ToolDefinitionRevision.MCP_PROTOCOL, endpoint, null,
                         com.arte.ainew.pojo.control.ConnectionDefinition.State.ENABLED, java.time.Duration.ofSeconds(3), java.time.Duration.ofSeconds(5), 65536);
                 new com.arte.ainew.infrastructure.http.HttpEgressPolicy(transport).validateOrigin(endpoint);

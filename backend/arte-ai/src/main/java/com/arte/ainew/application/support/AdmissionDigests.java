@@ -1,11 +1,11 @@
 package com.arte.ainew.application.support;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.pojo.execution.InvocationSubmission;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 
 import java.util.List;
 import java.util.TreeSet;
@@ -35,7 +35,7 @@ public final class AdmissionDigests {
      * @param resources 资源列表
      * @return 会话创建摘要
      */
-    public static String conversation(String title, DefinitionRef profile, List<ResourceRef> resources) {
+    public static String conversation(String title, DefinitionRef profile, List<ResourceVersionRef> resources) {
         return CanonicalJson.digest(CanonicalJson.fields("schema", "conversation-creation-v1",
                 "title", title, "profile", profile, "resources", resources));
     }

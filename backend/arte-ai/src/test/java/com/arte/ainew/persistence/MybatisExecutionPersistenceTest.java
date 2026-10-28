@@ -1,8 +1,6 @@
 package com.arte.ainew.persistence;
 
 import com.arte.ainew.common.execution.*;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.budget.BudgetCommands;
@@ -20,6 +18,8 @@ import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
 import org.junit.Before;

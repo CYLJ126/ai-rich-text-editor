@@ -1,6 +1,5 @@
 package com.arte.ainew.application.tool.discovery;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
@@ -9,6 +8,7 @@ import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.HttpToolAdapter;
 import com.arte.ainew.spi.adapter.McpToolAdapter;
 import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.util.List;
 import java.util.Map;

@@ -1,8 +1,8 @@
 package com.arte.ainew.infrastructure.http;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.MediaType;
 import reactor.core.publisher.Mono;

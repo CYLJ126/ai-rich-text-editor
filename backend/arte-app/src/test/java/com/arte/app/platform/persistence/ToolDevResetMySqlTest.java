@@ -1,7 +1,6 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolDefinition;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
@@ -10,6 +9,7 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.app.platform.ai.tool.LocalTextTools;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.context.ApplicationContext;

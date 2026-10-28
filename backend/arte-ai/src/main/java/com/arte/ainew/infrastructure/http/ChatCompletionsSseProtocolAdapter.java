@@ -2,11 +2,11 @@ package com.arte.ainew.infrastructure.http;
 
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.adapter.ProtocolAdapter;
+import com.arte.core.pojo.reference.DefinitionRef;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.buffer.DataBufferUtils;

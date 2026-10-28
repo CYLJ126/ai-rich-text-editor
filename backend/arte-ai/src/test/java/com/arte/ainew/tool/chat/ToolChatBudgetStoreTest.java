@@ -81,7 +81,7 @@ public class ToolChatBudgetStoreTest {
             var c = s.context();
             var context = new ExecutionContext(step.childExecutionId(), c.traceId(), c.authorization(), c.deadline(), "run", wallet, c.releaseRef(), "submit-" + step.childExecutionId());
             CapabilityInput input;
-            com.arte.ainew.common.reference.DefinitionRef binding, capability;
+            com.arte.core.pojo.reference.DefinitionRef binding, capability;
             if (step.input() instanceof ToolChatStep.Model model) {
                 input = new GenerationRequest(model.context().messages(), s.generation(), s.tools().descriptions(), new GenerationRequest.TextOutput());
                 binding = s.model().definition();

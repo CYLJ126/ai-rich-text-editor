@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.ExecutionTarget;
+import com.arte.core.pojo.reference.DefinitionRef;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.Serializable;

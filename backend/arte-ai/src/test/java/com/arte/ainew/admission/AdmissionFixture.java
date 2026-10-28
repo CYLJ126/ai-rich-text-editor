@@ -12,7 +12,6 @@ import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
@@ -30,6 +29,7 @@ import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import reactor.core.scheduler.Scheduler;
 

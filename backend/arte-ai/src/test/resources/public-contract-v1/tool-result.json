@@ -1,0 +1,71 @@
+{
+  "body": {
+    "type": "result-tool",
+    "value": {
+      "artifacts": [
+        {
+          "artifactId": "artifact",
+          "byteSize": 1024,
+          "contentDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "application/json",
+          "version": "v1"
+        }
+      ],
+      "callId": "call",
+      "error": null,
+      "outcome": "SUCCEEDED",
+      "output": {
+        "fields": {
+          "value": {
+            "type": "array",
+            "values": [
+              {
+                "type": "string",
+                "value": "中文😀"
+              },
+              {
+                "type": "number",
+                "value": 12345678901234567890123456789.12345
+              },
+              {
+                "type": "boolean",
+                "value": true
+              },
+              [
+                "null",
+                "INSTANCE"
+              ],
+              {
+                "fields": {
+                  "nested": {
+                    "type": "string",
+                    "value": "ok"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "sideEffect": "NONE",
+      "sources": [
+        {
+          "citationId": "citation",
+          "excerptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "resource": {
+            "contentDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "draftId": "draft-1",
+            "rangeRef": "section-1",
+            "resourceId": "resource",
+            "resourceType": "article",
+            "version": "v1"
+          }
+        }
+      ]
+    }
+  },
+  "schemaVersion": 1,
+  "type": "invocation-result"
+}

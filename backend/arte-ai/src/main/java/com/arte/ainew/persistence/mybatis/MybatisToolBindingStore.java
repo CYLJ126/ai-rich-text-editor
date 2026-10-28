@@ -3,7 +3,6 @@ package com.arte.ainew.persistence.mybatis;
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper;
@@ -20,6 +19,7 @@ import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -443,7 +443,7 @@ public final class MybatisToolBindingStore implements ToolBindingStore {
         } catch (IllegalArgumentException conflict) {
             throw reject(POLICY_CONFLICT);
         }
-        com.arte.ainew.common.value.StructuredValue.ObjectValue configuration;
+        com.arte.core.pojo.value.StructuredValue.ObjectValue configuration;
         try {
             configuration = ToolBindingConstraints.merge(tool.tool().defaultConfiguration(), settings.configuration());
             var schema = artifacts.schemas().stream().filter(s -> s.definition().equals(tool.tool().configurationSchema())).findFirst().orElseThrow();

@@ -1,8 +1,8 @@
 package com.arte.ainew.web.request;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.generation.GenerationOptions;
+import com.arte.core.pojo.reference.DefinitionRef;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 

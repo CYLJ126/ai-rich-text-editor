@@ -86,7 +86,7 @@ class PlatformHttpToolIntegrationTest {
         }).bindNow();
         try (var rig = new ToolAcceptanceRig()) {
             String origin = "http://127.0.0.1:" + server.port();
-            var connection = new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.ainew.common.reference.DefinitionRef("connection", "arte-http-health", "v1"),
+            var connection = new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-http-health", "v1"),
                     "arte-http-health", com.arte.ainew.infrastructure.http.HttpJsonGetTransport.PROTOCOL, URI.create(origin + "/health"), null,
                     com.arte.ainew.pojo.control.ConnectionDefinition.State.ENABLED, Duration.ofSeconds(3), Duration.ofSeconds(5), 65536);
             String manifest;

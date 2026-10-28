@@ -2,13 +2,13 @@ package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.execution.InvocationResult;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
 import com.arte.ainew.web.response.InvocationResultResponse;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.security.access.AccessDeniedException;

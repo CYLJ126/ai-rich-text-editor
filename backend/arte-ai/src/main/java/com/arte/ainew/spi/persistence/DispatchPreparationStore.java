@@ -1,10 +1,10 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.*;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;

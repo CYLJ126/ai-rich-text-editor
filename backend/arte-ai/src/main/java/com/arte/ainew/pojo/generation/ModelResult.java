@@ -2,8 +2,8 @@ package com.arte.ainew.pojo.generation;
 
 import com.arte.ainew.common.reference.SourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.execution.Usage;
+import com.arte.core.pojo.value.StructuredValue;
 
 import java.io.Serializable;
 import java.util.List;

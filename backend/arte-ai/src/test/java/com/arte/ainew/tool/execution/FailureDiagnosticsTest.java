@@ -116,7 +116,7 @@ public class FailureDiagnosticsTest {
                     return r.f.payloads.find(owner, id, ref).map(value -> {
                         var original = ((InvocationResult.Generation) value).value();
                         return new InvocationResult.Generation(new ModelResult(original.resultId(), original.model(), original.outputs(), original.finishReason(), original.complete(),
-                                new com.arte.ainew.common.value.StructuredValue.StringValue("private-model-content"), original.usage(), original.sources()));
+                                new com.arte.core.pojo.value.StructuredValue.StringValue("private-model-content"), original.usage(), original.sources()));
                     });
                 }
             };

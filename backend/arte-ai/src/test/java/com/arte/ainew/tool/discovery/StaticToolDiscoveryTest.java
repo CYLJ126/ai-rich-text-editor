@@ -4,7 +4,6 @@ import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.discovery.ToolStartupDiscovery;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.StoreOutcome;
@@ -13,6 +12,7 @@ import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
 import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -368,7 +368,7 @@ public class StaticToolDiscoveryTest {
     public void invalidDefaultConfigurationIsRejectedBeforeStorage() {
         var required = schema(first.schema().definition(), object("$schema", text(ToolSchemaValidator.DIALECT), "type", text("object"),
                 "properties", object("text", object("type", text("string"))),
-                "required", new com.arte.ainew.common.value.StructuredValue.ArrayValue(List.of(text("text")))));
+                "required", new com.arte.core.pojo.value.StructuredValue.ArrayValue(List.of(text("text")))));
         assertEquals(INVALID_DEFINITION, service(first.registration(() -> Mono.just(new StaticToolDefinitionSource.Definitions(List.of(required), List.of(first.revision())))))
                 .refresh().block(WAIT).code());
         assertEquals(0, store.calls.get());

@@ -1,6 +1,6 @@
-package com.arte.ainew.common.reference;
+package com.arte.core.pojo.reference;
 
-import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.utils.validation.ContractChecks;
 
 import java.io.Serializable;
 
@@ -10,10 +10,9 @@ import java.io.Serializable;
  * 固定版本的配置或契约定义引用，通过 type、id、version 定位指定定义版本。
  * 引用不携带定义内容，也不授予访问或执行权限；解析时仍须校验存在性和使用资格。
  *
- * @param type 定义类型，例如 capability、binding、connection、rate、schema
- * @param id 所属定义类型中的稳定标识，例如 text-generation、default-binding
+ * @param type    定义类型，例如 capability、binding、connection、rate、schema
+ * @param id      所属定义类型中的稳定标识，例如 text-generation、default-binding
  * @param version 固定版本标识，例如 v1；对应版本内容应保持不可变，禁止使用 latest
- *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */

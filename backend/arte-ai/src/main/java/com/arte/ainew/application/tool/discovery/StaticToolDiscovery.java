@@ -1,7 +1,6 @@
 package com.arte.ainew.application.tool.discovery;
 
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.StoreOutcome;
@@ -13,6 +12,7 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.application.platform.PlatformTimes;
+import com.arte.core.pojo.reference.DefinitionRef;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

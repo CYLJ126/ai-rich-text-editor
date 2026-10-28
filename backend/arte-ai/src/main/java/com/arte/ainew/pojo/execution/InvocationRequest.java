@@ -2,12 +2,12 @@ package com.arte.ainew.pojo.execution;
 
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.io.Serializable;
 import java.util.Objects;

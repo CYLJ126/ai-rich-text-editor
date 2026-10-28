@@ -1,7 +1,7 @@
 package com.arte.ainew.serialization;
 
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.tool.ToolDefinition;
+import com.arte.core.pojo.value.StructuredValue;
 
 import java.util.TreeMap;
 

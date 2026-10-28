@@ -35,7 +35,7 @@ public final class ToolReconciliation {
     }
 
     public record Proposal(Source source, ToolOutcomeEvidence.Decision decision, String reference, String digest,
-                           ExecutionError.SideEffect sideEffect, com.arte.ainew.common.value.StructuredValue output,
+                           ExecutionError.SideEffect sideEffect, com.arte.core.pojo.value.StructuredValue output,
                            String verificationNote) {
         public Proposal {
             java.util.Objects.requireNonNull(source);

@@ -1,9 +1,9 @@
 package com.arte.ainew.spi.adapter;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 import reactor.core.publisher.Mono;
 
 /**
@@ -26,5 +26,5 @@ public interface ResourceContextAdapter {
     /**
      * 先授权读取／外发再解析固定资源与范围，返回实际摘录、摘要来源及裁剪事实；不派发模型。
      */
-    Mono<ContextSnapshot.Fragment> resolve(ResourceRef resource, ContextBudget budget, ExecutionContext context);
+    Mono<ContextSnapshot.Fragment> resolve(ResourceVersionRef resource, ContextBudget budget, ExecutionContext context);
 }

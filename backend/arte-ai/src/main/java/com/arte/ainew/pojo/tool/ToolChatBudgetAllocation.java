@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.util.Objects;
 

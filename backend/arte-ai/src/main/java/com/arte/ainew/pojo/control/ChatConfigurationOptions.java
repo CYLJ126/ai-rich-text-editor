@@ -1,6 +1,6 @@
 package com.arte.ainew.pojo.control;
 
-import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.util.List;
 

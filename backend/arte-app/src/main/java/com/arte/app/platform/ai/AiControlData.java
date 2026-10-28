@@ -1,12 +1,12 @@
 package com.arte.app.platform.ai;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.util.HashSet;
 import java.util.List;

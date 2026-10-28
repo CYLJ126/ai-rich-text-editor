@@ -1,9 +1,9 @@
 package com.arte.ainew.infrastructure.http;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;

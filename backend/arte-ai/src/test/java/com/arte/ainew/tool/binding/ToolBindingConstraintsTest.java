@@ -1,9 +1,9 @@
 package com.arte.ainew.tool.binding;
 
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 
 import java.time.Duration;

@@ -1,11 +1,13 @@
-package com.arte.ainew.common.reference;
+package com.arte.core.pojo.reference;
 
-import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.utils.validation.ContractChecks;
 
 import java.io.Serializable;
 
 /**
- * 已转存、可授权读取的本系统产物引用；供应商临时 URL 不能冒充此引用。
+ * 已转存、可授权读取的本系统产物引用
+ * <p>
+ * 供应商临时 URL 不能冒充此引用。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾

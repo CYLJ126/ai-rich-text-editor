@@ -171,7 +171,7 @@ public final class MybatisToolDiscoveryManagementStore implements ToolDiscoveryM
      * 来源候选已按固定引用排序；只摘要不可变契约，集合字段由各自 checksum 覆盖。
      */
     private static String digest(ToolCatalogStore.Batch batch) {
-        var refs = Comparator.comparing(com.arte.ainew.common.reference.DefinitionRef::type).thenComparing(com.arte.ainew.common.reference.DefinitionRef::id).thenComparing(com.arte.ainew.common.reference.DefinitionRef::version);
+        var refs = Comparator.comparing(com.arte.core.pojo.reference.DefinitionRef::type).thenComparing(com.arte.core.pojo.reference.DefinitionRef::id).thenComparing(com.arte.core.pojo.reference.DefinitionRef::version);
         return CanonicalJson.digest(CanonicalJson.fields("format", "local-tool-discovery-v1", "providers", batch.providers().stream().sorted(Comparator.comparing(com.arte.ainew.pojo.tool.ToolProviderDefinition::definition, refs)).toList(),
                 "schemas", batch.schemas().stream().sorted(Comparator.comparing(com.arte.ainew.pojo.tool.ToolSchemaDefinition::definition, refs)).map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
                 "tools", batch.tools().stream().sorted(Comparator.comparing(t -> t.tool().definition(), refs)).map(t -> CanonicalJson.fields("definition", t.tool().definition(), "checksum", t.tool().checksum(), "provider", t.provider(), "target", t.target())).toList()));

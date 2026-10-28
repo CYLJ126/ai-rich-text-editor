@@ -1,9 +1,9 @@
 package com.arte.ainew.serialization;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.util.Collection;
 import java.util.Comparator;

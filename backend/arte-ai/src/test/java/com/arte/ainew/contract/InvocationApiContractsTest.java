@@ -4,7 +4,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
@@ -15,6 +14,7 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.entry.EntryRequests;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.*;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 
 import java.net.URI;

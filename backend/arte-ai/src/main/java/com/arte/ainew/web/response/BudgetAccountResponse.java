@@ -1,7 +1,7 @@
 package com.arte.ainew.web.response;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.budget.BudgetCommands;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 /**
  * 账本快照；金额采用十进制字符串保留精度，available 允许为负，不暴露账户 owner。

@@ -1,7 +1,7 @@
 package com.arte.ainew.config;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 

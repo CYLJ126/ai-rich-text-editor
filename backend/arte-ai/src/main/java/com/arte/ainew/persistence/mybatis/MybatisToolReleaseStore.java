@@ -1,7 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolCatalogMapper;
@@ -19,6 +18,7 @@ import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;

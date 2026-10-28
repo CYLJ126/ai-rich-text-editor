@@ -1,12 +1,12 @@
 package com.arte.ainew.contract;
 
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.ToolCapabilities;
 import com.arte.ainew.pojo.tool.ToolDefinition;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolRiskProfile;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

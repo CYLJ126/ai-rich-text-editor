@@ -203,7 +203,7 @@ public class ToolApprovalFlowTest {
                 public Mono<ToolResult> invoke(GatewayCall<ToolInvocation> call) {
                     calls.incrementAndGet();
                     return Mono.just(new ToolResult(call.request().input().callId(), ToolResult.Outcome.SUCCEEDED,
-                            new com.arte.ainew.common.value.StructuredValue.ObjectValue(Map.of()), List.of(), List.of(), ExecutionError.SideEffect.NONE, null));
+                            new com.arte.core.pojo.value.StructuredValue.ObjectValue(Map.of()), List.of(), List.of(), ExecutionError.SideEffect.NONE, null));
                 }
             };
             var registry = new com.arte.ainew.application.tool.discovery.StaticToolRegistry(List.of(new com.arte.ainew.application.tool.discovery.StaticToolRegistry.Registration(

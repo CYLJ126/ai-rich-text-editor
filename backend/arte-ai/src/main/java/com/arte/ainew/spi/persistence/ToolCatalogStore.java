@@ -1,11 +1,11 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
 import com.arte.ainew.pojo.tool.ToolProviderDefinition;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 

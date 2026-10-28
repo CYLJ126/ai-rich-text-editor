@@ -1,14 +1,14 @@
 package com.arte.ainew.api.conversation;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.core.pojo.PageParam;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -38,7 +38,7 @@ public interface ConversationService {
      *                    写入前重新校验当前授权
      * @return 新建会话或幂等重放会话的当前快照；授权失败、期限超时或幂等冲突时通过错误信号失败
      */
-    Mono<Conversation> create(String title, DefinitionRef chatProfile, List<ResourceRef> resources, ExecutionContext context);
+    Mono<Conversation> create(String title, DefinitionRef chatProfile, List<ResourceVersionRef> resources, ExecutionContext context);
 
     /**
      * 兼容旧调用：按服务端 Asia/Shanghai 日期生成标题，请求摘要不含日期。

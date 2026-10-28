@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.credential;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.DefinitionRef;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.jspecify.annotations.NonNull;
 import reactor.core.publisher.Mono;
 

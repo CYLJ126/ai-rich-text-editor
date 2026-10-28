@@ -327,7 +327,7 @@ public class AdmissionIntegrationTest {
         assertNull(legacy.request().options().requestedTimeout());
         assertEquals(original.request().options().deadline(), legacy.request().options().deadline());
         var current = first.context("alice", "resolve");
-        code(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE, () -> first.catalog.resolve(new com.arte.ainew.common.reference.DefinitionRef("binding", "text", "v2"), AdmissionFixture.CAP, current).block());
+        code(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE, () -> first.catalog.resolve(new com.arte.core.pojo.reference.DefinitionRef("binding", "text", "v2"), AdmissionFixture.CAP, current).block());
         assertEquals(AdmissionFixture.CONNECTION, first.catalog.resolveConnection(AdmissionFixture.CONNECTION, current).block().definition());
     }
 }

@@ -2,12 +2,12 @@ package com.arte.ainew.config;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 

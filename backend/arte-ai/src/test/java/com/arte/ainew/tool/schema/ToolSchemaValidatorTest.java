@@ -2,9 +2,9 @@ package com.arte.ainew.tool.schema;
 
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator.*;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
-import com.arte.ainew.common.value.StructuredValue.*;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
+import com.arte.core.pojo.value.StructuredValue.*;
 import org.junit.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -14,6 +14,7 @@ import java.util.*;
 import java.util.concurrent.Executors;
 
 import static com.arte.ainew.application.tool.schema.ToolSchemaValidator.Code.*;
+import static com.arte.ainew.application.tool.schema.ToolSchemaValidator.Code.MAX_ITEMS;
 import static com.arte.ainew.application.tool.schema.ToolSchemaValidator.Purpose.*;
 import static org.junit.Assert.*;
 

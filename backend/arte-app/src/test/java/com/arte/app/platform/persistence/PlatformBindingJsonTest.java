@@ -1,11 +1,11 @@
 package com.arte.app.platform.persistence;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.serialization.ResolvedBindingJson;
 import com.arte.app.platform.ai.AiControlData;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 

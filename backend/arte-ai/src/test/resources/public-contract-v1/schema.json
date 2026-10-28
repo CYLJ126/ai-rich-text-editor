@@ -1,0 +1,47 @@
+{
+  "body": {
+    "checksum": "8323d29c86a46aca3550e23bb56ae1b0439fcabd3e0cd476ff057863e5ecdafb",
+    "definition": {
+      "id": "migration",
+      "type": "schema",
+      "version": "v1"
+    },
+    "document": {
+      "fields": {
+        "value": {
+          "type": "array",
+          "values": [
+            {
+              "type": "string",
+              "value": "中文😀"
+            },
+            {
+              "type": "number",
+              "value": 12345678901234567890123456789.12345
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            [
+              "null",
+              "INSTANCE"
+            ],
+            {
+              "fields": {
+                "nested": {
+                  "type": "string",
+                  "value": "ok"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "schemaVersion": 1,
+  "type": "tool-schema"
+}

@@ -1,8 +1,8 @@
 package com.arte.ainew.api.control;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 /**

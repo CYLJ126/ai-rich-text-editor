@@ -21,8 +21,8 @@ public final class ToolChatRequests {
     public record Submit(@NotNull @Valid ConversationRequests.Scope scope,
                          @NotBlank @Size(max = 256) String conversationId, @Min(0) long expectedVersion,
                          @NotBlank @Size(max = 1_000_000) String text,
-                         @NotNull com.arte.ainew.common.reference.DefinitionRef binding,
-                         @NotNull com.arte.ainew.common.reference.DefinitionRef capability,
+                         @NotNull com.arte.core.pojo.reference.DefinitionRef binding,
+                         @NotNull com.arte.core.pojo.reference.DefinitionRef capability,
                          @NotBlank @Size(max = 256) String modelBudgetRef,
                          @Min(1) @Max(10_000_000) long maxInputTokens,
                          @NotNull com.arte.ainew.pojo.generation.GenerationOptions generationOptions,
@@ -34,7 +34,7 @@ public final class ToolChatRequests {
                          @NotEmpty @Size(max = 8) java.util.List<@Valid Limit> budgetLimits,
                          @Size(max = 32) java.util.Map<String, String> toolBudgetRefs) implements ToolManagementRequests.Strict {
         public Submit(ConversationRequests.Scope scope, String conversationId, long expectedVersion, String text,
-                      com.arte.ainew.common.reference.DefinitionRef binding, com.arte.ainew.common.reference.DefinitionRef capability,
+                      com.arte.core.pojo.reference.DefinitionRef binding, com.arte.core.pojo.reference.DefinitionRef capability,
                       String modelBudgetRef, long maxInputTokens, com.arte.ainew.pojo.generation.GenerationOptions generationOptions,
                       java.util.List<String> toolBindingIds, long timeoutSeconds, int maxModelRounds, int maxToolCalls, int maxConcurrentTools, java.util.List<Limit> budgetLimits) {
             this(scope, conversationId, expectedVersion, text, binding, capability, modelBudgetRef, maxInputTokens, generationOptions, toolBindingIds,

@@ -1,8 +1,8 @@
 package com.arte.ainew.tool.management;
 
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.web.ToolManagementValues;
 import com.arte.ainew.web.request.ToolManagementRequests;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -33,7 +33,7 @@ public class ToolManagementValuesTest {
         assertEquals(new BigDecimal("0.12345678901234567890123456789012345678"), ((StructuredValue.NumberValue) config.fields().get("n")).value());
         assertEquals(new BigDecimal("9007199254740993123456789"), ((StructuredValue.NumberValue) config.fields().get("i")).value());
         var revision = new com.arte.ainew.pojo.tool.ToolBindingRevision(
-                new com.arte.ainew.common.reference.DefinitionRef("binding", "exact-json", "r1"),
+                new com.arte.core.pojo.reference.DefinitionRef("binding", "exact-json", "r1"),
                 new com.arte.ainew.common.execution.ExecutionOwner("tenant", "workspace", "subject"), settings,
                 java.time.Instant.parse("2026-10-18T01:00:00Z"));
         var codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();

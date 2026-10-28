@@ -1,6 +1,6 @@
-package com.arte.ainew.common.value;
+package com.arte.core.pojo.value;
 
-import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.utils.validation.ContractChecks;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -21,13 +21,18 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
         StructuredValue.ArrayValue, StructuredValue.StringValue, StructuredValue.NumberValue,
         StructuredValue.BooleanValue, StructuredValue.NullValue {
 
+    /**
+     * 值树的结构安全上限，不等同于场景配额或编码字节上限。
+     */
+    int MAX_TEXT_CHARS = 1_000_000;
+    int MAX_ITEMS = 256;
     int MAX_NODES = 10_000;
     int MAX_DEPTH = 32;
 
     record ObjectValue(Map<String, StructuredValue> fields) implements StructuredValue {
         public ObjectValue {
             Objects.requireNonNull(fields, "fields");
-            ContractChecks.range(fields.size(), "fields.size", 0, ContractChecks.MAX_ITEMS);
+            ContractChecks.range(fields.size(), "fields.size", 0, MAX_ITEMS);
             fields.keySet().forEach(key -> ContractChecks.id(key, "field name"));
             fields = Map.copyOf(fields);
             validateChildren(fields.values(), fields.keySet().stream().mapToLong(String::length).sum());
@@ -36,7 +41,7 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
 
     record ArrayValue(List<StructuredValue> values) implements StructuredValue {
         public ArrayValue {
-            values = ContractChecks.list(values, "values", 0, ContractChecks.MAX_ITEMS);
+            values = ContractChecks.list(values, "values", 0, MAX_ITEMS);
             validateChildren(values, 0);
         }
     }
@@ -44,7 +49,7 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
     record StringValue(String value) implements StructuredValue {
         public StringValue {
             Objects.requireNonNull(value, "value");
-            ContractChecks.range(value.length(), "value.length", 0, ContractChecks.MAX_TEXT_CHARS);
+            ContractChecks.range(value.length(), "value.length", 0, MAX_TEXT_CHARS);
         }
     }
 
@@ -105,7 +110,7 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
             } else {
                 characters += 5;
             }
-            ContractChecks.require(characters <= ContractChecks.MAX_TEXT_CHARS,
+            ContractChecks.require(characters <= MAX_TEXT_CHARS,
                     "Structured value exceeds character limit");
         }
         return characters;

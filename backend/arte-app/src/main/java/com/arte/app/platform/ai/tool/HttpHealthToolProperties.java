@@ -17,14 +17,14 @@ public record HttpHealthToolProperties(boolean enabled, String version, URI endp
 
     public HttpHealthToolProperties {
         version = version == null ? "v1" : version;
-        new com.arte.ainew.common.reference.DefinitionRef("connection", "arte-http-health", version);
+        new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-http-health", version);
         allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
         if (enabled && (endpoint == null || allowedOrigins.isEmpty()))
             throw new IllegalArgumentException("HTTP tool requires endpoint and explicit allowed origins");
         if (!allowedOrigins.isEmpty()) {
             var transport = new NewAiGenerationProperties(false, allowedOrigins, List.of(), 0, 0, 0, null, 0, 0);
             if (enabled) {
-                new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.ainew.common.reference.DefinitionRef("connection", "arte-http-health", version),
+                new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-http-health", version),
                         "arte-http-health", com.arte.ainew.infrastructure.http.HttpJsonGetTransport.PROTOCOL, endpoint, null,
                         com.arte.ainew.pojo.control.ConnectionDefinition.State.ENABLED, java.time.Duration.ofSeconds(3), java.time.Duration.ofSeconds(5), 65536);
                 new com.arte.ainew.infrastructure.http.HttpEgressPolicy(transport).validateOrigin(endpoint);

@@ -377,7 +377,7 @@ public class ChatHttpIntegrationTest {
             var originalBinding = original.bindings().getFirst();
             var binding = new ResolvedBinding(originalBinding.definition(), capability, originalBinding.connection(),
                     originalBinding.remoteOperation(), originalBinding.contextWindowTokens(), originalBinding.rate());
-            var rate = new com.arte.ainew.common.reference.DefinitionRef("rate", "changed", "v2");
+            var rate = new com.arte.core.pojo.reference.DefinitionRef("rate", "changed", "v2");
             var rates = scenario == 3 ? List.of(original.rates().getFirst(),
                     new NewAiProperties.Rate(rate, AdmissionFixture.money("1"), AdmissionFixture.money("2"))) : original.rates();
             var budgets = original.budgets().stream().map(budget -> scenario == 3

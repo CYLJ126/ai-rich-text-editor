@@ -12,7 +12,7 @@ import reactor.core.publisher.Mono;
  */
 public interface ToolBillingStore {
 
-    Mono<Boolean> toolPriceBlocked(com.arte.ainew.common.reference.DefinitionRef rate);
+    Mono<Boolean> toolPriceBlocked(com.arte.core.pojo.reference.DefinitionRef rate);
 
     Mono<Void> recordToolCharge(ExecutionOwner owner, String invocationId, String attemptId, ToolCharge charge);
 

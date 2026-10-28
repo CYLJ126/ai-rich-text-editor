@@ -1,6 +1,7 @@
 package com.arte.ainew.common.reference;
 
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 
 import java.io.Serializable;
 import java.util.Objects;
@@ -17,7 +18,7 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */
-public record SourceRef(String citationId, ResourceRef resource, String excerptDigest) implements Serializable {
+public record SourceRef(String citationId, ResourceVersionRef resource, String excerptDigest) implements Serializable {
 
     public SourceRef {
         ContractChecks.id(citationId, "citationId");

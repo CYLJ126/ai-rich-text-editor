@@ -5,8 +5,6 @@ import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
@@ -15,6 +13,8 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 

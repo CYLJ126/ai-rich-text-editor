@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.adapter;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.execution.GatewayCall;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Flux;
 
 /**

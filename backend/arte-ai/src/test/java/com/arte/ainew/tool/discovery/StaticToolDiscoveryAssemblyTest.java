@@ -171,12 +171,12 @@ public class StaticToolDiscoveryAssemblyTest {
                             throw new AssertionError("Assembly must not access bindings");
                         }));
         context.registerBean(com.arte.ainew.spi.persistence.ToolReleaseStore.class, () -> new com.arte.ainew.spi.persistence.ToolReleaseStore() {
-            public Mono<com.arte.ainew.pojo.tool.ToolRelease> find(com.arte.ainew.common.reference.DefinitionRef tool) {
+            public Mono<com.arte.ainew.pojo.tool.ToolRelease> find(com.arte.core.pojo.reference.DefinitionRef tool) {
                 throw new AssertionError("Assembly must not read releases");
             }
 
             public Mono<ToolCatalogStore.Page<com.arte.ainew.pojo.tool.ToolReleaseReceipt>> history(
-                    com.arte.ainew.common.reference.DefinitionRef tool, String cursor, int limit) {
+                    com.arte.core.pojo.reference.DefinitionRef tool, String cursor, int limit) {
                 throw new AssertionError("Assembly must not read release history");
             }
 

@@ -1,10 +1,10 @@
 package com.arte.ainew.application.tool.schema;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.common.value.StructuredValue;
-import com.arte.ainew.common.value.StructuredValue.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
+import com.arte.core.pojo.value.StructuredValue.*;
 
 import java.io.Serial;
 import java.math.BigDecimal;

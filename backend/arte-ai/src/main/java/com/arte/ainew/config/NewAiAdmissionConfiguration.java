@@ -229,17 +229,17 @@ public class NewAiAdmissionConfiguration {
     ConnectionManager connectionManager(FixedControlCatalog catalog) {
         return new ConnectionManager() {
             public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolve(
-                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
                 return catalog.resolveConnection(reference, context);
             }
 
             public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
-                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
                 return catalog.resolveCurrentConnection(reference, context);
             }
 
             public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
-                    com.arte.ainew.common.reference.DefinitionRef reference, com.arte.ainew.pojo.execution.GatewayCall<?> call) {
+                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.pojo.execution.GatewayCall<?> call) {
                 return catalog.resolveCurrentConnection(reference, call);
             }
         };

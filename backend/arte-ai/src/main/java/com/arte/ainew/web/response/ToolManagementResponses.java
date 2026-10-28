@@ -1,12 +1,12 @@
 package com.arte.ainew.web.response;
 
 import com.arte.ainew.application.tool.management.ToolManagementService;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.web.ToolManagementValues;
 import com.arte.ainew.web.request.ToolManagementRequests;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.time.Instant;
 import java.util.List;

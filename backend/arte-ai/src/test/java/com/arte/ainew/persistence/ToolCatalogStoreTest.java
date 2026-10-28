@@ -1,12 +1,6 @@
 package com.arte.ainew.persistence;
 
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
-import com.arte.ainew.common.value.StructuredValue.ArrayValue;
-import com.arte.ainew.common.value.StructuredValue.BooleanValue;
-import com.arte.ainew.common.value.StructuredValue.ObjectValue;
-import com.arte.ainew.common.value.StructuredValue.StringValue;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -15,6 +9,12 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
+import com.arte.core.pojo.value.StructuredValue.ArrayValue;
+import com.arte.core.pojo.value.StructuredValue.BooleanValue;
+import com.arte.core.pojo.value.StructuredValue.ObjectValue;
+import com.arte.core.pojo.value.StructuredValue.StringValue;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
 import org.junit.Before;

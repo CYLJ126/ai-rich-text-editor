@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.conversation;
 
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -30,7 +30,7 @@ import java.util.Objects;
  * @since 2026/10/4 22:01 ✾
  */
 public record Conversation(String conversationId, ExecutionOwner owner, String title, long version,
-                           DefinitionRef chatProfile, List<ResourceRef> resources, State state,
+                           DefinitionRef chatProfile, List<ResourceVersionRef> resources, State state,
                            Instant createdAt, Instant updatedAt) implements Serializable {
 
     public enum State {ACTIVE, DELETED}

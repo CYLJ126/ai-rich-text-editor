@@ -1,10 +1,10 @@
 package com.arte.ainew.web.request;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolBindingSettings;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolReleaseCommand;
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.reference.DefinitionRef;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;

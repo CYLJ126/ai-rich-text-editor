@@ -1,6 +1,7 @@
-package com.arte.ainew.common.reference;
+package com.arte.core.pojo.reference;
 
-import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.utils.validation.ContractChecks;
+
 import java.io.Serializable;
 
 /**
@@ -10,9 +11,10 @@ import java.io.Serializable;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */
-public record ResourceRef(String resourceType, String resourceId, String version,
-                          String draftId, String rangeRef, String contentDigest) implements Serializable {
-    public ResourceRef {
+public record ResourceVersionRef(String resourceType, String resourceId, String version,
+                                 String draftId, String rangeRef, String contentDigest) implements Serializable {
+
+    public ResourceVersionRef {
         ContractChecks.id(resourceType, "resourceType");
         ContractChecks.id(resourceId, "resourceId");
         ContractChecks.optionalId(version, "version");

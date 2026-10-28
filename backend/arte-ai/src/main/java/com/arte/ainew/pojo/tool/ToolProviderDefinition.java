@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.io.Serializable;
 import java.util.Objects;

@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.context;
 
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.generation.ChatMessage;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 
 import java.io.Serializable;
 import java.util.List;
@@ -25,8 +25,8 @@ import java.util.Objects;
  * @since 2026/10/4 17:08 ✾
  */
 public record ContextRequest(List<ChatMessage> messages, HistorySelection history,
-                             List<String> memoryIds, List<ResourceRef> resources,
-                             ResourceRef target, ContextBudget budget) implements Serializable {
+                             List<String> memoryIds, List<ResourceVersionRef> resources,
+                             ResourceVersionRef target, ContextBudget budget) implements Serializable {
 
     /**
      * 固定会话版本，明确选择的轮次；maxTurns 是上限，空 turnIds 只选择该版本路径的最近轮次。

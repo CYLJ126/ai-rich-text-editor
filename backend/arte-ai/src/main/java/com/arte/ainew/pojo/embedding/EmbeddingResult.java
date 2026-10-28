@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.embedding;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.Usage;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.io.Serializable;
 import java.util.List;

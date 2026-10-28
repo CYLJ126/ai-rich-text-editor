@@ -6,8 +6,6 @@ import com.arte.ainew.application.support.AdmissionDigests;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwner;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
@@ -18,6 +16,8 @@ import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
 import com.arte.core.utils.MybatisPages;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
@@ -52,11 +52,11 @@ public final class DefaultConversationService implements ConversationService {
     }
 
     @Override
-    public Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources, ExecutionContext context) {
+    public Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceVersionRef> resources, ExecutionContext context) {
         return create(title, profile, resources, context, AdmissionDigests.conversation(title, profile, resources));
     }
 
-    private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceRef> resources, ExecutionContext context, String digest) {
+    private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceVersionRef> resources, ExecutionContext context, String digest) {
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
             var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);

@@ -1,10 +1,10 @@
 package com.arte.ainew.admission;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.infrastructure.http.EnvironmentCredentialResolver;
 import com.arte.ainew.infrastructure.http.GenerationException;
 import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
+import com.arte.core.pojo.reference.DefinitionRef;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import org.junit.Test;
 

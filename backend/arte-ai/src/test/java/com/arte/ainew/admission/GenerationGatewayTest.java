@@ -59,8 +59,8 @@ public class GenerationGatewayTest {
             var fixture = com.arte.ainew.tool.discovery.LocalToolFixtures.fixture("text", "v1");
             var owner = com.arte.ainew.common.execution.ExecutionOwner.from(base.request().context());
             var empty = com.arte.ainew.tool.discovery.LocalToolFixtures.object();
-            var binding = new ToolBindingResolution(new com.arte.ainew.common.reference.DefinitionRef("binding", "selected", "p1-" + "1".repeat(64)),
-                    new com.arte.ainew.common.reference.DefinitionRef("binding", "selected", "r1"), owner, fixture.revision(),
+            var binding = new ToolBindingResolution(new com.arte.core.pojo.reference.DefinitionRef("binding", "selected", "p1-" + "1".repeat(64)),
+                    new com.arte.core.pojo.reference.DefinitionRef("binding", "selected", "r1"), owner, fixture.revision(),
                     fixture.revision().tool().checksum(), empty, com.arte.ainew.serialization.ToolCatalogDigests.configuration(empty),
                     fixture.revision().tool().defaultPolicy(), Set.of(), Map.of());
             var snapshot = new ToolSetSnapshot(owner, List.of(new ToolSetSnapshot.Entry("tool_0", binding, binding.effectivePolicy(), fixture.schema())));
@@ -222,7 +222,7 @@ public class GenerationGatewayTest {
                     return runtime.release(lease).doOnSuccess(ignored -> releases.incrementAndGet());
                 }
 
-                public Mono<Void> invalidate(com.arte.ainew.common.reference.DefinitionRef ref, com.arte.ainew.common.execution.ExecutionContext context) {
+                public Mono<Void> invalidate(com.arte.core.pojo.reference.DefinitionRef ref, com.arte.ainew.common.execution.ExecutionContext context) {
                     return runtime.invalidate(ref, context);
                 }
             };

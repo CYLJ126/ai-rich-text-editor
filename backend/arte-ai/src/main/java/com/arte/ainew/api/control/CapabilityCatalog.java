@@ -1,9 +1,9 @@
 package com.arte.ainew.api.control;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.InvocationRequest;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 

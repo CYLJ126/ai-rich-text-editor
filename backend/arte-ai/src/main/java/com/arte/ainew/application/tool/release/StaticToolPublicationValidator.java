@@ -3,13 +3,13 @@ package com.arte.ainew.application.tool.release;
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolReleaseDigests;
 import com.arte.core.application.platform.PlatformTimes;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 

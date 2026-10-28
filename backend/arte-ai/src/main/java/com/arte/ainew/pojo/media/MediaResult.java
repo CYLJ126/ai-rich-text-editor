@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.media;
 
 import com.arte.ainew.common.execution.RemoteTaskRef;
-import com.arte.ainew.common.reference.ArtifactRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.Usage;
+import com.arte.core.pojo.reference.ArtifactRef;
 
 import java.io.Serializable;
 import java.util.List;

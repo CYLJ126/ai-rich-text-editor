@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.generation;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.CapabilityInput;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.io.Serializable;
 import java.util.List;

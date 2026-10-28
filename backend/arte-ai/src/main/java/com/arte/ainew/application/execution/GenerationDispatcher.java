@@ -321,7 +321,7 @@ public final class GenerationDispatcher {
         return value.successful() ? Mono.just(value.value()) : Mono.error(AdmissionException.fromStoreRejection(value.code()));
     }
 
-    private NewAiProperties.Rate rate(com.arte.ainew.common.reference.DefinitionRef reference) {
+    private NewAiProperties.Rate rate(com.arte.core.pojo.reference.DefinitionRef reference) {
         return fixedControlCatalog.rates().stream().filter(value -> value.definition().equals(reference)).findFirst()
                 .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
     }

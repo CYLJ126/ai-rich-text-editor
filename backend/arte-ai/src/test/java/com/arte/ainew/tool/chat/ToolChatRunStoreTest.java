@@ -119,7 +119,7 @@ public class ToolChatRunStoreTest {
         ToolChatCommands.Advance tools(ToolChatCommands.Lease lease, long version, String key, String... callIds) {
             return new ToolChatCommands.Advance(lease, version, key, ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, 0,
                     Arrays.stream(callIds).map(id -> new ToolChatStep.Plan(0, new ToolChatStep.Tool(new ToolCall(id, fixture.revision().tool().definition(),
-                            object("amount", new com.arte.ainew.common.value.StructuredValue.NumberValue(new BigDecimal("0.12345678901234567890123456789"))))))).toList(), null, null, null);
+                            object("amount", new com.arte.core.pojo.value.StructuredValue.NumberValue(new BigDecimal("0.12345678901234567890123456789"))))))).toList(), null, null, null);
         }
 
         void wake() {
@@ -200,7 +200,7 @@ public class ToolChatRunStoreTest {
             assertEquals(2, r.run().toolSteps());
             assertEquals(input.tools(), restored.snapshot(r.owner, "run").block(WAIT).tools());
             var number = ((ToolChatStep.Tool) original.steps().getFirst().input()).call().arguments().fields().get("amount");
-            assertEquals(new BigDecimal("0.12345678901234567890123456789"), ((com.arte.ainew.common.value.StructuredValue.NumberValue) number).value());
+            assertEquals(new BigDecimal("0.12345678901234567890123456789"), ((com.arte.core.pojo.value.StructuredValue.NumberValue) number).value());
             assertEquals(0, r.count("arte_ai_invocation"));
         }
     }
@@ -313,7 +313,7 @@ public class ToolChatRunStoreTest {
             assertEquals(IDEMPOTENCY_CONFLICT, r.advance(r.tools(lease, 1, "duplicate", "same", "same")).code());
             assertEquals(INVALID_STATE, r.advance(r.tools(lease, 1, "too-many", "a", "b")).code());
             var invalid = new ToolChatCommands.Advance(lease, 1, "invalid", ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, 0,
-                    List.of(new ToolChatStep.Plan(0, new ToolChatStep.Tool(new ToolCall("call", r.fixture.revision().tool().definition(), object("text", new com.arte.ainew.common.value.StructuredValue.NumberValue(BigDecimal.ONE)))))), null, null, null);
+                    List.of(new ToolChatStep.Plan(0, new ToolChatStep.Tool(new ToolCall("call", r.fixture.revision().tool().definition(), object("text", new com.arte.core.pojo.value.StructuredValue.NumberValue(BigDecimal.ONE)))))), null, null, null);
             assertEquals(INVALID_STATE, r.advance(invalid).code());
             var large = object("text", text("a".repeat(600_000)));
             assertThrows(IllegalArgumentException.class, () -> new ToolChatCommands.Advance(lease, 1, "oversized-batch", ToolChatRun.State.WAITING_TOOL, WAITING_TOOLS, 0,

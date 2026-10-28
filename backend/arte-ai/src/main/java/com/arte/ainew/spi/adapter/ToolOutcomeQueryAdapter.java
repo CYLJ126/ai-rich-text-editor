@@ -1,9 +1,9 @@
 package com.arte.ainew.spi.adapter;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.pojo.tool.ToolOutcomeCheck;
 import com.arte.ainew.pojo.tool.ToolOutcomeEvidence;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 /**

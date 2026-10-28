@@ -1,12 +1,12 @@
 package com.arte.app.web.platform;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.app.platform.ai.AiControlData;
 import com.arte.core.pojo.platform.CommandReceipt;
+import com.arte.core.pojo.reference.DefinitionRef;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 

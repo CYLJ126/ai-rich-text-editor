@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.tool;
 
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.common.value.StructuredValue;
+import com.arte.core.pojo.value.StructuredValue;
 
 import java.time.Duration;
 import java.util.Objects;

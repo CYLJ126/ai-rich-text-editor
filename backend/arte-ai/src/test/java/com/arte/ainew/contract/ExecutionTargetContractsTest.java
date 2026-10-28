@@ -3,14 +3,14 @@ package com.arte.ainew.contract;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.ToolInvocation;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 
 import java.time.Instant;

@@ -2,11 +2,11 @@ package com.arte.ainew.web.response;
 
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.approval.ToolApprovalPolicy;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
 import com.arte.ainew.web.ToolManagementValues;
+import com.arte.core.pojo.reference.DefinitionRef;
 
 /**
  * 可确认的公开方案；精确数值用 JSON 原文传输，不返回内部执行目标或临时授权。

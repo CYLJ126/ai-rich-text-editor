@@ -1,94 +1,62 @@
 package com.arte.ainew.common.validation;
 
+import com.arte.core.pojo.value.StructuredValue;
+
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
- * SDK 无关的结构校验与绝对安全上限
- * <p>
- * 入口、绑定与租户配额应施加更低的场景上限；
- * 字符上限不等于 Token、UTF-8 字节或费用额度，不替代授权与 Schema 校验。
- *
- * @author CYLJ126 ≧◔◡◔≦
- * @since 2026/10/4 22:01 ✾
+ * AI 契约的场景上限及兼容校验入口，基础校验委托给 core。
+ * 保留已有方法、返回值、异常及限额，避免迁移改变受理和快照校验语义。
  */
 public final class ContractChecks {
-
-    public static final int MAX_TEXT_CHARS = 1_000_000;
-    public static final int MAX_ITEMS = 256;
+    public static final int MAX_TEXT_CHARS = StructuredValue.MAX_TEXT_CHARS;
+    public static final int MAX_ITEMS = StructuredValue.MAX_ITEMS;
     public static final int MAX_PARTS = 64;
     public static final int MAX_TOOLS = 128;
 
     private ContractChecks() {
     }
 
-    /**
-     * 文本校验：非空、限长
-     *
-     * @param value 文本值
-     * @param field 字段名
-     * @param limit 最大字符数
-     * @return 文本值或抛出异常
-     */
     public static String text(String value, String field, int limit) {
-        if (value == null || value.isBlank() || value.length() > limit) {
-            throw new IllegalArgumentException(field + " must be non-blank and at most " + limit + " characters");
-        }
-        return value;
+        return com.arte.core.utils.validation.ContractChecks.text(value, field, limit);
     }
 
     public static String id(String value, String field) {
-        return text(value, field, 256);
+        return com.arte.core.utils.validation.ContractChecks.id(value, field);
     }
 
     public static String optionalId(String value, String field) {
-        return value == null ? null : id(value, field);
+        return com.arte.core.utils.validation.ContractChecks.optionalId(value, field);
     }
 
     public static String digest(String value, String field) {
-        if (value == null || !value.matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException(field + " must be a lowercase SHA-256 hex digest");
-        }
-        return value;
+        return com.arte.core.utils.validation.ContractChecks.digest(value, field);
     }
 
     public static long range(long value, String field, long min, long max) {
-        if (value < min || value > max) {
-            throw new IllegalArgumentException(field + " must be between " + min + " and " + max);
-        }
-        return value;
+        return com.arte.core.utils.validation.ContractChecks.range(value, field, min, max);
     }
 
     public static <T> List<T> list(Collection<T> values, String field, int min, int max) {
-        Objects.requireNonNull(values, field);
-        range(values.size(), field + ".size", min, max);
-        return List.copyOf(values);
+        return com.arte.core.utils.validation.ContractChecks.list(values, field, min, max);
     }
 
     public static <T> Set<T> set(Collection<T> values, String field, int max) {
-        var copied = list(values, field, 0, max);
-        unique(copied, field);
-        return Set.copyOf(copied);
+        return com.arte.core.utils.validation.ContractChecks.set(values, field, max);
     }
 
     public static void unique(Collection<?> values, String field) {
-        if (Set.copyOf(values).size() != values.size()) {
-            throw new IllegalArgumentException(field + " must not contain duplicates");
-        }
+        com.arte.core.utils.validation.ContractChecks.unique(values, field);
     }
 
     public static void ordered(Instant first, Instant second, String field) {
-        if (Objects.requireNonNull(second, field).isBefore(Objects.requireNonNull(first, field))) {
-            throw new IllegalArgumentException(field + " must not precede its start");
-        }
+        com.arte.core.utils.validation.ContractChecks.ordered(first, second, field);
     }
 
     public static void require(boolean condition, String message) {
-        if (!condition) {
-            throw new IllegalArgumentException(message);
-        }
+        com.arte.core.utils.validation.ContractChecks.require(condition, message);
     }
 }

@@ -1,9 +1,9 @@
 package com.arte.ainew.serialization;
 
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.core.pojo.reference.DefinitionRef;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.*;

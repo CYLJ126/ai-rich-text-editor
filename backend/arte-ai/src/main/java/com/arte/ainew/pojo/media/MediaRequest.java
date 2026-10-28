@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.media;
 
-import com.arte.ainew.common.reference.ArtifactRef;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.CapabilityInput;
+import com.arte.core.pojo.reference.ArtifactRef;
 
 import java.util.List;
 import java.util.Objects;

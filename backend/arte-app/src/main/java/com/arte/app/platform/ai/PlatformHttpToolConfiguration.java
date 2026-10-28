@@ -2,13 +2,13 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.infrastructure.http.HttpJsonGetTransport;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.app.platform.ai.tool.HttpHealthToolProperties;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

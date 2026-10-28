@@ -1,8 +1,6 @@
 package com.arte.app.platform.ai.tool;
 
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.pojo.tool.ToolOutcomeCheck;
 import com.arte.ainew.pojo.tool.ToolOutcomeEvidence;
@@ -16,6 +14,8 @@ import com.arte.core.pojo.platform.CommandIdentity;
 import com.arte.core.pojo.platform.CommandScope;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.StoredCommandReceipt;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 import com.arte.core.spi.platform.CommandReceiptStore;
 import org.springframework.beans.factory.ObjectProvider;

@@ -1,0 +1,8 @@
+{
+  "canonical": "{\"a\":12345678901234567890123456789.12345,\"z\":[3,true,null,{\"中\":\"😀\"}]}",
+  "digest": "fb99355b53262432a9d87ecebcd0bbd7a1fa2d566cbbb8ed2b818d7d175f473d",
+  "emptyKey": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "input": "{\"z\":[3.000,true,null,{\"中\":\"😀\"}],\"a\":12345678901234567890123456789.1234500}",
+  "key": "bacf4b99eab6a34d0c749c27d76695cb66aa02fdb6a4c0e1d1a059349b8c9bf4",
+  "textDigest": "e973a1c1b41c5c9f4fbac31fcc311536dfffd003bfb914580455170a599953fa"
+}

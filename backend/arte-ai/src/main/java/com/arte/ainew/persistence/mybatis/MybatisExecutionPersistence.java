@@ -1821,7 +1821,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     }
 
     @Override
-    public Mono<Boolean> toolPriceBlocked(com.arte.ainew.common.reference.DefinitionRef rate) {
+    public Mono<Boolean> toolPriceBlocked(com.arte.core.pojo.reference.DefinitionRef rate) {
         return tx(() -> Boolean.TRUE.equals(budget.toolPriceBlocked(hash(rate.toString()))));
     }
 

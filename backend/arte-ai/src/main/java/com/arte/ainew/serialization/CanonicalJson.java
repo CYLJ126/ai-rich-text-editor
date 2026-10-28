@@ -1,22 +1,18 @@
 package com.arte.ainew.serialization;
 
+import com.arte.core.utils.ContentDigests;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * v1 内部规范化编码：对象键排序、精确数字、保留数组顺序；不用于不可信多态反序列化。
- *
- * @author CYLJ126 ≧◔◡◔≦
- * @since 2026/10/5 16:22 ✾
+ * AI v1 编码兼容入口，通用规范化与摘要委托 core。
+ * 证据 JSON 的固定容量和深度策略留在 AI，保持已有快照与幂等摘要格式。
  */
 public final class CanonicalJson {
     private static final JsonMapper MAPPER = JsonMapper.builder()
@@ -26,88 +22,52 @@ public final class CanonicalJson {
     }
 
     public static Map<String, Object> fields(Object... pairs) {
-        var result = new TreeMap<String, Object>();
-        for (int i = 0; i < pairs.length; i += 2) {
-            result.put((String) pairs[i], pairs[i + 1]);
-        }
-        return result;
+        return com.arte.core.serialize.CanonicalJson.fields(pairs);
     }
 
     public static String encode(Object value) {
-        return normalize(MAPPER.writeValueAsString(value));
+        return com.arte.core.serialize.CanonicalJson.encode(value);
     }
 
     public static String normalize(String json) {
-        return MAPPER.writeValueAsString(sorted(MAPPER.readValue(json, Object.class)));
+        return com.arte.core.serialize.CanonicalJson.normalize(json);
     }
 
     /**
      * 有界标准 JSON 到工具值树；保留精确数字，不加载类型名。
      */
-    public static com.arte.ainew.common.value.StructuredValue structured(String json) {
+    public static com.arte.core.pojo.value.StructuredValue structured(String json) {
         if (json == null) return null;
         com.arte.ainew.common.validation.ContractChecks.require(json.getBytes(StandardCharsets.UTF_8).length <= 32768, "Evidence JSON exceeds limit");
         return structuredValue(MAPPER.readValue(json, Object.class), 0);
     }
 
-    private static com.arte.ainew.common.value.StructuredValue structuredValue(Object value, int depth) {
+    private static com.arte.core.pojo.value.StructuredValue structuredValue(Object value, int depth) {
         com.arte.ainew.common.validation.ContractChecks.require(depth <= 24, "Evidence JSON too deep");
-        if (value == null) return com.arte.ainew.common.value.StructuredValue.NullValue.INSTANCE;
+        if (value == null) return com.arte.core.pojo.value.StructuredValue.NullValue.INSTANCE;
         if (value instanceof Map<?, ?> map) {
-            var fields = new TreeMap<String, com.arte.ainew.common.value.StructuredValue>();
+            var fields = new TreeMap<String, com.arte.core.pojo.value.StructuredValue>();
             map.forEach((k, v) -> fields.put((String) k, structuredValue(v, depth + 1)));
-            return new com.arte.ainew.common.value.StructuredValue.ObjectValue(fields);
+            return new com.arte.core.pojo.value.StructuredValue.ObjectValue(fields);
         }
         if (value instanceof List<?> list)
-            return new com.arte.ainew.common.value.StructuredValue.ArrayValue(list.stream().map(v -> structuredValue(v, depth + 1)).toList());
-        if (value instanceof String text) return new com.arte.ainew.common.value.StructuredValue.StringValue(text);
-        if (value instanceof Boolean b) return new com.arte.ainew.common.value.StructuredValue.BooleanValue(b);
+            return new com.arte.core.pojo.value.StructuredValue.ArrayValue(list.stream().map(v -> structuredValue(v, depth + 1)).toList());
+        if (value instanceof String text) return new com.arte.core.pojo.value.StructuredValue.StringValue(text);
+        if (value instanceof Boolean b) return new com.arte.core.pojo.value.StructuredValue.BooleanValue(b);
         if (value instanceof Number n)
-            return new com.arte.ainew.common.value.StructuredValue.NumberValue(new BigDecimal(n.toString()));
+            return new com.arte.core.pojo.value.StructuredValue.NumberValue(new BigDecimal(n.toString()));
         throw new IllegalArgumentException("Unsupported evidence JSON");
     }
 
-    private static Object sorted(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            var result = new TreeMap<String, Object>();
-            map.forEach((key, item) -> result.put((String) key, sorted(item)));
-            return result;
-        }
-        if (value instanceof List<?> list) {
-            return list.stream().map(CanonicalJson::sorted).toList();
-        }
-        if (value instanceof BigDecimal number) {
-            return number.stripTrailingZeros();
-        }
-        return value;
-    }
-
     public static String digest(Object value) {
-        return sha256(encode(value));
+        return com.arte.core.serialize.CanonicalJson.digest(value);
     }
 
     public static String sha256(String text) {
-        return HexFormat.of().formatHex(digester().digest(text.getBytes(StandardCharsets.UTF_8)));
+        return ContentDigests.sha256(text);
     }
 
-    /**
-     * 与既有执行存储相同的 UTF-8 长度前缀哈希；避免拼接分隔符歧义。
-     */
     public static String key(String... parts) {
-        var digest = digester();
-        for (var part : parts) {
-            var bytes = part.getBytes(StandardCharsets.UTF_8);
-            digest.update(ByteBuffer.allocate(4).putInt(bytes.length).array());
-            digest.update(bytes);
-        }
-        return HexFormat.of().formatHex(digest.digest());
-    }
-
-    private static MessageDigest digester() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return ContentDigests.key(parts);
     }
 }

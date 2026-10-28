@@ -1,10 +1,7 @@
 package com.arte.ainew.contract;
 
 import com.arte.ainew.common.execution.*;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.reference.ResourceRef;
 import com.arte.ainew.common.reference.SourceRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.context.ContextBudget;
@@ -19,6 +16,9 @@ import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.pojo.media.MediaResult;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationResult;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.reference.ResourceVersionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 
 import java.io.*;
@@ -170,9 +170,9 @@ public class DataContractsTest {
     public void snapshotFixesActualHistoryCapacityAndDraftIdentity() {
         var budget = new ContextBudget(1000, 700, 200, 100);
         assertThrows(IllegalArgumentException.class, () -> new ContextBudget(1000, 800, 200, 100));
-        assertThrows(IllegalArgumentException.class, () -> new ResourceRef("resource", "id", "v1",
+        assertThrows(IllegalArgumentException.class, () -> new ResourceVersionRef("resource", "id", "v1",
                 "draft", "range", null));
-        var source = new SourceRef("citation", new ResourceRef("resource", "id", "v1", null, "range", null), DIGEST);
+        var source = new SourceRef("citation", new ResourceVersionRef("resource", "id", "v1", null, "range", null), DIGEST);
         var fragment = new ContextSnapshot.Fragment(ContextSnapshot.Origin.USER_SELECTED, source, "selected", 100);
         assertTrue(fragment.truncated());
         var history = new ContextRequest.HistorySelection("conversation", 3, List.of("turn-1"), 2);

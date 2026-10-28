@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.generation;
 
-import com.arte.ainew.common.reference.ArtifactRef;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.reference.ArtifactRef;
 
 import java.io.Serializable;
 import java.util.List;

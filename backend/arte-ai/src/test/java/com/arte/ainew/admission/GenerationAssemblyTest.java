@@ -2,7 +2,6 @@ package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.common.reference.DefinitionRef;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiGenerationConfiguration;
 import com.arte.ainew.config.NewAiGenerationProperties;
@@ -16,6 +15,7 @@ import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;

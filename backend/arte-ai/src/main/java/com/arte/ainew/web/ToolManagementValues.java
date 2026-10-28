@@ -1,13 +1,13 @@
 package com.arte.ainew.web;
 
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.tool.ToolBindingSettings;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolReleaseCommand;
 import com.arte.ainew.web.request.ToolManagementRequests.Policy;
 import com.arte.ainew.web.request.ToolManagementRequests.Review;
 import com.arte.ainew.web.request.ToolManagementRequests.Settings;
+import com.arte.core.pojo.value.StructuredValue;
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;

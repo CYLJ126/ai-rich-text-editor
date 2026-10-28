@@ -1,10 +1,10 @@
 package com.arte.ainew.pojo.tool;
 
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.reference.ArtifactRef;
 import com.arte.ainew.common.reference.SourceRef;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.common.value.StructuredValue;
+import com.arte.core.pojo.reference.ArtifactRef;
+import com.arte.core.pojo.value.StructuredValue;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.Serializable;

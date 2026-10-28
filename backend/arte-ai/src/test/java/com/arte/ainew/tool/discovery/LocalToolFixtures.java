@@ -2,8 +2,6 @@ package com.arte.ainew.tool.discovery;
 
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.reference.DefinitionRef;
-import com.arte.ainew.common.value.StructuredValue;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
@@ -11,6 +9,8 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.adapter.BusinessToolAdapter;
 import com.arte.ainew.spi.adapter.StaticToolDefinitionSource;
+import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.value.StructuredValue;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
