@@ -1,12 +1,12 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSyncMapper;
 import com.arte.ainew.pojo.search.SearchIndexRecord;
 import com.arte.ainew.pojo.search.SearchSync.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.search.ConversationSearchSyncStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;

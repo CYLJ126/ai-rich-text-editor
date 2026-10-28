@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.search.SearchText;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

@@ -2,7 +2,7 @@ package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.support.ToolObservation;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
@@ -19,6 +19,7 @@ import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.diagnostics.OperationObservation;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.core.Ordered;
@@ -181,7 +182,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
                         authorization.accept(candidate);
                         return true;
                     });
-                    var owner = ExecutionOwner.from(context);
+                    var owner = ExecutionOwners.from(context);
                     String ownerKey = ownerKey(owner), bindingKey = key(candidate.input().bindingId()), idem = key(context.idempotencyKey());
                     String lock = key("tool-admission", ownerKey, bindingKey, idem);
                     locks.ensureLock(lock);
@@ -295,7 +296,7 @@ public final class MybatisToolAdmissionStore implements ToolAdmissionStore {
             throw new IllegalStateException("Tool snapshot bytes are corrupt");
         var snapshot = codec.decode(row.snapshot(), ToolExecutionSnapshot.class);
         var request = snapshot.request();
-        if (!row.invocationKey().equals(key(request.context().executionId())) || !row.ownerKey().equals(ownerKey(ExecutionOwner.from(request.context())))
+        if (!row.invocationKey().equals(key(request.context().executionId())) || !row.ownerKey().equals(ownerKey(ExecutionOwners.from(request.context())))
                 || !row.bindingKey().equals(key(snapshot.input().bindingId())) || !row.idempotencyKey().equals(key(request.context().idempotencyKey()))
                 || !row.submissionDigest().equals(snapshot.submissionDigest()) || !row.requestDigest().equals(snapshot.requestDigest()))
             throw new IllegalStateException("Tool snapshot metadata mismatch");

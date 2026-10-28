@@ -94,14 +94,14 @@ public class PublicContractMigrationTest {
 
     @Test
     public void movingClassesDoesNotPermitClassNamesAsSnapshotTypeAliases() throws IOException {
-        String schema = resource("schema.json");
+        String schema = CanonicalJson.normalize(resource("schema.json"));
         for (String type : List.of("com.arte.ainew.common.value.StructuredValue$ObjectValue", StructuredValue.ObjectValue.class.getName())) {
             assertThrows(RuntimeException.class, () -> codec.decode(schema.replace("\"type\":\"object\"", "\"type\":\"" + type + "\""), ToolSchemaDefinition.class));
         }
     }
 
     private <T> void assertSnapshot(String file, Class<T> type, T expected) throws IOException {
-        String oldBytes = resource(file).strip();
+        String oldBytes = CanonicalJson.normalize(resource(file));
         T decoded = codec.decode(oldBytes, type);
         assertEquals(expected, decoded);
         String currentBytes = CanonicalJson.normalize(codec.encode(decoded));

@@ -1,0 +1,87 @@
+{
+  "body": {
+    "acceptedAt": "2026-10-28T00:00:00Z",
+    "activeAttemptId": null,
+    "contextSnapshotId": "context-snapshot",
+    "conversation": null,
+    "error": null,
+    "replacesInvocationId": null,
+    "request": {
+      "binding": {
+        "id": "default",
+        "type": "binding",
+        "version": "v1"
+      },
+      "capability": {
+        "id": "generate",
+        "type": "capability",
+        "version": "v1"
+      },
+      "context": {
+        "authorization": {
+          "grantRef": "grant",
+          "principal": {
+            "kind": "SERVICE",
+            "subjectId": "stable-subject",
+            "subjectName": "worker-service"
+          },
+          "scopes": [
+            "ai:invoke"
+          ],
+          "tenantId": "tenant",
+          "workspaceId": "workspace"
+        },
+        "budgetRef": "budget",
+        "deadline": "2026-10-28T00:01:00Z",
+        "executionId": "execution-service",
+        "idempotencyKey": "idempotency",
+        "parentExecutionId": null,
+        "releaseRef": "release",
+        "traceId": "trace"
+      },
+      "input": {
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "identity migration 中文😀",
+                "type": "text"
+              }
+            ],
+            "messageId": "message",
+            "role": "USER",
+            "toolCallId": null,
+            "toolCalls": []
+          }
+        ],
+        "options": {
+          "maxOutputTokens": 128,
+          "stopSequences": [],
+          "temperature": null,
+          "topP": null
+        },
+        "outputFormat": {
+          "type": "text-output"
+        },
+        "tools": [],
+        "type": "generation"
+      },
+      "kind": "GENERATION",
+      "options": {
+        "deadline": "2026-10-28T00:01:00Z",
+        "maxAttempts": 2,
+        "maxConcurrentTools": 0,
+        "maxOutputBytes": 4096,
+        "maxToolSteps": 0,
+        "requestedTimeout": null
+      }
+    },
+    "requestDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "result": null,
+    "state": "ACCEPTED",
+    "updatedAt": "2026-10-28T00:00:00Z",
+    "version": 0
+  },
+  "schemaVersion": 1,
+  "type": "invocation"
+}

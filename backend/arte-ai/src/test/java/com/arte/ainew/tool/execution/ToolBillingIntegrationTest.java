@@ -2,7 +2,6 @@ package com.arte.ainew.tool.execution;
 
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.Money;
@@ -10,6 +9,7 @@ import com.arte.ainew.pojo.budget.Reconciliation;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 
 import java.math.BigDecimal;

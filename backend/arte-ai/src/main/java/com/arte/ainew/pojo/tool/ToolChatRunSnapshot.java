@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.tool;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -56,7 +56,7 @@ public record ToolChatRunSnapshot(ExecutionContext context, ContextSnapshot init
                 && model.capability().availability() == CapabilityDescriptor.Availability.EXECUTABLE
                 && model.capability().features().containsAll(java.util.Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING,
                 CapabilityDescriptor.Feature.TOOL_CALLS)), "Run requires a tool-capable model");
-        ContractChecks.require(initialContext.modelBinding().equals(model.definition()) && tools.owner().equals(ExecutionOwner.from(context)), "Run fixed input mismatch");
+        ContractChecks.require(initialContext.modelBinding().equals(model.definition()) && tools.owner().equals(ExecutionOwners.from(context)), "Run fixed input mismatch");
         ContractChecks.require(context.authorization().scopes().contains("ai:invoke") && tools.entries().stream()
                 .allMatch(e -> context.authorization().scopes().containsAll(e.binding().tool().tool().risk().requiredScopes())), "Run scope ceiling is insufficient");
         if (budgetPlan != null) {

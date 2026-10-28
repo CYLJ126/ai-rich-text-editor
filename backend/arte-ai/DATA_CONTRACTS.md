@@ -99,7 +99,9 @@ Conversation 不保存执行状态的另一份权威副本；它通过执行引�
 当前代码包含不可变值对象、结构校验、状态关系谓词，以及独立存储／预算方法契约和 MyBatis 事务实现；第 1～3
 步受理协调、固定配置及字节存储已接入，派发与其余策略后续实现。上述实施进度保留原阶段口径，后续派发见执行实施说明。2026-10-28
 第一批公共契约迁移：固定定义、资源版本、产物引用及结构化值已移入 `arte-core`；通用校验、规范化编码和摘要也由 core 提供，AI
-保留兼容委托入口。身份、执行信封与 `SourceRef` 仍留在 `ainew.common`
+保留兼容委托入口。第二批已将 `ExecutionOwner` 迁至 `core.pojo.platform`，AI 的 `ExecutionOwners` 保留上下文转换；
+`ExecutionPrincipal` 与 core 当前主体显式对齐，详情见 [身份与归属迁移](EXECUTION_IDENTITY_MIGRATION.md)。执行身份快照、其他执行信封与
+`SourceRef` 仍留在 `ainew.common`
 ，详见 [第一批公共契约迁移](PUBLIC_CONTRACTS_MIGRATION.md)。复用现有 `ExecutionContext` 和运行上下文分离，不改变旧 `ai`
 、公共认证链路或文章实现。
 

@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.tool;
 
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.ResultRef;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.time.Instant;
 import java.util.List;

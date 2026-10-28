@@ -2,7 +2,7 @@ package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
@@ -20,6 +20,7 @@ import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolChatRunDigests;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -140,7 +141,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
 
     private ToolChatRunSnapshot input(ToolChatRunMapper.Row row) {
         var s = decode(row.inputSnapshot(), row.inputDigest(), ToolChatRunSnapshot.class);
-        if (!key(s.context().executionId()).equals(row.runKey()) || !ownerKey(ExecutionOwner.from(s.context())).equals(row.ownerKey())
+        if (!key(s.context().executionId()).equals(row.runKey()) || !ownerKey(ExecutionOwners.from(s.context())).equals(row.ownerKey())
                 || !key(s.context().idempotencyKey()).equals(row.idempotencyKey()) || s.context().deadline().toEpochMilli() != row.deadline()
                 || !ToolChatRunDigests.submission(s).equals(row.submissionDigest()))
             throw new IllegalStateException("Run fixed input mismatch");
@@ -236,7 +237,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             validate(candidate);
             return encode(candidate);
         }).subscribeOn(scheduler).flatMap(encoded -> write(() -> {
-            String owner = ownerKey(ExecutionOwner.from(candidate.context()));
+            String owner = ownerKey(ExecutionOwners.from(candidate.context()));
             String idem = key(candidate.context().idempotencyKey());
             system.ensureLock(key("tool-chat-accept", owner, idem));
             var previous = mapper.accepted(owner, idem);
@@ -252,7 +253,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             authorization.accept(candidate);
             long time = now();
             require(time < candidate.context().deadline().toEpochMilli(), INVALID_STATE);
-            var run = new ToolChatRun(candidate.context().executionId(), ExecutionOwner.from(candidate.context()), ToolChatRun.State.ACCEPTED, 0,
+            var run = new ToolChatRun(candidate.context().executionId(), ExecutionOwners.from(candidate.context()), ToolChatRun.State.ACCEPTED, 0,
                     new ToolChatRun.Checkpoint(0, READY_MODEL, List.of()), 0, 0, null, null, Instant.ofEpochMilli(time), Instant.ofEpochMilli(time));
             String state = encode(run), hash = key(run.runId());
             mapper.insert(new ToolChatRunMapper.Row(hash, owner, idem, ToolChatRunDigests.submission(candidate), CanonicalJson.sha256(encoded), encoded,
@@ -369,7 +370,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             var modelContext = ((ToolChatStep.Model) modelStep.input()).context();
             require(invocation.request().context().executionId().equals(child)
                     && next.runId().equals(invocation.request().context().parentExecutionId())
-                    && next.owner().equals(ExecutionOwner.from(invocation.request().context()))
+                    && next.owner().equals(ExecutionOwners.from(invocation.request().context()))
                     && snapshot.context().traceId().equals(invocation.request().context().traceId())
                     && !invocation.request().context().deadline().isAfter(snapshot.context().deadline())
                     && snapshot.context().authorization().scopes().containsAll(invocation.request().context().authorization().scopes())

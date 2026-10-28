@@ -6,7 +6,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
@@ -97,7 +97,7 @@ public final class TextContextService implements ContextService {
     @Override
     public Mono<ContextSnapshot> find(String snapshotId, ExecutionContext context) {
         return admissionAuthorization.require(context, AdmissionAuthorization.READ)
-                .flatMap(currentContext -> contextSnapshotStore.find(ExecutionOwner.from(currentContext), snapshotId))
+                .flatMap(currentContext -> contextSnapshotStore.find(ExecutionOwners.from(currentContext), snapshotId))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)));
     }
 }

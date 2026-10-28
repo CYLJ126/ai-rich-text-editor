@@ -1,7 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.support.AdmissionException;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows;
@@ -20,6 +20,7 @@ import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
 import com.arte.ainew.spi.search.ConversationSearchReads;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -103,7 +104,7 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
         if (ids.isEmpty()) return result;
         for (var bytes : mapper.invocations(ownerKey(owner), ids.stream().map(CanonicalJson::key).toList())) {
             var i = codec.decode(bytes, Invocation.class);
-            if (!owner.equals(ExecutionOwner.from(i.request().context())))
+            if (!owner.equals(ExecutionOwners.from(i.request().context())))
                 throw new IllegalStateException("Invocation scope mismatch");
             result.put(i.request().context().executionId(), i);
         }
@@ -214,7 +215,7 @@ public final class MybatisConversationSearchReads implements ConversationSearchR
             var ts = turns(cs.keySet(), turnIds);
             return invocations.entrySet().stream().filter(e -> {
                 var i = e.getValue();
-                if (!ExecutionOwner.from(i.request().context()).equals(owner)) return false;
+                if (!ExecutionOwners.from(i.request().context()).equals(owner)) return false;
                 if (i.conversation() == null && i.request().context().parentExecutionId() == null) return true;
                 var chat = currentLinks.get(e.getKey());
                 String conv = i.conversation() != null ? i.conversation().conversationId() : chat == null ? null : chat.conversationId();

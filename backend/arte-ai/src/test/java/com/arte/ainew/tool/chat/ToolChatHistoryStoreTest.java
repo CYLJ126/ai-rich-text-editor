@@ -8,7 +8,6 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.chat.ToolChatQueryService;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.mybatis.MybatisConversationSearchReads;
@@ -33,6 +32,7 @@ import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 import reactor.core.publisher.Mono;
 

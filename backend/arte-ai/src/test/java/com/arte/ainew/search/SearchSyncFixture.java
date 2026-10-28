@@ -2,7 +2,6 @@ package com.arte.ainew.search;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -16,6 +15,7 @@ import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.h2.jdbcx.JdbcDataSource;
 import org.springframework.core.io.ClassPathResource;

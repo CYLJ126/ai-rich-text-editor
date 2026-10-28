@@ -2,7 +2,7 @@ package com.arte.ainew.application.search;
 
 import com.arte.ainew.api.conversation.ConversationSearchService;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.search.SearchCursor;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.common.search.SearchPreview;
@@ -12,6 +12,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
 import com.arte.ainew.spi.search.ConversationSearchReads;
 import com.arte.ainew.spi.search.ConversationSearchSessions;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.apache.commons.text.StringEscapeUtils;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
@@ -111,7 +112,7 @@ public final class DefaultConversationSearchService implements ConversationSearc
     @Override
     public Mono<Page> search(Query query, ExecutionContext context) {
         return execute(op -> {
-            var owner = ExecutionOwner.from(context);
+            var owner = ExecutionOwners.from(context);
             boolean success = false;
             boolean expire = false;
             try {
@@ -230,7 +231,7 @@ public final class DefaultConversationSearchService implements ConversationSearc
     public Mono<Void> close(String id, ExecutionContext context) {
         return execute(op -> {
             authorization.require(context, false, op.remaining());
-            var closed = searchSessions.close(ExecutionOwner.from(context), id, op.remaining());
+            var closed = searchSessions.close(ExecutionOwners.from(context), id, op.remaining());
             if (closed != null) closePit(closed.pit());
             return Boolean.TRUE;
         }).then();
@@ -240,7 +241,7 @@ public final class DefaultConversationSearchService implements ConversationSearc
     public Mono<AroundPage> queryTurnsAround(AroundQuery query, ExecutionContext context) {
         return execute(op -> {
             authorization.require(context, false, op.remaining());
-            var owner = ExecutionOwner.from(context);
+            var owner = ExecutionOwners.from(context);
             String signing = searchSessions.historySigningKey(op.remaining());
             SearchCursor.History history = null;
             ConversationSearchReads.Around request;

@@ -4,7 +4,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.persistence.mybatis.mapper.*;
@@ -18,6 +18,7 @@ import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolOutcomeStore;
 import com.arte.ainew.spi.persistence.ToolReconciliationStore;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -114,7 +115,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
     }
 
     private String owner(Invocation inv) {
-        var o = ExecutionOwner.from(inv.request().context());
+        var o = ExecutionOwners.from(inv.request().context());
         return key(o.tenantId(), o.workspaceId(), o.subjectId());
     }
 
@@ -144,7 +145,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
         if (jobs.find(hash, true) != null) return;
         var fixed = snapshot(inv);
         var adapter = registry.find(fixed);
-        var o = ExecutionOwner.from(inv.request().context());
+        var o = ExecutionOwners.from(inv.request().context());
         var original = codec.decode(Objects.requireNonNull(execution.attemptSnapshot(key(inv.activeAttemptId()), true)), Attempt.class);
         check(original.invocationId().equals(inv.request().context().executionId()) && original.state() == Attempt.State.UNKNOWN);
         long at = original.updatedAt().toEpochMilli();
@@ -224,7 +225,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
         }
         var fixed = snapshot(inv);
         var adapter = registry.find(fixed);
-        var originalOwner = ExecutionOwner.from(inv.request().context());
+        var originalOwner = ExecutionOwners.from(inv.request().context());
         check(old.spaceKey().equals(key(originalOwner.tenantId(), originalOwner.workspaceId())) && old.providerKey().equals(key(fixed.binding().tool().tool().providerId())));
         if (adapter.isEmpty() || !adapter.get().operationKey(fixed).equals(old.operationKey())) {
             review(old, "OUTCOME_QUERY_UNSUPPORTED");
@@ -382,7 +383,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
 
     private void authorizeReview(ToolManagementAccess.Permit permit, Invocation inv, boolean managed) {
         permit.requireInCurrentTransaction(Set.of(AdmissionAuthorization.READ));
-        var original = ExecutionOwner.from(inv.request().context());
+        var original = ExecutionOwners.from(inv.request().context());
         var actor = permit.owner();
         if (!original.tenantId().equals(actor.tenantId()) || !original.workspaceId().equals(actor.workspaceId())
                 || (!managed && !original.subjectId().equals(actor.subjectId())))
@@ -411,9 +412,9 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
         var r = reviewInfo(job);
         var currentAttempt = codec.decode(Objects.requireNonNull(execution.attemptSnapshot(key(job.attemptId()), true)), Attempt.class);
         boolean attemptAvailable = !"RECONCILE".equals(execution.attemptPurpose(key(job.attemptId()))) || currentAttempt.leaseExpiresAt().toEpochMilli() <= now();
-        boolean may = attemptAvailable && managed && !permit.owner().subjectId().equals(ExecutionOwner.from(inv.request().context()).subjectId())
+        boolean may = attemptAvailable && managed && !permit.owner().subjectId().equals(ExecutionOwners.from(inv.request().context()).subjectId())
                 && permit.owner().subjectId().equals(r.assignee()) && inv.state() == Invocation.State.UNKNOWN && job.leaseUntil() <= now();
-        return new ToolReconciliation.Detail(job, inv, fixed, r, may, managed && !permit.owner().subjectId().equals(ExecutionOwner.from(inv.request().context()).subjectId()) && job.state() != State.RESOLVED && job.leaseUntil() <= now(), !managed || registry.find(fixed).isPresent(), registry.find(fixed).isPresent(), now(), managed ? jobs.history(job.invocationKey()) : List.of());
+        return new ToolReconciliation.Detail(job, inv, fixed, r, may, managed && !permit.owner().subjectId().equals(ExecutionOwners.from(inv.request().context()).subjectId()) && job.state() != State.RESOLVED && job.leaseUntil() <= now(), !managed || registry.find(fixed).isPresent(), registry.find(fixed).isPresent(), now(), managed ? jobs.history(job.invocationKey()) : List.of());
     }
 
     public Mono<ToolReconciliation.Detail> reconciliation(ToolManagementAccess.Permit permit, String id, boolean managed) {
@@ -461,7 +462,7 @@ public final class MybatisToolOutcomeStore implements ToolOutcomeStore, ToolReco
                 throw new IllegalArgumentException("Original outcome identity mismatch");
             if (job.version() != command.expectedVersion() || inv.version() != command.expectedInvocationVersion())
                 throw reject(ResultCodeEnum.AI_VERSION_CONFLICT);
-            boolean self = actor.equals(ExecutionOwner.from(inv.request().context()).subjectId());
+            boolean self = actor.equals(ExecutionOwners.from(inv.request().context()).subjectId());
             if (self && command.action() != ToolReconciliation.Action.REQUEST_CHECK)
                 throw new AccessDeniedException("Requester cannot verify own outcome");
             long at = now();

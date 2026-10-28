@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.execution;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ResolvedBinding;
@@ -51,7 +51,7 @@ public record InvocationRequest<I extends CapabilityInput>(
                     "Tools are described but tool execution is disabled");
         }
         if (input instanceof RemoteApplicationRequest remote && remote.session() != null) {
-            ContractChecks.require(remote.session().owner().equals(ExecutionOwner.from(context)),
+            ContractChecks.require(remote.session().owner().equals(ExecutionOwners.from(context)),
                     "Remote session does not belong to current execution owner");
         }
     }

@@ -6,7 +6,7 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.ToolWorkflowStep;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
@@ -51,7 +51,7 @@ public final class WorkflowToolService implements WorkflowToolExecution {
             Objects.requireNonNull(current);
             // 不能静默丢弃调用方携带的父执行或根预算，否则会绕过既有子执行治理。
             require(current.parentExecutionId() == null && current.budgetRef() == null, ResultCodeEnum.AI_TOOL_POLICY_DENIED);
-            var owner = ExecutionOwner.from(current);
+            var owner = ExecutionOwners.from(current);
             var id = step.key().invocationId(owner);
             var context = new ExecutionContext(id, current.traceId(), current.authorization(), current.deadline(),
                     null, null, current.releaseRef(), step.key().idempotencyKey(owner));
@@ -77,7 +77,7 @@ public final class WorkflowToolService implements WorkflowToolExecution {
     @Override
     public Mono<ExecutionEventService.InvocationSnapshot> snapshot(ToolWorkflowStep.Key key, ExecutionContext current) {
         return Mono.defer(() -> {
-            var id = Objects.requireNonNull(key).invocationId(ExecutionOwner.from(current));
+            var id = Objects.requireNonNull(key).invocationId(ExecutionOwners.from(current));
             // 既有查询服务复核当前 READ、完整 owner、工具读取资格及 ResultRef；不能直接读原始存储。
             return events.snapshots(List.of(id), current).map(values -> {
                 if (values.size() != 1) throw new IllegalStateException("Workflow tool snapshot count mismatch");

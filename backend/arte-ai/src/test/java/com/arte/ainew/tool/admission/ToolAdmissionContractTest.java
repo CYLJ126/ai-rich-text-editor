@@ -1,8 +1,8 @@
 package com.arte.ainew.tool.admission;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.serialization.ToolAdmissionDigests;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 

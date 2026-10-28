@@ -8,7 +8,7 @@ import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
@@ -88,11 +88,11 @@ public final class ToolChatService {
         return authorization.prepare(context, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), true, current -> {
             if (current.parentExecutionId() != null || current.budgetRef() != null)
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_POLICY_DENIED));
-            return runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
+            return runs.accepted(ExecutionOwners.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
                     .switchIfEmpty(Mono.defer(() -> create(input, session, current, readOnly)))
                     .onErrorResume(AdmissionException.class, error -> (error.getResultCode() == ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT
                             || error.getResultCode() == ResultCodeEnum.AI_VERSION_CONFLICT || error.getResultCode() == ResultCodeEnum.AI_CONVERSATION_BUSY)
-                            ? runs.accepted(ExecutionOwner.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
+                            ? runs.accepted(ExecutionOwners.from(current), current.idempotencyKey()).flatMap(run -> replay(input, run, current, readOnly))
                             .switchIfEmpty(Mono.error(error)) : Mono.error(error));
         });
     }
@@ -121,7 +121,7 @@ public final class ToolChatService {
                             var prepared = new ToolChatRunSnapshot(root, fixedInput, model, input.generation(), set, input.limits(), received);
                             return budgets.prepare(prepared, input.budgetLimits(), input.modelBudgetRef(), input.toolBudgetRefs(), current).flatMap(plan -> {
                                 var fixed = new ToolChatRunSnapshot(root, fixedInput, model, input.generation(), set, input.limits(), received, plan);
-                                return catalogStore.nextTurnSequence(ExecutionOwner.from(current), input.conversationId())
+                                return catalogStore.nextTurnSequence(ExecutionOwners.from(current), input.conversationId())
                                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
                                         .flatMap(sequence -> commit(fixed, input.conversationId(), UUID.randomUUID().toString(), sequence, input.expectedVersion(), current));
                             });
@@ -196,7 +196,7 @@ public final class ToolChatService {
     }
 
     private Mono<ToolChatRun> conversationsForControl(String runId, ExecutionContext current) {
-        return authorization.requireWrite(current, AdmissionAuthorization.READ).flatMap(trusted -> runs.find(ExecutionOwner.from(trusted), runId)
+        return authorization.requireWrite(current, AdmissionAuthorization.READ).flatMap(trusted -> runs.find(ExecutionOwners.from(trusted), runId)
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(run -> runs.link(run.owner(), runId).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                         .flatMap(link -> conversations.turn(link.conversationId(), link.turnId(), trusted).flatMap(turn ->

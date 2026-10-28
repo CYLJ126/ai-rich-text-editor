@@ -2,7 +2,7 @@ package com.arte.ainew.application.execution;
 
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.support.AdmissionException;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationBudgetState;
 import com.arte.ainew.spi.persistence.ExecutionStore;
@@ -43,7 +43,7 @@ public final class InvocationBudgetStatusResolver {
         if (invocation.activeAttemptId() == null) {
             return Mono.just(InvocationBudgetState.NOT_RESERVED);
         }
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         return executionStore.findAttempt(owner, invocation.request().context().executionId(), invocation.activeAttemptId())
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(attempt -> attempt.budgetReservationId() == null ? Mono.just(InvocationBudgetState.NOT_RESERVED)

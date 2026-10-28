@@ -16,6 +16,7 @@ import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.pojo.media.MediaResult;
 import com.arte.ainew.pojo.remote.RemoteApplicationRequest;
 import com.arte.ainew.pojo.remote.RemoteApplicationResult;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.reference.ResourceVersionRef;
 import com.arte.core.pojo.value.StructuredValue;

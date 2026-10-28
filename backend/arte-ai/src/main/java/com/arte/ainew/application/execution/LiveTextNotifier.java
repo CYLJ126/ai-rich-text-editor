@@ -1,7 +1,7 @@
 package com.arte.ainew.application.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.LiveTextDelta;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.Setter;
 import reactor.core.publisher.BufferOverflowStrategy;
 import reactor.core.publisher.Flux;

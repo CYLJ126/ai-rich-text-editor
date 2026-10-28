@@ -2,7 +2,7 @@ package com.arte.ainew.application.control;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ChatConfigurationOptions;
@@ -38,7 +38,7 @@ public final class ChatConfigurationQueryService {
             }
             return catalog.configuration(current).flatMap(configuration -> {
                 var grant = authorization.grant(configuration, current);
-            var owner = ExecutionOwner.from(current);
+                var owner = ExecutionOwners.from(current);
                 return catalog.fromSnapshot(configuration).discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
                     .filter(binding -> binding.contextWindowTokens() >= 2
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)

@@ -4,7 +4,7 @@ import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
@@ -39,7 +39,7 @@ public final class BudgetAccountInitializer {
     public Mono<BudgetCommands.Account> initialize(String ref, ExecutionContext context) {
         return authorization.requireWrite(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(current -> configuration.budget(ref, current).flatMap(definition -> {
 
-            if (!definition.owner().equals(ExecutionOwner.from(current)) || !authorization.grant(current).budgetRefs().contains(ref)) {
+            if (!definition.owner().equals(ExecutionOwners.from(current)) || !authorization.grant(current).budgetRefs().contains(ref)) {
                 throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
             }
             var zero = new Money(BigDecimal.ZERO, definition.limit().currency());

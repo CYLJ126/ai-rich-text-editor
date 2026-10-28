@@ -5,7 +5,7 @@ import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiExecutionProperties.DispatchLimits;
 import com.arte.ainew.config.NewAiSchedulingProperties;
@@ -21,6 +21,7 @@ import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.*;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -223,7 +224,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     private Invocation invocation(Version version) {
         var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(version.invocationId()), true), Invocation.class);
         require(invocation != null, NOT_FOUND);
-        require(ExecutionOwner.from(invocation.request().context()).equals(version.owner()), OWNER_MISMATCH);
+        require(ExecutionOwners.from(invocation.request().context()).equals(version.owner()), OWNER_MISMATCH);
         return invocation;
     }
 
@@ -343,7 +344,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 return null;
             }
             var original = workspaceSnapshot(execution.invocationSnapshot(records.getFirst().invocationKey(), false), Invocation.class);
-            if (original == null || !ExecutionOwner.from(original.request().context()).equals(owner)) {
+            if (original == null || !ExecutionOwners.from(original.request().context()).equals(owner)) {
                 throw new IllegalStateException("Broken acceptance record");
             }
             return original;
@@ -517,7 +518,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     private StoreOutcome<Invocation> acceptLocked(Accept command, boolean waitingApproval) {
         var candidate = command.invocation();
-        var owner = ExecutionOwner.from(candidate.request().context());
+        var owner = ExecutionOwners.from(candidate.request().context());
         var capability = candidate.request().capability();
         var scope = hash(ownerKey(owner), capability.id());
         var key = hash(candidate.request().context().idempotencyKey());
@@ -546,7 +547,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 require("INVOCATION".equals(row.activeKind()), CONVERSATION_BUSY);
                 // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
                 var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
-                require(stopped != null && ExecutionOwner.from(stopped.request().context()).equals(owner)
+                require(stopped != null && ExecutionOwners.from(stopped.request().context()).equals(owner)
                         && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
                         && userStoppedGeneration(stopped), CONVERSATION_BUSY);
                 require(admission.releaseConversation(hash(link.conversationId()), row.activeInvocation()) == 1, CONVERSATION_BUSY);
@@ -567,7 +568,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                         && oldTurn.invocationIds().contains(candidate.replacesInvocationId())
                         && oldTurn.sequence() == admission.maximumTurnSequence(hash(link.conversationId())), INVALID_STATE);
                 var source = workspaceSnapshot(execution.invocationSnapshot(hash(candidate.replacesInvocationId()), false), Invocation.class);
-                require(source != null && ExecutionOwner.from(source.request().context()).equals(owner)
+                require(source != null && ExecutionOwners.from(source.request().context()).equals(owner)
                                 && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
                                 && source.conversation().conversationId().equals(link.conversationId())
                                 && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN || userStoppedGeneration(source)),
@@ -651,7 +652,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         require(waiting.state() == Invocation.State.WAITING_APPROVAL && waiting.activeAttemptId() == null, INVALID_STATE);
         var error = new ExecutionError(code, ExecutionError.Phase.INVOCATION, false,
                 ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, waiting.request().context().traceId());
-        return completeBeforeAttemptLocked(new CompleteBeforeAttempt(new Version(ExecutionOwner.from(waiting.request().context()),
+        return completeBeforeAttemptLocked(new CompleteBeforeAttempt(new Version(ExecutionOwners.from(waiting.request().context()),
                 id(waiting), waiting.version()), "tool-approval-completion", new ExecutionPayload.Terminal(terminal, null, error))).value();
     }
 
@@ -744,7 +745,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                     reservations.put(reservation.reservationId(), reservation);
                 });
                 return invocations.stream().map(invocation -> {
-                    if (!ExecutionOwner.from(invocation.request().context()).equals(owner) || !invocationIds.contains(id(invocation)))
+                    if (!ExecutionOwners.from(invocation.request().context()).equals(owner) || !invocationIds.contains(id(invocation)))
                         throw new IllegalStateException("Invocation ownership mismatch");
                     var state = InvocationBudgetState.NOT_RESERVED;
                     if (invocation.activeAttemptId() != null) {
@@ -770,7 +771,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         ContractChecks.id(invocationId, "invocationId");
         return tx(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            return invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner) ? invocation : null;
+            return invocation != null && ExecutionOwners.from(invocation.request().context()).equals(owner) ? invocation : null;
         });
     }
 
@@ -781,7 +782,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         ContractChecks.id(attemptId, "attemptId");
         return tx(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) {
+            if (invocation == null || !ExecutionOwners.from(invocation.request().context()).equals(owner)) {
                 return null;
             }
             var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(attemptId), false), Attempt.class);
@@ -1019,7 +1020,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         return outcome(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(request.invocationId()), true), Invocation.class);
             // 不存在和不属于当前主体均返回 NOT_FOUND，不泄露其他主体的执行记录。
-            require(invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner), NOT_FOUND);
+            require(invocation != null && ExecutionOwners.from(invocation.request().context()).equals(owner), NOT_FOUND);
             authorization.run();
             var key = hash("control", request.command().name(), request.commandKey());
             var digest = hash(ownerKey(owner), id(invocation), request.command().name());
@@ -1153,7 +1154,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     public Mono<Instant> retryNotBefore(ExecutionOwner owner, String invocationId, String attemptId) {
         return tx(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
+            if (invocation == null || !ExecutionOwners.from(invocation.request().context()).equals(owner)) return null;
             var schedule = operation(invocation, operationKey("retry-schedule", attemptId));
             return schedule == null ? null : codec.decode(schedule.resultSnapshot(), RetrySchedule.class).notBefore();
         });
@@ -1336,10 +1337,10 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
      * 只给同库核对工作项使用：沿用原 Attempt，禁止借收尾生成新的执行资格。
      */
     Attempt claimToolOutcomeInCurrentTransaction(Invocation expected, String worker, Duration lease) {
-        var current = invocation(new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
+        var current = invocation(new Version(ExecutionOwners.from(expected.request().context()), id(expected), expected.version()));
         require(current.state() == Invocation.State.UNKNOWN && current.request().kind() == CapabilityDescriptor.Kind.TOOL
                 && current.activeAttemptId() != null, INVALID_STATE);
-        version(current, new Version(ExecutionOwner.from(expected.request().context()), id(expected), expected.version()));
+        version(current, new Version(ExecutionOwners.from(expected.request().context()), id(expected), expected.version()));
         var old = workspaceSnapshot(execution.attemptSnapshot(hash(current.activeAttemptId()), true), Attempt.class);
         require(old != null && old.state() == Attempt.State.UNKNOWN && old.dispatch() != Attempt.Dispatch.NOT_STARTED, INVALID_STATE);
         require(purpose(old) != LeasePurpose.RECONCILE || !old.leaseExpiresAt().isAfter(now()), LEASE_LOST);
@@ -1406,7 +1407,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         var ref = terminal.result();
         require(ref.resultType().equals("tool-result") && ref.schemaVersion() == 1, INVALID_STATE);
         var row = payload.result(ref.resultId());
-        require(row != null && row.ownerKey().equals(ownerKey(ExecutionOwner.from(invocation.request().context())))
+        require(row != null && row.ownerKey().equals(ownerKey(ExecutionOwners.from(invocation.request().context())))
                 && row.invocationKey().equals(hash(id(invocation))) && row.attemptKey().equals(hash(attempt.attemptId()))
                 && row.resultType().equals(ref.resultType()) && row.schemaVersion() == ref.schemaVersion()
                 && (row.partial() == 1) == ref.partial() && row.payloadDigest().equals(ref.contentDigest()), INVALID_STATE);
@@ -1472,7 +1473,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         var payload = new ExecutionPayload.Status(Invocation.State.ACCEPTED);
         var initial = new ExecutionEvent<>(1, id(invocation), null, 1, payload.eventKind(), now(), "status", 1, payload);
         require(event.insertEvent(hash(id(invocation)), 1, codec.encode(initial)) == 1, INVALID_STATE);
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         var messages = List.of(
                 new OutboxMapper.NewMessage(hash(id(invocation), "EVENT", "1"), "EVENT", 1),
                 new OutboxMapper.NewMessage(hash(id(invocation), "DISPATCH", "0"), "DISPATCH", 0));
@@ -1484,7 +1485,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     private void outbox(Invocation invocation, OutboxMessage.Kind kind, long sequence) {
         var key = hash(id(invocation), kind.name(), Long.toString(sequence));
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         outbox.insertMessage(key, hash(id(invocation)), id(invocation), owner.tenantId(), owner.workspaceId(), owner.subjectId(), kind.name(), sequence);
         notifyOutboxAfterCommit(invocation, kind, sequence);
     }
@@ -1746,7 +1747,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 return null;
             }
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
-            return invocation != null && ExecutionOwner.from(invocation.request().context()).equals(owner) ? reservation : null;
+            return invocation != null && ExecutionOwners.from(invocation.request().context()).equals(owner) ? reservation : null;
         });
     }
 
@@ -2000,7 +2001,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     public Mono<Reconciliation.Receipt> reconciliationReceipt(ExecutionOwner owner, String invocationId, String key) {
         return tx(() -> {
             var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            if (invocation == null || !ExecutionOwner.from(invocation.request().context()).equals(owner)) return null;
+            if (invocation == null || !ExecutionOwners.from(invocation.request().context()).equals(owner)) return null;
             var saved = operation(invocation, operationKey("manual-bill", key));
             return saved == null ? null : codec.decode(saved.resultSnapshot(), Reconciliation.Receipt.class);
         });

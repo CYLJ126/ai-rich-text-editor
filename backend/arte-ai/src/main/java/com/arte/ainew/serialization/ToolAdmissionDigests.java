@@ -1,9 +1,10 @@
 package com.arte.ainew.serialization;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.pojo.tool.ToolSchemaDefinition;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.util.Comparator;
 import java.util.TreeSet;
@@ -54,7 +55,7 @@ public final class ToolAdmissionDigests {
                             .map(s -> CanonicalJson.fields("definition", s.definition(), "checksum", s.checksum())).toList(),
                     "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()), "options", request.options()));
         return CanonicalJson.digest(CanonicalJson.fields("format", "local-free-tool-execution-v1",
-                "submission", submission(ExecutionOwner.from(request.context()), snapshot.input()),
+                "submission", submission(ExecutionOwners.from(request.context()), snapshot.input()),
                 "binding", plan.definition(), "contract", plan.contractDigest(), "configuration", plan.configurationDigest(),
                 "policy", snapshot.policy(), "target", plan.tool().target(), "capability", request.capability(),
                 "tool", request.input().tool(), "callId", request.input().callId(), "scopeCeiling", new TreeSet<>(request.context().authorization().scopes()),

@@ -32,6 +32,7 @@ import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -185,7 +186,7 @@ public class ToolChatLoopTest {
                 assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
                 assertTrue(TransactionSynchronizationManager.hasResource(f.source));
                 if (!cancelling && !allowed.get()) throw new AccessDeniedException("revoked in transaction");
-                assertEquals(f.owner, ExecutionOwner.from(fixed.context()));
+                assertEquals(f.owner, ExecutionOwners.from(fixed.context()));
             });
             session = (scope, operation) -> Mono.just(new ToolManagementAccess.Permit() {
                 public com.arte.core.pojo.platform.TrustedActor actor() {

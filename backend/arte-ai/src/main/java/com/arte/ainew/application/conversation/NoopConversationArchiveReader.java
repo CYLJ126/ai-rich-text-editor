@@ -1,8 +1,8 @@
 package com.arte.ainew.application.conversation;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.util.Objects;

@@ -1,7 +1,7 @@
 package com.arte.ainew.pojo.conversation;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.reference.ResourceVersionRef;
 

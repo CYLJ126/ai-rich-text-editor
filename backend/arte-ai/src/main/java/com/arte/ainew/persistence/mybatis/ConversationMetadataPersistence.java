@@ -2,7 +2,6 @@ package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.conversation.ConversationText;
 import com.arte.ainew.common.execution.ExecutionEvent;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.*;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
@@ -16,6 +15,7 @@ import com.arte.ainew.pojo.generation.GenerationEvent;
 import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;

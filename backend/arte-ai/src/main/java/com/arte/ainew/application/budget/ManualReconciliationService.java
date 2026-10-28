@@ -4,7 +4,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.budget.Reconciliation;
 import com.arte.ainew.pojo.conversation.ConversationPage;
@@ -35,7 +35,7 @@ public final class ManualReconciliationService {
     public Mono<PendingPage> pending(String budgetRef, long current, long size, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(authorized ->
                 budgetAccountQueryService.account(budgetRef, authorized).flatMap(account ->
-                        reconciliationStore.pendingReconciliations(ExecutionOwner.from(authorized), budgetRef, current, size)
+                        reconciliationStore.pendingReconciliations(ExecutionOwners.from(authorized), budgetRef, current, size)
                                 .flatMap(page -> authorization.configurationGrant(authorized)
                                         .map(grant -> new PendingPage(page, grant.scopes().contains(AdmissionAuthorization.BUDGET_ADMIN))))));
     }
@@ -47,7 +47,7 @@ public final class ManualReconciliationService {
                 budgetAccountQueryService.account(budgetRef, authorized).flatMap(account -> {
                     if (!account.limit().currency().equals(charge.currency()))
                         throw new AdmissionException(ResultCodeEnum.AI_CURRENCY_MISMATCH);
-                    return reconciliationStore.confirmReconciliation(new Reconciliation.Confirm(ExecutionOwner.from(authorized),
+                    return reconciliationStore.confirmReconciliation(new Reconciliation.Confirm(ExecutionOwners.from(authorized),
                             authorized.authorization().principal(), authorized.traceId(), authorized.idempotencyKey(), budgetRef, invocationId,
                             invocationVersion, reservationId, reservationVersion, charge, evidenceRef, note, executionEnded));
                 }).map(result -> {
@@ -59,7 +59,7 @@ public final class ManualReconciliationService {
     }
 
     public Mono<Reconciliation.Receipt> receipt(String budgetRef, String invocationId, String key, ExecutionContext context) {
-        return budgetAccountQueryService.account(budgetRef, context).then(reconciliationStore.reconciliationReceipt(ExecutionOwner.from(context), invocationId, key))
+        return budgetAccountQueryService.account(budgetRef, context).then(reconciliationStore.reconciliationReceipt(ExecutionOwners.from(context), invocationId, key))
                 .filter(receipt -> receipt.budgetRef().equals(budgetRef))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)));
     }

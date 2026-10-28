@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.BudgetMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
@@ -14,6 +14,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolObservationStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -91,7 +92,7 @@ public final class MybatisToolObservationStore implements ToolObservationStore {
             var invocations = new HashMap<String, Invocation>();
             for (var value : executions.invocationSnapshots(ownerKey(owner), keys)) {
                 var invocation = codec.decode(value, Invocation.class);
-                require(ExecutionOwner.from(invocation.request().context()).equals(owner) && invocation.request().kind() == CapabilityDescriptor.Kind.TOOL);
+                require(ExecutionOwners.from(invocation.request().context()).equals(owner) && invocation.request().kind() == CapabilityDescriptor.Kind.TOOL);
                 invocations.put(invocation.request().context().executionId(), invocation);
             }
             var attempts = new HashMap<String, List<Attempt>>();

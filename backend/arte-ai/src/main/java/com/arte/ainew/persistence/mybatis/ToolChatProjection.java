@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -56,7 +56,7 @@ final class ToolChatProjection {
         if (!CanonicalJson.sha256(row.stateSnapshot()).equals(row.stateDigest()))
             throw new IllegalStateException("Run state checksum mismatch");
         var run = codec.decode(row.stateSnapshot(), ToolChatRun.class);
-        if (!row.runKey().equals(CanonicalJson.key(parent)) || !run.runId().equals(parent) || run.version() != row.version() || !run.owner().equals(ExecutionOwner.from(child.request().context()))
+        if (!row.runKey().equals(CanonicalJson.key(parent)) || !run.runId().equals(parent) || run.version() != row.version() || !run.owner().equals(ExecutionOwners.from(child.request().context()))
                 || !row.ownerKey().equals(CanonicalJson.key(run.owner().tenantId(), run.owner().workspaceId(), run.owner().subjectId())))
             throw new IllegalStateException("Run projection identity mismatch");
         if (chat == null || run.state() != ToolChatRun.State.SUCCEEDED || run.result() == null || run.result().partial()

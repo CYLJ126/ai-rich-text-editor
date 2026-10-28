@@ -2,7 +2,6 @@ package com.arte.ainew.tool.chat;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.GenerationException;
@@ -16,6 +15,7 @@ import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.pojo.tool.ToolBindingResolution;
 import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.value.StructuredValue;
 import org.junit.Test;
 import reactor.core.publisher.Flux;

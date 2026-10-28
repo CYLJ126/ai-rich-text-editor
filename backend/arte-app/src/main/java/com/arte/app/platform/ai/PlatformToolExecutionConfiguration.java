@@ -41,13 +41,13 @@ public class PlatformToolExecutionConfiguration {
     com.arte.ainew.spi.auth.ToolChatAccess toolChatAccess(PlatformToolManagementAccess platform,
                                                           com.arte.ainew.spi.auth.ToolInvocationAccess controls) {
         return (current, cancelling) -> {
-            var owner = com.arte.ainew.common.execution.ExecutionOwner.from(current);
+            var owner = com.arte.ainew.common.execution.ExecutionOwners.from(current);
             reactor.core.publisher.Mono<Runnable> check = cancelling
                     ? controls.authorizeOwner(owner, current, com.arte.ainew.spi.auth.ToolInvocationAccess.Operation.CANCEL)
                     .map(p -> p::requireInCurrentTransaction)
                     : platform.authorizeUse(current).map(p -> () -> p.requireInCurrentTransaction(java.util.Set.of("ai:invoke")));
             return check.map(guard -> snapshot -> {
-                if (!owner.equals(com.arte.ainew.common.execution.ExecutionOwner.from(snapshot.context()))
+                if (!owner.equals(com.arte.ainew.common.execution.ExecutionOwners.from(snapshot.context()))
                         || !current.authorization().principal().equals(snapshot.context().authorization().principal()))
                     throw new org.springframework.security.access.AccessDeniedException("Tool chat owner mismatch");
                 guard.run();

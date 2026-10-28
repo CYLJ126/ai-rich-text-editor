@@ -1,7 +1,7 @@
 package com.arte.ainew.infrastructure.http;
 
 import com.arte.ainew.application.support.InvocationTiming;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
@@ -71,7 +71,7 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
         return Flux.defer(() -> {
             // 借用的连接必须匹配本次绑定和执行主体。
             if (!connection.connection().equals(call.binding().connection())
-                    || !connection.owner().equals(ExecutionOwner.from(call.runtime().execution()))) {
+                    || !connection.owner().equals(ExecutionOwners.from(call.runtime().execution()))) {
                 throw GenerationException.beforeSend("CONNECTION_OWNER_MISMATCH");
             }
             byte[] body;

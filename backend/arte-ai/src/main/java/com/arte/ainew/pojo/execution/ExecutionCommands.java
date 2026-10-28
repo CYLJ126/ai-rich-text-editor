@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.time.Duration;
 import java.util.List;

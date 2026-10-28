@@ -1,9 +1,9 @@
 package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.application.tool.chat.ToolSetService;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import org.junit.Test;

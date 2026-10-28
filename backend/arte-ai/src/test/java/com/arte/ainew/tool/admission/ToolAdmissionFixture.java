@@ -9,7 +9,7 @@ import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
@@ -20,6 +20,7 @@ import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Principal;
 import com.arte.core.pojo.platform.TrustedActor;
 import org.h2.jdbcx.JdbcDataSource;
@@ -104,7 +105,7 @@ final class ToolAdmissionFixture implements AutoCloseable {
                     guards.incrementAndGet();
                     if (!jdbc.queryForObject("SELECT enabled FROM tool_test_permission WHERE subject_id='subject' FOR UPDATE", Boolean.class))
                         throw new AccessDeniedException("Test permission revoked before commit");
-                    if (!actual.binding().owner().equals(ExecutionOwner.from(context))
+                    if (!actual.binding().owner().equals(ExecutionOwners.from(context))
                             || !current.scopes().containsAll(actual.binding().tool().tool().risk().requiredScopes()))
                         throw new AccessDeniedException("Test actual snapshot qualification denied");
                     commitHook.accept(actual);

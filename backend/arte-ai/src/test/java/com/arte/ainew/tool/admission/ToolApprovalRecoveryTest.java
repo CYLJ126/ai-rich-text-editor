@@ -1,7 +1,6 @@
 package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.application.tool.approval.ToolApprovalRecovery;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiToolApprovalProperties;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolApproval;
@@ -9,6 +8,7 @@ import com.arte.ainew.pojo.tool.ToolApprovalCommand;
 import com.arte.ainew.pojo.tool.ToolApprovalReceipt;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.scheduler.VirtualTimeScheduler;

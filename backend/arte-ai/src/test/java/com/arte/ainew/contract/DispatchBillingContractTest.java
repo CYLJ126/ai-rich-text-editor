@@ -1,10 +1,10 @@
 package com.arte.ainew.contract;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.execution.ExecutionCommands;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 

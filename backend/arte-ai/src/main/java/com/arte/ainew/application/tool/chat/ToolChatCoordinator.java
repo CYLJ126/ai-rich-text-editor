@@ -7,7 +7,7 @@ import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.execution.*;
@@ -321,7 +321,7 @@ public final class ToolChatCoordinator {
         var context = child.request().context();
         boolean identity = context.executionId().equals(step.childExecutionId()) && step.runId().equals(fixed.context().executionId())
                 && step.runId().equals(context.parentExecutionId()) && child.conversation() == null
-                && fixed.context().traceId().equals(context.traceId()) && ExecutionOwner.from(context).equals(fixed.tools().owner())
+                && fixed.context().traceId().equals(context.traceId()) && ExecutionOwners.from(context).equals(fixed.tools().owner())
                 && !context.deadline().isAfter(fixed.context().deadline())
                 && fixed.context().authorization().scopes().containsAll(context.authorization().scopes());
         if (step.input() instanceof ToolChatStep.Model model)

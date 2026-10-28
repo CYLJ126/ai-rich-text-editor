@@ -1,9 +1,9 @@
 package com.arte.ainew.spi.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.util.List;
 import java.util.Map;

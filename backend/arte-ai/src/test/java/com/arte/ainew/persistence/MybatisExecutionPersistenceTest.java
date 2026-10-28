@@ -18,6 +18,7 @@ import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.value.StructuredValue;
 import org.h2.jdbcx.JdbcDataSource;

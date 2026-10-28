@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.search.SearchSession;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.time.Duration;
 

@@ -1,7 +1,7 @@
 package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisToolAdmissionStore;
@@ -9,6 +9,7 @@ import com.arte.ainew.persistence.mybatis.MybatisToolApprovalStore;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.*;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -215,7 +216,7 @@ public class ToolApprovalIntegrationTest {
             var result = r.decide(command, new ExecutionOwner("tenant", "workspace", "reviewer"));
             assertEquals(APPLIED, result.code());
             assertEquals("reviewer", result.value().approval().decidedBy());
-            assertEquals(r.f.owner, ExecutionOwner.from(result.value().invocation().request().context()));
+            assertEquals(r.f.owner, ExecutionOwners.from(result.value().invocation().request().context()));
         }
     }
 

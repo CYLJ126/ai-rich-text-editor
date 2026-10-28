@@ -3,7 +3,7 @@ package com.arte.app.platform.ai;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.pojo.tool.ToolBindingResolution;
@@ -62,7 +62,7 @@ public final class PlatformPaidToolAccess {
     private void require(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
         var price = binding.tool().tool().price();
         var adapter = registry.executor(binding.tool()).orElseThrow(PlatformPaidToolAccess::denied);
-        if (price == null || input.budgetRef() == null || !binding.owner().equals(ExecutionOwner.from(context))
+        if (price == null || input.budgetRef() == null || !binding.owner().equals(ExecutionOwners.from(context))
                 || !(adapter instanceof PaidToolAdapter paid) || !paid.revision().equals(binding.tool()))
             throw denied();
         paid.requireCharge(input, context, binding);

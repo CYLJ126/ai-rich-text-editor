@@ -7,7 +7,7 @@ import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.*;
@@ -105,7 +105,7 @@ public final class ToolDispatcher {
         return ToolObservation.mono(DISPATCH, runtime.execution(), () -> Mono.defer(() -> {
             require(message.kind() == OutboxMessage.Kind.DISPATCH
                     && message.invocationId().equals(runtime.execution().executionId())
-                    && message.owner().equals(ExecutionOwner.from(runtime.execution())), ResultCodeEnum.AI_OWNER_MISMATCH);
+                    && message.owner().equals(ExecutionOwners.from(runtime.execution())), ResultCodeEnum.AI_OWNER_MISMATCH);
             return ToolObservation.mono(DISPATCH_LOAD, runtime.execution(), () -> committed(outbox.validateClaim(message))
                     .then(load(message))).flatMap(invocation -> {
                 verifyRuntime(invocation, runtime);
@@ -182,12 +182,12 @@ public final class ToolDispatcher {
     private Mono<Prepared> preflight(Invocation invocation, ExecutionRuntimeContext runtime) {
         return Mono.defer(() -> {
             require(clock.instant().isBefore(runtime.execution().deadline()), ResultCodeEnum.AI_DEADLINE_EXCEEDED);
-            return executions.cancellationRequested(ExecutionOwner.from(runtime.execution()), runtime.execution().executionId())
+            return executions.cancellationRequested(ExecutionOwners.from(runtime.execution()), runtime.execution().executionId())
                     .switchIfEmpty(Mono.error(new IllegalStateException("Tool cancellation facts are missing")))
                     .flatMap(cancelled -> {
                         if (cancelled || runtime.cancellation().isCancelled())
                             throw new CancellationException("TOOL_CANCELLED");
-                        return snapshots.snapshot(ExecutionOwner.from(runtime.execution()), runtime.execution().executionId())
+                        return snapshots.snapshot(ExecutionOwners.from(runtime.execution()), runtime.execution().executionId())
                                 .switchIfEmpty(Mono.error(new IllegalStateException("Accepted tool snapshot is missing")));
                     });
         }).flatMap(snapshot -> {
@@ -401,7 +401,7 @@ public final class ToolDispatcher {
     }
 
     private static ExecutionCommands.Version version(Invocation invocation) {
-        return new ExecutionCommands.Version(ExecutionOwner.from(invocation.request().context()), invocation.request().context().executionId(), invocation.version());
+        return new ExecutionCommands.Version(ExecutionOwners.from(invocation.request().context()), invocation.request().context().executionId(), invocation.version());
     }
 
     /**

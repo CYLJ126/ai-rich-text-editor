@@ -22,6 +22,7 @@ import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
 import com.arte.ainew.web.controller.NewAiToolApprovalController;
 import com.arte.ainew.web.controller.NewAiToolSubmissionController;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.security.access.AccessDeniedException;
@@ -237,7 +238,7 @@ public class ToolApprovalFlowTest {
             assertThrows(AccessDeniedException.class, () -> r.service.decide(original.approval().approvalId(), 0, original.approval().subjectDigest(), ToolApprovalCommand.Decision.APPROVE, "self", r.context("self", "self")).block(WAIT));
             var result = r.service.decide(original.approval().approvalId(), 0, original.approval().subjectDigest(), ToolApprovalCommand.Decision.APPROVE, "other", r.reviewer()).block(WAIT);
             assertEquals("reviewer", result.approval().decidedBy());
-            assertEquals(r.f.owner, ExecutionOwner.from(result.invocation().request().context()));
+            assertEquals(r.f.owner, ExecutionOwners.from(result.invocation().request().context()));
             assertTrue(r.service.list(null, 10, r.reviewer()).block(WAIT).records().isEmpty());
             assertNotNull(r.approvals.visible(new ExecutionOwner("tenant", "workspace", "reviewer"), original.approval().approvalId(), null).block(WAIT));
         }

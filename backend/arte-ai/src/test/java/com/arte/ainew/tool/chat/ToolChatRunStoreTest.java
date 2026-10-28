@@ -1,6 +1,9 @@
 package com.arte.ainew.tool.chat;
 
-import com.arte.ainew.common.execution.*;
+import com.arte.ainew.common.execution.ExecutionAuthorization;
+import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.common.execution.ExecutionError;
+import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore;
 import com.arte.ainew.pojo.context.ContextBudget;
@@ -15,6 +18,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.serialization.ToolChatRunDigests;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;

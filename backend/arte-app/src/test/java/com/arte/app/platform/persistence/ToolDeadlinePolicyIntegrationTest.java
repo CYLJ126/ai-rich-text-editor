@@ -1,7 +1,6 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.persistence.mybatis.ExecutionSqlSessionFactory;
 import com.arte.ainew.persistence.mybatis.MybatisToolAdmissionStore;
@@ -9,6 +8,7 @@ import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.app.platform.ai.tool.LocalTextTools;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;

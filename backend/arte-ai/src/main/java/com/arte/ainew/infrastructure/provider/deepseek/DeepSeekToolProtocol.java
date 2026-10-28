@@ -2,7 +2,7 @@ package com.arte.ainew.infrastructure.provider.deepseek;
 
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.infrastructure.http.GenerationException;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -50,8 +50,8 @@ final class DeepSeekToolProtocol {
             return;
         }
         if (!call.binding().capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
-                || !snapshot.owner().equals(ExecutionOwner.from(call.request().context()))
-                || !snapshot.owner().equals(ExecutionOwner.from(call.runtime().execution()))
+                || !snapshot.owner().equals(ExecutionOwners.from(call.request().context()))
+                || !snapshot.owner().equals(ExecutionOwners.from(call.runtime().execution()))
                 || !snapshot.descriptions().equals(input.tools()))
             throw GenerationException.beforeSend("TOOL_SET_MISMATCH");
         try {

@@ -1,6 +1,5 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.execution.Attempt;
@@ -9,6 +8,7 @@ import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolCharge;
 import com.arte.ainew.pojo.tool.ToolObservation;
 import com.arte.ainew.pojo.tool.ToolObservationMetadata;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.util.List;

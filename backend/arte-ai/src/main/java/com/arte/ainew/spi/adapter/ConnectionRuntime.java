@@ -1,9 +1,9 @@
 package com.arte.ainew.spi.adapter;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 

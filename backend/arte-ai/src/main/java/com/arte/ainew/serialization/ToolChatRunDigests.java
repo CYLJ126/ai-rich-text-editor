@@ -1,6 +1,6 @@
 package com.arte.ainew.serialization;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.tool.ToolChatCommands;
 import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
@@ -21,7 +21,7 @@ public final class ToolChatRunDigests {
 
     public static String submission(ToolChatRunSnapshot s) {
         var c = s.initialContext();
-        var fields = CanonicalJson.fields("format", s.budgetPlan() == null ? "tool-chat-run-v1" : "tool-chat-run-v2", "owner", ExecutionOwner.from(s.context()),
+        var fields = CanonicalJson.fields("format", s.budgetPlan() == null ? "tool-chat-run-v1" : "tool-chat-run-v2", "owner", ExecutionOwners.from(s.context()),
                 "model", model(s.model()), "messages", c.messages(), "history", c.history(), "fragments", c.fragments(),
                 "contextBudget", c.budget(), "inputTokens", c.inputTokens(), "estimated", c.estimatedTokens(), "tokenizer", c.tokenizerVersion(),
                 "truncations", c.truncations(), "tools", tools(s.tools()), "generation", s.generation(), "limits", s.limits(),

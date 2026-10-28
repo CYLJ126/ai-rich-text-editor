@@ -1,0 +1,19 @@
+{
+  "body": {
+    "chatProfile": null,
+    "conversationId": "conversation",
+    "createdAt": "2026-10-28T00:00:00Z",
+    "owner": {
+      "subjectId": "stable-subject",
+      "tenantId": "tenant",
+      "workspaceId": "workspace"
+    },
+    "resources": [],
+    "state": "ACTIVE",
+    "title": "身份迁移",
+    "updatedAt": "2026-10-28T00:00:00Z",
+    "version": 0
+  },
+  "schemaVersion": 1,
+  "type": "conversation"
+}

@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.persistence.mybatis.mapper.ToolChatBudgetMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolChatRunMapper;
 import com.arte.ainew.pojo.budget.BudgetReservation;
@@ -135,8 +135,8 @@ final class ToolChatBudgetPersistence {
         require(row.runKey().equals(key(child.parentExecutionId())) && row.ownerKey().equals(key(root.owner().tenantId(), root.owner().workspaceId(), root.owner().subjectId()))
                 && row.submissionDigest().equals(ToolChatRunDigests.submission(snapshot))
                 && root.runId().equals(child.parentExecutionId()) && root.version() == row.version()
-                && snapshot.context().executionId().equals(root.runId()) && root.owner().equals(ExecutionOwner.from(child))
-                && root.owner().equals(ExecutionOwner.from(snapshot.context())), OWNER_MISMATCH);
+                && snapshot.context().executionId().equals(root.runId()) && root.owner().equals(ExecutionOwners.from(child))
+                && root.owner().equals(ExecutionOwners.from(snapshot.context())), OWNER_MISMATCH);
         require(snapshot.budgetPlan() != null && row.deadline() == snapshot.context().deadline().toEpochMilli(), INVALID_STATE);
         require(!root.state().terminal() && root.state() != ToolChatRun.State.PENDING_RECONCILIATION
                 && runs.receipt(row.runKey(), ToolChatCommands.CANCEL_MARKER) == null && time.toEpochMilli() < row.deadline()

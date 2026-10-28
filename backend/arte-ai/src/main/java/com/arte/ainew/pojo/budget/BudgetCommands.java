@@ -1,8 +1,8 @@
 package com.arte.ainew.pojo.budget;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.ExecutionCommands;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.math.BigDecimal;

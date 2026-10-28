@@ -265,4 +265,34 @@ class RbacIdentityProviderTest {
         var resolver = new RbacFixedExecutionAuthorizationResolver(provider, ai, Schedulers.boundedElastic());
         assertThrows(AccessDeniedException.class, () -> resolver.resolve("alice", "old-tenant", "old-space", Set.of("chat")).block());
     }
+
+    @Test
+    void executionSnapshotKeepsStableIdentityButRenameRequiresTheCurrentAuthenticatedName() {
+        var current = provider.resolveAuthenticatedName("alice").orElseThrow();
+        var snapshot = ExecutionPrincipal.from(current, "alice");
+        tx.executeWithoutResult(status -> assertEquals(current, provider.findCurrentExecutionPrincipal(snapshot).orElseThrow()));
+        jdbc.update("UPDATE arte_rbac_user SET user_name='renamed' WHERE id=1");
+        var renamed = provider.resolveAuthenticatedName("renamed").orElseThrow();
+        assertTrue(snapshot.sameIdentityAs(renamed));
+        tx.executeWithoutResult(status -> assertTrue(provider.findCurrentExecutionPrincipal(snapshot).isEmpty()));
+        var fresh = ExecutionPrincipal.from(renamed, "renamed");
+        tx.executeWithoutResult(status -> assertEquals(renamed, provider.findCurrentExecutionPrincipal(fresh).orElseThrow()));
+        add(2, "alice");
+        var replacement = provider.resolveAuthenticatedName("alice").orElseThrow();
+        assertFalse(snapshot.sameIdentityAs(replacement));
+        assertNotEquals(current.subjectId(), replacement.subjectId());
+    }
+
+    @Test
+    void executionIdentityComparisonCannotHideCurrentAccountSuspension() {
+        var current = provider.resolveAuthenticatedName("alice").orElseThrow();
+        var snapshot = ExecutionPrincipal.from(current, "alice");
+        jdbc.update("UPDATE arte_rbac_user SET status=3 WHERE id=1");
+        tx.executeWithoutResult(status -> {
+            var suspended = provider.findCurrentExecutionPrincipal(snapshot).orElseThrow();
+            assertTrue(snapshot.sameIdentityAs(suspended));
+            assertEquals(PrincipalStatusEnum.SUSPENDED, suspended.status());
+            assertThrows(IllegalArgumentException.class, () -> ExecutionPrincipal.from(suspended, "alice"));
+        });
+    }
 }

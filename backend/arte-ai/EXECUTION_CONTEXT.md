@@ -1,16 +1,19 @@
 # ExecutionContext 接入说明
 
-**TODO**
-
-待迁移。
-
-实现暂放在 `com.arte.ainew`，保持与旧 AI 链路隔离。`common.execution` 是不依赖 Spring、Reactor 或 AI SDK 的共用数据契约，未来可迁移公共契约模块。现有 `UserContext`、认证过滤器、旧聊天和 SSE 控制器均未修改。
+执行上下文、授权和事件信封仍位于 `com.arte.ainew`，保持与旧 AI 链路隔离。 第二批已将三元归属键提取至
+`com.arte.core.pojo.platform.ExecutionOwner`，AI 的 `ExecutionOwners.from(context)` 负责转换； 执行身份快照通过
+`ExecutionPrincipal.from(currentPrincipal, currentName)`
+与公共当前主体对齐，详见 [身份与归属迁移](EXECUTION_IDENTITY_MIGRATION.md)。 后续信封提取按实际需求安排。现有 `UserContext`
+、认证过滤器、旧聊天和 SSE 控制器均未修改。
 
 最小聊天及执行记录的数据类型、幂等／重新生成语义、字段校验与后续存储边界见 [最小 AI 数据契约 v1](DATA_CONTRACTS.md)。这里的上下文构建仍不表示可靠受理；复用幂等键时应返回原受理身份，不能用新构建的 executionId 覆盖原 Invocation。
 
 ## 数据与运行对象
 
-- `ExecutionPrincipal`：稳定主体 ID、名称及 USER／SERVICE 类型，不包含密码、Token 或在线会话对象。
+- `Principal`（core）：稳定主体 ID、主体类型及当前状态，由权威身份提供者读取。
+- `ExecutionPrincipal`（AI）：执行时的稳定主体 ID、认证／展示名称及 USER／SERVICE 类型快照，不保存当前状态或在线会话对象。
+- `ExecutionOwner`（core）：租户、空间、稳定主体 ID 的三元归属键，不包含名称或授权；通过 AI 的 `ExecutionOwners.from(context)`
+  派生。
 - `ExecutionAuthorization`：已验证的租户、空间、权限上限和可重新校验的授权引用；集合防御性复制。
 - `ExecutionContext`：执行 ID、traceId、授权、绝对 deadline、父执行、预算／发布引用和操作幂等键。可持久化，子执行不能扩大权限或延长期限。
 - `ExecutionRuntimeContext`：上述数据及进程内 `ExecutionCancellation`。运行对象不能持久化。

@@ -1,6 +1,7 @@
 package com.arte.ainew.common.execution;
 
 import com.arte.ainew.common.validation.ContractChecks;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 
 import java.io.Serializable;

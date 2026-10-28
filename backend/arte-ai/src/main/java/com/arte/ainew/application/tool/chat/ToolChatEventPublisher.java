@@ -1,11 +1,11 @@
 package com.arte.ainew.application.tool.chat;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiToolChatProperties;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import com.arte.core.diagnostics.SafeExceptionDiagnostics;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import reactor.core.Disposable;

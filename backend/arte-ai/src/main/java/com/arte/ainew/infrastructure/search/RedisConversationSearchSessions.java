@@ -1,6 +1,5 @@
 package com.arte.ainew.infrastructure.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.search.SearchCursor;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.config.NewAiSearchProperties;
@@ -8,6 +7,7 @@ import com.arte.ainew.pojo.search.SearchSession;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
 import com.arte.ainew.spi.search.ConversationSearchSessions;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;

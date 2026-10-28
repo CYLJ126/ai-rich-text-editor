@@ -5,7 +5,7 @@ import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.execution.ControlReceipt;
 import com.arte.ainew.pojo.execution.ExecutionControlRequest;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -34,7 +34,7 @@ public final class DefaultExecutionControl implements ExecutionControl {
     @Override
     public Mono<Invocation> status(String invocationId, ExecutionContext context) {
         return admissionAuthorization.require(context, AdmissionAuthorization.READ)
-                .flatMap(current -> executionStore.find(ExecutionOwner.from(current), invocationId)
+                .flatMap(current -> executionStore.find(ExecutionOwners.from(current), invocationId)
                         .flatMap(invocation -> admissionAuthorization.readInvocation(invocation, current)))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)));
     }

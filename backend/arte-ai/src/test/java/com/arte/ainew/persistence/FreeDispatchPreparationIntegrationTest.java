@@ -2,7 +2,6 @@ package com.arte.ainew.persistence;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
@@ -14,6 +13,7 @@ import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.value.StructuredValue;
 import org.h2.jdbcx.JdbcDataSource;

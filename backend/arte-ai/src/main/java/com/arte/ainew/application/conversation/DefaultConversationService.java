@@ -5,7 +5,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionDigests;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.Conversation;
@@ -65,7 +65,7 @@ public final class DefaultConversationService implements ConversationService {
             }
             ContractChecks.id(current.idempotencyKey(), "idempotencyKey");
             var now = clock.instant();
-            var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwner.from(current), title, 0, null,
+            var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwners.from(current), title, 0, null,
                     selections, Conversation.State.ACTIVE, now, now);
             return admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
                     .map(outcome -> {
@@ -103,27 +103,27 @@ public final class DefaultConversationService implements ConversationService {
     @Override
     public Mono<ConversationList.Item> metadata(String id, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.conversationMetadata(ExecutionOwner.from(current), id))
+                .flatMap(current -> admissionCatalogStore.conversationMetadata(ExecutionOwners.from(current), id))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
     }
 
     @Override
     public Mono<ConversationList.Page> listCursor(ConversationList.Query query, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.conversationList(ExecutionOwner.from(current), query));
+                .flatMap(current -> admissionCatalogStore.conversationList(ExecutionOwners.from(current), query));
     }
 
     @Override
     public Mono<ConversationList.Window> listWindow(ConversationList.WindowQuery query, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.conversationWindow(ExecutionOwner.from(current), query));
+                .flatMap(current -> admissionCatalogStore.conversationWindow(ExecutionOwners.from(current), query));
     }
 
     @Override
     public Mono<ConversationList.Receipt> changeMetadata(ConversationList.Command command, ExecutionContext context) {
         ContractChecks.require(command.idempotencyKey().equals(context.idempotencyKey()), "Command key must match context");
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.changeConversationMetadata(ExecutionOwner.from(current), command))
+                .flatMap(current -> admissionCatalogStore.changeConversationMetadata(ExecutionOwners.from(current), command))
                 .map(outcome -> {
                     if (!outcome.successful()) {
                         if (outcome.code() == com.arte.ainew.pojo.execution.StoreOutcome.Code.NOT_FOUND)
@@ -137,7 +137,7 @@ public final class DefaultConversationService implements ConversationService {
     @Override
     public Mono<ConversationList.CommandResult> metadataReceipt(String commandId, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.conversationMetadataReceipt(ExecutionOwner.from(current), commandId))
+                .flatMap(current -> admissionCatalogStore.conversationMetadataReceipt(ExecutionOwners.from(current), commandId))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)));
     }
 
@@ -145,9 +145,9 @@ public final class DefaultConversationService implements ConversationService {
     public Mono<Conversation> find(String id, ExecutionContext context) {
         // 搜索的普通打开入口复用详情，归档资格不能只在 PIT 或消息定位路径校验。
         return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                        .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwner.from(current), id)
+                        .flatMap(current -> admissionCatalogStore.findConversation(ExecutionOwners.from(current), id)
                                 .flatMap(value -> archives == null ? Mono.just(value)
-                                        : archives.findArchivedConversationIds(ExecutionOwner.from(current), java.util.Set.of(id))
+                                        : archives.findArchivedConversationIds(ExecutionOwners.from(current), java.util.Set.of(id))
                                         .switchIfEmpty(Mono.error(new IllegalStateException("Archive qualification is unavailable")))
                                         .flatMap(excluded -> excluded.contains(id) ? Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)) : Mono.just(value))))
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND))),
@@ -158,7 +158,7 @@ public final class DefaultConversationService implements ConversationService {
     public Mono<ConversationPage<Conversation>> list(PageParam page, ExecutionContext context) {
         return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             var pagination = MybatisPages.from(page);
-            return admissionCatalogStore.listConversations(ExecutionOwner.from(current), pagination.getCurrent(), pagination.getSize());
+            return admissionCatalogStore.listConversations(ExecutionOwners.from(current), pagination.getCurrent(), pagination.getSize());
         }), context, "listConversations", null, page, null);
     }
 
@@ -168,7 +168,7 @@ public final class DefaultConversationService implements ConversationService {
             ContractChecks.id(conversationId, "conversationId");
             ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
             var pagination = MybatisPages.from(page);
-            return admissionCatalogStore.listTurns(ExecutionOwner.from(current), conversationId, expectedVersion,
+            return admissionCatalogStore.listTurns(ExecutionOwners.from(current), conversationId, expectedVersion,
                     pagination.getCurrent(), pagination.getSize()).map(outcome -> {
                 if (!outcome.successful()) {
                     if (outcome.code() == com.arte.ainew.pojo.execution.StoreOutcome.Code.NOT_FOUND) {
@@ -185,7 +185,7 @@ public final class DefaultConversationService implements ConversationService {
                                 String conversationId, PageParam page, Long expectedVersion) {
         return Mono.defer(() -> {
             var started = System.nanoTime();
-            var owner = ExecutionOwner.from(context);
+            var owner = ExecutionOwners.from(context);
             var target = conversationId == null ? null : conversationId.replaceAll("\\p{Cntrl}", "_");
             log.debug("AI conversation query started, operation={}, traceId={}, executionId={}, tenantId={}, workspaceId={}, subjectId={}, conversationId={}, current={}, size={}, expectedVersion={}",
                     operation, context.traceId(), context.executionId(), owner.tenantId(), owner.workspaceId(), owner.subjectId(),
@@ -204,7 +204,7 @@ public final class DefaultConversationService implements ConversationService {
     @Override
     public Mono<Turn> turn(String conversationId, String turnId, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION)
-                .flatMap(current -> admissionCatalogStore.findTurn(ExecutionOwner.from(current), conversationId, turnId))
+                .flatMap(current -> admissionCatalogStore.findTurn(ExecutionOwners.from(current), conversationId, turnId))
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TURN_NOT_FOUND)));
     }
 

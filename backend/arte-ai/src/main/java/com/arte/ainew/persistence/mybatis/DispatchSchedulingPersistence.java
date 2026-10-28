@@ -1,7 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.execution.DispatchSchedulingException;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.persistence.mybatis.mapper.OutboxMapper;
 import com.arte.ainew.persistence.mybatis.mapper.PersistenceRows.OutboxRow;
@@ -13,6 +13,7 @@ import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.time.Duration;
 import java.util.*;
@@ -74,7 +75,7 @@ final class DispatchSchedulingPersistence {
             validate(invocation, plan);
             lock();
             pool();
-            var owner = ExecutionOwner.from(invocation.request().context());
+            var owner = ExecutionOwners.from(invocation.request().context());
             var keys = queueKeys(plan.workClass().name(), space(owner), subject(owner));
             int[] limits = {policy.maxQueued(), policy.queue(plan.workClass()), policy.workspaceQueued(), policy.subjectQueued()};
             // 四个维度一次锁读；限额仍按各维度独立校验，不复用事务外的计数。
@@ -120,7 +121,7 @@ final class DispatchSchedulingPersistence {
      */
     void classify(Invocation invocation, DispatchPlan plan, java.time.Instant queuedAt) {
         if (!enabled()) return;
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         long deadline = invocation.request().options().deadline().toEpochMilli();
         var type = plan.workClass();
         if (type == TOOL_SHORT || type == TOOL_LONG) {

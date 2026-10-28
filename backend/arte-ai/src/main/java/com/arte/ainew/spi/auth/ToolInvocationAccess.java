@@ -22,7 +22,7 @@ public interface ToolInvocationAccess {
     /**
      * Run 控制沿用完整 owner 的当前资格；宿主须显式支持，不能以伪 Invocation 获取许可。
      */
-    default Mono<Permit> authorizeOwner(com.arte.ainew.common.execution.ExecutionOwner owner,
+    default Mono<Permit> authorizeOwner(com.arte.core.pojo.platform.ExecutionOwner owner,
                                         ExecutionContext context, Operation operation) {
         return Mono.error(new org.springframework.security.access.AccessDeniedException("Run control access unavailable"));
     }

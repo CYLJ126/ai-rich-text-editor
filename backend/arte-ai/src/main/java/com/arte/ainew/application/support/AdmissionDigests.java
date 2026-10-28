@@ -1,6 +1,6 @@
 package com.arte.ainew.application.support;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.execution.InvocationSubmission;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.serialization.CanonicalJson;
@@ -56,14 +56,14 @@ public final class AdmissionDigests {
         var context = request.context();
         if (context.parentExecutionId() != null)
             return CanonicalJson.digest(CanonicalJson.fields("schema", "tool-chat-model-admission-v1",
-                    "owner", ExecutionOwner.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
+                    "owner", ExecutionOwners.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
                     "parent", context.parentExecutionId(), "child", context.executionId(), "budget", context.budgetRef(),
                     "binding", request.binding(), "capability", request.capability(), "generation", generation,
                     "options", options, "context", submission.snapshot().contentDigest(), "contextBudget", submission.snapshot().budget()));
         var link = submission.conversation();
         var turn = submission.newTurn();
         return CanonicalJson.digest(CanonicalJson.fields("schema", "text-admission-v1",
-                "owner", ExecutionOwner.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
+                "owner", ExecutionOwners.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
                 "parentExecutionId", context.parentExecutionId(), "budgetRef", context.budgetRef(), "releaseRef", context.releaseRef(),
                 "capability", request.capability(), "binding", request.binding(), "kind", request.kind(),
                 "messages", TextInputs.semanticMessages(generation.messages()), "generationOptions", generation.options(),

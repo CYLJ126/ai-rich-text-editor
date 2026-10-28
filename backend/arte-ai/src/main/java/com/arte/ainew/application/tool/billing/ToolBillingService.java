@@ -4,7 +4,7 @@ import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
@@ -19,6 +19,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.ainew.spi.persistence.ToolBillingStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 
@@ -63,7 +64,7 @@ public final class ToolBillingService {
             var rate = config.rates().stream().filter(r -> r.definition().equals(price.rate())).findFirst().orElse(null);
             if (!authorization.grant(config, current).budgetRefs().contains(ref) || definition == null || rate == null
                     || !price.perCall().equals(rate.toolPerCall()) || !definition.rate().equals(price.rate())
-                    || !definition.owner().equals(ExecutionOwner.from(current)) || !definition.limit().currency().equals(price.perCall().currency()))
+                    || !definition.owner().equals(ExecutionOwners.from(current)) || !definition.limit().currency().equals(price.perCall().currency()))
                 return denied();
             return budgets.account(definition.owner(), ref).switchIfEmpty(denied()).flatMap(account ->
                     account.owner().equals(definition.owner()) && account.rateVersion().equals(price.rate()) && account.limit().equals(definition.limit())
@@ -78,7 +79,7 @@ public final class ToolBillingService {
             var rate = config.rates().stream().filter(r -> r.definition().equals(price.rate()) && price.perCall().equals(r.toolPerCall())).findFirst();
             if (rate.isEmpty()) return Mono.just(java.util.List.of());
             return reactor.core.publisher.Flux.fromIterable(config.budgets()).filter(b -> grant.budgetRefs().contains(b.budgetRef())
-                            && b.owner().equals(ExecutionOwner.from(current)) && b.rate().equals(price.rate()) && b.limit().currency().equals(price.perCall().currency()))
+                            && b.owner().equals(ExecutionOwners.from(current)) && b.rate().equals(price.rate()) && b.limit().currency().equals(price.perCall().currency()))
                     .concatMap(b -> budgets.account(b.owner(), b.budgetRef()).filter(a -> a.owner().equals(b.owner())
                             && a.rateVersion().equals(b.rate()) && a.limit().equals(b.limit()))).collectList();
         }));
@@ -100,7 +101,7 @@ public final class ToolBillingService {
     public Mono<Void> settle(Invocation invocation) {
         if (invocation.request().context().budgetRef() == null || invocation.activeAttemptId() == null)
             return Mono.empty();
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         return executions.findAttempt(owner, invocation.request().context().executionId(), invocation.activeAttemptId()).flatMap(attempt -> {
             if (attempt.budgetReservationId() == null) return Mono.empty();
             return budgets.reservation(owner, attempt.budgetReservationId()).flatMap(reservation -> {

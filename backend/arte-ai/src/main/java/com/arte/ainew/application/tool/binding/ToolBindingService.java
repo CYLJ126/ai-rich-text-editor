@@ -2,13 +2,13 @@ package com.arte.ainew.application.tool.binding;
 
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.persistence.ToolBindingStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;

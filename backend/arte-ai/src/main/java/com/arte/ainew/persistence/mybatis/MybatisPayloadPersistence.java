@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
@@ -14,6 +14,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -143,7 +144,7 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
             }
             var invocation = executionRecordCodec.decode(invocationBytes, Invocation.class);
             var attempt = executionRecordCodec.decode(attemptBytes, Attempt.class);
-            if (!owner.equals(ExecutionOwner.from(invocation.request().context()))) {
+            if (!owner.equals(ExecutionOwners.from(invocation.request().context()))) {
                 return StoreOutcome.rejected(OWNER_MISMATCH);
             }
             if (!attempt.invocationId().equals(invocationId)) {

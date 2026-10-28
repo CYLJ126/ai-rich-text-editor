@@ -1133,7 +1133,8 @@ AgentRuntime。组合模块依赖双方的公开端口，提供适配实现。�
 当前 Maven 落地为 `arte-ai → arte-core`、`arte-app → arte-core + arte-ai`；公共规则位于 core 的独立领域包，app 实现 SPI
 并装配。文章目前在 app，其领域代码仍只依赖公共契约；不因 app 同时包含文章和装配就允许 AI 反向导入 app
 类型。第一批中立引用、结构化值及基础工具已提取至 core，见 [公共契约迁移说明](backend/arte-ai/PUBLIC_CONTRACTS_MIGRATION.md)
-；共用执行信封的后续提取与空间领域建设分别安排，不要求整体迁移 ainew.common。
+；第二批已下沉公共执行归属键并对齐当前主体与执行快照，见 [身份与归属迁移](backend/arte-ai/EXECUTION_IDENTITY_MIGRATION.md)
+。共用执行信封的后续提取与空间领域建设分别安排，不要求整体迁移 ainew.common。
 
 #### 1.2 公共数据契约
 
@@ -1250,7 +1251,9 @@ BT --> D
 
 首批可实现的数据契约、字段与校验见 [最小 AI 数据契约 v1](backend/arte-ai/DATA_CONTRACTS.md)。AI 专属源码位于
 `com.arte.ainew`，复用现有不可变执行身份与授权数据；固定定义、资源版本、产物引用及结构化值已迁至
-`com.arte.core.pojo.reference`／`value`，执行信封与 AI 来源引用仍留在 `ainew.common`，不修改旧 `ai` 或文章实现。
+`com.arte.core.pojo.reference`／`value`，执行归属键已迁至 `com.arte.core.pojo.platform.ExecutionOwner`，由 AI
+`ExecutionOwners` 转换上下文。 执行身份快照与 core 当前主体显式对齐，其他执行信封与 AI 来源引用仍留在 `ainew.common`，不修改旧
+`ai` 或文章实现。
 
 - Conversation 组织交流，Turn 固定一次用户输入与回答候选，Invocation 保存一次逻辑调用，Attempt 保存实际尝试与执行归属；会话不复制执行终态作为第二权威。
 - 主动重新生成建立新 Invocation 并关联原调用／Turn；自动重试只增加原 Invocation 的 Attempt。编辑重发建立新 Turn，原输入与历史分支保持可追溯。相同作用域幂等键、相同规范化请求摘要返回原受理，不以新分配 ID 覆盖原身份。

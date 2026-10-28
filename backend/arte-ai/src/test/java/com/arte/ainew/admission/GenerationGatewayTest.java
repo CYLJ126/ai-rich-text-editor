@@ -57,7 +57,7 @@ public class GenerationGatewayTest {
         try (var rig = new Rig(65536, 65536, true)) {
             var base = rig.call();
             var fixture = com.arte.ainew.tool.discovery.LocalToolFixtures.fixture("text", "v1");
-            var owner = com.arte.ainew.common.execution.ExecutionOwner.from(base.request().context());
+            var owner = com.arte.ainew.common.execution.ExecutionOwners.from(base.request().context());
             var empty = com.arte.ainew.tool.discovery.LocalToolFixtures.object();
             var binding = new ToolBindingResolution(new com.arte.core.pojo.reference.DefinitionRef("binding", "selected", "p1-" + "1".repeat(64)),
                     new com.arte.core.pojo.reference.DefinitionRef("binding", "selected", "r1"), owner, fixture.revision(),

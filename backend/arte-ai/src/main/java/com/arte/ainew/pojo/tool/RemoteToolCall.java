@@ -1,6 +1,6 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
@@ -21,7 +21,7 @@ public record RemoteToolCall(GatewayCall<ToolInvocation> call,
     public RemoteToolCall {
         Objects.requireNonNull(call);
         Objects.requireNonNull(binding);
-        ContractChecks.require(binding.owner().equals(ExecutionOwner.from(call.runtime().execution()))
+        ContractChecks.require(binding.owner().equals(ExecutionOwners.from(call.runtime().execution()))
                         && binding.resolvedBinding().equals(call.binding())
                         && binding.tool().tool().definition().equals(call.request().input().tool())
                         && binding.tool().target() instanceof ExecutionTarget.Remote,

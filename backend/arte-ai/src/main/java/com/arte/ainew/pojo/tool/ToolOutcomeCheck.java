@@ -1,10 +1,11 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.Attempt;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.core.pojo.platform.ExecutionOwner;
 
 import java.time.Duration;
 import java.util.List;
@@ -60,7 +61,7 @@ public final class ToolOutcomeCheck {
 
     public record Claim(Case work, Invocation invocation, Attempt attempt, ToolExecutionSnapshot snapshot) {
         public ExecutionOwner owner() {
-            return ExecutionOwner.from(invocation.request().context());
+            return ExecutionOwners.from(invocation.request().context());
         }
 
         public String checkId() {

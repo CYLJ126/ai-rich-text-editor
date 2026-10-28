@@ -3,7 +3,7 @@ package com.arte.ainew.application.tool.observation;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.execution.Attempt;
@@ -47,7 +47,7 @@ public final class ToolObservationService {
     public Mono<ToolObservation.Page> list(ToolObservation.Query query, String cursor, int limit, ExecutionContext context) {
         ContractChecks.range(limit, "page limit", 1, 20);
         return Mono.defer(() -> {
-            var fingerprint = query.fingerprint(ExecutionOwner.from(context));
+            var fingerprint = query.fingerprint(ExecutionOwners.from(context));
             var after = decode(cursor, fingerprint, query);
             return observe(query, after, ToolObservation.LIST_SCAN_LIMIT, context).map(value -> {
                 var records = value.items().stream().limit(limit).toList();
@@ -76,7 +76,7 @@ public final class ToolObservationService {
             if (remaining.isNegative() || remaining.isZero())
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
             return access.require(context, AdmissionAuthorization.READ).flatMap(current -> {
-                var owner = ExecutionOwner.from(current);
+                var owner = ExecutionOwners.from(current);
                 return store.scan(owner, query, after, limit).flatMap(scan -> Flux.fromIterable(scan.records()).buffer(20)
                         .concatMap(batch -> store.load(owner, batch)).flatMapIterable(entries -> entries)
                         .collectList().flatMap(entries -> readable(entries, current))

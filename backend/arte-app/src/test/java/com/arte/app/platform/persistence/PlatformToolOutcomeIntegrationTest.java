@@ -2,12 +2,13 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.tool.outcome.ToolOutcomeQueryRegistry;
 import com.arte.ainew.application.tool.outcome.ToolOutcomeWorker;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.persistence.mybatis.MybatisToolOutcomeStore;
 import com.arte.ainew.pojo.execution.Attempt;
 import com.arte.ainew.pojo.tool.ToolOutcomeCheck;
 import com.arte.ainew.pojo.tool.ToolOutcomeEvidence;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
@@ -294,7 +295,7 @@ class PlatformToolOutcomeIntegrationTest extends ToolWriteAcceptanceRig {
                                     if (bean instanceof com.arte.ainew.spi.gateway.ToolGateway)
                                         return (com.arte.ainew.spi.gateway.ToolGateway) call -> active.get()
                                                 .getBean(com.arte.ainew.spi.persistence.ExecutionStore.class)
-                                                .requestControl(ExecutionOwner.from(call.request().context()),
+                                                .requestControl(ExecutionOwners.from(call.request().context()),
                                                         new com.arte.ainew.pojo.execution.ExecutionControlRequest("cancel-proof",
                                                                 call.request().context().executionId(), "cancel-before-unknown",
                                                                 com.arte.ainew.pojo.execution.ControlReceipt.Command.CANCEL))

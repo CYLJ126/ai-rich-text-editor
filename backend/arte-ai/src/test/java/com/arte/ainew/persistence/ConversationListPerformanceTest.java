@@ -1,10 +1,10 @@
 package com.arte.ainew.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;

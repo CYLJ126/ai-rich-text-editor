@@ -10,7 +10,7 @@ import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.execution.StoreOutcome;
@@ -108,7 +108,7 @@ public final class ToolAdmissionService {
     }
 
     public Mono<Budgets> availableBudgets(String bindingId, ExecutionContext current) {
-        return bindings.inspect(ExecutionOwner.from(current), bindingId).flatMap(result -> {
+        return bindings.inspect(ExecutionOwners.from(current), bindingId).flatMap(result -> {
             require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
             var price = result.value().tool().tool().price();
             if (price == null) return Mono.just(new Budgets(null, java.util.List.of()));
@@ -131,18 +131,18 @@ public final class ToolAdmissionService {
             require(step.input() instanceof ToolChatStep.Tool && root.context().executionId().equals(step.runId())
                     && step.runId().equals(context.parentExecutionId()) && step.childExecutionId().equals(context.executionId())
                     && root.context().traceId().equals(context.traceId())
-                    && ExecutionOwner.from(root.context()).equals(ExecutionOwner.from(context)), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
+                    && ExecutionOwners.from(root.context()).equals(ExecutionOwners.from(context)), ResultCodeEnum.AI_TOOL_POLICY_DENIED);
             var call = ((ToolChatStep.Tool) step.input()).call();
             var entry = root.tools().tool(call.tool());
             var input = new ToolAdmissionInput(entry.binding().definition().id(), call.arguments(), entry.policy().timeout(),
                     entry.policy().maxAttempts(), entry.policy().maxOutputBytes(), context.budgetRef());
-            return store.snapshot(ExecutionOwner.from(context), step.childExecutionId()).flatMap(previous -> {
+            return store.snapshot(ExecutionOwners.from(context), step.childExecutionId()).flatMap(previous -> {
                 require(previous.request().input().callId().equals(call.callId()) && previous.request().input().arguments().equals(call.arguments())
                                 && previous.binding().equals(entry.binding()) && previous.policy().equals(ToolBindingConstraints.intersect(entry.policy(), limits)),
                         ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
                 return permit(previous.input(), context, previous.binding()).flatMap(p -> approval(previous, context, true)
                         .flatMap(a -> commit(previous, new VerifiedPermit(p.permit(), p.authorization(), a), null, false)));
-            }).switchIfEmpty(Mono.defer(() -> bindings.fixed(ExecutionOwner.from(context), entry.binding().definition()).flatMap(binding -> {
+            }).switchIfEmpty(Mono.defer(() -> bindings.fixed(ExecutionOwners.from(context), entry.binding().definition()).flatMap(binding -> {
                 require(binding.successful() && binding.value().equals(entry.binding()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
                 var policy = ToolBindingConstraints.intersect(entry.policy(), limits);
                 return documents(entry.binding(), null).publishOn(scheduler).flatMap(documents -> {
@@ -175,7 +175,7 @@ public final class ToolAdmissionService {
             var received = clock.instant();
             var timeout = min(limits.timeout(), input.requestedTimeout() == null ? limits.timeout() : input.requestedTimeout());
             var deadline = earlier(context.deadline(), received.plus(timeout));
-            var owner = ExecutionOwner.from(context);
+            var owner = ExecutionOwners.from(context);
             var artifacts = new AtomicReference<ToolCatalogStore.Batch>();
             // 在调用线程只记录入口时刻，阻塞工作随后排入有界调度器；排队不能推迟总期限起点。
             var work = Mono.defer(() -> ToolObservation.mono(REPLAY_LOOKUP, context,
@@ -201,10 +201,10 @@ public final class ToolAdmissionService {
      */
     private Mono<AcceptedExecution> replay(ToolAdmissionInput input, ExecutionContext context, ToolAdmissionStore.Accepted previous, String expectedPlanDigest) {
         var snapshot = previous.snapshot();
-        return ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.fixed(ExecutionOwner.from(context), snapshot.binding().definition())).flatMap(result -> {
+        return ToolObservation.mono(BINDING_RESOLUTION, context, () -> bindings.fixed(ExecutionOwners.from(context), snapshot.binding().definition())).flatMap(result -> {
             require(result.successful() && result.value().equals(snapshot.binding()), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
             return ToolObservation.mono(HOST_AUTHORIZATION, context, () -> permit(input, context, snapshot.binding())).flatMap(permit -> {
-                require(snapshot.submissionDigest().equals(ToolAdmissionDigests.submission(ExecutionOwner.from(context), input)),
+                require(snapshot.submissionDigest().equals(ToolAdmissionDigests.submission(ExecutionOwners.from(context), input)),
                         ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
                 return approval(snapshot, context, true).flatMap(prepared -> {
                     require(expectedPlanDigest == null || expectedPlanDigest.equals(ToolApprovalPolicy.previewDigest(snapshot, prepared.plan())),
@@ -237,7 +237,7 @@ public final class ToolAdmissionService {
             // 临时键只满足内部材料的一致性约束，不写入幂等空间，也不绑定后续提交身份。
             var provisional = new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(),
                     null, null, context.releaseRef(), "preview");
-            return bindings.inspect(ExecutionOwner.from(context), input.bindingId(), artifacts::set).flatMap(result -> {
+            return bindings.inspect(ExecutionOwners.from(context), input.bindingId(), artifacts::set).flatMap(result -> {
                         require(result.successful(), ResultCodeEnum.AI_TOOL_NOT_AVAILABLE);
                         return prepare(input, provisional, result.value(), received, context.deadline(), artifacts.get(), (snapshot, permit) -> Mono.just(new Preview(snapshot, permit.approval().plan())));
                     }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_TOOL_NOT_AVAILABLE)))

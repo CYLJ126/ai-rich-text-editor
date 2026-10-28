@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.persistence.mybatis.mapper.PayloadMapper;
 import com.arte.ainew.persistence.mybatis.mapper.SearchSourceMapper;
@@ -17,6 +17,7 @@ import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.search.ConversationSearchSource;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.mybatis.spring.SqlSessionTemplate;
 import javax.sql.DataSource;
 
@@ -170,7 +171,7 @@ public final class MybatisConversationSearchSource implements ConversationSearch
             if (!text.isBlank())
                 records.add(SearchIndexRecord.message(c.owner(), c.conversationId(), t.turnId(), t.userMessage().messageId(), null, 0, t.sequence(), text, t.createdAt(), false, 1));
         } else if (value instanceof Invocation i) {
-            if (!key(i.request().context().executionId()).equals(unit.key()) || !c.owner().equals(ExecutionOwner.from(i.request().context())))
+            if (!key(i.request().context().executionId()).equals(unit.key()) || !c.owner().equals(ExecutionOwners.from(i.request().context())))
                 throw new IllegalStateException("Invocation owner mismatch");
             if (i.request().kind() != com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION)
                 return new Snapshot(unit, scope, Disposition.LIVE, List.of());

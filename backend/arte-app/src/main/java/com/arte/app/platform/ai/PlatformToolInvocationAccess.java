@@ -2,7 +2,7 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -12,6 +12,7 @@ import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
@@ -59,7 +60,7 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
 
     @Override
     public Mono<Permit> authorize(Invocation invocation, ExecutionContext context, Operation operation) {
-        return authorizeOwner(ExecutionOwner.from(invocation.request().context()), context, operation);
+        return authorizeOwner(ExecutionOwners.from(invocation.request().context()), context, operation);
     }
 
     /**
@@ -71,10 +72,10 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
     public Mono<List<ReadPermit>> authorizeReadBatch(List<Invocation> invocations, ExecutionContext context) {
         var batch = List.copyOf(invocations);
         if (batch.size() > 100) return Mono.error(new IllegalArgumentException("Tool read batch exceeds limit"));
-        var owner = ExecutionOwner.from(context);
+        var owner = ExecutionOwners.from(context);
         for (var invocation : batch)
             if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL
-                    || !owner.equals(ExecutionOwner.from(invocation.request().context())))
+                    || !owner.equals(ExecutionOwners.from(invocation.request().context())))
                 return Mono.error(denied());
         if (batch.isEmpty()) return Mono.just(List.of());
         return authorizeOwner(owner, context, Operation.READ).map(permit -> batch.stream()
@@ -133,11 +134,11 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
     private void checkCurrent(ExecutionOwner owner, ExecutionContext context, Operation operation) {
         var principal = context.authorization().principal();
         if (!clock.instant().isBefore(context.deadline()) || principal.kind() != ExecutionPrincipal.Kind.USER
-                || !ExecutionOwner.from(context).equals(owner))
+                || !ExecutionOwners.from(context).equals(owner))
             throw denied();
         var resolved = identities.resolveAuthenticatedName(principal.subjectName()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
                 .orElseThrow(PlatformToolInvocationAccess::denied);
-        if (!resolved.subjectId().equals(principal.subjectId())) throw denied();
+        if (!principal.sameIdentityAs(resolved)) throw denied();
         var actor = new TrustedActor(resolved, clock.instant());
         var scope = new Scope(context.authorization().tenantId(), context.authorization().workspaceId());
         guard.inCurrentTransaction(actor, List.of(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_READ, "ai-tool-invocation")), () -> {

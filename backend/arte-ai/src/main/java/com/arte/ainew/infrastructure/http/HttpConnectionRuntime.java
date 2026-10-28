@@ -4,12 +4,13 @@ import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import io.netty.channel.ChannelOption;
 import io.netty.resolver.AddressResolverGroup;
@@ -216,7 +217,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
 
     private Borrowed borrow(ConnectionDefinition definition, ExecutionRuntimeContext runtime, List<InetAddress> addresses, Mode mode) {
         checkActive(runtime);
-        var key = new PoolKey(definition, ExecutionOwner.from(runtime.execution()), addresses);
+        var key = new PoolKey(definition, ExecutionOwners.from(runtime.execution()), addresses);
         Pool pool = reserve(key);
         var lease = new Borrowed(key, pool);
         try {
@@ -328,7 +329,7 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
     @Override
     public Mono<Void> invalidate(DefinitionRef connection, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.INVOKE).doOnNext(current -> {
-            var owner = ExecutionOwner.from(current);
+            var owner = ExecutionOwners.from(current);
             synchronized (this) {
                 pools.entrySet().removeIf(entry -> {
                     if (!entry.getKey().owner().equals(owner) || !entry.getKey().definition().definition().equals(connection)) {

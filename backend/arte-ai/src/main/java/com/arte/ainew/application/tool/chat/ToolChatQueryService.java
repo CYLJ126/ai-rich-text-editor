@@ -4,7 +4,7 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationResult;
@@ -48,7 +48,7 @@ public final class ToolChatQueryService {
 
     private Mono<Current> current(String id, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(trusted -> {
-            var owner = ExecutionOwner.from(trusted);
+            var owner = ExecutionOwners.from(trusted);
             return runs.find(owner, id).switchIfEmpty(missing()).flatMap(run -> runs.link(owner, id).switchIfEmpty(missing())
                     .flatMap(link -> conversations.find(link.conversationId(), trusted).then(conversations.turn(link.conversationId(), link.turnId(), trusted)).flatMap(turn -> {
                         if (!turn.candidates().contains(AnswerCandidate.run(id))) return missing();
@@ -76,7 +76,7 @@ public final class ToolChatQueryService {
         return current(id, context).flatMap(c -> {
             if (c.run().state() != ToolChatRun.State.SUCCEEDED)
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
-            return runs.snapshot(ExecutionOwner.from(context), id).switchIfEmpty(missing()).map(fixed -> {
+            return runs.snapshot(ExecutionOwners.from(context), id).switchIfEmpty(missing()).map(fixed -> {
                 var entries = fixed.tools().entries();
                 return new Actions(id, ((com.arte.ainew.pojo.generation.ChatMessage.Text) fixed.initialContext().messages().getLast().content().getFirst()).text(),
                         c.run().updatedAt(), entries.stream().filter(e -> e.binding().tool().tool().risk().sideEffect() == com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY)
@@ -102,7 +102,7 @@ public final class ToolChatQueryService {
         return current(id, context).flatMap(c -> {
             if (after > c.run().version() + 1)
                 return Mono.error(new IllegalArgumentException("Run cursor exceeds committed sequence"));
-            return runs.events(ExecutionOwner.from(context), id, after, limit)
+            return runs.events(ExecutionOwners.from(context), id, after, limit)
                     .flatMap(page -> current(id, context).thenReturn(page));
         });
     }
@@ -111,7 +111,7 @@ public final class ToolChatQueryService {
      * 按币种返回 L／C／H 与异常阻断，不暴露子账户引用；旧 Run 返回空列表。
      */
     public Mono<List<ToolChatBudget>> budgets(String id, ExecutionContext context) {
-        return current(id, context).flatMap(c -> runs.budgets(ExecutionOwner.from(context), id))
+        return current(id, context).flatMap(c -> runs.budgets(ExecutionOwners.from(context), id))
                 .flatMap(values -> current(id, context).thenReturn(values));
     }
 
@@ -122,7 +122,7 @@ public final class ToolChatQueryService {
         return current(id, context).flatMap(c -> {
             if (c.run().state() != ToolChatRun.State.SUCCEEDED || c.run().result() == null || c.link().finalInvocationId() == null)
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_RESULT_NOT_AVAILABLE));
-            var owner = ExecutionOwner.from(context);
+            var owner = ExecutionOwners.from(context);
             return executions.find(owner, c.link().finalInvocationId()).switchIfEmpty(missing()).flatMap(child -> {
                 if (child.state() != Invocation.State.SUCCEEDED || !id.equals(child.request().context().parentExecutionId())
                         || !c.run().result().equals(child.result()))

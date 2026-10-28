@@ -1,0 +1,11 @@
+{
+  "context-service": "{\"authorization\":{\"grantRef\":\"grant\",\"principal\":{\"kind\":\"SERVICE\",\"subjectId\":\"stable-subject\",\"subjectName\":\"worker-service\"},\"scopes\":[\"ai:invoke\"],\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"},\"budgetRef\":\"budget\",\"deadline\":\"2026-10-28T00:01:00Z\",\"executionId\":\"execution-service\",\"idempotencyKey\":\"idempotency\",\"parentExecutionId\":null,\"releaseRef\":\"release\",\"traceId\":\"trace\"}",
+  "context-user": "{\"authorization\":{\"grantRef\":\"grant\",\"principal\":{\"kind\":\"USER\",\"subjectId\":\"stable-subject\",\"subjectName\":\"alice\"},\"scopes\":[\"ai:invoke\"],\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"},\"budgetRef\":\"budget\",\"deadline\":\"2026-10-28T00:01:00Z\",\"executionId\":\"execution-user\",\"idempotencyKey\":\"idempotency\",\"parentExecutionId\":null,\"releaseRef\":\"release\",\"traceId\":\"trace\"}",
+  "owner": "{\"subjectId\":\"stable-subject\",\"tenantId\":\"tenant\",\"workspaceId\":\"workspace\"}",
+  "ownerDigest": "dcdac72274435b0ae38975d747c4b56c12d28de1847544bc81f70306cdb1c34c",
+  "principal-service": "{\"kind\":\"SERVICE\",\"subjectId\":\"stable-subject\",\"subjectName\":\"worker-service\"}",
+  "principal-user": "{\"kind\":\"USER\",\"subjectId\":\"stable-subject\",\"subjectName\":\"alice\"}",
+  "searchOwner": "718ee81280078cbf4f934e7957baab047f5404d33bf5f458e371b10cccbf6555",
+  "submissionDigest": "4ff01e9ccc0bbda63ca1cf35b114cbb5a167a98cbb3f1de910a1636a65f4ada1",
+  "toolCallId": "e29cd31967d20d7d6407830c6e1f0b2807ba156dc58f83a78845e2068773d5c6"
+}

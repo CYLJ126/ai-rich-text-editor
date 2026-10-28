@@ -1,6 +1,6 @@
 package com.arte.ainew.pojo.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -33,7 +33,7 @@ public record GatewayCall<I extends CapabilityInput>(InvocationRequest<I> reques
                 "Local tool target requires a typed tool invocation");
         ContractChecks.require(attempt.invocationId().equals(request.context().executionId())
                 && runtime.execution().executionId().equals(attempt.invocationId()), "Execution identity mismatch");
-        ContractChecks.require(ExecutionOwner.from(request.context()).equals(ExecutionOwner.from(runtime.execution())),
+        ContractChecks.require(ExecutionOwners.from(request.context()).equals(ExecutionOwners.from(runtime.execution())),
                 "Runtime owner mismatch");
         ContractChecks.require(request.context().authorization().scopes().containsAll(runtime.execution().authorization().scopes()),
                 "Runtime scopes exceed accepted authorization");

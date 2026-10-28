@@ -2,7 +2,6 @@ package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.application.tool.binding.ToolBindingConstraints;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.SystemMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolBindingMapper;
@@ -18,6 +17,7 @@ import com.arte.ainew.spi.persistence.ToolBindingStore;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.mybatis.spring.SqlSessionTemplate;

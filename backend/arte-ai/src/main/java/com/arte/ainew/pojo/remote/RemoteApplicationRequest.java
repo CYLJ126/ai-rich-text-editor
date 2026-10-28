@@ -1,9 +1,9 @@
 package com.arte.ainew.pojo.remote;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.CapabilityInput;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.value.StructuredValue;
 

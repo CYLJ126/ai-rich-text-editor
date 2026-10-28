@@ -2,7 +2,7 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -25,6 +25,7 @@ import com.arte.app.platform.ai.PlatformToolManagementAccess;
 import com.arte.app.platform.identity.*;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.pojo.UserOnlineInfo;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.value.StructuredValue;
@@ -575,7 +576,7 @@ class PlatformToolManagementAccessTest {
         var at = clock.instant();
         var context = new ExecutionContext("approval-execution", "trace", new ExecutionAuthorization(old.authorization().principal(), scope.tenantId(), scope.workspaceId(), Set.of("ai:read", "ai:invoke"), "grant"),
                 at.plusSeconds(960), null, null, "release", "approval-key");
-        var owner = ExecutionOwner.from(context);
+        var owner = ExecutionOwners.from(context);
         var empty = new StructuredValue.ObjectValue(Map.of());
         var binding = new ToolBindingResolution(new DefinitionRef("binding", "approval-binding", "p1-" + "a".repeat(64)), new DefinitionRef("binding", "approval-binding", "r1"), owner,
                 new ToolDefinitionRevision(signed, tool.provider(), tool.target()), "b".repeat(64), empty, ToolCatalogDigests.configuration(empty), p, Set.of(), Map.of());

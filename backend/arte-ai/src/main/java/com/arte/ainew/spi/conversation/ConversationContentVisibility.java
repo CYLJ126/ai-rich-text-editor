@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.conversation;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.execution.Invocation;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;

@@ -40,7 +40,7 @@ public final class RbacFixedExecutionAuthorizationResolver implements ExecutionA
                 .onErrorMap(PlatformException.class, failure -> new AccessDeniedException("Stable identity unavailable"))
                 .flatMap(principal -> fixedExecutionAuthorizationResolver.resolve(name, tenantId, workspaceId, scopes).map(authorization -> {
                     if (authorization.principal().kind() != ExecutionPrincipal.Kind.USER
-                            || !authorization.principal().subjectId().equals(principal.subjectId())) {
+                            || !authorization.principal().sameIdentityAs(principal)) {
                         throw new AccessDeniedException("Stable identity mismatch");
                     }
                     return authorization;

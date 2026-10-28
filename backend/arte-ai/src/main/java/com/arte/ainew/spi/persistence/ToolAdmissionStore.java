@@ -1,10 +1,10 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolApproval;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.io.Serial;

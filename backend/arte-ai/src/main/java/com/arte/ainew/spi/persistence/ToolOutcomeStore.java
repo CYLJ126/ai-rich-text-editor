@@ -1,8 +1,8 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.tool.ToolOutcomeCheck;
 import com.arte.ainew.pojo.tool.ToolOutcomeEvidence;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.util.List;

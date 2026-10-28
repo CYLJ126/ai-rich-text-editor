@@ -1,9 +1,9 @@
 package com.arte.ainew.api.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 /**

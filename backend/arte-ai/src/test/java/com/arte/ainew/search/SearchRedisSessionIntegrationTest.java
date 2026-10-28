@@ -1,11 +1,11 @@
 package com.arte.ainew.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.config.NewAiSearchProperties;
 import com.arte.ainew.infrastructure.search.RedisConversationSearchSessions;
 import com.arte.ainew.pojo.search.SearchSession;
 import com.arte.ainew.spi.search.ConversationSearchIndex.Pit;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;

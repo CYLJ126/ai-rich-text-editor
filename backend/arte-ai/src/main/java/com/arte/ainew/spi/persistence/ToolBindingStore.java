@@ -1,8 +1,8 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.*;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;

@@ -5,7 +5,6 @@ import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
@@ -227,7 +226,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         var settings = configurationRow(scope, row);
         if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
             throw new AccessDeniedException("Workspace AI disabled");
-        var auth = new ExecutionAuthorization(new ExecutionPrincipal(actor.principal().subjectId(), name, ExecutionPrincipal.Kind.USER),
+        var auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
                 scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
         if (!includeConfiguration) return new Snapshot(auth, null);
         var definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
@@ -333,7 +332,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             var settings = ownConfiguration(scope);
             if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
                 throw new AccessDeniedException("Workspace AI disabled");
-            var auth = new ExecutionAuthorization(new ExecutionPrincipal(actor.principal().subjectId(), name, ExecutionPrincipal.Kind.USER),
+            var auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
                     scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
             if (!includeConfiguration) return new CurrentSnapshot(auth, null, null);
             var definitions = budgets(scope, actor.principal().subjectId());

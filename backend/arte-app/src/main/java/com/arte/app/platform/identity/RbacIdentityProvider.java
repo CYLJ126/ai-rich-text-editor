@@ -129,7 +129,7 @@ public final class RbacIdentityProvider implements IdentityProvider {
             return accounts.findCurrentById(userId).filter(account -> account.name().equals(expected.subjectName())).map(account -> {
                 validateBinding(binding, account);
                 return principal(binding.identity(), account);
-            });
+            }).filter(expected::sameIdentityAs);
         });
     }
 

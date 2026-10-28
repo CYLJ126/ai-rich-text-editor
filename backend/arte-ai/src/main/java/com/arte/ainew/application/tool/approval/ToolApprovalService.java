@@ -2,7 +2,7 @@ package com.arte.ainew.application.tool.approval;
 
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.tool.ToolApproval;
@@ -50,7 +50,7 @@ public final class ToolApprovalService {
     }
 
     public Mono<Detail> get(String approvalId, String invocationId, ExecutionContext context) {
-        return approvals.visible(ExecutionOwner.from(context), approvalId, invocationId)
+        return approvals.visible(ExecutionOwners.from(context), approvalId, invocationId)
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(approval -> detail(approval, context));
     }
@@ -71,7 +71,7 @@ public final class ToolApprovalService {
 
     public Mono<Inbox> list(String cursor, int limit, ExecutionContext context) {
         ContractChecks.range(limit, "approval page size", 1, 20);
-        return approvals.inbox(ExecutionOwner.from(context), cursor, limit).flatMap(page -> Flux.fromIterable(page.records())
+        return approvals.inbox(ExecutionOwners.from(context), cursor, limit).flatMap(page -> Flux.fromIterable(page.records())
                 .concatMap(approval -> detail(approval, context).onErrorResume(AccessDeniedException.class, ignored -> Mono.empty()))
                 .collectList().map(records -> new Inbox(records, page.nextCursor(), page.exhausted())));
     }
@@ -81,7 +81,7 @@ public final class ToolApprovalService {
         return get(approvalId, null, context).flatMap(detail -> access.authorize(detail.approval(), detail.snapshot(), context, true)
                         .switchIfEmpty(Mono.error(new AccessDeniedException("Approval decision denied")))
                         .flatMap(permit -> approvals.decide(new ToolApprovalCommand(detail.approval().owner(), detail.approval().invocationId(),
-                                approvalId, version, digest, decision, key), ExecutionOwner.from(context), permit::requireInCurrentTransaction)))
+                                approvalId, version, digest, decision, key), ExecutionOwners.from(context), permit::requireInCurrentTransaction)))
                 .map(result -> {
                     if (!result.successful()) throw AdmissionException.fromStoreRejection(result.code());
                     return new Decision(result.value().approval(), result.value().invocation());

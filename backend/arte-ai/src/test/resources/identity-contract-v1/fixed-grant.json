@@ -1,0 +1,18 @@
+{
+  "bindingIds": [
+    "default"
+  ],
+  "budgetRefs": [
+    "budget"
+  ],
+  "enabled": true,
+  "grantRef": "grant",
+  "principalKind": "USER",
+  "scopes": [
+    "ai:invoke"
+  ],
+  "subjectId": "stable-subject",
+  "subjectName": "alice",
+  "tenantId": "tenant",
+  "workspaceId": "workspace"
+}

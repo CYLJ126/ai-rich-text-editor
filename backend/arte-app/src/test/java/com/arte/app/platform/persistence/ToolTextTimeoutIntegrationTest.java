@@ -1,7 +1,6 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.persistence.mybatis.MybatisToolAdmissionStore;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.tool.ToolDefinition;
@@ -10,6 +9,7 @@ import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.serialization.ToolCatalogDigests;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.app.platform.ai.tool.LocalTextTools;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 

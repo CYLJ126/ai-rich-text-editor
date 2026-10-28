@@ -2,7 +2,7 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
@@ -17,6 +17,7 @@ import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.UserOnlineInfo;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
@@ -121,7 +122,7 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
 
                     /** 返回可信上下文限定的调用归属。 */
                     public ExecutionOwner owner() {
-                        return ExecutionOwner.from(context);
+                        return ExecutionOwners.from(context);
                     }
 
                     /** 工具使用沿用绑定写入的资格规则。 */
@@ -157,7 +158,9 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
         var expected = context.authorization().principal();
         if (expected.kind() != ExecutionPrincipal.Kind.USER || !context.authorization().scopes().contains(AdmissionAuthorization.INVOKE))
             throw denied();
-        var principal = identities.findBySubjectId(expected.subjectId()).filter(value -> value.status() == PrincipalStatusEnum.ACTIVE).orElseThrow(PlatformToolManagementAccess::denied);
+        var principal = identities.findBySubjectId(expected.subjectId())
+                .filter(value -> value.status() == PrincipalStatusEnum.ACTIVE).filter(expected::sameIdentityAs)
+                .orElseThrow(PlatformToolManagementAccess::denied);
         return new TrustedActor(principal, clock.instant());
     }
 

@@ -1,12 +1,12 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 /**

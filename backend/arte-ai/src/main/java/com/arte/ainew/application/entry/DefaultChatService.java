@@ -10,7 +10,7 @@ import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
@@ -85,7 +85,7 @@ public final class DefaultChatService implements ChatService {
                                     // 组装上下文
                                     .flatMap(binding -> contextService.assemble(selection, binding, currentContext))
                                     // 提交执行
-                                    .flatMap(snapshot -> admissionCatalogStore.nextTurnSequence(ExecutionOwner.from(currentContext), conversation.conversationId())
+                                    .flatMap(snapshot -> admissionCatalogStore.nextTurnSequence(ExecutionOwners.from(currentContext), conversation.conversationId())
                                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
                                             .flatMap(sequence -> {
                                                 var generation = new GenerationRequest(snapshot.messages(), request.generationOptions(), List.of(), new GenerationRequest.TextOutput());
@@ -114,7 +114,7 @@ public final class DefaultChatService implements ChatService {
     public Mono<AcceptedExecution> regenerate(EntryRequests.Regenerate request, ExecutionContext context) {
         return authorization.requireWrite(context, AdmissionAuthorization.INVOKE).flatMap(current ->
                 // 查找原调用（invocationId 对应的记录）
-                executionStore.find(ExecutionOwner.from(current), request.originalInvocationId())
+                executionStore.find(ExecutionOwners.from(current), request.originalInvocationId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                         .flatMap(original -> {
                             // 校验对应的会话是否为空，或是否为 GenerationRequest 请求
@@ -129,7 +129,7 @@ public final class DefaultChatService implements ChatService {
                             // 查找对应轮次（Turn）
                             return conversationsService.turn(link.conversationId(), link.turnId(), renewed).flatMap(turn ->
                                     // 查找轮次的调用记录（Invocation）
-                                    executionStore.findAccepted(ExecutionOwner.from(renewed), original.request().capability().id(), renewed.idempotencyKey())
+                                    executionStore.findAccepted(ExecutionOwners.from(renewed), original.request().capability().id(), renewed.idempotencyKey())
                                             .map(accepted -> true).defaultIfEmpty(false).flatMap(replay ->
                                                     // 查找对应上下文快照（ContextSnapshot）
                                                     contextService.find(original.contextSnapshotId(), renewed)

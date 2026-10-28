@@ -1,8 +1,8 @@
 package com.arte.ainew.spi.persistence;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 /**

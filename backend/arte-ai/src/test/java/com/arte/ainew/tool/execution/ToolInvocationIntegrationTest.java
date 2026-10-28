@@ -626,7 +626,7 @@ public class ToolInvocationIntegrationTest {
     }
 
     private static ExecutionCommands.Version version(Invocation invocation) {
-        return new ExecutionCommands.Version(ExecutionOwner.from(invocation.request().context()), invocation.request().context().executionId(), invocation.version());
+        return new ExecutionCommands.Version(ExecutionOwners.from(invocation.request().context()), invocation.request().context().executionId(), invocation.version());
     }
 
     private static void prepare(ToolExecutionFixture f, OutboxMessage message) {

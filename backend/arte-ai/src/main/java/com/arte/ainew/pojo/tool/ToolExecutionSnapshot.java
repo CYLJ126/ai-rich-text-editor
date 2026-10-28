@@ -1,6 +1,6 @@
 package com.arte.ainew.pojo.tool;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.InvocationRequest;
@@ -48,7 +48,7 @@ public record ToolExecutionSnapshot(ToolAdmissionInput input, InvocationRequest<
         ContractChecks.require(request.kind() == CapabilityDescriptor.Kind.TOOL && input.bindingId().equals(binding.definition().id())
                 && request.binding().equals(binding.definition()) && request.capability().equals(tool.capability())
                 && request.input().tool().equals(tool.definition()) && request.input().arguments().equals(input.arguments())
-                && binding.owner().equals(ExecutionOwner.from(request.context())), "Tool snapshot identity mismatch");
+                && binding.owner().equals(ExecutionOwners.from(request.context())), "Tool snapshot identity mismatch");
         ContractChecks.require(ToolExecutionRules.supportedTarget(binding, policy)
                         && ToolExecutionRules.supported(tool.risk(), policy)
                         && tool.capabilities().features().isEmpty() && !tool.capabilities().outcomeQuerySupported()

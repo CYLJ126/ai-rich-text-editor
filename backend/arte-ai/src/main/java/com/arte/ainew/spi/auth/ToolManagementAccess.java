@@ -1,6 +1,6 @@
 package com.arte.ainew.spi.auth;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import org.springframework.security.core.Authentication;

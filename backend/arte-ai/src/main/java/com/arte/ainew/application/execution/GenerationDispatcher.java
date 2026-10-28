@@ -7,7 +7,7 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
@@ -25,6 +25,7 @@ import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.*;
 import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Flux;
@@ -108,7 +109,7 @@ public final class GenerationDispatcher {
         return Mono.defer(() -> {
             if (message.kind() != OutboxMessage.Kind.DISPATCH
                     || !message.invocationId().equals(runtime.execution().executionId())
-                    || !message.owner().equals(ExecutionOwner.from(runtime.execution()))) {
+                    || !message.owner().equals(ExecutionOwners.from(runtime.execution()))) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_OWNER_MISMATCH));
             }
             var timing = InvocationTiming.start(runtime.execution(), null);
@@ -313,7 +314,7 @@ public final class GenerationDispatcher {
     }
 
     private static ExecutionCommands.Version version(Invocation invocation) {
-        return new ExecutionCommands.Version(ExecutionOwner.from(invocation.request().context()),
+        return new ExecutionCommands.Version(ExecutionOwners.from(invocation.request().context()),
                 invocation.request().context().executionId(), invocation.version());
     }
 
@@ -333,7 +334,7 @@ public final class GenerationDispatcher {
         if (invocation.activeAttemptId() == null) {
             return Mono.empty();
         }
-        var owner = ExecutionOwner.from(invocation.request().context());
+        var owner = ExecutionOwners.from(invocation.request().context());
         return executionStore.findAttempt(owner, invocation.request().context().executionId(), invocation.activeAttemptId())
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(attempt -> attempt.budgetReservationId() == null ? Mono.empty()

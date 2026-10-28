@@ -1,6 +1,6 @@
 package com.arte.ainew.persistence.mybatis;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.mapper.ExecutionMapper;
 import com.arte.ainew.persistence.mybatis.mapper.ToolAdmissionMapper;
@@ -13,6 +13,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolApprovalStore;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -145,7 +146,7 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
     @Override
     public void requireCurrentBindingInCurrentTransaction(GatewayCall<ToolInvocation> call) {
         requireWritableTransaction();
-        var fixed = bindings.fixedInCurrentTransaction(ExecutionOwner.from(call.request().context()), call.request().binding());
+        var fixed = bindings.fixedInCurrentTransaction(ExecutionOwners.from(call.request().context()), call.request().binding());
         require(fixed.successful() && fixed.value().resolvedBinding().equals(call.binding()), INVALID_STATE);
     }
 
@@ -157,7 +158,7 @@ public final class MybatisToolApprovalStore implements ToolApprovalStore {
         Objects.requireNonNull(authorization);
         return io(() -> {
             var invocation = invocation(command.invocationId());
-            require(invocation != null && ExecutionOwner.from(invocation.request().context()).equals(command.owner()), NOT_FOUND);
+            require(invocation != null && ExecutionOwners.from(invocation.request().context()).equals(command.owner()), NOT_FOUND);
             var approval = ToolApprovalRecords.read(approvals.find(key(command.invocationId()), true), codec);
             require(approval != null && approval.owner().equals(command.owner()) && approval.approvalId().equals(command.approvalId()), NOT_FOUND);
             requireActor(approval, actor);

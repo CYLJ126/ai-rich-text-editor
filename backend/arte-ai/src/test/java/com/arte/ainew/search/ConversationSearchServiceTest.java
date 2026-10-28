@@ -1,12 +1,12 @@
 package com.arte.ainew.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.search.SearchCursor;
 import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.pojo.search.ConversationSearch;
 import com.arte.ainew.pojo.search.SearchIndexRecord;
 import com.arte.ainew.spi.search.ConversationSearchIndex;
 import com.arte.ainew.spi.search.ConversationSearchReads;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

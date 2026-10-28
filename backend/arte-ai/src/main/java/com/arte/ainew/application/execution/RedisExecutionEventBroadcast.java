@@ -1,10 +1,10 @@
 package com.arte.ainew.application.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiEventProperties;
 import com.arte.ainew.pojo.execution.OutboxMessage;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;

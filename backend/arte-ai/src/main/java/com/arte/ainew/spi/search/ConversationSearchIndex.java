@@ -1,9 +1,9 @@
 package com.arte.ainew.spi.search;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.search.SearchText;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.search.ConversationSearch;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;

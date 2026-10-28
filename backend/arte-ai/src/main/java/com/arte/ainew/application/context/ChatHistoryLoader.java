@@ -4,7 +4,7 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.ConversationPage;
@@ -20,6 +20,7 @@ import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -119,7 +120,7 @@ public final class ChatHistoryLoader {
             // 当前只支持按固定会话版本选择最近轮次，不支持指定 Turn ID 或超过十轮的选择。
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED));
         }
-        var owner = ExecutionOwner.from(executionContext);
+        var owner = ExecutionOwners.from(executionContext);
         return conversationService.find(selection.conversationId(), executionContext).flatMap(conversation ->
                 // 先按主体归属、能力 ID 和幂等键查找原受理记录，再决定是否检查当前会话版本。
                 // 原调用受理后会话版本可能已推进，重放必须优先恢复原输入历史。

@@ -69,7 +69,7 @@ public final class SearchCursor {
     /**
      * 将租户、空间和主体归属转换为稳定摘要，用于校验游标归属。
      */
-    public static String owner(com.arte.ainew.common.execution.ExecutionOwner o) {
+    public static String owner(com.arte.core.pojo.platform.ExecutionOwner o) {
         return CanonicalJson.key(o.tenantId(), o.workspaceId(), o.subjectId());
     }
 

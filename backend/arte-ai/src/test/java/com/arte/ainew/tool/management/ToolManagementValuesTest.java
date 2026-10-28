@@ -34,7 +34,7 @@ public class ToolManagementValuesTest {
         assertEquals(new BigDecimal("9007199254740993123456789"), ((StructuredValue.NumberValue) config.fields().get("i")).value());
         var revision = new com.arte.ainew.pojo.tool.ToolBindingRevision(
                 new com.arte.core.pojo.reference.DefinitionRef("binding", "exact-json", "r1"),
-                new com.arte.ainew.common.execution.ExecutionOwner("tenant", "workspace", "subject"), settings,
+                new com.arte.core.pojo.platform.ExecutionOwner("tenant", "workspace", "subject"), settings,
                 java.time.Instant.parse("2026-10-18T01:00:00Z"));
         var codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
         assertEquals(revision, codec.decode(codec.encode(revision), com.arte.ainew.pojo.tool.ToolBindingRevision.class));

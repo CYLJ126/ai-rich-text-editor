@@ -1,7 +1,7 @@
 package com.arte.ainew.application.execution;
 
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.pojo.execution.OutboxMessage;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 

@@ -3,7 +3,6 @@ package com.arte.app.platform.persistence;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextSnapshot;
@@ -16,6 +15,7 @@ import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.persistence.ToolCatalogStore;
 import com.arte.app.platform.identity.RbacIdentityProvider;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.jupiter.api.Test;
 

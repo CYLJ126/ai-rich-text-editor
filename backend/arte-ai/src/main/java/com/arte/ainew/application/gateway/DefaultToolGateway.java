@@ -7,7 +7,7 @@ import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
@@ -181,7 +181,7 @@ public final class DefaultToolGateway implements ToolGateway {
      * @return 固定的工具绑定方案
      */
     private Mono<ToolBindingResolution> fixed(GatewayCall<ToolInvocation> call) {
-        return bindings.fixed(ExecutionOwner.from(call.runtime().execution()), call.request().binding())
+        return bindings.fixed(ExecutionOwners.from(call.runtime().execution()), call.request().binding())
                 .switchIfEmpty(Mono.error(new Rejected("TOOL_BINDING_UNAVAILABLE")))
                 .map(result -> {
                     require(result.successful(), "TOOL_BINDING_UNAVAILABLE");

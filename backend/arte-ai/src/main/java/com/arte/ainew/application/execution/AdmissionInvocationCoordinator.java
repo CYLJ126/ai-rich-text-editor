@@ -12,7 +12,7 @@ import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.application.tool.chat.ToolChatInputs;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -111,7 +111,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_NEW_TURN);
         }
         var digest = AdmissionDigests.submission(submission);
-        var owner = ExecutionOwner.from(request.context());
+        var owner = ExecutionOwners.from(request.context());
         return executionStore.findAccepted(owner, request.capability().id(), request.context().idempotencyKey())
                 .flatMap(original -> {
                     if (!original.requestDigest().equals(digest)) {
@@ -203,13 +203,13 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     @Override
     public Mono<ControlReceipt> control(ExecutionControlRequest request, ExecutionContext context) {
         // 按完整 owner 定位；不存在和不属于当前主体均返回 NOT_FOUND，避免泄露其他主体的调用。
-        return executionStore.find(ExecutionOwner.from(context), request.invocationId())
+        return executionStore.find(ExecutionOwners.from(context), request.invocationId())
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                 .flatMap(invocation -> {
                     if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL) {
                         // 非工具控制保持原 INVOKE 要求；requireWrite 强制重查当前授权，不复用展示读取快照。
                         return admissionAuthorization.requireWrite(context, AdmissionAuthorization.INVOKE)
-                                .flatMap(current -> executionStore.requestControl(ExecutionOwner.from(current), request));
+                                .flatMap(current -> executionStore.requestControl(ExecutionOwners.from(current), request));
                     }
 
                     // TOOL 优先使用 READ 收尾，允许关闭 AI 新调用后停止已有操作；仅 INVOKE 的原入口仍可使用。
@@ -223,7 +223,7 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                             .flatMap(current -> admissionAuthorization.toolInvocation(invocation, current, ToolInvocationAccess.Operation.CANCEL)
                                     // 在保存控制命令的同一物理事务内重验并持有公共资格锁，重放也执行。
                                     .flatMap(permit -> executionStore.requestControl(
-                                            ExecutionOwner.from(current), request, permit::requireInCurrentTransaction)));
+                                            ExecutionOwners.from(current), request, permit::requireInCurrentTransaction)));
                 })
                 .flatMap(outcome -> {
                     // APPLIED／REPLAYED 均返回耐久回执；版本、归属等存储拒绝统一转换为业务异常。

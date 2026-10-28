@@ -108,11 +108,11 @@ public class FailureDiagnosticsTest {
     public void protocolRejectionIdentifiesTheExactRuleWithoutModelContent() throws Exception {
         try (var r = new ToolChatLoopTest.Rig(); var logs = new Capture(ToolChatCoordinator.class)) {
             ExecutionResultStore altered = new ExecutionResultStore() {
-                public Mono<StoreOutcome<ResultRef>> put(com.arte.ainew.common.execution.ExecutionOwner owner, String id, String attempt, String key, InvocationResult result) {
+                public Mono<StoreOutcome<ResultRef>> put(com.arte.core.pojo.platform.ExecutionOwner owner, String id, String attempt, String key, InvocationResult result) {
                     return r.f.payloads.put(owner, id, attempt, key, result);
                 }
 
-                public Mono<InvocationResult> find(com.arte.ainew.common.execution.ExecutionOwner owner, String id, ResultRef ref) {
+                public Mono<InvocationResult> find(com.arte.core.pojo.platform.ExecutionOwner owner, String id, ResultRef ref) {
                     return r.f.payloads.find(owner, id, ref).map(value -> {
                         var original = ((InvocationResult.Generation) value).value();
                         return new InvocationResult.Generation(new ModelResult(original.resultId(), original.model(), original.outputs(), original.finishReason(), original.complete(),

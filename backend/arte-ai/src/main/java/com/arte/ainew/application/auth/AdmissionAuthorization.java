@@ -2,7 +2,7 @@ package com.arte.ainew.application.auth;
 
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiProperties.Grant;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -117,7 +117,7 @@ public final class AdmissionAuthorization {
             var inputs = new HashMap<String, Invocation>();
             for (var invocation : records) {
                 if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL
-                        || !ExecutionOwner.from(invocation.request().context()).equals(ExecutionOwner.from(context))
+                        || !ExecutionOwners.from(invocation.request().context()).equals(ExecutionOwners.from(context))
                         || inputs.put(invocation.request().context().executionId(), invocation) != null)
                     return Mono.error(new IllegalArgumentException("Invalid tool read batch"));
             }
@@ -149,7 +149,7 @@ public final class AdmissionAuthorization {
             var remaining = Duration.between(clock.instant(), context.deadline());
             if (remaining.isNegative() || remaining.isZero())
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
-            if (!ExecutionOwner.from(invocation.request().context()).equals(ExecutionOwner.from(context)))
+            if (!ExecutionOwners.from(invocation.request().context()).equals(ExecutionOwners.from(context)))
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND));
             if (toolInvocations == null)
                 return Mono.error(new AccessDeniedException("Tool invocation access unavailable"));
@@ -362,7 +362,7 @@ public final class AdmissionAuthorization {
      * 本次操作已授权的配置快照；不再次查询来源。
      */
     public Grant grant(NewAiProperties configuration, ExecutionContext context) {
-        var owner = ExecutionOwner.from(context);
+        var owner = ExecutionOwners.from(context);
         return configuration.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(owner.subjectId())
                         && g.tenantId().equals(owner.tenantId()) && g.workspaceId().equals(owner.workspaceId())
                         && g.subjectName().equals(context.authorization().principal().subjectName())

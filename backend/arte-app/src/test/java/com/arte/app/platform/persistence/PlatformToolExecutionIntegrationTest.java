@@ -3,7 +3,6 @@ package com.arte.app.platform.persistence;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
-import com.arte.ainew.common.execution.ExecutionOwner;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -13,6 +12,7 @@ import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.core.pojo.platform.CommandMeta;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.platform.TrustedActor;
 
 import org.junit.jupiter.api.Test;

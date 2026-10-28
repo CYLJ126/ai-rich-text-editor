@@ -6,7 +6,7 @@ import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -68,7 +68,7 @@ public final class ToolChatBudgetSelector {
                 return catalog.configuration(current).flatMap(configuration -> {
                     var rate = configuration.rates().stream().filter(r -> r.definition().equals(model.rate())).findFirst().orElse(null);
                     var configured = configuration.budgets().stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst().orElse(null);
-                    var owner = ExecutionOwner.from(current);
+                    var owner = ExecutionOwners.from(current);
                     if (rate == null || rate.toolPerCall() != null || configured == null || !configured.owner().equals(owner) || !configured.rate().equals(model.rate())
                             || !configured.limit().currency().equals(rate.inputPerMillion().currency()))
                         return denied();
@@ -86,7 +86,7 @@ public final class ToolChatBudgetSelector {
     private Mono<ToolChatBudgetPlan.Selection> free(ToolSetSnapshot.Entry entry, ExecutionContext current) {
         if (entry.binding().tool().tool().price() != null) return denied();
         if (bindings == null) return denied();
-        return bindings.fixed(ExecutionOwner.from(current), entry.binding().definition()).flatMap(result -> {
+        return bindings.fixed(ExecutionOwners.from(current), entry.binding().definition()).flatMap(result -> {
             if (!result.successful() || !result.value().equals(entry.binding())
                     || !com.arte.ainew.pojo.tool.ToolExecutionRules.supportedTarget(result.value(), result.value().effectivePolicy())
                     || !current.authorization().scopes().containsAll(entry.binding().tool().tool().risk().requiredScopes()))
@@ -100,7 +100,7 @@ public final class ToolChatBudgetSelector {
         var price = entry.binding().tool().tool().price();
         if (price == null) return budgetRef == null ? free(entry, current) : denied();
         if (billing == null || bindings == null) return denied();
-        return bindings.fixed(ExecutionOwner.from(current), entry.binding().definition()).flatMap(result -> {
+        return bindings.fixed(ExecutionOwners.from(current), entry.binding().definition()).flatMap(result -> {
             if (!result.successful() || !result.value().equals(entry.binding()) || !current.authorization().scopes().containsAll(entry.binding().tool().tool().risk().requiredScopes()))
                 return denied();
             return billing.requireAccount(budgetRef, price, current).map(account -> new ToolChatBudgetPlan.Selection(entry.binding().definition(),
@@ -118,7 +118,7 @@ public final class ToolChatBudgetSelector {
     public Mono<ToolChatBudgetPlan> prepare(ToolChatRunSnapshot fixed, List<Money> limits, String modelBudgetRef, java.util.Map<String, String> toolBudgets, ExecutionContext context) {
         ContractChecks.id(modelBudgetRef, "model budgetRef");
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> {
-            if (!ExecutionOwner.from(current).equals(ExecutionOwner.from(fixed.context()))) return denied();
+            if (!ExecutionOwners.from(current).equals(ExecutionOwners.from(fixed.context()))) return denied();
             return model(fixed, modelBudgetRef, current).flatMap(model -> Flux.fromIterable(fixed.tools().entries())
                     .concatMap(entry -> tool(entry, toolBudgets.get(entry.binding().definition().id()), current)).collectList().map(tools -> {
                         var selections = new ArrayList<>(tools);
@@ -135,7 +135,7 @@ public final class ToolChatBudgetSelector {
         Objects.requireNonNull(scopes);
         Objects.requireNonNull(requestedDeadline);
         return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> {
-            var owner = ExecutionOwner.from(current);
+            var owner = ExecutionOwners.from(current);
             return runs.find(owner, runId).switchIfEmpty(denied()).flatMap(run -> {
                 if (run.state().terminal() || run.state() == ToolChatRun.State.PENDING_RECONCILIATION
                         || !run.checkpoint().children().contains(childId)) return denied();

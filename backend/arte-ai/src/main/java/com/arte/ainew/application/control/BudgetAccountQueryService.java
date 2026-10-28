@@ -4,7 +4,7 @@ import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.core.enums.ResultCodeEnum;
@@ -30,7 +30,7 @@ public final class BudgetAccountQueryService {
     public Mono<BudgetCommands.Account> account(String budgetRef, ExecutionContext context) {
         ContractChecks.id(budgetRef, "budgetRef");
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
-            var owner = ExecutionOwner.from(current);
+            var owner = ExecutionOwners.from(current);
             return configuration.configuration(current).flatMap(snapshot -> {
                 // 未知预算与其他主体预算均不可见；资格、定义来自同一次可信读取。
                 if (!authorization.grant(snapshot, current).budgetRefs().contains(budgetRef))

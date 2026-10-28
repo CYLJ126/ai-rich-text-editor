@@ -2,7 +2,7 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwner;
+import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.tool.LocalToolCall;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
 import com.arte.ainew.pojo.tool.ToolBindingResolution;
@@ -106,7 +106,7 @@ public final class PlatformToolExecutionAccess implements ToolAdmissionAccess, T
     }
 
     private void verify(ToolAdmissionInput input, ExecutionContext context, ToolBindingResolution binding) {
-        if (context.budgetRef() != null || !binding.owner().equals(ExecutionOwner.from(context)))
+        if (context.budgetRef() != null || !binding.owner().equals(ExecutionOwners.from(context)))
             throw denied();
         tools.requireFree(input, binding);
     }
