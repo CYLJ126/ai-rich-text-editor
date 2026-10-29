@@ -8,20 +8,28 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /**
- * 执行时的身份及认证名称快照。只保存稳定身份，不复制 Token、密码或在线用户对象。
- * subjectId 由身份提供者解析，不能用请求体自报的 ID 或用户名推算。
- * subjectName 保留当时认证／展示名称，供既有配置解析及桥接使用，不参与归属键。
+ * 执行时的身份及认证名称快照
+ * <p>
+ * 只保存稳定身份，不复制 Token、密码或在线用户对象。
  * 当前启停状态由 core Principal 及其身份提供者重新读取，不能从历史快照推断。
  *
+ * @param subjectId   由可信身份提供者解析的稳定主体标识，不能为空白；用于执行归属及身份比对，不从请求体自报值或认证名称推算。
+ * @param subjectName 本次快照记录的认证或展示名称，不能为空白，由可信边界提供；用于既有配置解析及身份桥接，不作为资源或执行归属键。
+ * @param kind        主体类型，不能为空，用于区分用户与服务身份并与 core Principal 的类型对应；不表示当前启用状态或已获执行权限。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 20:50 ✾
  */
 public record ExecutionPrincipal(String subjectId, String subjectName, Kind kind) implements Serializable {
+
     /**
-     * 旧快照的字符串编码适配；主体类型语义与 core 的 PrincipalKindEnum 对齐。
+     * 执行主体的身份类别，用于身份比对及用户／服务执行边界校验，不保存权限或当前状态。
+     * 保留旧执行快照的字符串编码，通过 platformKind／from 与 core 的 PrincipalKindEnum 双向转换。
      */
     public enum Kind {
-        USER, SERVICE;
+        // 用户主体，表示由可信身份提供者确认的用户身份，使用用户入口时仍须检查当前资格。
+        USER,
+        // 服务主体，表示受信后台或系统服务身份，执行范围须由独立授权限定，不默认拥有用户权限。
+        SERVICE;
 
         public PrincipalKindEnum platformKind() {
             return switch (this) {
@@ -64,10 +72,9 @@ public record ExecutionPrincipal(String subjectId, String subjectName, Kind kind
         return current != null && subjectId.equals(current.subjectId()) && kind.platformKind() == current.kind();
     }
 
-    static String requireText(String value, String field) {
+    static void requireText(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
-        return value;
     }
 }

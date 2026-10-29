@@ -1,14 +1,18 @@
 package com.arte.ainew.application.auth;
 
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiProperties.Grant;
+import com.arte.ainew.context.ControlPreparation;
+import com.arte.ainew.context.ReadOperationSnapshot;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -18,10 +22,8 @@ import reactor.core.scheduler.Scheduler;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Function;
 
 /**
  * 展示读取复用本次订阅的可信快照，写入／派发始终复核当前资格；任务权限上限不可扩大。
@@ -110,20 +112,27 @@ public final class AdmissionAuthorization {
     public Mono<List<Invocation>> readInvocations(List<Invocation> invocations, ExecutionContext context) {
         return Mono.defer(() -> {
             var records = List.copyOf(invocations);
-            if (records.size() > 100) return Mono.error(new IllegalArgumentException("Tool read batch exceeds limit"));
+            if (records.size() > 100) {
+                return Mono.error(new IllegalArgumentException("Tool read batch exceeds limit"));
+            }
             var remaining = Duration.between(clock.instant(), context.deadline());
-            if (remaining.isNegative() || remaining.isZero())
+            if (remaining.isNegative() || remaining.isZero()) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+            }
             var inputs = new HashMap<String, Invocation>();
             for (var invocation : records) {
                 if (invocation.request().kind() != CapabilityDescriptor.Kind.TOOL
                         || !ExecutionOwners.from(invocation.request().context()).equals(ExecutionOwners.from(context))
-                        || inputs.put(invocation.request().context().executionId(), invocation) != null)
+                        || inputs.put(invocation.request().context().executionId(), invocation) != null) {
                     return Mono.error(new IllegalArgumentException("Invalid tool read batch"));
+                }
             }
-            if (records.isEmpty()) return Mono.just(List.of());
-            if (toolInvocations == null)
+            if (records.isEmpty()) {
+                return Mono.just(List.of());
+            }
+            if (toolInvocations == null) {
                 return Mono.error(new AccessDeniedException("Tool invocation access unavailable"));
+            }
             return toolInvocations.authorizeReadBatch(records, context).timeout(remaining)
                     .switchIfEmpty(Mono.error(new AccessDeniedException("Tool invocation access denied")))
                     .onErrorResume(AccessDeniedException.class, ignored -> Mono.just(List.of()))
@@ -131,8 +140,9 @@ public final class AdmissionAuthorization {
                         var allowed = new HashSet<String>();
                         for (var permit : permits) {
                             var invocation = inputs.get(permit.invocationId());
-                            if (invocation == null || !allowed.add(permit.invocationId()))
+                            if (invocation == null || !allowed.add(permit.invocationId())) {
                                 throw new IllegalStateException("Tool read permit does not match batch");
+                            }
                             requireToolPermit(invocation, context, permit.authorization(), ToolInvocationAccess.Operation.READ);
                         }
                         return records.stream().filter(i -> allowed.contains(i.request().context().executionId())).toList();
@@ -147,12 +157,15 @@ public final class AdmissionAuthorization {
                                                             ToolInvocationAccess.Operation operation) {
         return Mono.defer(() -> {
             var remaining = Duration.between(clock.instant(), context.deadline());
-            if (remaining.isNegative() || remaining.isZero())
+            if (remaining.isNegative() || remaining.isZero()) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
-            if (!ExecutionOwners.from(invocation.request().context()).equals(ExecutionOwners.from(context)))
+            }
+            if (!ExecutionOwners.from(invocation.request().context()).equals(ExecutionOwners.from(context))) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND));
-            if (toolInvocations == null)
+            }
+            if (toolInvocations == null) {
                 return Mono.error(new AccessDeniedException("Tool invocation access unavailable"));
+            }
             return toolInvocations.authorize(invocation, context, operation)
                     .timeout(remaining)
                     .switchIfEmpty(Mono.error(new AccessDeniedException("Tool invocation access denied")))
@@ -164,17 +177,19 @@ public final class AdmissionAuthorization {
     }
 
     private void requireToolPermit(Invocation invocation, ExecutionContext context,
-                                   com.arte.ainew.common.execution.ExecutionAuthorization current, ToolInvocationAccess.Operation operation) {
+                                   ExecutionAuthorization current, ToolInvocationAccess.Operation operation) {
         Objects.requireNonNull(current);
         var original = context.authorization();
-        if (!clock.instant().isBefore(context.deadline()))
+        if (!clock.instant().isBefore(context.deadline())) {
             throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
+        }
         if (original.principal().kind() != invocation.request().context().authorization().principal().kind()
                 || !current.scopes().contains(operation == ToolInvocationAccess.Operation.READ ? READ
                 : original.scopes().contains(READ) ? READ : INVOKE)
                 || !current.principal().equals(original.principal()) || !current.tenantId().equals(original.tenantId())
-                || !current.workspaceId().equals(original.workspaceId()) || !original.scopes().containsAll(current.scopes()))
+                || !current.workspaceId().equals(original.workspaceId()) || !original.scopes().containsAll(current.scopes())) {
             throw new AccessDeniedException("Tool invocation authorization changed");
+        }
     }
 
     /**
@@ -221,20 +236,24 @@ public final class AdmissionAuthorization {
      * @param <T>      操作结果类型
      * @return 操作结果，或授权、期限、准备过程中的错误
      */
-    public <T> Mono<T> prepare(ExecutionContext context, java.util.Set<String> required, boolean fresh,
-                               java.util.function.Function<ExecutionContext, Mono<T>> work) {
+    public <T> Mono<T> prepare(ExecutionContext context, Set<String> required, boolean fresh, Function<ExecutionContext, Mono<T>> work) {
         return Mono.deferContextual(values -> {
-            if (!context.authorization().scopes().containsAll(required) || required.isEmpty())
+            if (!context.authorization().scopes().containsAll(required) || required.isEmpty()) {
                 return Mono.error(new AccessDeniedException("Execution scope denied"));
+            }
             var remaining = Duration.between(clock.instant(), context.deadline());
-            if (remaining.isNegative() || remaining.isZero())
+            if (remaining.isNegative() || remaining.isZero()) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
-            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent())
+            }
+            if (ReadOperationSnapshot.find(values, context).isPresent()) {
                 return Mono.error(new IllegalStateException("Read snapshot cannot prepare a write"));
-            if (!fresh && com.arte.ainew.context.ControlPreparation.find(values, context).isPresent())
+            }
+            if (!fresh && ControlPreparation.find(values, context).isPresent()) {
                 return Mono.defer(() -> work.apply(context));
-            if (source == null)
+            }
+            if (source == null) {
                 return requireWrite(context, required.iterator().next()).flatMap(work);
+            }
             return Mono.fromCallable(() -> source.prepareConfiguration(context)).subscribeOn(scheduler).timeout(remaining)
                     .flatMap(prepared -> withConfiguration(context, prepared, work));
         });
@@ -248,18 +267,22 @@ public final class AdmissionAuthorization {
      * @param <T>     校验结果类型
      * @return 当前资格有效时的结果，或授权、配置、期限错误
      */
-    public <T> Mono<T> revalidate(ExecutionContext context, java.util.function.Function<ExecutionContext, Mono<T>> work) {
+    public <T> Mono<T> revalidate(ExecutionContext context, Function<ExecutionContext, Mono<T>> work) {
         return Mono.deferContextual(values -> {
-            var prepared = com.arte.ainew.context.ControlPreparation.findPrepared(values, context);
-            if (source == null || prepared.isEmpty())
+            var prepared = ControlPreparation.findPrepared(values, context);
+            if (source == null || prepared.isEmpty()) {
                 return prepare(context, java.util.Set.of(INVOKE), true, work);
-            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent())
+            }
+            if (ReadOperationSnapshot.find(values, context).isPresent()) {
                 return Mono.error(new IllegalStateException("Read snapshot cannot authorize sending"));
-            if (!context.authorization().scopes().contains(INVOKE))
+            }
+            if (!context.authorization().scopes().contains(INVOKE)) {
                 return Mono.error(new AccessDeniedException("Execution scope denied"));
+            }
             var remaining = Duration.between(clock.instant(), context.deadline());
-            if (remaining.isNegative() || remaining.isZero())
+            if (remaining.isNegative() || remaining.isZero()) {
                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+            }
             return Mono.fromCallable(() -> source.revalidate(context, prepared.get())).subscribeOn(scheduler).timeout(remaining)
                     .flatMap(current -> withConfiguration(context, current, work));
         });
@@ -268,16 +291,18 @@ public final class AdmissionAuthorization {
     private <T> Mono<T> withConfiguration(ExecutionContext context, AiControlConfigurationSource.PreparedConfiguration prepared,
                                           java.util.function.Function<ExecutionContext, Mono<T>> work) {
         var grant = grant(prepared.configuration(), context);
-        if (!grant.scopes().containsAll(context.authorization().scopes()))
+        if (!grant.scopes().containsAll(context.authorization().scopes())) {
             return Mono.error(new AccessDeniedException("Execution scope denied"));
-        if (!clock.instant().isBefore(context.deadline()))
+        }
+        if (!clock.instant().isBefore(context.deadline())) {
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED));
+        }
         var original = context.authorization();
-        var authorization = new com.arte.ainew.common.execution.ExecutionAuthorization(
+        var authorization = new ExecutionAuthorization(
                 original.principal(), original.tenantId(), original.workspaceId(), original.scopes(), grant.grantRef());
         var current = new ExecutionContext(context.executionId(), context.traceId(), authorization,
                 context.deadline(), context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
-        return com.arte.ainew.context.ControlPreparation.use(current, prepared, work);
+        return ControlPreparation.use(current, prepared, work);
     }
 
     private enum Check {READ, FRESH_READ, WRITE}
@@ -295,18 +320,22 @@ public final class AdmissionAuthorization {
             if (remaining.isNegative() || remaining.isZero()) {
                 throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
             }
-            if (com.arte.ainew.context.ReadOperationSnapshot.find(values, context).isPresent()) {
-                if (check == Check.WRITE)
+            if (ReadOperationSnapshot.find(values, context).isPresent()) {
+                if (check == Check.WRITE) {
                     return Mono.error(new IllegalStateException("Read snapshot cannot authorize a write"));
-                if (check == Check.READ) return Mono.just(context);
+                }
+                if (check == Check.READ) {
+                    return Mono.just(context);
+                }
             }
-            if (check == Check.READ && com.arte.ainew.context.ControlPreparation.find(values, context).isPresent())
+            if (check == Check.READ && ControlPreparation.find(values, context).isPresent()) {
                 return Mono.just(context);
+            }
             // 通过 ExecutionAuthorizationResolver 重新查询当前授权，确认授权仍有效
-            Mono<com.arte.ainew.common.execution.ExecutionAuthorization> resolved = check != Check.WRITE
-                    && resolver instanceof com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver reads
+            Mono<ExecutionAuthorization> resolved = check != Check.WRITE
+                    && resolver instanceof ExecutionReadAuthorizationResolver reads
                     ? reads.readSnapshot(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes(), false)
-                    .map(com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot::authorization)
+                    .map(ExecutionReadAuthorizationResolver.Snapshot::authorization)
                     : resolver.resolve(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes());
             return resolved.timeout(remaining)
                     .switchIfEmpty(Mono.error(new AccessDeniedException("Execution authorization denied")))
@@ -339,15 +368,19 @@ public final class AdmissionAuthorization {
      * @return 授权配置（包含 bindingIds、budgetRefs 等信息）
      */
     public Grant grant(ExecutionContext context) {
-        if (source != null) return source.grant(context);
+        if (source != null) {
+            return source.grant(context);
+        }
         return grant(properties, context);
     }
 
     public Mono<Grant> configurationGrant(ExecutionContext context) {
         return Mono.deferContextual(values -> {
-            var preparation = com.arte.ainew.context.ControlPreparation.find(values, context);
-            if (preparation.isPresent()) return Mono.just(grant(preparation.get(), context));
-            var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
+            var preparation = ControlPreparation.find(values, context);
+            if (preparation.isPresent()) {
+                return Mono.just(grant(preparation.get(), context));
+            }
+            var snapshot = ReadOperationSnapshot.find(values, context);
             if (snapshot.isPresent()) {
                 if (snapshot.get().configuration() == null)
                     return Mono.error(new IllegalStateException("Read operation did not request control configuration"));

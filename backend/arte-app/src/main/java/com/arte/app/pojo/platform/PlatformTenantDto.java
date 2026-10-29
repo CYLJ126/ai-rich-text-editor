@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 平台持久化 DTO，沿用项目 DTO 继承 PO 的结构；不作为 core 公共契约。
  *
@@ -14,6 +16,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName(value = "arte_platform_tenant", autoResultMap = true)
 public class PlatformTenantDto extends PlatformTenantPo {
-    @java.io.Serial
-    private static final long serialVersionUID = 1L;
+
+    @Serial
+    private static final long serialVersionUID = 155533533006674843L;
 }

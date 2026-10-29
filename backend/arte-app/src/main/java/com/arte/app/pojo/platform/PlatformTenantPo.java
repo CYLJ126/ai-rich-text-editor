@@ -5,6 +5,9 @@ import com.arte.core.enums.workspace.TenantTypeEnum;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
+import java.io.Serial;
+import java.io.Serializable;
+
 /**
  * 平台租户：个人或组织的治理与资源隔离边界。
  * 数据库实体，不继承旧 BaseDto；不承担授权或对外接口职责。
@@ -14,10 +17,10 @@ import lombok.Data;
  */
 @Data
 @TableName(value = "arte_platform_tenant", autoResultMap = true)
-public class PlatformTenantPo implements java.io.Serializable {
-    @java.io.Serial
-    private static final long serialVersionUID = 1L;
+public class PlatformTenantPo implements Serializable {
 
+    @Serial
+    private static final long serialVersionUID = 5338729906901429082L;
     /**
      * 租户唯一 ID。
      */

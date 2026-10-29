@@ -92,6 +92,7 @@ public final class WorkspaceAccessSupport {
      * 本批可信读取上下文；只复用原始事实，不保存允许决定。
      */
     public final class Batch {
+
         private final Principal principal;
         private final WorkspaceAccessFacts facts;
         private final Set<String> tenantKeys;

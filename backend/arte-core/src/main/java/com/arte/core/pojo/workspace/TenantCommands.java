@@ -7,21 +7,23 @@ import com.arte.core.utils.platform.PlatformChecks;
 import java.util.Objects;
 
 /**
- * 租户治理写命令，组织创建受独立 provisioning policy 控制。
+ * 租户治理写命令
+ * <p>
+ * 组织创建受独立 provisioning policy 控制。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
 public final class TenantCommands {
+
     private TenantCommands() {
     }
 
     /**
      * 创建组织，当前主体为初始租户负责人，不隐式读取空间正文。
      */
-    public record CreateOrganization(
-            CommandMeta meta,
-            String name) {
+    public record CreateOrganization(CommandMeta meta, String name) {
+
         public CreateOrganization {
             Objects.requireNonNull(meta, "meta");
             name = PlatformChecks.name(name);
@@ -38,6 +40,7 @@ public final class TenantCommands {
             long expectedMemberVersion,
             long expectedTenantVersion,
             TenantRoleEnum role) {
+
         public ChangeTenantMemberRole {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(tenantId, "tenantId");
@@ -58,6 +61,7 @@ public final class TenantCommands {
             String memberId,
             long expectedMemberVersion,
             long expectedTenantVersion) {
+
         public RemoveTenantMember {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(tenantId, "tenantId");
@@ -77,6 +81,7 @@ public final class TenantCommands {
             long expectedOwnerMemberVersion,
             long expectedTargetMemberVersion,
             long expectedTenantVersion) {
+
         public TransferTenantOwner {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(tenantId, "tenantId");
@@ -97,6 +102,7 @@ public final class TenantCommands {
             long expectedPolicyVersion,
             PolicyRules rules,
             boolean membersMayCreateWorkspace) {
+
         public UpdateTenantPolicy {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(tenantId, "tenantId");

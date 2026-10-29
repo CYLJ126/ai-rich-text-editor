@@ -98,14 +98,17 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         do {
             var candidates = workspaces.scanMembershipCandidates(subjectId, lastKey, 100);
             for (WorkspaceCandidateKey key : candidates.records()) {
-                if (lastKey != null && key.compareTo(lastKey) <= 0) throw unavailable();
+                if (lastKey != null && key.compareTo(lastKey) <= 0) {
+                    throw unavailable();
+                }
                 lastKey = key;
             }
             // 每批只装载一次事实；计数和摘要共用授权时验证过的快照，不再逐项重读。
             var checks = authorization.checkWorkspaceReads(actor, candidates.records().stream().map(WorkspaceCandidateKey::scope).toList());
             // 主体失效才需本批重检身份；租户不可用只过滤该租户，不触发身份重检。
-            if (checks.stream().anyMatch(check -> check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE))
+            if (checks.stream().anyMatch(check -> check.decision().reason() == AccessReasonEnum.SUBJECT_INACTIVE)) {
                 principals.requireActive(actor);
+            }
             for (var check : checks) {
                 var decision = check.decision();
                 if (!decision.allowed()) {

@@ -86,7 +86,9 @@ public final class RbacIdentityProvider implements IdentityProvider {
                         && a.createdAt().equals(userOnlineInfo.getAccountCreatedAt()))
                 .orElseThrow(() -> failure(PlatformErrorCodeEnum.UNAUTHENTICATED));
         var principal = resolve(account, current);
-        if (principal.status() != PrincipalStatusEnum.ACTIVE) throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
+        if (principal.status() != PrincipalStatusEnum.ACTIVE) {
+            throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
+        }
         return new TrustedActor(principal, clock.instant());
     }
 
@@ -107,7 +109,9 @@ public final class RbacIdentityProvider implements IdentityProvider {
     public Optional<String> currentSubjectName(String subjectId) {
         accounts.requireTransaction();
         return identities.findAccountBinding(subjectId, true).flatMap(binding -> {
-            if (principal(binding, true).status() != PrincipalStatusEnum.ACTIVE) return Optional.empty();
+            if (principal(binding, true).status() != PrincipalStatusEnum.ACTIVE) {
+                return Optional.empty();
+            }
             return accounts.findCurrentById(Long.parseLong(binding.identity().externalUserId())).map(RbacAccountReader.Account::name);
         });
     }
@@ -118,7 +122,9 @@ public final class RbacIdentityProvider implements IdentityProvider {
      */
     public Optional<Principal> findCurrentExecutionPrincipal(ExecutionPrincipal expected) {
         accounts.requireTransaction();
-        if (expected.kind() != ExecutionPrincipal.Kind.USER) return Optional.empty();
+        if (expected.kind() != ExecutionPrincipal.Kind.USER) {
+            return Optional.empty();
+        }
         return identities.findAccountBinding(expected.subjectId(), true).flatMap(binding -> {
             long userId;
             try {
@@ -143,8 +149,12 @@ public final class RbacIdentityProvider implements IdentityProvider {
             validateBinding(existing.get(), account);
             return principal(existing.get().identity(), account);
         }
-        if (!account.active()) throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
-        if (TransactionSynchronizationManager.isActualTransactionActive()) accounts.requireTransaction();
+        if (!account.active()) {
+            throw failure(PlatformErrorCodeEnum.UNAUTHENTICATED);
+        }
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            accounts.requireTransaction();
+        }
         return transactions.execute(status -> {
             var current = accounts.findCurrentById(account.id()).filter(a -> a.active() && a.name().equals(account.name())
                             && a.createdAt().equals(account.createdAt()))
@@ -157,7 +167,9 @@ public final class RbacIdentityProvider implements IdentityProvider {
             String subjectId = candidate(current);
             var identity = new PrincipalIdentity(subjectId, JdbcPrincipalIdentityStore.PROVIDER,
                     String.valueOf(current.id()), clock.instant(), null, 0);
-            if (!identities.insertIfAbsent(identity)) throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+            if (!identities.insertIfAbsent(identity)) {
+                throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+            }
             return new Principal(subjectId, PrincipalKindEnum.USER, PrincipalStatusEnum.ACTIVE);
         });
     }
@@ -167,13 +179,15 @@ public final class RbacIdentityProvider implements IdentityProvider {
         var named = legacyGrants.get().stream().filter(g -> g.subjectName().equals(account.name())).toList();
         if (binding.isPresent()) {
             if (named.stream().anyMatch(g -> g.principalKind() != ExecutionPrincipal.Kind.USER
-                    || !g.subjectId().equals(binding.get().subjectId())))
+                    || !g.subjectId().equals(binding.get().subjectId()))) {
                 throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+            }
             return binding.get().subjectId();
         }
         // 部署前既有用户必须经核对；即使当前 grants 已删除，也不自动切断其历史身份。
-        if (account.id() <= properties.legacyUserIdCeiling() || !named.isEmpty())
+        if (account.id() <= properties.legacyUserIdCeiling() || !named.isEmpty()) {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+        }
         return UUID.randomUUID().toString();
     }
 
@@ -181,22 +195,27 @@ public final class RbacIdentityProvider implements IdentityProvider {
         var identity = binding.identity();
         if (!JdbcPrincipalIdentityStore.PROVIDER.equals(identity.provider())
                 || !String.valueOf(account.id()).equals(identity.externalUserId())
-                || !account.createdAt().equals(binding.externalCreatedAt()))
+                || !account.createdAt().equals(binding.externalCreatedAt())) {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+        }
         var configured = properties.bindings().stream().filter(b -> b.userId() == account.id()).findFirst();
-        if (configured.isPresent() && !configured.get().subjectId().equals(identity.subjectId()))
+        if (configured.isPresent() && !configured.get().subjectId().equals(identity.subjectId())) {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+        }
         if (legacyGrants.get().stream().anyMatch(g -> g.subjectName().equals(account.name())
-                && (g.principalKind() != ExecutionPrincipal.Kind.USER || !g.subjectId().equals(identity.subjectId()))))
+                && (g.principalKind() != ExecutionPrincipal.Kind.USER || !g.subjectId().equals(identity.subjectId())))) {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
+        }
     }
 
     private Principal principal(JdbcPrincipalIdentityStore.AccountBinding binding, boolean currentRead) {
         var identity = binding.identity();
-        if (!JdbcPrincipalIdentityStore.PROVIDER.equals(identity.provider()))
+        if (!JdbcPrincipalIdentityStore.PROVIDER.equals(identity.provider())) {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
-        if (identity.retiredAt() != null)
+        }
+        if (identity.retiredAt() != null) {
             return new Principal(identity.subjectId(), PrincipalKindEnum.USER, PrincipalStatusEnum.DELETED);
+        }
         long userId;
         try {
             userId = Long.parseLong(identity.externalUserId());
@@ -204,8 +223,9 @@ public final class RbacIdentityProvider implements IdentityProvider {
             throw failure(PlatformErrorCodeEnum.IDENTITY_CONFLICT);
         }
         var account = currentRead ? accounts.findCurrentById(userId) : accounts.findById(userId);
-        if (account.isEmpty())
+        if (account.isEmpty()) {
             return new Principal(identity.subjectId(), PrincipalKindEnum.USER, PrincipalStatusEnum.DELETED);
+        }
         validateBinding(binding, account.get());
         return principal(identity, account.get());
     }

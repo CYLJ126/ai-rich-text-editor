@@ -30,6 +30,7 @@ public final class WorkspaceCommands {
             String tenantId,
             String name,
             String description) {
+
         public CreateWorkspace {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(tenantId, "tenantId");
@@ -47,6 +48,7 @@ public final class WorkspaceCommands {
             long expectedVersion,
             String name,
             String description) {
+
         public RenameWorkspace {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -66,6 +68,7 @@ public final class WorkspaceCommands {
             String targetSubjectId,
             WorkspaceRoleEnum role,
             Instant expiresAt) {
+
         public InviteMember {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -83,6 +86,7 @@ public final class WorkspaceCommands {
             CommandMeta meta,
             String invitationId,
             long expectedInvitationVersion) {
+
         public AcceptInvitation {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.id(invitationId, "invitationId");
@@ -99,6 +103,7 @@ public final class WorkspaceCommands {
             String invitationId,
             long expectedInvitationVersion,
             long expectedWorkspaceVersion) {
+
         public RevokeInvitation {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -118,6 +123,7 @@ public final class WorkspaceCommands {
             long expectedMemberVersion,
             long expectedWorkspaceVersion,
             WorkspaceRoleEnum role) {
+
         public ChangeMemberRole {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -138,6 +144,7 @@ public final class WorkspaceCommands {
             String memberId,
             long expectedMemberVersion,
             long expectedWorkspaceVersion) {
+
         public RemoveMember {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -155,6 +162,7 @@ public final class WorkspaceCommands {
             Scope scope,
             long expectedMemberVersion,
             long expectedWorkspaceVersion) {
+
         public LeaveWorkspace {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -173,6 +181,7 @@ public final class WorkspaceCommands {
             long expectedOwnerMemberVersion,
             long expectedTargetMemberVersion,
             long expectedWorkspaceVersion) {
+
         public TransferOwner {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -191,6 +200,7 @@ public final class WorkspaceCommands {
             Scope scope,
             long expectedWorkspaceVersion,
             String reason) {
+
         public ChangeWorkspaceState {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -207,6 +217,7 @@ public final class WorkspaceCommands {
             Scope scope,
             long expectedWorkspaceVersion,
             String reason) {
+
         public CloseWorkspace {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -224,6 +235,7 @@ public final class WorkspaceCommands {
             Scope startupScope,
             Scope lastScope,
             Set<Scope> favorites) {
+
         public UpdatePreference {
             Objects.requireNonNull(meta, "meta");
             PlatformChecks.version(expectedPreferenceVersion, "expectedPreferenceVersion");
@@ -240,6 +252,7 @@ public final class WorkspaceCommands {
             long expectedWorkspaceVersion,
             long expectedPolicyVersion,
             PolicyRules rules) {
+
         public UpdateWorkspacePolicy {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
