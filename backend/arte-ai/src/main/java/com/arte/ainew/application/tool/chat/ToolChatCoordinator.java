@@ -67,6 +67,25 @@ public final class ToolChatCoordinator {
                                InvocationCoordinator invocations, ToolAdmissionService tools, ToolChatBudgetSelector budgets,
                                AdmissionAuthorization authorization, ToolChatAccess access, ToolAdmissionStore toolSnapshots, NewAiProperties properties,
                                Clock clock, Duration poll) {
+        this(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, poll,
+                new com.arte.ainew.application.control.FixedControlCatalog(properties, authorization, clock));
+    }
+
+    /**
+     * 旧手工装配兼容桥。
+     */
+    private ToolChatCoordinator(ToolChatRunStore runs, ExecutionStore executions, ExecutionResultStore results,
+                                InvocationCoordinator invocations, ToolAdmissionService tools, ToolChatBudgetSelector budgets,
+                                AdmissionAuthorization authorization, ToolChatAccess access, ToolAdmissionStore toolSnapshots, NewAiProperties properties,
+                                Clock clock, Duration poll, com.arte.ainew.application.control.FixedControlCatalog compatibility) {
+        this(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, poll,
+                compatibility.policyProvider(), compatibility.admissionGuard());
+    }
+
+    public ToolChatCoordinator(ToolChatRunStore runs, ExecutionStore executions, ExecutionResultStore results,
+                               InvocationCoordinator invocations, ToolAdmissionService tools, ToolChatBudgetSelector budgets,
+                               AdmissionAuthorization authorization, ToolChatAccess access, ToolAdmissionStore toolSnapshots, NewAiProperties properties,
+                               Clock clock, Duration poll, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         this.runs = runs;
         this.executions = executions;
         this.results = results;
@@ -78,9 +97,8 @@ public final class ToolChatCoordinator {
         this.toolSnapshots = toolSnapshots;
         this.properties = properties;
         this.clock = clock;
-        var compatibility = new com.arte.ainew.application.control.FixedControlCatalog(properties, authorization, clock);
-        this.policies = compatibility.policyProvider();
-        this.modelGuard = compatibility.admissionGuard();
+        this.policies = java.util.Objects.requireNonNull(policies);
+        this.modelGuard = java.util.Objects.requireNonNull(guard);
         this.poll = poll;
     }
 
@@ -88,6 +106,10 @@ public final class ToolChatCoordinator {
         return outcome.successful() ? Mono.just(outcome.value()) : Mono.error(AdmissionException.fromStoreRejection(outcome.code()));
     }
 
+    /**
+     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ToolChatCoordinator boundaryPorts(AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         this.policies = policies;
         this.modelGuard = guard;

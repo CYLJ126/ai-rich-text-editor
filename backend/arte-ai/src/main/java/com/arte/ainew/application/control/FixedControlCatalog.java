@@ -4,9 +4,7 @@ import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
-import com.arte.ainew.application.support.ExecutionPolicyChecks;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.control.*;
 import com.arte.ainew.pojo.control.AiEntitlement;
@@ -14,13 +12,10 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.InvocationRequest;
-import com.arte.ainew.pojo.generation.GenerationRequest;
-import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
-import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Flux;
@@ -35,12 +30,14 @@ import java.util.Objects;
  * 兼容控制面门面：模型发现、绑定／连接／能力解析统一委托模型使用资格端口。
  * <p>
  * 保留既有配置校验、请求／限额校验和手工装配入口；资源资格不再在此解析 Grant。
- * 政策及受理事务门控仍按后续批次拆分。
+ * 生产装配使用独立业务入口及 SPI；本类仅保留旧手工装配兼容路径。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
+@Deprecated(since = "control-ports-batch-4", forRemoval = false)
 public final class FixedControlCatalog implements CapabilityCatalog, BindingManager {
+
     public static final DefinitionRef INPUT_SCHEMA = ControlDefinitionChecks.INPUT_SCHEMA;
     public static final DefinitionRef OUTPUT_SCHEMA = ControlDefinitionChecks.OUTPUT_SCHEMA;
     private final NewAiProperties properties;
@@ -52,6 +49,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     private AiResourceEntitlementService entitlements;
     private AiExecutionPolicyProvider policies;
     private AiAdmissionAuthorizationGuard admissionGuard;
+    private ModelControlService modelControl;
+    private EntitledConnectionManager connections;
 
     public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock) {
         ControlDefinitionChecks.validate(properties);
@@ -74,7 +73,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     }
 
     /**
-     * 生产装配显式注入统一资格端口，保证自定义提供者同时作用于发现和实际执行解析。
+     * 兼容装配显式注入统一资格端口，保证自定义提供者同时作用于发现和实际执行解析。
      */
     public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock,
                                AiControlConfigurationSource source, Scheduler scheduler, AiResourceEntitlementService entitlements) {
@@ -94,11 +93,18 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         this(properties, authorization, clock, source, scheduler, entitlements);
         this.policies = Objects.requireNonNull(policies);
         this.admissionGuard = Objects.requireNonNull(admissionGuard);
+        configureModelControl();
     }
 
     private void configureBoundaryPorts() {
         policies = new ConfigurationExecutionPolicyProvider(reader, properties.limits());
         admissionGuard = new ConfigurationAiAdmissionAuthorizationGuard(reader, authorization, entitlements, readAdapter(), policies, properties.limits(), clock);
+        configureModelControl();
+    }
+
+    private void configureModelControl() {
+        connections = new EntitledConnectionManager(entitlements, authorization, admissionGuard);
+        modelControl = new ModelControlService(readAdapter(), entitlements, readAdapter(), policies, ExecutionPolicies.from(properties.limits()), clock);
     }
 
     public AiExecutionPolicyProvider policyProvider() {
@@ -150,34 +156,28 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Mono<ResolvedBinding> resolve(DefinitionRef binding, DefinitionRef capability, ExecutionContext context) {
-        return entitlements.resolve(binding, capability, context).map(AiEntitlement::binding);
+        return modelControl.resolve(binding, capability, context);
     }
 
     public Mono<ConnectionDefinition> resolveConnection(DefinitionRef reference, ExecutionContext context) {
-        return entitlements.resolveConnection(reference, context);
+        return connections.resolve(reference, context);
     }
 
     /**
      * 发送边界不复用发现时的允许结论。
      */
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference, ExecutionContext context) {
-        if (source == null) return resolveConnection(reference, context);
-        return authorization.revalidate(context, current -> resolveConnection(reference, current));
+        return connections.resolveCurrent(reference, context);
     }
 
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference,
                                                                com.arte.ainew.pojo.execution.GatewayCall<?> call) {
-        if (!call.binding().connection().equals(reference)) {
-            return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
-        }
-        return Mono.deferContextual(values -> admissionGuard.authorize(new AiAdmissionAuthorizationGuard.Check(call.request(), call.binding(), null,
-                        values.getOrDefault(ToolSetSnapshot.class, null), AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND))
-                .map(AiAdmissionAuthorizationGuard.Permit::connection));
+        return connections.resolveCurrent(reference, call);
     }
 
     @Override
     public Mono<CapabilityDescriptor> resolve(DefinitionRef reference, ExecutionContext context) {
-        return entitlements.resolveCapability(reference, context);
+        return modelControl.resolve(reference, context);
     }
 
     public Flux<ResolvedBinding> discoverBindings(CapabilityDescriptor.Kind kind, ExecutionContext context) {
@@ -186,33 +186,11 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     @Override
     public Flux<CapabilityDescriptor> discover(CapabilityDescriptor.Kind kind, int limit, ExecutionContext context) {
-        return Flux.defer(() -> {
-            ContractChecks.range(limit, "limit", 1, 256);
-            return entitlements.discover(kind, 256, context).map(value -> value.binding().capability()).distinct().take(limit);
-        });
+        return modelControl.discover(kind, limit, context);
     }
 
     @Override
     public Mono<Void> validate(InvocationRequest<?> request) {
-        return reader.inSnapshot(request.context(), configuration -> resolve(request.binding(), request.capability(), request.context())
-                .flatMap(binding -> {
-                    if (!(request.input() instanceof GenerationRequest generation) || request.kind() != CapabilityDescriptor.Kind.GENERATION
-                            || !(generation.outputFormat() instanceof GenerationRequest.TextOutput)
-                            || !generation.tools().isEmpty() && !binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS))
-                        return Mono.error(new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY));
-                    var current = request.context();
-                    if (!configuration.releaseRef().equals(current.releaseRef()) || current.budgetRef() == null)
-                        return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
-                    return readAdapter().resolve(current.budgetRef(), current, BudgetDefinitionProvider.Operation.EXECUTE)
-                            .onErrorMap(AdmissionException.class, error -> error.getResultCode() == ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE
-                                    ? new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE) : error)
-                            .flatMap(budget -> {
-                                if (!budget.rate().equals(binding.rate()))
-                                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
-                                return policies.current(current).doOnNext(policy -> ExecutionPolicyChecks.require(
-                                        new AiAdmissionAuthorizationGuard.Check(request, binding, null, null, AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND),
-                                        policy.intersect(ExecutionPolicies.from(properties.limits())), clock)).then();
-                            });
-                }));
+        return modelControl.validate(request);
     }
 }

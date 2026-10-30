@@ -1,5 +1,7 @@
 package com.arte.ainew.application.execution;
 
+import com.arte.ainew.api.control.BindingManager;
+import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.FixedControlCatalog;
@@ -58,10 +60,11 @@ import java.util.function.Supplier;
 public final class GenerationDispatcher {
 
     private final AdmissionAuthorization admissionAuthorization;
-    private final FixedControlCatalog fixedControlCatalog;
+    private final CapabilityCatalog capabilities;
+    private final BindingManager bindings;
     private final PublishedAiCatalog publishedCatalog;
-    private AiAdmissionAuthorizationGuard admissionGuard;
-    private AiExecutionPolicyProvider policies;
+    private final AiAdmissionAuthorizationGuard admissionGuard;
+    private final AiExecutionPolicyProvider policies;
     private final ExecutionStore executionStore;
     private final ExecutionEventStore executionEventStore;
     private final ExecutionOutboxStore executionOutboxStore;
@@ -83,6 +86,10 @@ public final class GenerationDispatcher {
         return this;
     }
 
+    /**
+     * 旧手工装配兼容入口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
                                 ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
@@ -91,6 +98,10 @@ public final class GenerationDispatcher {
                 contextSnapshotStore, executionResultStore, budgetService, modelGateway, newAiProperties, newAiExecutionProperties, clock, null);
     }
 
+    /**
+     * 旧手工装配兼容入口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
                                 ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
@@ -100,17 +111,37 @@ public final class GenerationDispatcher {
                 modelGateway, newAiProperties, newAiExecutionProperties, clock, liveTextNotifier);
     }
 
+    /**
+     * 旧手工装配兼容入口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog,
                                 PublishedAiCatalog publishedCatalog, ExecutionStore executionStore,
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
                                 ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
                                 NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
+        this(admissionAuthorization, fixedControlCatalog, fixedControlCatalog, publishedCatalog,
+                fixedControlCatalog.policyProvider(), fixedControlCatalog.admissionGuard(), executionStore, executionEventStore,
+                executionOutboxStore, contextSnapshotStore, executionResultStore, budgetService, modelGateway,
+                newAiProperties, newAiExecutionProperties, clock, liveTextNotifier);
+    }
+
+    /**
+     * 生产装配显式提供控制面端口，不创建或探测固定配置兼容门面。
+     */
+    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, CapabilityCatalog capabilities, BindingManager bindings,
+                                PublishedAiCatalog publishedCatalog, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard,
+                                ExecutionStore executionStore, ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore,
+                                ContextSnapshotStore contextSnapshotStore, ExecutionResultStore executionResultStore, BudgetService budgetService,
+                                ModelGateway modelGateway, NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties,
+                                Clock clock, LiveTextNotifier liveTextNotifier) {
         this.publishedCatalog = Objects.requireNonNull(publishedCatalog);
         this.liveTextNotifier = liveTextNotifier;
         this.admissionAuthorization = admissionAuthorization;
-        this.fixedControlCatalog = fixedControlCatalog;
-        this.admissionGuard = fixedControlCatalog.admissionGuard();
-        this.policies = fixedControlCatalog.policyProvider();
+        this.capabilities = Objects.requireNonNull(capabilities);
+        this.bindings = Objects.requireNonNull(bindings);
+        this.admissionGuard = Objects.requireNonNull(guard);
+        this.policies = Objects.requireNonNull(policies);
         this.executionStore = executionStore;
         this.executionEventStore = executionEventStore;
         this.executionOutboxStore = executionOutboxStore;
@@ -216,7 +247,7 @@ public final class GenerationDispatcher {
         return policies.current(current).flatMap(policy -> Mono.defer(() -> {
                     var request = new InvocationRequest<>(persisted.capability(), persisted.binding(), persisted.kind(),
                             generation, persisted.options(), current);
-                    return fixedControlCatalog.validate(request).then(fixedControlCatalog.resolve(request.binding(), request.capability(), current))
+                    return capabilities.validate(request).then(bindings.resolve(request.binding(), request.capability(), current))
                             .flatMap(binding -> contextSnapshotStore.find(message.owner(), invocation.contextSnapshotId())
                                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)))
                                     .flatMap(snapshot -> {

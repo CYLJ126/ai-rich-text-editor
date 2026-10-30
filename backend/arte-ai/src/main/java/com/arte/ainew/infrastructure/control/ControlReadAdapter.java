@@ -46,6 +46,12 @@ public abstract class ControlReadAdapter implements PublishedAiCatalog, BudgetDe
     }
 
     @Override
+    public <T> T inCurrentTransaction(ExecutionContext context, Function<PublishedAiDefinitions, T> work) {
+        return reader.inCurrentTransaction(context, value -> work.apply(new PublishedAiDefinitions(value.releaseRef(),
+                value.capabilities(), value.bindings(), value.connections(), value.rates().stream().map(ControlReadAdapter::rate).toList())));
+    }
+
+    @Override
     public Mono<List<BudgetDefinition>> available(ExecutionContext context, Operation operation) {
         return reader.read(context).map(value -> budgetDefinitions(value, context, operation));
     }

@@ -207,7 +207,7 @@ class DatabaseAiControlIntegrationTest {
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
                     () -> service.resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
-                    () -> c.getBean(FixedControlCatalog.class).resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
+                    () -> c.getBean(com.arte.ainew.api.control.BindingManager.class).resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
         });
     }
 
@@ -588,7 +588,7 @@ class DatabaseAiControlIntegrationTest {
             request.put("generationOptions", Map.of("maxOutputTokens", 512, "stopSequences", List.of()));
             request.put("timeoutSeconds", 60);
             var controller = new com.arte.ainew.web.controller.NewAiChatController(c.getBean(com.arte.ainew.api.entry.ChatService.class),
-                    c.getBean(FixedControlCatalog.class), new com.arte.ainew.web.NewAiHttpContext(
+                    c.getBean(com.arte.ainew.api.control.BindingManager.class), new com.arte.ainew.web.NewAiHttpContext(
                     c.getBean(com.arte.ainew.context.ExecutionContextFactory.class), c.getBean(NewAiProperties.class)), c.getBean(NewAiProperties.class));
             var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
                     .setControllerAdvice(new com.arte.ainew.web.ConversationExceptionHandler()).build();
@@ -627,7 +627,8 @@ class DatabaseAiControlIntegrationTest {
     private void verifyDispatchPreparation(org.springframework.context.ApplicationContext c, SqlRecorder recorded) {
         var executions = c.getBean(com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence.class);
         var payloads = c.getBean(com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence.class);
-        var catalog = c.getBean(FixedControlCatalog.class);
+        var bindings = c.getBean(com.arte.ainew.api.control.BindingManager.class);
+        var capabilities = c.getBean(com.arte.ainew.api.control.CapabilityCatalog.class);
         var connections = c.getBean(com.arte.ainew.api.control.ConnectionManager.class);
         var settings = new com.arte.ainew.config.NewAiExecutionProperties(true, false, 1, null, null, null, null);
         var message = executions.claim(com.arte.ainew.pojo.execution.OutboxMessage.Kind.DISPATCH, "preparation-worker",
@@ -651,7 +652,7 @@ class DatabaseAiControlIntegrationTest {
                         new com.arte.ainew.pojo.generation.ModelResult.ModelIdentity("deepseek", "deepseek-chat", null),
                         List.of(output), com.arte.ainew.pojo.generation.ModelResult.FinishReason.STOP, true, null, usage, List.of());
                 // Gateway/acquire preparation reuses the dispatch snapshot; only final send reloads it.
-                return catalog.validate(call.request()).then(catalog.resolve(call.request().binding(), call.request().capability(), call.runtime().execution()))
+                return capabilities.validate(call.request()).then(bindings.resolve(call.request().binding(), call.request().capability(), call.runtime().execution()))
                         .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
                         .then(connections.resolve(call.binding().connection(), call.runtime().execution()))
                         .then(connections.resolveCurrent(call.binding().connection(), call))
@@ -664,8 +665,9 @@ class DatabaseAiControlIntegrationTest {
                                 new com.arte.ainew.pojo.generation.GenerationSignal.Result(result)));
             }
         };
-        var dispatcher = new com.arte.ainew.application.execution.GenerationDispatcher(c.getBean(AdmissionAuthorization.class), catalog,
-                executions, executions, executions, payloads, payloads, executions, gateway, c.getBean(NewAiProperties.class), settings, Clock.systemUTC());
+        var dispatcher = new com.arte.ainew.application.execution.GenerationDispatcher(c.getBean(AdmissionAuthorization.class), capabilities, bindings,
+                c.getBean(com.arte.ainew.spi.control.PublishedAiCatalog.class), c.getBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class),
+                c.getBean(com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard.class), executions, executions, executions, payloads, payloads, executions, gateway, c.getBean(NewAiProperties.class), settings, Clock.systemUTC(), null);
         recorded.sql.clear();
         recorded.commits.set(0);
         dispatcher.dispatch(message, com.arte.ainew.context.ExecutionRuntimeContext.start(invocation.request().context())).block(WAIT);

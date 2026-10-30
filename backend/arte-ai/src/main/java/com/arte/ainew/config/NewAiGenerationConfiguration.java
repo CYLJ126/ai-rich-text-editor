@@ -1,8 +1,9 @@
 package com.arte.ainew.config;
 
+import com.arte.ainew.api.control.BindingManager;
+import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
@@ -14,7 +15,6 @@ import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -59,6 +59,7 @@ public class NewAiGenerationConfiguration {
      * 使用独立、有界的连接池、DNS 调度器和事件循环，并校验出口目标。
      * Spring 容器销毁时调用 close，释放该运行时拥有的资源；装配阶段不连接供应商。
      *
+     * @param bindings 模型绑定解析入口
      * @param connections 当前连接定义及使用权限的解析入口
      * @param authorization 当前主体的准入授权校验器
      * @param credentials 发送时使用的凭据解析器
@@ -77,7 +78,7 @@ public class NewAiGenerationConfiguration {
      * DeepSeek 文本生成适配器，负责请求映射、响应校验及生成信号的有界聚合。
      * <p>
      * 从固定绑定中提取使用 deepseek 供应商及 chat-completions-sse/v1 协议的能力，去重后登记。
-     * 缺少匹配绑定时装配失败；适配器使用独立、有界 JSON 编解码器，映射过程不执行网络调用。
+     * FIXED 缺少匹配绑定时装配失败；DATABASE 仅登记本地 Schema 支持，精确目录在实际使用时通过端口读取。
      * 新发布能力可复用已登记 Schema 及适配器支持的特性，精确版本与当前资格仍由控制目录逐次验证。
      *
      * @param admission 已登记的固定能力、绑定和连接配置
@@ -85,10 +86,11 @@ public class NewAiGenerationConfiguration {
      * @return DeepSeek 请求及响应语义适配器
      */
     @Bean("newAiDeepSeekProviderAdapter")
-    DeepSeekGenerationProviderAdapter provider(NewAiProperties admission, NewAiGenerationProperties generation,
-                                               ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources) {
-        var source = sources.getIfAvailable();
-        var definitions = source == null ? admission : source.definitions();
+    DeepSeekGenerationProviderAdapter provider(NewAiProperties admission, NewAiGenerationProperties generation) {
+        // 动态模式的发布目录只在真实使用时读取，构造适配器不访问数据库。
+        if (admission.configurationMode().equals("DATABASE"))
+            return new DeepSeekGenerationProviderAdapter(GenerationJson.mapper(generation.maxFrameBytes()));
+        var definitions = admission;
         var supported = definitions.bindings().stream().filter(binding -> definitions.connections().stream().anyMatch(connection ->
                         connection.definition().equals(binding.connection()) && connection.providerId().equals("deepseek")
                                 && connection.protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)))
@@ -117,7 +119,8 @@ public class NewAiGenerationConfiguration {
      * 同一个固定目录同时提供 CapabilityCatalog 与 BindingManager；网关落实绝对期限和本地取消，
      * 每次订阅执行一次交互，不内部重试。Invocation 派发、预算及耐久终态提交由执行协调器负责。
      *
-     * @param catalog 固定能力与绑定目录，负责当前授权下的解析及请求校验
+     * @param capabilities 固定能力与绑定目录，负责当前授权下的解析及请求校验
+     * @param bindings 模型绑定解析入口
      * @param connections 当前连接定义的解析入口
      * @param runtime 模型专用的受控 HTTP 连接运行时，与 HTTP／MCP 工具运行时隔离
      * @param provider DeepSeek 请求及响应语义适配器
@@ -126,10 +129,10 @@ public class NewAiGenerationConfiguration {
      * @return 内部单次模型交互网关
      */
     @Bean("newAiModelGateway")
-    ModelGateway modelGateway(FixedControlCatalog catalog, ConnectionManager connections,
+    ModelGateway modelGateway(CapabilityCatalog capabilities, BindingManager bindings, ConnectionManager connections,
                               @Qualifier("newAiHttpConnectionRuntime") HttpConnectionRuntime runtime,
                               DeepSeekGenerationProviderAdapter provider, ChatCompletionsSseProtocolAdapter<DeepSeekWire.Request> protocol,
                               @Qualifier("newAiClock") Clock clock) {
-        return new DefaultModelGateway<>(catalog, catalog, connections, runtime, provider, protocol, clock);
+        return new DefaultModelGateway<>(capabilities, bindings, connections, runtime, provider, protocol, clock);
     }
 }

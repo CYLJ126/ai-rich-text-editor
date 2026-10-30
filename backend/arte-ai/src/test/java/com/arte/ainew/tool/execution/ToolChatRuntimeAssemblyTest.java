@@ -65,7 +65,9 @@ public class ToolChatRuntimeAssemblyTest {
             c.registerBean(ConversationService.class, () -> r.conversations);
             c.registerBean(MybatisExecutionPersistence.class, () -> r.f.executions);
             c.registerBean(MybatisPayloadPersistence.class, () -> r.f.payloads);
-            c.registerBean(FixedControlCatalog.class, () -> r.catalog);
+            c.registerBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class, r.catalog::entitlementAdapter);
+            c.registerBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class, r.catalog::policyProvider);
+            c.registerBean(com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard.class, r.catalog::admissionGuard);
             c.registerBean(ContextService.class, () -> new TextContextService(r.authorization, r.catalog, r.f.payloads, r.properties, r.f.clock, r.history));
             c.registerBean(ToolSetService.class, () -> new ToolSetService(r.f.bindingService, r.f.catalog, r.f.metadata, java.time.Duration.ofSeconds(5)));
             c.registerBean(ToolChatBudgetSelector.class, () -> r.budgets);
@@ -79,6 +81,7 @@ public class ToolChatRuntimeAssemblyTest {
             c.registerBean("newAiWorkerScheduler", Scheduler.class, () -> r.f.timer);
             c.register(NewAiToolChatExecutionConfiguration.class);
             c.refresh();
+            assertTrue(c.getBeansOfType(FixedControlCatalog.class).isEmpty());
             assertNotNull(c.getBean(ToolChatService.class));
             assertFalse(c.getBean(ToolChatWorker.class).isRunning());
             assertFalse(c.getBean(ToolChatEventPublisher.class).isRunning());

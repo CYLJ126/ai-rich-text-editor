@@ -216,7 +216,7 @@ public class ConfigurationAssemblyTest {
         }
     }
 
-    private static void flatten(String prefix, Object value, Map<String, Object> result) {
+    static void flatten(String prefix, Object value, Map<String, Object> result) {
         if (value == null) {
             return;
         }

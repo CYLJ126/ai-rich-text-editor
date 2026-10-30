@@ -44,7 +44,7 @@ import java.time.Duration;
 public class NewAiToolExecutionConfiguration {
 
     @Bean
-    @ConditionalOnBean({com.arte.ainew.application.auth.AdmissionAuthorization.class, com.arte.ainew.application.control.FixedControlCatalog.class})
+    @ConditionalOnBean({com.arte.ainew.application.auth.AdmissionAuthorization.class, PublishedAiCatalog.class, BudgetDefinitionProvider.class})
     com.arte.ainew.application.tool.billing.ToolBillingService toolBillingService(com.arte.ainew.application.auth.AdmissionAuthorization authorization,
                                                                                   PublishedAiCatalog catalog,
                                                                                   BudgetDefinitionProvider definitions, MybatisExecutionPersistence executions, org.springframework.core.env.Environment environment) {

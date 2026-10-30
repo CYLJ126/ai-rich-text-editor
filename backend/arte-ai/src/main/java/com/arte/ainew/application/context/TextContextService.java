@@ -44,18 +44,35 @@ public final class TextContextService implements ContextService {
     private AiExecutionPolicyProvider policies;
     private final ChatHistoryLoader chatHistoryLoader;
 
+    /**
+     * 旧手工装配兼容入口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public TextContextService(AdmissionAuthorization admissionAuthorization, BindingManager bindingManager, ContextSnapshotStore contextSnapshotStore,
                               NewAiProperties properties, Clock clock, ChatHistoryLoader chatHistoryLoader) {
+        this(admissionAuthorization, bindingManager, contextSnapshotStore, properties, clock, chatHistoryLoader,
+                bindingManager instanceof FixedControlCatalog catalog ? catalog.policyProvider()
+                        : new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits()));
+    }
+
+    /**
+     * 生产装配使用显式政策端口，来源选择由装配层负责。
+     */
+    public TextContextService(AdmissionAuthorization admissionAuthorization, BindingManager bindingManager, ContextSnapshotStore contextSnapshotStore,
+                              NewAiProperties properties, Clock clock, ChatHistoryLoader chatHistoryLoader, AiExecutionPolicyProvider policies) {
         this.admissionAuthorization = admissionAuthorization;
         this.bindingManager = bindingManager;
         this.contextSnapshotStore = contextSnapshotStore;
         this.properties = properties;
         this.clock = clock;
-        this.policies = bindingManager instanceof FixedControlCatalog catalog ? catalog.policyProvider()
-                : new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits());
+        this.policies = java.util.Objects.requireNonNull(policies);
         this.chatHistoryLoader = chatHistoryLoader;
     }
 
+    /**
+     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public TextContextService policyProvider(AiExecutionPolicyProvider policies) {
         this.policies = policies;
         return this;

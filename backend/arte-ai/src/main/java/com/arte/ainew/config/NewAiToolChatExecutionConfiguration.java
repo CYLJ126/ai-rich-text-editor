@@ -50,7 +50,7 @@ public class NewAiToolChatExecutionConfiguration {
                                     AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties,
                                     @Qualifier("newAiClock") Clock clock, ObjectProvider<ModelGateway> gateways, AiExecutionPolicyProvider policies,
                                     AiAdmissionAuthorizationGuard guard) {
-        return new ToolChatService(runs, conversations, executions, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable).boundaryPorts(policies, guard);
+        return new ToolChatService(runs, conversations, executions, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable, policies, guard);
     }
 
     @Bean
@@ -60,7 +60,7 @@ public class NewAiToolChatExecutionConfiguration {
                                             NewAiProperties properties, @Qualifier("newAiClock") Clock clock, NewAiToolChatProperties chat,
                                             GenerationDispatcher generation, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         generation.toolChats(runs);
-        return new ToolChatCoordinator(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, chat.pollInterval()).boundaryPorts(policies, guard);
+        return new ToolChatCoordinator(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, chat.pollInterval(), policies, guard);
     }
 
     @Bean

@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.21
+版本：v0.22
 
-日期：2026-10-30（本次拆出执行政策并接入实际受理／派发／模型发送前门控；其他阶段状态以各节为准）
+日期：2026-10-30（本次收口 AI 控制面装配及旧依赖并完成当前模式的兼容验收；其他阶段状态以各节为准）
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
@@ -41,6 +41,11 @@ ACL、政策及受理事务门控仍按后续批次实施。见 [模型使用资
 ，将模型／预算资格及有效限制复核接入普通受理、原子派发、Tool Chat 根 Run／模型子调用和真实模型发送前边界。DATABASE
 复用原同库公共门控，FIXED
 保留当前身份复核；展示／预检快照不代替写事务当前事实。未新增租户／空间数值政策表或凭据用途治理；文章改造仍延期。见 [执行政策与受理门控](backend/arte-ai/EXECUTION_POLICY_GUARDS.md)。
+
+2026-10-30 控制面端口第 4 批：生产装配改为按业务接口及显式 SPI 构造模型控制、连接、受理／派发和 Tool Chat；
+`FixedControlCatalog` 仅保留手工兼容路径。FIXED／DATABASE 来源与模式严格匹配，DATABASE
+生成装配不再启动读取发布表；付费工具事务读取改用发布／预算端口，人工核对提示不再向业务返回
+Grant。当前配置／HTTP／耐久记录格式保留，文章及完整动态治理仍按后续范围实施。见 [装配收口与兼容验收](backend/arte-ai/CONTROL_PORTS_COMPATIBILITY.md)。
 
 ## TODO
 
@@ -2175,6 +2180,9 @@ reauthorize (originalContext) 端口，按保存的稳定主体查询当前身�
 2026-10-30 实施第 3 批已增加执行政策及受理门控端口，覆盖实际模型受理、派发写事务、Tool Chat
 和模型发送前复核。有效数值限制与部署上限取交集，默认来源仍沿用现有配置，不代表已增加租户／空间数值政策数据库或完成凭据用途治理。详见 [执行政策与受理门控](backend/arte-ai/EXECUTION_POLICY_GUARDS.md)。
 
+2026-10-30 实施第 4 批已收口显式装配、来源选择及旧门面依赖，并验证当前 FIXED／DATABASE 的兼容行为；未据此切换 HYBRID／DYNAMIC
+或完成凭据用途治理。详见 [装配收口与兼容验收](backend/arte-ai/CONTROL_PORTS_COMPATIBILITY.md)。
+
 这些端口归 `arte-ai`，公共 core 不引用 BindingDefinition、Money 或 Invocation。app 组合公共 API 和 AI 存储 SPI
 提供环境适配；固定配置适配器和动态存储适配器共同遵守同一个 AI 端口，而不是各 Controller 自建过滤规则。
 
@@ -2197,8 +2205,8 @@ executable。无兼容预算的配置仍可按管理资格展示，但不进入�
 | ManualReconciliationService                                     | 前台资格源改接，后台使用独立 InternalReconciliationService                                                                    | 原用户前台核对限制保留，后台 actor 与 owner 分离且不放宽账本关联                               |
 | NewAiProperties 校验及各 NewAi*Configuration 装配               | 以接口类型注入目录、资格、预算及门控，显式选择运行模式；静态 grants 完备校验只用于 FIXED 及未迁移范围，动态模式验证所需提供者 | enabled 不再无条件要求全部静态列表非空；缺失依赖或来源冲突失败，不能发现读新目录、执行读旧配置 |
 
-GenerationDispatcher 当前也直接读取 NewAiProperties 的连接／费率等定义，不能仅替换 FixedControlCatalog。PublishedAiCatalog
-要覆盖这些精确引用读取路径；limits／线程／基础开关等环境参数仍可保留配置，不要求所有 properties 一次迁移到数据库。
+第 1～4 批已将 GenerationDispatcher 的连接／费率及模型受理资格接入业务端口，生产配置不再注入
+FixedControlCatalog；历史费率按原版本独立读取。limits／线程／基础开关等环境参数仍可保留配置，不要求所有 properties 一次迁移到数据库。
 
 #### 5.4 固定配置与动态数据的过渡
 

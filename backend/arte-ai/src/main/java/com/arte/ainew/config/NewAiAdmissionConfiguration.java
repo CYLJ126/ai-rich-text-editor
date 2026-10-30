@@ -1,6 +1,8 @@
 package com.arte.ainew.config;
 
 import com.arte.ainew.api.context.ContextService;
+import com.arte.ainew.api.control.BindingManager;
+import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.entry.ChatService;
@@ -9,10 +11,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
-import com.arte.ainew.application.control.BudgetAccountInitializer;
-import com.arte.ainew.application.control.BudgetAccountQueryService;
-import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.application.control.FixedControlCatalog;
+import com.arte.ainew.application.control.*;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
@@ -209,7 +208,7 @@ public class NewAiAdmissionConfiguration {
     AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                          ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                          ObjectProvider<ToolInvocationAccess> toolInvocations) {
-        var source = sources.getIfAvailable();
+        var source = selectedSource(properties, sources);
         return new AdmissionAuthorization(resolver, properties, clock, source, scheduler, toolInvocations.getIfAvailable());
     }
 
@@ -223,48 +222,32 @@ public class NewAiAdmissionConfiguration {
     }
 
     /**
-     * 固定版本控制面，同时提供 CapabilityCatalog 和 BindingManager，并解析连接及预算定义。
-     * 装配时校验引用、Schema、费率／币种及归属；使用时检查当前授权与能力／连接启用状态。
+     * 按业务端口组合模型能力及绑定入口，不再把固定配置兼容门面注册为生产 Bean。
      */
     @Bean("newAiControlCatalog")
-    FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
-                                       ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
-                                       AiResourceEntitlementService entitlements, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
-        var source = sources.getIfAvailable();
-        return new FixedControlCatalog(properties, authorization, clock, source, scheduler, entitlements, policies, guard);
+    ModelControlService controlCatalog(NewAiProperties properties, PublishedAiCatalog published,
+                                       AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
+                                       @Qualifier("newAiClock") Clock clock) {
+        if (properties.configurationMode().equals("FIXED")) ControlDefinitionChecks.validate(properties);
+        return new ModelControlService(published, entitlements, budgets, policies, ExecutionPolicies.from(properties.limits()), clock);
     }
 
     @Bean("newAiResourceEntitlementService")
     @ConditionalOnMissingBean(AiResourceEntitlementService.class)
     AiResourceEntitlementService modelEntitlements(NewAiProperties properties, AdmissionAuthorization authorization,
                                                    ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var source = sources.getIfAvailable();
+        var source = selectedSource(properties, sources);
         return source == null ? new FixedAiResourceEntitlementService(properties, authorization)
                 : new SourceAiResourceEntitlementService(source, scheduler, authorization);
     }
 
     /**
-     * 连接定义查询门面，将 ConnectionManager 委托给固定控制面，返回当前主体可使用的固定版本连接。
-     * 单独注册以避开控制面接口同签名 resolve 方法的返回类型冲突；不创建连接或发送网络请求。
+     * 连接准备与真正发送使用同一资格、授权和请求门控端口。
      */
     @Bean("newAiConnectionManager")
-    ConnectionManager connectionManager(FixedControlCatalog catalog) {
-        return new ConnectionManager() {
-            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolve(
-                    com.arte.core.pojo.reference.DefinitionRef reference, ExecutionContext context) {
-                return catalog.resolveConnection(reference, context);
-            }
-
-            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
-                    com.arte.core.pojo.reference.DefinitionRef reference, ExecutionContext context) {
-                return catalog.resolveCurrentConnection(reference, context);
-            }
-
-            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
-                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.pojo.execution.GatewayCall<?> call) {
-                return catalog.resolveCurrentConnection(reference, call);
-            }
-        };
+    ConnectionManager connectionManager(AiResourceEntitlementService entitlements, AdmissionAuthorization authorization,
+                                        AiAdmissionAuthorizationGuard guard) {
+        return new EntitledConnectionManager(entitlements, authorization, guard);
     }
 
     /**
@@ -291,7 +274,7 @@ public class NewAiAdmissionConfiguration {
     ChatConfigurationQueryService chatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                                                 AiResourceEntitlementService entitlements, PublishedAiCatalog published,
                                                                 BudgetDefinitionProvider definitions, ObjectProvider<ModelGateway> gateway, AiExecutionPolicyProvider policies) {
-        return new ChatConfigurationQueryService(properties, authorization, entitlements, published, definitions, gateway::getIfAvailable).policyProvider(policies);
+        return new ChatConfigurationQueryService(properties, authorization, entitlements, published, definitions, gateway::getIfAvailable, policies);
     }
 
     @Bean("newAiPublishedCatalog")
@@ -299,11 +282,15 @@ public class NewAiAdmissionConfiguration {
     PublishedAiCatalog publishedCatalog(NewAiProperties properties, AdmissionAuthorization authorization,
                                         ObjectProvider<AiControlConfigurationSource> sources,
                                         @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var adapter = controlReads(properties, authorization, sources.getIfAvailable(), scheduler);
+        var adapter = controlReads(properties, authorization, selectedSource(properties, sources), scheduler);
         return new PublishedAiCatalog() {
             public <T> reactor.core.publisher.Mono<T> inSnapshot(ExecutionContext context,
                                                                  java.util.function.Function<PublishedAiDefinitions, reactor.core.publisher.Mono<T>> work) {
                 return adapter.inSnapshot(context, work);
+            }
+
+            public <T> T inCurrentTransaction(ExecutionContext context, java.util.function.Function<PublishedAiDefinitions, T> work) {
+                return adapter.inCurrentTransaction(context, work);
             }
 
             public reactor.core.publisher.Mono<RateDefinition> historicalRate(com.arte.core.pojo.reference.DefinitionRef reference) {
@@ -317,7 +304,7 @@ public class NewAiAdmissionConfiguration {
     BudgetDefinitionProvider budgetDefinitions(NewAiProperties properties, AdmissionAuthorization authorization,
                                                ObjectProvider<AiControlConfigurationSource> sources,
                                                @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var adapter = controlReads(properties, authorization, sources.getIfAvailable(), scheduler);
+        var adapter = controlReads(properties, authorization, selectedSource(properties, sources), scheduler);
         return new BudgetDefinitionProvider() {
             public Mono<List<BudgetDefinition>> available(ExecutionContext context, Operation operation) {
                 return adapter.available(context, operation);
@@ -333,7 +320,7 @@ public class NewAiAdmissionConfiguration {
     @ConditionalOnMissingBean(AiExecutionPolicyProvider.class)
     AiExecutionPolicyProvider executionPolicies(NewAiProperties properties, ObjectProvider<AiControlConfigurationSource> sources,
                                                 @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        return new ConfigurationExecutionPolicyProvider(controlReader(properties, sources.getIfAvailable(), scheduler), properties.limits());
+        return new ConfigurationExecutionPolicyProvider(controlReader(properties, selectedSource(properties, sources), scheduler), properties.limits());
     }
 
     @Bean("newAiAdmissionAuthorizationGuard")
@@ -342,8 +329,23 @@ public class NewAiAdmissionConfiguration {
                                                  AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
                                                  ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                                  @Qualifier("newAiClock") Clock clock) {
-        return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(properties, sources.getIfAvailable(), scheduler), authorization,
+        return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(properties, selectedSource(properties, sources), scheduler), authorization,
                 entitlements, budgets, policies, properties.limits(), clock);
+    }
+
+    /**
+     * 来源与显式模式必须一致，禁止因发现一个来源 Bean 而静默切换 FIXED 权限。
+     */
+    private AiControlConfigurationSource selectedSource(NewAiProperties properties, ObjectProvider<AiControlConfigurationSource> sources) {
+        var candidates = sources.orderedStream().toList();
+        if (properties.configurationMode().equals("FIXED")) {
+            if (!candidates.isEmpty())
+                throw new IllegalStateException("FIXED AI mode must not install a DATABASE control source");
+            return null;
+        }
+        if (candidates.size() != 1)
+            throw new IllegalStateException("DATABASE AI mode requires exactly one control source");
+        return candidates.getFirst();
     }
 
     private ControlConfigurationReader controlReader(NewAiProperties properties, AiControlConfigurationSource source, Scheduler scheduler) {
@@ -371,12 +373,12 @@ public class NewAiAdmissionConfiguration {
      * assemble 只构造快照，由协调器受理时持久化；find 从字节存储读取并检查当前权限及归属。
      */
     @Bean("newAiContextService")
-    ContextService contextService(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisPayloadPersistence store,
+    ContextService contextService(AdmissionAuthorization authorization, BindingManager bindings, MybatisPayloadPersistence store,
                                   NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                   ConversationService conversations, MybatisExecutionPersistence executions,
                                   ObjectProvider<ToolChatRunStore> runs, AiExecutionPolicyProvider policies) {
-        return new TextContextService(authorization, catalog, store, properties, clock,
-                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable())).policyProvider(policies);
+        return new TextContextService(authorization, bindings, store, properties, clock,
+                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()), policies);
     }
 
     /**
@@ -386,11 +388,11 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiInvocationCoordinator")
     @ConditionalOnProperty(prefix = "arte.ai-new-execution", name = "enabled", havingValue = "false", matchIfMissing = true)
-    InvocationCoordinator invocationCoordinator(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisExecutionPersistence executions,
+    InvocationCoordinator invocationCoordinator(AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings, MybatisExecutionPersistence executions,
                                                 MybatisPayloadPersistence snapshots, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                                 AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard,
                                                 PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
-        return new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, snapshots, executions, properties, clock,
+        return new AdmissionInvocationCoordinator(authorization, capabilities, bindings, executions, snapshots, executions, properties, clock,
                 policies, guard, published, definitions);
     }
 
@@ -407,7 +409,7 @@ public class NewAiAdmissionConfiguration {
      * 普通消息创建新 Turn，重新生成追加最新 Turn 的候选；均通过可靠受理事务创建独立 Invocation。
      */
     @Bean("newAiChatService")
-    ChatService chatService(AdmissionAuthorization authorization, ConversationService conversations, FixedControlCatalog bindings,
+    ChatService chatService(AdmissionAuthorization authorization, ConversationService conversations, BindingManager bindings,
                             ContextService contexts, InvocationCoordinator coordinator, @Qualifier("newAiClock") Clock clock, MybatisExecutionPersistence executions, NewAiProperties properties) {
         return new DefaultChatService(authorization, conversations, bindings, contexts, coordinator, clock, executions, executions, properties);
     }

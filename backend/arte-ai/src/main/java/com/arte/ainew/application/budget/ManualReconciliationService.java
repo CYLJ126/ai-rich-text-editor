@@ -36,8 +36,8 @@ public final class ManualReconciliationService {
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(authorized ->
                 budgetAccountQueryService.account(budgetRef, authorized).flatMap(account ->
                         reconciliationStore.pendingReconciliations(ExecutionOwners.from(authorized), budgetRef, current, size)
-                                .flatMap(page -> authorization.configurationGrant(authorized)
-                                        .map(grant -> new PendingPage(page, grant.scopes().contains(AdmissionAuthorization.BUDGET_ADMIN))))));
+                                .flatMap(page -> authorization.isOperationConfigured(authorized, AdmissionAuthorization.BUDGET_ADMIN)
+                                        .map(allowed -> new PendingPage(page, allowed)))));
     }
 
     public Mono<Reconciliation.Receipt> confirm(String budgetRef, String invocationId, long invocationVersion,

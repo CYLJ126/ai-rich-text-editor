@@ -36,9 +36,11 @@ import java.util.concurrent.TimeoutException;
 public final class DeepSeekGenerationProviderAdapter implements GenerationProviderAdapter<DeepSeekWire.Request, SseFrame> {
 
     private final List<CapabilityDescriptor> capabilities;
+    private final boolean useBuiltInSchemas;
     private final JsonMapper json;
 
     public DeepSeekGenerationProviderAdapter(List<CapabilityDescriptor> capabilities, JsonMapper json) {
+        this.useBuiltInSchemas = false;
         this.capabilities = List.copyOf(capabilities);
         this.json = json;
         for (var capability : capabilities) {
@@ -47,6 +49,15 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
                             CapabilityDescriptor.Feature.TOOL_CALLS).containsAll(capability.features()),
                     "Unsupported DeepSeek capability features");
         }
+    }
+
+    /**
+     * DATABASE 装配只登记本地已实现的 Schema 支持，精确能力版本和当前资格在运行时由业务端口解析。
+     */
+    public DeepSeekGenerationProviderAdapter(JsonMapper json) {
+        this.json = json;
+        this.capabilities = List.of();
+        this.useBuiltInSchemas = true;
     }
 
     @Override
@@ -75,8 +86,11 @@ public final class DeepSeekGenerationProviderAdapter implements GenerationProvid
                 && capability.features().containsAll(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING))
                 && Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING,
                 CapabilityDescriptor.Feature.USAGE_REPORTING, CapabilityDescriptor.Feature.TOOL_CALLS).containsAll(capability.features())
-                && capabilities.stream().anyMatch(registered -> Objects.equals(registered.inputSchema(), capability.inputSchema())
-                && Objects.equals(registered.outputSchema(), capability.outputSchema()));
+                && (useBuiltInSchemas
+                ? com.arte.ainew.infrastructure.control.ControlDefinitionChecks.INPUT_SCHEMA.equals(capability.inputSchema())
+                && com.arte.ainew.infrastructure.control.ControlDefinitionChecks.OUTPUT_SCHEMA.equals(capability.outputSchema())
+                : capabilities.stream().anyMatch(registered -> Objects.equals(registered.inputSchema(), capability.inputSchema())
+                && Objects.equals(registered.outputSchema(), capability.outputSchema())));
     }
 
     @Override

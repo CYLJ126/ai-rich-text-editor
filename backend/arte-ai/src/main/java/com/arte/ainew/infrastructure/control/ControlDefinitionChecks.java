@@ -27,6 +27,8 @@ public final class ControlDefinitionChecks {
     }
 
     public static void validate(NewAiProperties properties) {
+        ContractChecks.unique(properties.grants().stream().map(g -> List.of(g.subjectName(), g.tenantId(), g.workspaceId())).toList(), "grant identities");
+        ContractChecks.unique(properties.grants().stream().map(g -> List.of(g.subjectId(), g.tenantId(), g.workspaceId())).toList(), "stable grant identities");
         var capabilities = index(properties.capabilities(), CapabilityDescriptor::definition);
         var bindings = index(properties.bindings(), ResolvedBinding::definition);
         var connections = index(properties.connections(), ConnectionDefinition::definition);

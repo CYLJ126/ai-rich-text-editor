@@ -2,11 +2,12 @@ package com.arte.ainew.api.control;
 
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 /**
- * 为模型操作解析可信连接定义。
+ * 为模型操作解析可信连接定义
  * <p>
  * 连接定义包含版本化配置和凭据引用，不包含明文凭据。
  * 必须保留授权及连接状态检查；传输层校验仍受网络出口策略约束。
@@ -50,8 +51,7 @@ public interface ConnectionManager {
      * @param call       可信服务端调用，包含请求、已解析绑定和运行时上下文
      * @return 当前已授权的连接定义，或调用、配置错误
      */
-    default Mono<ConnectionDefinition> resolveCurrent(DefinitionRef connection,
-                                                      com.arte.ainew.pojo.execution.GatewayCall<?> call) {
+    default Mono<ConnectionDefinition> resolveCurrent(DefinitionRef connection, GatewayCall<?> call) {
         return resolveCurrent(connection, call.runtime().execution());
     }
 }

@@ -32,11 +32,19 @@ public final class ChatConfigurationQueryService {
     private final BudgetDefinitionProvider definitions;
     private AiExecutionPolicyProvider policies;
 
+    /**
+     * 旧手工装配兼容入口；生产装配使用显式业务端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          FixedControlCatalog catalog, Supplier<ModelGateway> gateway) {
         this(properties, authorization, catalog, catalog.readAdapter(), catalog.readAdapter(), gateway);
     }
 
+    /**
+     * 旧手工装配兼容入口；生产装配使用显式业务端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          FixedControlCatalog catalog, PublishedAiCatalog published,
                                          BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
@@ -47,15 +55,26 @@ public final class ChatConfigurationQueryService {
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          AiResourceEntitlementService entitlements, PublishedAiCatalog published,
                                          BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
+        this(properties, authorization, entitlements, published, definitions, gateway,
+                new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits()));
+    }
+
+    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
+                                         AiResourceEntitlementService entitlements, PublishedAiCatalog published, BudgetDefinitionProvider definitions,
+                                         Supplier<ModelGateway> gateway, AiExecutionPolicyProvider policies) {
         this.published = published;
         this.definitions = definitions;
         this.properties = properties;
         this.authorization = authorization;
         this.entitlements = entitlements;
         this.gateway = gateway;
-        this.policies = new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits());
+        this.policies = java.util.Objects.requireNonNull(policies);
     }
 
+    /**
+     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ChatConfigurationQueryService policyProvider(AiExecutionPolicyProvider policies) {
         this.policies = policies;
         return this;

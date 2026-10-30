@@ -26,6 +26,13 @@ public interface PublishedAiCatalog {
     <T> Mono<T> inSnapshot(ExecutionContext context, Function<PublishedAiDefinitions, Mono<T>> work);
 
     /**
+     * 原同库写事务中的精确发布读取范围；只提供当前内容，调用方仍须组合领域及预算授权门控。
+     */
+    default <T> T inCurrentTransaction(ExecutionContext context, Function<PublishedAiDefinitions, T> work) {
+        throw new UnsupportedOperationException("Transactional published catalog is required");
+    }
+
+    /**
      * 按预算预留记录中固定的费率版本，取得结算所需的原始费率定义。
      * 例如，预留时固定为 rate/v1，之后发布了 rate/v2，这次结算仍使用 v1。
      * <p>

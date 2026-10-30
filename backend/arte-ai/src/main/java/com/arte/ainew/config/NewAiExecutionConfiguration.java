@@ -1,10 +1,11 @@
 package com.arte.ainew.config;
 
+import com.arte.ainew.api.control.BindingManager;
+import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.execution.ExecutionControl;
 import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
@@ -59,12 +60,13 @@ public class NewAiExecutionConfiguration {
 
     @Bean("newAiGenerationDispatcher")
     @ConditionalOnBean(ModelGateway.class)
-    GenerationDispatcher dispatcher(AdmissionAuthorization authorization, FixedControlCatalog catalog,
+    GenerationDispatcher dispatcher(AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings,
                                     PublishedAiCatalog published,
                                     MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, ModelGateway gateway,
                                     NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock,
-                                    LiveTextNotifier liveText, ObjectProvider<com.arte.ainew.spi.persistence.ToolChatRunStore> runs) {
-        var dispatcher = new GenerationDispatcher(authorization, catalog, published, executions, executions, executions, payloads, payloads,
+                                    LiveTextNotifier liveText, ObjectProvider<com.arte.ainew.spi.persistence.ToolChatRunStore> runs,
+                                    AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
+        var dispatcher = new GenerationDispatcher(authorization, capabilities, bindings, published, policies, guard, executions, executions, executions, payloads, payloads,
                 executions, gateway, admission, execution, clock, liveText);
         var store = runs.getIfAvailable();
         return store == null ? dispatcher : dispatcher.toolChats(store);
@@ -72,12 +74,12 @@ public class NewAiExecutionConfiguration {
 
     @Bean("newAiInvocationCoordinator")
     InvocationCoordinator coordinator(ObjectProvider<GenerationDispatcher> dispatcher, ObjectProvider<ToolDispatcher> tools,
-                                      AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                      AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings,
                                       MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads,
                                       NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                       AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard,
                                       PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
-        var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock, policies, guard, published, definitions);
+        var admission = new AdmissionInvocationCoordinator(authorization, capabilities, bindings, executions, payloads, executions, properties, clock, policies, guard, published, definitions);
         return new DefaultInvocationCoordinator(admission, dispatcher.getIfAvailable(), executions, tools.getIfAvailable());
     }
 

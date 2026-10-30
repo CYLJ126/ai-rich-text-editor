@@ -1,12 +1,11 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
@@ -436,7 +435,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (catalog.bindings().stream().anyMatch(b -> b.definition().version().equalsIgnoreCase("latest")))
             throw new IllegalArgumentException("Published models require fixed versions");
         var properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
-        new FixedControlCatalog(properties, new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock), clock);
+        ControlDefinitionChecks.validate(properties);
         for (var ref : preset.bindings()) {
             var binding = catalog.bindings().stream().filter(b -> b.definition().equals(ref)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published model"));
             if (preset.budgets().stream().noneMatch(b -> b.rate().equals(binding.rate())))

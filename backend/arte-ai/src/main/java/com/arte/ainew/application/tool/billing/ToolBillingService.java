@@ -50,6 +50,10 @@ public final class ToolBillingService {
     private final ExecutionStore executions;
     private final ToolBillingStore bills;
 
+    /**
+     * 旧手工装配兼容入口；生产装配使用显式业务端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ToolBillingService(AdmissionAuthorization authorization, FixedControlCatalog catalog, BudgetService budgets,
                               ExecutionStore executions, ToolBillingStore bills) {
         this(authorization, catalog.readAdapter(), catalog.readAdapter(), budgets, executions, bills);

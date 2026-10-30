@@ -65,20 +65,41 @@ public final class ToolChatService {
     private AiExecutionPolicyProvider policies;
     private AiAdmissionAuthorizationGuard modelGuard;
 
+    /**
+     * 旧手工装配兼容入口；生产装配使用显式业务端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
                            FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                            AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
                            Supplier<ModelGateway> gateway) {
         this(runs, conversations, catalogStore, catalog.entitlementAdapter(), contexts, sets, budgets,
-                authorization, access, properties, clock, gateway);
-        this.policies = catalog.policyProvider();
-        this.modelGuard = catalog.admissionGuard();
+                authorization, access, properties, clock, gateway, catalog.policyProvider(), catalog.admissionGuard());
     }
 
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
                            AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                            AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
                            Supplier<ModelGateway> gateway) {
+        this(runs, conversations, catalogStore, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateway,
+                new FixedControlCatalog(properties, authorization, clock, null, null, entitlements));
+    }
+
+    /**
+     * 旧手工装配的来源桥，完整生产构造器不经过此路径。
+     */
+    private ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
+                            AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
+                            AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
+                            Supplier<ModelGateway> gateway, FixedControlCatalog compatibility) {
+        this(runs, conversations, catalogStore, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateway,
+                compatibility.policyProvider(), compatibility.admissionGuard());
+    }
+
+    public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
+                           AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
+                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
+                           Supplier<ModelGateway> gateway, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         this.runs = runs;
         this.conversations = conversations;
         this.catalogStore = catalogStore;
@@ -91,11 +112,14 @@ public final class ToolChatService {
         this.properties = properties;
         this.clock = clock;
         this.gateway = gateway;
-        var compatibility = new FixedControlCatalog(properties, authorization, clock, null, null, entitlements);
-        this.policies = compatibility.policyProvider();
-        this.modelGuard = compatibility.admissionGuard();
+        this.policies = java.util.Objects.requireNonNull(policies);
+        this.modelGuard = java.util.Objects.requireNonNull(guard);
     }
 
+    /**
+     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public ToolChatService boundaryPorts(AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         this.policies = policies;
         this.modelGuard = guard;

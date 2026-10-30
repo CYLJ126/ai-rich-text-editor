@@ -9,6 +9,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.AiEntitlement;
 import com.arte.ainew.pojo.control.AiExecutionPolicy;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
@@ -87,15 +88,18 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
                             }
                             // 读取本次适用政策并与部署上限取交集，复核输入、输出、执行期限和快照约束。
                             return policies.current(current).map(value -> {
-                                InvocationRequest<?> refreshed = new InvocationRequest<>(request.capability(), request.binding(), request.kind(), request.input(), request.options(), current);
-                                ExecutionPolicyChecks.require(new Check(refreshed, check.binding(), check.snapshot(), check.tools(), check.boundary(), check.budgetRef()), value.intersect(ceiling), clock);
+                                // 借助 ExecutionPolicyChecks 对调用请求做共用政策检查
+                                InvocationRequest<?> refreshed = new InvocationRequest<>(request.capability(), request.binding(),
+                                        request.kind(), request.input(), request.options(), current);
+                                ExecutionPolicyChecks.require(new Check(refreshed, check.binding(), check.snapshot(),
+                                        check.tools(), check.boundary(), check.budgetRef()), value.intersect(ceiling), clock);
                                 // 返回绑定原请求的内存许可，供实际写事务再次复核并取得本次已核验的连接。
                                 return (Permit) new Permit() {
                                     public void requireInCurrentTransaction(InvocationRequest<?> actual) {
                                         require(check, entitlement, actual);
                                     }
 
-                                    public com.arte.ainew.pojo.control.ConnectionDefinition connection() {
+                                    public ConnectionDefinition connection() {
                                         return entitlement.connection();
                                     }
                                 };

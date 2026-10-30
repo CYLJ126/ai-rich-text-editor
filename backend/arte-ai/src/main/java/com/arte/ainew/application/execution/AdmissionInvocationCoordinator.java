@@ -55,11 +55,15 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     private final ExecutionStore executionStore;
     private final NewAiProperties properties;
     private final Clock clock;
-    private AiExecutionPolicyProvider policies;
-    private AiAdmissionAuthorizationGuard guard;
-    private PublishedAiCatalog published;
-    private BudgetDefinitionProvider definitions;
+    private final AiExecutionPolicyProvider policies;
+    private final AiAdmissionAuthorizationGuard guard;
+    private final PublishedAiCatalog published;
+    private final BudgetDefinitionProvider definitions;
 
+    /**
+     * 旧手工装配兼容入口；生产构造器显式传入全部控制面端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public AdmissionInvocationCoordinator(AdmissionAuthorization admissionAuthorization, CapabilityCatalog capabilityCatalog, BindingManager bindingManager,
                                           BudgetService budgetService, ContextSnapshotStore contextSnapshotStore, ExecutionStore executionStore,
                                           NewAiProperties properties, Clock clock) {
@@ -105,7 +109,14 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     public AdmissionInvocationCoordinator(AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings,
                                           BudgetService budgets, ContextSnapshotStore snapshots, ExecutionStore executions, NewAiProperties properties, Clock clock,
                                           AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard, PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
-        this(authorization, capabilities, bindings, budgets, snapshots, executions, properties, clock);
+        this.admissionAuthorization = authorization;
+        this.capabilityCatalog = capabilities;
+        this.bindingManager = bindings;
+        this.budgetService = budgets;
+        this.contextSnapshotStore = snapshots;
+        this.executionStore = executions;
+        this.properties = properties;
+        this.clock = clock;
         this.policies = policies;
         this.guard = guard;
         this.published = published;

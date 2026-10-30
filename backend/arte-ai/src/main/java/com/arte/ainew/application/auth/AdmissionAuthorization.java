@@ -418,6 +418,17 @@ public final class AdmissionAuthorization {
         return grant(properties, context);
     }
 
+    /**
+     * 展示当前可信配置是否授予某项操作权限，不扩展本次上下文的权限集合；真正执行仍须重新授权。
+     */
+    public Mono<Boolean> isOperationConfigured(ExecutionContext context, String scope) {
+        return configurationGrant(context).map(grant -> grant.scopes().contains(scope));
+    }
+
+    /**
+     * 迁移桥内部读取授权配置，业务调用方使用操作授权方法或独立的资格／预算端口。
+     */
+    @Deprecated(since = "control-ports-batch-4")
     public Mono<Grant> configurationGrant(ExecutionContext context) {
         return Mono.deferContextual(values -> {
             var preparation = ControlPreparation.find(values, context);
