@@ -42,7 +42,9 @@ public final class PlatformJson {
                     Map.entry("ai:catalog:view:v1", AiControlData.CatalogView.class),
                     Map.entry("resource:access:v1", com.arte.core.pojo.access.ResourceAccessViews.AccessView.class),
                     Map.entry("resource:grant:v1", com.arte.core.pojo.access.ResourceAccessViews.GrantResult.class),
-                    Map.entry("resource:void:v1", Void.class));
+                    Map.entry("resource:void:v1", Void.class),
+                    Map.entry("model:resource:v1", com.arte.ainew.pojo.model.ModelResource.class),
+                    Map.entry("model:version:v1", com.arte.ainew.pojo.model.ModelResourceVersion.class));
 
     public String write(Object value) {
         return mapper.writeValueAsString(value);

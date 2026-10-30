@@ -12,7 +12,8 @@ HTTP 属于后续三批；不改现有 FIXED／DATABASE 来源，不迁移旧资
 - `ResourceGrantStoreServiceImpl` 经平台专用 MyBatis Mapper 访问物理 appDataSource，参与既有事务，不使用旧创建人过滤／路由库。
 - app 组合 `ResourceDescriptorProvider`、`DomainAccessConditionProvider`；core 不引用 AI
   类型。每种资源类型及每个资源类型／动作对必须各有一个必要提供者，缺失、冲突或无法读取时拒绝。
-- 生产装配没有测试领域适配器；本批不会使现有模型或文章自动获得公共资源授权。
+- 生产装配没有测试领域适配器；后续第 2 批已增加真实 MODEL
+  领域适配和新资源登记，见[模型资源映射](MODEL_RESOURCE_MAPPING.md)。旧模型及文章不会自动获得公共资源授权。
 
 ## 范围及判定
 
@@ -88,3 +89,5 @@ mvn -o -pl arte-app -am -Dtest=ResourceAclIntegrationTest -Dsurefire.failIfNoSpe
 MySQL 专项在同一命令中额外传入专用测试实例的
 `-Dplatform.acl.test.mysql=jdbc:mysql://127.0.0.1:<隔离端口>/mysql?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true`，
 整个参数应加单引号避免 shell 解释连接参数。仅使用测试用户名 root／测试密码 platform-test 的隔离实例。
+
+第 2 批已提供稳定模型身份和版本映射，见[模型资源映射](MODEL_RESOURCE_MAPPING.md)；第 1 批历史验收范围与计数保持原记录。

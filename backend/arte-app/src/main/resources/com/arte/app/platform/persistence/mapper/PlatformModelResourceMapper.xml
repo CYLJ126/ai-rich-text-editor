@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformModelResourceMapper">
+    <select id="resource" resultType="com.arte.app.pojo.platform.PlatformModelResourceDto">
+        SELECT * FROM arte_ai_model_resource WHERE resource_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <insert id="insertResource">
+        INSERT INTO arte_ai_model_resource(resource_key,tenant_id,resource_id,workspace_id,payload,version)
+        VALUES(#{row.resourceKey},#{row.tenantId},#{row.resourceId},#{row.workspaceId},#{row.payload},#{row.version})
+    </insert>
+    <update id="replaceResource">
+        UPDATE arte_ai_model_resource SET payload=#{row.payload},version=#{row.version}
+        WHERE resource_key=#{row.resourceKey} AND tenant_id=#{row.tenantId} AND resource_id=#{row.resourceId} AND
+        workspace_id=#{row.workspaceId} AND version=#{expected}
+    </update>
+    <select id="binding" resultType="com.arte.app.pojo.platform.PlatformModelVersionDto">
+        SELECT * FROM arte_ai_model_version WHERE binding_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <insert id="insertVersion">
+        INSERT INTO
+        arte_ai_model_version(binding_key,resource_key,tenant_id,binding_id,binding_version,snapshot_digest,payload)
+        VALUES(#{row.bindingKey},#{row.resourceKey},#{row.tenantId},#{row.bindingId},#{row.bindingVersion},#{row.snapshotDigest},#{row.payload})
+    </insert>
+    <select id="currentVersionKeys" resultType="string">
+        SELECT binding_key FROM arte_ai_model_version WHERE resource_key=#{key} ORDER BY binding_key LIMIT 10001 FOR
+        UPDATE
+    </select>
+    <select id="versions" resultType="com.arte.app.pojo.platform.PlatformModelVersionDto">
+        SELECT * FROM arte_ai_model_version WHERE resource_key=#{key} ORDER BY binding_key LIMIT #{size} OFFSET
+        #{offset} FOR UPDATE
+    </select>
+    <select id="authority" resultType="map">
+        SELECT definition_type AS "definitionType",definition_id AS "definitionId",definition_version AS
+        "definitionVersion",source AS "source",content_digest AS "digest"
+        FROM arte_ai_model_definition_source WHERE definition_key=#{key} FOR UPDATE
+    </select>
+    <insert id="insertAuthority">
+        INSERT INTO
+        arte_ai_model_definition_source(definition_key,definition_type,definition_id,definition_version,source,content_digest)
+        VALUES(#{key},#{type},#{id},#{version},#{source},#{digest})
+    </insert>
+</mapper>

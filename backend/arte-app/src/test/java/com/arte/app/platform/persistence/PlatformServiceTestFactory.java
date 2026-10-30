@@ -27,6 +27,10 @@ final class PlatformServiceTestFactory {
         this.session = config.platformMapperSession(source, properties);
     }
 
+    ModelResourceStoreServiceImpl models() {
+        return new ModelResourceStoreServiceImpl(config.platformModelResourceMapper(session), tx, json);
+    }
+
     ResourceGrantStoreServiceImpl grants() {
         return new ResourceGrantStoreServiceImpl(config.platformResourceAclMapper(session), tx, json);
     }
