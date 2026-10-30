@@ -12,6 +12,7 @@ import com.arte.ainew.common.execution.LiveTextDelta;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.infrastructure.http.GenerationException;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
@@ -22,6 +23,8 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.*;
@@ -57,6 +60,8 @@ public final class GenerationDispatcher {
     private final AdmissionAuthorization admissionAuthorization;
     private final FixedControlCatalog fixedControlCatalog;
     private final PublishedAiCatalog publishedCatalog;
+    private AiAdmissionAuthorizationGuard admissionGuard;
+    private AiExecutionPolicyProvider policies;
     private final ExecutionStore executionStore;
     private final ExecutionEventStore executionEventStore;
     private final ExecutionOutboxStore executionOutboxStore;
@@ -104,6 +109,8 @@ public final class GenerationDispatcher {
         this.liveTextNotifier = liveTextNotifier;
         this.admissionAuthorization = admissionAuthorization;
         this.fixedControlCatalog = fixedControlCatalog;
+        this.admissionGuard = fixedControlCatalog.admissionGuard();
+        this.policies = fixedControlCatalog.policyProvider();
         this.executionStore = executionStore;
         this.executionEventStore = executionEventStore;
         this.executionOutboxStore = executionOutboxStore;
@@ -206,7 +213,7 @@ public final class GenerationDispatcher {
     private Mono<Void> prepareAndStart(Invocation invocation, OutboxMessage message, ExecutionRuntimeContext runtime,
                                        InvocationTiming timing, InvocationRequest<?> persisted, GenerationRequest generation,
                                        com.arte.ainew.common.execution.ExecutionContext current) {
-        return Mono.defer(() -> {
+        return policies.current(current).flatMap(policy -> Mono.defer(() -> {
                     var request = new InvocationRequest<>(persisted.capability(), persisted.binding(), persisted.kind(),
                             generation, persisted.options(), current);
                     return fixedControlCatalog.validate(request).then(fixedControlCatalog.resolve(request.binding(), request.capability(), current))
@@ -218,23 +225,24 @@ public final class GenerationDispatcher {
                                         }
                                         Mono<java.util.Optional<com.arte.ainew.pojo.tool.ToolSetSnapshot>> tools;
                                         if (current.parentExecutionId() == null) {
-                                            TextInputs.verify(snapshot, binding, newAiProperties.limits());
+                                            TextInputs.verify(snapshot, binding, ExecutionPolicies.legacy(policy.intersect(ExecutionPolicies.from(newAiProperties.limits()))));
                                             tools = Mono.just(java.util.Optional.empty());
                                         } else {
                                             if (toolChats == null)
                                                 throw new AdmissionException(ResultCodeEnum.AI_DISPATCH_NOT_ENABLED);
                                             tools = toolChats.snapshot(message.owner(), current.parentExecutionId())
                                                     .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND))).map(root -> {
-                                                        com.arte.ainew.application.tool.chat.ToolChatInputs.verify(snapshot, root.tools(), newAiProperties.limits());
+                                                        com.arte.ainew.application.tool.chat.ToolChatInputs.verify(snapshot, root.tools(), ExecutionPolicies.legacy(policy.intersect(ExecutionPolicies.from(newAiProperties.limits()))));
                                                         if (!root.model().equals(binding) || !root.tools().descriptions().equals(generation.tools()))
                                                             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
                                                         return java.util.Optional.of(root.tools());
                                                     });
                                         }
-                                        return tools.flatMap(set -> publishedCatalog.rate(binding.rate(), current).map(rate -> new Prepared(request, binding, snapshot,
-                                                new ExecutionRuntimeContext(current, runtime.cancellation()), rate, set.orElse(null))));
+                                        return tools.flatMap(set -> publishedCatalog.rate(binding.rate(), current).flatMap(rate ->
+                                                admissionGuard.authorize(new AiAdmissionAuthorizationGuard.Check(request, binding, snapshot, set.orElse(null), AiAdmissionAuthorizationGuard.Boundary.DISPATCH))
+                                                        .map(permit -> new Prepared(request, binding, snapshot, new ExecutionRuntimeContext(current, runtime.cancellation()), rate, set.orElse(null), permit, permit.connection().providerId()))));
                                     }));
-                })
+                }))
                 .onErrorResume(error -> predictable(error)
                         ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
                 .doOnNext(prepared -> timing.mark("PREFLIGHT_READY"))
@@ -244,12 +252,12 @@ public final class GenerationDispatcher {
                             && budgetService == executionStore && executionOutboxStore == executionStore)
                         return startAtomically(invocation, message, prepared, timing, atomic);
                     return executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied)
-                                .then(invocation.activeAttemptId() == null ? Mono.just(1)
-                                        : executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
-                                        .map(previous -> previous.attemptNumber() + 1))
-                                .flatMap(number -> executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
-                                        CanonicalJson.key(message.invocationId(), "attempt-" + number), message.workerId(), newAiExecutionProperties.attemptLease())))
-                                .flatMap(GenerationDispatcher::applied)
+                            .then(invocation.activeAttemptId() == null ? Mono.just(1)
+                                    : executionStore.findAttempt(message.owner(), message.invocationId(), invocation.activeAttemptId())
+                                    .map(previous -> previous.attemptNumber() + 1))
+                            .flatMap(number -> executionStore.createAttempt(new ExecutionCommands.CreateAttempt(version(invocation),
+                                    CanonicalJson.key(message.invocationId(), "attempt-" + number), message.workerId(), newAiExecutionProperties.attemptLease())))
+                            .flatMap(GenerationDispatcher::applied)
                             .flatMap(attempt -> new Session(invocation, message, prepared, attempt, timing.withAttempt(attempt.attemptId())).run());
                 }));
     }
@@ -265,10 +273,10 @@ public final class GenerationDispatcher {
                 .flatMap(number -> {
                     long started = System.nanoTime();
                     timing.mark("DISPATCH_PREPARATION_STARTED");
-                    return store.prepareDispatch(new DispatchPreparationStore.Command(version(invocation), message,
-                                    CanonicalJson.key(message.invocationId(), "attempt-" + number), newAiExecutionProperties.attemptLease(),
-                                    new DispatchPreparationStore.Charge(amount, prepared.binding().rate(),
-                                            newAiExecutionProperties.reservationRetention())))
+                    DispatchPreparationStore.Command command = new DispatchPreparationStore.Command(version(invocation), message,
+                            CanonicalJson.key(message.invocationId(), "attempt-" + number), newAiExecutionProperties.attemptLease(),
+                            new DispatchPreparationStore.Charge(amount, prepared.binding().rate(), newAiExecutionProperties.reservationRetention()));
+                    return store.prepareDispatch(command, () -> prepared.permit().requireInCurrentTransaction(prepared.request()))
                             .doOnNext(result -> {
                                 if (result.successful()) timing.mark("DISPATCH_PREPARATION_COMMITTED", started, 0);
                             });
@@ -298,7 +306,8 @@ public final class GenerationDispatcher {
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
                             ContextSnapshot snapshot, ExecutionRuntimeContext runtime, RateDefinition rate,
-                            com.arte.ainew.pojo.tool.ToolSetSnapshot tools) {
+                            com.arte.ainew.pojo.tool.ToolSetSnapshot tools, AiAdmissionAuthorizationGuard.Permit permit,
+                            String providerId) {
     }
 
     private Mono<Void> rejectBeforeAttempt(Invocation invocation, Throwable error) {
@@ -467,7 +476,7 @@ public final class GenerationDispatcher {
                     .doOnNext(ignored -> timing.mark("BUDGET_RESERVED"))
                     .then(executionOutboxStore.validateClaim(message).flatMap(GenerationDispatcher::applied))
                     .then(guarded(guard -> executionStore.markDispatch(new ExecutionCommands.Dispatch(guard,
-                            CanonicalJson.key(claimed.attemptId(), "remote-request"))), 3))
+                            CanonicalJson.key(claimed.attemptId(), "remote-request")), () -> prepared.permit().requireInCurrentTransaction(prepared.request())), 3))
                     .doOnNext(ignored -> timing.mark("DISPATCH_MARKED"))
                     .flatMap(attempt -> consume(new GatewayCall<>(prepared.request(), prepared.binding(), attempt, prepared.runtime())))
                     .flatMap(this::finish);
@@ -634,8 +643,7 @@ public final class GenerationDispatcher {
                 }
                 // 取消可能在供应商聚合终态之前切断流；只保存已提交批次中的文字作为部分结果。
                 if (result == null && ending instanceof GenerationSignal.Failure failure && failure.error().code().equals("INVOCATION_CANCELLED") && !text.toString().isBlank()) {
-                    var provider = newAiProperties.connections().stream()
-                            .filter(connection -> connection.definition().equals(prepared.binding().connection())).findFirst().orElseThrow().providerId();
+                    var provider = prepared.providerId();
                     result = new ModelResult(CanonicalJson.key(message.invocationId(), claimed.attemptId(), "cancelled-result"),
                             new ModelResult.ModelIdentity(provider, prepared.binding().remoteOperation(), null),
                             List.of(new ChatMessage(CanonicalJson.key(claimed.attemptId(), "cancelled-output"), ChatMessage.Role.ASSISTANT,
@@ -647,8 +655,7 @@ public final class GenerationDispatcher {
                             .filter(ChatMessage.Text.class::isInstance).map(ChatMessage.Text.class::cast)
                             .map(ChatMessage.Text::text).reduce("", String::concat);
                     boolean valid = result.structuredOutput() == null && result.sources().isEmpty()
-                            && result.model().providerId().equals(newAiProperties.connections().stream()
-                            .filter(connection -> connection.definition().equals(prepared.binding().connection())).findFirst().orElseThrow().providerId())
+                            && result.model().providerId().equals(prepared.providerId())
                             && result.outputs().stream().allMatch(value -> (value.toolCalls().isEmpty() || prepared.tools() != null
                             && value.toolCalls().stream().allMatch(c -> prepared.tools().entries().stream().anyMatch(e -> e.binding().tool().tool().definition().equals(c.tool()))))
                             && value.content().stream().allMatch(ChatMessage.Text.class::isInstance))

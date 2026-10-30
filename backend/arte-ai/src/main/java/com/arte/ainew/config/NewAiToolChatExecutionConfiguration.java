@@ -4,13 +4,17 @@ import com.arte.ainew.api.context.ContextService;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.execution.GenerationDispatcher;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.chat.*;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.ToolChatAccess;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -44,19 +48,19 @@ public class NewAiToolChatExecutionConfiguration {
     ToolChatService toolChatService(ToolChatRunStore runs, ConversationService conversations, MybatisExecutionPersistence executions,
                                     AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                                     AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties,
-                                    @Qualifier("newAiClock") Clock clock,
-                                    ObjectProvider<ModelGateway> gateways) {
-        return new ToolChatService(runs, conversations, executions, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable);
+                                    @Qualifier("newAiClock") Clock clock, ObjectProvider<ModelGateway> gateways, AiExecutionPolicyProvider policies,
+                                    AiAdmissionAuthorizationGuard guard) {
+        return new ToolChatService(runs, conversations, executions, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable).boundaryPorts(policies, guard);
     }
 
     @Bean
     ToolChatCoordinator toolChatCoordinator(ToolChatRunStore runs, MybatisExecutionPersistence executions, MybatisPayloadPersistence results,
                                             InvocationCoordinator invocations, ToolAdmissionService tools, ToolChatBudgetSelector budgets,
-                                            AdmissionAuthorization authorization, ToolChatAccess access, com.arte.ainew.spi.persistence.ToolAdmissionStore toolSnapshots, NewAiProperties properties,
-                                            @Qualifier("newAiClock") Clock clock, NewAiToolChatProperties chat,
-                                            com.arte.ainew.application.execution.GenerationDispatcher generation) {
+                                            AdmissionAuthorization authorization, ToolChatAccess access, ToolAdmissionStore toolSnapshots,
+                                            NewAiProperties properties, @Qualifier("newAiClock") Clock clock, NewAiToolChatProperties chat,
+                                            GenerationDispatcher generation, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         generation.toolChats(runs);
-        return new ToolChatCoordinator(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, chat.pollInterval());
+        return new ToolChatCoordinator(runs, executions, results, invocations, tools, budgets, authorization, access, toolSnapshots, properties, clock, chat.pollInterval()).boundaryPorts(policies, guard);
     }
 
     @Bean

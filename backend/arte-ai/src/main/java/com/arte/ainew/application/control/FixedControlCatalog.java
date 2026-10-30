@@ -4,6 +4,7 @@ import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.ExecutionPolicyChecks;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
@@ -14,7 +15,10 @@ import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.pojo.tool.ToolSetSnapshot;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.core.enums.ResultCodeEnum;
@@ -46,6 +50,8 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     private Scheduler scheduler;
     private ControlConfigurationReader reader;
     private AiResourceEntitlementService entitlements;
+    private AiExecutionPolicyProvider policies;
+    private AiAdmissionAuthorizationGuard admissionGuard;
 
     public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock) {
         ControlDefinitionChecks.validate(properties);
@@ -54,6 +60,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         this.authorization = authorization;
         this.clock = clock;
         this.entitlements = new FixedAiResourceEntitlementService(properties, authorization);
+        configureBoundaryPorts();
     }
 
     public FixedControlCatalog(NewAiProperties infrastructure, AdmissionAuthorization authorization, Clock clock,
@@ -63,6 +70,7 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         this.scheduler = Objects.requireNonNull(scheduler);
         this.reader = new ControlConfigurationReader(source, scheduler);
         this.entitlements = new SourceAiResourceEntitlementService(source, scheduler, authorization);
+        configureBoundaryPorts();
     }
 
     /**
@@ -77,26 +85,53 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
             this.reader = new ControlConfigurationReader(source, scheduler);
         }
         this.entitlements = Objects.requireNonNull(entitlements);
+        configureBoundaryPorts();
+    }
+
+    public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock,
+                               AiControlConfigurationSource source, Scheduler scheduler, AiResourceEntitlementService entitlements,
+                               AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard admissionGuard) {
+        this(properties, authorization, clock, source, scheduler, entitlements);
+        this.policies = Objects.requireNonNull(policies);
+        this.admissionGuard = Objects.requireNonNull(admissionGuard);
+    }
+
+    private void configureBoundaryPorts() {
+        policies = new ConfigurationExecutionPolicyProvider(reader, properties.limits());
+        admissionGuard = new ConfigurationAiAdmissionAuthorizationGuard(reader, authorization, entitlements, readAdapter(), policies, properties.limits(), clock);
+    }
+
+    public AiExecutionPolicyProvider policyProvider() {
+        return policies;
+    }
+
+    public AiAdmissionAuthorizationGuard admissionGuard() {
+        return admissionGuard;
     }
 
     public Mono<NewAiProperties> configuration(ExecutionContext context) {
         return reader.read(context);
     }
 
-    /** 手工装配旧调用方的迁移桥；生产服务通过独立 SPI 注入。 */
+    /**
+     * 手工装配旧调用方的迁移桥；生产服务通过独立 SPI 注入。
+     */
     public ControlReadAdapter readAdapter() {
         return source == null ? new FixedControlReadAdapter(properties, authorization)
                 : new SourceControlReadAdapter(source, scheduler, authorization);
     }
 
     public AiResourceEntitlementService entitlementAdapter() {
-        return entitlements; }
+        return entitlements;
+    }
 
     public List<NewAiProperties.Rate> rates() {
         return source == null ? properties.rates() : source.definitions().rates();
     }
 
-    /** 旧快照手工装配兼容入口，生产发现及解析不再创建临时固定授权解析器。 */
+    /**
+     * 旧快照手工装配兼容入口，生产发现及解析不再创建临时固定授权解析器。
+     */
     public FixedControlCatalog fromSnapshot(NewAiProperties value) {
         var snapshotAuthorization = new AdmissionAuthorization(
                 new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(value), value, clock);
@@ -122,7 +157,9 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         return entitlements.resolveConnection(reference, context);
     }
 
-    /** 发送边界不复用发现时的允许结论。 */
+    /**
+     * 发送边界不复用发现时的允许结论。
+     */
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference, ExecutionContext context) {
         if (source == null) return resolveConnection(reference, context);
         return authorization.revalidate(context, current -> resolveConnection(reference, current));
@@ -130,16 +167,12 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
 
     public Mono<ConnectionDefinition> resolveCurrentConnection(DefinitionRef reference,
                                                                com.arte.ainew.pojo.execution.GatewayCall<?> call) {
-        return authorization.revalidate(call.runtime().execution(), current -> {
-            var original = call.request();
-            var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(),
-                    original.input(), original.options(), current);
-            return resolve(request.binding(), request.capability(), current).flatMap(binding -> {
-                if (!binding.equals(call.binding()) || !binding.connection().equals(reference))
-                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
-                return validate(request).then(resolveConnection(reference, current));
-            });
-        });
+        if (!call.binding().connection().equals(reference)) {
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
+        }
+        return Mono.deferContextual(values -> admissionGuard.authorize(new AiAdmissionAuthorizationGuard.Check(call.request(), call.binding(), null,
+                        values.getOrDefault(ToolSetSnapshot.class, null), AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND))
+                .map(AiAdmissionAuthorizationGuard.Permit::connection));
     }
 
     @Override
@@ -173,19 +206,13 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
                     return readAdapter().resolve(current.budgetRef(), current, BudgetDefinitionProvider.Operation.EXECUTE)
                             .onErrorMap(AdmissionException.class, error -> error.getResultCode() == ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE
                                     ? new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE) : error)
-                            .flatMap(budget -> Mono.fromRunnable(() -> {
+                            .flatMap(budget -> {
                                 if (!budget.rate().equals(binding.rate()))
-                                    throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);
-                                var options = request.options();
-                                if (generation.tools().isEmpty() && (options.maxToolSteps() != 0 || options.maxConcurrentTools() != 0)
-                                        || options.maxOutputBytes() > configuration.limits().maxOutputBytes()
-                                        || generation.options().maxOutputTokens() > configuration.limits().maxOutputTokens())
-                                    throw new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED);
-                                var maximum = options.requestedTimeout() == null ? configuration.limits().maximumTimeout() : options.requestedTimeout();
-                                if (maximum.compareTo(configuration.limits().maximumTimeout()) > 0
-                                        || options.deadline().isAfter(clock.instant().plus(maximum)))
-                                    throw new AdmissionException(ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED);
-                            }));
+                                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
+                                return policies.current(current).doOnNext(policy -> ExecutionPolicyChecks.require(
+                                        new AiAdmissionAuthorizationGuard.Check(request, binding, null, null, AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND),
+                                        policy.intersect(ExecutionPolicies.from(properties.limits())), clock)).then();
+                            });
                 }));
     }
 }

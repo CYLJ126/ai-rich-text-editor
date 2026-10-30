@@ -254,6 +254,59 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
+    void replacingPolicyPortControlsDiscoveryAndFinalAdmissionInThePhysicalTransaction() {
+        var scope = f.initialize().value().workspace().scope();
+        var advertisedTokens = new java.util.concurrent.atomic.AtomicInteger(64);
+        var checked = new java.util.concurrent.atomic.AtomicInteger();
+        var policies = new com.arte.ainew.spi.control.AiExecutionPolicyProvider() {
+            private com.arte.ainew.pojo.control.AiExecutionPolicy policy(int tokens) {
+                return new com.arte.ainew.pojo.control.AiExecutionPolicy(65536, tokens, 1000000, Duration.ofSeconds(120), Duration.ofMinutes(10));
+            }
+
+            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.AiExecutionPolicy> current(ExecutionContext ctx) {
+                return reactor.core.publisher.Mono.fromSupplier(() -> policy(advertisedTokens.get()));
+            }
+
+            public com.arte.ainew.pojo.control.AiExecutionPolicy inCurrentTransaction(ExecutionContext ctx) {
+                assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.hasResource(f.source));
+                checked.incrementAndGet();
+                return policy(64);
+            }
+        };
+        context().withBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class, () -> policies).run(c -> {
+            assertNull(c.getStartupFailure());
+            assertSame(policies, c.getBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class));
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("custom-policy-import"));
+            db.ensure(f.actor, scope);
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-policy-call");
+            var option = c.getBean(ChatConfigurationQueryService.class).discover(ctx).block(WAIT).options().getFirst();
+            assertEquals(64, option.limits().maxOutputTokens());
+            var submissionContext = new ExecutionContext(ctx.executionId(), ctx.traceId(), ctx.authorization(), ctx.deadline(), null,
+                    option.budgetRefs().getFirst(), ctx.releaseRef(), ctx.idempotencyKey());
+            var conversation = c.getBean(ConversationService.class).create("Policy tightening", null, List.of(),
+                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "policy-conversation")).block(WAIT);
+            // 异步预检暂时仍允许 128；真正写入时的当前政策已收紧为 64。
+            advertisedTokens.set(512);
+            var message = new com.arte.ainew.pojo.generation.ChatMessage("policy-message", com.arte.ainew.pojo.generation.ChatMessage.Role.USER,
+                    List.of(new com.arte.ainew.pojo.generation.ChatMessage.Text("hello")), List.of(), null);
+            var input = new com.arte.ainew.pojo.context.ContextRequest(List.of(message), null, List.of(), List.of(), null,
+                    new com.arte.ainew.pojo.context.ContextBudget(65536, 32768, 512, 0));
+            var request = new com.arte.ainew.pojo.entry.EntryRequests.Chat(conversation.conversationId(), 0, null, null, input,
+                    option.capability(), option.binding(), new com.arte.ainew.pojo.generation.GenerationOptions(128, null, null, List.of()),
+                    new com.arte.ainew.pojo.execution.ExecutionOptions(submissionContext.deadline(), 1, 1000000, 0, 0, Duration.ofSeconds(60)));
+            var failure = assertThrows(com.arte.ainew.application.support.AdmissionException.class,
+                    () -> c.getBean(com.arte.ainew.api.entry.ChatService.class).submit(request, submissionContext).block(WAIT));
+            assertEquals(com.arte.core.enums.ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED, failure.getResultCode());
+            assertEquals(1, checked.get());
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox", Integer.class));
+        });
+    }
+
+    @Test
     void capabilityUpgradeAppendsImmutableVersionsAndRequiresExplicitWorkspaceSelection() {
         var scope = f.initialize().value().workspace().scope();
         context().run(c -> {
@@ -619,9 +672,9 @@ class DatabaseAiControlIntegrationTest {
         assertEquals(1, calls.get());
         assertEquals(com.arte.ainew.pojo.execution.Invocation.State.SUCCEEDED,
                 executions.find(message.owner(), message.invocationId()).block(WAIT).state());
-        // Attempt/budget/fencing transactions are deliberately left for the next batch.
+        // 预检、原子派发写事务、实际发送分别复核；同一次事务内的模型／预算／政策共享当前配置。
         assertTrue(beforeText.get() <= 140, "dispatch preparation SQL=" + beforeText.get());
-        assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
+        assertEquals(3, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
                 && q.toUpperCase().contains("FOR UPDATE")).count());
         System.out.println("DISPATCH_BEFORE_FIRST_TEXT_SQL_COUNT=" + beforeText.get());
         System.out.println("DISPATCH_BEFORE_FIRST_TEXT_COMMITS=" + commitsBeforeText.get());

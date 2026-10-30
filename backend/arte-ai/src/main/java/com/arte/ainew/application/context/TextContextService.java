@@ -3,14 +3,20 @@ package com.arte.ainew.application.context;
 import com.arte.ainew.api.context.ContextService;
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ConfigurationExecutionPolicyProvider;
+import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.control.AiExecutionPolicy;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +41,7 @@ public final class TextContextService implements ContextService {
     private final ContextSnapshotStore contextSnapshotStore;
     private final NewAiProperties properties;
     private final Clock clock;
+    private AiExecutionPolicyProvider policies;
     private final ChatHistoryLoader chatHistoryLoader;
 
     public TextContextService(AdmissionAuthorization admissionAuthorization, BindingManager bindingManager, ContextSnapshotStore contextSnapshotStore,
@@ -44,11 +51,23 @@ public final class TextContextService implements ContextService {
         this.contextSnapshotStore = contextSnapshotStore;
         this.properties = properties;
         this.clock = clock;
+        this.policies = bindingManager instanceof FixedControlCatalog catalog ? catalog.policyProvider()
+                : new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits());
         this.chatHistoryLoader = chatHistoryLoader;
+    }
+
+    public TextContextService policyProvider(AiExecutionPolicyProvider policies) {
+        this.policies = policies;
+        return this;
     }
 
     @Override
     public Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding, ExecutionContext executionContext) {
+        return policies.current(executionContext).flatMap(policy -> assemble(contextRequest, resolvedBinding, executionContext,
+                policy.intersect(ExecutionPolicies.from(properties.limits()))));
+    }
+
+    private Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding, ExecutionContext executionContext, AiExecutionPolicy policy) {
         return admissionAuthorization.require(executionContext, AdmissionAuthorization.INVOKE)
                 .flatMap(currentContext -> bindingManager.resolve(resolvedBinding.definition(), resolvedBinding.capability().definition(), currentContext))
                 .flatMap(actualBinding -> {
@@ -58,7 +77,7 @@ public final class TextContextService implements ContextService {
                             || !contextRequest.resources().isEmpty() || contextRequest.target() != null) {
                         throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED);
                     }
-                    TextInputs.validate(contextRequest.messages(), properties.limits());
+                    TextInputs.validate(contextRequest.messages(), ExecutionPolicies.legacy(policy));
                     // Token 容量约束必须采用固定模型绑定的上下文窗口；当前不执行工具，工具预留必须为零。
                     // 这里校验的是模型输入／输出容量，不是预算账户的金额或供应商实际计费用量。
                     if (contextRequest.budget().contextWindowTokens() != resolvedBinding.contextWindowTokens()
@@ -73,7 +92,7 @@ public final class TextContextService implements ContextService {
                     var messages = new ArrayList<>(loaded.messages());
                     // 添加本轮用户输入的消息（即提问的问题）
                     messages.addAll(contextRequest.messages());
-                    TextInputs.validateContext(messages, properties.limits());
+                    TextInputs.validateContext(messages, ExecutionPolicies.legacy(policy));
                     var tokenCount = TextInputs.estimatedTokens(messages);
                     // 历史消息与本轮用户输入共同占用输入额度；按 UTF-8 字节数加固定开销估算 Token。
                     // 超过 maxInputTokens 就明确拒绝，不静默截断历史或用户文本；估算值不用于冒充实际计费用量。
@@ -88,7 +107,7 @@ public final class TextContextService implements ContextService {
                     // 此处只组装快照，由协调器在受理阶段持久化；到期禁止新调用，不表示立即删除存储字节。
                     return new ContextSnapshot(UUID.randomUUID().toString(), loaded.selection(), resolvedBinding.definition(), messages, List.of(),
                             contextRequest.budget(), tokenCount, true, TextInputs.TOKENIZER, List.of(), TextInputs.contentDigest(messages),
-                            now, now.plus(properties.limits().snapshotRetention()));
+                            now, now.plus(ExecutionPolicies.legacy(policy).snapshotRetention()));
                 }).doOnNext(snapshot -> log.debug("AI context assembled, invocationId={}, traceId={}, snapshotId={}, messageCount={}, inputTokens={}, historyTurns={}",
                         executionContext.executionId(), executionContext.traceId(), snapshot.snapshotId(), snapshot.messages().size(), snapshot.inputTokens(),
                         snapshot.history() == null ? 0 : snapshot.history().turnIds().size()));

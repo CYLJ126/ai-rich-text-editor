@@ -31,6 +31,13 @@ public interface AiControlConfigurationSource {
     NewAiProperties configuration(ExecutionContext context);
 
     /**
+     * 原同库写事务中的当前身份／成员／政策门控；不支持时拒绝，不能默认复用展示快照。
+     */
+    default NewAiProperties configurationInCurrentTransaction(ExecutionContext context) {
+        throw new UnsupportedOperationException("Current transaction configuration is required");
+    }
+
+    /**
      * 为新的准备边界读取配置和版本凭证；默认来源不提供版本优化。
      *
      * @param context 可信执行上下文

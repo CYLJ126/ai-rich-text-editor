@@ -32,6 +32,16 @@ public final class RbacFixedExecutionAuthorizationResolver implements ExecutionA
     }
 
     @Override
+    public void requireInCurrentTransaction(com.arte.ainew.common.execution.ExecutionContext context) {
+        var principal = rbacIdentityProvider.findCurrentBySubjectId(context.authorization().principal().subjectId())
+                .filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
+                .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
+        if (!context.authorization().principal().sameIdentityAs(principal))
+            throw new AccessDeniedException("Stable identity mismatch");
+        fixedExecutionAuthorizationResolver.requireInCurrentTransaction(context);
+    }
+
+    @Override
     public Mono<ExecutionAuthorization> resolve(String name, String tenantId, String workspaceId, Set<String> scopes) {
         return Mono.fromCallable(() -> rbacIdentityProvider.resolveAuthenticatedName(name)
                         .filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)

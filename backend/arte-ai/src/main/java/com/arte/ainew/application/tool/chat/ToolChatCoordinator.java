@@ -9,6 +9,7 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
@@ -17,7 +18,9 @@ import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.serialization.ToolCatalogDigests;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.ToolChatAccess;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
@@ -56,6 +59,8 @@ public final class ToolChatCoordinator {
     private final NewAiProperties properties;
     private final Clock clock;
     private final Duration poll;
+    private AiExecutionPolicyProvider policies;
+    private AiAdmissionAuthorizationGuard modelGuard;
     private final ToolSchemaValidator schemas = new ToolSchemaValidator();
 
     public ToolChatCoordinator(ToolChatRunStore runs, ExecutionStore executions, ExecutionResultStore results,
@@ -73,11 +78,20 @@ public final class ToolChatCoordinator {
         this.toolSnapshots = toolSnapshots;
         this.properties = properties;
         this.clock = clock;
+        var compatibility = new com.arte.ainew.application.control.FixedControlCatalog(properties, authorization, clock);
+        this.policies = compatibility.policyProvider();
+        this.modelGuard = compatibility.admissionGuard();
         this.poll = poll;
     }
 
     private static <T> Mono<T> applied(StoreOutcome<T> outcome) {
         return outcome.successful() ? Mono.just(outcome.value()) : Mono.error(AdmissionException.fromStoreRejection(outcome.code()));
+    }
+
+    public ToolChatCoordinator boundaryPorts(AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
+        this.policies = policies;
+        this.modelGuard = guard;
+        return this;
     }
 
     public Mono<Void> process(ToolChatCommands.Lease lease) {
@@ -91,7 +105,16 @@ public final class ToolChatCoordinator {
                 if (fixed.budgetPlan() == null)
                     return stop(lease, run, fixed, ToolChatRun.State.FAILED, fact(fixed, "RUN_BUDGET_PLAN_REQUIRED", false), null);
                 return authorization.prepare(fixed.context(), Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), true,
-                                current -> access.authorize(current, false).switchIfEmpty(Mono.error(new AccessDeniedException("Run access denied")))
+                                current -> policies.current(current).flatMap(policy -> {
+                                            var check = ToolChatAdmissionChecks.of(fixed, current, policy.intersect(ExecutionPolicies.from(properties.limits())).maxOutputBytes(), clock);
+                                            return modelGuard.authorize(check).flatMap(modelPermit -> access.authorize(current, false)
+                                                    .map(toolPermit -> (ToolChatAccess.Permit) actual -> {
+                                                        if (!actual.equals(fixed))
+                                                            throw new AccessDeniedException("Run permit snapshot mismatch");
+                                                        modelPermit.requireInCurrentTransaction(check.request());
+                                                        toolPermit.requireInCurrentTransaction(actual);
+                                                    }));
+                                        }).switchIfEmpty(Mono.error(new AccessDeniedException("Run access denied")))
                                         .flatMap(permit -> runs.budgets(run.owner(), run.runId()).flatMap(balance -> {
                                             if (balance.stream().anyMatch(ToolChatBudget::blocked))
                                                 return blocked(lease, run, fixed, permit);
@@ -142,7 +165,7 @@ public final class ToolChatCoordinator {
     private Mono<Void> drive(ToolChatCommands.Lease lease, ToolChatRun run, ToolChatRunSnapshot fixed,
                              ExecutionContext current, ToolChatAccess.Permit permit) {
         if (run.checkpoint().phase() == READY_MODEL)
-            return modelContext(run, fixed).flatMap(context -> advance(lease, run, fixed, ToolChatRun.State.RUNNING, WAITING_MODEL,
+            return modelContext(run, fixed, current).flatMap(context -> advance(lease, run, fixed, ToolChatRun.State.RUNNING, WAITING_MODEL,
                     run.checkpoint().roundIndex(), List.of(new ToolChatStep.Plan(run.checkpoint().roundIndex(), new ToolChatStep.Model(context))), null, null, permit));
         return Flux.fromIterable(run.checkpoint().children()).concatMap(id -> runs.step(run.owner(), run.runId(), id)
                         .switchIfEmpty(Mono.error(new IllegalStateException("Run checkpoint step missing"))))
@@ -175,13 +198,13 @@ public final class ToolChatCoordinator {
                              ToolChatAccess.Permit permit, ToolChatStep step, Invocation child) {
         if (child == null)
             return budgets.child(run.runId(), step.childExecutionId(), fixed.context().authorization().scopes(), fixed.context().deadline(), current)
-                    .flatMap(context -> {
+                    .flatMap(context -> policies.current(current).flatMap(policy -> {
                         var input = new GenerationRequest(((ToolChatStep.Model) step.input()).context().messages(), fixed.generation(), fixed.tools().descriptions(), new GenerationRequest.TextOutput());
-                        var options = new ExecutionOptions(context.deadline(), 1, properties.limits().maxOutputBytes(),
+                        var options = new ExecutionOptions(context.deadline(), 1, policy.intersect(ExecutionPolicies.from(properties.limits())).maxOutputBytes(),
                                 Math.min(100, fixed.limits().maxToolCalls()), fixed.limits().maxConcurrentTools(), fixed.limits().timeout());
                         var request = new InvocationRequest<>(fixed.model().capability().definition(), fixed.model().definition(), input.kind(), input, options, context);
                         return invocations.submit(new InvocationSubmission<>(request, ((ToolChatStep.Model) step.input()).context(), null, null, null));
-                    }).then(park(lease));
+                    })).then(park(lease));
         if (child.state() != Invocation.State.SUCCEEDED) return park(lease);
         return modelResult(run, fixed, step, child).flatMap(result -> {
             var calls = result.outputs().stream().flatMap(m -> m.toolCalls().stream()).toList();
@@ -226,7 +249,7 @@ public final class ToolChatCoordinator {
                 phase, run.checkpoint().roundIndex(), List.of(), null, null, permit);
     }
 
-    private Mono<ContextSnapshot> modelContext(ToolChatRun run, ToolChatRunSnapshot fixed) {
+    private Mono<ContextSnapshot> modelContext(ToolChatRun run, ToolChatRunSnapshot fixed, ExecutionContext current) {
         if (run.checkpoint().roundIndex() == 0) return Mono.just(fixed.initialContext());
         int previousRound = run.checkpoint().roundIndex() - 1;
         return runs.steps(run.owner(), run.runId()).flatMap(steps -> {
@@ -273,11 +296,11 @@ public final class ToolChatCoordinator {
                                                 return new ChatMessage(CanonicalJson.key(step.childExecutionId(), "tool-message"), ChatMessage.Role.TOOL,
                                                         List.of(new ChatMessage.Text(data)), List.of(), call.callId());
                                             });
-                                }).collectList().map(outputs -> {
+                                }).collectList().flatMap(outputs -> policies.current(current).map(policy -> {
                                     messages.addAll(outputs);
                                     return ToolChatInputs.snapshot(CanonicalJson.key(run.runId(), "model-context", Integer.toString(run.checkpoint().roundIndex())),
-                                            fixed.initialContext(), messages, fixed.tools(), run.updatedAt(), properties.limits());
-                                });
+                                            fixed.initialContext(), messages, fixed.tools(), run.updatedAt(), ExecutionPolicies.legacy(policy.intersect(ExecutionPolicies.from(properties.limits()))));
+                                }));
                     });
         });
     }

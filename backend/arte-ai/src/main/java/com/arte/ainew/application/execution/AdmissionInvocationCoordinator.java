@@ -15,11 +15,17 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
+import com.arte.ainew.pojo.control.AiExecutionPolicy;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.GenerationRequest;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
@@ -28,6 +34,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 生成调用的可靠受理与耐久控制；只在真实事务提交后返回回执，实际派发由能力专属组件完成。
@@ -48,6 +55,10 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     private final ExecutionStore executionStore;
     private final NewAiProperties properties;
     private final Clock clock;
+    private AiExecutionPolicyProvider policies;
+    private AiAdmissionAuthorizationGuard guard;
+    private PublishedAiCatalog published;
+    private BudgetDefinitionProvider definitions;
 
     public AdmissionInvocationCoordinator(AdmissionAuthorization admissionAuthorization, CapabilityCatalog capabilityCatalog, BindingManager bindingManager,
                                           BudgetService budgetService, ContextSnapshotStore contextSnapshotStore, ExecutionStore executionStore,
@@ -60,39 +71,57 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
         this.executionStore = executionStore;
         this.properties = properties;
         this.clock = clock;
+        FixedControlCatalog compatibility = bindingManager instanceof FixedControlCatalog catalog ? catalog : new FixedControlCatalog(properties, admissionAuthorization, clock);
+        policies = compatibility.policyProvider();
+        guard = compatibility.admissionGuard();
+        published = compatibility.readAdapter();
+        definitions = compatibility.readAdapter();
     }
 
     @Override
     public Mono<AcceptedExecution> submit(InvocationSubmission<?> submission) {
-        return admissionAuthorization.prepare(submission.request().context(), submission.conversation() == null
-                        ? java.util.Set.of(AdmissionAuthorization.INVOKE)
-                        : java.util.Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), true, current -> {
-                    if (!(submission.request().input() instanceof GenerationRequest generation)) {
-                        throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
-                    }
-                    var original = submission.request();
-                    var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(), generation, original.options(), current);
-                    var refreshed = new InvocationSubmission<>(request, submission.snapshot(), submission.conversation(),
-                            submission.newTurn(), submission.replacesInvocationId());
-                    return capabilityCatalog.validate(request).then(bindingManager.resolve(request.binding(), request.capability(), current))
-                            .flatMap(binding -> admit(refreshed, binding));
-                })
+        Set<String> requiredAuthorizations = submission.conversation() == null
+                ? Set.of(AdmissionAuthorization.INVOKE) : Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION);
+        boolean needFresh = submission.request().context().parentExecutionId() != null;
+        return admissionAuthorization.prepare(submission.request().context(), requiredAuthorizations, needFresh,
+                        current -> {
+                            // 普通受理复用本次可信预检，最终资格由 accept 的原写事务当前复核；模型子调用单独准备自己的范围。
+                            if (!(submission.request().input() instanceof GenerationRequest generation)) {
+                                throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
+                            }
+                            var original = submission.request();
+                            var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(), generation, original.options(), current);
+                            var refreshed = new InvocationSubmission<>(request, submission.snapshot(), submission.conversation(),
+                                    submission.newTurn(), submission.replacesInvocationId());
+                            return capabilityCatalog.validate(request).then(bindingManager.resolve(request.binding(), request.capability(), current))
+                                    .flatMap(binding -> admit(refreshed, binding));
+                        })
                 .doOnError(error -> log.warn("AI admission failed, invocationId={}, traceId={}, capabilityId={}, code={}, type={}",
                         submission.request().context().executionId(), submission.request().context().traceId(), submission.request().capability().id(),
                         error instanceof AdmissionException rejected ? rejected.getResultCode().name() : "ADMISSION_FAILED",
                         error.getClass().getName()));
     }
 
-    private Mono<NewAiProperties> configuration(ExecutionContext context) {
-        return bindingManager instanceof FixedControlCatalog catalog
-                ? catalog.configuration(context) : Mono.just(properties);
+    public AdmissionInvocationCoordinator(AdmissionAuthorization authorization, CapabilityCatalog capabilities, BindingManager bindings,
+                                          BudgetService budgets, ContextSnapshotStore snapshots, ExecutionStore executions, NewAiProperties properties, Clock clock,
+                                          AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard, PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
+        this(authorization, capabilities, bindings, budgets, snapshots, executions, properties, clock);
+        this.policies = policies;
+        this.guard = guard;
+        this.published = published;
+        this.definitions = definitions;
     }
 
     private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding) {
+        return policies.current(submission.request().context()).flatMap(policy -> admit(submission, binding,
+                policy.intersect(ExecutionPolicies.from(properties.limits()))));
+    }
+
+    private Mono<AcceptedExecution> admit(InvocationSubmission<GenerationRequest> submission, ResolvedBinding binding, AiExecutionPolicy policy) {
         var request = submission.request();
         var snapshot = submission.snapshot();
         if (request.context().parentExecutionId() == null) {
-            TextInputs.verify(snapshot, binding, properties.limits());
+            TextInputs.verify(snapshot, binding, ExecutionPolicies.legacy(policy));
         } else if (!ToolChatInputs.TOKENIZER.equals(snapshot.tokenizerVersion())
                 || !snapshot.modelBinding().equals(binding.definition()) || submission.conversation() != null) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
@@ -129,14 +158,12 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                         throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
                     }
                     if (!snapshot.expiresAt().isAfter(now) || snapshot.createdAt().isAfter(now)
-                            || snapshot.expiresAt().isAfter(snapshot.createdAt().plus(properties.limits().snapshotRetention()))) {
+                            || snapshot.expiresAt().isAfter(snapshot.createdAt().plus(policy.snapshotRetention()))) {
                         throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                     }
                     return budgetService.account(owner, request.context().budgetRef())
                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
-                            .flatMap(account -> configuration(request.context()).flatMap(configuration -> {
-                                var definition = configuration.budgets().stream().filter(b ->
-                                        b.budgetRef().equals(request.context().budgetRef())).findFirst().orElseThrow();
+                            .flatMap(account -> definitions.resolve(request.context().budgetRef(), request.context(), BudgetDefinitionProvider.Operation.EXECUTE).flatMap(definition -> {
                                 if (!account.budgetRef().equals(request.context().budgetRef())
                                         || !account.owner().equals(owner)
                                         || !account.rateVersion().equals(binding.rate())
@@ -151,11 +178,10 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                                 }
                                 var candidate = new Invocation(request, digest, submission.conversation(), saved.value().snapshotId(), submission.replacesInvocationId(),
                                         Invocation.State.ACCEPTED, 0, null, null, null, now, now);
-                                return configuration(request.context()).flatMap(configuration -> {
-                                    var provider = configuration.connections().stream().filter(connection -> connection.definition().equals(binding.connection()))
-                                            .findFirst().orElseThrow().providerId();
-                                    return executionStore.accept(new ExecutionCommands.Accept(candidate, turn,
-                                            new DispatchPlan(OutboxMessage.WorkClass.GENERATION, provider)));
+                                return published.connection(binding.connection(), request.context()).flatMap(connection -> {
+                                    var command = new ExecutionCommands.Accept(candidate, turn, new DispatchPlan(OutboxMessage.WorkClass.GENERATION, connection.providerId()));
+                                    return guard.authorize(new AiAdmissionAuthorizationGuard.Check(request, binding, snapshot, null, AiAdmissionAuthorizationGuard.Boundary.ADMISSION))
+                                            .flatMap(permit -> executionStore.accept(command, () -> permit.requireInCurrentTransaction(command.invocation().request())));
                                 });
                             })
                             .map(accepted -> {

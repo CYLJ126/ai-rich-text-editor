@@ -17,6 +17,7 @@ import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
@@ -26,16 +27,17 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * 展示读取复用本次订阅的可信快照，写入／派发始终复核当前资格；任务权限上限不可扩大。
+ * AI 执行上下文的操作授权协调器。
  * <p>
- * 典型用法是先检查操作权限，再检查资源使用范围：
- * authorization.require(context, AdmissionAuthorization.INVOKE)
- * .map(current -> {
- * var grant = authorization.grant(current);
- * // 再检查 grant.bindingIds() 是否包含目标绑定
- * return grant;
- * });
- * 例如，一个主体拥有 ai:invoke，说明它可以提交 AI 调用；但能调用哪个绑定、使用哪个预算，还要根据 grant 中的配置继续判断。
+ * 通过 {@link ExecutionAuthorizationResolver} 及可选的控制配置来源，协调当前身份、租户／空间、操作权限与执行期限的核验，
+ * 保留原上下文的稳定主体和权限上限。会话、调用、预算查询及执行链路共用这里的操作授权规则；工具执行记录另委托宿主许可核验。
+ * <p>
+ * 展示读取可以复用本次订阅的可信快照；写操作、受理／派发准备和发送前复核按各自边界重新检查当前资格。
+ * {@link #requireInCurrentTransaction} 则供实际写事务内的同步最终复核使用，防止异步预检通过后、业务提交前发生撤权。
+ * <p>
+ * 本类负责 ai:invoke、ai:read 等操作资格；具体模型／连接使用资格、预算定义及执行限额，分别由模型资格、预算和政策端口核验，
+ * 再由 {@link com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard} 组合为实际受理／派发门控。
+ * 例如，拥有 ai:invoke 只说明具备 AI 调用的操作权限，仍须核验本次选定的模型、预算及有效执行限制。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
@@ -222,6 +224,46 @@ public final class AdmissionAuthorization {
     }
 
     /**
+     * 在调用方已经开启的实际可写事务中，同步复核本次操作的当前授权。
+     * <p>
+     * 用于受理／派发最终写入边界，将授权检查与业务提交放在同一事务内；异步预检的允许结论不能替代这里的复核。
+     * 具体检查顺序为：
+     * <ol>
+     *     <li>确认当前线程存在实际事务，且事务不是只读事务；本方法自身不创建或切换事务。</li>
+     *     <li>确认所需 scope 已包含在原执行上下文的权限上限中，防止本次写入临时扩大权限。</li>
+     *     <li>确认当前时间严格早于原上下文的截止时间，过期执行拒绝继续提交。</li>
+     *     <li>委托 {@link ExecutionAuthorizationResolver#requireInCurrentTransaction}，在原事务内核验当前身份和授权事实。
+     *     固定实现检查有效 Grant 与原主体／范围／权限的匹配；app 的 RBAC 固定适配还核验稳定主体对应的当前账号状态。</li>
+     * </ol>
+     * 此方法只完成操作授权部分，模型、预算及政策的当前复核由外层门控组合执行。
+     * 解析器必须提供同步事务实现，不能阻塞异步查询或复用展示快照；未实现该能力时默认拒绝。
+     * 方法成功返回表示本次检查通过，不产生可持久化或跨事务复用的许可；失败交由原写事务回滚。
+     *
+     * @param context 可信的原执行上下文，包含稳定主体、租户／空间、权限上限和原截止时间
+     * @param scope   本次操作要求的权限，例如 {@link #INVOKE}；必须已在 context 的权限集合中
+     * @throws IllegalStateException         当前没有实际事务，或事务为只读事务
+     * @throws AccessDeniedException         原上下文不包含所需权限，或解析器判定当前身份／授权不再有效
+     * @throws AdmissionException            原执行上下文已到期，错误码为 {@link ResultCodeEnum#AI_DEADLINE_EXCEEDED}
+     * @throws UnsupportedOperationException 当前解析器未提供同步事务授权实现
+     */
+    public void requireInCurrentTransaction(ExecutionContext context, String scope) {
+        // 确认当前线程存在实际事务，且事务不是只读事务
+        if (!TransactionSynchronizationManager.isActualTransactionActive() || TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            throw new IllegalStateException("Actual writable transaction is required");
+        }
+        // 确认所需 scope 已包含在原执行上下文的权限上限中，防止本次写入临时扩大权限
+        if (!context.authorization().scopes().contains(scope)) {
+            throw new AccessDeniedException("Execution scope denied");
+        }
+        // 确认当前时间严格早于原上下文的截止时间，过期执行拒绝继续提交
+        if (!clock.instant().isBefore(context.deadline())) {
+            throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
+        }
+        // 在原事务内核验当前身份和授权事实
+        resolver.requireInCurrentTransaction(context);
+    }
+
+    /**
      * 使用当前授权和本次订阅内的控制配置执行操作。
      * <p>
      * 新的受理或派发边界重新加载配置，并核验原上下文中的全部权限。
@@ -260,7 +302,9 @@ public final class AdmissionAuthorization {
     }
 
     /**
-     * 发送前重新授权；来源支持版本凭证时可省略未变化的目录和预算定义读取。
+     * 发送前重新授权
+     * <p>
+     * 来源支持版本凭证时可省略未变化的目录和预算定义读取。
      *
      * @param context 需要重新验证的可信上下文
      * @param work    使用当前资格和配置执行的发送前校验
@@ -289,7 +333,7 @@ public final class AdmissionAuthorization {
     }
 
     private <T> Mono<T> withConfiguration(ExecutionContext context, AiControlConfigurationSource.PreparedConfiguration prepared,
-                                          java.util.function.Function<ExecutionContext, Mono<T>> work) {
+                                          Function<ExecutionContext, Mono<T>> work) {
         var grant = grant(prepared.configuration(), context);
         if (!grant.scopes().containsAll(context.authorization().scopes())) {
             return Mono.error(new AccessDeniedException("Execution scope denied"));

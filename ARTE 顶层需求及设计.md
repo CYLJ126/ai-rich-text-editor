@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.20
+版本：v0.21
 
-日期：2026-10-30（本次拆出模型使用资格并统一发现与解析；其他阶段状态以各节为准）
+日期：2026-10-30（本次拆出执行政策并接入实际受理／派发／模型发送前门控；其他阶段状态以各节为准）
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
@@ -36,6 +36,11 @@ FIXED／DATABASE
 2026-10-30 控制面端口第 2 批：已增加 `AiResourceEntitlementService`、`AiEntitlement` 及 FIXED／DATABASE
 适配，模型发现、绑定／能力／连接解析、普通聊天和工具聊天使用同一资格来源；兼容控制面门面保留请求及限额校验。公共模型
 ACL、政策及受理事务门控仍按后续批次实施。见 [模型使用资格端口](backend/arte-ai/MODEL_ENTITLEMENTS.md)。
+
+2026-10-30 控制面端口第 3 批：已增加 `AiExecutionPolicyProvider`、`AiExecutionPolicy` 和 `AiAdmissionAuthorizationGuard`
+，将模型／预算资格及有效限制复核接入普通受理、原子派发、Tool Chat 根 Run／模型子调用和真实模型发送前边界。DATABASE
+复用原同库公共门控，FIXED
+保留当前身份复核；展示／预检快照不代替写事务当前事实。未新增租户／空间数值政策表或凭据用途治理；文章改造仍延期。见 [执行政策与受理门控](backend/arte-ai/EXECUTION_POLICY_GUARDS.md)。
 
 ## TODO
 
@@ -2166,6 +2171,9 @@ reauthorize (originalContext) 端口，按保存的稳定主体查询当前身�
 2026-10-30 实施第 2 批已增加模型使用资格端口及其业务视图，模型发现与绑定／能力／连接使用解析共用 FIXED／DATABASE
 适配规则；当前仍沿用既有 Grant／空间白名单，不代表公共模型 ACL
 已落地。详见 [模型使用资格端口](backend/arte-ai/MODEL_ENTITLEMENTS.md)。
+
+2026-10-30 实施第 3 批已增加执行政策及受理门控端口，覆盖实际模型受理、派发写事务、Tool Chat
+和模型发送前复核。有效数值限制与部署上限取交集，默认来源仍沿用现有配置，不代表已增加租户／空间数值政策数据库或完成凭据用途治理。详见 [执行政策与受理门控](backend/arte-ai/EXECUTION_POLICY_GUARDS.md)。
 
 这些端口归 `arte-ai`，公共 core 不引用 BindingDefinition、Money 或 Invocation。app 组合公共 API 和 AI 存储 SPI
 提供环境适配；固定配置适配器和动态存储适配器共同遵守同一个 AI 端口，而不是各 Controller 自建过滤规则。

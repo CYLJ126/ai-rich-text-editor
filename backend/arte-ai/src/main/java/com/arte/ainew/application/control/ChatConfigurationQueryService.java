@@ -3,9 +3,13 @@ package com.arte.ainew.application.control;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ConfigurationExecutionPolicyProvider;
+import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ChatConfigurationOptions;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
@@ -26,6 +30,7 @@ public final class ChatConfigurationQueryService {
     private final Supplier<ModelGateway> gateway;
     private final PublishedAiCatalog published;
     private final BudgetDefinitionProvider definitions;
+    private AiExecutionPolicyProvider policies;
 
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          FixedControlCatalog catalog, Supplier<ModelGateway> gateway) {
@@ -36,6 +41,7 @@ public final class ChatConfigurationQueryService {
                                          FixedControlCatalog catalog, PublishedAiCatalog published,
                                          BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
         this(properties, authorization, catalog.entitlementAdapter(), published, definitions, gateway);
+        this.policies = catalog.policyProvider();
     }
 
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
@@ -47,6 +53,12 @@ public final class ChatConfigurationQueryService {
         this.authorization = authorization;
         this.entitlements = entitlements;
         this.gateway = gateway;
+        this.policies = new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits());
+    }
+
+    public ChatConfigurationQueryService policyProvider(AiExecutionPolicyProvider policies) {
+        this.policies = policies;
+        return this;
     }
 
     public Mono<ChatConfigurationOptions> discover(ExecutionContext context) {
@@ -55,7 +67,9 @@ public final class ChatConfigurationQueryService {
             if (modelGateway == null) {
                 return Mono.just(new ChatConfigurationOptions(List.of()));
             }
-            return published.inSnapshot(current, configuration -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE)
+            return published.inSnapshot(current, configuration -> policies.current(current).flatMap(policyValue -> {
+                var policy = policyValue.intersect(ExecutionPolicies.from(properties.limits()));
+                return definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE)
                     .flatMap(available -> entitlements.discover(CapabilityDescriptor.Kind.GENERATION, 256, current)
                             .filter(value -> value.binding().contextWindowTokens() >= 2
                                     && value.binding().capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
@@ -67,9 +81,9 @@ public final class ChatConfigurationQueryService {
                                 .filter(budget -> budget.rate().equals(binding.rate()))
                                 .map(BudgetDefinition::budgetRef).sorted().toList();
                         long window = binding.contextWindowTokens();
-                        int outputLimit = (int) Math.min(properties.limits().maxOutputTokens(), Math.min(1_000_000L, window - 1));
-                        var limits = new ChatConfigurationOptions.Limits(window - 1, outputLimit, properties.limits().maxInputBytes(),
-                                properties.limits().maxOutputBytes(), properties.limits().maximumTimeout().toSeconds());
+                                int outputLimit = (int) Math.min(policy.maxOutputTokens(), Math.min(1_000_000L, window - 1));
+                                var limits = new ChatConfigurationOptions.Limits(window - 1, outputLimit, policy.maxInputBytes(),
+                                        policy.maxOutputBytes(), policy.maximumTimeout().toSeconds());
                         int outputDefault = Math.min(512, outputLimit);
                         var defaults = new ChatConfigurationOptions.Defaults(Math.min(32_768L, window - outputDefault),
                                 outputDefault, Math.min(60L, limits.maxTimeoutSeconds()));
@@ -79,7 +93,8 @@ public final class ChatConfigurationQueryService {
                                         && modelGateway.supportsToolChat(binding, value.connection()));
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
-                            .collectList().map(ChatConfigurationOptions::new)));
+                            .collectList().map(ChatConfigurationOptions::new));
+            }));
         });
     }
 }

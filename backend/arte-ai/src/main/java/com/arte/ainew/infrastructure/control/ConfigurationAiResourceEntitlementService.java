@@ -67,6 +67,27 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
     }
 
     @Override
+    public void requireInCurrentTransaction(AiEntitlement expected, ExecutionContext context) {
+        reader.inCurrentTransaction(context, configuration -> {
+            if (source == AiEntitlement.Source.FIXED) {
+                authorization.requireInCurrentTransaction(context, AdmissionAuthorization.INVOKE);
+            }
+            authorization.requireConfigurationScope(configuration, context, AdmissionAuthorization.INVOKE);
+            ControlDefinitionChecks.validate(configuration);
+            var grant = authorization.grant(configuration, context);
+            var binding = configuration.bindings().stream().filter(b -> b.definition().equals(expected.binding().definition())
+                            && b.capability().definition().equals(expected.binding().capability().definition())
+                            && grant.bindingIds().contains(b.definition().id())).findFirst()
+                    .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
+            var current = entitlement(configuration, binding, context);
+            if (!current.executionOwner().equals(expected.executionOwner()) || !current.binding().equals(expected.binding())
+                    || !current.connection().equals(expected.connection()) || !current.releaseRef().equals(expected.releaseRef()))
+                throw new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE);
+            return null;
+        });
+    }
+
+    @Override
     public Mono<AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability, Action action, ExecutionContext context) {
         return Mono.defer(() -> {
             binding.requireType("binding");

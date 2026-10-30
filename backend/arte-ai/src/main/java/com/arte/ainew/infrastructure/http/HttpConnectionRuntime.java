@@ -254,7 +254,9 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                             return Mono.error(GenerationException.beforeSend("CONNECTION_REQUEST_NOT_ALLOWED"));
                         var resolved = call == null ? connections.resolveCurrent(definition.definition(), runtime.execution())
                                 : connections.resolveCurrent(definition.definition(), call);
-                        return resolved.flatMap(current -> {
+                        // 政策门控在 next.exchange 前失败，明确记录为未发送；不能误归为未知供应商结果。
+                        return resolved.onErrorMap(com.arte.ainew.application.support.AdmissionException.class,
+                                error -> GenerationException.beforeSend(error.getResultCode().name())).flatMap(current -> {
                             if (!current.equals(definition)) {
                                 return Mono.error(GenerationException.beforeSend("CONNECTION_CONFIGURATION_CHANGED"));
                             }

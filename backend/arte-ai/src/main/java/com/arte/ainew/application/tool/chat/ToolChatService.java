@@ -10,6 +10,7 @@ import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -22,8 +23,10 @@ import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
 import com.arte.ainew.pojo.tool.ToolChatSubmission;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
@@ -59,6 +62,8 @@ public final class ToolChatService {
     private final NewAiProperties properties;
     private final Clock clock;
     private final Supplier<ModelGateway> gateway;
+    private AiExecutionPolicyProvider policies;
+    private AiAdmissionAuthorizationGuard modelGuard;
 
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
                            FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
@@ -66,6 +71,8 @@ public final class ToolChatService {
                            Supplier<ModelGateway> gateway) {
         this(runs, conversations, catalogStore, catalog.entitlementAdapter(), contexts, sets, budgets,
                 authorization, access, properties, clock, gateway);
+        this.policies = catalog.policyProvider();
+        this.modelGuard = catalog.admissionGuard();
     }
 
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
@@ -84,6 +91,15 @@ public final class ToolChatService {
         this.properties = properties;
         this.clock = clock;
         this.gateway = gateway;
+        var compatibility = new FixedControlCatalog(properties, authorization, clock, null, null, entitlements);
+        this.policies = compatibility.policyProvider();
+        this.modelGuard = compatibility.admissionGuard();
+    }
+
+    public ToolChatService boundaryPorts(AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
+        this.policies = policies;
+        this.modelGuard = guard;
+        return this;
     }
 
     public Mono<AcceptedExecution> submit(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext context) {
@@ -121,8 +137,8 @@ public final class ToolChatService {
                         var capacity = new ContextBudget(model.contextWindowTokens(), input.maxInputTokens(), input.generation().maxOutputTokens(), 0);
                         var selection = new ContextRequest(List.of(user), new ContextRequest.HistorySelection(input.conversationId(), input.expectedVersion(), List.of(), ChatHistoryLoader.MAX_TURNS),
                                 List.of(), List.of(), null, capacity);
-                        return contexts.assemble(selection, model, current).flatMap(initial -> {
-                            var fixedInput = ToolChatInputs.snapshot(initial.snapshotId(), initial, initial.messages(), set, initial.createdAt(), properties.limits());
+                return policies.current(current).flatMap(policy -> contexts.assemble(selection, model, current).flatMap(initial -> {
+                    var fixedInput = ToolChatInputs.snapshot(initial.snapshotId(), initial, initial.messages(), set, initial.createdAt(), ExecutionPolicies.legacy(policy.intersect(ExecutionPolicies.from(properties.limits()))));
                             var deadline = current.deadline().isBefore(received.plus(input.limits().timeout())) ? current.deadline() : received.plus(input.limits().timeout());
                             if (initial.expiresAt().isBefore(deadline)) deadline = initial.expiresAt();
                             var root = new ExecutionContext(current.executionId(), current.traceId(), current.authorization(), deadline, null, null,
@@ -134,7 +150,7 @@ public final class ToolChatService {
                                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
                                         .flatMap(sequence -> commit(fixed, input.conversationId(), UUID.randomUUID().toString(), sequence, input.expectedVersion(), current));
                             });
-                        });
+                }));
                     }));
         });
     }
@@ -190,8 +206,17 @@ public final class ToolChatService {
                                            long version, ExecutionContext current) {
         var turn = Turn.typed(turnId, conversationId, sequence, null, null, fixed.initialContext().messages().getLast(),
                 List.of(AnswerCandidate.run(fixed.context().executionId())), null, 0, fixed.receivedAt(), fixed.receivedAt());
-        return access.authorize(current, false).switchIfEmpty(Mono.error(new org.springframework.security.access.AccessDeniedException("Run access denied")))
-                .flatMap(permit -> runs.acceptChat(fixed, turn, version, permit::requireInCurrentTransaction))
+        return policies.current(current).flatMap(policy -> {
+                    var check = ToolChatAdmissionChecks.of(fixed, current, policy.intersect(ExecutionPolicies.from(properties.limits())).maxOutputBytes(), clock);
+                    return modelGuard.authorize(check).flatMap(modelPermit -> access.authorize(current, false)
+                            .switchIfEmpty(Mono.error(new org.springframework.security.access.AccessDeniedException("Run access denied")))
+                            .flatMap(permit -> runs.acceptChat(fixed, turn, version, actual -> {
+                                // 并发同意图的另一候选已胜出时，退回已有 replay 链路，为获胜的固定计划重新准备许可。
+                                if (!actual.equals(fixed)) throw new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+                                modelPermit.requireInCurrentTransaction(check.request());
+                                permit.requireInCurrentTransaction(actual);
+                            })));
+                })
                 .flatMap(ToolChatService::applied).map(run -> new AcceptedExecution(run.runId(), AcceptedExecution.Kind.RUN, run.acceptedAt()));
     }
 

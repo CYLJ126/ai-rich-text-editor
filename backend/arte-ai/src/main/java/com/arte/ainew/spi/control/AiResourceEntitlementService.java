@@ -31,6 +31,13 @@ public interface AiResourceEntitlementService {
 
     Mono<AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability, Action action, ExecutionContext context);
 
+    /**
+     * 原同库写事务中重新核验当前资格及精确发布内容；禁止把旧读取结果直接提升为写入许可。
+     */
+    default void requireInCurrentTransaction(AiEntitlement expected, ExecutionContext context) {
+        throw new UnsupportedOperationException("Transactional model entitlement is required");
+    }
+
     default Mono<AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability, ExecutionContext context) {
         return resolve(binding, capability, MODEL_USE, context);
     }

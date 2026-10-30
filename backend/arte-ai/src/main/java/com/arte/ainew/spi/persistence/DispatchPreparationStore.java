@@ -165,4 +165,11 @@ public interface DispatchPreparationStore {
      * @return 事务提交后的准备结果，或版本、领取、状态等拒绝原因
      */
     Mono<StoreOutcome<PreparedDispatch>> prepareDispatch(Command command);
+
+    /**
+     * 在原子准备事务内先同步复核当前公共及 AI 资格，再创建 Attempt、预留及标记发送；拒绝时没有这些副作用。
+     */
+    default Mono<StoreOutcome<PreparedDispatch>> prepareDispatch(Command command, Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Atomic dispatch authorization is required"));
+    }
 }

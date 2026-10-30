@@ -355,6 +355,15 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         });
     }
 
+    @Override
+    public NewAiProperties configurationInCurrentTransaction(ExecutionContext context) {
+        tx.requireActive();
+        if (tx.isReadOnly()) {
+            throw new IllegalStateException("AI admission requires a writable transaction");
+        }
+        return snapshot(context).configuration();
+    }
+
     private CurrentSnapshot snapshot(ExecutionContext context) {
         var principal = context.authorization().principal();
         if (principal.kind() != ExecutionPrincipal.Kind.USER)

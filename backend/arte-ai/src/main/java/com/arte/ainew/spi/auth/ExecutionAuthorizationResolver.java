@@ -20,4 +20,11 @@ public interface ExecutionAuthorizationResolver {
 
     Mono<ExecutionAuthorization> resolve(String authenticatedName, String tenantId,
                                          String workspaceId, Set<String> requestedScopes);
+
+    /**
+     * 原写事务内按稳定执行身份复核；未实现时不能用异步预检代替。
+     */
+    default void requireInCurrentTransaction(com.arte.ainew.common.execution.ExecutionContext context) {
+        throw new UnsupportedOperationException("Transactional identity authorization is required");
+    }
 }

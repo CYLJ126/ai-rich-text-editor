@@ -23,12 +23,15 @@ import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.infrastructure.control.*;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
+import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.PublishedAiDefinitions;
 import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
@@ -44,11 +47,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import javax.sql.DataSource;
 import java.time.Clock;
+import java.util.List;
 
 /**
  * 显式开启的新 AI 受理装配；不扫描旧包，不执行 DDL／预算初始化，不启动 Worker 或模型客户端。
@@ -224,9 +229,9 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiControlCatalog")
     FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
                                        ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
-                                       AiResourceEntitlementService entitlements) {
+                                       AiResourceEntitlementService entitlements, AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
         var source = sources.getIfAvailable();
-        return new FixedControlCatalog(properties, authorization, clock, source, scheduler, entitlements);
+        return new FixedControlCatalog(properties, authorization, clock, source, scheduler, entitlements, policies, guard);
     }
 
     @Bean("newAiResourceEntitlementService")
@@ -285,8 +290,8 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiChatConfigurationQueryService")
     ChatConfigurationQueryService chatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                                                 AiResourceEntitlementService entitlements, PublishedAiCatalog published,
-                                                                BudgetDefinitionProvider definitions, ObjectProvider<ModelGateway> gateway) {
-        return new ChatConfigurationQueryService(properties, authorization, entitlements, published, definitions, gateway::getIfAvailable);
+                                                                BudgetDefinitionProvider definitions, ObjectProvider<ModelGateway> gateway, AiExecutionPolicyProvider policies) {
+        return new ChatConfigurationQueryService(properties, authorization, entitlements, published, definitions, gateway::getIfAvailable).policyProvider(policies);
     }
 
     @Bean("newAiPublishedCatalog")
@@ -312,7 +317,37 @@ public class NewAiAdmissionConfiguration {
     BudgetDefinitionProvider budgetDefinitions(NewAiProperties properties, AdmissionAuthorization authorization,
                                                ObjectProvider<AiControlConfigurationSource> sources,
                                                @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        return controlReads(properties, authorization, sources.getIfAvailable(), scheduler)::available;
+        var adapter = controlReads(properties, authorization, sources.getIfAvailable(), scheduler);
+        return new BudgetDefinitionProvider() {
+            public Mono<List<BudgetDefinition>> available(ExecutionContext context, Operation operation) {
+                return adapter.available(context, operation);
+            }
+
+            public com.arte.ainew.pojo.budget.BudgetDefinition resolveInCurrentTransaction(String ref, ExecutionContext context, Operation operation) {
+                return adapter.resolveInCurrentTransaction(ref, context, operation);
+            }
+        };
+    }
+
+    @Bean("newAiExecutionPolicyProvider")
+    @ConditionalOnMissingBean(AiExecutionPolicyProvider.class)
+    AiExecutionPolicyProvider executionPolicies(NewAiProperties properties, ObjectProvider<AiControlConfigurationSource> sources,
+                                                @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        return new ConfigurationExecutionPolicyProvider(controlReader(properties, sources.getIfAvailable(), scheduler), properties.limits());
+    }
+
+    @Bean("newAiAdmissionAuthorizationGuard")
+    @ConditionalOnMissingBean(AiAdmissionAuthorizationGuard.class)
+    AiAdmissionAuthorizationGuard admissionGuard(NewAiProperties properties, AdmissionAuthorization authorization,
+                                                 AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
+                                                 ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                                 @Qualifier("newAiClock") Clock clock) {
+        return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(properties, sources.getIfAvailable(), scheduler), authorization,
+                entitlements, budgets, policies, properties.limits(), clock);
+    }
+
+    private ControlConfigurationReader controlReader(NewAiProperties properties, AiControlConfigurationSource source, Scheduler scheduler) {
+        return source == null ? new ControlConfigurationReader(properties) : new ControlConfigurationReader(source, scheduler);
     }
 
     private ControlReadAdapter controlReads(NewAiProperties properties,
@@ -339,9 +374,9 @@ public class NewAiAdmissionConfiguration {
     ContextService contextService(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisPayloadPersistence store,
                                   NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                   ConversationService conversations, MybatisExecutionPersistence executions,
-                                  ObjectProvider<ToolChatRunStore> runs) {
+                                  ObjectProvider<ToolChatRunStore> runs, AiExecutionPolicyProvider policies) {
         return new TextContextService(authorization, catalog, store, properties, clock,
-                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()));
+                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable())).policyProvider(policies);
     }
 
     /**
@@ -352,8 +387,11 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiInvocationCoordinator")
     @ConditionalOnProperty(prefix = "arte.ai-new-execution", name = "enabled", havingValue = "false", matchIfMissing = true)
     InvocationCoordinator invocationCoordinator(AdmissionAuthorization authorization, FixedControlCatalog catalog, MybatisExecutionPersistence executions,
-                                                MybatisPayloadPersistence snapshots, NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
-        return new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, snapshots, executions, properties, clock);
+                                                MybatisPayloadPersistence snapshots, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
+                                                AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard,
+                                                PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
+        return new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, snapshots, executions, properties, clock,
+                policies, guard, published, definitions);
     }
 
     /**

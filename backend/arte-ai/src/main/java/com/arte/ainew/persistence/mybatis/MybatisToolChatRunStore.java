@@ -237,6 +237,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
             validate(candidate);
             return encode(candidate);
         }).subscribeOn(scheduler).flatMap(encoded -> write(() -> {
+            authorization.accept(candidate); // 先取得当前公共父范围，再进入 Run 幂等／业务锁。
             String owner = ownerKey(ExecutionOwners.from(candidate.context()));
             String idem = key(candidate.context().idempotencyKey());
             system.ensureLock(key("tool-chat-accept", owner, idem));

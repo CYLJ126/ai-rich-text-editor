@@ -28,6 +28,16 @@ public final class FixedExecutionAuthorizationResolver implements com.arte.ainew
     }
 
     @Override
+    public void requireInCurrentTransaction(com.arte.ainew.common.execution.ExecutionContext context) {
+        var original = context.authorization();
+        grants.stream().filter(g -> g.enabled() && g.subjectName().equals(original.principal().subjectName())
+                        && g.subjectId().equals(original.principal().subjectId()) && g.principalKind() == original.principal().kind()
+                        && g.tenantId().equals(original.tenantId()) && g.workspaceId().equals(original.workspaceId())
+                        && g.scopes().containsAll(original.scopes())).findFirst()
+                .orElseThrow(() -> new AccessDeniedException("Execution authorization denied"));
+    }
+
+    @Override
     public Mono<ExecutionAuthorization> resolve(String authenticatedName, String tenantId, String workspaceId, Set<String> requestedScopes) {
         return Mono.defer(() -> {
             var grant = grants.stream().filter(g -> g.enabled() && g.subjectName().equals(authenticatedName)

@@ -155,6 +155,10 @@ public class GenerationGatewayTest {
         }
 
         Rig(int responseLimit, int frameLimit, boolean toolSupport) throws Exception {
+            this(responseLimit, frameLimit, toolSupport, false);
+        }
+
+        Rig(int responseLimit, int frameLimit, boolean toolSupport, boolean tightenAtSend) throws Exception {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(workers);
             server.createContext("/", exchange -> {
@@ -204,7 +208,18 @@ public class GenerationGatewayTest {
             var resolver = new FixedExecutionAuthorizationResolver(properties);
             var authorization = new AdmissionAuthorization(resolver, properties, clock);
             factory = new ExecutionContextFactory(resolver, clock);
-            catalog = new FixedControlCatalog(properties, authorization, clock);
+            var originalCatalog = new FixedControlCatalog(properties, authorization, clock);
+            var policy = new AtomicReference<>(com.arte.ainew.infrastructure.control.ExecutionPolicies.from(properties.limits()));
+            var policyProvider = new com.arte.ainew.spi.control.AiExecutionPolicyProvider() {
+                public Mono<com.arte.ainew.pojo.control.AiExecutionPolicy> current(com.arte.ainew.common.execution.ExecutionContext context) {
+                    return Mono.fromSupplier(policy::get);
+                }
+            };
+            var boundaryGuard = new com.arte.ainew.infrastructure.control.ConfigurationAiAdmissionAuthorizationGuard(
+                    new com.arte.ainew.infrastructure.control.ControlConfigurationReader(properties), authorization,
+                    originalCatalog.entitlementAdapter(), originalCatalog.readAdapter(), policyProvider, properties.limits(), clock);
+            catalog = tightenAtSend ? new FixedControlCatalog(properties, authorization, clock, null, null,
+                    originalCatalog.entitlementAdapter(), policyProvider, boundaryGuard) : originalCatalog;
             ConnectionCredentialResolver credentials = (secret, context) -> Mono.fromSupplier(() -> {
                 credentialReads.incrementAndGet();
                 if (token.get() == null) {
@@ -212,7 +227,18 @@ public class GenerationGatewayTest {
                 }
                 return new ConnectionCredentialResolver.BearerCredential(token.get());
             });
-            runtime = new HttpConnectionRuntime(catalog::resolveConnection, authorization, credentials, generation, clock);
+            com.arte.ainew.api.control.ConnectionManager connections = tightenAtSend ? new com.arte.ainew.api.control.ConnectionManager() {
+                public Mono<ConnectionDefinition> resolve(com.arte.core.pojo.reference.DefinitionRef ref, com.arte.ainew.common.execution.ExecutionContext context) {
+                    return catalog.resolveConnection(ref, context);
+                }
+
+                public Mono<ConnectionDefinition> resolveCurrent(com.arte.core.pojo.reference.DefinitionRef ref, GatewayCall<?> call) {
+                    var p = policy.get();
+                    policy.set(new com.arte.ainew.pojo.control.AiExecutionPolicy(p.maxInputBytes(), 64, p.maxOutputBytes(), p.maximumTimeout(), p.snapshotRetention()));
+                    return catalog.resolveCurrentConnection(ref, call);
+                }
+            } : catalog::resolveConnection;
+            runtime = new HttpConnectionRuntime(connections, authorization, credentials, generation, clock);
             ConnectionRuntime<HttpConnectionRuntime.Handle> tracking = new ConnectionRuntime<>() {
                 public Mono<Lease<HttpConnectionRuntime.Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext context) {
                     return runtime.acquire(definition, context);
@@ -554,6 +580,17 @@ public class GenerationGatewayTest {
             var call = new GatewayCall<>(request, valid.binding(), valid.attempt(), valid.runtime());
             var failure = failed(rig.gateway.generate(call).collectList().block(WAIT), "GENERATION_PREFLIGHT_REJECTED");
             assertEquals(ExecutionError.SideEffect.NONE, failure.error().sideEffect());
+            assertEquals(0, rig.requests.get());
+            assertEquals(0, rig.credentialReads.get());
+        }
+    }
+
+    @Test
+    public void policyTightenedAtHttpExchangePreventsCredentialReadAndNetworkAndIsProvenUnsent() throws Exception {
+        try (var rig = new Rig(65536, 65536, false, true)) {
+            var failure = failed(rig.run(), "AI_EXECUTION_LIMIT_EXCEEDED");
+            assertEquals(ExecutionError.SideEffect.NONE, failure.error().sideEffect());
+            assertEquals(ExecutionError.Certainty.KNOWN, failure.error().certainty());
             assertEquals(0, rig.requests.get());
             assertEquals(0, rig.credentialReads.get());
         }

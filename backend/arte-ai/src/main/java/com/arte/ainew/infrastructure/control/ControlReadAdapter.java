@@ -47,28 +47,37 @@ public abstract class ControlReadAdapter implements PublishedAiCatalog, BudgetDe
 
     @Override
     public Mono<List<BudgetDefinition>> available(ExecutionContext context, Operation operation) {
-        return reader.read(context).map(value -> {
-            String required = switch (operation) {
-                case READ -> AdmissionAuthorization.READ;
-                case INITIALIZE -> AdmissionAuthorization.BUDGET_ADMIN;
-                case EXECUTE -> AdmissionAuthorization.INVOKE;
-            };
-            NewAiProperties.Grant grant = authorization.grant(value, context);
-            if (!context.authorization().scopes().contains(required) || !grant.scopes().containsAll(context.authorization().scopes())
-                    || !grant.scopes().contains(required)) {
-                throw new AccessDeniedException("Budget definition scope denied");
-            }
-            var owner = ExecutionOwners.from(context);
-            ContractChecks.unique(value.budgets().stream().map(NewAiProperties.Budget::budgetRef).toList(), "budgets");
-            return value.budgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef()) && b.owner().equals(owner))
-                    .map(b -> {
-                        NewAiProperties.Rate rate = value.rates().stream().filter(r -> r.definition().equals(b.rate())).findFirst()
-                                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
-                        if (!rate.currency().equals(b.limit().currency())) {
-                            throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);
-                        }
-                        return new BudgetDefinition(b.budgetRef(), b.owner(), b.limit(), b.rate());
-                    }).toList();
-        });
+        return reader.read(context).map(value -> budgetDefinitions(value, context, operation));
+    }
+
+    @Override
+    public BudgetDefinition resolveInCurrentTransaction(String budgetRef, ExecutionContext context, Operation operation) {
+        return reader.inCurrentTransaction(context, value -> budgetDefinitions(value, context, operation).stream()
+                .filter(b -> b.budgetRef().equals(budgetRef)).findFirst()
+                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE)));
+    }
+
+    private List<BudgetDefinition> budgetDefinitions(NewAiProperties value, ExecutionContext context, Operation operation) {
+        String required = switch (operation) {
+            case READ -> AdmissionAuthorization.READ;
+            case INITIALIZE -> AdmissionAuthorization.BUDGET_ADMIN;
+            case EXECUTE -> AdmissionAuthorization.INVOKE;
+        };
+        NewAiProperties.Grant grant = authorization.grant(value, context);
+        if (!context.authorization().scopes().contains(required) || !grant.scopes().containsAll(context.authorization().scopes())
+                || !grant.scopes().contains(required)) {
+            throw new AccessDeniedException("Budget definition scope denied");
+        }
+        var owner = ExecutionOwners.from(context);
+        ContractChecks.unique(value.budgets().stream().map(NewAiProperties.Budget::budgetRef).toList(), "budgets");
+        return value.budgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef()) && b.owner().equals(owner))
+                .map(b -> {
+                    NewAiProperties.Rate rate = value.rates().stream().filter(r -> r.definition().equals(b.rate())).findFirst()
+                            .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
+                    if (!rate.currency().equals(b.limit().currency())) {
+                        throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);
+                    }
+                    return new BudgetDefinition(b.budgetRef(), b.owner(), b.limit(), b.rate());
+                }).toList();
     }
 }

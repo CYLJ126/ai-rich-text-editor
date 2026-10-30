@@ -11,6 +11,9 @@ import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
+import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
+import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import org.redisson.api.RedissonClient;
@@ -68,10 +71,13 @@ public class NewAiExecutionConfiguration {
     }
 
     @Bean("newAiInvocationCoordinator")
-    InvocationCoordinator coordinator(ObjectProvider<GenerationDispatcher> dispatcher, ObjectProvider<ToolDispatcher> tools, AdmissionAuthorization authorization,
-                                      FixedControlCatalog catalog, MybatisExecutionPersistence executions,
-                                      MybatisPayloadPersistence payloads, NewAiProperties properties, @Qualifier("newAiClock") Clock clock) {
-        var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
+    InvocationCoordinator coordinator(ObjectProvider<GenerationDispatcher> dispatcher, ObjectProvider<ToolDispatcher> tools,
+                                      AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                      MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads,
+                                      NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
+                                      AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard,
+                                      PublishedAiCatalog published, BudgetDefinitionProvider definitions) {
+        var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock, policies, guard, published, definitions);
         return new DefaultInvocationCoordinator(admission, dispatcher.getIfAvailable(), executions, tools.getIfAvailable());
     }
 

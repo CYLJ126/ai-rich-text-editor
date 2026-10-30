@@ -484,6 +484,17 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         return outcome(() -> acceptLocked(command));
     }
 
+    @Override
+    public Mono<StoreOutcome<Invocation>> accept(Accept command, Runnable authorization) {
+        Objects.requireNonNull(command);
+        Objects.requireNonNull(authorization);
+        return outcome(() -> {
+            requirePhysicalTransaction();
+            authorization.run(); // 公共父范围先取锁，再进入 AI 受理／幂等／会话锁。
+            return acceptLocked(command);
+        });
+    }
+
     /**
      * 同库 TOOL 受理复用通用提交，不切线程、不另开事务；保留原生成受理与回滚语义。
      */
@@ -804,7 +815,16 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     @Override
     public Mono<StoreOutcome<DispatchPreparationStore.PreparedDispatch>> prepareDispatch(DispatchPreparationStore.Command command) {
+        return prepareDispatch(command, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<DispatchPreparationStore.PreparedDispatch>> prepareDispatch(DispatchPreparationStore.Command command, Runnable authorization) {
+        Objects.requireNonNull(authorization);
         return outcome(() -> {
+            requirePhysicalTransaction();
+            authorization.run();
             // 统一顺序：Invocation -> Outbox -> Run 资格／按币种预算 -> Account -> Reservation；无网络请求。
             var invocation = invocation(command.invocation());
             version(invocation, command.invocation());
@@ -955,7 +975,16 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     @Override
     public Mono<StoreOutcome<Attempt>> markDispatch(Dispatch command) {
+        return markDispatch(command, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Attempt>> markDispatch(Dispatch command, Runnable authorization) {
+        Objects.requireNonNull(authorization);
         return outcome(() -> {
+            requirePhysicalTransaction();
+            authorization.run();
             var invocation = invocation(command.guard().invocation());
             require(invocation.request().context().parentExecutionId() == null, INVALID_STATE);
             return StoreOutcome.applied(markDispatchLocked(command, invocation, checked(invocation, command.guard(), null), null));

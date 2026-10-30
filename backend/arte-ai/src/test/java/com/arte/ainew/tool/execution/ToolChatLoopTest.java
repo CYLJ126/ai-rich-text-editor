@@ -165,8 +165,16 @@ public class ToolChatLoopTest {
                             : List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate()), new NewAiProperties.Budget("tool-wallet", f.owner,
                             new Money(new BigDecimal("10"), paidPrice.perCall().currency()), paidPrice.rate())));
             var resolver = new FixedExecutionAuthorizationResolver(properties);
-            authorization = new AdmissionAuthorization((name, tenant, workspace, required) -> allowed.get() ? resolver.resolve(name, tenant, workspace, required)
-                    : Mono.error(new AccessDeniedException("revoked")), properties, f.clock);
+            authorization = new AdmissionAuthorization(new com.arte.ainew.spi.auth.ExecutionAuthorizationResolver() {
+                public Mono<ExecutionAuthorization> resolve(String name, String tenant, String workspace, Set<String> required) {
+                    return allowed.get() ? resolver.resolve(name, tenant, workspace, required) : Mono.error(new AccessDeniedException("revoked"));
+                }
+
+                public void requireInCurrentTransaction(ExecutionContext context) {
+                    if (!allowed.get()) throw new AccessDeniedException("revoked");
+                    resolver.requireInCurrentTransaction(context);
+                }
+            }, properties, f.clock);
             catalog = new FixedControlCatalog(properties, authorization, f.clock);
             if (paidPrice != null) {
                 f.billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, f.executions, f.executions, f.executions);

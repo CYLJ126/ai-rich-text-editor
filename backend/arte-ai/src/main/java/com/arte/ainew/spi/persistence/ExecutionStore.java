@@ -26,6 +26,13 @@ public interface ExecutionStore {
     Mono<StoreOutcome<Invocation>> accept(ExecutionCommands.Accept command);
 
     /**
+     * 在本次受理写事务中先复核当前公共及 AI 资格，再写 Invocation／Turn／Outbox；失败整体回滚。
+     */
+    default Mono<StoreOutcome<Invocation>> accept(ExecutionCommands.Accept command, Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Atomic admission authorization is required"));
+    }
+
+    /**
      * 当前授权归属不匹配与不存在均不返回对象；调用者仍负责校验权限／grant。
      */
     Mono<Invocation> find(ExecutionOwner owner, String invocationId);
@@ -76,6 +83,13 @@ public interface ExecutionStore {
     Mono<StoreOutcome<Invocation>> stopExpired(ExecutionCommands.Version target);
 
     Mono<StoreOutcome<Attempt>> markDispatch(ExecutionCommands.Dispatch command);
+
+    /**
+     * 分步派发兼容路径，在真正标记发送的同一事务内复核；回调必须在领域锁之前执行。
+     */
+    default Mono<StoreOutcome<Attempt>> markDispatch(ExecutionCommands.Dispatch command, Runnable authorization) {
+        return Mono.error(new UnsupportedOperationException("Atomic dispatch authorization is required"));
+    }
 
     Mono<StoreOutcome<Invocation>> queue(ExecutionCommands.Version version);
 
