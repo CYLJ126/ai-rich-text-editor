@@ -315,11 +315,12 @@ public final class DefaultResourceAccessService implements ResourceAccessService
                     Action create = creation(descriptor.resource().type());
                     authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, create, "resource-create"));
                     ResourceAccess root = new ResourceAccess(descriptor.resource(), descriptor.ownership(), ResourceVisibilityEnum.EXPLICIT, 0);
+                    // 保存资源 ACL 根，即保存资源整体的访问配置。
                     check(store.insertAccess(root));
                     // 将创建者解析为绑定当前成员代次的直接授权目标。
                     GrantTarget target = recipient(scope, root, new GrantRecipient.Subject(actor.principal().subjectId()));
                     for (Action action : initial(descriptor.resource().type())) {
-                        // 为创建者逐项保存 CREATION 来源的显式初始授权。
+                        // 为创建者逐项保存 CREATION 来源的显式初始授权，即保存具体的动作授权。
                         insert(root.resource(), target, action, null, GrantSourceEnum.CREATION, operation, actor);
                     }
                     bump(actor, scope, root, "resource:registered", operation);
