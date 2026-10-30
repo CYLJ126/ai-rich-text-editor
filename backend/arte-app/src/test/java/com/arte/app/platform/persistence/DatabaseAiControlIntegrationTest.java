@@ -156,6 +156,41 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
+    void readPortsUsePublishedDatabaseAuthorityAndKeepHistoricalRatesAfterRevocation() {
+        var scope = f.initialize().value().workspace().scope();
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            var published = c.getBean(com.arte.ainew.spi.control.PublishedAiCatalog.class);
+            var definitions = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class);
+            var rate = ref("rate", "text-price");
+            // 文件中已有费率，但未发布时不能用文件种子补历史权威。
+            assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> published.historicalRate(rate).block(WAIT));
+            db.importConfiguration(f.actor, meta("ports-import"));
+            db.ensure(f.actor, scope);
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
+            assertEquals(ref("binding", "text"), published.read(ctx).block(WAIT).bindings().getFirst().definition());
+            var budget = definitions.available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
+            assertEquals(new ExecutionOwner(scope.tenantId(), scope.workspaceId(), f.actor.principal().subjectId()), budget.owner());
+            assertEquals(money("100"), budget.limit());
+            assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
+            var old = db.catalog().catalog();
+            var v2 = new com.arte.core.pojo.reference.DefinitionRef("rate", rate.id(), "v2");
+            var rates = new ArrayList<>(old.rates());
+            rates.add(new NewAiProperties.Rate(v2, money("3"), money("4")));
+            db.publish(f.actor, meta("ports-rate-v2"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(),
+                    old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults()));
+            f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> definitions.available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT));
+            assertEquals(money("1"), published.historicalRate(rate).block(WAIT).inputPerMillion());
+            assertEquals(money("3"), published.historicalRate(v2).block(WAIT).inputPerMillion());
+            assertThrows(com.arte.ainew.application.support.AdmissionException.class,
+                    () -> published.historicalRate(new DefinitionRef("rate", rate.id(), "v3")).block(WAIT));
+        });
+    }
+
+    @Test
     void capabilityUpgradeAppendsImmutableVersionsAndRequiresExplicitWorkspaceSelection() {
         var scope = f.initialize().value().workspace().scope();
         context().run(c -> {

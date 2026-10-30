@@ -16,6 +16,8 @@ import com.arte.ainew.pojo.tool.ToolCharge;
 import com.arte.ainew.pojo.tool.ToolExecutionSnapshot;
 import com.arte.ainew.pojo.tool.ToolPrice;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.ainew.spi.persistence.ToolBillingStore;
@@ -42,15 +44,22 @@ public final class ToolBillingService {
     }
 
     private final AdmissionAuthorization authorization;
-    private final FixedControlCatalog catalog;
+    private final PublishedAiCatalog catalog;
+    private final BudgetDefinitionProvider definitions;
     private final BudgetService budgets;
     private final ExecutionStore executions;
     private final ToolBillingStore bills;
 
     public ToolBillingService(AdmissionAuthorization authorization, FixedControlCatalog catalog, BudgetService budgets,
                               ExecutionStore executions, ToolBillingStore bills) {
+        this(authorization, catalog.readAdapter(), catalog.readAdapter(), budgets, executions, bills);
+    }
+
+    public ToolBillingService(AdmissionAuthorization authorization, PublishedAiCatalog catalog, BudgetDefinitionProvider definitions,
+                              BudgetService budgets, ExecutionStore executions, ToolBillingStore bills) {
         this.authorization = authorization;
         this.catalog = catalog;
+        this.definitions = definitions;
         this.budgets = budgets;
         this.executions = executions;
         this.bills = bills;
@@ -59,30 +68,28 @@ public final class ToolBillingService {
     public Mono<BudgetCommands.Account> requireAccount(String ref, ToolPrice price, ExecutionContext context) {
         if (!enabled || ref == null) return denied();
         return bills.toolPriceBlocked(price.rate()).flatMap(blocked -> blocked ? ToolBillingService.<ExecutionContext>denied()
-                : authorization.require(context, AdmissionAuthorization.INVOKE)).flatMap(current -> catalog.configuration(current).flatMap(config -> {
-            var definition = config.budgets().stream().filter(b -> b.budgetRef().equals(ref)).findFirst().orElse(null);
+                : authorization.require(context, AdmissionAuthorization.INVOKE)).flatMap(current -> catalog.inSnapshot(current, config -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE).flatMap(available -> {
+            var definition = available.stream().filter(b -> b.budgetRef().equals(ref)).findFirst().orElse(null);
             var rate = config.rates().stream().filter(r -> r.definition().equals(price.rate())).findFirst().orElse(null);
-            if (!authorization.grant(config, current).budgetRefs().contains(ref) || definition == null || rate == null
+            if (definition == null || rate == null
                     || !price.perCall().equals(rate.toolPerCall()) || !definition.rate().equals(price.rate())
                     || !definition.owner().equals(ExecutionOwners.from(current)) || !definition.limit().currency().equals(price.perCall().currency()))
                 return denied();
             return budgets.account(definition.owner(), ref).switchIfEmpty(denied()).flatMap(account ->
                     account.owner().equals(definition.owner()) && account.rateVersion().equals(price.rate()) && account.limit().equals(definition.limit())
                             ? Mono.just(account) : denied());
-        }));
+        })));
     }
 
     public Mono<java.util.List<BudgetCommands.Account>> available(ToolPrice price, ExecutionContext context) {
         if (!enabled) return denied();
-        return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> catalog.configuration(current).flatMap(config -> {
-            var grant = authorization.grant(config, current);
+        return authorization.require(context, AdmissionAuthorization.INVOKE).flatMap(current -> catalog.inSnapshot(current, config -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE).flatMap(available -> {
             var rate = config.rates().stream().filter(r -> r.definition().equals(price.rate()) && price.perCall().equals(r.toolPerCall())).findFirst();
             if (rate.isEmpty()) return Mono.just(java.util.List.of());
-            return reactor.core.publisher.Flux.fromIterable(config.budgets()).filter(b -> grant.budgetRefs().contains(b.budgetRef())
-                            && b.owner().equals(ExecutionOwners.from(current)) && b.rate().equals(price.rate()) && b.limit().currency().equals(price.perCall().currency()))
+            return reactor.core.publisher.Flux.fromIterable(available).filter(b -> b.owner().equals(ExecutionOwners.from(current)) && b.rate().equals(price.rate()) && b.limit().currency().equals(price.perCall().currency()))
                     .concatMap(b -> budgets.account(b.owner(), b.budgetRef()).filter(a -> a.owner().equals(b.owner())
                             && a.rateVersion().equals(b.rate()) && a.limit().equals(b.limit()))).collectList();
-        }));
+        })));
     }
 
     private static <T> Mono<T> denied() {

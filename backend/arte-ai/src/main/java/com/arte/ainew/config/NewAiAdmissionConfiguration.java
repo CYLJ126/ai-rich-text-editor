@@ -18,12 +18,21 @@ import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.application.execution.LocalDispatchNotifier;
 import com.arte.ainew.application.execution.LocalExecutionEventNotifier;
+import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.context.ExecutionContextFactory;
+import com.arte.ainew.infrastructure.control.ControlReadAdapter;
+import com.arte.ainew.infrastructure.control.FixedControlReadAdapter;
+import com.arte.ainew.infrastructure.control.SourceControlReadAdapter;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
+import com.arte.ainew.pojo.control.PublishedAiDefinitions;
+import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
+import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -38,8 +47,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-import javax.sql.DataSource;
 
+import javax.sql.DataSource;
 import java.time.Clock;
 
 /**
@@ -194,7 +203,7 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiAdmissionAuthorization")
     AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
-                                         ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                         ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                          ObjectProvider<ToolInvocationAccess> toolInvocations) {
         var source = sources.getIfAvailable();
         return new AdmissionAuthorization(resolver, properties, clock, source, scheduler, toolInvocations.getIfAvailable());
@@ -215,7 +224,7 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiControlCatalog")
     FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
-                                       ObjectProvider<com.arte.ainew.spi.auth.AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+                                       ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
         var source = sources.getIfAvailable();
         return source == null ? new FixedControlCatalog(properties, authorization, clock)
                 : new FixedControlCatalog(properties, authorization, clock, source, scheduler);
@@ -229,12 +238,12 @@ public class NewAiAdmissionConfiguration {
     ConnectionManager connectionManager(FixedControlCatalog catalog) {
         return new ConnectionManager() {
             public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolve(
-                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                    com.arte.core.pojo.reference.DefinitionRef reference, ExecutionContext context) {
                 return catalog.resolveConnection(reference, context);
             }
 
             public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.ConnectionDefinition> resolveCurrent(
-                    com.arte.core.pojo.reference.DefinitionRef reference, com.arte.ainew.common.execution.ExecutionContext context) {
+                    com.arte.core.pojo.reference.DefinitionRef reference, ExecutionContext context) {
                 return catalog.resolveCurrentConnection(reference, context);
             }
 
@@ -250,16 +259,16 @@ public class NewAiAdmissionConfiguration {
      * 首次按服务器配置建账，重复调用保留已有 held／charged 和版本；注册 Bean 不触发初始化。
      */
     @Bean("newAiBudgetInitializer")
-    BudgetAccountInitializer budgetInitializer(FixedControlCatalog catalog, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
-        return new BudgetAccountInitializer(catalog, authorization, store, store);
+    BudgetAccountInitializer budgetInitializer(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
+        return new BudgetAccountInitializer(definitions, authorization, store, store);
     }
 
     /**
      * 授权预算账户查询门面；注册 Bean 不读账本、不初始化账户。
      */
     @Bean("newAiBudgetAccountQueryService")
-    BudgetAccountQueryService budgetQueryService(FixedControlCatalog catalog, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
-        return new BudgetAccountQueryService(catalog, authorization, store);
+    BudgetAccountQueryService budgetQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
+        return new BudgetAccountQueryService(definitions, authorization, store);
     }
 
     /**
@@ -267,8 +276,41 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiChatConfigurationQueryService")
     ChatConfigurationQueryService chatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
-                                                                FixedControlCatalog catalog, ObjectProvider<ModelGateway> gateway) {
-        return new ChatConfigurationQueryService(properties, authorization, catalog, gateway::getIfAvailable);
+                                                                FixedControlCatalog catalog, PublishedAiCatalog published,
+                                                                BudgetDefinitionProvider definitions, ObjectProvider<ModelGateway> gateway) {
+        return new ChatConfigurationQueryService(properties, authorization, catalog, published, definitions, gateway::getIfAvailable);
+    }
+
+    @Bean("newAiPublishedCatalog")
+    @ConditionalOnMissingBean(PublishedAiCatalog.class)
+    PublishedAiCatalog publishedCatalog(NewAiProperties properties, AdmissionAuthorization authorization,
+                                        ObjectProvider<AiControlConfigurationSource> sources,
+                                        @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        var adapter = controlReads(properties, authorization, sources.getIfAvailable(), scheduler);
+        return new PublishedAiCatalog() {
+            public <T> reactor.core.publisher.Mono<T> inSnapshot(ExecutionContext context,
+                                                                 java.util.function.Function<PublishedAiDefinitions, reactor.core.publisher.Mono<T>> work) {
+                return adapter.inSnapshot(context, work);
+            }
+
+            public reactor.core.publisher.Mono<RateDefinition> historicalRate(com.arte.core.pojo.reference.DefinitionRef reference) {
+                return adapter.historicalRate(reference);
+            }
+        };
+    }
+
+    @Bean("newAiBudgetDefinitionProvider")
+    @ConditionalOnMissingBean(BudgetDefinitionProvider.class)
+    BudgetDefinitionProvider budgetDefinitions(NewAiProperties properties, AdmissionAuthorization authorization,
+                                               ObjectProvider<AiControlConfigurationSource> sources,
+                                               @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        return controlReads(properties, authorization, sources.getIfAvailable(), scheduler)::available;
+    }
+
+    private ControlReadAdapter controlReads(NewAiProperties properties,
+                                            AdmissionAuthorization authorization, AiControlConfigurationSource source, Scheduler scheduler) {
+        return source == null ? new FixedControlReadAdapter(properties, authorization)
+                : new SourceControlReadAdapter(source, scheduler, authorization);
     }
 
     /**

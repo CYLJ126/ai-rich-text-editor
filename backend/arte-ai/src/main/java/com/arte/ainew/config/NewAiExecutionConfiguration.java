@@ -11,6 +11,7 @@ import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,10 +57,11 @@ public class NewAiExecutionConfiguration {
     @Bean("newAiGenerationDispatcher")
     @ConditionalOnBean(ModelGateway.class)
     GenerationDispatcher dispatcher(AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                    PublishedAiCatalog published,
                                     MybatisExecutionPersistence executions, MybatisPayloadPersistence payloads, ModelGateway gateway,
                                     NewAiProperties admission, NewAiExecutionProperties execution, @Qualifier("newAiClock") Clock clock,
                                     LiveTextNotifier liveText, ObjectProvider<com.arte.ainew.spi.persistence.ToolChatRunStore> runs) {
-        var dispatcher = new GenerationDispatcher(authorization, catalog, executions, executions, executions, payloads, payloads,
+        var dispatcher = new GenerationDispatcher(authorization, catalog, published, executions, executions, executions, payloads, payloads,
                 executions, gateway, admission, execution, clock, liveText);
         var store = runs.getIfAvailable();
         return store == null ? dispatcher : dispatcher.toolChats(store);

@@ -7,6 +7,7 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -23,25 +24,28 @@ import java.math.BigDecimal;
  */
 @Slf4j
 public final class BudgetAccountInitializer {
-    private final FixedControlCatalog configuration;
+    private final BudgetDefinitionProvider definitions;
     private final AdmissionAuthorization authorization;
     private final BudgetService budgets;
     private final AdmissionCatalogStore store;
 
     public BudgetAccountInitializer(FixedControlCatalog configuration, AdmissionAuthorization authorization,
                                     BudgetService budgets, AdmissionCatalogStore store) {
-        this.configuration = configuration;
+        this(configuration.readAdapter(), authorization, budgets, store);
+    }
+
+    public BudgetAccountInitializer(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization,
+                                    BudgetService budgets, AdmissionCatalogStore store) {
+        this.definitions = definitions;
         this.authorization = authorization;
         this.budgets = budgets;
         this.store = store;
     }
 
     public Mono<BudgetCommands.Account> initialize(String ref, ExecutionContext context) {
-        return authorization.requireWrite(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(current -> configuration.budget(ref, current).flatMap(definition -> {
-
-            if (!definition.owner().equals(ExecutionOwners.from(current)) || !authorization.grant(current).budgetRefs().contains(ref)) {
-                throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
-            }
+        return authorization.requireWrite(context, AdmissionAuthorization.BUDGET_ADMIN).flatMap(current -> definitions.resolve(ref, current, BudgetDefinitionProvider.Operation.INITIALIZE).flatMap(definition -> {
+            if (!ref.equals(definition.budgetRef()) || !definition.owner().equals(ExecutionOwners.from(current)))
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE));
             var zero = new Money(BigDecimal.ZERO, definition.limit().currency());
             var candidate = new BudgetCommands.Account(ref, definition.owner(), definition.limit(), zero, zero, definition.rate(), 0);
             return budgets.account(definition.owner(), ref)

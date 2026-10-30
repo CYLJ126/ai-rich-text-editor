@@ -12,6 +12,8 @@ import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import com.arte.core.enums.ResultCodeEnum;
@@ -36,6 +38,8 @@ public final class ToolChatBudgetSelector {
     private final ToolChatRunStore runs;
     private final AdmissionAuthorization authorization;
     private final FixedControlCatalog catalog;
+    private final PublishedAiCatalog published;
+    private final BudgetDefinitionProvider definitions;
     private final BudgetService budgets;
     private final ToolBindingService bindings;
     private final Clock clock;
@@ -48,6 +52,14 @@ public final class ToolChatBudgetSelector {
 
     public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                   BudgetService budgets, ToolBindingService bindings, Clock clock) {
+        this(runs, authorization, catalog, catalog.readAdapter(), catalog.readAdapter(), budgets, bindings, clock);
+    }
+
+    public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                  PublishedAiCatalog published, BudgetDefinitionProvider definitions,
+                                  BudgetService budgets, ToolBindingService bindings, Clock clock) {
+        this.published = published;
+        this.definitions = definitions;
         this.runs = runs;
         this.authorization = authorization;
         this.catalog = catalog;
@@ -63,11 +75,9 @@ public final class ToolChatBudgetSelector {
     private Mono<ToolChatBudgetPlan.Selection> model(ToolChatRunSnapshot fixed, String budgetRef, ExecutionContext current) {
         return catalog.resolve(fixed.model().definition(), fixed.model().capability().definition(), current).flatMap(model -> {
             if (!model.equals(fixed.model())) return denied();
-            return authorization.configurationGrant(current).flatMap(grant -> {
-                if (!grant.budgetRefs().contains(budgetRef)) return denied();
-                return catalog.configuration(current).flatMap(configuration -> {
+            return published.inSnapshot(current, configuration -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE).flatMap(available -> {
                     var rate = configuration.rates().stream().filter(r -> r.definition().equals(model.rate())).findFirst().orElse(null);
-                    var configured = configuration.budgets().stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst().orElse(null);
+                var configured = available.stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst().orElse(null);
                     var owner = ExecutionOwners.from(current);
                     if (rate == null || rate.toolPerCall() != null || configured == null || !configured.owner().equals(owner) || !configured.rate().equals(model.rate())
                             || !configured.limit().currency().equals(rate.inputPerMillion().currency()))
@@ -78,8 +88,7 @@ public final class ToolChatBudgetSelector {
                         return Mono.just(new ToolChatBudgetPlan.Selection(model.definition(), model.capability().definition(), model.capability().kind(),
                                 BillingMode.CHARGE, budgetRef, model.rate(), new ToolChatBudgetPlan.ModelPrice(rate.inputPerMillion(), rate.outputPerMillion())));
                     });
-                });
-            });
+            }));
         });
     }
 

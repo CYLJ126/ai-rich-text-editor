@@ -2,6 +2,7 @@ package com.arte.ainew.context;
 
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 import reactor.util.context.ContextView;
@@ -22,8 +23,7 @@ public final class ControlPreparation {
 
     private static final Object KEY = new Object();
 
-    private record Bound(ExecutionContext context,
-                         com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration prepared) {
+    private record Bound(ExecutionContext context, AiControlConfigurationSource.PreparedConfiguration prepared) {
     }
 
     private ControlPreparation() {
@@ -40,14 +40,13 @@ public final class ControlPreparation {
      */
     public static <T> Mono<T> use(ExecutionContext context, NewAiProperties configuration,
                                   Function<ExecutionContext, Mono<T>> work) {
-        return use(context, new com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration(configuration, null), work);
+        return use(context, new AiControlConfigurationSource.PreparedConfiguration(configuration, null), work);
     }
 
     /**
      * 安装包含发布版本凭证的准备结果；凭证不持久化、不跨操作复用。
      */
-    public static <T> Mono<T> use(ExecutionContext context,
-                                  com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration prepared,
+    public static <T> Mono<T> use(ExecutionContext context, AiControlConfigurationSource.PreparedConfiguration prepared,
                                   Function<ExecutionContext, Mono<T>> work) {
         return Mono.defer(() -> work.apply(context))
                 .contextWrite(values -> values.put(KEY, new Bound(context, prepared)));
@@ -62,13 +61,13 @@ public final class ControlPreparation {
      * @throws AccessDeniedException 已安装快照属于其他执行上下文时抛出
      */
     public static Optional<NewAiProperties> find(ContextView values, ExecutionContext context) {
-        return findPrepared(values, context).map(com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration::configuration);
+        return findPrepared(values, context).map(AiControlConfigurationSource.PreparedConfiguration::configuration);
     }
 
     /**
      * 按完整执行上下文取得当前订阅的配置及版本凭证，供发送前复核使用。
      */
-    public static Optional<com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration> findPrepared(ContextView values, ExecutionContext context) {
+    public static Optional<AiControlConfigurationSource.PreparedConfiguration> findPrepared(ContextView values, ExecutionContext context) {
         if (!values.hasKey(KEY)) return Optional.empty();
         Bound bound = values.get(KEY);
         if (!bound.context().equals(context))

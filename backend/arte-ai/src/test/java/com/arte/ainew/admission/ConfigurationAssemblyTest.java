@@ -96,6 +96,8 @@ public class ConfigurationAssemblyTest {
             assertNotNull(context.getBean(com.arte.ainew.spi.persistence.ToolReleaseStore.class));
             assertTrue(context.getBeansOfType(com.arte.ainew.application.tool.discovery.StaticToolDiscovery.class).isEmpty());
             assertNotNull(context.getBean(BudgetAccountQueryService.class));
+            assertEquals(1, context.getBeansOfType(com.arte.ainew.spi.control.PublishedAiCatalog.class).size());
+            assertEquals(1, context.getBeansOfType(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).size());
             assertNotNull(context.getBean(NewAiBudgetController.class));
             assertNotNull(context.getBean(ChatConfigurationQueryService.class));
             assertNotNull(context.getBean(NewAiConfigurationController.class));

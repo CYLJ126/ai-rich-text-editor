@@ -17,10 +17,12 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.context.ContextSnapshot;
+import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.*;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.*;
 import com.arte.core.diagnostics.SafeExceptionDiagnostics;
@@ -54,6 +56,7 @@ public final class GenerationDispatcher {
 
     private final AdmissionAuthorization admissionAuthorization;
     private final FixedControlCatalog fixedControlCatalog;
+    private final PublishedAiCatalog publishedCatalog;
     private final ExecutionStore executionStore;
     private final ExecutionEventStore executionEventStore;
     private final ExecutionOutboxStore executionOutboxStore;
@@ -87,6 +90,17 @@ public final class GenerationDispatcher {
                                 ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
                                 ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
                                 NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
+        this(admissionAuthorization, fixedControlCatalog, fixedControlCatalog.readAdapter(), executionStore,
+                executionEventStore, executionOutboxStore, contextSnapshotStore, executionResultStore, budgetService,
+                modelGateway, newAiProperties, newAiExecutionProperties, clock, liveTextNotifier);
+    }
+
+    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog,
+                                PublishedAiCatalog publishedCatalog, ExecutionStore executionStore,
+                                ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
+                                ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
+                                NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
+        this.publishedCatalog = Objects.requireNonNull(publishedCatalog);
         this.liveTextNotifier = liveTextNotifier;
         this.admissionAuthorization = admissionAuthorization;
         this.fixedControlCatalog = fixedControlCatalog;
@@ -217,10 +231,8 @@ public final class GenerationDispatcher {
                                                         return java.util.Optional.of(root.tools());
                                                     });
                                         }
-                                        return tools.flatMap(set -> fixedControlCatalog.configuration(current).map(configuration -> new Prepared(request, binding, snapshot,
-                                                new ExecutionRuntimeContext(current, runtime.cancellation()), configuration.rates().stream()
-                                                .filter(value -> value.definition().equals(binding.rate())).findFirst()
-                                                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH)), set.orElse(null))));
+                                        return tools.flatMap(set -> publishedCatalog.rate(binding.rate(), current).map(rate -> new Prepared(request, binding, snapshot,
+                                                new ExecutionRuntimeContext(current, runtime.cancellation()), rate, set.orElse(null))));
                                     }));
                 })
                 .onErrorResume(error -> predictable(error)
@@ -285,7 +297,7 @@ public final class GenerationDispatcher {
     }
 
     private record Prepared(InvocationRequest<GenerationRequest> request, ResolvedBinding binding,
-                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime, NewAiProperties.Rate rate,
+                            ContextSnapshot snapshot, ExecutionRuntimeContext runtime, RateDefinition rate,
                             com.arte.ainew.pojo.tool.ToolSetSnapshot tools) {
     }
 
@@ -322,11 +334,6 @@ public final class GenerationDispatcher {
         return value.successful() ? Mono.just(value.value()) : Mono.error(AdmissionException.fromStoreRejection(value.code()));
     }
 
-    private NewAiProperties.Rate rate(com.arte.core.pojo.reference.DefinitionRef reference) {
-        return fixedControlCatalog.rates().stream().filter(value -> value.definition().equals(reference)).findFirst()
-                .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
-    }
-
     /**
      * 终态后结算失败可通过同一个 Outbox 重投恢复；时间与防重键取自耐久事实，不随重投变化。
      */
@@ -351,30 +358,31 @@ public final class GenerationDispatcher {
                             boolean reported = (invocation.state() == Invocation.State.SUCCEEDED
                                     || invocation.error() != null && invocation.error().code().equals("MODEL_OUTPUT_INCOMPLETE"))
                                     && GenerationPricing.known(attempt.usage());
-                            var price = rate(reservation.rateVersion());
-                            var charge = release ? GenerationPricing.amount(price, 0, 0)
-                                    : reported ? GenerationPricing.amount(price, attempt.usage().inputTokens(), attempt.usage().outputTokens()) : null;
-                            var state = release ? BudgetSettlement.State.RELEASED
-                                    : reported ? BudgetSettlement.State.SETTLED : BudgetSettlement.State.PENDING_RECONCILIATION;
-                            var settlement = new BudgetSettlement(CanonicalJson.key(attempt.attemptId(), "dispatch-settlement"),
-                                    reservation.reservationId(), state, attempt.usage(), charge, attempt.updatedAt());
-                            var evidence = notSent ? BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED
-                                    : noExecution ? BudgetCommands.Evidence.PROVEN_NO_EXECUTION : reported ? BudgetCommands.Evidence.PROVIDER_BILL : BudgetCommands.Evidence.UNKNOWN_COST;
-                            return budgetService.settle(new BudgetCommands.Settle(owner, reservation.version(), settlement, evidence,
-                                            release ? "attempt:" + attempt.attemptId()
-                                                    : reported ? "provider-usage:" + attempt.attemptId() : null))
-                                    .flatMap(GenerationDispatcher::applied)
-                                    .doOnNext(value -> {
-                                        if (value.state() == BudgetReservation.State.PENDING_RECONCILIATION) {
-                                            log.warn("AI budget requires reconciliation, invocationId={}, traceId={}, attemptId={}, reservationId={}, invocationState={}, dispatch={}, usageBasis={}",
-                                                    invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
-                                                    reservation.reservationId(), invocation.state(), attempt.dispatch(), attempt.usage().basis());
-                                        } else {
-                                            log.info("AI budget settlement committed, invocationId={}, traceId={}, attemptId={}, reservationId={}, state={}, evidence={}",
-                                                    invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
-                                                    reservation.reservationId(), value.state(), evidence);
-                                        }
-                                    }).then();
+                            return publishedCatalog.historicalRate(reservation.rateVersion()).flatMap(price -> {
+                                var charge = release ? GenerationPricing.amount(price, 0, 0)
+                                        : reported ? GenerationPricing.amount(price, attempt.usage().inputTokens(), attempt.usage().outputTokens()) : null;
+                                var state = release ? BudgetSettlement.State.RELEASED
+                                        : reported ? BudgetSettlement.State.SETTLED : BudgetSettlement.State.PENDING_RECONCILIATION;
+                                var settlement = new BudgetSettlement(CanonicalJson.key(attempt.attemptId(), "dispatch-settlement"),
+                                        reservation.reservationId(), state, attempt.usage(), charge, attempt.updatedAt());
+                                var evidence = notSent ? BudgetCommands.Evidence.PROVEN_NOT_DISPATCHED
+                                        : noExecution ? BudgetCommands.Evidence.PROVEN_NO_EXECUTION : reported ? BudgetCommands.Evidence.PROVIDER_BILL : BudgetCommands.Evidence.UNKNOWN_COST;
+                                return budgetService.settle(new BudgetCommands.Settle(owner, reservation.version(), settlement, evidence,
+                                                release ? "attempt:" + attempt.attemptId()
+                                                        : reported ? "provider-usage:" + attempt.attemptId() : null))
+                                        .flatMap(GenerationDispatcher::applied)
+                                        .doOnNext(value -> {
+                                            if (value.state() == BudgetReservation.State.PENDING_RECONCILIATION) {
+                                                log.warn("AI budget requires reconciliation, invocationId={}, traceId={}, attemptId={}, reservationId={}, invocationState={}, dispatch={}, usageBasis={}",
+                                                        invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
+                                                        reservation.reservationId(), invocation.state(), attempt.dispatch(), attempt.usage().basis());
+                                            } else {
+                                                log.info("AI budget settlement committed, invocationId={}, traceId={}, attemptId={}, reservationId={}, state={}, evidence={}",
+                                                        invocation.request().context().executionId(), invocation.request().context().traceId(), attempt.attemptId(),
+                                                        reservation.reservationId(), value.state(), evidence);
+                                            }
+                                        }).then();
+                            });
                         }));
     }
 

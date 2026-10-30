@@ -12,6 +12,8 @@ import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.auth.ToolExecutionAccess;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import org.springframework.beans.factory.ListableBeanFactory;
@@ -44,8 +46,9 @@ public class NewAiToolExecutionConfiguration {
     @Bean
     @ConditionalOnBean({com.arte.ainew.application.auth.AdmissionAuthorization.class, com.arte.ainew.application.control.FixedControlCatalog.class})
     com.arte.ainew.application.tool.billing.ToolBillingService toolBillingService(com.arte.ainew.application.auth.AdmissionAuthorization authorization,
-                                                                                  com.arte.ainew.application.control.FixedControlCatalog catalog, MybatisExecutionPersistence executions, org.springframework.core.env.Environment environment) {
-        return new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, executions, executions, executions)
+                                                                                  PublishedAiCatalog catalog,
+                                                                                  BudgetDefinitionProvider definitions, MybatisExecutionPersistence executions, org.springframework.core.env.Environment environment) {
+        return new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, definitions, executions, executions, executions)
                 .enabled(environment.getProperty("arte.ai-new-tool-billing.enabled", Boolean.class, false));
     }
 

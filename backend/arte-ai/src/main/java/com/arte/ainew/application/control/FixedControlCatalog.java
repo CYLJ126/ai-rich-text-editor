@@ -7,6 +7,10 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
+import com.arte.ainew.infrastructure.control.ControlReadAdapter;
+import com.arte.ainew.infrastructure.control.FixedControlReadAdapter;
+import com.arte.ainew.infrastructure.control.SourceControlReadAdapter;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
@@ -45,9 +49,11 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
     private final Map<String, NewAiProperties.Budget> budgets;
     private AiControlConfigurationSource source;
     private Scheduler scheduler;
+    private ControlConfigurationReader reader;
 
     public FixedControlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, Clock clock) {
         this.properties = properties;
+        this.reader = new ControlConfigurationReader(properties);
         this.authorization = authorization;
         this.clock = clock;
         capabilities = index(properties.capabilities(), CapabilityDescriptor::definition);
@@ -91,25 +97,22 @@ public final class FixedControlCatalog implements CapabilityCatalog, BindingMana
         this(infrastructure, authorization, clock);
         this.source = Objects.requireNonNull(source);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.reader = new ControlConfigurationReader(source, scheduler);
     }
 
     public Mono<NewAiProperties> configuration(ExecutionContext context) {
-        return Mono.deferContextual(values -> {
-            var preparation = com.arte.ainew.context.ControlPreparation.find(values, context);
-            if (preparation.isPresent()) return Mono.just(preparation.get());
-            var snapshot = com.arte.ainew.context.ReadOperationSnapshot.find(values, context);
-            if (snapshot.isPresent()) {
-                var configuration = snapshot.get().configuration();
-                if (configuration == null)
-                    return Mono.error(new IllegalStateException("Read operation did not request control configuration"));
-                return Mono.just(configuration);
-            }
-            return source == null ? Mono.just(properties)
-                    : Mono.fromCallable(() -> source.configuration(context)).subscribeOn(scheduler);
-        });
+        return reader.read(context);
     }
 
-    public java.util.List<NewAiProperties.Rate> rates() {
+    /**
+     * 手工装配旧调用方的迁移桥；生产读取服务通过独立 SPI 注入。
+     */
+    public ControlReadAdapter readAdapter() {
+        return source == null ? new FixedControlReadAdapter(properties, authorization)
+                : new SourceControlReadAdapter(source, scheduler, authorization);
+    }
+
+    public List<NewAiProperties.Rate> rates() {
         return source == null ? properties.rates() : source.definitions().rates();
     }
 

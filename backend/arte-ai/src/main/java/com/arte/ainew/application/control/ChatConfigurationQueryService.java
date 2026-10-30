@@ -2,10 +2,12 @@ package com.arte.ainew.application.control;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ChatConfigurationOptions;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import reactor.core.publisher.Mono;
 
@@ -21,9 +23,19 @@ public final class ChatConfigurationQueryService {
     private final AdmissionAuthorization authorization;
     private final FixedControlCatalog catalog;
     private final Supplier<ModelGateway> gateway;
+    private final PublishedAiCatalog published;
+    private final BudgetDefinitionProvider definitions;
 
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          FixedControlCatalog catalog, Supplier<ModelGateway> gateway) {
+        this(properties, authorization, catalog, catalog.readAdapter(), catalog.readAdapter(), gateway);
+    }
+
+    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
+                                         FixedControlCatalog catalog, PublishedAiCatalog published,
+                                         BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
+        this.published = published;
+        this.definitions = definitions;
         this.properties = properties;
         this.authorization = authorization;
         this.catalog = catalog;
@@ -36,20 +48,17 @@ public final class ChatConfigurationQueryService {
             if (modelGateway == null) {
                 return Mono.just(new ChatConfigurationOptions(List.of()));
             }
-            return catalog.configuration(current).flatMap(configuration -> {
-                var grant = authorization.grant(configuration, current);
-                var owner = ExecutionOwners.from(current);
-                return catalog.fromSnapshot(configuration).discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
+            return published.inSnapshot(current, configuration -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE)
+                    .flatMap(available -> catalog.discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
                     .filter(binding -> binding.contextWindowTokens() >= 2
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
                             && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING))
                     .filter(binding -> configuration.connections().stream().anyMatch(connection ->
                             connection.definition().equals(binding.connection()) && modelGateway.supportsTextChat(binding, connection)))
                     .map(binding -> {
-                        var budgets = configuration.budgets().stream()
-                                .filter(budget -> grant.budgetRefs().contains(budget.budgetRef()) && budget.owner().equals(owner)
-                                        && budget.rate().equals(binding.rate()))
-                                .map(NewAiProperties.Budget::budgetRef).sorted().toList();
+                        var budgets = available.stream()
+                                .filter(budget -> budget.rate().equals(binding.rate()))
+                                .map(BudgetDefinition::budgetRef).sorted().toList();
                         long window = binding.contextWindowTokens();
                         int outputLimit = (int) Math.min(properties.limits().maxOutputTokens(), Math.min(1_000_000L, window - 1));
                         var limits = new ChatConfigurationOptions.Limits(window - 1, outputLimit, properties.limits().maxInputBytes(),
@@ -64,8 +73,7 @@ public final class ChatConfigurationQueryService {
                                         && modelGateway.supportsToolChat(binding, connection)));
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
-                    .collectList().map(ChatConfigurationOptions::new);
-            });
+                            .collectList().map(ChatConfigurationOptions::new)));
         });
     }
 }

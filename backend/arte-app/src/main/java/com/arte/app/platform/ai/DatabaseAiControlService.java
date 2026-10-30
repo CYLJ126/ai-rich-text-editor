@@ -138,6 +138,15 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return published == null ? infrastructure : published.catalog().properties(infrastructure, List.of(), List.of());
     }
 
+    @Override
+    public NewAiProperties.Rate historicalRate(DefinitionRef reference) {
+        reference.requireType("rate");
+        // 发布修订只允许追加，原费率不可删除或改写；禁止使用尚未导入的文件种子替代历史权威。
+        return tx.readOnly(() -> published(true).catalog().rates().stream()
+                .filter(rate -> rate.definition().equals(reference)).findFirst()
+                .orElseThrow(() -> new com.arte.ainew.application.support.AdmissionException(com.arte.core.enums.ResultCodeEnum.AI_RATE_MISMATCH)));
+    }
+
     private TrustedActor actor(String name) {
         var principal = identities.resolveAuthenticatedName(name).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
                 .orElseThrow(() -> new AccessDeniedException("Account unavailable"));

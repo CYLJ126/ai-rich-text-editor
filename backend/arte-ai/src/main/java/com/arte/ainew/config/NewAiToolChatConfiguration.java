@@ -9,6 +9,8 @@ import com.arte.ainew.application.tool.chat.ToolChatBudgetSelector;
 import com.arte.ainew.application.tool.chat.ToolChatQueryService;
 import com.arte.ainew.persistence.mybatis.MybatisConversationSearchReads;
 import com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
+import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.conversation.ConversationContentVisibility;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
@@ -23,8 +25,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import reactor.core.scheduler.Scheduler;
-import javax.sql.DataSource;
 
+import javax.sql.DataSource;
 import java.time.Clock;
 
 /**
@@ -66,10 +68,12 @@ public class NewAiToolChatConfiguration {
     @ConditionalOnBean(ConversationService.class)
     ToolChatBudgetSelector toolChatBudgetSelector(MybatisToolChatRunStore runs,
                                                   AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                                  PublishedAiCatalog published,
+                                                  BudgetDefinitionProvider definitions,
                                                   BudgetService budgets,
                                                   ObjectProvider<ToolBindingService> bindings,
                                                   @Qualifier("newAiClock") Clock clock, ObjectProvider<com.arte.ainew.application.tool.billing.ToolBillingService> billing) {
-        return new ToolChatBudgetSelector(runs, authorization, catalog, budgets, bindings.getIfAvailable(), clock).paid(billing.getIfAvailable());
+        return new ToolChatBudgetSelector(runs, authorization, catalog, published, definitions, budgets, bindings.getIfAvailable(), clock).paid(billing.getIfAvailable());
     }
 
     @Bean

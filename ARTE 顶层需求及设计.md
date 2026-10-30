@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.18
+版本：v0.19
 
-日期：2026-10-30（本次收口工作空间独立创建及 AI 按需准备；其他阶段状态以各节为准）
+日期：2026-10-30（本次增加 AI 发布目录／预算定义读取端口；其他阶段状态以各节为准）
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
@@ -28,6 +28,10 @@ core，并显式对齐公共当前主体与 AI 执行身份快照。具体归属
 2026-10-30 工作空间独立创建：DATABASE AI 控制面不再参与个人默认空间初始化及额外空间创建事务；公共创建不读取 AI 模板或准备预算，进入
 AI 功能时通过 `ensure` 按需准备。AI
 准备失败不回滚已创建空间；公共身份、政策及持久化的原有要求继续生效。实现与验证范围见 [AI 数据库配置说明](backend/arte-app/docs/PLATFORM_AI_CONTROL.md)。
+
+2026-10-30 控制面端口第 1 批：已增加 `PublishedAiCatalog`、`BudgetDefinitionProvider` 及独立业务读取对象，提供
+FIXED／DATABASE
+适配，改接预算服务、模型选项、派发及工具聊天／计费的定义读取；历史费率按原版本独立读取。现有发布与持久化格式保留；资源使用资格、政策及受理事务门控仍按后续批次拆分。见 [AI 控制面读取端口](backend/arte-ai/CONTROL_READ_PORTS.md)。
 
 ## TODO
 
@@ -2151,6 +2155,9 @@ reauthorize (originalContext) 端口，按保存的稳定主体查询当前身�
 | AiExecutionPolicyProvider                           | 提供现有平台限制与经验证的租户／空间收紧限制；有效 limits 取交集，不接受客户端提高上限                                                           |
 | CredentialUsagePolicy／ConnectionCredentialResolver | 校验当前连接用途和凭据责任授权后解析 SecretRef；不因 model:read 或空间治理角色返回明文                                                           |
 | AiAdmissionAuthorizationGuard                       | 将公共门控和 AI 发布／预算资格校验嵌入实际受理／派发事务；对接第 4 节的提交保护，不改执行身份                                                    |
+
+2026-10-30 实施第 1
+批已落实上述发布目录与预算定义读取端口、两种来源适配及首批读取调用方；其余资格、政策、凭据用途和事务门控仍按后续批次实施。详见 [AI 控制面读取端口](backend/arte-ai/CONTROL_READ_PORTS.md)。
 
 这些端口归 `arte-ai`，公共 core 不引用 BindingDefinition、Money 或 Invocation。app 组合公共 API 和 AI 存储 SPI
 提供环境适配；固定配置适配器和动态存储适配器共同遵守同一个 AI 端口，而不是各 Controller 自建过滤规则。

@@ -7,6 +7,7 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.budget.BudgetCommands;
+import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.core.enums.ResultCodeEnum;
 import reactor.core.publisher.Mono;
 
@@ -17,12 +18,16 @@ import reactor.core.publisher.Mono;
  * @since 2026/10/7 17:38 ✾
  */
 public final class BudgetAccountQueryService {
-    private final FixedControlCatalog configuration;
+    private final BudgetDefinitionProvider definitions;
     private final AdmissionAuthorization authorization;
     private final BudgetService budgets;
 
     public BudgetAccountQueryService(FixedControlCatalog configuration, AdmissionAuthorization authorization, BudgetService budgets) {
-        this.configuration = configuration;
+        this(configuration.readAdapter(), authorization, budgets);
+    }
+
+    public BudgetAccountQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, BudgetService budgets) {
+        this.definitions = definitions;
         this.authorization = authorization;
         this.budgets = budgets;
     }
@@ -31,15 +36,9 @@ public final class BudgetAccountQueryService {
         ContractChecks.id(budgetRef, "budgetRef");
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {
             var owner = ExecutionOwners.from(current);
-            return configuration.configuration(current).flatMap(snapshot -> {
-                // 未知预算与其他主体预算均不可见；资格、定义来自同一次可信读取。
-                if (!authorization.grant(snapshot, current).budgetRefs().contains(budgetRef))
-                    throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
-                var definition = snapshot.budgets().stream().filter(b -> b.budgetRef().equals(budgetRef)).findFirst()
-                        .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE));
-                if (!definition.owner().equals(owner)) {
-                    throw new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE);
-                }
+            return definitions.resolve(budgetRef, current, BudgetDefinitionProvider.Operation.READ).flatMap(definition -> {
+                if (!budgetRef.equals(definition.budgetRef()) || !owner.equals(definition.owner()))
+                    return Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE));
                 return budgets.account(owner, budgetRef)
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_INITIALIZED)))
                         .map(account -> {
@@ -48,7 +47,7 @@ public final class BudgetAccountQueryService {
                                 throw new AdmissionException(ResultCodeEnum.AI_BUDGET_CONFIGURATION_CONFLICT);
                             }
                             return account;
-                    });
+                        });
             });
         });
     }

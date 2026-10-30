@@ -54,5 +54,14 @@ public interface AiControlConfigurationSource {
 
     NewAiProperties definitions();
 
+    /**
+     * 已有执行结算的精确历史费率；数据库来源必须读取发布权威，不依赖当前用户调用资格。
+     */
+    default NewAiProperties.Rate historicalRate(com.arte.core.pojo.reference.DefinitionRef reference) {
+        reference.requireType("rate");
+        return definitions().rates().stream().filter(rate -> rate.definition().equals(reference)).findFirst()
+                .orElseThrow(() -> new com.arte.ainew.application.support.AdmissionException(com.arte.core.enums.ResultCodeEnum.AI_RATE_MISMATCH));
+    }
+
     NewAiProperties.Grant grant(ExecutionContext context);
 }

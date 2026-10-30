@@ -1,7 +1,7 @@
 package com.arte.ainew.application.execution;
 
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.execution.Usage;
 
 import java.math.BigDecimal;
@@ -18,7 +18,7 @@ final class GenerationPricing {
     private GenerationPricing() {
     }
 
-    static Money amount(NewAiProperties.Rate rate, long input, long output) {
+    static Money amount(RateDefinition rate, long input, long output) {
         if (rate.toolPerCall() != null) throw new IllegalArgumentException("Generation requires Token pricing");
         var cost = rate.inputPerMillion().amount().multiply(BigDecimal.valueOf(input))
                 .add(rate.outputPerMillion().amount().multiply(BigDecimal.valueOf(output)))
