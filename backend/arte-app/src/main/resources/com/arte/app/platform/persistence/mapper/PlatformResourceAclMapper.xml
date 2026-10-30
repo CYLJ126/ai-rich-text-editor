@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformResourceAclMapper">
+
+    <select id="access" resultType="com.arte.app.pojo.platform.PlatformResourceAccessDto">
+        SELECT * FROM arte_platform_resource_access WHERE resource_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <insert id="insertAccess">
+        INSERT INTO
+        arte_platform_resource_access(resource_key,tenant_id,resource_type,resource_id,workspace_id,payload,acl_version)
+        VALUES(#{row.resourceKey},#{row.tenantId},#{row.resourceType},#{row.resourceId},#{row.workspaceId},#{row.payload},#{row.aclVersion})
+    </insert>
+
+    <update id="replaceAccess">
+        UPDATE arte_platform_resource_access SET payload=#{row.payload},acl_version=#{row.aclVersion}
+        WHERE resource_key=#{row.resourceKey} AND tenant_id=#{row.tenantId} AND resource_type=#{row.resourceType}
+        AND resource_id=#{row.resourceId} AND acl_version=#{expected}
+    </update>
+
+    <select id="currentGrantIds" resultType="string">SELECT id FROM arte_platform_resource_grant WHERE
+        resource_key=#{key} ORDER BY id LIMIT 10001 FOR UPDATE
+    </select>
+
+    <select id="countGrants" resultType="long">SELECT COUNT(*) FROM arte_platform_resource_grant WHERE
+        resource_key=#{key}
+    </select>
+
+    <select id="grants" resultType="com.arte.app.pojo.platform.PlatformResourceGrantDto">
+        SELECT * FROM arte_platform_resource_grant WHERE resource_key=#{key} ORDER BY id LIMIT #{size} OFFSET #{offset}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <select id="grant" resultType="com.arte.app.pojo.platform.PlatformResourceGrantDto">
+        SELECT * FROM arte_platform_resource_grant WHERE resource_key=#{key} AND id=#{id}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <insert id="insertGrant">
+        INSERT INTO arte_platform_resource_grant(id,resource_key,source_identity_digest,payload,version)
+        VALUES(#{row.id},#{row.resourceKey},#{row.sourceIdentityDigest},#{row.payload},#{row.version})
+    </insert>
+
+    <update id="replaceGrant">
+        UPDATE arte_platform_resource_grant SET payload=#{row.payload},version=#{row.version}
+        WHERE resource_key=#{row.resourceKey} AND id=#{row.id} AND source_identity_digest=#{row.sourceIdentityDigest}
+        AND version=#{expected}
+    </update>
+</mapper>

@@ -18,7 +18,7 @@ import static com.arte.core.constant.platform.PlatformResourceTypes.TENANT;
 import static com.arte.core.constant.platform.PlatformResourceTypes.WORKSPACE;
 
 /**
- * 第二步租户／空间基础门控；不在事务外开新事务，不对未接入 ACL 的业务资源返回许可。
+ * 租户／空间及已登记资源的最终门控；不在事务外开新事务，未接入 ACL 的业务资源拒绝。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
@@ -29,13 +29,20 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
     private final CurrentPrincipalResolver principals;
     private final WorkspaceGovernanceLocks locks;
     private final AuthorizationService authorization;
+    private final boolean resourceAclEnabled;
 
     public DefaultWorkspaceWriteGuard(PublicTransactionRunner transactions, CurrentPrincipalResolver principals,
                                       WorkspaceGovernanceLocks locks, AuthorizationService authorization) {
+        this(transactions, principals, locks, authorization, false);
+    }
+
+    public DefaultWorkspaceWriteGuard(PublicTransactionRunner transactions, CurrentPrincipalResolver principals,
+                                      WorkspaceGovernanceLocks locks, AuthorizationService authorization, boolean resourceAclEnabled) {
         this.transactions = Objects.requireNonNull(transactions);
         this.principals = Objects.requireNonNull(principals);
         this.locks = Objects.requireNonNull(locks);
         this.authorization = Objects.requireNonNull(authorization);
+        this.resourceAclEnabled = resourceAclEnabled;
     }
 
     @Override
@@ -45,18 +52,17 @@ public final class DefaultWorkspaceWriteGuard implements WorkspaceWriteGuard {
         List<AccessRequest> inputs = List.copyOf(requests);
         if (inputs.isEmpty() || inputs.size() > 100)
             throw new PlatformException(PlatformErrorCodeEnum.INVALID_ARGUMENT, "write-guard");
-        for (AccessRequest request : inputs) {
-            boolean workspace = request.resource().type().equals(WORKSPACE)
-                    && request.resource().resourceId().equals(request.scope().workspaceId());
-            boolean tenant = request.resource().type().equals(TENANT)
-                    && request.resource().resourceId().equals(request.scope().tenantId());
-            if (!workspace && !tenant)
-                throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "write-guard");
+        if (!resourceAclEnabled) {
+            for (AccessRequest request : inputs) {
+                boolean root = request.resource().type().equals(WORKSPACE) && request.resource().resourceId().equals(request.scope().workspaceId())
+                        || request.resource().type().equals(TENANT) && request.resource().resourceId().equals(request.scope().tenantId());
+                if (!root) throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "write-guard");
+            }
         }
         // 租户治理无需空间资格；混合请求仍统一先锁全部租户，再锁目标空间及成员。
         locks.duringAuthorization(() -> {
             locks.ranges(actor.principal().subjectId(), inputs.stream().map(request -> request.scope().tenantId()).toList(),
-                    inputs.stream().filter(request -> request.resource().type().equals(WORKSPACE))
+                    inputs.stream().filter(request -> !request.resource().type().equals(TENANT))
                             .map(request -> request.scope().requireWorkspace()).toList());
             for (AccessRequest request : inputs) authorization.requireInCurrentTransaction(actor, request);
             return Boolean.TRUE;

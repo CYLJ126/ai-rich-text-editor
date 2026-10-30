@@ -21,7 +21,9 @@ import static com.arte.core.constant.platform.PlatformResourceTypes.TENANT;
 import static com.arte.core.constant.platform.PlatformResourceTypes.WORKSPACE;
 
 /**
- * 第二步基础判定：可信租户／空间治理与创建资格；业务资源 ACL 在后续阶段接入此入口。
+ * 租户／空间治理与资源 ACL 共用的统一判定
+ * <p>
+ * 未配置或未登记的业务资源拒绝访问。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 22:35 ✾
@@ -32,11 +34,20 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     private final WorkspaceAccessSupport workspaceAccessSupport;
     private final ActionRegistry actionRegistry;
     private final Clock clock;
+    private final ResourceAclSupport acl;
 
-    public DefaultAuthorizationService(WorkspaceAccessSupport workspaceAccessSupport, ActionRegistry actionRegistry, Clock clock) {
-        this.workspaceAccessSupport = Objects.requireNonNull(workspaceAccessSupport);
-        this.actionRegistry = Objects.requireNonNull(actionRegistry);
+    public DefaultAuthorizationService(WorkspaceAccessSupport support, ActionRegistry registry, Clock clock) {
+        this(support, registry, clock, null, List.of(), List.of());
+    }
+
+    public DefaultAuthorizationService(WorkspaceAccessSupport support, ActionRegistry registry, Clock clock,
+                                       com.arte.core.spi.access.ResourceGrantStore store,
+                                       List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
+                                       List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions) {
+        this.workspaceAccessSupport = Objects.requireNonNull(support);
+        this.actionRegistry = Objects.requireNonNull(registry);
         this.clock = Objects.requireNonNull(clock);
+        this.acl = store == null ? null : new ResourceAclSupport(store, descriptors, conditions, clock);
     }
 
     /**
@@ -51,8 +62,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     }
 
     private WorkspaceAccessSupport.TenantSnapshot requireWorkspaceCreation(TrustedActor actor, String tenantId, boolean currentRead) {
-        var tenant = currentRead ? workspaceAccessSupport.tenantCurrent(actor, tenantId) : workspaceAccessSupport.tenant(actor, tenantId);
-        var definition = actionRegistry.find(TENANT_WORKSPACE_CREATE).orElseThrow(() -> error(PlatformErrorCodeEnum.UNKNOWN_ACTION));
+        WorkspaceAccessSupport.TenantSnapshot tenant = currentRead ?
+                workspaceAccessSupport.tenantCurrent(actor, tenantId) : workspaceAccessSupport.tenant(actor, tenantId);
+        ActionDefinition definition = actionRegistry.find(TENANT_WORKSPACE_CREATE)
+                .orElseThrow(() -> error(PlatformErrorCodeEnum.UNKNOWN_ACTION));
         if (!definition.resourceTypes().contains(TENANT) || !DefaultRolePermissions.mayCreateWorkspace(tenant)) {
             throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
         }
@@ -113,8 +126,14 @@ public final class DefaultAuthorizationService implements AuthorizationService {
                 reason = DefaultRolePermissions.workspace(request.action(), scope);
                 versions = scope.verified().versions();
             } else {
-                // 不能根据角色或 createdBy 为未接入可信描述与 ACL 的资源放行。
-                return denied(AccessReasonEnum.ACTION_NOT_GRANTED);
+                if (acl == null) return denied(AccessReasonEnum.ACTION_NOT_GRANTED);
+                var invalid = invalidAction(request);
+                if (invalid != null) return denied(invalid);
+                // 业务资源首版在明确的当前使用空间内判断；同租户租户级资源也须有目标空间资格。
+                var snapshot = batch != null ? batch.snapshot(request.scope().requireWorkspace())
+                        : currentRead ? workspaceAccessSupport.snapshotCurrent(actor, request.scope().requireWorkspace())
+                        : workspaceAccessSupport.snapshot(actor, request.scope().requireWorkspace());
+                return acl.check(actor, request, snapshot, currentRead);
             }
             return reason == AccessReasonEnum.ALLOWED
                     ? new AccessDecision(true, reason, versions, clock.instant()) : denied(reason);
@@ -200,9 +219,9 @@ public final class DefaultAuthorizationService implements AuthorizationService {
         Set<Scope> scopes = new HashSet<>();
         boolean includeDefaults = false;
         for (AccessRequest request : inputs) {
-            if (!isRootRequest(request)) continue;
+            if (!isRootRequest(request) && acl == null) continue;
             tenantIds.add(request.scope().tenantId());
-            if (request.resource().type().equals(WORKSPACE)) {
+            if (!request.resource().type().equals(TENANT) && request.scope().workspaceId() != null) {
                 scopes.add(request.scope().requireWorkspace());
                 includeDefaults |= Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action());
             }
@@ -221,7 +240,7 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     }
 
     private BatchChecks failedBatch(List<AccessRequest> inputs, AccessReasonEnum failure) {
-        return new BatchChecks(inputs.stream().map(request -> denied(isRootRequest(request)
+        return new BatchChecks(inputs.stream().map(request -> denied(isRootRequest(request) || acl != null
                 ? failure : AccessReasonEnum.ACTION_NOT_GRANTED)).toList(), null);
     }
 

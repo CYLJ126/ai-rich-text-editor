@@ -26,20 +26,23 @@ public final class PlatformJson {
     private final JsonMapper mapper = SerializerFactory.buildJsonMapperWithoutTypeProperty()
             .rebuild()
             .addModule(ResolvedBindingJson.module(false))
+            .addModule(ResourceAclJson.module())
             .disable(SerializationFeature.INDENT_OUTPUT)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
 
     private static final Map<String, Class<?>> RESULTS =
-            Map.of(
-                    "personal:view:v1", WorkspaceViews.PersonalWorkspaceView.class,
-                    "workspace:view:v1", WorkspaceViews.WorkspaceView.class,
-                    "preference:view:v1", WorkspaceViews.PreferenceView.class,
-                    "tenant:policy:v1", TenantPolicy.class,
-                    "workspace:policy:v1", WorkspacePolicy.class,
-                    "workspace:ai:view:v1", AiControlData.WorkspaceView.class,
-                    "ai:catalog:view:v1", AiControlData.CatalogView.class
-            );
+            Map.ofEntries(
+                    Map.entry("personal:view:v1", WorkspaceViews.PersonalWorkspaceView.class),
+                    Map.entry("workspace:view:v1", WorkspaceViews.WorkspaceView.class),
+                    Map.entry("preference:view:v1", WorkspaceViews.PreferenceView.class),
+                    Map.entry("tenant:policy:v1", TenantPolicy.class),
+                    Map.entry("workspace:policy:v1", WorkspacePolicy.class),
+                    Map.entry("workspace:ai:view:v1", AiControlData.WorkspaceView.class),
+                    Map.entry("ai:catalog:view:v1", AiControlData.CatalogView.class),
+                    Map.entry("resource:access:v1", com.arte.core.pojo.access.ResourceAccessViews.AccessView.class),
+                    Map.entry("resource:grant:v1", com.arte.core.pojo.access.ResourceAccessViews.GrantResult.class),
+                    Map.entry("resource:void:v1", Void.class));
 
     public String write(Object value) {
         return mapper.writeValueAsString(value);
@@ -56,8 +59,8 @@ public final class PlatformJson {
     }
 
     public void validate(StoredCommandReceipt stored) {
-        if (stored.receipt().value() == null
-                || !resultType(stored.resultSchema()).isInstance(stored.receipt().value()))
+        Class<?> type = resultType(stored.resultSchema());
+        if (type == Void.class ? stored.receipt().value() != null : !type.isInstance(stored.receipt().value()))
             throw new IllegalArgumentException("Receipt does not match registered result schema");
     }
 
@@ -66,7 +69,9 @@ public final class PlatformJson {
         String schema = tree.get("resultSchema").asString();
         var identity = mapper.treeToValue(tree.get("identity"), CommandIdentity.class);
         var r = tree.get("receipt");
-        var result = mapper.treeToValue(r.get("value"), resultType(schema));
+        var result = resultType(schema) == Void.class ? null : mapper.treeToValue(r.get("value"), resultType(schema));
+        if (resultType(schema) == Void.class && !r.get("value").isNull())
+            throw new IllegalArgumentException("Invalid void result");
         var receipt = new CommandReceipt<>(
                 r.get("operationId").asString(),
                 mapper.treeToValue(

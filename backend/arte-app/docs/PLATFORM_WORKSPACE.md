@@ -10,24 +10,24 @@ AI 模板。AI 入口通过 `/workspace/ai/ensure`
 
 ## 服务与装配
 
-`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，八个公共 Bean
+`platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，公共 Bean
 直接返回该实例的服务，组合取锁、当前授权、幂等和政策规则仍由 core 实现。
 
-| Bean                                | 接口／职责                                                             |
-|-------------------------------------|------------------------------------------------------------------------|
-| personalWorkspaceService            | PersonalWorkspaceService：本人个人租户与默认空间初始化                 |
-| workspaceService                    | WorkspaceService：目录、读取、创建、改名                               |
-| workspacePreferenceService          | WorkspacePreferenceService：本人启动、最近访问和收藏偏好               |
-| workspacePolicyService              | WorkspacePolicyService：租户／空间政策治理与版本／权限代次更新         |
-| workspaceScopeResolver              | ScopeResolver：真实身份、两级成员与政策校验                            |
-| platformAuthorizationService        | core AuthorizationService：公共基础动作判断，不替代原 RBAC 功能权限    |
-| workspaceWriteGuard                 | WorkspaceWriteGuard：原事务内门控、当前授权与业务写入                  |
-| workspaceCommandReceiptQueryService | CommandReceiptQueryService：原主体按当前读取资格查询已交付命令成功回执 |
-| reactiveWorkspaceOperations         | ReactiveWorkspaceOperations：已认证会话到公共 API 的 Mono 适配         |
+| Bean                                | 接口／职责                                                                 |
+|-------------------------------------|----------------------------------------------------------------------------|
+| personalWorkspaceService            | PersonalWorkspaceService：本人个人租户与默认空间初始化                     |
+| workspaceService                    | WorkspaceService：目录、读取、创建、改名                                   |
+| workspacePreferenceService          | WorkspacePreferenceService：本人启动、最近访问和收藏偏好                   |
+| workspacePolicyService              | WorkspacePolicyService：租户／空间政策治理与版本／权限代次更新             |
+| workspaceScopeResolver              | ScopeResolver：真实身份、两级成员与政策校验                                |
+| platformAuthorizationService        | core AuthorizationService：公共基础及资源 ACL 判断，不替代原 RBAC 功能权限 |
+| workspaceWriteGuard                 | WorkspaceWriteGuard：原事务内门控、当前授权与业务写入                      |
+| workspaceCommandReceiptQueryService | CommandReceiptQueryService：原主体按当前读取资格查询已交付命令成功回执     |
+| reactiveWorkspaceOperations         | ReactiveWorkspaceOperations：已认证会话到公共 API 的 Mono 适配             |
 
 各 Store 通过 core SPI 注入；事务使用限定 `platformTransactionRunner`，时钟使用限定 `platformWorkspaceClock`
-（UTC，非默认候选，不干扰原时钟注入）。不增加默认事务管理器，不改旧 Mapper 扫描或 RBAC Bean。未实现的成员、邀请、资源
-ACL、组织与关闭服务不注册。
+（UTC，非默认候选，不干扰原时钟注入）。不增加默认事务管理器，不改旧 Mapper 扫描或 RBAC Bean。未实现的成员、邀请、组织与关闭服务不注册；公共
+ACL 内部服务已在第 1 批装配，管理 HTTP 尚未开放。
 
 ## 启用与默认政策
 
@@ -148,3 +148,10 @@ DTO、分页／错误适配和接口级兼容验证，部署与请求示例见 [
 19 项失败／错误。既有 Mapper XML 使用 `#{workspaceSnapshot}`，Java Mapper 的参数仍声明 `@Param("snapshot")`；当前 HEAD
 中已存在该不一致，且失败发生在仅运行 arte-ai、尚未进入 arte-app 装配的阶段。本批未改动这些 AI Mapper，也不能据此宣布全部旧
 AI 回归通过。修正参数绑定并完成原 AI 回归后，再确认完整新旧兼容验收；公共空间装配交付与此分别记录。
+
+## 2026-10-30 公共资源 ACL 第 1 批
+
+新增 `platformResourceAccessService` 一个 Bean，同时提供 ResourceAccessService 与 ResourceRegistrationService。 装配必须注入
+ResourceGrantStore；描述／领域条件提供者按集合显式组合，缺失时资源拒绝，不能以测试适配器补全生产依赖。 WorkspaceWriteGuard
+已支持登记资源的当前 ACL 判定；旧基础构造仍拒绝业务资源。生产模型发现／执行路径尚未改接。
+本批迁移、事务和验证边界见[公共资源 ACL](PLATFORM_RESOURCE_ACL.md)。

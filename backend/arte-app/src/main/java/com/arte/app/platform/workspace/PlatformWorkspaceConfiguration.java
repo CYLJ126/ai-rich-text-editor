@@ -95,10 +95,18 @@ public class PlatformWorkspaceConfiguration {
                                                        @Qualifier("platformWorkspaceClock") Clock clock,
                                                        @Qualifier("platformWorkspacePolicies") DefaultWorkspacePolicies defaults,
                                                        WorkspaceAccessFactsStore facts, java.util.List<WorkspaceProvisioningParticipant> provisioning,
-                                                       PlatformWorkspaceProperties properties) {
+                                                       PlatformWorkspaceProperties properties,
+                                                       com.arte.core.spi.access.ResourceGrantStore grants,
+                                                       java.util.List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
+                                                       java.util.List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions) {
         return new DefaultWorkspaceServices(identity, transactions, tenants, workspaces, tenantMembers,
                 workspaceMembers, policies, preferences, receipts, outbox, audit, ids, clock, defaults, facts, provisioning,
-                properties.directory().budget(), System::nanoTime);
+                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions);
+    }
+
+    @Bean
+    com.arte.core.application.access.DefaultResourceAccessService platformResourceAccessService(DefaultWorkspaceServices services) {
+        return services.resources();
     }
 
     /**

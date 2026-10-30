@@ -16,6 +16,7 @@ public record StoredCommandReceipt(
         String resultSchema,
         CommandReceipt<?> receipt,
         long version) {
+
     public StoredCommandReceipt {
         Objects.requireNonNull(identity, "identity");
         PlatformChecks.id(requestDigest, "requestDigest");

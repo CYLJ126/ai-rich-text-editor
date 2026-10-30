@@ -47,6 +47,8 @@ class PlatformWorkspaceConfigurationTest {
                 .run(context -> {
                     assertNull(context.getStartupFailure());
                     var services = context.getBean(DefaultWorkspaceServices.class);
+                    assertSame(services.resources(), context.getBean(com.arte.core.api.access.ResourceAccessService.class));
+                    assertSame(services.resources(), context.getBean(com.arte.core.api.access.ResourceRegistrationService.class));
                     assertSame(services.personal(), context.getBean(PersonalWorkspaceService.class));
                     assertSame(services.workspaces(), context.getBean(WorkspaceService.class));
                     assertSame(services.preferences(), context.getBean(WorkspacePreferenceService.class));
@@ -76,6 +78,7 @@ class PlatformWorkspaceConfigurationTest {
     private ApplicationContextRunner dependencies() {
         return runner.withBean(RbacIdentityProvider.class, () -> mock(RbacIdentityProvider.class))
                 .withBean("platformTransactionRunner", PublicTransactionRunner.class, () -> mock(PublicTransactionRunner.class))
+                .withBean(com.arte.core.spi.access.ResourceGrantStore.class, () -> mock(com.arte.core.spi.access.ResourceGrantStore.class))
                 .withBean(TenantStore.class, () -> mock(TenantStore.class))
                 .withBean(WorkspaceStore.class, () -> mock(WorkspaceStore.class))
                 .withBean(TenantMembershipStore.class, () -> mock(TenantMembershipStore.class))

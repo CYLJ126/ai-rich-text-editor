@@ -1,7 +1,9 @@
 # 平台公共基础契约
 
 已完成实施第 1～2 步：基础契约，以及个人初始化、基础空间管理、本人偏好、范围验证和基础动作授权的默认实现。默认服务通过 SPI
-执行，不注册生产内存存储或管理 HTTP 端点。数据库、登录身份适配、资源 ACL 管理、成员治理、生命周期及 `ainew` 接入继续分步实施。
+执行，不注册生产内存存储或管理 HTTP 端点。app 已提供数据库及身份适配。2026-10-30 公共资源 ACL 第 1
+批已实现持久化、统一判定及登记／授权管理应用服务； 模型资源映射、模型执行接入、管理
+HTTP、成员治理及生命周期继续分步实施。详见[公共资源 ACL](../arte-app/docs/PLATFORM_RESOURCE_ACL.md)。
 
 ## 包位置
 
@@ -52,24 +54,25 @@
 ## access 管理关系与接口覆盖
 
 `com.arte.core.spi.access`
-的五个接口已覆盖顶层设计首版所需的协作职责；第二步已实现基础角色判定及租户／空间事务门控，业务资源 ACL
-判定、领域条件和持久化仍在后续阶段接入。接口关系图及首次授权变更时序图见[顶层需求及设计](../../ARTE%20顶层需求及设计.md)
+的五个接口已覆盖顶层设计首版所需的协作职责；第二步已实现基础角色判定及租户／空间事务门控，业务资源 ACL 判定、受信初始登记、授权管理及
+app 持久化已在 ACL 第 1
+批接入；各资源领域仍需提供可信描述及领域条件。接口关系图及首次授权变更时序图见[顶层需求及设计](../../ARTE%20顶层需求及设计.md)
 的“详细设计 → 2.4 授权管理与统一判断入口”。
 
-| SPI                             | 现有方法                                                                                                                      | 职责                                                             |
-|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
-| `ActionRegistry`                | `find`                                                                                                                        | 查询受信动作定义，未知动作拒绝                                   |
-| `ResourceDescriptorProvider`    | `supports`、`find`                                                                                                            | 领域原始可信归属、状态和版本，不返回正文或递归调用公开查询       |
-| `DomainAccessConditionProvider` | `supports`、`evaluate`                                                                                                        | 领域附加条件，只能收紧公共判定                                   |
-| `ResourceGrantStore`            | `findAccess`、`lockAccess`、`insertAccess`、`replaceAccess`、`findGrants`、`findGrant`、`insertGrantIfAbsent`、`replaceGrant` | ACL 根与授权记录的查询、锁定及条件写入，保留撤销历史，不计算权限 |
-| `WorkspaceWriteGuard`           | `inCurrentTransaction`                                                                                                        | 调用方真实事务内锁定门控，读取当前事实，经统一判定后执行写入回调 |
+| SPI                             | 现有方法                                                                                                                                                               | 职责                                                             |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
+| `ActionRegistry`                | `find`                                                                                                                                                                 | 查询受信动作定义，未知动作拒绝                                   |
+| `ResourceDescriptorProvider`    | `supports`、`find`、`findCurrent`                                                                                                                                      | 领域原始可信归属、状态和版本，不返回正文或递归调用公开查询       |
+| `DomainAccessConditionProvider` | `supports`、`evaluate`、`evaluateCurrent`                                                                                                                              | 领域附加条件，只能收紧公共判定                                   |
+| `ResourceGrantStore`            | `findAccess`、`lockAccess`、`insertAccess`、`replaceAccess`、`findGrants`、`findCurrentGrants`、`findGrant`、`findCurrentGrant`、`insertGrantIfAbsent`、`replaceGrant` | ACL 根与授权记录的查询、锁定及条件写入，保留撤销历史，不计算权限 |
+| `WorkspaceWriteGuard`           | `inCurrentTransaction`                                                                                                                                                 | 调用方真实事务内锁定门控，读取当前事实，经统一判定后执行写入回调 |
 
 业务模块通过 `api.access` 的统一判定、授权管理和受信初始登记服务使用这些能力。主体、成员、政策及 epoch 由 `spi.workspace`／
 `spi.platform` 协作；事务、回执、审计与 Outbox 不另放一套在 access 包中。公共 ACL 管访问规则，领域管理业务数据及真实归属。
 
 新资源登记先在既有范围验证创建资格，再与正文同事务登记初始 ACL；已有资源的授权变更在门控内重查资格并条件写入 ACL 与对应范围
-epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基础设施故障都不能静默放行。业务资源 ACL 的详细流程仍是后续授权管理及
-app 适配器的实现约束；第二步基础授权不会为未接入的正文、模型配置或凭据放行。
+epoch。提供者缺失或冲突、必要条件无法核对、CAS 失败及基础设施故障都不能静默放行。公共服务现按上述规则执行；没有注册领域适配及
+ACL 的正文、模型配置或凭据仍不放行。
 
 ## 必须保留的规则
 
@@ -223,7 +226,7 @@ lock 回调、当前事实读取及治理命令均不能直接取 Store 锁绕�
 | `DefaultWorkspacePreferenceService` | 本人启动／最近／收藏偏好，保留默认关联；更新只接受当前可访问目标；读取时将失效启动偏好回退默认空间并过滤失效引用 |
 | `DefaultScopeResolver`              | 稳定主体重检、两级成员资格、范围匹配、政策版本及生命周期验证                                                     |
 | `DefaultAuthorizationService`       | 租户／空间基础治理、资源创建资格及 AI 入口资格；check／require／batchCheck 共用规则，未知动作及政策版本拒绝      |
-| `DefaultWorkspaceWriteGuard`        | 调用方实际事务内按确定顺序锁租户、空间及成员，再要求当前动作资格；未接入 ACL 的业务资源拒绝                      |
+| `DefaultWorkspaceWriteGuard`        | 调用方实际事务内按确定顺序锁租户、空间及成员，再要求当前动作资格；已登记业务资源重检当前 ACL，未接入资源拒绝     |
 | `DefaultCommandExecutor`            | 规范化长度编码摘要、完整操作身份、同事务回执及重放授权验证；回执冲突回滚领域写入                                 |
 | `DefaultCommandReceiptQueryService` | 首批成功回执只读查询；原主体、当前身份与历史结果范围读取资格重检，不执行原命令或泄露存储信封                     |
 
@@ -233,7 +236,7 @@ WorkspaceAccessFactsStore）、审计、Outbox、ID 生成器、Clock
 
 基础动作针对服务端确认的租户／空间根引用：workspace 类型的 resourceId 必须等于当前 workspaceId，tenant 类型必须等于当前
 tenantId。article:create 等创建动作在父空间根上判断，不对尚不存在的文章构造已授权资源。已有文章／模型的 read、edit、use
-等需要后续可信描述、ACL 和领域条件，当前默认拒绝；治理角色或 createdBy 不提供内容读取资格。基础 invite／member:manage
+等需要后续可信描述、ACL 和领域条件；未接入资源默认拒绝；治理角色或 createdBy 不提供内容读取资格。基础 invite／member:manage
 判断也不替代后续成员命令对目标角色的检查。
 
 `AccessRequest.scope` 使用 `AccessScope`：租户必填，空间可选；租户治理使用 `AccessScope.tenant(tenantId)`， 或
@@ -301,3 +304,11 @@ scope 或账本，资源授权、邀请／组织与关闭分别实施，本批�
 
 个人租户生产默认政策通过 `PersonalTenantPolicyTemplateStore.findCurrent` 在初始化原事务内读取数据库发布修订；无配置回退。模板仅创建独立政策，来源版本保存在
 `TenantPolicy.personalTemplateVersion`，存量政策不随模板发布改写。
+
+## 公共 ACL 第 1 批补充
+
+`DefaultResourceAccessService` 实现 ResourceRegistrationService／ResourceAccessService，作为一个生产 Bean
+暴露，复用统一判定和既有命令事务。 通过带 ResourceGrantStore／领域提供者的 DefaultWorkspaceServices
+构造装配；旧构造仅保留此前基础服务能力，不注册生产内存存储。 registerCreated 必须加入领域原写事务，首批登记空间归属资源。当前读
+SPI 不提供退回普通查询的默认实现。
+详细部署、共享来源、拒绝规则、扫描上限和后续批次边界见[公共资源 ACL](../arte-app/docs/PLATFORM_RESOURCE_ACL.md)。

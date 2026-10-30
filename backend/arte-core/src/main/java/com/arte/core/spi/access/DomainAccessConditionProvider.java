@@ -29,4 +29,10 @@ public interface DomainAccessConditionProvider {
      */
     AccessReasonEnum evaluate(TrustedActor actor, AccessRequest request,
                               ResourceDescriptor descriptor, VerifiedScope scope);
+
+    /**
+     * 最终写入边界使用当前领域事实；不能回退到展示快照。
+     */
+    AccessReasonEnum evaluateCurrent(TrustedActor actor, AccessRequest request,
+                                     ResourceDescriptor descriptor, VerifiedScope scope);
 }

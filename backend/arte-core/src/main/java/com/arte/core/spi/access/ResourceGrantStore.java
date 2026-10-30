@@ -49,6 +49,16 @@ public interface ResourceGrantStore {
     Optional<ResourceGrant> findGrant(ResourceRef resource, String grantId);
 
     /**
+     * 原写事务及排他父门控下的当前读取，禁止委托旧快照查询。
+     */
+    PageResult<ResourceGrant> findCurrentGrants(ResourceRef resource, PageQuery query);
+
+    /**
+     * 原写事务及排他父门控下的当前读取。
+     */
+    Optional<ResourceGrant> findCurrentGrant(ResourceRef resource, String grantId);
+
+    /**
      * 新增独立来源的授权记录，唯一条件冲突时返回 false。
      */
     boolean insertGrantIfAbsent(ResourceGrant grant);

@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.22
+版本：v0.23
 
-日期：2026-10-30（本次收口 AI 控制面装配及旧依赖并完成当前模式的兼容验收；其他阶段状态以各节为准）
+日期：2026-10-30（本次增加公共资源 ACL 第 1 批持久化、统一判定和内部登记／授权管理服务；其他阶段状态以各节为准）
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
@@ -19,7 +19,8 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 默认政策配置和响应式会话适配，见 [公共应用服务说明](backend/arte-app/docs/PLATFORM_WORKSPACE.md)。第 4 批已开放首批 10 个
 HTTP
 接口，包含空间／偏好、权限检查及成功命令回执查询、参数／分页／错误适配，见 [公共空间 HTTP 说明](backend/arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)
-。资源 ACL、成员治理及 AI 接入仍分步实施。涉及当前 `ainew` 的描述仅为实施基线，不表示目标功能均已实现。
+。公共资源 ACL 第 1 批已提供内部服务与持久化；模型映射／执行接入、管理 HTTP、成员治理仍分步实施。涉及当前 `ainew`
+的描述仅为实施基线，不表示目标功能均已实现。
 
 2026-10-28 已完成两批增量迁移：第一批将中立引用、结构化值及通用校验／规范化／摘要工具提取至 core；第二批将 ExecutionOwner 提取至
 core，并显式对齐公共当前主体与 AI 执行身份快照。具体归属及兼容要求见“顶层接口”第 1.1～1.2、2.2.1 节。本次未提取 ES
@@ -46,6 +47,10 @@ ACL、政策及受理事务门控仍按后续批次实施。见 [模型使用资
 `FixedControlCatalog` 仅保留手工兼容路径。FIXED／DATABASE 来源与模式严格匹配，DATABASE
 生成装配不再启动读取发布表；付费工具事务读取改用发布／预算端口，人工核对提示不再向业务返回
 Grant。当前配置／HTTP／耐久记录格式保留，文章及完整动态治理仍按后续范围实施。见 [装配收口与兼容验收](backend/arte-ai/CONTROL_PORTS_COMPATIBILITY.md)。
+
+2026-10-30 公共资源 ACL 第 1 批：已实现 app 存储、core 统一资源判定、受信创建事务登记及授予／撤销／可见模式管理应用服务，
+补齐原事务当前读取与最终写门控。首批登记空间归属资源；模型资源映射、发现与执行改接、管理 HTTP 及旧资源迁移尚未实施。 未改现有
+FIXED／DATABASE 授权来源或文章链路。部署及验证边界见[公共资源 ACL](backend/arte-app/docs/PLATFORM_RESOURCE_ACL.md)。
 
 ## TODO
 
@@ -1078,7 +1083,8 @@ Worker、数据库事务与 Outbox、Redis 非权威缓存／通知、可恢复�
 **本轮需求／设计评审及编码前置条件**
 
 当前已完成公共基础契约、个人默认空间／基础授权默认规则，以及首批身份、持久化、应用服务和 HTTP 环境适配，并已解除空间创建对 AI
-配置准备的依赖；业务资源 ACL、成员治理、生命周期收尾及完整动态 AI 资源接入仍待后续实现。“详细设计”第 2～5 节已列出公共
+配置准备的依赖；公共资源 ACL 第 1 批内部服务已落地，模型映射／执行接入、管理 HTTP、成员治理、生命周期收尾及完整动态 AI
+资源接入仍待后续实现。“详细设计”第 2～5 节已列出公共
 API／SPI、权限预设、事务／唯一约束、撤权与收尾及
 AI 迁移的首版方案；与第
 3.1～3.3 节的创建归属、个人托管、生命周期、标签上下文和模块职责一起评审，再按独立批次编码。待评审的参数、迁移和 HTTP Schema
@@ -1523,8 +1529,9 @@ AI 不直接访问文章数据库；文章不直接调用模型 Gateway。文章
 ## 详细设计
 
 本章对应独立评审的第 2～5 点，确定公共空间与访问体系的首版详细设计；归属以前文设计第 3.1 节为准：空间资源归 WORKSPACE，租户级配置归
-TENANT，创建者、凭据责任及 ExecutionOwner 分别记录。下列内容描述整体目标契约；第 1～2 步已添加基础契约、个人空间及基础授权默认实现，资源
-ACL、成员治理、生命周期及 AI 接入仍分步实施；app 已完成身份、数据库、服务装配及首批 10 个 HTTP 接口，不表示后续管理端点均已可调用。
+TENANT，创建者、凭据责任及 ExecutionOwner 分别记录。下列内容描述整体目标契约；第 1～2 步已添加基础契约、个人空间及基础授权默认实现；公共资源
+ACL 第 1 批已增加内部服务和持久化，模型领域、管理 HTTP、成员治理、生命周期及 AI 接入仍分步实施；app 已完成身份、数据库、服务装配及首批
+10 个 HTTP 接口，不表示后续管理端点均已可调用。
 
 首版使用现有登录系统及关系数据库，同一 DataSource 内以本地事务提交公共数据；core 的公共 API／存储 SPI 采用同步语义，app
 将阻塞调用适配到 MVC 或受控数据库线程。AI 继续使用 Mono／Flux，由 app 的适配器连接公共 API，不把 Reactor
@@ -1633,16 +1640,16 @@ total，不暴露未授权标题、数量明细或片段。
 
 ##### access 接口覆盖与管理关系
 
-按本文首版范围，`com.arte.core.spi.access` 的五个接口已覆盖动作定义、资源事实、领域附加条件、ACL
-存储和最终写入门控，暂不需要补充接口方法。这里的“覆盖”指契约职责齐备，不代表权限计算、事务、数据库和管理端点已经实现；以下图示为后续实现应遵循的调用关系。
+按本文首版范围，`com.arte.core.spi.access` 的五个接口已覆盖动作定义、资源事实、领域附加条件、ACL 存储和最终写入门控，职责保持不变。ACL
+第 1 批为最终写入补充必实现的当前读取方法，避免复用旧事务快照；公共判定、事务和数据库已实现，管理端点及各领域实际接入仍待后续批次。以下图示表达协作关系。
 
-| 接口                            | 现有方法                                                                                                                      | 管理职责                                                                |
-|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| `ActionRegistry`                | `find`                                                                                                                        | 查受信动作定义；未知动作拒绝，存在定义不等于获得权限                    |
-| `ResourceDescriptorProvider`    | `supports`、`find`                                                                                                            | 由领域返回可信归属、状态和版本；正文及业务数据仍由领域管理              |
-| `DomainAccessConditionProvider` | `supports`、`evaluate`                                                                                                        | 收紧领域状态、发布、资料外发等条件；不能覆盖公共拒绝                    |
-| `ResourceGrantStore`            | `findAccess`、`lockAccess`、`insertAccess`、`replaceAccess`、`findGrants`、`findGrant`、`insertGrantIfAbsent`、`replaceGrant` | 存储 ACL 根、独立来源的授权及撤销历史；提供锁和版本条件写入，不计算权限 |
-| `WorkspaceWriteGuard`           | `inCurrentTransaction`                                                                                                        | 在调用方真实事务内，同序锁定并重查资格，通过统一判定后执行写入回调      |
+| 接口                            | 现有方法                                                                                                                                                               | 管理职责                                                                |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| `ActionRegistry`                | `find`                                                                                                                                                                 | 查受信动作定义；未知动作拒绝，存在定义不等于获得权限                    |
+| `ResourceDescriptorProvider`    | `supports`、`find`、`findCurrent`                                                                                                                                      | 由领域返回可信归属、状态和版本；正文及业务数据仍由领域管理              |
+| `DomainAccessConditionProvider` | `supports`、`evaluate`、`evaluateCurrent`                                                                                                                              | 收紧领域状态、发布、资料外发等条件；不能覆盖公共拒绝                    |
+| `ResourceGrantStore`            | `findAccess`、`lockAccess`、`insertAccess`、`replaceAccess`、`findGrants`、`findCurrentGrants`、`findGrant`、`findCurrentGrant`、`insertGrantIfAbsent`、`replaceGrant` | 存储 ACL 根、独立来源的授权及撤销历史；提供锁和版本条件写入，不计算权限 |
+| `WorkspaceWriteGuard`           | `inCurrentTransaction`                                                                                                                                                 | 在调用方真实事务内，同序锁定并重查资格，通过统一判定后执行写入回调      |
 
 主体、成员、政策、epoch 和事务／回执／审计／Outbox 分别由 `spi.workspace`、`spi.platform` 的端口协作提供，不在 `spi.access`
 重复定义。授权列表分页、授予、撤销、模式更新由 `ResourceAccessService` 对外提供；统一判断由 `AuthorizationService`
@@ -1651,7 +1658,7 @@ total，不暴露未授权标题、数量明细或片段。
 ```mermaid
 flowchart TB
     Client["app 管理端点／业务模块<br/>认证适配提供 TrustedActor"]
-    subgraph PublicAPI["core 公共 API：后续实现应用服务"]
+    subgraph PublicAPI["core 公共 API：ACL 第 1 批应用服务"]
         Manage["ResourceAccessService<br/>listGrants／grant／revoke／changeVisibility"]
         Authorize["AuthorizationService<br/>check／require／batchCheck"]
         Register["ResourceRegistrationService<br/>受信领域创建时登记初始 ACL"]

@@ -44,7 +44,7 @@ public class PlatformMybatisConfiguration {
         configuration.setDatabaseId(new org.apache.ibatis.mapping.VendorDatabaseIdProvider().getDatabaseId(source));
         // 显式注册，不使用 com.arte.app.mapper 扫描，不添加旧业务或自动版本更新拦截器。
         // CAS、成员代次及授权 epoch 的约束由 Mapper XML 的专用 SQL 明确表达。
-        for (Class<?> mapper : List.of(PlatformTenantMapper.class, PlatformWorkspaceMapper.class,
+        for (Class<?> mapper : List.of(PlatformResourceAclMapper.class, PlatformTenantMapper.class, PlatformWorkspaceMapper.class,
                 PlatformTenantMemberMapper.class, PlatformWorkspaceMemberMapper.class,
                 PlatformTenantPolicyMapper.class, PlatformWorkspacePolicyMapper.class, PlatformPersonalPolicyTemplateMapper.class, PlatformAiControlMapper.class,
                 PlatformWorkspacePreferenceMapper.class, PlatformCommandMapper.class,
@@ -52,6 +52,11 @@ public class PlatformMybatisConfiguration {
             configuration.addMapper(mapper);
         }
         return new PlatformMybatisSession(new MybatisSqlSessionFactoryBuilder().build(configuration));
+    }
+
+    @Bean
+    PlatformResourceAclMapper platformResourceAclMapper(PlatformMybatisSession session) {
+        return session.mapper(PlatformResourceAclMapper.class);
     }
 
     @Bean

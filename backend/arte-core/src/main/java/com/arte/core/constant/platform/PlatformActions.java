@@ -3,7 +3,9 @@ package com.arte.core.constant.platform;
 import com.arte.core.pojo.access.Action;
 
 /**
- * 详细设计首版动作名。常量不是允许记录或权限判定，后续规则实现必须通过受信 ActionRegistry 校验。
+ * 详细设计首版动作名
+ * <p>
+ * 常量不是允许记录或权限判定，后续规则实现必须通过受信 ActionRegistry 校验。
  * AI 专有执行、凭据和预算动作继续由 AI 定义，本包不复制其执行授权类型。
  */
 public final class PlatformActions {

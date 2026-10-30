@@ -99,11 +99,14 @@ public final class WorkspaceGovernanceLocks {
         PlatformChecks.id(subjectId, "subjectId");
         LockState state = state();
         checkSubject(state, subjectId);
-        if (state.subjects.add(subjectId)) state.lastSubject = subjectId;
-        authorizationFact(new FactKey(PreferenceStore.class, subjectId, subjectId), () -> acquire(() -> {
-            preferences.lockSubject(subjectId);
-            return Boolean.TRUE;
-        }));
+        if (state.subjects.add(subjectId)) {
+            state.lastSubject = subjectId;
+        }
+        authorizationFact(new FactKey(PreferenceStore.class, subjectId, subjectId),
+                () -> acquire(() -> {
+                    preferences.lockSubject(subjectId);
+                    return Boolean.TRUE;
+                }));
     }
 
     public Optional<Tenant> lockTenant(String tenantId) {
@@ -161,15 +164,21 @@ public final class WorkspaceGovernanceLocks {
         preflight(subjectId, tenantIds);
         subject(subjectId);
         for (String tenantId : tenantIds) {
-            if (lockTenant(tenantId).isEmpty())
+            if (lockTenant(tenantId).isEmpty()) {
                 throw new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "governance-lock");
+            }
         }
         for (Scope scope : ordered) {
-            if (lockWorkspace(scope).isEmpty())
+            if (lockWorkspace(scope).isEmpty()) {
                 throw new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "governance-lock");
+            }
         }
-        for (String tenantId : tenantIds) lockTenantMember(tenantId, subjectId);
-        for (Scope scope : ordered) lockWorkspaceMember(scope, subjectId);
+        for (String tenantId : tenantIds) {
+            lockTenantMember(tenantId, subjectId);
+        }
+        for (Scope scope : ordered) {
+            lockWorkspaceMember(scope, subjectId);
+        }
     }
 
     /**

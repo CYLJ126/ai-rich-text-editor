@@ -34,6 +34,7 @@ public final class ResourceAccessCommands {
             GrantRecipient recipient,
             Set<Action> actions,
             Instant expiresAt) {
+
         public GrantResource {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -56,6 +57,7 @@ public final class ResourceAccessCommands {
             String grantId,
             long expectedAclVersion,
             long expectedGrantVersion) {
+
         public RevokeGrant {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");
@@ -77,6 +79,7 @@ public final class ResourceAccessCommands {
             long expectedAclVersion,
             ResourceVisibilityEnum visibility,
             List<VisibilityGrant> sharedGrants) {
+
         public ChangeVisibility {
             Objects.requireNonNull(meta, "meta");
             Objects.requireNonNull(scope, "scope");

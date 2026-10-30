@@ -54,22 +54,22 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
                             identity.scope().workspaceId(),
                             identity.commandType(),
                             identity.operationKey())) {
-                if (v == null) out.writeInt(-1);
-                else {
-                    var b = v.getBytes(StandardCharsets.UTF_8);
+                if (v == null) {
+                    out.writeInt(-1);
+                } else {
+                    byte[] b = v.getBytes(StandardCharsets.UTF_8);
                     out.writeInt(b.length);
                     out.write(b);
                 }
             }
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
         } catch (Exception failure) {
             throw new IllegalStateException("Cannot encode command identity", failure);
         }
     }
 
     private StoredCommandReceipt decode(PlatformCommandDto row) {
-        var value = json.receipt(row.getReceipt());
+        StoredCommandReceipt value = json.receipt(row.getReceipt());
         if (!value.receipt().operationId().equals(row.getOperationId()) || value.version() != row.getVersion()
                 || !digest(value.identity()).equals(row.getIdentityDigest())
                 || !value.identity().actorSubjectId().equals(row.getActorId())
@@ -77,8 +77,9 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
                 || !Objects.equals(value.identity().scope().workspaceId(), row.getWorkspaceId())
                 || !value.identity().commandType().equals(row.getCommandType())
                 || !value.identity().operationKey().equals(row.getOperationKey())
-                || !value.requestDigest().equals(row.getRequestDigest()) || !value.resultSchema().equals(row.getResultSchema()))
+                || !value.requestDigest().equals(row.getRequestDigest()) || !value.resultSchema().equals(row.getResultSchema())) {
             throw new IllegalStateException("Corrupt command envelope");
+        }
         return value;
     }
 
@@ -111,7 +112,7 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
     }
 
     private Optional<StoredCommandReceipt> find(CommandIdentity identity, boolean current) {
-        var found = one(() -> baseMapper.selectIdentity(digest(identity), current), this::decode);
+        Optional<StoredCommandReceipt> found = one(() -> baseMapper.selectIdentity(digest(identity), current), this::decode);
         found.ifPresent(value -> {
             if (!value.identity().equals(identity))
                 throw new IllegalStateException("Command identity digest collision");
@@ -128,14 +129,16 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
     public boolean insertIfAbsent(StoredCommandReceipt value) {
         // 新回执必须已在领域生成边界规范化；读取和重放历史回执保留原始精度。
         PlatformTimePrecision.requireMicros(value.receipt().acceptedAt());
-        if (value.receipt().completedAt() != null)
+        if (value.receipt().completedAt() != null) {
             PlatformTimePrecision.requireMicros(value.receipt().completedAt());
+        }
         boolean inserted = insertRecord(() -> baseMapper.insert(encode(value)));
         if (!inserted) {
             findCurrent(value.identity());
-            var byId = findByOperationId(value.receipt().operationId());
-            if (byId.isPresent() && !byId.get().identity().equals(value.identity()))
+            Optional<StoredCommandReceipt> byId = findByOperationId(value.receipt().operationId());
+            if (byId.isPresent() && !byId.get().identity().equals(value.identity())) {
                 throw new IllegalStateException("Operation ID conflict");
+            }
         }
         return inserted;
     }
@@ -144,13 +147,16 @@ public class CommandReceiptStoreServiceImpl extends PlatformStoreSupport<Platfor
     public boolean replace(StoredCommandReceipt value, long expected) {
         next(value.version(), expected);
         json.validate(value);
-        var current = findCurrent(value.identity());
-        if (current.isEmpty() || current.get().version() != expected) return false;
-        var old = current.get();
+        Optional<StoredCommandReceipt> current = findCurrent(value.identity());
+        if (current.isEmpty() || current.get().version() != expected) {
+            return false;
+        }
+        StoredCommandReceipt old = current.get();
         if (!old.receipt().acceptedAt().equals(value.receipt().acceptedAt())
                 || !old.receipt().operationId().equals(value.receipt().operationId())
-                || !old.requestDigest().equals(value.requestDigest()) || !old.resultSchema().equals(value.resultSchema()))
+                || !old.requestDigest().equals(value.requestDigest()) || !old.resultSchema().equals(value.resultSchema())) {
             throw new IllegalArgumentException("Immutable command identity changed");
+        }
         return updateRecord(() -> baseMapper.replaceCas(encode(value), expected));
     }
 }

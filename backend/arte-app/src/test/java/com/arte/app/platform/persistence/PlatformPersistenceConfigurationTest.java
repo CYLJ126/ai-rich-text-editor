@@ -51,6 +51,7 @@ class PlatformPersistenceConfigurationTest {
                         context -> {
                             assertNull(context.getStartupFailure());
                             for (Class<?> spi : java.util.List.of(
+                                    com.arte.core.spi.access.ResourceGrantStore.class,
                                     com.arte.core.spi.workspace.TenantStore.class,
                                     com.arte.core.spi.workspace.WorkspaceStore.class,
                                     com.arte.core.spi.workspace.TenantMembershipStore.class,

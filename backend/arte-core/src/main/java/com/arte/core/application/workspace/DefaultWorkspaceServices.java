@@ -2,13 +2,21 @@ package com.arte.core.application.workspace;
 
 import com.arte.core.application.access.DefaultActionRegistry;
 import com.arte.core.application.access.DefaultAuthorizationService;
+import com.arte.core.application.access.DefaultResourceAccessService;
 import com.arte.core.application.access.DefaultWorkspaceWriteGuard;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
+import com.arte.core.pojo.workspace.WorkspaceBrowseBudget;
+import com.arte.core.spi.access.DomainAccessConditionProvider;
+import com.arte.core.spi.access.ResourceDescriptorProvider;
+import com.arte.core.spi.access.ResourceGrantStore;
 import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.*;
 
 import java.time.Clock;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.LongSupplier;
 
 /**
  * 无框架的首批默认服务装配
@@ -20,6 +28,7 @@ import java.time.Clock;
  */
 public final class DefaultWorkspaceServices {
 
+    private final DefaultResourceAccessService resources;
     private final DefaultPersonalWorkspaceService personal;
     private final DefaultWorkspaceService workspaces;
     private final DefaultWorkspacePreferenceService preferences;
@@ -35,17 +44,17 @@ public final class DefaultWorkspaceServices {
                                     CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
                                     Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts) {
         this(identity, transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, policyStore,
-                preferenceStore, receipts, outbox, audit, ids, clock, defaults, batchFacts, java.util.List.of());
+                preferenceStore, receipts, outbox, audit, ids, clock, defaults, batchFacts, List.of());
     }
 
     public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
                                     TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
                                     WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
                                     CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
-                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts, java.util.List<WorkspaceProvisioningParticipant> provisioning) {
+                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts, List<WorkspaceProvisioningParticipant> provisioning) {
         this(identity, transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, policyStore, preferenceStore,
                 receipts, outbox, audit, ids, clock, defaults, batchFacts, provisioning,
-                com.arte.core.pojo.workspace.WorkspaceBrowseBudget.defaults(), System::nanoTime);
+                WorkspaceBrowseBudget.defaults(), System::nanoTime);
     }
 
     public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
@@ -53,8 +62,23 @@ public final class DefaultWorkspaceServices {
                                     WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
                                     CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
                                     Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts,
-                                    java.util.List<WorkspaceProvisioningParticipant> provisioning,
-                                    com.arte.core.pojo.workspace.WorkspaceBrowseBudget budget, java.util.function.LongSupplier nanoTime) {
+                                    List<WorkspaceProvisioningParticipant> provisioning,
+                                    WorkspaceBrowseBudget budget, LongSupplier nanoTime) {
+        this(identity, transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, policyStore,
+                preferenceStore, receipts, outbox, audit, ids, clock, defaults, batchFacts, provisioning, budget, nanoTime,
+                null, List.of(), List.of());
+    }
+
+    public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
+                                    TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
+                                    WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
+                                    CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
+                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts,
+                                    List<WorkspaceProvisioningParticipant> provisioning,
+                                    WorkspaceBrowseBudget budget, LongSupplier nanoTime,
+                                    ResourceGrantStore grants,
+                                    List<ResourceDescriptorProvider> descriptors,
+                                    List<DomainAccessConditionProvider> conditions) {
         var principals = new CurrentPrincipalResolver(identity);
         var access = new WorkspaceAccessSupport(principals, tenantStore, workspaceStore, tenantMembers,
                 workspaceMembers, policyStore, preferenceStore, clock, transactions, batchFacts);
@@ -62,8 +86,11 @@ public final class DefaultWorkspaceServices {
         var commands = new DefaultCommandExecutor(transactions, principals, receipts, ids, clock);
         var effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
         scopes = new DefaultScopeResolver(access);
-        authorization = new DefaultAuthorizationService(access, DefaultActionRegistry.standard(), clock);
-        writeGuard = new DefaultWorkspaceWriteGuard(transactions, principals, locks, authorization);
+        authorization = grants == null ? new DefaultAuthorizationService(access, DefaultActionRegistry.standard(), clock)
+                : new DefaultAuthorizationService(access, DefaultActionRegistry.standard(), clock, grants, descriptors, conditions);
+        resources = grants == null ? null : new DefaultResourceAccessService(grants, descriptors,
+                conditions, access, authorization, locks, commands, effects, transactions, tenantStore, workspaceStore, identity, ids, clock);
+        writeGuard = new DefaultWorkspaceWriteGuard(transactions, principals, locks, authorization, grants != null);
         preferences = new DefaultWorkspacePreferenceService(principals, preferenceStore, authorization, commands, locks, effects);
         personal = new DefaultPersonalWorkspaceService(principals, commands, access, locks, tenantStore, workspaceStore,
                 tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences, receipts, provisioning);
@@ -73,6 +100,10 @@ public final class DefaultWorkspaceServices {
                 tenantStore, workspaceStore, policyStore, transactions, clock);
         receiptQueries = new DefaultCommandReceiptQueryService(principals, receipts, preferenceStore, tenantStore,
                 access, authorization, locks, transactions);
+    }
+
+    public DefaultResourceAccessService resources() {
+        return Objects.requireNonNull(resources, "Resource ACL storage must be configured");
     }
 
     public DefaultPersonalWorkspaceService personal() {
