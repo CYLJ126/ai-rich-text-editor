@@ -5,9 +5,10 @@ import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import {useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import ToolWorkspace from '@/features/aitool/ToolWorkspace';
+import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
 import '@/features/aitool/tools.css';
 
-/** 与 ChatNew 共用当前真实工作空间；不自动初始化模型、预算、工具目录或执行工具。 */
+/** 与 ChatNew 共用真实工作空间及按需 AI 准备入口；不自动发布工具或执行调用。 */
 export default function ToolsPage() {
   const {initialState} = useModel('@@initialState');
   const userId = String(
@@ -41,11 +42,14 @@ export default function ToolsPage() {
       {!workspace ? (
         <WorkspacePicker userId={userId} presentation="inline"/>
       ) : (
-        <ToolWorkspace
+        <WorkspaceAiPreparation
           key={JSON.stringify([userId, workspace.scope])}
-          userId={userId}
-          workspace={workspace}
-        />
+          scope={workspace.scope}
+          context={{userId, scope: workspace.scope}}
+          legacy={false}
+        >
+          <ToolWorkspace userId={userId} workspace={workspace}/>
+        </WorkspaceAiPreparation>
       )}
       <Drawer
         title="工作空间"

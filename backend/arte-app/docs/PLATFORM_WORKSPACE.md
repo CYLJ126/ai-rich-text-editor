@@ -4,6 +4,10 @@
 HTTP；后续第 4 批已经增加首批接口，见 [公共空间 HTTP](PLATFORM_WORKSPACE_HTTP.md)。不迁移旧文章、标签、模型或账本，不切换
 ainew 的固定授权路径。
 
+2026-10-30 空间独立创建：DATABASE AI 控制面不再注册为空间创建参与者；个人默认空间初始化和额外空间创建不准备模型配置或预算，也不要求已发布
+AI 模板。AI 入口通过 `/workspace/ai/ensure`
+按需准备，失败不回滚此前创建的公共空间，详见 [AI 数据库配置](PLATFORM_AI_CONTROL.md)。公共创建本身仍要求身份、公共政策模板及持久化有效。
+
 ## 服务与装配
 
 `platform.workspace.PlatformWorkspaceConfiguration` 创建一个 `DefaultWorkspaceServices`，八个公共 Bean

@@ -5,10 +5,14 @@ import com.arte.app.platform.ai.AiControlData.WorkspaceView;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
+import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.web.platform.AiCatalogPayload;
 import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.ResultContext;
+import com.arte.core.pojo.UserOnlineInfo;
 import com.arte.core.pojo.platform.CommandMeta;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.Scope;
@@ -19,11 +23,14 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 /**
  * 公共成员资格由服务端核验；
@@ -60,15 +67,14 @@ public class WorkspaceAiConfigurationController {
     public record PublishRequest(@NotNull @Min(0) Long expectedVersion, @NotNull AiCatalogPayload catalog) {
     }
 
-    private <T> Mono<ResultContext<T>> call(Authentication authentication, Locale locale, java.util.function.Function<TrustedActor, T> work) {
+    private <T> Mono<ResultContext<T>> call(Authentication authentication, Locale locale, Function<TrustedActor, T> work) {
         // Capture the immutable account identity before dispatch; actor() rechecks the current account in the DB thread.
         if (authentication == null || !authentication.isAuthenticated()
-                || !(authentication.getPrincipal() instanceof com.arte.app.pojo.rbac.JwtUserDto(
-                com.arte.core.pojo.UserOnlineInfo online
-        )))
-            return Mono.error(new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.UNAUTHENTICATED, "workspace-ai"));
-        var copy = new com.arte.core.pojo.UserOnlineInfo().setId(online.getId()).setUserName(online.getUserName()).setAccountCreatedAt(online.getAccountCreatedAt());
-        var snapshot = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(copy), null, java.util.List.of());
+                || !(authentication.getPrincipal() instanceof JwtUserDto(UserOnlineInfo online))) {
+            return Mono.error(new PlatformException(PlatformErrorCodeEnum.UNAUTHENTICATED, "workspace-ai"));
+        }
+        var copy = new UserOnlineInfo().setId(online.getId()).setUserName(online.getUserName()).setAccountCreatedAt(online.getAccountCreatedAt());
+        var snapshot = UsernamePasswordAuthenticationToken.authenticated(new JwtUserDto(copy), null, List.of());
         return executor.read(() -> work.apply(identities.actor(snapshot))).map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 

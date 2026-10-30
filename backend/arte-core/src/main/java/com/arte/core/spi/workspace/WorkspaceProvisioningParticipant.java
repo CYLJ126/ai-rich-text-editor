@@ -10,5 +10,6 @@ import com.arte.core.pojo.platform.TrustedActor;
  * @since 2026/10/13 17:22 ✾
  */
 public interface WorkspaceProvisioningParticipant {
+
     void provision(TrustedActor actor, Scope scope, String operationId);
 }

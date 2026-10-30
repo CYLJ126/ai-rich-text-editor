@@ -160,7 +160,8 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   }
 
   return <Flex component="section" vertical gap={12} className="ai-management-panel" aria-label="空间 AI 配置">
-    <Typography.Paragraph>在当前空间选择已发布模型并维护独立预算。新空间按已发布默认模板自动准备，已有空间不会被模板更新覆盖。</Typography.Paragraph>
+    <Typography.Paragraph>在当前空间选择已发布模型并维护独立预算。首次使用 AI 时按已发布默认模板准备，已有 AI
+      配置不会被模板更新覆盖。</Typography.Paragraph>
     {unsafe && <Alert type="warning" title="配置操作无法保存到当前浏览器，请保留本页并确认原操作后再切换。"/>}
     {error && <Alert type="warning" showIcon title={error}/>}
     {uncertain && <Button loading={saving}
@@ -228,7 +229,9 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
         setModelOpen(true);
       }}>发布新模型</Button>
       <Form component="div" layout="vertical" className="ai-management-form">
-      <Form.Item label="新空间自动启用 AI"><Switch aria-label="新空间自动启用 AI"
+        <Typography.Paragraph>创建空间不会准备 AI 配置或预算；首次进入 AI
+          功能时按需准备，并使用当时已发布的默认模板。修改模板不会覆盖已准备的空间。</Typography.Paragraph>
+        <Form.Item label="首次准备时启用 AI"><Switch aria-label="首次准备时启用 AI"
                                                    disabled={saving || uncertain || unsafe}
                                                    checked={catalog.catalog.defaults.enabled}
                                                    onChange={enabled => setCatalog({

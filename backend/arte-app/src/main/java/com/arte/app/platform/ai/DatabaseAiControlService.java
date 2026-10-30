@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
+import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformJson;
@@ -29,7 +30,6 @@ import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.PreferenceStore;
-import com.arte.core.spi.workspace.WorkspaceProvisioningParticipant;
 import com.arte.core.spi.workspace.WorkspaceStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -58,7 +58,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  */
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
-public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource, WorkspaceProvisioningParticipant {
+public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
 
     private final PlatformAiControlMapper mapper;
     private final PlatformJson json;
@@ -434,14 +434,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             throw new IllegalArgumentException("Enabled AI requires approved model or tool budgets");
     }
 
-    @Override
-    public void provision(TrustedActor actor, Scope scope, String operationId) {
-        inScope(actor, scope, WORKSPACE_POLICY_WRITE, () -> {
-            prepare(actor, scope, operationId);
-            return true;
-        });
-    }
-
     private WorkspaceConfiguration prepare(TrustedActor actor, Scope scope, String operationId) {
         var row = mapper.workspace(scope.tenantId(), scope.workspaceId());
         if (row != null) return ownConfiguration(scope);
@@ -496,6 +488,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         }
     }
 
+    /**
+     * 按需准备空间 AI 配置及当前主体预算；不参与公共空间创建事务。
+     * 准备失败只回滚本次 AI 写入，已创建的公共空间继续可用。
+     */
     public WorkspaceView ensure(TrustedActor actor, Scope scope) {
         return inScope(actor, scope, WORKSPACE_READ, () -> {
             var p = published(false, true);
