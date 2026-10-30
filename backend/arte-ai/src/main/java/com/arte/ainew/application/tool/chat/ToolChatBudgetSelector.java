@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode;
@@ -37,7 +38,7 @@ public final class ToolChatBudgetSelector {
 
     private final ToolChatRunStore runs;
     private final AdmissionAuthorization authorization;
-    private final FixedControlCatalog catalog;
+    private final AiResourceEntitlementService entitlements;
     private final PublishedAiCatalog published;
     private final BudgetDefinitionProvider definitions;
     private final BudgetService budgets;
@@ -58,11 +59,17 @@ public final class ToolChatBudgetSelector {
     public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
                                   PublishedAiCatalog published, BudgetDefinitionProvider definitions,
                                   BudgetService budgets, ToolBindingService bindings, Clock clock) {
+        this(runs, authorization, catalog.entitlementAdapter(), published, definitions, budgets, bindings, clock);
+    }
+
+    public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, AiResourceEntitlementService entitlements,
+                                  PublishedAiCatalog published, BudgetDefinitionProvider definitions,
+                                  BudgetService budgets, ToolBindingService bindings, Clock clock) {
         this.published = published;
         this.definitions = definitions;
         this.runs = runs;
         this.authorization = authorization;
-        this.catalog = catalog;
+        this.entitlements = entitlements;
         this.budgets = budgets;
         this.bindings = bindings;
         this.clock = clock;
@@ -73,7 +80,8 @@ public final class ToolChatBudgetSelector {
     }
 
     private Mono<ToolChatBudgetPlan.Selection> model(ToolChatRunSnapshot fixed, String budgetRef, ExecutionContext current) {
-        return catalog.resolve(fixed.model().definition(), fixed.model().capability().definition(), current).flatMap(model -> {
+        return entitlements.resolve(fixed.model().definition(), fixed.model().capability().definition(), current).flatMap(value -> {
+            var model = value.binding();
             if (!model.equals(fixed.model())) return denied();
             return published.inSnapshot(current, configuration -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE).flatMap(available -> {
                     var rate = configuration.rates().stream().filter(r -> r.definition().equals(model.rate())).findFirst().orElse(null);

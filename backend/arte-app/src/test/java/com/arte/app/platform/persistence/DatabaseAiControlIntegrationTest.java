@@ -191,6 +191,69 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
+    void modelEntitlementDiscoveryDoesNotAuthorizeLaterResolutionAfterMemberRevocation() {
+        var scope = f.initialize().value().workspace().scope();
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("model-import"));
+            db.ensure(f.actor, scope);
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
+            var service = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
+            var found = service.discover(CapabilityDescriptor.Kind.GENERATION, 256, ctx).collectList().block(WAIT).getFirst();
+            assertEquals(com.arte.ainew.pojo.control.AiEntitlement.Source.DATABASE, found.source());
+            assertEquals(found.binding(), service.resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT).binding());
+            f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> service.resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> c.getBean(FixedControlCatalog.class).resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
+        });
+    }
+
+    @Test
+    void replacingEntitlementPortControlsDiscoveryAndActualChatAdmission() {
+        var scope = f.initialize().value().workspace().scope();
+        var veto = new com.arte.ainew.spi.control.AiResourceEntitlementService() {
+            public Flux<com.arte.ainew.pojo.control.AiEntitlement> discover(CapabilityDescriptor.Kind kind, int limit, ExecutionContext ctx) {
+                return Flux.empty();
+            }
+
+            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability,
+                                                                                                  com.arte.core.pojo.access.Action action, ExecutionContext ctx) {
+                return reactor.core.publisher.Mono.error(new org.springframework.security.access.AccessDeniedException("Injected model qualification denied"));
+            }
+        };
+        context().withBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class, () -> veto).run(c -> {
+            assertNull(c.getStartupFailure());
+            assertSame(veto, c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class));
+            var db = c.getBean(DatabaseAiControlService.class);
+            db.importConfiguration(f.actor, meta("custom-model-import"));
+            db.ensure(f.actor, scope);
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-model-call");
+            var budget = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class)
+                    .available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.EXECUTE).block(WAIT).getFirst().budgetRef();
+            var submissionContext = new ExecutionContext(ctx.executionId(), ctx.traceId(), ctx.authorization(), ctx.deadline(),
+                    ctx.parentExecutionId(), budget, ctx.releaseRef(), ctx.idempotencyKey());
+            assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(submissionContext).block(WAIT).options().isEmpty());
+            var conversation = c.getBean(ConversationService.class).create("Denied model", null, List.of(),
+                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "create-custom-model-conversation")).block(WAIT);
+            var message = new com.arte.ainew.pojo.generation.ChatMessage("model-message", com.arte.ainew.pojo.generation.ChatMessage.Role.USER,
+                    List.of(new com.arte.ainew.pojo.generation.ChatMessage.Text("hello")), List.of(), null);
+            var input = new com.arte.ainew.pojo.context.ContextRequest(List.of(message), null, List.of(), List.of(), null,
+                    new com.arte.ainew.pojo.context.ContextBudget(65536, 60000, 512, 0));
+            var request = new com.arte.ainew.pojo.entry.EntryRequests.Chat(conversation.conversationId(), 0, null, null, input,
+                    ref("capability", "text"), ref("binding", "text"),
+                    new com.arte.ainew.pojo.generation.GenerationOptions(512, null, null, List.of()),
+                    new com.arte.ainew.pojo.execution.ExecutionOptions(submissionContext.deadline(), 1, 1000000, 0, 0, Duration.ofSeconds(120)));
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> c.getBean(com.arte.ainew.api.entry.ChatService.class).submit(request, submissionContext).block(WAIT));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
+        });
+    }
+
+    @Test
     void capabilityUpgradeAppendsImmutableVersionsAndRequiresExplicitWorkspaceSelection() {
         var scope = f.initialize().value().workspace().scope();
         context().run(c -> {
@@ -225,6 +288,13 @@ class DatabaseAiControlIntegrationTest {
             assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
             db.update(f.actor, meta("select-v2"), scope, workspace.workspaceVersion(), workspace.configuration().version(), preset);
             current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
+            var selectedContext = current;
+            var entitlements = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
+            assertEquals(List.of(modelV2.definition()), entitlements.discover(CapabilityDescriptor.Kind.GENERATION, 256, selectedContext)
+                    .map(value -> value.binding().definition()).collectList().block(WAIT));
+            assertEquals(modelV2, entitlements.resolve(modelV2.definition(), v2.definition(), selectedContext).block(WAIT).binding());
+            assertThrows(com.arte.ainew.application.support.AdmissionException.class,
+                    () -> entitlements.resolve(modelV1.definition(), v1.definition(), selectedContext).block(WAIT));
             var option = discovery.discover(current).block(WAIT).options().getFirst();
             assertEquals(modelV2.definition(), option.binding());
             assertTrue(option.toolCallsSupported());

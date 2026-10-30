@@ -1,0 +1,20 @@
+package com.arte.ainew.infrastructure.control;
+
+import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.AiEntitlement;
+
+/**
+ * 固定配置的模型使用资格适配
+ * <p>
+ * 保留原绑定 ID 授权语义，不修改固定引用或执行归属。
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/10/30 13:00 ✾
+ */
+public final class FixedAiResourceEntitlementService extends ConfigurationAiResourceEntitlementService {
+
+    public FixedAiResourceEntitlementService(NewAiProperties properties, AdmissionAuthorization authorization) {
+        super(new ControlConfigurationReader(properties), authorization, AiEntitlement.Source.FIXED);
+    }
+}

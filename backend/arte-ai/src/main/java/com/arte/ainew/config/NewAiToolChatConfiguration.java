@@ -3,12 +3,12 @@ package com.arte.ainew.config;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.application.tool.chat.ToolChatBudgetSelector;
 import com.arte.ainew.application.tool.chat.ToolChatQueryService;
 import com.arte.ainew.persistence.mybatis.MybatisConversationSearchReads;
 import com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
@@ -67,13 +67,13 @@ public class NewAiToolChatConfiguration {
     @Bean
     @ConditionalOnBean(ConversationService.class)
     ToolChatBudgetSelector toolChatBudgetSelector(MybatisToolChatRunStore runs,
-                                                  AdmissionAuthorization authorization, FixedControlCatalog catalog,
+                                                  AdmissionAuthorization authorization, AiResourceEntitlementService entitlements,
                                                   PublishedAiCatalog published,
                                                   BudgetDefinitionProvider definitions,
                                                   BudgetService budgets,
                                                   ObjectProvider<ToolBindingService> bindings,
                                                   @Qualifier("newAiClock") Clock clock, ObjectProvider<com.arte.ainew.application.tool.billing.ToolBillingService> billing) {
-        return new ToolChatBudgetSelector(runs, authorization, catalog, published, definitions, budgets, bindings.getIfAvailable(), clock).paid(billing.getIfAvailable());
+        return new ToolChatBudgetSelector(runs, authorization, entitlements, published, definitions, budgets, bindings.getIfAvailable(), clock).paid(billing.getIfAvailable());
     }
 
     @Bean

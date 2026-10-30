@@ -405,4 +405,18 @@ public final class AdmissionAuthorization {
                     return new AccessDeniedException("Configuration scope denied");
                 });
     }
+
+    /**
+     * 仅供来源适配器验证同次可信配置的权限上限与期限。
+     * 配置必须已由当前身份解析器或数据库来源核验；此检查不替代 requireWrite／外发复核。
+     */
+    public void requireConfigurationScope(NewAiProperties configuration, ExecutionContext context, String scope) {
+        if (!context.authorization().scopes().contains(scope))
+            throw new AccessDeniedException("Execution scope denied");
+        if (!clock.instant().isBefore(context.deadline()))
+            throw new AdmissionException(ResultCodeEnum.AI_DEADLINE_EXCEEDED);
+        var grant = grant(configuration, context);
+        if (!grant.scopes().containsAll(context.authorization().scopes()) || !grant.scopes().contains(scope))
+            throw new AccessDeniedException("Configuration scope denied");
+    }
 }

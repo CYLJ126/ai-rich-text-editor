@@ -6,6 +6,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ChatConfigurationOptions;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
@@ -21,7 +22,7 @@ import java.util.function.Supplier;
 public final class ChatConfigurationQueryService {
     private final NewAiProperties properties;
     private final AdmissionAuthorization authorization;
-    private final FixedControlCatalog catalog;
+    private final AiResourceEntitlementService entitlements;
     private final Supplier<ModelGateway> gateway;
     private final PublishedAiCatalog published;
     private final BudgetDefinitionProvider definitions;
@@ -34,11 +35,17 @@ public final class ChatConfigurationQueryService {
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          FixedControlCatalog catalog, PublishedAiCatalog published,
                                          BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
+        this(properties, authorization, catalog.entitlementAdapter(), published, definitions, gateway);
+    }
+
+    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
+                                         AiResourceEntitlementService entitlements, PublishedAiCatalog published,
+                                         BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
         this.published = published;
         this.definitions = definitions;
         this.properties = properties;
         this.authorization = authorization;
-        this.catalog = catalog;
+        this.entitlements = entitlements;
         this.gateway = gateway;
     }
 
@@ -49,13 +56,13 @@ public final class ChatConfigurationQueryService {
                 return Mono.just(new ChatConfigurationOptions(List.of()));
             }
             return published.inSnapshot(current, configuration -> definitions.available(current, BudgetDefinitionProvider.Operation.EXECUTE)
-                    .flatMap(available -> catalog.discoverBindings(CapabilityDescriptor.Kind.GENERATION, current)
-                    .filter(binding -> binding.contextWindowTokens() >= 2
-                            && binding.capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
-                            && binding.capability().features().contains(CapabilityDescriptor.Feature.STREAMING))
-                    .filter(binding -> configuration.connections().stream().anyMatch(connection ->
-                            connection.definition().equals(binding.connection()) && modelGateway.supportsTextChat(binding, connection)))
-                    .map(binding -> {
+                    .flatMap(available -> entitlements.discover(CapabilityDescriptor.Kind.GENERATION, 256, current)
+                            .filter(value -> value.binding().contextWindowTokens() >= 2
+                                    && value.binding().capability().features().contains(CapabilityDescriptor.Feature.TEXT_INPUT)
+                                    && value.binding().capability().features().contains(CapabilityDescriptor.Feature.STREAMING))
+                            .filter(value -> modelGateway.supportsTextChat(value.binding(), value.connection()))
+                            .map(value -> {
+                                var binding = value.binding();
                         var budgets = available.stream()
                                 .filter(budget -> budget.rate().equals(binding.rate()))
                                 .map(BudgetDefinition::budgetRef).sorted().toList();
@@ -69,8 +76,7 @@ public final class ChatConfigurationQueryService {
                         return new ChatConfigurationOptions.ModelOption(binding.remoteOperation(), binding.definition(),
                                 binding.capability().definition(), window, limits, defaults, budgets,
                                 binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
-                                        && configuration.connections().stream().anyMatch(connection -> connection.definition().equals(binding.connection())
-                                        && modelGateway.supportsToolChat(binding, connection)));
+                                        && modelGateway.supportsToolChat(binding, value.connection()));
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
                             .collectList().map(ChatConfigurationOptions::new)));

@@ -24,6 +24,7 @@ import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
 import com.arte.ainew.pojo.tool.ToolChatSubmission;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
@@ -49,7 +50,7 @@ public final class ToolChatService {
     private final ToolChatRunStore runs;
     private final ConversationService conversations;
     private final AdmissionCatalogStore catalogStore;
-    private final FixedControlCatalog catalog;
+    private final AiResourceEntitlementService entitlements;
     private final ContextService contexts;
     private final ToolSetService sets;
     private final ToolChatBudgetSelector budgets;
@@ -63,10 +64,18 @@ public final class ToolChatService {
                            FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                            AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
                            Supplier<ModelGateway> gateway) {
+        this(runs, conversations, catalogStore, catalog.entitlementAdapter(), contexts, sets, budgets,
+                authorization, access, properties, clock, gateway);
+    }
+
+    public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
+                           AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
+                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
+                           Supplier<ModelGateway> gateway) {
         this.runs = runs;
         this.conversations = conversations;
         this.catalogStore = catalogStore;
-        this.catalog = catalog;
+        this.entitlements = entitlements;
         this.contexts = contexts;
         this.sets = sets;
         this.budgets = budgets;
@@ -134,8 +143,9 @@ public final class ToolChatService {
      * 在工具准备、历史读取及预算计划前检查当前模型与实际网关，不用声明替代协议实现。
      */
     private Mono<ResolvedBinding> toolModel(ToolChatSubmission input, ExecutionContext current) {
-        return catalog.resolve(input.binding(), input.capability(), current).flatMap(model ->
-                catalog.resolveConnection(model.connection(), current).map(connection -> {
+        return entitlements.resolve(input.binding(), input.capability(), current).map(value -> {
+            var model = value.binding();
+            var connection = value.connection();
                     var modelGateway = gateway.get();
                     if (model.capability().kind() != CapabilityDescriptor.Kind.GENERATION
                             || !model.capability().features().containsAll(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT,
@@ -143,7 +153,7 @@ public final class ToolChatService {
                             || modelGateway == null || !modelGateway.supportsToolChat(model, connection))
                         throw new AdmissionException(ResultCodeEnum.AI_UNSUPPORTED_CAPABILITY);
                     return model;
-                }));
+        });
     }
 
     private Mono<AcceptedExecution> replay(ToolChatSubmission input, ToolChatRun run, ExecutionContext current, boolean readOnly) {

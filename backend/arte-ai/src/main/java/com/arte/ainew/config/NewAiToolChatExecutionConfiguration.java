@@ -4,12 +4,12 @@ import com.arte.ainew.api.context.ContextService;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.chat.*;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.spi.auth.ToolChatAccess;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import org.springframework.beans.factory.ObjectProvider;
@@ -42,11 +42,11 @@ public class NewAiToolChatExecutionConfiguration {
 
     @Bean
     ToolChatService toolChatService(ToolChatRunStore runs, ConversationService conversations, MybatisExecutionPersistence executions,
-                                    FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
+                                    AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
                                     AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties,
                                     @Qualifier("newAiClock") Clock clock,
                                     ObjectProvider<ModelGateway> gateways) {
-        return new ToolChatService(runs, conversations, executions, catalog, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable);
+        return new ToolChatService(runs, conversations, executions, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateways::getIfAvailable);
     }
 
     @Bean

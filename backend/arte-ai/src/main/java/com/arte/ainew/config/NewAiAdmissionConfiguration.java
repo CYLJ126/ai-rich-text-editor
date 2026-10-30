@@ -20,9 +20,7 @@ import com.arte.ainew.application.execution.LocalDispatchNotifier;
 import com.arte.ainew.application.execution.LocalExecutionEventNotifier;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.context.ExecutionContextFactory;
-import com.arte.ainew.infrastructure.control.ControlReadAdapter;
-import com.arte.ainew.infrastructure.control.FixedControlReadAdapter;
-import com.arte.ainew.infrastructure.control.SourceControlReadAdapter;
+import com.arte.ainew.infrastructure.control.*;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.control.PublishedAiDefinitions;
@@ -31,6 +29,7 @@ import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
@@ -224,10 +223,19 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiControlCatalog")
     FixedControlCatalog controlCatalog(NewAiProperties properties, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
-                                       ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+                                       ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                       AiResourceEntitlementService entitlements) {
         var source = sources.getIfAvailable();
-        return source == null ? new FixedControlCatalog(properties, authorization, clock)
-                : new FixedControlCatalog(properties, authorization, clock, source, scheduler);
+        return new FixedControlCatalog(properties, authorization, clock, source, scheduler, entitlements);
+    }
+
+    @Bean("newAiResourceEntitlementService")
+    @ConditionalOnMissingBean(AiResourceEntitlementService.class)
+    AiResourceEntitlementService modelEntitlements(NewAiProperties properties, AdmissionAuthorization authorization,
+                                                   ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
+        var source = sources.getIfAvailable();
+        return source == null ? new FixedAiResourceEntitlementService(properties, authorization)
+                : new SourceAiResourceEntitlementService(source, scheduler, authorization);
     }
 
     /**
@@ -276,9 +284,9 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiChatConfigurationQueryService")
     ChatConfigurationQueryService chatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
-                                                                FixedControlCatalog catalog, PublishedAiCatalog published,
+                                                                AiResourceEntitlementService entitlements, PublishedAiCatalog published,
                                                                 BudgetDefinitionProvider definitions, ObjectProvider<ModelGateway> gateway) {
-        return new ChatConfigurationQueryService(properties, authorization, catalog, published, definitions, gateway::getIfAvailable);
+        return new ChatConfigurationQueryService(properties, authorization, entitlements, published, definitions, gateway::getIfAvailable);
     }
 
     @Bean("newAiPublishedCatalog")

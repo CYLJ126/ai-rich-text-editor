@@ -1,8 +1,8 @@
 AI 平台与业务资源系统顶层架构草案
 
-版本：v0.19
+版本：v0.20
 
-日期：2026-10-30（本次增加 AI 发布目录／预算定义读取端口；其他阶段状态以各节为准）
+日期：2026-10-30（本次拆出模型使用资格并统一发现与解析；其他阶段状态以各节为准）
 
 状态：讨论稿。用于确认需求、模块边界、核心对象及顶层契约，记录必要的实施基线，具体实现以各专项说明及源码为准。
 
@@ -32,6 +32,10 @@ AI 功能时通过 `ensure` 按需准备。AI
 2026-10-30 控制面端口第 1 批：已增加 `PublishedAiCatalog`、`BudgetDefinitionProvider` 及独立业务读取对象，提供
 FIXED／DATABASE
 适配，改接预算服务、模型选项、派发及工具聊天／计费的定义读取；历史费率按原版本独立读取。现有发布与持久化格式保留；资源使用资格、政策及受理事务门控仍按后续批次拆分。见 [AI 控制面读取端口](backend/arte-ai/CONTROL_READ_PORTS.md)。
+
+2026-10-30 控制面端口第 2 批：已增加 `AiResourceEntitlementService`、`AiEntitlement` 及 FIXED／DATABASE
+适配，模型发现、绑定／能力／连接解析、普通聊天和工具聊天使用同一资格来源；兼容控制面门面保留请求及限额校验。公共模型
+ACL、政策及受理事务门控仍按后续批次实施。见 [模型使用资格端口](backend/arte-ai/MODEL_ENTITLEMENTS.md)。
 
 ## TODO
 
@@ -2158,6 +2162,10 @@ reauthorize (originalContext) 端口，按保存的稳定主体查询当前身�
 
 2026-10-30 实施第 1
 批已落实上述发布目录与预算定义读取端口、两种来源适配及首批读取调用方；其余资格、政策、凭据用途和事务门控仍按后续批次实施。详见 [AI 控制面读取端口](backend/arte-ai/CONTROL_READ_PORTS.md)。
+
+2026-10-30 实施第 2 批已增加模型使用资格端口及其业务视图，模型发现与绑定／能力／连接使用解析共用 FIXED／DATABASE
+适配规则；当前仍沿用既有 Grant／空间白名单，不代表公共模型 ACL
+已落地。详见 [模型使用资格端口](backend/arte-ai/MODEL_ENTITLEMENTS.md)。
 
 这些端口归 `arte-ai`，公共 core 不引用 BindingDefinition、Money 或 Invocation。app 组合公共 API 和 AI 存储 SPI
 提供环境适配；固定配置适配器和动态存储适配器共同遵守同一个 AI 端口，而不是各 Controller 自建过滤规则。
