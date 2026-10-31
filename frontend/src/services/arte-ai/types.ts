@@ -35,7 +35,7 @@ export interface ChatModelOption {
 }
 
 export interface ChatConfigurationResponse {
-  options: ChatModelOption[];
+  modelOptions: ChatModelOption[];
 }
 
 export interface DefinitionRef<T extends string = string> {

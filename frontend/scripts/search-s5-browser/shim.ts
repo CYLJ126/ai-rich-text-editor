@@ -63,7 +63,7 @@ export async function request(url: string, options: any) {
     checkedAt: '2026-10-16T12:00:00Z'
   };
   else if (path === 'ensure') data = {needsImport: false};
-  else if (path === 'discoverChatOptions') data = {options: [model]};
+  else if (path === 'discoverChatOptions') data = {modelOptions: [model]};
   else if (path === 'getBudget') data = {
     budgetRef: 'budget',
     currency: 'CNY',

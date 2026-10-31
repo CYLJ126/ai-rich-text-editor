@@ -11,8 +11,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
 
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,6 +24,7 @@ import java.util.concurrent.atomic.LongAdder;
  * @since 2026/10/14 09:41 ✾
  */
 public final class RequestObservation {
+
     private static final String KEY = RequestObservation.class.getName();
     private static final String BACKGROUND = KEY + ".background";
     private static final ThreadLocal<RequestObservation> CURRENT = new ThreadLocal<>();
@@ -65,6 +65,7 @@ public final class RequestObservation {
     }
 
     public static final class Scope implements AutoCloseable {
+
         private final RequestObservation previous = CURRENT.get();
         private final String trace = MDC.get(CoreConstant.LOG_TRACE_ID);
 
@@ -129,11 +130,12 @@ public final class RequestObservation {
      */
     public static void installReactorPropagation() {
         Hooks.onEachOperator(KEY, Operators.lift((source, subscriber) -> {
-            var observation = subscriber.currentContext().<RequestObservation>getOrDefault(KEY, null);
-            var stage = OperationObservation.from(subscriber.currentContext());
-            if (observation == null && stage == null && !subscriber.currentContext().getOrDefault(BACKGROUND, false))
+            RequestObservation observation = subscriber.currentContext().<RequestObservation>getOrDefault(KEY, null);
+            OperationObservation.Span stage = OperationObservation.from(subscriber.currentContext());
+            if (observation == null && stage == null && Boolean.FALSE.equals(subscriber.currentContext().getOrDefault(BACKGROUND, false))) {
                 return subscriber;
-            return new CoreSubscriber<Object>() {
+            }
+            return new CoreSubscriber<>() {
                 @Override
                 public @NonNull Context currentContext() {
                     return subscriber.currentContext();
@@ -175,7 +177,9 @@ public final class RequestObservation {
     }
 
     public boolean sqlStarted() {
-        if (complete.get()) return false;
+        if (complete.get()) {
+            return false;
+        }
         sqlCount.increment();
         sqlInFlight.incrementAndGet();
         return true;
@@ -183,7 +187,9 @@ public final class RequestObservation {
 
     public void sql(long nanos, boolean locking, boolean failed, Long mysqlConnectionId) {
         sqlInFlight.decrementAndGet();
-        if (complete.get()) return;
+        if (complete.get()) {
+            return;
+        }
         sqlCompleted.increment();
         sqlNanos.add(nanos);
         if (locking) lockingSqlNanos.add(nanos);
@@ -192,15 +198,19 @@ public final class RequestObservation {
     }
 
     public void connection(long nanos, boolean failed) {
-        if (complete.get()) return;
+        if (complete.get()) {
+            return;
+        }
         connectionCount.increment();
         connectionNanos.add(nanos);
         if (failed) connectionErrors.increment();
     }
 
     public void queued(String scheduler, long nanos) {
-        if (complete.get()) return;
-        var metric = queues.computeIfAbsent(scheduler, ignored -> new QueueMetric());
+        if (complete.get()) {
+            return;
+        }
+        QueueMetric metric = queues.computeIfAbsent(scheduler, ignored -> new QueueMetric());
         metric.count.increment();
         metric.nanos.add(nanos);
         metric.max.accumulateAndGet(nanos, Math::max);
@@ -218,8 +228,10 @@ public final class RequestObservation {
     }
 
     public Map<String, Object> finish(int status) {
-        if (!complete.compareAndSet(false, true)) return null;
-        var values = new java.util.LinkedHashMap<String, Object>();
+        if (!complete.compareAndSet(false, true)) {
+            return null;
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
         values.put("traceId", traceId);
         values.put("measurementId", measurementId);
         values.put("method", method);
@@ -243,10 +255,12 @@ public final class RequestObservation {
         values.put("connectionErrors", connectionErrors.sum());
         values.put("initialAuthorizationCount", authorizationCount.sum());
         values.put("initialAuthorizationMs", ms(authorizationNanos.sum()));
-        var queueValues = new java.util.TreeMap<String, Object>();
-        queues.forEach((name, value) -> queueValues.put(name, Map.of("tasks", value.count.sum(), "sumMs", ms(value.nanos.sum()), "maxMs", ms(value.max.get()))));
+        Map<String, Object> queueValues = new TreeMap<>();
+        queues.forEach((name, value) -> queueValues.put(name, Map.of("tasks", value.count.sum(),
+                "sumMs", ms(value.nanos.sum()),
+                "maxMs", ms(value.max.get()))));
         values.put("schedulerQueues", queueValues);
-        report = java.util.Collections.unmodifiableMap(values);
+        report = Collections.unmodifiableMap(values);
         return report;
     }
 
@@ -255,7 +269,9 @@ public final class RequestObservation {
     }
 
     private static final class QueueMetric {
-        final LongAdder count = new LongAdder(), nanos = new LongAdder();
+
+        final LongAdder count = new LongAdder();
+        final LongAdder nanos = new LongAdder();
         final AtomicLong max = new AtomicLong();
     }
 }

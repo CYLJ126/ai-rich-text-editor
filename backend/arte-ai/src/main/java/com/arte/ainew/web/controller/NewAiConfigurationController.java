@@ -22,7 +22,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 当前用户可用的文本聊天配置发现入口；查询不触发执行或预算操作。
+ * 当前用户可用的文本聊天配置发现入口
+ * <p>
+ * 查询不触发执行或预算操作。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/8 05:52 ✾

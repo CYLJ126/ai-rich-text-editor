@@ -50,7 +50,7 @@ try {
 
 | 功能         | 导出函数                                                                         | 响应位置                        |
 |--------------|----------------------------------------------------------------------------------|---------------------------------|
-| 发现聊天配置 | `discoverChatOptions({scope}, options?)`                                         | `body.data.options`             |
+| 发现聊天配置 | `discoverChatOptions({scope}, options?)`                                         | `body.data.modelOptions`        |
 | 创建会话     | `createConversation(data, idempotencyKey, options?)`                             | `body.data`                     |
 | 会话列表     | `listConversations(data, options?)`                                              | `body.records`                  |
 | 会话详情     | `getConversation(data, options?)`                                                | `body.data`                     |

@@ -37,11 +37,11 @@ export function useConfigurationDiscovery() {
         return null;
       setState({
         scope,
-        options: body.data.options,
+        options: body.data.modelOptions,
         loading: false,
         error: null,
       });
-      return body.data.options;
+      return body.data.modelOptions;
     } catch (error) {
       if (!controller.signal.aborted && request.current === controller) {
         setState({scope, options: [], loading: false, error});

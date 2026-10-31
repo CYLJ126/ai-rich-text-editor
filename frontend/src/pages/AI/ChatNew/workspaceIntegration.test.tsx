@@ -125,7 +125,7 @@ beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
-  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
+  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({modelOptions: [model]}));
   vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply([conversation]));
   vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
     const status = (await api.getInvocationStatus(query, options)).body.data;
@@ -200,7 +200,7 @@ it('protects unapplied chat configuration when selecting a space from the global
   expect(screen.getByLabelText('最大输出 Token')).toHaveValue('2048');
 });
 it('isolates scope, drafts and uncertain writes when switching away and back through the header', async () => {
-  vi.mocked(api.discoverChatOptions).mockImplementation(async request => reply({options: request.scope.workspaceId === scope.workspaceId ? [model] : []}));
+  vi.mocked(api.discoverChatOptions).mockImplementation(async request => reply({modelOptions: request.scope.workspaceId === scope.workspaceId ? [model] : []}));
   vi.mocked(api.queryConversationWindow).mockImplementation(async request => windowReply(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
   app();
   await chooseConversation();
@@ -351,7 +351,7 @@ it('never sends AI requests to an inaccessible startup preference before falling
 it('shows FIXED authorization denial without borrowing models or budgets from the previous space', async () => {
   vi.mocked(api.discoverChatOptions).mockImplementation(async request => {
     if (request.scope.workspaceId === otherScope.workspaceId) throw new api.AiApiError(403, {code: '205001'});
-    return reply({options: [model]});
+    return reply({modelOptions: [model]});
   });
   app();
   await chooseConversation();
@@ -371,9 +371,9 @@ it.each(['resolve', 'reject'])('aborts old model and conversation reads and igno
   let finishList!: () => void;
   vi.mocked(api.discoverChatOptions).mockImplementation(request => request.scope.workspaceId === scope.workspaceId
     ? new Promise((resolve, reject) => {
-      finishModels = () => outcome === 'resolve' ? resolve(reply({options: [model]})) : reject(new api.AiApiError(403, {code: '205001'}));
+      finishModels = () => outcome === 'resolve' ? resolve(reply({modelOptions: [model]})) : reject(new api.AiApiError(403, {code: '205001'}));
     })
-    : Promise.resolve(reply({options: []})));
+    : Promise.resolve(reply({modelOptions: []})));
   vi.mocked(api.queryConversationWindow).mockImplementation(request => request.scope.workspaceId === scope.workspaceId
     ? new Promise((resolve, reject) => {
       finishList = () => outcome === 'resolve' ? resolve(windowReply([conversation])) : reject(new api.AiApiError(403, {code: '205001'}));
@@ -401,7 +401,7 @@ it.each(['resolve', 'reject'])('aborts old model and conversation reads and igno
 it('aborts the old history and budget reads even when the target space has the same conversation ID', async () => {
   let finishHistory!: () => void;
   const finishBudgets: (() => void)[] = [];
-  vi.mocked(api.discoverChatOptions).mockImplementation(async request => reply({options: request.scope.workspaceId === scope.workspaceId ? [model] : []}));
+  vi.mocked(api.discoverChatOptions).mockImplementation(async request => reply({modelOptions: request.scope.workspaceId === scope.workspaceId ? [model] : []}));
   const oldTurn: api.ConversationTurnResponse = {
     turnId: 'old-turn',
     conversationId: conversation.conversationId,
@@ -490,7 +490,7 @@ it('cancels the old invocation observer on switching and resumes only the origin
 it('opens the real workspace picker from a denied AI state and recovers in another authorized space', async () => {
   vi.mocked(api.discoverChatOptions).mockImplementation(async request => {
     if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});
-    return reply({options: [model]});
+    return reply({modelOptions: [model]});
   });
   vi.mocked(api.queryConversationWindow).mockImplementation(async request => {
     if (request.scope.workspaceId === scope.workspaceId) throw new api.AiApiError(403, {code: '200000', desc: '失败'});

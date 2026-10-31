@@ -45,10 +45,10 @@
 //        long startMs = System.currentTimeMillis();
 //        try {
 //            Map<String, Object> mergedParams = mergeParams(request.getProvider(), request.getModelId(), request.getParams());
-//            OpenAiChatOptions options = buildOptions(request, mergedParams);
+//            OpenAiChatOptions modelOptions = buildOptions(request, mergedParams);
 //            List<Message> messages = toSpringAiMessages(request.getSystemPrompt(), request.getMessages());
 //            ChatResponse response = buildChatClient(request.getProvider(), request.getModelId())
-//                    .prompt(new Prompt(messages, options))
+//                    .prompt(new Prompt(messages, modelOptions))
 //                    .call()
 //                    .chatResponse();
 //            return extractResponse(response, startMs);
@@ -65,10 +65,10 @@
 //    @Override
 //    public Flux<@NonNull ModelStreamChunk> chatStream(ModelRequest request) {
 //        Map<String, Object> mergedParams = mergeParams(request.getProvider(), request.getModelId(), request.getParams());
-//        OpenAiChatOptions options = buildOptions(request, mergedParams);
+//        OpenAiChatOptions modelOptions = buildOptions(request, mergedParams);
 //        List<Message> messages = toSpringAiMessages(request.getSystemPrompt(), request.getMessages());
 //        return buildChatClient(request.getProvider(), request.getModelId())
-//                .prompt(new Prompt(messages, options))
+//                .prompt(new Prompt(messages, modelOptions))
 //                .stream()
 //                .chatResponse()
 //                .map(this::toStreamChunk)

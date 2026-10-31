@@ -116,7 +116,7 @@ STARTED／CONTROL／TERMINAL／BUDGET_CHANGED 或停止回执时，合并为后�
 
 ## 配置发现与选择
 
-发现通过 `discoverChatOptions({scope}, {signal})` 查询 `data.options`，按模型绑定及固定版本展示， Capability／Binding
+发现通过 `discoverChatOptions({scope}, {signal})` 查询 `data.modelOptions`，按模型绑定及固定版本展示， Capability／Binding
 由选项自动填写。多个模型或兼容预算需用户选择；有效缓存恢复时保留此前额度和采样参数。
 切换模型采用该模型推荐输入／输出额度与超时，若原预算仍兼容则保留，否则仅在一个兼容预算时自动选择。
 

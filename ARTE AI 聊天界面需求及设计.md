@@ -537,7 +537,7 @@ POST，SSE 使用 fetch 流读取。
 
 | 页面操作           | 接口后缀                                            | 关键契约                                                                                |
 |--------------------|-----------------------------------------------------|-----------------------------------------------------------------------------------------|
-| 可用模型与预算发现 | configuration/discoverChatOptions                   | scope；ResultContext.data.options                                                       |
+| 可用模型与预算发现 | configuration/discoverChatOptions                   | scope；ResultContext.data.modelOptions                                                  |
 | 创建会话           | conversation/createConversation                     | scope、title，Idempotency-Key；profile 为空、resources 为空                             |
 | 会话列表           | conversation/listConversations                      | scope、page；records/current/size/total 在顶层                                          |
 | 会话详情           | conversation/getConversation                        | scope、conversationId；取得真实 version                                                 |

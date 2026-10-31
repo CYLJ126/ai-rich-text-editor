@@ -2,12 +2,16 @@ package com.arte.ainew.context;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
+import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
+import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.core.diagnostics.OperationObservation;
 import com.arte.core.diagnostics.RequestObservation;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,10 +20,13 @@ import reactor.core.publisher.Mono;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * 认证入口的上下文工厂
@@ -65,24 +72,25 @@ public final class ExecutionContextFactory {
      * @param <T>     操作结果类型
      * @return 操作结果，或认证、授权、准备、超时错误
      */
-    public <T> Mono<T> prepareCurrent(ExecutionContextRequest request,
-                                      java.util.function.Function<ExecutionContext, Mono<T>> work) {
+    public <T> Mono<T> prepareCurrent(ExecutionContextRequest request, Function<ExecutionContext, Mono<T>> work) {
         Authentication captured = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authorizationResolver instanceof com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver preparations)
-                || captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken)
+        if (!(authorizationResolver instanceof ExecutionPreparationAuthorizationResolver preparations)
+                || captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken) {
             return create(captured, request).flatMap(work).timeout(request.timeout());
+        }
         String name = captured.getName();
-        if (name == null || name.isBlank())
+        if (name == null || name.isBlank()) {
             return Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required"));
+        }
         return Mono.defer(() -> {
-            var prepared = new java.util.concurrent.atomic.AtomicReference<com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver.Preparation>();
-            var scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
+            AtomicReference<ExecutionPreparationAuthorizationResolver.Preparation> prepared = new AtomicReference<ExecutionPreparationAuthorizationResolver.Preparation>();
+            ExecutionContextFactory scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
                     preparations.prepare(authenticatedName, tenant, workspace, scopes)
                             .doOnNext(prepared::set)
-                            .map(com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver.Preparation::authorization), clock);
-            return scoped.create(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(name, null, java.util.List.of()), request)
+                            .map(ExecutionPreparationAuthorizationResolver.Preparation::authorization), clock);
+            return scoped.create(UsernamePasswordAuthenticationToken.authenticated(name, null, List.of()), request)
                     .flatMap(context -> ControlPreparation.use(context,
-                            new com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration(
+                            new AiControlConfigurationSource.PreparedConfiguration(
                                     prepared.get().configuration(), prepared.get().catalogRevision()), work));
         }).timeout(request.timeout());
     }
@@ -90,23 +98,25 @@ public final class ExecutionContextFactory {
     /**
      * MVC 身份仍在调用时捕获；快照按订阅创建，数据库读取完成后才进入本次只读操作。
      */
-    public <T> Mono<T> readCurrent(ExecutionContextRequest request, boolean includeConfiguration,
-                                   java.util.function.Function<ExecutionContext, Mono<T>> work) {
+    public <T> Mono<T> readCurrent(ExecutionContextRequest request, boolean includeConfiguration, Function<ExecutionContext, Mono<T>> work) {
         Authentication captured = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authorizationResolver instanceof com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver reads))
+        if (!(authorizationResolver instanceof ExecutionReadAuthorizationResolver reads)) {
             return create(captured, request).flatMap(work).timeout(request.timeout());
-        if (captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken)
+        }
+        if (captured == null || !captured.isAuthenticated() || captured instanceof AnonymousAuthenticationToken) {
             return create(captured, request).flatMap(work);
+        }
         // 与 create 一样，只复制请求线程验证后的名称，订阅闭包不持有在线用户或 Authentication。
         String name = captured.getName();
-        if (name == null || name.isBlank())
+        if (name == null || name.isBlank()) {
             return Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required"));
+        }
         return Mono.defer(() -> {
-            var snapshot = new java.util.concurrent.atomic.AtomicReference<com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot>();
-            var scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
+            AtomicReference<ExecutionReadAuthorizationResolver.Snapshot> snapshot = new AtomicReference<ExecutionReadAuthorizationResolver.Snapshot>();
+            ExecutionContextFactory scoped = new ExecutionContextFactory((authenticatedName, tenant, workspace, scopes) ->
                     reads.readSnapshot(authenticatedName, tenant, workspace, scopes, includeConfiguration)
-                            .doOnNext(snapshot::set).map(com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver.Snapshot::authorization), clock);
-            return scoped.create(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(name, null, java.util.List.of()), request)
+                            .doOnNext(snapshot::set).map(ExecutionReadAuthorizationResolver.Snapshot::authorization), clock);
+            return scoped.create(UsernamePasswordAuthenticationToken.authenticated(name, null, List.of()), request)
                     .flatMap(context -> ReadOperationSnapshot.use(context, snapshot.get(), work));
         }).timeout(request.timeout());
     }
@@ -128,8 +138,7 @@ public final class ExecutionContextFactory {
      */
     public Mono<ExecutionContext> create(Authentication authentication, ExecutionContextRequest request) {
         Objects.requireNonNull(request, "request");
-        if (authentication == null || !authentication.isAuthenticated()
-                || authentication instanceof AnonymousAuthenticationToken) {
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
             return Mono.error(new AuthenticationCredentialsNotFoundException("Authenticated identity is required"));
         }
         // 只捕获验证后的名称，后续不读取可变 Authentication 或 ThreadLocal。
@@ -139,16 +148,18 @@ public final class ExecutionContextFactory {
         }
         String executionId = UUID.randomUUID().toString();
         String traceId = request.traceId() == null ? UUID.randomUUID().toString().replace("-", "") : request.traceId();
-        var deadline = clock.instant().plus(request.timeout());
+        Instant deadline = clock.instant().plus(request.timeout());
         // 先解析并验证授权引用，再创建执行上下文
-        var authorized = RequestObservation.initialAuthorization(authorize(authenticatedName, request.tenantId(), request.workspaceId(), request.scopes(), deadline));
-        var observation = RequestObservation.current();
+        Mono<ExecutionAuthorization> authorized = RequestObservation.initialAuthorization(authorize(authenticatedName,
+                request.tenantId(), request.workspaceId(), request.scopes(), deadline));
+        RequestObservation observation = RequestObservation.current();
         // 仅 TOOL 提交／预览增加入口分段；已有 HTTP 初始授权汇总继续独立统计。
         boolean tool = observation != null && ("/ai-new/tool/invokeTool".equals(observation.path)
                 || "/ai-new/tool/previewInvocation".equals(observation.path));
-        return (tool ? OperationObservation.observe("ENTRY_AUTHORIZATION", executionId, traceId, deadline, ignored -> authorized) : authorized)
-                .map(authorization -> new ExecutionContext(executionId, traceId, authorization, deadline, null,
-                        request.budgetRef(), request.releaseRef(), request.idempotencyKey()));
+        Mono<ExecutionAuthorization> entryAuthorization = tool
+                ? OperationObservation.observe("ENTRY_AUTHORIZATION", executionId, traceId, deadline, ignored -> authorized) : authorized;
+        return entryAuthorization.map(authorization -> new ExecutionContext(executionId, traceId,
+                authorization, deadline, null, request.budgetRef(), request.releaseRef(), request.idempotencyKey()));
     }
 
     /**
@@ -160,9 +171,8 @@ public final class ExecutionContextFactory {
      */
     public Mono<ExecutionContext> restore(ExecutionContext persisted) {
         Objects.requireNonNull(persisted, "persisted");
-        var original = persisted.authorization();
-        return authorize(original.principal().subjectName(), original.tenantId(), original.workspaceId(),
-                original.scopes(), persisted.deadline())
+        ExecutionAuthorization original = persisted.authorization();
+        return authorize(original.principal().subjectName(), original.tenantId(), original.workspaceId(), original.scopes(), persisted.deadline())
                 .map(authorization -> {
                     if (!original.principal().equals(authorization.principal())) {
                         throw new AccessDeniedException("Persisted execution identity has changed");
@@ -206,8 +216,7 @@ public final class ExecutionContextFactory {
                     }
                     // 验证授权引用是否在有效期内
                     if (!clock.instant().isBefore(deadline)) {
-                        throw reactor.core.Exceptions.propagate(
-                                new TimeoutException("Execution deadline exceeded during authorization"));
+                        throw reactor.core.Exceptions.propagate(new TimeoutException("Execution deadline exceeded during authorization"));
                     }
                     return authorization;
                 });

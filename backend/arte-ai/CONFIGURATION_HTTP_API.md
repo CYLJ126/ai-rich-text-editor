@@ -1,5 +1,8 @@
 # 新 AI 聊天配置发现接口
 
+> 2026-10-31 更新：HTTP 响应中的模型列表字段由 `options` 改为 `modelOptions`，读取 `body.data.modelOptions`。
+> 请求路径及参数不变；内部配置对象、执行选项和既有 v1 摘要仍使用原命名。
+
 > 2026-10-21 更新：配置来源支持现有 FIXED／DATABASE 模式。发现选项新增 `toolCallsSupported`，同时依据固定能力的
 > TOOL_CALLS 和实际网关的工具协议支持判断；不返回个人工具列表，不授予调用资格。以下较早的阶段说明以本更新为准。
 
@@ -40,12 +43,12 @@ scope，必须由当前已登录身份的授权解析器验证。不能通过请
 
 ## 响应契约
 
-HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.options`。以下为单个选项的数据示例， 数值对应 65536 Token 窗口、4096
+HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.modelOptions`。以下为单个选项的数据示例， 数值对应 65536 Token 窗口、4096
 最大输出和两分钟最大超时的服务器配置：
 
 ```json
 {
-  "options": [
+  "modelOptions": [
     {
       "displayName": "deepseek-chat",
       "binding": {"type": "binding", "id": "default-text", "version": "v1"},
@@ -102,7 +105,7 @@ HTTP 200，沿用 `ResultContext` 包装，读取 `body.data.options`。以下�
 3. 实际注册的 ModelGateway 显式声明支持该绑定与连接的纯文本流式聊天。
 4. 至少有一个当前主体授权、归属和费率版本均匹配的预算定义。
 
-授权有效但没有符合条件的配置时，返回 HTTP 200 和 `data.options=[]`，不是 404。 未注册模型网关时同样返回空列表；仅开启受理层不会把未支持的模型展示为可选项。
+授权有效但没有符合条件的配置时，返回 HTTP 200 和 `data.modelOptions=[]`，不是 404。 未注册模型网关时同样返回空列表；仅开启受理层不会把未支持的模型展示为可选项。
 默认 DefaultModelGateway 根据供应商 ID、协议固定版本、适配器兼容的 Schema 与特性判断支持，不访问供应商。 DeepSeek 可以识别新发布的相同
 Schema 能力版本，无需重建适配器，也不额外读取数据库。 自定义 ModelGateway 需覆盖 `supportsTextChat`；支持工具协议时还须覆盖
 `supportsToolChat`，两者默认返回 false。 自定义 GenerationProviderAdapter 的工具支持同样默认关闭，不能只在能力上添加

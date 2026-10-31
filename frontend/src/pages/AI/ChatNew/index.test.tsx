@@ -106,7 +106,7 @@ beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
-  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: [model]}));
+  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({modelOptions: [model]}));
   vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply([conversation]));
   vi.mocked(api.getInvocationSnapshot).mockImplementation(async (query, options) => {
     const status = (await api.getInvocationStatus(query, options)).body.data;
@@ -387,7 +387,7 @@ it('restores a full pending operation after refresh and never sends automaticall
   expect(vi.mocked(api.turnsForChat).mock.calls[1].slice(0, 2)).toEqual(original);
 });
 it('keeps history readable when the workspace has no executable model', async () => {
-  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: []}));
+  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({modelOptions: []}));
   render(<ChatNewPage/>);
   await screen.findByText('此空间尚无可用 AI 模型或兼容预算。');
   await chooseConversation();
@@ -465,7 +465,7 @@ it('keeps retry available for network failure without mislabelling it as access 
 
 it('distinguishes an authorized empty space from denied access', async () => {
   vi.mocked(api.queryConversationWindow).mockResolvedValue(windowReply());
-  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({options: []}));
+  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({modelOptions: []}));
   render(<ChatNewPage/>);
   await screen.findByText('此空间还没有会话，可以新建一个会话开始。');
   expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();

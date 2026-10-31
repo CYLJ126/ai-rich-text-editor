@@ -86,7 +86,7 @@ def main():
             raise RuntimeError('Bootstrap failed: ' + path + ', HTTP ' + str(sample['httpStatus']))
         return data
 
-    options = bootstrap('configuration/discoverChatOptions', {'scope': scope})['data']['options']
+    options = bootstrap('configuration/discoverChatOptions', {'scope': scope})['data']['modelOptions']
     budget_ref = next((ref for option in options for ref in option['budgetRefs']), None)
     if not budget_ref:
         raise RuntimeError('Selected workspace has no visible compatible budget')

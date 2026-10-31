@@ -26,7 +26,7 @@ it('keeps a newly published single model unapplied when refreshing an initially 
     defaults: {maxInputTokens: 1024, maxOutputTokens: 128, timeoutSeconds: 30}, budgetRefs: ['budget'],
   };
   const reply = <T, >(data: T) => ({httpStatus: 200, body: {success: true as const, code: '200', desc: 'OK', data}});
-  vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({options: []})).mockResolvedValueOnce(reply({options: [model]}));
+  vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({modelOptions: []})).mockResolvedValueOnce(reply({modelOptions: [model]}));
   vi.mocked(getBudget).mockResolvedValue(reply({
     budgetRef: 'budget', currency: 'CNY', limit: '100', held: '0', charged: '0', available: '100',
     rateVersion: {type: 'rate', id: 'rate', version: 'v1'}, version: 0

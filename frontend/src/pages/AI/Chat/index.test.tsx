@@ -112,7 +112,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   localStorage.clear();
-  vi.mocked(discoverChatOptions).mockResolvedValue(reply({options: [model]}));
+  vi.mocked(discoverChatOptions).mockResolvedValue(reply({modelOptions: [model]}));
   vi.mocked(getBudget).mockImplementation(async (data) =>
     reply({...account, budgetRef: data.budgetRef}),
   );
@@ -255,7 +255,7 @@ describe('配置发现与选择', () => {
 
   it('多个模型由用户选择，切换后更新兼容预算和推荐参数', async () => {
     vi.mocked(discoverChatOptions).mockResolvedValue(
-      reply({options: [model, alternate]}),
+      reply({modelOptions: [model, alternate]}),
     );
     render(<AiChatPage/>);
     change('租户 ID', scope.tenantId);
@@ -289,7 +289,7 @@ describe('配置发现与选择', () => {
 
   it('多个兼容预算不任意选择，选择后才能应用', async () => {
     vi.mocked(discoverChatOptions).mockResolvedValue(
-      reply({options: [{...model, budgetRefs: ['budget-1', 'budget-2']}]}),
+      reply({modelOptions: [{...model, budgetRefs: ['budget-1', 'budget-2']}]}),
     );
     render(<AiChatPage/>);
     await load();
@@ -343,7 +343,7 @@ describe('配置发现与选择', () => {
     vi.mocked(discoverChatOptions).mockReturnValueOnce(pending.promise);
     render(<AiChatPage/>);
     expect(listConversations).not.toHaveBeenCalled();
-    await act(async () => pending.resolve(reply({options: [model]})));
+    await act(async () => pending.resolve(reply({modelOptions: [model]})));
     await applied();
     advanced();
     expect(screen.getByLabelText('最大输入 Token')).toHaveValue('4096');
@@ -376,7 +376,7 @@ describe('配置发现与选择', () => {
     await screen.findByText('登录已失效，请重新登录。');
     expect(discoverChatOptions).toHaveBeenCalledTimes(1);
     vi.mocked(discoverChatOptions).mockResolvedValueOnce(
-      reply({options: []}),
+      reply({modelOptions: []}),
     );
     fireEvent.click(screen.getByRole('button', {name: /加载可用配置/}));
     await screen.findByText(
@@ -395,7 +395,7 @@ describe('配置发现与选择', () => {
     const signal = vi.mocked(discoverChatOptions).mock.calls[0][1]?.signal;
     change('工作空间 ID', 'workspace-2');
     expect(signal?.aborted).toBe(true);
-    await act(async () => pending.resolve(reply({options: [model]})));
+    await act(async () => pending.resolve(reply({modelOptions: [model]})));
     expect(
       screen.queryByText('DeepSeek · default-binding@v1'),
     ).not.toBeInTheDocument();
@@ -429,7 +429,7 @@ describe('配置发现与选择', () => {
   })])('发现的引用进入聊天请求，未确认错误 %s 的重试保持原模型与幂等键', async (error) => {
     saveChatConfig(chatConfigSchema.parse(valid));
     vi.mocked(discoverChatOptions).mockResolvedValue(
-      reply({options: [model, alternate]}),
+      reply({modelOptions: [model, alternate]}),
     );
     vi.mocked(turnsForChat).mockRejectedValue(error);
     render(<AiChatPage/>);
@@ -486,7 +486,7 @@ describe('配置发现与选择', () => {
     expect(discoverChatOptions).toHaveBeenCalledTimes(1);
     expect(getBudget).toHaveBeenCalledTimes(budgetQueries);
     // Empty discovery cannot reactivate the revoked selection, even through programmatic submit.
-    vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({options: []}));
+    vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({modelOptions: []}));
     fireEvent.click(screen.getByRole('button', {name: /加载可用配置/}));
     await screen.findByText('当前空间没有可用的模型与预算组合，请联系管理员配置。');
     apply();
@@ -504,7 +504,7 @@ describe('配置发现与选择', () => {
 
   it('旧模型的未确认提交重试被拒绝，不使已应用的新模型失效', async () => {
     saveChatConfig(chatConfigSchema.parse(valid));
-    vi.mocked(discoverChatOptions).mockResolvedValue(reply({options: [model, alternate]}));
+    vi.mocked(discoverChatOptions).mockResolvedValue(reply({modelOptions: [model, alternate]}));
     vi.mocked(turnsForChat).mockRejectedValueOnce(new TypeError('network'))
       .mockRejectedValueOnce(new AiApiError(400, {code: '205002', desc: '旧模型已停用'}));
     render(<AiChatPage/>);
@@ -527,7 +527,7 @@ describe('配置发现与选择', () => {
 
   it('缓存引用仍存在但额度超过新窗口时，必须修正并手动应用', async () => {
     saveChatConfig(chatConfigSchema.parse(valid));
-    vi.mocked(discoverChatOptions).mockResolvedValue(reply({options: [{...model, contextWindowTokens: 1024}]}));
+    vi.mocked(discoverChatOptions).mockResolvedValue(reply({modelOptions: [{...model, contextWindowTokens: 1024}]}));
     render(<AiChatPage/>);
     await screen.findByText('保存的模型、预算或参数已不再可用，请重新选择并应用配置。');
     expect(listConversations).not.toHaveBeenCalled();

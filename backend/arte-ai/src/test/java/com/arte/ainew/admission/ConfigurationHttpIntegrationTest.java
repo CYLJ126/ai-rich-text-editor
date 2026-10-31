@@ -170,7 +170,8 @@ public class ConfigurationHttpIntegrationTest {
     private JsonNode options() throws Exception {
         var response = send(QUERY, 200);
         assertTrue(response.path("success").asBoolean());
-        return response.path("data").path("options");
+        assertEquals(Set.of("modelOptions"), response.path("data").propertyNames());
+        return response.path("data").path("modelOptions");
     }
 
     @Test
@@ -352,7 +353,7 @@ public class ConfigurationHttpIntegrationTest {
     public void capturesIdentityBeforeAsyncQueryAndDeclaresControllerAuthentication() throws Exception {
         var pending = mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(QUERY))).andReturn();
         SecurityContextHolder.clearContext();
-        assertEquals(json.valueToTree(List.of("alice-budget")), finish(pending, 200).path("data").path("options").get(0).path("budgetRefs"));
+        assertEquals(json.valueToTree(List.of("alice-budget")), finish(pending, 200).path("data").path("modelOptions").get(0).path("budgetRefs"));
         var method = NewAiConfigurationController.class.getMethod("discoverChatOptions", ConfigurationRequests.DiscoverChatOptions.class, Locale.class);
         var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
         if (authorization == null) {

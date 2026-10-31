@@ -353,7 +353,7 @@ public class ChatHttpIntegrationTest {
         var id = create();
         var discovered = body(send(post("/ai-new/configuration/discoverChatOptions")
                 .content(json.writeValueAsString(Map.of("scope", SCOPE))), 200));
-        var option = discovered.path("data").path("options").get(0);
+        var option = discovered.path("data").path("modelOptions").get(0);
         assertEquals(json.valueToTree(AdmissionFixture.BINDING), option.path("binding"));
         assertEquals(json.valueToTree(List.of("alice-budget")), option.path("budgetRefs"));
         var request = request(id, 0, "hello");

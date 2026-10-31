@@ -1,6 +1,6 @@
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {discoverChatOptions, getBudget} from '@/services/arte-ai';
+import {type ChatModelOption, discoverChatOptions, getBudget} from '@/services/arte-ai';
 import {useConfigurationDiscovery, useSelectedBudget,} from './useConfigurationSelection';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
@@ -10,6 +10,18 @@ vi.mock('@/services/arte-ai', async (original) => ({
   getBudget: vi.fn(),
 }));
 const scope = {tenantId: 'tenant', workspaceId: 'space'};
+const model: ChatModelOption = {
+  displayName: '模型', binding: {type: 'binding', id: 'binding', version: 'v1'},
+  capability: {type: 'capability', id: 'text', version: 'v1'}, contextWindowTokens: 8192,
+  limits: {
+    maxInputTokens: 4096,
+    maxOutputTokens: 512,
+    maxInputBytes: 65536,
+    maxOutputBytes: 65536,
+    maxTimeoutSeconds: 60
+  },
+  defaults: {maxInputTokens: 1024, maxOutputTokens: 128, timeoutSeconds: 30}, budgetRefs: ['budget'],
+};
 const account = {
   budgetRef: 'a',
   currency: 'CNY',
@@ -42,6 +54,20 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe('配置与预算请求隔离', () => {
+  it.each([{label: '空目录', modelOptions: []}, {label: '模型目录', modelOptions: [model]}])(
+    '从 HTTP modelOptions 读取$label，并保留内部 options 视图', async ({modelOptions}) => {
+      vi.mocked(discoverChatOptions).mockResolvedValue(reply({modelOptions}));
+      const hook = renderHook(useConfigurationDiscovery);
+      let loaded: ChatModelOption[] | null = null;
+      await act(async () => {
+        loaded = await hook.result.current.load(scope);
+      });
+      expect(loaded).toEqual(modelOptions);
+      expect(hook.result.current.options).toEqual(modelOptions);
+      expect(hook.result.current.error).toBeNull();
+    },
+  );
+
   it('清除或卸载时取消配置发现，不采纳迟到失败或结果', async () => {
     const pending = deferred<Awaited<ReturnType<typeof discoverChatOptions>>>();
     vi.mocked(discoverChatOptions).mockReturnValue(pending.promise);
@@ -52,7 +78,7 @@ describe('配置与预算请求隔离', () => {
     const signal = vi.mocked(discoverChatOptions).mock.calls[0][1]?.signal;
     act(() => hook.result.current.clear());
     expect(signal?.aborted).toBe(true);
-    await act(async () => pending.resolve(reply({options: []})));
+    await act(async () => pending.resolve(reply({modelOptions: []})));
     expect(hook.result.current.scope).toBeNull();
     expect(hook.result.current.error).toBeNull();
     act(() => {
@@ -65,7 +91,7 @@ describe('配置与预算请求隔离', () => {
 
   it('连续刷新同一空间时只采纳最后一次发现，迟到失败不覆盖空列表', async () => {
     const first = deferred<Awaited<ReturnType<typeof discoverChatOptions>>>();
-    vi.mocked(discoverChatOptions).mockReturnValueOnce(first.promise).mockResolvedValueOnce(reply({options: []}));
+    vi.mocked(discoverChatOptions).mockReturnValueOnce(first.promise).mockResolvedValueOnce(reply({modelOptions: []}));
     const hook = renderHook(useConfigurationDiscovery);
     act(() => {
       void hook.result.current.load(scope);
