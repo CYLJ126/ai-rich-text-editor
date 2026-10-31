@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.arte.app.platform.persistence.mapper.PlatformModelResourceMapper">
+    <select id="candidates" resultType="com.arte.app.pojo.platform.PlatformModelResourceDto">
+        SELECT * FROM arte_ai_model_resource WHERE tenant_id=#{tenant} AND workspace_id=#{workspace}
+        AND resource_key &gt; #{after} ORDER BY resource_key LIMIT #{limit}
+    </select>
     <select id="resource" resultType="com.arte.app.pojo.platform.PlatformModelResourceDto">
         SELECT * FROM arte_ai_model_resource WHERE resource_key=#{key}
         <if test="current">FOR UPDATE</if>

@@ -1,7 +1,6 @@
 package com.arte.app.web.advice;
 
-import com.arte.app.web.controller.platform.WorkspaceAccessController;
-import com.arte.app.web.controller.platform.WorkspaceController;
+import com.arte.app.web.controller.platform.*;
 import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.core.diagnostics.SafeExceptionDiagnostics;
 import com.arte.core.enums.ResultCodeEnum;
@@ -39,8 +38,9 @@ import java.util.concurrent.RejectedExecutionException;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/10 18:42 ✾
  */
-@RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceAccessController.class, com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class,
-        com.arte.app.web.controller.platform.ResourceAccessController.class, com.arte.app.web.controller.platform.ModelResourceController.class})
+@RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceAccessController.class,
+        WorkspaceAiConfigurationController.class, ResourceAccessController.class, ModelResourceController.class,
+        ModelDraftController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class PlatformExceptionHandler {

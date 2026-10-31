@@ -37,6 +37,19 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
 
     private final PlatformJson json;
 
+    @Override
+    public List<ModelResource> candidates(Scope scope, String afterKey, int limit) {
+        gate(scope.tenantId());
+        requireScope(scope);
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid candidate limit");
+        return baseMapper.candidates(scope.tenantId(), scope.workspaceId(), afterKey, limit).stream().map(row -> {
+            var ref = new ResourceRef(scope.tenantId(), MODEL, row.getResourceId());
+            var value = decode(row, ref);
+            if (!scope.workspaceId().equals(value.ownership().workspaceId())) throw conflict();
+            return value;
+        }).toList();
+    }
+
     public ModelResourceStoreServiceImpl(@Qualifier("platformModelResourceMapper") PlatformModelResourceMapper mapper,
                                          @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, PlatformJson json) {
         super(mapper, tx);

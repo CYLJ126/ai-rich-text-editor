@@ -16,6 +16,9 @@ import java.util.Map;
  */
 public interface PlatformModelResourceMapper extends BaseMapper<PlatformModelResourceDto> {
 
+    List<PlatformModelResourceDto> candidates(@Param("tenant") String tenant, @Param("workspace") String workspace,
+                                              @Param("after") String after, @Param("limit") int limit);
+
     PlatformModelResourceDto resource(@Param("key") String key, @Param("current") boolean current);
 
     int insertResource(@Param("row") PlatformModelResourceDto row);

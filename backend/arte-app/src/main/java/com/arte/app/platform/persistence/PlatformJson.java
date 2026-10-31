@@ -45,6 +45,9 @@ public final class PlatformJson {
                     Map.entry("resource:void:v1", Void.class),
                     Map.entry("model:resource:v1", com.arte.ainew.pojo.model.ModelResource.class),
                     Map.entry("model:version:v1", com.arte.ainew.pojo.model.ModelResourceVersion.class),
+                    Map.entry("model:draft:v1", com.arte.ainew.pojo.model.ModelDrafts.Draft.class),
+                    Map.entry("model:credential:view:v1", com.arte.ainew.pojo.model.ModelDrafts.CredentialView.class),
+                    Map.entry("model:validation:v1", com.arte.ainew.pojo.model.ModelDrafts.Validation.class),
                     Map.entry("model:acl:scope:v1", com.arte.ainew.pojo.model.ModelAclScope.class));
 
     public String write(Object value) {

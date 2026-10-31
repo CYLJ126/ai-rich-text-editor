@@ -5,8 +5,10 @@ import com.arte.ainew.pojo.model.ModelResourceVersion;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.PageResult;
+import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.reference.DefinitionRef;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -18,6 +20,11 @@ import java.util.Optional;
  * @since 2026/10/30 22:40 ✾
  */
 public interface ModelResourceStore {
+
+    /**
+     * Bounded candidates in stable resource-key order, never an authorized public list.
+     */
+    List<ModelResource> candidates(Scope scope, String afterKey, int limit);
 
     Optional<ModelResource> find(ResourceRef resource);
 

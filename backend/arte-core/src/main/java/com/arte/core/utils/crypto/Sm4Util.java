@@ -92,9 +92,17 @@ public class Sm4Util extends AbstractGmUtil {
      * SM4 GCM 模式加密
      */
     public static byte[] encryptGCM(byte[] data, byte[] key, byte[] nonce) throws Exception {
+        return encryptGCM(data, key, nonce, null);
+    }
+
+    /**
+     * SM4 GCM 模式加密，并认证不加密的业务上下文；返回密文及 128 位认证标签。
+     * nonce 必须在同一密钥下唯一，解密时必须提供完全相同的 associatedData。
+     */
+    public static byte[] encryptGCM(byte[] data, byte[] key, byte[] nonce, byte[] associatedData) throws Exception {
         SM4Engine engine = new SM4Engine();
         GCMBlockCipher cipher = (GCMBlockCipher) GCMBlockCipher.newInstance(engine);
-        AEADParameters parameters = new AEADParameters(new KeyParameter(key), 128, nonce);
+        AEADParameters parameters = new AEADParameters(new KeyParameter(key), 128, nonce, associatedData);
         cipher.init(true, parameters);
 
         byte[] output = new byte[cipher.getOutputSize(data.length)];
@@ -108,16 +116,27 @@ public class Sm4Util extends AbstractGmUtil {
      * SM4 GCM 模式解密
      */
     public static byte[] decryptGCM(byte[] encryptedData, byte[] key, byte[] nonce) throws Exception {
+        return decryptGCM(encryptedData, key, nonce, null);
+    }
+
+    /**
+     * SM4 GCM 模式认证解密；密钥、nonce、密文或业务上下文不匹配时拒绝返回明文。
+     */
+    public static byte[] decryptGCM(byte[] encryptedData, byte[] key, byte[] nonce, byte[] associatedData) throws Exception {
         SM4Engine engine = new SM4Engine();
         GCMBlockCipher cipher = (GCMBlockCipher) GCMBlockCipher.newInstance(engine);
-        AEADParameters parameters = new AEADParameters(new KeyParameter(key), 128, nonce);
+        AEADParameters parameters = new AEADParameters(new KeyParameter(key), 128, nonce, associatedData);
         cipher.init(false, parameters);
 
         byte[] output = new byte[cipher.getOutputSize(encryptedData.length)];
-        int len = cipher.processBytes(encryptedData, 0, encryptedData.length, output, 0);
-        len += cipher.doFinal(output, len);
-
-        return Arrays.copyOf(output, len);
+        try {
+            int len = cipher.processBytes(encryptedData, 0, encryptedData.length, output, 0);
+            len += cipher.doFinal(output, len);
+            return Arrays.copyOf(output, len);
+        } finally {
+            // 包含认证失败时已经产生的中间明文，均不保留在工作缓冲区。
+            Arrays.fill(output, (byte) 0);
+        }
     }
 
     /**
