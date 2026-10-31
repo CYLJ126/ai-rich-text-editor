@@ -55,7 +55,6 @@ public final class ReviewedModelConnectionTemplates implements ModelConnectionTe
         return source.get().connections().stream()
                 .filter(c -> c.state() == ConnectionDefinition.State.ENABLED
                         && c.protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)
-                        && c.endpoint().getPath().endsWith("/chat/completions")
                         && allowed(tenant.rules(), c) && allowed(workspace.rules(), c))
                 .filter(connectionDefinition -> {
                     try {

@@ -1,6 +1,7 @@
 package com.arte.ainew.pojo.control;
 
 import com.arte.core.pojo.reference.DefinitionRef;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;
 
@@ -16,9 +17,28 @@ public record ChatConfigurationOptions(List<ModelOption> options) {
         options = List.copyOf(options);
     }
 
+    /**
+     * 当前可执行模型的公开选项；管理定位元数据不包含内部授权证明或密钥。
+     *
+     * @param displayName         当前模型展示名称，兼容目录使用远端模型名
+     * @param binding             固定模型绑定
+     * @param capability          固定能力引用
+     * @param contextWindowTokens 上下文容量
+     * @param limits              本次适用上限
+     * @param defaults            表单初始建议值
+     * @param budgetRefs          当前主体获准使用的兼容预算
+     * @param toolCallsSupported  是否具备当前工具聊天适配能力
+     * @param resourceId          公共模型稳定管理 ID，兼容旧 Grant 目录为空
+     * @param source              公共模型定义来源 FIXED／DATABASE／PERSONAL；兼容旧 Grant 目录为空，不代表供应商
+     */
     public record ModelOption(String displayName, DefinitionRef binding, DefinitionRef capability,
                               long contextWindowTokens, Limits limits, Defaults defaults, List<String> budgetRefs,
-                              boolean toolCallsSupported) {
+                              boolean toolCallsSupported, @JsonInclude(JsonInclude.Include.NON_NULL) String resourceId,
+                              @JsonInclude(JsonInclude.Include.NON_NULL) String source) {
+        public ModelOption(String displayName, DefinitionRef binding, DefinitionRef capability,
+                           long contextWindowTokens, Limits limits, Defaults defaults, List<String> budgetRefs, boolean toolCallsSupported) {
+            this(displayName, binding, capability, contextWindowTokens, limits, defaults, budgetRefs, toolCallsSupported, null, null);
+        }
         public ModelOption {
             budgetRefs = List.copyOf(budgetRefs);
         }

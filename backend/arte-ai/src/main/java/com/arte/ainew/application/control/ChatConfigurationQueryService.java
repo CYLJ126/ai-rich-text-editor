@@ -101,15 +101,21 @@ public final class ChatConfigurationQueryService {
                                 .map(BudgetDefinition::budgetRef).sorted().toList();
                         long window = binding.contextWindowTokens();
                                 int outputLimit = (int) Math.min(policy.maxOutputTokens(), Math.min(1_000_000L, window - 1));
+                                if (value.modelAccess() != null && value.modelAccess().maxOutputTokens() != null) {
+                                    outputLimit = Math.min(outputLimit, value.modelAccess().maxOutputTokens());
+                                }
                                 var limits = new ChatConfigurationOptions.Limits(window - 1, outputLimit, policy.maxInputBytes(),
                                         policy.maxOutputBytes(), policy.maximumTimeout().toSeconds());
                         int outputDefault = Math.min(512, outputLimit);
                         var defaults = new ChatConfigurationOptions.Defaults(Math.min(32_768L, window - outputDefault),
                                 outputDefault, Math.min(60L, limits.maxTimeoutSeconds()));
-                        return new ChatConfigurationOptions.ModelOption(binding.remoteOperation(), binding.definition(),
+                                String name = value.modelAccess() == null || value.modelAccess().displayName() == null ? binding.remoteOperation() : value.modelAccess().displayName();
+                                return new ChatConfigurationOptions.ModelOption(name, binding.definition(),
                                 binding.capability().definition(), window, limits, defaults, budgets,
                                 binding.capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
-                                        && modelGateway.supportsToolChat(binding, value.connection()));
+                                        && modelGateway.supportsToolChat(binding, value.connection()),
+                                        value.modelAccess() == null ? null : value.modelAccess().resource().resourceId(),
+                                        value.modelAccess() == null ? null : value.modelAccess().definitionSource().name());
                     })
                     .filter(option -> !option.budgetRefs().isEmpty())
                             .collectList().map(ChatConfigurationOptions::new));

@@ -17,8 +17,8 @@ import java.util.*;
  * binding 必须为 GENERATION，连接及费率引用须与对应快照一致；只保存凭据引用，不包含密钥明文、预算账户或调用身份。
  * 该对象记录发布时的内容，不代替调用时的当前授权、停用状态、凭据用途及预算校验。
  *
- * @param source          绑定发布内容的受信来源：FIXED 为固定部署定义，DATABASE 为数据库已发布定义；不表示 OpenAI、DeepSeek 等供应商，也不授予访问权限。
- * @param catalogRevision 采用 DATABASE 来源时明确指定的正整数目录修订号；FIXED 来源必须为空，不以当前 head 或 latest 替代精确修订。
+ * @param source          内容权威来源：FIXED 为固定部署，DATABASE 为平台审核目录，PERSONAL 为已核验的个人发布；不代表供应商或访问许可。
+ * @param catalogRevision DATABASE 的精确目录修订；FIXED 和 PERSONAL 为空，个人发布的审核修订保存在独立发布证据，不解析 latest。
  * @param releaseRef      读取该发布内容时记录的发布标识，用于保留来源证据；独立于目录修订号、binding 字符串版本及管理资源版本。
  * @param binding         精确模型绑定快照，包含能力契约、远端连接引用、供应商实际模型标识、上下文容量及费率引用；不以其 ID 代替稳定管理资源 ID。
  * @param connection      与 binding 连接引用一致的连接快照，包含提供方、协议、目标地址、凭据引用、状态及传输限制；不返回凭据明文。
@@ -33,9 +33,9 @@ public record ModelPublication(Source source, Long catalogRevision, String relea
      * 发布内容来源；稳定存储编码独立于枚举声明顺序。
      */
     public enum Source {
-        FIXED(0), DATABASE(1);
+        FIXED(0), DATABASE(1), PERSONAL(2);
         /**
-         * 定义来源登记表使用的编码：0 为 FIXED，1 为 DATABASE。
+         * 定义来源登记表使用的编码：0 为 FIXED，1 为 DATABASE，2 为 PERSONAL。
          */
         private final int code;
 

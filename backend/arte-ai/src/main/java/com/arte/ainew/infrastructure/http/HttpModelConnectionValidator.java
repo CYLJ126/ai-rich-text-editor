@@ -26,7 +26,7 @@ import java.util.concurrent.Semaphore;
 /**
  * 基于审核连接模板执行个人模型连接验证的 HTTP 适配器，仅检查认证及远端模型列表。
  * <p>
- * 从受信 /chat/completions 地址的相同路径前缀派生 /models，携带本次授权领取的个人密钥发送 GET。
+ * 在受信基础路径追加 /models，完整 /chat/completions 地址先移除该后缀；携带本次授权领取的个人密钥发送 GET。
  * 复用精确 origin 白名单、地址检查和 DNS 固定策略，禁止重定向及自动重试；DNS 解析在阻塞调度线程执行。
  * 单次网络总时限 15 秒，响应不超过模板上限及 64 KiB 的较小值，并发不超过部署连接数上限且最多 8 个。
  * <p>
@@ -64,8 +64,7 @@ public final class HttpModelConnectionValidator implements ModelConnectionValida
     private Mono<ProbeResult> execute(Probe probe) {
         return Mono.fromCallable(() -> {
             URI endpoint = probe.connection().endpoint();
-            if (!probe.connection().protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)
-                    || !endpoint.getPath().endsWith("/chat/completions")) {
+            if (!probe.connection().protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)) {
                 throw new IllegalArgumentException("Unsupported validation protocol");
             }
             egress.validateOrigin(endpoint);
@@ -81,7 +80,10 @@ public final class HttpModelConnectionValidator implements ModelConnectionValida
             WebClient client = WebClient.builder().clientConnector(new ReactorClientHttpConnector(http))
                     .codecs(c -> c.defaultCodecs().maxInMemorySize(max)).build();
             String path = endpoint.toASCIIString();
-            URI models = URI.create(path.substring(0, path.length() - "/chat/completions".length()) + "/models");
+            if (path.endsWith("/chat/completions")) {
+                path = path.substring(0, path.length() - "/chat/completions".length());
+            }
+            URI models = URI.create(path.replaceAll("/+$", "") + "/models");
             return client.get().uri(models).headers(h -> h.setBearerAuth(probe.token())).accept(MediaType.APPLICATION_JSON)
                     .exchangeToMono(response -> {
                         int status = response.statusCode().value();

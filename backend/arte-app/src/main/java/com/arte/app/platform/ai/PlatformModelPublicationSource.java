@@ -46,6 +46,9 @@ public final class PlatformModelPublicationSource implements ModelPublicationSou
     @Override
     public ModelPublication requireCurrent(TrustedActor actor, Scope scope, ModelPublication.Source source, Long revision, DefinitionRef binding) {
         tx.requireWritable();
+        if (source == ModelPublication.Source.PERSONAL) {
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        }
         var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() -> error(PlatformErrorCodeEnum.UNAUTHENTICATED));
         var current = permissions.current(name);
         if (!current.contains("admin") && !current.contains("aiConfiguration:manage"))

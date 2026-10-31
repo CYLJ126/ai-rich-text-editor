@@ -9,6 +9,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.*;
 import com.arte.ainew.pojo.model.ModelAccessCandidate;
 import com.arte.ainew.pojo.model.ModelAccessProof;
+import com.arte.ainew.pojo.model.PersonalModels;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.core.enums.ResultCodeEnum;
@@ -26,7 +27,7 @@ import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
 /**
  * 单一配置来源的模型资格
  * <p>
- * 未迁移沿用 Grant，已迁移只取公共 ACL，不合并允许来源。
+ * 旧目录未迁移沿用 Grant，已迁移只取公共 ACL；个人命名空间始终需要独立公共证明，不回退 Grant。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/30 13:00 ✾
@@ -112,7 +113,8 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
             ModelAclAccess.Decision checked = modelAcl == null ? new ModelAclAccess.Decision(false, Map.of())
                     : modelAcl.checkCurrent(context, source, List.of(candidate));
             // 确认当前仍有模型使用权，且授权方式未在预检后发生切换。
-            if (!allowed(configuration, candidate, context, checked) || checked.migrated() != (expected.modelAccess() != null)) {
+            boolean protectedModel = checked.migrated() || checked.personalBindings().contains(candidate.binding().definition());
+            if (!allowed(configuration, candidate, context, checked) || protectedModel != (expected.modelAccess() != null)) {
                 throw unavailable();
             }
             AiEntitlement current = entitlement(configuration, candidate, context, checked);
@@ -122,7 +124,7 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
                 throw unavailable();
             }
             // 已迁移时，确认模型资源、归属及定义来源与预检一致。
-            if (checked.migrated() && (!current.modelAccess().resource().equals(expected.modelAccess().resource())
+            if (protectedModel && (!current.modelAccess().resource().equals(expected.modelAccess().resource())
                     || !current.modelAccess().ownership().equals(expected.modelAccess().ownership())
                     || current.modelAccess().definitionSource() != expected.modelAccess().definitionSource())) {
                 throw unavailable();
@@ -261,7 +263,8 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @return 当前选定的授权规则是否允许该候选；不表示已通过全部执行门控
      */
     private boolean allowed(NewAiProperties configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
-        if (decision.migrated()) {
+        if (decision.migrated() || decision.personalBindings().contains(candidate.binding().definition())
+                || PersonalModels.isPersonalBinding(candidate.binding().definition())) {
             return decision.allowed().containsKey(candidate.binding().definition());
         }
         return authorization.grant(configuration, context).bindingIds().contains(candidate.binding().definition().id());

@@ -13,6 +13,7 @@ import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
+import com.arte.ainew.spi.model.PersonalModelRuntime;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
@@ -31,6 +32,7 @@ import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.PreferenceStore;
 import com.arte.core.spi.workspace.WorkspaceStore;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
@@ -72,6 +74,38 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final DefaultCommandExecutor commands;
     private final PreferenceStore preferences;
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
+    private ObjectProvider<PersonalModelRuntime> personalModels;
+
+    /**
+     * 延迟接入个人发布定义，避免改变唯一控制来源及其启动依赖关系。
+     */
+    @Autowired
+    void personalModels(ObjectProvider<PersonalModelRuntime> personalModels) {
+        this.personalModels = personalModels;
+    }
+
+    private NewAiProperties withPersonal(TrustedActor actor, Scope scope, NewAiProperties base, boolean current) {
+        PersonalModelRuntime runtime = personalModels == null ? null : personalModels.getIfAvailable();
+        return runtime == null ? base : runtime.contribute(actor, scope, base, current);
+    }
+
+    /**
+     * 取得原写事务内锁定的审核目录，供普通用户发布核对，不授予平台配置修改权。
+     */
+    public PreparedConfiguration reviewedModelCatalog() {
+        tx.requireWritable();
+        Published value = publishedCurrent();
+        return new PreparedConfiguration(value.catalog().properties(infrastructure, List.of(), List.of()), value.version());
+    }
+
+    /**
+     * 查询当前主体原空间的预算配置；不初始化空间或账户。
+     */
+    public NewAiProperties personalModelConfiguration(TrustedActor actor, Scope scope) {
+        tx.requireWritable();
+        String name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() -> new AccessDeniedException("Account unavailable"));
+        return currentSnapshot(name, actor.principal().subjectId(), scope, Set.of(AdmissionAuthorization.INVOKE), true).configuration();
+    }
 
     public DatabaseAiControlService(PlatformAiControlMapper mapper, PlatformJson json, RbacIdentityProvider identities,
                                     @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, ObjectProvider<WorkspaceWriteGuard> guards,
@@ -248,7 +282,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         var bindings = catalog.bindings().stream().filter(b -> settings.preset().bindings().contains(b.definition())).toList();
         var filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
                 List.of(), List.of(), settings.preset());
-        return new Snapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions));
+        return new Snapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
     }
 
     private ExecutionAuthorization authorization(NewAiProperties.Grant grant, Set<String> requested) {
@@ -350,7 +384,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
                     .filter(b -> settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
                     List.of(), List.of(), settings.preset());
-            return new CurrentSnapshot(auth, filtered.properties(infrastructure, List.of(grant), definitions), publication.version());
+            return new CurrentSnapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
         });
     }
 
@@ -394,6 +428,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     @Override
     public PreparedConfiguration revalidate(ExecutionContext context, PreparedConfiguration prepared) {
+        if (personalModels != null && personalModels.getIfAvailable() != null) {
+            return prepareConfiguration(context);
+        }
         var principal = context.authorization().principal();
         if (principal.kind() != ExecutionPrincipal.Kind.USER)
             throw new AccessDeniedException("Stable identity mismatch");

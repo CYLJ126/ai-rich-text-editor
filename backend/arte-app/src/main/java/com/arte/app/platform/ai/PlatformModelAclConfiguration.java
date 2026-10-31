@@ -39,8 +39,10 @@ public class PlatformModelAclConfiguration {
     ModelAclAccess modelAclAccess(ModelAclScopeStore scopes, ModelResourceStore models, IdentityProvider identity,
                                   @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                   TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers, WorkspaceMembershipStore members, PreferenceStore preferences,
-                                  @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new PlatformModelAclAccess(scopes, models, identity, tx, authorization, tenants, workspaces, tenantMembers, members, preferences, scheduler, clock);
+                                  @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("platformWorkspaceClock") Clock clock,
+                                  ObjectProvider<com.arte.ainew.spi.model.PersonalModelRuntime> personal) {
+        return new PlatformModelAclAccess(scopes, models, identity, tx, authorization, tenants, workspaces, tenantMembers, members, preferences, scheduler, clock)
+                .personalRuntime(personal::getIfAvailable);
     }
 
     @Bean

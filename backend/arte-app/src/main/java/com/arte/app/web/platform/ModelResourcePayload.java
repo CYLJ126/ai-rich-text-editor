@@ -61,7 +61,8 @@ public final class ModelResourcePayload {
     }
 
     /**
-     * 完整清单更新；首次版本 0 显式激活，空绑定集合表示关闭全部模型且保持 ACL 模式。
+     * 旧目录完整清单更新；首次版本 0 显式激活，空集合关闭旧目录候选并保持 ACL 模式。
+     * 个人发布使用独立公共资格及空间 AI 门控，不通过此清单转交个人凭据用途。
      */
     public record UpdateScopeRequest(@NotNull Scope scope, @NotNull @Min(0) Long expectedVersion,
                                      @NotBlank @Pattern(regexp = "FIXED|DATABASE") String source,

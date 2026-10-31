@@ -7,6 +7,7 @@ import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.ainew.spi.model.ModelAclScopeStore;
 import com.arte.ainew.spi.model.ModelResourceStore;
+import com.arte.ainew.spi.model.PersonalModelRuntime;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
@@ -29,12 +30,13 @@ import reactor.core.scheduler.Scheduler;
 
 import java.time.Clock;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_AI_USE;
 
 /**
- * 执行资格的公共模型 ACL 适配。迁移记录是唯一切换依据，SQL 故障不会解释为未迁移。
+ * 执行资格的公共模型 ACL 适配。旧目录按显式迁移清单切换，个人发布独立检查，SQL 故障不会解释为未迁移。
  * 展示读取使用独立只读快照；最终受理／派发复核只加入调用方原写事务。
  * 父租户锁使迁移、撤权、模型停用与最终执行提交按同一协议串行。
  *
@@ -51,6 +53,27 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
     private final WorkspaceGovernanceLocks locks;
     private final Scheduler scheduler;
     private final Clock clock;
+    private Supplier<PersonalModelRuntime> personal = () -> null;
+
+    /**
+     * 延迟安装个人发布门控；未启用时保持旧读取和兼容语义。
+     */
+    public PlatformModelAclAccess personalRuntime(Supplier<PersonalModelRuntime> personal) {
+        this.personal = personal;
+        return this;
+    }
+
+    private Decision mergePersonal(Decision legacy, ExecutionContext context, List<ModelAccessCandidate> candidates) {
+        PersonalModelRuntime runtime = personal.get();
+        if (runtime == null) {
+            return legacy;
+        }
+        Decision own = runtime.check(context, candidates);
+        Map<DefinitionRef, ModelAccessProof> allowed = new LinkedHashMap<>(legacy.allowed());
+        own.personalBindings().forEach(allowed::remove);
+        allowed.putAll(own.allowed());
+        return new Decision(legacy.migrated(), allowed, own.personalBindings());
+    }
 
     public PlatformModelAclAccess(ModelAclScopeStore scopes, ModelResourceStore models, IdentityProvider identity,
                                   PublicTransactionRunner tx, AuthorizationService authorization, TenantStore tenants, WorkspaceStore workspaces,
@@ -69,12 +92,14 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
     @Override
     public Mono<Decision> check(ExecutionContext context, AiEntitlement.Source source, List<ModelAccessCandidate> candidates) {
         List<ModelAccessCandidate> inputs = List.copyOf(candidates);
-        return Mono.fromCallable(() -> tx.readOnly(() -> {
+        Supplier<Decision> work = () -> {
             Scope scope = scope(context);
             Optional<ModelAclScope> manifest = scopes.find(scope);
-            return manifest.map(modelAclScope -> decide(actor(context, false), modelAclScope, source, inputs, false))
+            Decision legacy = manifest.map(modelAclScope -> decide(actor(context, false), modelAclScope, source, inputs, false))
                     .orElseGet(() -> new Decision(false, Map.of()));
-        })).subscribeOn(scheduler);
+            return mergePersonal(legacy, context, inputs);
+        };
+        return Mono.fromCallable(() -> personal.get() == null ? tx.readOnly(work) : tx.required(work)).subscribeOn(scheduler);
     }
 
     @Override
@@ -90,8 +115,9 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
             return new Decision(false, Map.of());
         }
         Optional<ModelAclScope> manifest = scopes.findCurrent(scope);
-        return manifest.map(modelAclScope -> decide(actor(context, true), modelAclScope, source, List.copyOf(candidates), true))
+        Decision legacy = manifest.map(modelAclScope -> decide(actor(context, true), modelAclScope, source, List.copyOf(candidates), true))
                 .orElseGet(() -> new Decision(false, Map.of()));
+        return mergePersonal(legacy, context, candidates);
     }
 
     /**
@@ -179,7 +205,7 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
                 ModelResourceVersion version = versions.get(i);
                 ModelResource resource = resources.get(i);
                 allowed.put(version.publication().binding().definition(), new ModelAccessProof(resource.resource(), resource.ownership(),
-                        basis, manifest.version(), version.publication().source()));
+                        basis, manifest.version(), version.publication().source(), null, resource.name()));
             }
         }
         return new Decision(true, allowed);

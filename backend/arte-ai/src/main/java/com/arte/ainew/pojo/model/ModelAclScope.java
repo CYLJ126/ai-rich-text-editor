@@ -10,11 +10,11 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 空间显式启用公共模型 ACL 的持久化清单；记录存在即禁止旧 Grant 兜底。
+ * 空间旧目录显式启用公共模型 ACL 的持久化清单；记录存在即禁止旧 Grant 兜底。个人发布另行核验公共资格。
  *
  * @param scope               明确切换的执行租户与空间，不改变历史执行归属
  * @param configurationSource 该范围唯一接受的运行配置来源，不能隐式切换
- * @param bindings            明确允许进入 ACL 判断的精确绑定集合；空集合表示全部拒绝
+ * @param bindings            旧目录允许进入 ACL 判断的精确绑定集合；空集合拒绝全部旧目录候选
  * @param version             清单 CAS 版本，首次为 1，后续逐次递增
  * @param changedBy           本次变更的稳定主体 ID
  * @param changedAt           本次成功变更的服务端时间

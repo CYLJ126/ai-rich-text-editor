@@ -14,20 +14,34 @@ import java.util.Objects;
  * @param resource         由精确绑定映射得到的稳定模型资源引用
  * @param ownership        模型资源的主空间归属，独立于创建者和本次调用主体
  * @param versions         本次公共授权的版本依据，最终写入仍按当前事实重新判定
- * @param scopeVersion     本次采用的空间迁移清单版本，从 1 开始
+ * @param scopeVersion     空间迁移清单版本；个人模型采用当前管理资源版本，从 1 开始
  * @param definitionSource 原精确版本的定义权威来源，不随当前读取目录的模式改写
+ * @param maxOutputTokens  个人发布的输出上限；普通目录为空，仍受部署及预算限制
+ * @param displayName      当前获授权模型的展示名称，仅作发现元数据，不改变固定发布内容
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 12:00 ✾
  */
 public record ModelAccessProof(ResourceRef resource, ResourceOwnership ownership, AuthorizationVersions versions,
-                               long scopeVersion, ModelPublication.Source definitionSource) {
+                               long scopeVersion, ModelPublication.Source definitionSource, Integer maxOutputTokens,
+                               String displayName) {
+
+    public ModelAccessProof(ResourceRef resource, ResourceOwnership ownership, AuthorizationVersions versions,
+                            long scopeVersion, ModelPublication.Source definitionSource) {
+        this(resource, ownership, versions, scopeVersion, definitionSource, null, null);
+    }
+
+    public ModelAccessProof(ResourceRef resource, ResourceOwnership ownership, AuthorizationVersions versions,
+                            long scopeVersion, ModelPublication.Source definitionSource, Integer maxOutputTokens) {
+        this(resource, ownership, versions, scopeVersion, definitionSource, maxOutputTokens, null);
+    }
 
     public ModelAccessProof {
         Objects.requireNonNull(resource);
         Objects.requireNonNull(ownership);
         Objects.requireNonNull(versions);
         Objects.requireNonNull(definitionSource);
-        if (scopeVersion < 1 || versions.aclVersion() == null || !resource.tenantId().equals(ownership.tenantId())) {
+        if (scopeVersion < 1 || versions.aclVersion() == null || !resource.tenantId().equals(ownership.tenantId())
+                || maxOutputTokens != null && maxOutputTokens < 1) {
             throw new IllegalArgumentException("Incomplete model ACL proof");
         }
     }

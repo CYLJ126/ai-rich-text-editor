@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformPersonalModelMapper">
+    <select id="find" resultType="com.arte.app.platform.persistence.mapper.PlatformPersonalModelMapper$Row">
+        SELECT binding_key,digest,payload FROM arte_ai_model_personal_publication
+        WHERE scope_key=#{scopeKey} AND binding_key=#{bindingKey}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <select id="list" resultType="com.arte.app.platform.persistence.mapper.PlatformPersonalModelMapper$Row">
+        SELECT binding_key,digest,payload FROM arte_ai_model_personal_publication
+        WHERE scope_key=#{scopeKey} ORDER BY binding_key LIMIT 257
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <insert id="insert">
+        INSERT INTO arte_ai_model_personal_publication(binding_key,scope_key,resource_key,digest,payload)
+        VALUES(#{row.bindingKey},#{scopeKey},#{resourceKey},#{row.digest},#{row.payload})
+    </insert>
+</mapper>

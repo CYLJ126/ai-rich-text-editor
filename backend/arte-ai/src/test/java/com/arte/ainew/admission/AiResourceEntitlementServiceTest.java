@@ -66,6 +66,25 @@ public class AiResourceEntitlementServiceTest {
         return copy(List.of(denied), properties.capabilities(), properties.bindings(), properties.connections());
     }
 
+    @Test
+    public void reservedPersonalBindingsCannotUseLegacyGrantButOrdinaryPersonalNamesRemainCompatible() {
+        ResolvedBinding original = properties.bindings().getFirst();
+        NewAiProperties.Grant old = properties.grants().getFirst();
+        for (String id : List.of("personal-legacy-model", "personal-" + "a".repeat(64))) {
+            DefinitionRef reference = new DefinitionRef("binding", id, "v1");
+            ResolvedBinding binding = new ResolvedBinding(reference, original.capability(), original.target(), original.contextWindowTokens(), original.rate());
+            NewAiProperties.Grant grant = new NewAiProperties.Grant(old.subjectName(), old.subjectId(), old.principalKind(), old.tenantId(), old.workspaceId(),
+                    old.grantRef(), old.enabled(), old.scopes(), Set.of(id), old.budgetRefs());
+            FixedAiResourceEntitlementService service = new FixedAiResourceEntitlementService(copy(List.of(grant), properties.capabilities(), List.of(binding), properties.connections()), authorization);
+            if (id.equals("personal-legacy-model")) {
+                assertEquals(binding, service.resolve(reference, original.capability().definition(), context()).block(WAIT).binding());
+            } else {
+                unavailable(service.resolve(reference, original.capability().definition(), context()), ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE);
+                assertTrue(service.discover(CapabilityDescriptor.Kind.GENERATION, 10, context()).collectList().block(WAIT).isEmpty());
+            }
+        }
+    }
+
     private final class Source implements AiControlConfigurationSource {
         NewAiProperties current = properties;
         boolean revoked;

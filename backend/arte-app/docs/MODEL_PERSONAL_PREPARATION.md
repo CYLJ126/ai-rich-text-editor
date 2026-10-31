@@ -4,7 +4,7 @@
 
 本批完成后端准备流程，复用稳定模型身份及公共 ACL。普通用户可创建身份、保存草稿、维护自己提供的凭据并验证连接，不要求平台
 aiConfiguration:manage。 草稿和凭据不进入既有发布目录，不修改执行归属、预算、历史会话或已有模型版本。个人发布及聊天使用属于
-4-02，管理页面属于 4-03，文章改造不在本批范围。
+4-02（已实现，见[发布与执行闭环](MODEL_PERSONAL_PUBLICATION.md)），管理页面属于 4-03，文章改造不在本批范围。
 
 **术语**
 
@@ -46,7 +46,8 @@ aiConfiguration:manage。 草稿和凭据不进入既有发布目录，不修改
 编辑、验证、分享或空间治理资格不自动授予他人凭据维护权；本批没有责任转交。普通被分享者不能借验证接口使用他人密钥。
 凭据重放只返回脱敏历史回执，不重新加密或恢复已撤销值。
 
-首版模板来自当前 FIXED／DATABASE 审核目录，仅支持 chat-completions-sse@v1 且地址以 /chat/completions 结尾。用户选择精确模板，设置
+首版模板来自当前 FIXED／DATABASE 审核目录，仅支持 chat-completions-sse@v1；4-02 起同时兼容基础地址及完整 /chat/completions
+地址。用户选择精确模板，设置
 remoteModel、contextWindowTokens 和 maxOutputTokens，不提交任意 URL。 模板去除平台
 SecretRef，验证始终使用用户另外提供的个人密钥。返回的模板列表只有引用、供应商及协议，没有 endpoint 或凭据。
 
@@ -80,12 +81,14 @@ HMAC-SHA256 指纹算法及输入格式保持不变。SM4 加密密钥必须为 
 keyId。 如果曾启用旧 AES 实现，现有无格式前缀的 AES
 密文不会被新实现解密。切换前须保留原密文和密钥，另行执行经核对的迁移，或由责任主体通过替换凭据接口按当前版本重新录入；当前改造不访问业务库、不自动重写旧密文，也不提供混合算法读取。
 
-新个人凭据仅供验证流程消费，尚未装配到聊天 ConnectionCredentialResolver；4-02 须按当前用途授权和外发门控接入，不能只凭
-SecretRef 解密。
+4-01 中个人凭据仅供验证流程消费；4-02 已将当前用途授权和外发门控接入聊天 ConnectionCredentialResolver。 解析要求真实
+RUNNING 调用、当前权限、兼容预算、责任主体及固定凭据代次，不能只凭 SecretRef
+解密，见[4-02 说明](MODEL_PERSONAL_PUBLICATION.md)。
 
 ## 验证和恢复
 
-配置检查覆盖字段范围、支持协议、模板和政策。网络验证执行认证 GET /models（从模板 /chat/completions 的同路径前缀派生），检查认证及是否列出
+配置检查覆盖字段范围、支持协议、模板和政策。网络验证执行认证 GET /models（在模板基础路径追加，完整 /chat/completions
+地址先去掉该后缀），检查认证及是否列出
 remoteModel。 模型列表响应的 data／id 形状参考 [DeepSeek 官方模型列表接口](https://api-docs.deepseek.com/api/list-models/)
 ，本批用回环服务验证该契约，不调用真实供应商。 不建立聊天 Turn，不调用生成接口、不预留生成预算，不承诺验证了流式、工具调用、上下文或输出容量；字段范围检查不等于供应商能力认证。
 供应商对元数据请求的计费不由本系统保证。没有模型列表接口的供应商需另加验证适配器，不能伪报成功。

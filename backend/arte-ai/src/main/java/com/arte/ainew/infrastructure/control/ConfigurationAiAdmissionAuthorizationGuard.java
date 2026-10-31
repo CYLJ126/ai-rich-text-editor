@@ -11,6 +11,7 @@ import com.arte.ainew.pojo.control.AiEntitlement;
 import com.arte.ainew.pojo.control.AiExecutionPolicy;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.execution.InvocationRequest;
+import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
@@ -81,6 +82,7 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
                         if (!entitlement.binding().equals(check.binding()) || !configuration.releaseRef().equals(current.releaseRef())) {
                             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
                         }
+                        requireOutputLimit(entitlement, request);
                         return budgets.resolve(check.budgetRef(), current, BudgetDefinitionProvider.Operation.EXECUTE).flatMap(budget -> {
                             // 确认所选预算归属于原执行主体／空间，且使用模型绑定指定的固定费率。
                             if (!budget.owner().equals(ExecutionOwners.from(current)) || !budget.rate().equals(check.binding().rate())) {
@@ -140,6 +142,7 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
             }
             // 在原事务中重新核验当前模型／连接使用资格及精确发布内容，与预检结果比对。
             entitlements.requireInCurrentTransaction(entitlement, actual.context());
+            requireOutputLimit(entitlement, actual);
             // 在原事务中重新读取所选预算定义并核验当前执行使用资格。
             BudgetDefinition budget = budgets.resolveInCurrentTransaction(check.budgetRef(), actual.context(), BudgetDefinitionProvider.Operation.EXECUTE);
             // 确认当前预算仍属于原执行归属，且固定费率仍与模型绑定匹配。
@@ -150,5 +153,13 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
             ExecutionPolicyChecks.require(check, policies.inCurrentTransaction(actual.context()).intersect(ceiling), clock);
             return null;
         });
+    }
+
+    private static void requireOutputLimit(AiEntitlement entitlement, InvocationRequest<?> request) {
+        if (entitlement.modelAccess() != null && entitlement.modelAccess().maxOutputTokens() != null
+                && request.input() instanceof GenerationRequest generation
+                && generation.options().maxOutputTokens() > entitlement.modelAccess().maxOutputTokens()) {
+            throw new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE);
+        }
     }
 }
