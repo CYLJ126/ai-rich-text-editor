@@ -39,7 +39,8 @@ import java.util.concurrent.RejectedExecutionException;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/10 18:42 ✾
  */
-@RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceAccessController.class, com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class})
+@RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceAccessController.class, com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class,
+        com.arte.app.web.controller.platform.ResourceAccessController.class, com.arte.app.web.controller.platform.ModelResourceController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class PlatformExceptionHandler {

@@ -50,6 +50,7 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_POLICY_W
  */
 public final class PlatformModelAclMigrationService implements ModelAclMigrationService {
 
+    private final PublicTransactionRunner tx;
     private final ModelAclScopeStore scopes;
     private final ModelResourceStore models;
     private final NewAiProperties properties;
@@ -78,6 +79,7 @@ public final class PlatformModelAclMigrationService implements ModelAclMigration
                                             PublicTransactionRunner tx, AuthorizationService authorization, TenantStore tenants, WorkspaceStore workspaces,
                                             TenantMembershipStore tenantMembers, WorkspaceMembershipStore members, PreferenceStore preferences,
                                             CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, Clock clock) {
+        this.tx = tx;
         this.scopes = scopes;
         this.models = models;
         this.properties = properties;
@@ -91,6 +93,15 @@ public final class PlatformModelAclMigrationService implements ModelAclMigration
         this.locks = new WorkspaceGovernanceLocks(tx, tenants, workspaces, tenantMembers, members, preferences);
         this.commands = new DefaultCommandExecutor(tx, new CurrentPrincipalResolver(identities), receipts, ids, clock);
         this.effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
+    }
+
+    @Override
+    public Optional<ModelAclScope> get(TrustedActor actor, Scope scope) {
+        return tx.required(() -> {
+            locks.scopes(actor.principal().subjectId(), List.of(scope));
+            requireManager(actor, scope);
+            return scopes.findCurrent(scope);
+        });
     }
 
     @Override

@@ -91,7 +91,8 @@ class WebSecurityConfigTest {
         var handlers = new LinkedHashMap<RequestMappingInfo, HandlerMethod>();
         var beans = new DefaultListableBeanFactory();
         for (var controller : Set.of(NewAiConversationController.class, NewAiChatController.class,
-                NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class, NewAiReconciliationController.class, WorkspaceController.class, WorkspaceAccessController.class, WorkspaceAiConfigurationController.class)) {
+                NewAiInvocationController.class, NewAiBudgetController.class, NewAiConfigurationController.class, NewAiReconciliationController.class, WorkspaceController.class, WorkspaceAccessController.class, WorkspaceAiConfigurationController.class,
+                com.arte.app.web.controller.platform.ResourceAccessController.class, com.arte.app.web.controller.platform.ModelResourceController.class)) {
             var beanName = controller.getSimpleName();
             beans.registerBeanDefinition(beanName, new RootBeanDefinition(controller));
             var root = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);

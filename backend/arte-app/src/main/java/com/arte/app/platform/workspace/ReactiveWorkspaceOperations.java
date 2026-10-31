@@ -1,26 +1,21 @@
 package com.arte.app.platform.workspace;
 
+import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
-import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.platform.CommandReceiptQueryService;
 import com.arte.core.api.workspace.*;
-import com.arte.core.enums.platform.PlatformErrorCodeEnum;
-import com.arte.core.exception.platform.PlatformException;
-import com.arte.core.pojo.UserOnlineInfo;
 import com.arte.core.pojo.access.AccessDecision;
 import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.access.VerifiedAccess;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.workspace.*;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -35,8 +30,7 @@ import java.util.function.Supplier;
  */
 public final class ReactiveWorkspaceOperations {
 
-    private final RbacIdentityProvider identities;
-    private final PlatformPersistenceExecutor executor;
+    private final PlatformAuthenticatedExecutor authenticated;
     private final PersonalWorkspaceService personal;
     private final WorkspaceService workspaces;
     private final WorkspacePreferenceService preferences;
@@ -52,8 +46,7 @@ public final class ReactiveWorkspaceOperations {
                                        ScopeResolver scopes, AuthorizationService authorization, WorkspaceWriteGuard guard,
                                        CommandReceiptQueryService receipts, WorkspacePolicyService policies,
                                        WorkspaceDirectoryBrowser browser) {
-        this.identities = identities;
-        this.executor = executor;
+        this.authenticated = new PlatformAuthenticatedExecutor(identities, executor);
         this.personal = personal;
         this.workspaces = workspaces;
         this.preferences = preferences;
@@ -160,27 +153,6 @@ public final class ReactiveWorkspaceOperations {
     }
 
     private <T> Mono<T> schedule(Authentication authentication, Function<TrustedActor, T> work, boolean transaction) {
-        final Authentication snapshot;
-        try {
-            snapshot = capture(authentication);
-        } catch (PlatformException rejected) {
-            return Mono.error(rejected);
-        }
-        Supplier<T> invocation = () -> work.apply(identities.actor(snapshot));
-        return (transaction ? executor.inTransaction(invocation) : executor.read(invocation))
-                .onErrorMap(java.util.concurrent.RejectedExecutionException.class,
-                        rejected -> new PlatformException(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, UUID.randomUUID().toString()));
-    }
-
-    private static Authentication capture(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()
-                || !(authentication.getPrincipal() instanceof JwtUserDto(UserOnlineInfo online))
-                || online.getId() == null || online.getAccountCreatedAt() == null
-                || !java.util.Objects.equals(authentication.getName(), online.getUserName())) {
-            throw new PlatformException(PlatformErrorCodeEnum.UNAUTHENTICATED, UUID.randomUUID().toString());
-        }
-        var copy = new UserOnlineInfo().setId(online.getId()).setUserName(online.getUserName())
-                .setAccountCreatedAt(online.getAccountCreatedAt());
-        return UsernamePasswordAuthenticationToken.authenticated(new JwtUserDto(copy), null, List.of());
+        return transaction ? authenticated.inTransaction(authentication, work) : authenticated.call(authentication, work);
     }
 }

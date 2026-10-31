@@ -86,6 +86,15 @@ public final class DefaultResourceAccessService implements ResourceAccessService
     }
 
     @Override
+    public ResourceAccessViews.AccessView getAccess(TrustedActor actor, Scope scope, ResourceRef ref) {
+        return tx.required(() -> {
+            lock(actor, scope, null);
+            require(actor, scope, ref, RESOURCE_ACCESS_MANAGE);
+            return view(current(scope, ref));
+        });
+    }
+
+    @Override
     public PageResult<ResourceAccessViews.GrantView> listGrants(TrustedActor actor, Scope scope, ResourceRef ref, PageQuery query) {
         return tx.required(() -> {
             lock(actor, scope, null);

@@ -79,3 +79,8 @@ SPI 兼容要求及验证见 [执行政策与受理门控](EXECUTION_POLICY_GUAR
 
 公共 ACL 第三批已落地：未迁移范围保留上文兼容语义；显式迁移空间改为公共 model:use，旧 Grant
 不再提供模型使用兜底。当前边界、部署和验证见[模型 ACL 发现与执行](../arte-app/docs/MODEL_ACL_EXECUTION.md)。
+
+## 公共 ACL 第四批 HTTP 实施记录
+
+以上阶段记录保留各批交付时点。第四批已开放模型与公共 ACL
+管理、单项／批量资源检查及显式空间切换清单管理，复用原公共服务和执行门控；不自动迁移现有空间。接口、公开视图及验收边界见[模型与公共 ACL 管理 HTTP](../arte-app/docs/MODEL_RESOURCE_ACL_HTTP.md)。

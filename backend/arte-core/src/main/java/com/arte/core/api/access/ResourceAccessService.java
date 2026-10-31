@@ -16,6 +16,17 @@ import com.arte.core.pojo.platform.*;
 public interface ResourceAccessService {
 
     /**
+     * 在当前 ACL 管理资格下读取资源归属、访问模式及最新 ACL 版本，供后续 CAS 命令使用。
+     * 读取在同一事务及治理门控内完成，不返回内部授权证明或允许缓存。
+     *
+     * @param actor    经可信身份边界核验的操作者，仍需当前 ACL 管理资格
+     * @param scope    本次请求的租户与空间，必须与领域真实归属一致
+     * @param resource 精确资源引用，不接受客户端自报领域描述
+     * @return 当前访问模式、真实归属及可用于后续 CAS 的 ACL 版本
+     */
+    ResourceAccessViews.AccessView getAccess(TrustedActor actor, Scope scope, ResourceRef resource);
+
+    /**
      * 分页查询当前操作者可管理的资源授权记录。
      *
      * @param actor    经可信认证适配确认的当前操作者

@@ -240,4 +240,14 @@ public class PlatformWorkspaceConfiguration {
                                                             WorkspaceDirectoryBrowser browser) {
         return new ReactiveWorkspaceOperations(identities, executor, personal, workspaces, preferences, scopes, authorization, guard, receipts, policies, browser);
     }
+
+    /**
+     * 复用当前会话核验与有界数据库调度，供公共资源及模型 HTTP 使用。
+     */
+    @Bean
+    com.arte.app.platform.identity.PlatformAuthenticatedExecutor platformAuthenticatedExecutor(
+            RbacIdentityProvider identities, PlatformPersistenceExecutor executor) {
+        return new com.arte.app.platform.identity.PlatformAuthenticatedExecutor(identities, executor);
+    }
+
 }

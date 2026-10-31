@@ -101,3 +101,8 @@ mvn -o -pl arte-app -am -Dtest=ModelAclExecutionIntegrationTest,ModelAclRuntimeI
 Mockito 在限制动态 attach 的环境需显式 javaagent。MySQL 验收只传专用隔离实例的 `platform.test.mysql`
 ，root／platform-test，URL 库名 `/mysql?`；逐用例创建／删除随机测试库，不能传业务库。验证不包含浏览器、多节点并发、容量压测或真实模型请求；没有执行业务库
 DDL 或切换现有空间。
+
+## 公共 ACL 第四批 HTTP 实施记录
+
+以上阶段记录保留各批交付时点。第四批已开放模型与公共 ACL
+管理、单项／批量资源检查及显式空间切换清单管理，复用原公共服务和执行门控；不自动迁移现有空间。接口、公开视图及验收边界见[模型与公共 ACL 管理 HTTP](MODEL_RESOURCE_ACL_HTTP.md)。
