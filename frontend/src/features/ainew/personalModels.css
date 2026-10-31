@@ -1,0 +1,67 @@
+.personal-models {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
+
+.personal-models-intro {
+  margin-bottom: 12px;
+}
+
+.personal-models-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.personal-models-grid > *, .personal-models .ant-card, .personal-models .ant-card-body {
+  min-width: 0;
+}
+
+.personal-models .ant-form {
+  margin-top: 12px;
+}
+
+.personal-models .ant-input-number, .personal-models .ant-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.personal-models .ant-btn {
+  max-width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 32px;
+  overflow-wrap: anywhere;
+}
+
+.personal-models .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.personal-models .personal-model-selected {
+  border-color: var(--ant-color-primary);
+}
+
+.personal-models-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.personal-models-page > header {
+  margin-bottom: 16px;
+}
+
+@container (min-width: 760px) {
+  .personal-models-grid {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .personal-models-page {
+    padding: 12px;
+  }
+}

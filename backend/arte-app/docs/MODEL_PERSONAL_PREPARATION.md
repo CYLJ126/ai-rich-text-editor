@@ -4,7 +4,8 @@
 
 本批完成后端准备流程，复用稳定模型身份及公共 ACL。普通用户可创建身份、保存草稿、维护自己提供的凭据并验证连接，不要求平台
 aiConfiguration:manage。 草稿和凭据不进入既有发布目录，不修改执行归属、预算、历史会话或已有模型版本。个人发布及聊天使用属于
-4-02（已实现，见[发布与执行闭环](MODEL_PERSONAL_PUBLICATION.md)），管理页面属于 4-03，文章改造不在本批范围。
+4-02（已实现，见[发布与执行闭环](MODEL_PERSONAL_PUBLICATION.md)），管理页面已由 [4-03](MODEL_PERSONAL_MANAGEMENT_UI.md)
+接入，文章改造不在本批范围。
 
 **术语**
 

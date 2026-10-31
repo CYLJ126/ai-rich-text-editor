@@ -5,6 +5,8 @@
 本批在 [4-01 配置准备](MODEL_PERSONAL_PREPARATION.md) 上增加普通用户发布、当前运行状态，以及真实聊天执行中的个人凭据解析。
 复用原 Invocation／Attempt、SSE、预算预留、结果与结算流程，不修改文章，不包含 4-03 管理页面。
 
+后续 [4-03 管理页面与场景验收](MODEL_PERSONAL_MANAGEMENT_UI.md) 已接入普通用户页面；下文保留本批后端交付及当时验证边界。
+
 arte-ai 提供发布 API、默认应用服务、值对象及 SPI；arte-app 提供审核目录、同空间运行适配、MyBatis、受控凭据解析、Spring 及 HTTP。
 arte-core 沿用公共身份、授权、事务及治理能力，本批没有引入模型专有依赖。
 

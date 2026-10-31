@@ -10,6 +10,9 @@ export interface DiscoverChatOptionsRequest {
 
 /** 后端公开的配置选择白名单，金额由 getBudget 单独查询。 */
 export interface ChatModelOption {
+  /** 公共模型的稳定管理定位及定义来源；旧 Grant 目录可不返回。 */
+  resourceId?: string;
+  source?: 'FIXED' | 'DATABASE' | 'PERSONAL';
   displayName: string;
   binding: DefinitionRef<'binding'>;
   capability: DefinitionRef<'capability'>;

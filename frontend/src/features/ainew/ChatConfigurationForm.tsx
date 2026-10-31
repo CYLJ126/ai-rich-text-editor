@@ -155,7 +155,7 @@ export default function ChatConfigurationForm({
     const previous = options.find((option) => matchesModel(values, option));
     const option = previous ?? (options.length === 1 ? options[0] : undefined);
     selectModel(option, previous ? values : undefined);
-    if (fixedScope && !restored && !edited.current && option && option.budgetRefs.length === 1) {
+    if (!refreshRevision && fixedScope && !restored && !edited.current && option && option.budgetRefs.length === 1) {
       const valid = selectedChatConfigSchema(option).safeParse(form.getFieldsValue(true));
       if (valid.success) onRestore(valid.data, option);
     }

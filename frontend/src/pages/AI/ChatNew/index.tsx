@@ -14,6 +14,7 @@ import {
   Input,
   Modal,
   Result,
+  Segmented,
   Spin,
   Tabs,
   Tag,
@@ -43,6 +44,8 @@ import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
 import WorkspaceAiSettings from '@/features/ainew/WorkspaceAiSettings';
+import PersonalModelManager from '@/features/ainew/PersonalModelManager';
+import type {ModelChange} from '@/features/ainew/useModelManagement';
 import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/ChatConfigurationForm';
@@ -113,6 +116,9 @@ function WorkspaceChat({
   const dirty = dirtyState.id === selectedId && dirtyState.dirty;
   const [warning, setWarning] = useState<string | null>(null);
   const [aiSettingsUnsafe, setAiSettingsUnsafe] = useState(false);
+  const [modelManagementUnsafe, setModelManagementUnsafe] = useState(false);
+  const [modelMode, setModelMode] = useState('catalog');
+  const [modelManagementVisited, setModelManagementVisited] = useState(false);
   useEffect(() => {
     const changed = (event: StorageEvent) => {
       if ([storageKey(context, 'configuration', selectedId), storageKey(context, 'recentConfiguration')].includes(event.key ?? '')) setWarning('另一标签页更新了配置偏好，请刷新目录并重新校验；当前选择和原操作保持不变。');
@@ -183,9 +189,12 @@ function WorkspaceChat({
 
   const guardState = useRef({
     dirty,
-    unsafe: aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
+    unsafe: modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
   });
-  guardState.current = {dirty, unsafe: aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave};
+  guardState.current = {
+    dirty,
+    unsafe: modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
+  };
 
   function guard(proceed: () => void, onCancel?: () => void, isCurrent = () => true) {
     void conversations.finishEdit().then(ready => {
@@ -194,7 +203,7 @@ function WorkspaceChat({
         return;
       }
       if (guardState.current.unsafe) {
-        setWarning('未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
+        setWarning(modelManagementUnsafe ? '模型管理中还有未保存内容或临时密钥，请先保存、放弃或清除输入后再切换。' : '未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
         onCancel?.();
         return;
       }
@@ -234,6 +243,7 @@ function WorkspaceChat({
     // A choice requiring a budget stays a draft; all entry points use this same application flow.
     setExternalModel({key, revision: (externalModel?.revision ?? 0) + 1});
     setTab('models');
+    setModelMode('catalog');
     layout.open('settings');
   }
 
@@ -254,6 +264,18 @@ function WorkspaceChat({
 
   function recheckAccess() {
     void conversations.refreshFirst();
+    setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
+  }
+
+  function modelsUpdated(change: ModelChange) {
+    if (config && ['credential', 'revoke', 'publish', 'disable'].includes(change.kind)
+      && options.some(item => item.resourceId === change.resourceId && item.binding.id === config.bindingId)) {
+      setDirtyState({id: selectedId, dirty: true});
+      setInvalidation(value => value + 1);
+      removeValue(storageKey(context, 'configuration', selectedId), true);
+      removeValue(storageKey(context, 'recentConfiguration'), true);
+      setWarning('当前模型的凭据或发布状态已变化，请重新检查可用目录并明确应用配置。');
+    }
     setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
   }
 
@@ -443,7 +465,21 @@ function WorkspaceChat({
         label: '',
         icon: <Tooltip title='模型管理'><AppstoreOutlined aria-label="模型管理"/></Tooltip>,
         children: <>
-          <Typography.Paragraph>当前可用目录；连接和发布配置由服务器维护。</Typography.Paragraph>{!options.length &&
+          <Segmented block aria-label="模型视图" value={modelMode}
+                     options={[{label: '可用模型', value: 'catalog'}, {label: '我可管理', value: 'manage'}]}
+                     onChange={value => {
+                       setModelMode(String(value));
+                       if (value === 'manage') setModelManagementVisited(true);
+                     }}/>
+          {modelManagementVisited && <div hidden={modelMode !== 'manage'}><PersonalModelManager context={context}
+                                                                                                onUnsafeChange={setModelManagementUnsafe}
+                                                                                                onUpdated={modelsUpdated}
+                                                                                                onBrowse={() => {
+                                                                                                  setModelMode('catalog');
+                                                                                                  recheckAccess();
+                                                                                                }}/></div>}
+          <div hidden={modelMode !== 'catalog'}>
+            <Typography.Paragraph>当前可用目录；可在“我可管理”中添加个人模型。</Typography.Paragraph>{!options.length &&
           (optionsState?.loading ? <Flex align="center" gap={8} role="status" className="ainew-loading">
             <Spin size="small"/><Typography.Text>正在加载可用模型…</Typography.Text>
           </Flex> : <Typography.Paragraph>{modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
@@ -453,6 +489,7 @@ function WorkspaceChat({
           <Card
             size="small" className="ainew-model-card" key={modelOptionKey(item)} styles={{body: {padding: 12}}}>
             <Flex vertical gap={8} align="flex-start">
+              <Tag>{item.source === 'PERSONAL' ? '个人凭据发布' : item.source ? '平台目录发布' : '既有目录'}</Tag>
               <Typography.Text strong>{item.displayName}</Typography.Text><Typography.Paragraph type="secondary"
                                                                                                 className="ainew-muted">文本／流式
               · {item.binding.id}@{item.binding.version}</Typography.Paragraph>
@@ -462,7 +499,8 @@ function WorkspaceChat({
               <Button size="small"
                       onClick={() => chooseModel(modelOptionKey(item))}>{config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}</Button>
             </Flex>
-          </Card>)}</>
+          </Card>)}</div>
+        </>
       },
       {
         key: 'assistants',
@@ -499,7 +537,7 @@ function WorkspaceChat({
       },
     ]}/>
 
-    <Flex vertical className="ainew-configuration" hidden={tab !== 'models'}>
+    <Flex vertical className="ainew-configuration" hidden={tab !== 'models' || modelMode !== 'catalog'}>
       {dirty && <Tag color="orange">有未应用更改</Tag>}
       {cache.warning && <Alert type="warning" title={cache.warning}/>}
       <ChatConfigurationForm
@@ -773,6 +811,7 @@ export default function ChatNewPage() {
         onPlatformConfig={() => setCatalogOpen(true)}/>
     </Flex>
     <WorkspacePicker userId={userId} presentation="inline"/>
+    {workspace && <Button href="/AI/Models">管理当前空间模型</Button>}
   </>;
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">

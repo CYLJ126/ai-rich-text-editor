@@ -23,6 +23,12 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
   })
 }));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button type="button">公共空间选择器</button>}));
+vi.mock('@/features/ainew/PersonalModelManager', () => ({
+  default: ({onUpdated}: { onUpdated: (change: { kind: string; resourceId: string }) => void }) =>
+    <section aria-label="个人管理测试入口">
+      <button onClick={() => onUpdated({kind: 'publish', resourceId: 'personal'})}>确认个人发布</button>
+    </section>
+}));
 vi.mock('@/features/workspace/WorkspaceQuickSelect', () => ({
   default: ({onManage}: { onManage: () => void }) =>
     <button type="button" onClick={onManage}>空间快捷选择</button>
@@ -348,6 +354,19 @@ it('registers a business view with one chat session and one shared configuration
   fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '你好'}});
   await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).toBeEnabled());
   expect(document.querySelectorAll('.ainew-chat')).toHaveLength(1);
+  expect(document.querySelectorAll('form#ai-new-chat-config')).toHaveLength(1);
+});
+it('opens personal management inside the existing right tab and refreshes without changing the applied chat', async () => {
+  render(<ChatNewPage/>);
+  await chooseConversation();
+  expect(screen.queryByLabelText('个人管理测试入口')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
+  fireEvent.click(screen.getByText('我可管理'));
+  await screen.findByLabelText('个人管理测试入口');
+  const calls = vi.mocked(api.discoverChatOptions).mock.calls.length;
+  fireEvent.click(screen.getByRole('button', {name: '确认个人发布'}));
+  await waitFor(() => expect(api.discoverChatOptions).toHaveBeenCalledTimes(calls + 1));
+  expect(api.turnsForChat).not.toHaveBeenCalled();
   expect(document.querySelectorAll('form#ai-new-chat-config')).toHaveLength(1);
 });
 it('restores a full pending operation after refresh and never sends automatically', async () => {
