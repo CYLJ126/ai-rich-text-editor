@@ -74,3 +74,8 @@ SPI 兼容要求及验证见 [执行政策与受理门控](EXECUTION_POLICY_GUAR
 
 以上记录保留第 2 批交付时点；生产装配现已移除旧固定控制面 Bean
 依赖，改走显式业务端口，并收口付费工具的原事务发布／预算读取。当前兼容入口、来源选择及验收范围见 [装配收口与兼容验收](CONTROL_PORTS_COMPATIBILITY.md)。
+
+## 公共 ACL 第三批实施记录
+
+公共 ACL 第三批已落地：未迁移范围保留上文兼容语义；显式迁移空间改为公共 model:use，旧 Grant
+不再提供模型使用兜底。当前边界、部署和验证见[模型 ACL 发现与执行](../arte-app/docs/MODEL_ACL_EXECUTION.md)。

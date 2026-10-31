@@ -52,6 +52,7 @@ class PlatformPersistenceConfigurationTest {
                             assertNull(context.getStartupFailure());
                             for (Class<?> spi : java.util.List.of(
                                     com.arte.ainew.spi.model.ModelResourceStore.class,
+                                    com.arte.ainew.spi.model.ModelAclScopeStore.class,
                                     com.arte.core.spi.access.ResourceGrantStore.class,
                                     com.arte.core.spi.workspace.TenantStore.class,
                                     com.arte.core.spi.workspace.WorkspaceStore.class,

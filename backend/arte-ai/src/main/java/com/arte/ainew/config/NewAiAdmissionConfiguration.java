@@ -36,6 +36,7 @@ import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
 import org.springframework.beans.factory.ListableBeanFactory;
@@ -235,10 +236,12 @@ public class NewAiAdmissionConfiguration {
     @Bean("newAiResourceEntitlementService")
     @ConditionalOnMissingBean(AiResourceEntitlementService.class)
     AiResourceEntitlementService modelEntitlements(NewAiProperties properties, AdmissionAuthorization authorization,
-                                                   ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var source = selectedSource(properties, sources);
-        return source == null ? new FixedAiResourceEntitlementService(properties, authorization)
-                : new SourceAiResourceEntitlementService(source, scheduler, authorization);
+                                                   ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                                   ObjectProvider<ModelAclAccess> modelAccess) {
+        AiControlConfigurationSource source = selectedSource(properties, sources);
+        ModelAclAccess access = modelAccess.getIfAvailable();
+        return source == null ? new FixedAiResourceEntitlementService(properties, authorization, access)
+                : new SourceAiResourceEntitlementService(source, scheduler, authorization, access);
     }
 
     /**

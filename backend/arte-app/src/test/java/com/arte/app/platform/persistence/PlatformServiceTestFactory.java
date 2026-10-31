@@ -27,6 +27,10 @@ final class PlatformServiceTestFactory {
         this.session = config.platformMapperSession(source, properties);
     }
 
+    ModelAclScopeStoreServiceImpl aclScopes() {
+        return new ModelAclScopeStoreServiceImpl(config.platformModelAclScopeMapper(session), tx, json);
+    }
+
     ModelResourceStoreServiceImpl models() {
         return new ModelResourceStoreServiceImpl(config.platformModelResourceMapper(session), tx, json);
     }

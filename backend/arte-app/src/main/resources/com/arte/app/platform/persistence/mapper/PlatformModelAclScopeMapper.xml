@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformModelAclScopeMapper">
+
+    <select id="scope" resultType="com.arte.app.pojo.platform.PlatformModelAclScopeDto">
+        SELECT * FROM arte_ai_model_acl_scope WHERE scope_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+
+    <insert id="insertScope">
+        INSERT INTO arte_ai_model_acl_scope(scope_key,tenant_id,workspace_id,payload,version)
+        VALUES(#{row.scopeKey},#{row.tenantId},#{row.workspaceId},#{row.payload},#{row.version})
+    </insert>
+
+    <update id="replaceScope">
+        UPDATE arte_ai_model_acl_scope SET payload=#{row.payload},version=#{row.version}
+        WHERE scope_key=#{row.scopeKey} AND tenant_id=#{row.tenantId} AND workspace_id=#{row.workspaceId} AND
+        version=#{expected}
+    </update>
+</mapper>

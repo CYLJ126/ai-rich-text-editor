@@ -25,11 +25,26 @@ import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
 public interface AiResourceEntitlementService {
 
     /**
-     * 有界的 model:use 资格发现；limit 为 1～256，同一绑定的不同版本分别保留。
+     * 模型解析
+     * <p>
+     * 根据绑定和能力描述符，以及动作类型，返回本次模型使用资格的业务视图
+     *
+     * @param binding    模型绑定
+     * @param capability 模型能力描述符
+     * @param action     动作类型
+     * @param context    执行上下文
+     * @return 模型使用资格
+     */
+    Mono<AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability, Action action, ExecutionContext context);
+
+    /**
+     * 有界的 model:use 资格发现
+     *
+     * @param kind    能力类型
+     * @param limit   有界数量，1～256，同一绑定的不同版本分别保留。
+     * @param context 执行上下文
      */
     Flux<AiEntitlement> discover(CapabilityDescriptor.Kind kind, int limit, ExecutionContext context);
-
-    Mono<AiEntitlement> resolve(DefinitionRef binding, DefinitionRef capability, Action action, ExecutionContext context);
 
     /**
      * 原同库写事务中重新核验当前资格及精确发布内容；禁止把旧读取结果直接提升为写入许可。

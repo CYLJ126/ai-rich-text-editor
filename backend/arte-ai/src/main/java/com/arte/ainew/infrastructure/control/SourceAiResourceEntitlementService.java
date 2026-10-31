@@ -18,4 +18,10 @@ public final class SourceAiResourceEntitlementService extends ConfigurationAiRes
     public SourceAiResourceEntitlementService(AiControlConfigurationSource source, Scheduler scheduler, AdmissionAuthorization authorization) {
         super(new ControlConfigurationReader(source, scheduler), authorization, AiEntitlement.Source.DATABASE);
     }
+
+    public SourceAiResourceEntitlementService(AiControlConfigurationSource source, Scheduler scheduler, AdmissionAuthorization authorization,
+                                              com.arte.ainew.spi.model.ModelAclAccess access) {
+        super(new ControlConfigurationReader(source, scheduler), authorization, AiEntitlement.Source.DATABASE, access);
+    }
+
 }

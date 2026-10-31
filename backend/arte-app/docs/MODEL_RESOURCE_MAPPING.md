@@ -99,3 +99,8 @@ mvn -o -pl arte-app -am -Dtest=ModelResourceIntegrationTest -Dsurefire.failIfNoS
 
 MySQL 验收额外传入专用隔离实例的 `platform.test.mysql`（root／platform-test，URL 的库名为 `/mysql?`
 ），逐用例创建并删除随机测试库，禁止传入业务或生产实例。
+
+## 公共 ACL 第三批实施记录
+
+以上保留第二批交付基线。第三批已接入模型发现、精确解析、原事务受理／派发和外发前 ACL 复核；空间需要显式迁移，管理 HTTP
+尚未开放。当前边界、部署和验证见[模型 ACL 发现与执行](MODEL_ACL_EXECUTION.md)。
