@@ -76,7 +76,7 @@ class PersonalModelBrowserAcceptanceTest {
                     "arte.ai-new-generation.allowed-origins[0]=" + origin).run(c -> {
                 assertNull(c.getStartupFailure());
                 DatabaseAiControlService control = c.getBean(DatabaseAiControlService.class);
-                control.importConfiguration(f.f.f.f.actor, f.f.f.meta("browser-import"));
+                DatabaseAiTestCatalog.publish(control, c, f.f.f.f.actor, f.f.f.meta("browser-import"));
                 control.ensure(f.f.f.f.actor, f.f.scope);
                 f.policy(c, "127.0.0.1", true);
                 f.f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");

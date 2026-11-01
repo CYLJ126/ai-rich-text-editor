@@ -26,7 +26,7 @@ export default function ModelsPage() {
       <div><Typography.Title
         level={3}>模型管理</Typography.Title><Typography.Text>{workspace?.name ?? '尚未选择工作空间'}</Typography.Text>
       </div>
-      <Flex gap={8} wrap><Button disabled={unsafe}
+      <Flex gap={8} wrap><Button href="/AI/Connections" disabled={unsafe}>管理审核连接</Button><Button disabled={unsafe}
                                  onClick={() => setShowSpaces(value => !value)}>选择工作空间</Button><Button
         onClick={() => history.push('/AI/ChatNew')} disabled={unsafe}>返回聊天</Button></Flex>
     </Flex>

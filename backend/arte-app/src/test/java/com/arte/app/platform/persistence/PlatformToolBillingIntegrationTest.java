@@ -114,7 +114,7 @@ class PlatformToolBillingIntegrationTest {
 
     void prepareBudget(ToolAcceptanceRig rig, org.springframework.context.ApplicationContext c) {
         var db = c.getBean(DatabaseAiControlService.class);
-        db.importConfiguration(rig.base.f.actor, rig.base.meta("import"));
+        DatabaseAiTestCatalog.publish(db, c, rig.base.f.actor, rig.base.meta("import"));
         var old = db.catalog().catalog();
         var rates = new ArrayList<>(old.rates());
         rates.add(new NewAiProperties.Rate(PRICE.rate(), null, null, PRICE.perCall()));

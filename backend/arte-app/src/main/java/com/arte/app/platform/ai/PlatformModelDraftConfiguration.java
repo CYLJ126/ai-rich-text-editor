@@ -44,7 +44,13 @@ public class PlatformModelDraftConfiguration {
     @Bean
     ModelConnectionTemplates modelConnectionTemplates(NewAiProperties fixed, ObjectProvider<AiControlConfigurationSource> source,
                                                       PolicyStore policies, NewAiGenerationProperties http) {
-        return new ReviewedModelConnectionTemplates(() -> source.getIfAvailable() == null ? fixed : source.getObject().definitions(), policies, new HttpEgressPolicy(http));
+        return new ReviewedModelConnectionTemplates(() -> {
+            var selected = source.getIfAvailable();
+            if (selected != null) return selected.definitions();
+            if ("DATABASE".equals(fixed.configurationMode()))
+                throw new IllegalStateException("DATABASE model templates require a database configuration source");
+            return fixed;
+        }, policies, new HttpEgressPolicy(http));
     }
 
     @Bean

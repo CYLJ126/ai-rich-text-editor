@@ -154,7 +154,7 @@ class PersonalModelPublicationIntegrationTest {
 
     void prepare(ApplicationContext c, String host, boolean network) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
-        db.importConfiguration(f.f.f.actor, f.f.meta("import"));
+        DatabaseAiTestCatalog.publish(db, c, f.f.f.actor, f.f.meta("import"));
         db.ensure(f.f.f.actor, f.scope);
         policy(c, host, true);
         f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");

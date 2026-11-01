@@ -13,7 +13,7 @@ vi.mock('@/services/platform/ai', async (original) => ({
   getWorkspaceAi: vi.fn(),
   updateWorkspaceAi: vi.fn(),
   getAiCatalog: vi.fn(),
-  importAiConfiguration: vi.fn(),
+  initializeAiCatalog: vi.fn(),
   publishAiCatalog: vi.fn()
 }));
 const scope = {tenantId: 'tenant', workspaceId: 'space'};
@@ -83,15 +83,15 @@ it('shows scope settings read-only when the server denies management eligibility
 });
 it('exposes explicit initial import to a platform administrator without requiring a public space', async () => {
   vi.mocked(api.getAiCatalog).mockResolvedValue(response({version: 0, catalog: null}));
-  vi.mocked(api.importAiConfiguration).mockResolvedValue(response({
+  vi.mocked(api.initializeAiCatalog).mockResolvedValue(response({
     operationId: 'import', status: 1, delivery: 0,
     value: {version: 1, catalog: null}, resultVersion: 1, acceptedAt: 'now', completedAt: 'now'
   }));
   const updated = vi.fn();
   render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={updated}/>);
   expect(api.getWorkspaceAi).not.toHaveBeenCalled();
-  fireEvent.click(await screen.findByRole('button', {name: '导入现有部署配置'}));
-  await waitFor(() => expect(api.importAiConfiguration).toHaveBeenCalledTimes(1));
+  fireEvent.click(await screen.findByRole('button', {name: '初始化空目录'}));
+  await waitFor(() => expect(api.initializeAiCatalog).toHaveBeenCalledTimes(1));
   expect(updated).toHaveBeenCalled();
 });
 it('keeps consumers unmounted after rejected provisioning and supports explicit recheck', async () => {

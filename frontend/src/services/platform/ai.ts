@@ -63,6 +63,7 @@ export interface AiCatalog {
   legacyGrants: unknown[];
   legacyBudgets: unknown[];
   defaults: AiPreset;
+  disabledConnections?: string[];
 }
 
 export interface CatalogView {
@@ -83,9 +84,9 @@ export const updateWorkspaceAi = (request: {
   return postResult<CommandReceipt<WorkspaceAiView>>('updateConfiguration', request, options, key, base);
 };
 export const getAiCatalog = (options?: AiRequestOptions) => postResult<CatalogView>('getCatalog', {}, options, undefined, base);
-export const importAiConfiguration = (key: string) => {
+export const initializeAiCatalog = (key: string) => {
   requireIdempotencyKey(key);
-  return postResult<CommandReceipt<CatalogView>>('importConfiguration', {}, undefined, key, base);
+  return postResult<CommandReceipt<CatalogView>>('initializeCatalog', {}, undefined, key, base);
 };
 export const publishAiCatalog = (request: { expectedVersion: number; catalog: AiCatalog }, key: string) => {
   requireIdempotencyKey(key);

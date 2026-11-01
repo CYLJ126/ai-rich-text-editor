@@ -11,6 +11,7 @@ import com.arte.core.pojo.reference.DefinitionRef;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 数据库固定版本控制面
@@ -46,7 +47,16 @@ public final class AiControlData {
     public record Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                           List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
                           List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
-                          Preset defaults) {
+                          Preset defaults, Set<String> disabledConnections) {
+        /**
+         * 兼容已有不可变修订；缺少运行状态集合表示没有被单独停用的连接。
+         */
+        public Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
+                       List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
+                       List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets, Preset defaults) {
+            this(capabilities, bindings, connections, rates, legacyGrants, legacyBudgets, defaults, Set.of());
+        }
+
         public Catalog {
             capabilities = List.copyOf(capabilities);
             bindings = List.copyOf(bindings);
@@ -55,11 +65,22 @@ public final class AiControlData {
             legacyGrants = List.copyOf(legacyGrants);
             legacyBudgets = List.copyOf(legacyBudgets);
             Objects.requireNonNull(defaults);
+            disabledConnections = disabledConnections == null ? Set.of() : Set.copyOf(disabledConnections);
+            if (!connections.stream().map(c -> c.definition().id()).collect(java.util.stream.Collectors.toSet()).containsAll(disabledConnections))
+                throw new IllegalArgumentException("Unknown disabled connection");
+        }
+
+        public static Catalog empty() {
+            return new Catalog(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    new Preset(false, List.of(), List.of()));
         }
 
         public NewAiProperties properties(NewAiProperties infrastructure, List<NewAiProperties.Grant> grants, List<NewAiProperties.Budget> budgets) {
             return new NewAiProperties(false, infrastructure.dataSourceBean(), infrastructure.releaseRef(), infrastructure.persistence(),
-                    infrastructure.limits(), grants, capabilities, bindings, connections, rates, budgets);
+                    infrastructure.limits(), grants, capabilities, bindings, connections.stream().map(c ->
+                    disabledConnections.contains(c.definition().id()) ? new ConnectionDefinition(c.definition(), c.providerId(),
+                            c.protocol(), c.endpoint(), c.credential(), ConnectionDefinition.State.DISABLED,
+                            c.connectTimeout(), c.responseTimeout(), c.maxResponseBytes()) : c).toList(), rates, budgets);
         }
     }
 

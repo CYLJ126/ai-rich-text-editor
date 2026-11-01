@@ -90,7 +90,7 @@ class ModelAclHttpRuntimeIntegrationTest {
 
     ModelResource prepare(ApplicationContext c, ManagementHttpHarness http, boolean activate) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
-        db.importConfiguration(f.f.f.actor, f.f.meta("import"));
+        DatabaseAiTestCatalog.publish(db, c, f.f.f.actor, f.f.meta("import"));
         db.ensure(f.f.f.actor, f.scope);
         JSONObject created = http.ok(MODEL + "createModelResource", json(Map.of("scope", f.scope, "name", "HTTP database model")), "http-create", alice).getJSONObject("data").getJSONObject("value");
         String id = created.getStr("resourceId");

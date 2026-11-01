@@ -7,7 +7,9 @@ import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.web.platform.AiCatalogPayload;
+import com.arte.app.web.platform.AiConnectionPayload;
 import com.arte.app.web.platform.PlatformHttpContext;
+import com.arte.app.web.platform.StrictPlatformRequest;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
@@ -102,11 +104,53 @@ public class WorkspaceAiConfigurationController {
         return call(auth, locale, actor -> AiCatalogPayload.View.from(service.catalog()));
     }
 
-    @PostMapping("/importConfiguration")
+    @PostMapping("/initializeCatalog")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
-    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> importConfiguration(Authentication auth,
+    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> initializeCatalog(Authentication auth,
                                                                                 @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.importConfiguration(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)))));
+        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.initializeCatalog(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)))));
+    }
+
+    public record ConnectionFields(
+            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 256) String id,
+            @jakarta.validation.constraints.NotBlank String providerId, @NotNull java.net.URI endpoint,
+            @Min(1) @jakarta.validation.constraints.Max(60) long connectTimeoutSeconds,
+            @Min(1) @jakarta.validation.constraints.Max(900) long responseTimeoutSeconds,
+            @Min(1) @jakarta.validation.constraints.Max(33554432) int maxResponseBytes) implements StrictPlatformRequest {
+        DatabaseAiControlService.ConnectionSettings settings() {
+            return new DatabaseAiControlService.ConnectionSettings(id, providerId, endpoint, connectTimeoutSeconds, responseTimeoutSeconds, maxResponseBytes);
+        }
+    }
+
+    public record ConnectionRequest(@NotNull @Min(0) Long expectedVersion,
+                                    @NotNull @Valid ConnectionFields settings) implements StrictPlatformRequest {
+    }
+
+    public record ConnectionStateRequest(@NotNull @Min(0) Long expectedVersion,
+                                         @jakarta.validation.constraints.NotBlank String id,
+                                         @NotNull Boolean enabled) implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/getConnections")
+    @PreAuthorize("@pcs.check('aiConfiguration:manage')")
+    public Mono<ResultContext<AiConnectionPayload.View>> connections(Authentication auth, Locale locale) {
+        return call(auth, locale, actor -> AiConnectionPayload.View.from(service.connectionCatalog(actor), service.allowedConnectionOrigins()));
+    }
+
+    @PostMapping("/publishConnection")
+    @PreAuthorize("@pcs.check('aiConfiguration:manage')")
+    public Mono<ResultContext<CommandReceipt<AiConnectionPayload.View>>> publishConnection(Authentication auth,
+                                                                                           @Valid @RequestBody ConnectionRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> AiConnectionPayload.View.receipt(service.publishConnection(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.settings().settings()), service.allowedConnectionOrigins()));
+    }
+
+    @PostMapping("/setConnectionEnabled")
+    @PreAuthorize("@pcs.check('aiConfiguration:manage')")
+    public Mono<ResultContext<CommandReceipt<AiConnectionPayload.View>>> connectionState(Authentication auth,
+                                                                                         @Valid @RequestBody ConnectionStateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> AiConnectionPayload.View.receipt(service.setConnectionEnabled(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.id(), request.enabled()), service.allowedConnectionOrigins()));
     }
 
     @PostMapping("/publishCatalog")

@@ -4,17 +4,21 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
+import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
+import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
-import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.ainew.spi.model.PersonalModelRuntime;
 import com.arte.app.platform.identity.RbacIdentityProvider;
+import com.arte.app.platform.identity.RbacToolPermissionReader;
 import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
 import com.arte.app.pojo.platform.PlatformAiControlRow;
@@ -35,6 +39,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -59,6 +64,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  */
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
+@EnableConfigurationProperties(NewAiGenerationProperties.class)
 public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
 
     private final PlatformAiControlMapper mapper;
@@ -73,6 +79,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final WorkspaceMutationEffects effects;
     private final DefaultCommandExecutor commands;
     private final PreferenceStore preferences;
+    private final RbacToolPermissionReader catalogPermissions;
+    private final HttpEgressPolicy connectionEgress;
+    private final List<String> connectionOrigins;
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
     private ObjectProvider<PersonalModelRuntime> personalModels;
 
@@ -112,7 +121,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                                     ObjectProvider<WorkspaceStore> workspaces, NewAiProperties infrastructure,
                                     @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("platformWorkspaceClock") Clock clock,
                                     PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, CommandReceiptStore receipts,
-                                    PreferenceStore preferences, @Qualifier("platformAuthorizationService") ObjectProvider<com.arte.core.api.access.AuthorizationService> authorizationService, Environment environment) {
+                                    PreferenceStore preferences, @Qualifier("platformAuthorizationService") ObjectProvider<com.arte.core.api.access.AuthorizationService> authorizationService, Environment environment,
+                                    @Qualifier("appDataSource") javax.sql.DataSource source, NewAiGenerationProperties generation) {
         for (String key : List.of("identity", "persistence", "workspace")) {
             if (!environment.getProperty("arte.platform." + key + ".enabled", Boolean.class, false))
                 throw new IllegalStateException("Database AI requires public identity, persistence and workspace services");
@@ -131,6 +141,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         this.effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
         this.commands = new DefaultCommandExecutor(tx, new CurrentPrincipalResolver(identities), receipts, ids, clock);
         this.preferences = preferences;
+        this.catalogPermissions = new RbacToolPermissionReader(source);
+        this.connectionEgress = new HttpEgressPolicy(generation);
+        this.connectionOrigins = generation.allowedOrigins().stream().map(java.net.URI::toASCIIString).toList();
         this.authorizationService = authorizationService;
     }
 
@@ -163,12 +176,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
-     * Only provider registration may use the reviewed deployment seed before the explicit one-time import.
+     * DATABASE 仅使用数据库权威；head=0 返回空目录，绝不回退文件中的模型、连接、费率或授权。
      */
     @Override
     public NewAiProperties definitions() {
         var published = published(false);
-        return published == null ? infrastructure : published.catalog().properties(infrastructure, List.of(), List.of());
+        return (published == null ? Catalog.empty() : published.catalog()).properties(infrastructure, List.of(), List.of());
     }
 
     @Override
@@ -281,7 +294,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         var catalog = published(true).catalog();
         var bindings = catalog.bindings().stream().filter(b -> settings.preset().bindings().contains(b.definition())).toList();
         var filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
-                List.of(), List.of(), settings.preset());
+                List.of(), List.of(), settings.preset(), catalog.disabledConnections());
         return new Snapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
     }
 
@@ -383,7 +396,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             var catalog = publication.catalog();
             var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
                     .filter(b -> settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
-                    List.of(), List.of(), settings.preset());
+                    List.of(), List.of(), settings.preset(), catalog.disabledConnections());
             return new CurrentSnapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
         });
     }
@@ -656,16 +669,105 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return p == null ? new CatalogView(0, null) : new CatalogView(p.version(), p.catalog());
     }
 
-    public CommandReceipt<CatalogView> importConfiguration(TrustedActor actor, CommandMeta meta) {
-        var bindings = infrastructure.bindings().stream().filter(b -> infrastructure.grants().stream().anyMatch(g -> g.enabled() && g.subjectId().equals(actor.principal().subjectId()) && g.bindingIds().contains(b.definition().id()))).map(ResolvedBinding::definition).toList();
-        var budgets = new LinkedHashMap<DefinitionRef, BudgetPreset>();
-        var approvedBudgets = infrastructure.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(actor.principal().subjectId()))
-                .flatMap(g -> g.budgetRefs().stream()).collect(java.util.stream.Collectors.toSet());
-        infrastructure.budgets().stream().filter(b -> approvedBudgets.isEmpty() || approvedBudgets.contains(b.budgetRef())).forEach(b -> budgets.merge(b.rate(), new BudgetPreset(b.rate(), b.limit()),
-                (a, next) -> a.limit().amount().compareTo(next.limit().amount()) <= 0 ? a : next));
-        var data = new Catalog(infrastructure.capabilities(), infrastructure.bindings(), infrastructure.connections(), infrastructure.rates(),
-                infrastructure.grants(), infrastructure.budgets(), new Preset(!bindings.isEmpty(), bindings, List.copyOf(budgets.values())));
-        return publish(actor, meta, 0, data);
+    /**
+     * 显式初始化空目录，不从部署文件复制任何业务定义。
+     */
+    public CommandReceipt<CatalogView> initializeCatalog(TrustedActor actor, CommandMeta meta) {
+        return changeConnections(actor, meta, 0, "ai:catalog:initialize", "empty-v1", old -> Catalog.empty());
+    }
+
+    public record ConnectionSettings(String id, String providerId, java.net.URI endpoint,
+                                     long connectTimeoutSeconds, long responseTimeoutSeconds, int maxResponseBytes) {
+        public ConnectionSettings {
+            com.arte.core.utils.platform.PlatformChecks.id(id, "connectionId");
+            if (endpoint == null || endpoint.toASCIIString().length() > 2048
+                    || !"deepseek".equals(providerId) || connectTimeoutSeconds < 1 || connectTimeoutSeconds > 60
+                    || responseTimeoutSeconds < 1 || responseTimeoutSeconds > 900)
+                throw new IllegalArgumentException("Unsupported provider or connection timeout");
+            // 第一批只开放程序已支持的供应商；不接收平台 SecretRef 或 API Key。
+            new ConnectionDefinition(new DefinitionRef("connection", id, "v1"), providerId,
+                    ChatCompletionsSseProtocolAdapter.DEFINITION, endpoint, null, ConnectionDefinition.State.ENABLED,
+                    java.time.Duration.ofSeconds(connectTimeoutSeconds), java.time.Duration.ofSeconds(responseTimeoutSeconds), maxResponseBytes);
+        }
+    }
+
+    public CommandReceipt<CatalogView> publishConnection(TrustedActor actor, CommandMeta meta, long expected, ConnectionSettings settings) {
+        return changeConnections(actor, meta, expected, "ai:connection:publish", settings.toString(), old -> {
+            try {
+                connectionEgress.validateOrigin(settings.endpoint());
+            } catch (RuntimeException denied) {
+                throw new IllegalArgumentException("Connection origin is not permitted by deployment policy");
+            }
+            var connections = new ArrayList<>(old.connections());
+            // 全局目录修订号保证版本唯一；相同原键重放保留原引用，不再创建新版本。
+            connections.add(new ConnectionDefinition(new DefinitionRef("connection", settings.id(), "db-v" + Math.incrementExact(expected)),
+                    settings.providerId(), ChatCompletionsSseProtocolAdapter.DEFINITION, settings.endpoint(), null,
+                    ConnectionDefinition.State.ENABLED, java.time.Duration.ofSeconds(settings.connectTimeoutSeconds()),
+                    java.time.Duration.ofSeconds(settings.responseTimeoutSeconds()), settings.maxResponseBytes()));
+            return new Catalog(old.capabilities(), old.bindings(), connections, old.rates(), old.legacyGrants(), old.legacyBudgets(),
+                    old.defaults(), old.disabledConnections());
+        });
+    }
+
+    /**
+     * 停用是当前状态；历史连接内容与已发生调用的证据保持不变。
+     */
+    public CommandReceipt<CatalogView> setConnectionEnabled(TrustedActor actor, CommandMeta meta, long expected, String id, boolean enabled) {
+        com.arte.core.utils.platform.PlatformChecks.id(id, "connectionId");
+        return changeConnections(actor, meta, expected, "ai:connection:state", id + ":" + enabled, old -> {
+            if (old.connections().stream().noneMatch(c -> c.definition().id().equals(id)))
+                throw new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "connection");
+            var disabled = new HashSet<>(old.disabledConnections());
+            if (enabled) disabled.remove(id);
+            else disabled.add(id);
+            return new Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(),
+                    old.defaults(), disabled);
+        });
+    }
+
+    public CatalogView connectionCatalog(TrustedActor actor) {
+        return tx.required(() -> {
+            preferences.lockSubject(actor.principal().subjectId());
+            requireCatalogManager(actor);
+            return catalog();
+        });
+    }
+
+    public List<String> allowedConnectionOrigins() {
+        return connectionOrigins;
+    }
+
+    private void requireCatalogManager(TrustedActor actor) {
+        var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() ->
+                new PlatformException(PlatformErrorCodeEnum.UNAUTHENTICATED, "connection"));
+        var permissions = catalogPermissions.current(name);
+        if (!permissions.contains("admin") && !permissions.contains("aiConfiguration:manage"))
+            throw new PlatformException(PlatformErrorCodeEnum.ACCESS_DENIED, "connection");
+    }
+
+    private CommandReceipt<CatalogView> changeConnections(TrustedActor actor, CommandMeta meta, long expected, String action,
+                                                          String intent, java.util.function.UnaryOperator<Catalog> change) {
+        if (expected < 0) throw new IllegalArgumentException("Invalid catalog version");
+        return commands.execute(actor, meta, new CommandScope(null, null), action, "ai:catalog:view:v1", CatalogView.class,
+                List.of(Long.toString(expected), intent), () -> {
+                    preferences.lockSubject(actor.principal().subjectId());
+                    requireCatalogManager(actor);
+                    mapper.head(true);
+                }, saved -> requireCatalogManager(actor), operation -> {
+                    check(Objects.equals(mapper.head(true), expected));
+                    var before = published(false);
+                    Catalog data = change.apply(before == null ? Catalog.empty() : before.catalog());
+                    return appendCatalog(actor, operation, expected, data);
+                });
+    }
+
+    private DefaultCommandExecutor.Result<CatalogView> appendCatalog(TrustedActor actor, String operation, long expected, Catalog data) {
+        validate(data, data.defaults());
+        long next = Math.incrementExact(expected);
+        check(mapper.insertRevision(next, json.write(data), actor.principal().subjectId()) == 1);
+        check(mapper.advance(expected, next) == 1);
+        effects.append(actor, new CommandScope(null, null), "ai:catalog:published", operation, next, Map.of());
+        return new DefaultCommandExecutor.Result<>(new CatalogView(next, data), next);
     }
 
     public CommandReceipt<CatalogView> publish(TrustedActor actor, CommandMeta meta, long expected, Catalog data) {
@@ -683,6 +785,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                         // 模型、能力与费率只追加完整固定版本；重复引用仍由目录索引拒绝，旧契约不能重写或删除。
                         if (!old.legacyGrants().equals(data.legacyGrants()) || !old.legacyBudgets().equals(data.legacyBudgets())
                                 || !data.bindings().containsAll(old.bindings()) || !old.connections().equals(data.connections())
+                                || !old.disabledConnections().equals(data.disabledConnections())
                                 || !data.capabilities().containsAll(old.capabilities()) || !data.rates().containsAll(old.rates()))
                             throw new IllegalArgumentException("Published resource versions and legacy ownership are immutable");
                     }
@@ -705,7 +808,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             var result = new TreeMap<String, Object>();
             map.forEach((key, child) -> {
                 Object normalized = sortedSets(child);
-                if (Set.of("features", "scopes", "bindingIds", "budgetRefs").contains(key.toString()) && normalized instanceof List<?> list) {
+                if (Set.of("features", "scopes", "bindingIds", "budgetRefs", "disabledConnections").contains(key.toString()) && normalized instanceof List<?> list) {
                     normalized = list.stream().sorted(Comparator.comparing(com.arte.ainew.serialization.CanonicalJson::encode)).toList();
                 }
                 result.put(key.toString(), normalized);

@@ -281,7 +281,7 @@ it('shows a published version without budget and leaves creation/allowance to th
   vi.mocked(api.listModelVersions).mockResolvedValue(response({records: [release], current: 1, size: 10, total: 1}));
   manager();
   await open();
-  fireEvent.click(screen.getByRole('button', {name: 'reviewed-model · 查看版本 v1'}));
+  fireEvent.click(screen.getByRole('button', {name: /reviewed-model\s*·\s*查看版本 v1/}));
   await screen.findByText('已发布，但缺少本人兼容预算。请联系空间负责人；发布不会创建预算或提高额度。');
   expect(api.executeModelCommand).not.toHaveBeenCalled();
 });

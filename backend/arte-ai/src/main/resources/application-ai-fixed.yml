@@ -1,0 +1,6 @@
+# Legacy compatibility only; DATABASE deployments must not enable ai-fixed.
+spring:
+  config:
+    activate:
+      on-profile: ai-fixed
+    import: classpath:ainew/config/fixed-definitions.properties

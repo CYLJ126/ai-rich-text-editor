@@ -6,7 +6,7 @@ import {
   type CatalogView,
   getAiCatalog,
   getWorkspaceAi,
-  importAiConfiguration,
+  initializeAiCatalog,
   publishAiCatalog,
   refKey,
   updateWorkspaceAi,
@@ -24,7 +24,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   adminOnly?: boolean
 }) {
   const [restored] = useState(() => readOperation<{
-    kind: 'workspace' | 'import' | 'publish';
+    kind: 'workspace' | 'initialize' | 'publish';
     request: unknown
   }>(context, 'ai-configuration', ''));
   const [unsafe, setUnsafe] = useState(!!restored.warning);
@@ -59,7 +59,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     && ['TEXT_INPUT', 'STREAMING'].every(f => (selectedCapability.features as string[]).includes(f))
     && !hasToolCalls(selectedCapability);
   const pending = useRef<{
-    kind: 'workspace' | 'import' | 'publish';
+    kind: 'workspace' | 'initialize' | 'publish';
     key: string;
     request: unknown
   } | null>(restored.value ? {...restored.value.request, key: restored.value.key} : null);
@@ -83,7 +83,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   }, [scope]);
   const canEdit = !!view?.canManage && !saving && !uncertain && !unsafe;
 
-  async function run(kind: 'workspace' | 'import' | 'publish', request: unknown) {
+  async function run(kind: 'workspace' | 'initialize' | 'publish', request: unknown) {
     if (pending.current && pending.current.kind !== kind) return;
     const operation = pending.current ?? {kind, key: crypto.randomUUID(), request};
     pending.current = operation;
@@ -100,7 +100,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
         setPreset(body.data.value.configuration!.preset);
         onUpdated();
       } else {
-        const {body} = kind === 'import' ? await importAiConfiguration(operation.key)
+        const {body} = kind === 'initialize' ? await initializeAiCatalog(operation.key)
           : await publishAiCatalog(operation.request as Parameters<typeof publishAiCatalog>[0], operation.key);
         setCatalog(body.data.value);
         setCatalogEditable(true);
@@ -167,11 +167,12 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     {uncertain && <Button loading={saving}
                           onClick={() => pending.current && void run(pending.current.kind, pending.current.request)}>重试确认原配置操作</Button>}
     {(view?.needsImport || (catalogEditable && catalog?.version === 0)) &&
-      <Alert type="info" title="数据库尚未导入初始 AI 配置"
-             description="平台管理员可一次性导入现有部署配置；密钥仍由环境或密钥服务提供。"
+      <Alert type="info" title="数据库尚未初始化 AI 目录"
+             description="平台配置管理员可初始化空目录，然后在连接管理页面创建审核连接。不会读取配置文件中的模型定义。"
              action={<Button loading={saving} disabled={uncertain || unsafe}
-                             onClick={() => void run('import', null)}>导入现有部署配置</Button>}/>}
+                             onClick={() => void run('initialize', null)}>初始化空目录</Button>}/>}
     {view && !view.canManage && <Alert type="info" title="只有当前空间负责人可以修改空间 AI 设置。"/>}
+    {adminOnly && <Button href="/AI/Connections" disabled={saving || uncertain || unsafe}>管理审核连接</Button>}
     {preset && view?.configuration && <>
       <Form layout="vertical">
         <Form.Item label="启用此空间 AI"><Switch aria-label="启用此空间 AI" disabled={!canEdit} checked={preset.enabled}

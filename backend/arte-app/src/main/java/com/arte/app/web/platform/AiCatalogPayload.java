@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 模型目录的 HTTP 契约；保持原六字段绑定格式，不暴露内部多态执行目标或改变持久化编码。
@@ -22,7 +23,7 @@ import java.util.Objects;
 public record AiCatalogPayload(List<CapabilityDescriptor> capabilities, List<ModelBinding> bindings,
                                List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
                                List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
-                               AiControlData.Preset defaults) {
+                               AiControlData.Preset defaults, Set<String> disabledConnections) {
 
     public AiCatalogPayload {
         capabilities = List.copyOf(capabilities);
@@ -32,16 +33,17 @@ public record AiCatalogPayload(List<CapabilityDescriptor> capabilities, List<Mod
         legacyGrants = List.copyOf(legacyGrants);
         legacyBudgets = List.copyOf(legacyBudgets);
         Objects.requireNonNull(defaults);
+        disabledConnections = disabledConnections == null ? Set.of() : Set.copyOf(disabledConnections);
     }
 
     public static AiCatalogPayload from(AiControlData.Catalog catalog) {
         return new AiCatalogPayload(catalog.capabilities(), catalog.bindings().stream().map(ModelBinding::from).toList(),
-                catalog.connections(), catalog.rates(), catalog.legacyGrants(), catalog.legacyBudgets(), catalog.defaults());
+                catalog.connections(), catalog.rates(), catalog.legacyGrants(), catalog.legacyBudgets(), catalog.defaults(), catalog.disabledConnections());
     }
 
     public AiControlData.Catalog toCatalog() {
         return new AiControlData.Catalog(capabilities, bindings.stream().map(ModelBinding::toBinding).toList(),
-                connections, rates, legacyGrants, legacyBudgets, defaults);
+                connections, rates, legacyGrants, legacyBudgets, defaults, disabledConnections);
     }
 
     public record View(long version, AiCatalogPayload catalog) {

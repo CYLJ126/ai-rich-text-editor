@@ -61,7 +61,14 @@ public final class PlatformModelPublicationSource implements ModelPublicationSou
             properties = json.read(payload, AiControlData.Catalog.class).properties(fixed, java.util.List.of(), java.util.List.of());
         } else {
             if (revision != null) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
-            properties = fixed;
+            if ("DATABASE".equals(fixed.configurationMode())) {
+                // 旧 FIXED 仅保留来源标记；DATABASE 中其精确定义也必须已存在于数据库，不再读取文件。
+                Long head = mapper.headCurrent();
+                if (head == null || head == 0) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                var payload = mapper.revision(head);
+                if (payload == null) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                properties = json.read(payload, AiControlData.Catalog.class).properties(fixed, java.util.List.of(), java.util.List.of());
+            } else properties = fixed;
         }
         var definitions = new PublishedAiDefinitions(properties.releaseRef(), properties.capabilities(), properties.bindings(), properties.connections(),
                 properties.rates().stream().map(r -> new RateDefinition(r.definition(), r.inputPerMillion(), r.outputPerMillion(), r.toolPerCall())).toList());

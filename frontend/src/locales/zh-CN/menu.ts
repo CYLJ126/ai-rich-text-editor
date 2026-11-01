@@ -5,6 +5,7 @@ export default {
   'menu.AI.ChatNew': 'AI 聊天（新版）',
   'menu.aiModels': '模型管理',
   'menu.AI.Models': '模型管理',
+  'menu.AI.Connections': '连接管理',
   'menu.HomePage': '首页',
   'menu.welcome': '欢迎',
   'menu.more-blocks': '更多区块',

@@ -109,7 +109,7 @@ class ModelAclRuntimeIntegrationTest {
 
     ModelResource prepare(ApplicationContext c, ModelPublication.Source origin) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
-        db.importConfiguration(f.f.actor, f.meta("import"));
+        DatabaseAiTestCatalog.publish(db, c, f.f.actor, f.meta("import"));
         db.ensure(f.f.actor, scope);
         ModelResourceService models = c.getBean(ModelResourceService.class);
         ModelResource model = models.create(f.f.actor, new ModelResourceCommands.Create(f.meta("model"), scope, "Published database model")).value();

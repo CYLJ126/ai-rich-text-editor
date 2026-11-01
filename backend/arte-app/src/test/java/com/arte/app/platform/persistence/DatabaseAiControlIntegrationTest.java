@@ -166,7 +166,7 @@ class DatabaseAiControlIntegrationTest {
             var rate = ref("rate", "text-price");
             // 文件中已有费率，但未发布时不能用文件种子补历史权威。
             assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> published.historicalRate(rate).block(WAIT));
-            db.importConfiguration(f.actor, meta("ports-import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("ports-import"));
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             assertEquals(ref("binding", "text"), published.read(ctx).block(WAIT).bindings().getFirst().definition());
@@ -196,7 +196,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("model-import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("model-import"));
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var service = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
@@ -228,7 +228,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             assertSame(veto, c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class));
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("custom-model-import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("custom-model-import"));
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-model-call");
             var budget = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class)
@@ -278,7 +278,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             assertSame(policies, c.getBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class));
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("custom-policy-import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("custom-policy-import"));
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-policy-call");
             var option = c.getBean(ChatConfigurationQueryService.class).discover(ctx).block(WAIT).options().getFirst();
@@ -312,7 +312,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             var workspace = db.ensure(f.actor, scope);
             var old = db.catalog().catalog();
             var v1 = old.capabilities().getFirst();
@@ -419,9 +419,9 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            var imported = db.importConfiguration(f.actor, meta("import"));
+            var imported = DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             assertEquals(1, imported.resultVersion());
-            assertEquals(imported.operationId(), db.importConfiguration(f.actor, meta("import")).operationId());
+            assertEquals(imported.operationId(), DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import")).operationId());
             var prepared = db.ensure(f.actor, existing);
             assertEquals(0, prepared.configuration().version());
             var services = c.getBean(DefaultWorkspaceServices.class);
@@ -488,7 +488,7 @@ class DatabaseAiControlIntegrationTest {
         context(recorded).run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             db.ensure(f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Read snapshot", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "read-conversation")).block(WAIT);
@@ -541,7 +541,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             db.ensure(f.actor, scope);
             var execution = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "snapshot");
             var mapper = org.mockito.Mockito.spy(c.getBean(com.arte.app.platform.persistence.mapper.PlatformAiControlMapper.class));
@@ -569,7 +569,7 @@ class DatabaseAiControlIntegrationTest {
         context(recorded).run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             db.ensure(f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Chat", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "create-chat")).block(WAIT);
@@ -689,7 +689,7 @@ class DatabaseAiControlIntegrationTest {
         context(recorded).run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             var view = db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "revalidate");
             var prepared = db.prepareConfiguration(ctx);
@@ -722,7 +722,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             db.ensure(f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Revocation", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "revoke-conversation")).block(WAIT);
@@ -766,7 +766,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             var initial = db.ensure(f.actor, scope);
             var context = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var budgetRef = c.getBean(ChatConfigurationQueryService.class).discover(context).block(WAIT).options().getFirst().budgetRefs().getFirst();
@@ -816,7 +816,7 @@ class DatabaseAiControlIntegrationTest {
             assertTrue(db.ensure(f.actor, created.value().scope()).needsImport());
             assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Integer.class));
             assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             db.ensure(f.actor, scope);
             assertThrows(Exception.class, () -> db.resolve("alice", scope.tenantId(), "unknown-space", Set.of(AdmissionAuthorization.INVOKE)).block(WAIT));
             var view = db.get(f.actor, scope);
@@ -837,7 +837,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            db.importConfiguration(f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             var initial = db.ensure(f.actor, scope);
             var beforeAccount = f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class);
             var originalEffects = org.springframework.test.util.ReflectionTestUtils.getField(db, "effects");
@@ -884,9 +884,9 @@ class DatabaseAiControlIntegrationTest {
                         var online = new com.arte.core.pojo.UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(f.jdbc.queryForObject(
                                 "SELECT create_time FROM arte_rbac_user WHERE id=1", (row, index) -> row.getObject(1, java.time.LocalDateTime.class)));
                         var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
-                        assertEquals(403, http(mvc, "importConfiguration", "{}", "import", auth, online, false));
+                        assertEquals(403, http(mvc, "initializeCatalog", "{}", "import", auth, online, false));
                         assertEquals(403, http(mvc, "getCatalog", "{}", null, auth, online, false));
-                        assertEquals(200, http(mvc, "importConfiguration", "{}", "import", auth, online, true));
+                        DatabaseAiTestCatalog.publish(c.getBean(DatabaseAiControlService.class), c, f.actor, meta("http-seed"));
                         assertEquals(200, http(mvc, "ensure", f.json.write(Map.of("scope", scope)), null, auth, online, false));
                         var db = c.getBean(DatabaseAiControlService.class);
                         var view = db.get(f.actor, scope);
@@ -921,7 +921,7 @@ class DatabaseAiControlIntegrationTest {
                         var online = new com.arte.core.pojo.UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(f.jdbc.queryForObject(
                                 "SELECT create_time FROM arte_rbac_user WHERE id=1", (row, index) -> row.getObject(1, java.time.LocalDateTime.class)));
                         var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
-                        assertEquals(200, http(mvc, "importConfiguration", "{}", "http-import", auth, online, true));
+                        DatabaseAiTestCatalog.publish(c.getBean(DatabaseAiControlService.class), c, f.actor, meta("http-seed"));
                         var response = httpResponse(mvc, "getCatalog", "{}", null, auth, online, true);
                         assertEquals(200, response.getStatus());
                         var body = json.readValue(response.getContentAsString(), Map.class);
