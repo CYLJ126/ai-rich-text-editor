@@ -12,7 +12,9 @@ import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
@@ -673,7 +675,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
      * 显式初始化空目录，不从部署文件复制任何业务定义。
      */
     public CommandReceipt<CatalogView> initializeCatalog(TrustedActor actor, CommandMeta meta) {
-        return changeConnections(actor, meta, 0, "ai:catalog:initialize", "empty-v1", old -> Catalog.empty());
+        return changeCatalog(actor, meta, 0, "ai:catalog:initialize", "empty-v1", old -> Catalog.empty());
     }
 
     public record ConnectionSettings(String id, String providerId, java.net.URI endpoint,
@@ -692,7 +694,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     public CommandReceipt<CatalogView> publishConnection(TrustedActor actor, CommandMeta meta, long expected, ConnectionSettings settings) {
-        return changeConnections(actor, meta, expected, "ai:connection:publish", settings.toString(), old -> {
+        return changeCatalog(actor, meta, expected, "ai:connection:publish", settings.toString(), old -> {
             try {
                 connectionEgress.validateOrigin(settings.endpoint());
             } catch (RuntimeException denied) {
@@ -714,7 +716,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
      */
     public CommandReceipt<CatalogView> setConnectionEnabled(TrustedActor actor, CommandMeta meta, long expected, String id, boolean enabled) {
         com.arte.core.utils.platform.PlatformChecks.id(id, "connectionId");
-        return changeConnections(actor, meta, expected, "ai:connection:state", id + ":" + enabled, old -> {
+        return changeCatalog(actor, meta, expected, "ai:connection:state", id + ":" + enabled, old -> {
             if (old.connections().stream().noneMatch(c -> c.definition().id().equals(id)))
                 throw new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "connection");
             var disabled = new HashSet<>(old.disabledConnections());
@@ -745,7 +747,46 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             throw new PlatformException(PlatformErrorCodeEnum.ACCESS_DENIED, "connection");
     }
 
-    private CommandReceipt<CatalogView> changeConnections(TrustedActor actor, CommandMeta meta, long expected, String action,
+    /**
+     * 不依赖已有同名绑定，原子追加能力、绑定与费率；不自动授权或分配预算。
+     */
+    public CommandReceipt<CatalogView> publishModelPlan(TrustedActor actor, CommandMeta meta, long expected, ReviewedModelSettings settings) {
+        return changeCatalog(actor, meta, expected, "ai:model-plan:publish", json.write(settings), old -> {
+            ConnectionDefinition connection = old.connections().stream().filter(c -> c.definition().equals(settings.connection()))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown reviewed connection"));
+            if (old.disabledConnections().contains(connection.definition().id()) || connection.state() != ConnectionDefinition.State.ENABLED
+                    || !"deepseek".equals(connection.providerId()) || !ChatCompletionsSseProtocolAdapter.DEFINITION.equals(connection.protocol())) {
+                throw new IllegalArgumentException("Reviewed connection is disabled or unsupported");
+            }
+            try {
+                connectionEgress.validateOrigin(connection.endpoint());
+            } catch (RuntimeException denied) {
+                throw new IllegalArgumentException("Connection origin is not permitted by deployment policy");
+            }
+            String family = "reviewed-" + settings.id();
+            String version = "db-v" + Math.incrementExact(expected);
+            Set<CapabilityDescriptor.Feature> features = new HashSet<>(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING));
+            if (settings.usageReporting()) {
+                features.add(CapabilityDescriptor.Feature.USAGE_REPORTING);
+            }
+            CapabilityDescriptor capability = new CapabilityDescriptor(new DefinitionRef("capability", family, version),
+                    CapabilityDescriptor.Kind.GENERATION, ControlDefinitionChecks.INPUT_SCHEMA, ControlDefinitionChecks.OUTPUT_SCHEMA,
+                    features, CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
+            DefinitionRef rate = new DefinitionRef("rate", family, version);
+            List<CapabilityDescriptor> capabilities = new ArrayList<>(old.capabilities());
+            capabilities.add(capability);
+            List<ResolvedBinding> bindings = new ArrayList<>(old.bindings());
+            bindings.add(new ResolvedBinding(new DefinitionRef("binding", family, version), capability, settings.connection(),
+                    settings.remoteModel(), settings.contextWindowTokens(), rate));
+            List<NewAiProperties.Rate> rates = new ArrayList<>(old.rates());
+            Currency currency = Currency.getInstance(settings.currency());
+            rates.add(new NewAiProperties.Rate(rate, new Money(new BigDecimal(settings.inputPerMillion()), currency),
+                    new Money(new BigDecimal(settings.outputPerMillion()), currency)));
+            return new Catalog(capabilities, bindings, old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections());
+        });
+    }
+
+    private CommandReceipt<CatalogView> changeCatalog(TrustedActor actor, CommandMeta meta, long expected, String action,
                                                           String intent, java.util.function.UnaryOperator<Catalog> change) {
         if (expected < 0) throw new IllegalArgumentException("Invalid catalog version");
         return commands.execute(actor, meta, new CommandScope(null, null), action, "ai:catalog:view:v1", CatalogView.class,

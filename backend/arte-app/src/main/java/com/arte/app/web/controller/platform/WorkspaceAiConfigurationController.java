@@ -3,13 +3,11 @@ package com.arte.app.web.controller.platform;
 import com.arte.app.platform.ai.AiControlData.Preset;
 import com.arte.app.platform.ai.AiControlData.WorkspaceView;
 import com.arte.app.platform.ai.DatabaseAiControlService;
+import com.arte.app.platform.ai.ReviewedModelSettings;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.pojo.rbac.JwtUserDto;
-import com.arte.app.web.platform.AiCatalogPayload;
-import com.arte.app.web.platform.AiConnectionPayload;
-import com.arte.app.web.platform.PlatformHttpContext;
-import com.arte.app.web.platform.StrictPlatformRequest;
+import com.arte.app.web.platform.*;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
@@ -159,5 +157,36 @@ public class WorkspaceAiConfigurationController {
                                                                     @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.publish(actor,
                 new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.catalog().toCatalog())));
+    }
+
+    public record ModelPlanFields(@jakarta.validation.constraints.NotBlank String id,
+                                  @NotNull com.arte.core.pojo.reference.DefinitionRef connection,
+                                  @jakarta.validation.constraints.NotBlank String remoteModel,
+                                  @NotNull Long contextWindowTokens,
+                                  @jakarta.validation.constraints.NotBlank String currency,
+                                  @jakarta.validation.constraints.NotBlank String inputPerMillion,
+                                  @jakarta.validation.constraints.NotBlank String outputPerMillion,
+                                  @NotNull Boolean usageReporting) implements StrictPlatformRequest {
+        ReviewedModelSettings settings() {
+            return new ReviewedModelSettings(id, connection, remoteModel, contextWindowTokens, currency, inputPerMillion, outputPerMillion, usageReporting);
+        }
+    }
+
+    public record ModelPlanRequest(@NotNull @Min(0) Long expectedVersion,
+                                   @NotNull @Valid ModelPlanFields settings) implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/getModelPlans")
+    @PreAuthorize("@pcs.check('aiConfiguration:manage')")
+    public Mono<ResultContext<AiModelPlanPayload.View>> modelPlans(Authentication auth, Locale locale) {
+        return call(auth, locale, actor -> AiModelPlanPayload.View.from(service.connectionCatalog(actor)));
+    }
+
+    @PostMapping("/publishModelPlan")
+    @PreAuthorize("@pcs.check('aiConfiguration:manage')")
+    public Mono<ResultContext<CommandReceipt<AiModelPlanPayload.View>>> publishModelPlan(Authentication auth,
+                                                                                         @Valid @RequestBody ModelPlanRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> AiModelPlanPayload.View.receipt(service.publishModelPlan(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.settings().settings())));
     }
 }

@@ -352,7 +352,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
                       }))}/>
 
               {!detail.options.length && <Typography.Text
-                type="secondary">暂无匹配方案。先保存当前配置；如已保存，请确认远端模型、模板、容量及平台审核费率，或当前部署是否开放个人发布。</Typography.Text>}
+                type="secondary">暂无匹配方案。先保存当前配置；如已保存，请由平台配置管理员在“审核模型与费率”登记相同连接和远端模型，并核对容量及个人发布开关，再重新读取模型。</Typography.Text>}
 
               <Button type="primary"
                       disabled={disabled || !canPublish || !plan || !detail.actions.has('model:publish')}

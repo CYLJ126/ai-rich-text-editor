@@ -115,6 +115,10 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     ApplicationContextRunner realGenerationContext() {
+        return realGenerationContext(true);
+    }
+
+    ApplicationContextRunner realGenerationContext(boolean fileSeed) {
         ApplicationContextRunner base = new ApplicationContextRunner().withUserConfiguration(
                         com.arte.app.platform.workspace.PlatformWorkspaceConfiguration.class,
                         com.arte.app.platform.identity.PlatformIdentityConfiguration.class, PlatformPersistenceConfiguration.class,
@@ -126,8 +130,9 @@ class PersonalModelPublicationIntegrationTest {
                 .withBean("appDataSource", javax.sql.DataSource.class, () -> f.f.f.source)
                 .withBean(com.arte.app.platform.identity.RbacAccountReader.class, () -> new com.arte.app.platform.identity.RbacAccountReader(f.f.f.source,
                         new com.arte.app.platform.identity.RbacAccountMapperConfiguration().identityUserMapper(f.f.f.source)))
-                .withPropertyValues(f.f.seedProperties())
                 .withBean(org.redisson.api.RedissonClient.class, () -> org.mockito.Mockito.mock(org.redisson.api.RedissonClient.class));
+        base = fileSeed ? base.withPropertyValues(f.f.seedProperties()) : base.withPropertyValues(
+                "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE", "arte.ai-new.release-ref=release-v1");
         return personalConfiguration(base);
     }
 
@@ -386,6 +391,89 @@ class PersonalModelPublicationIntegrationTest {
     @Test
     void realLoopbackValidationGenerationAndDurableSettlementUseOnlyPersonalKey() {
         loopback(false);
+    }
+
+    @Test
+    void newDatabaseOnlyModelValidatesPublishesChatsSettlesAndSurvivesReassemblyWithoutFileSeed() {
+        AtomicInteger calls = new AtomicInteger();
+        reactor.netty.DisposableServer server = HttpServer.create().host("127.0.0.1").port(0).route(routes -> routes
+                .get("/v1/models", (request, response) -> {
+                    assertEquals("Bearer " + TOKEN, request.requestHeaders().get("Authorization"));
+                    return response.header("Content-Type", "application/json").sendString(Mono.just("{\"data\":[{\"id\":\"independent-model\"}]}"));
+                }).post("/v1/chat/completions", (request, response) -> {
+                    assertEquals("Bearer " + TOKEN, request.requestHeaders().get("Authorization"));
+                    calls.incrementAndGet();
+                    return request.receive().aggregate().asString().flatMap(body -> {
+                        assertTrue(body.contains("independent-model"));
+                        return response.header("Content-Type", "text/event-stream").sendString(Mono.just(
+                                "data: {\"id\":\"independent\",\"model\":\"independent-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")).then();
+                    });
+                })).bindNow();
+        try {
+            String origin = "http://127.0.0.1:" + server.port();
+            ApplicationContextRunner runner = realGenerationContext(false).withPropertyValues("arte.ai-new-generation.allowed-origins[0]=" + origin);
+            java.util.concurrent.atomic.AtomicReference<ModelResourceVersion> published = new java.util.concurrent.atomic.AtomicReference<>();
+            runner.run(c -> {
+                assertNull(c.getStartupFailure());
+                NewAiProperties infrastructure = c.getBean(NewAiProperties.class);
+                assertTrue(infrastructure.connections().isEmpty());
+                assertTrue(infrastructure.bindings().isEmpty());
+                assertTrue(infrastructure.rates().isEmpty());
+                DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
+                assertTrue(db.definitions().connections().isEmpty());
+                com.arte.core.pojo.reference.DefinitionRef connection = db.publishConnection(f.f.f.actor, f.f.meta("independent-connection"), 0,
+                                new DatabaseAiControlService.ConnectionSettings("independent", "deepseek", java.net.URI.create(origin + "/v1"), 5, 60, 1048576))
+                        .value().catalog().connections().getFirst().definition();
+                AiControlData.Catalog reviewed = db.publishModelPlan(f.f.f.actor, f.f.meta("independent-plan"), 1,
+                        new ReviewedModelSettings("independent", connection, "independent-model", 65536, "CNY", "1", "2", true)).value().catalog();
+                com.arte.ainew.pojo.control.ResolvedBinding plan = reviewed.bindings().getFirst();
+                // 预算审批是独立、显式操作；方案发布不分配预算。
+                assertTrue(reviewed.defaults().budgets().isEmpty());
+                db.publish(f.f.f.actor, f.f.meta("independent-budget"), 2, new AiControlData.Catalog(reviewed.capabilities(), reviewed.bindings(),
+                        reviewed.connections(), reviewed.rates(), reviewed.legacyGrants(), reviewed.legacyBudgets(),
+                        new AiControlData.Preset(true, List.of(plan.definition()), List.of(new AiControlData.BudgetPreset(plan.rate(), f.f.money("100"))))));
+                db.ensure(f.f.f.actor, f.scope);
+                policy(c, "127.0.0.1", true);
+                f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");
+                model = c.getBean(ModelResourceService.class).create(f.f.f.actor,
+                        new ModelResourceCommands.Create(f.f.meta("independent-model"), f.scope, "Independent model")).value();
+                ModelDraftService drafts = c.getBean(ModelDraftService.class);
+                drafts.save(f.f.f.actor, f.f.meta("independent-draft"), f.scope, model.resource(), 0, "Independent model", new Settings(connection, "independent-model", 8192, 128));
+                drafts.replaceCredential(f.f.f.actor, f.f.meta("independent-key"), f.scope, model.resource(), 0, TOKEN);
+                validate(c, 1, 1, true);
+                PersonalModelPublicationService publications = c.getBean(PersonalModelPublicationService.class);
+                PersonalModels.Option option = publications.options(f.f.f.actor, f.scope, model.resource()).getFirst();
+                assertEquals(plan.definition(), option.templateBinding());
+                ModelResourceVersion version = publications.publish(f.f.f.actor, f.f.meta("independent-publish"), f.scope, model.resource(),
+                        0, 1, 1, validation, option.templateBinding(), option.catalogRevision()).value();
+                published.set(version);
+                assertTrue(status(c, version).ready());
+                Invocation accepted = accept(c, version, 128);
+                MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
+                MybatisPayloadPersistence payloads = c.getBean(MybatisPayloadPersistence.class);
+                GenerationDispatcher dispatcher = new GenerationDispatcher(c.getBean(AdmissionAuthorization.class), c.getBean(CapabilityCatalog.class), c.getBean(BindingManager.class),
+                        c.getBean(PublishedAiCatalog.class), c.getBean(AiExecutionPolicyProvider.class), c.getBean(AiAdmissionAuthorizationGuard.class), executions, executions, executions, payloads, payloads, executions,
+                        c.getBean(com.arte.ainew.spi.gateway.ModelGateway.class), infrastructure,
+                        new NewAiExecutionProperties(true, false, 0, null, null, null, null), Clock.systemUTC(), null);
+                OutboxMessage message = executions.claim(OutboxMessage.Kind.DISPATCH, "independent-worker", Duration.ofSeconds(60), 1).block(WAIT).getFirst();
+                dispatcher.dispatch(message, ExecutionRuntimeContext.start(accepted.request().context())).block(WAIT);
+                Invocation complete = executions.find(message.owner(), message.invocationId()).block(WAIT);
+                assertEquals(Invocation.State.SUCCEEDED, complete.state(), String.valueOf(complete.error()));
+                assertEquals(1, calls.get());
+                assertEquals(1L, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_settlement WHERE evidence_kind='PROVIDER_BILL'", Long.class));
+                assertTrue(f.f.f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_settlement", String.class).contains("SETTLED"));
+            });
+            runner.run(c -> {
+                assertNull(c.getStartupFailure());
+                assertTrue(c.getBean(NewAiProperties.class).bindings().isEmpty());
+                assertEquals(3, c.getBean(DatabaseAiControlService.class).catalog().version());
+                assertEquals("independent-model", c.getBean(DatabaseAiControlService.class).definitions().bindings().getFirst().remoteOperation());
+                assertTrue(status(c, published.get()).ready());
+                assertEquals(1, calls.get());
+            });
+        } finally {
+            server.disposeNow();
+        }
     }
 
     @Test

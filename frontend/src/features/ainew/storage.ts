@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {connectionCommandSchema} from '@/services/platform/connection';
+import {modelPlanCommandSchema} from '@/services/platform/modelPlan';
 import type {AiScope} from '@/services/arte-ai';
 
 export interface BrowserContext {
@@ -15,6 +16,7 @@ const scopeSchema = z.object({tenantId: id, workspaceId: id});
 const ref = z.object({type: id, id, version: id});
 const version = z.number().int().nonnegative();
 const schemas = {
+  'model-plan-configuration': z.object({scope: scopeSchema, command: modelPlanCommandSchema}).strict(),
   'connection-configuration': z.object({scope: scopeSchema, command: connectionCommandSchema}).strict(),
   'ai-configuration': z.discriminatedUnion('kind', [
     z.object({scope: scopeSchema, kind: z.literal('initialize'), request: z.null()}),
