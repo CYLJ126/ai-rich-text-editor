@@ -585,9 +585,6 @@ function WorkspaceChat({
         children: <Typography.Paragraph>知识库引用将在后续版本开放，当前回答不会从文章知识库检索。</Typography.Paragraph>
       },
     ]}/>
-
-    {/* 模型管理-可用模型页面附加展示的内容 TODO 待迁移到上述models child */}
-
   </Flex>;
 
   // 中间栏：消息列表 + 输入框
