@@ -75,7 +75,8 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
             locks.tenant(subject, tenantId);
             requireTenant(actor, tenantId);
             var snapshot = access.tenantCurrent(actor, tenantId);
-            return new WorkspacePolicyViews.TenantPolicyView(snapshot.policy(), snapshot.tenant().version(), snapshot.tenant().authEpoch());
+            return new WorkspacePolicyViews.TenantPolicyView(snapshot.policy(), snapshot.tenant().version(), snapshot.tenant().authEpoch(),
+                    snapshot.tenant().name(), snapshot.tenant().type());
         });
     }
 
@@ -87,7 +88,8 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
             requireWorkspace(actor, scope);
             var snapshot = access.snapshotCurrent(actor, scope);
             return new WorkspacePolicyViews.WorkspacePolicyView(snapshot.policy(), snapshot.workspace().version(), snapshot.workspace().authEpoch(),
-                    snapshot.tenant().policy().version(), snapshot.tenant().tenant().authEpoch());
+                    snapshot.tenant().policy().version(), snapshot.tenant().tenant().authEpoch(),
+                    snapshot.tenant().tenant().name(), snapshot.tenant().tenant().type());
         });
     }
 

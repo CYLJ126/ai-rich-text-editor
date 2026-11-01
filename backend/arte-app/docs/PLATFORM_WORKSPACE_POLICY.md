@@ -7,12 +7,12 @@
 
 以下接口均为 POST，默认上下文 `/arte`，受 `arte.platform.workspace.enabled` 开关控制。身份来自认证会话。
 
-| 路径                                    | 请求体                                                                                     | `ResultContext.data`                                                           |
-|-----------------------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| `/arte/workspace/getTenantPolicy`       | `tenantId`                                                                                 | `{policy, tenantVersion, tenantEpoch}`                                         |
-| `/arte/workspace/getWorkspacePolicy`    | `scope`                                                                                    | `{policy, workspaceVersion, workspaceEpoch, tenantPolicyVersion, tenantEpoch}` |
-| `/arte/workspace/updateTenantPolicy`    | `tenantId, expectedTenantVersion, expectedPolicyVersion, rules, membersMayCreateWorkspace` | `CommandReceipt<TenantPolicy>`                                                 |
-| `/arte/workspace/updateWorkspacePolicy` | `scope, expectedWorkspaceVersion, expectedPolicyVersion, rules`                            | `CommandReceipt<WorkspacePolicy>`                                              |
+| 路径                                    | 请求体                                                                                     | `ResultContext.data`                                                                                   |
+|-----------------------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| `/arte/workspace/getTenantPolicy`       | `tenantId`                                                                                 | `{policy, tenantVersion, tenantEpoch, tenantName, tenantType}`                                         |
+| `/arte/workspace/getWorkspacePolicy`    | `scope`                                                                                    | `{policy, workspaceVersion, workspaceEpoch, tenantPolicyVersion, tenantEpoch, tenantName, tenantType}` |
+| `/arte/workspace/updateTenantPolicy`    | `tenantId, expectedTenantVersion, expectedPolicyVersion, rules, membersMayCreateWorkspace` | `CommandReceipt<TenantPolicy>`                                                                         |
+| `/arte/workspace/updateWorkspacePolicy` | `scope, expectedWorkspaceVersion, expectedPolicyVersion, rules`                            | `CommandReceipt<WorkspacePolicy>`                                                                      |
 
 两个更新接口必须携带 `Idempotency-Key`。`rules` 为完整 `PolicyRules` 目标值；缺失集合不是保留原值，空集合表示禁止。
 治理端先查询政策视图，用同次读取返回的父版本和 `policy.version` 构造更新。首次成功更新使政策版本、父记录版本及父权限
@@ -21,6 +21,10 @@
 查询和更新均要求对应政策写资格：租户 OWNER／ADMIN；空间 OWNER。租户角色不隐式获得空间治理资格。 身份、两级成员、租户／空间生命周期、Schema
 和角色预设仍沿用公共授权检查；归档空间不开放政策治理。 普通空间详情／目录不返回完整政策。客户端不能修改
 Schema、角色预设版本、权限代次或模板来源版本。
+
+`tenantName`／`tenantType` 来自同次受权当前读，供页面区分个人租户（0）与组织租户（1）；不接受客户端回传它们决定权限。
+政策查询／更新请求拒绝未知顶层字段。`/Workspace/Policies` 已提供完整规则编辑及个人租户入口，
+页面范围、恢复和冲突操作见[数据库模型管理第二批](MODEL_DATABASE_AUTHORITY_BATCH2.md)。
 
 命令先按已有顺序取得主体、父租户、空间及成员治理锁，然后当前读重新授权。两个预期版本任何一个不匹配均返回
 `VERSION_CONFLICT`（409）。政策 CAS、父记录 CAS、权限代次、Outbox、审计及命令回执在原物理库事务一起提交，失败整体回滚。

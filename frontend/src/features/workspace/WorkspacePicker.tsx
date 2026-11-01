@@ -1,4 +1,5 @@
 import React, {useEffect, useId, useRef, useState} from 'react';
+import {history} from '@umijs/max';
 import {
   Alert,
   Button,
@@ -140,6 +141,9 @@ export default function WorkspacePicker({
         ]}/>
         {directory.canRename &&
           <Button disabled={locked} loading={detailLoading} onClick={() => void editCurrent()}>修改空间信息</Button>}
+        <Button disabled={locked} onClick={() => {
+          if (directory.current) protect(directory.current.scope, () => history.push('/Workspace/Policies'));
+        }}>租户与空间政策</Button>
       </Flex>}
 
     <Input.Search

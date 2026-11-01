@@ -209,19 +209,21 @@ public class WorkspaceController {
                 .map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
     }
 
-    public record TenantPolicyRequest(@NotBlank @Size(max = 256) String tenantId) {
+    public record TenantPolicyRequest(
+            @NotBlank @Size(max = 256) String tenantId) implements com.arte.app.web.platform.StrictPlatformRequest {
     }
 
     public record UpdateTenantPolicyRequest(@NotBlank @Size(max = 256) String tenantId,
                                             @NotNull @Min(0) Long expectedTenantVersion,
                                             @NotNull @Min(0) Long expectedPolicyVersion,
-                                            @NotNull PolicyRules rules, @NotNull Boolean membersMayCreateWorkspace) {
+                                            @NotNull PolicyRules rules,
+                                            @NotNull Boolean membersMayCreateWorkspace) implements com.arte.app.web.platform.StrictPlatformRequest {
     }
 
     public record UpdateWorkspacePolicyRequest(@NotNull Scope scope,
                                                @NotNull @Min(0) Long expectedWorkspaceVersion,
                                                @NotNull @Min(0) Long expectedPolicyVersion,
-                                               @NotNull PolicyRules rules) {
+                                               @NotNull PolicyRules rules) implements com.arte.app.web.platform.StrictPlatformRequest {
     }
 
     @PostMapping("/getTenantPolicy")

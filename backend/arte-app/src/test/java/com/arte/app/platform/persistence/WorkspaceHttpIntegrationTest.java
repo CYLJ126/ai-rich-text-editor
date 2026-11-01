@@ -207,6 +207,59 @@ class WorkspaceHttpIntegrationTest {
     }
 
     @Test
+    void policyViewsReturnVerifiedTenantMetadataAndKeepGovernanceScopesIndependent() throws Exception {
+        var initialized = initialize();
+        var scope = initialized.getJSONObject("workspace").getJSONObject("scope");
+        String tenantId = scope.getStr("tenantId");
+        String target = JSONUtil.createObj().set("tenantId", tenantId).toString();
+        String workspaceTarget = JSONUtil.createObj().set("scope", scope).toString();
+        var tenant = ok("getTenantPolicy", target, null).getJSONObject("data");
+        var workspace = ok("getWorkspacePolicy", workspaceTarget, null).getJSONObject("data");
+        assertEquals(0, tenant.getInt("tenantType"));
+        assertEquals(initialized.getJSONObject("tenant").getStr("name"), tenant.getStr("tenantName"));
+        assertEquals(tenant.getStr("tenantName"), workspace.getStr("tenantName"));
+        assertEquals(0, workspace.getInt("tenantType"));
+        assertFalse(workspace.containsKey("tenantPolicy"));
+        // 仅在隔离夹具中改变元数据，确认页面标签来自服务端，而不是租户 ID／默认空间猜测。
+        fixture.jdbc.update("UPDATE arte_platform_tenant SET type=1,personal_subject_id=NULL,name='Policy organization' WHERE id=?", tenantId);
+        assertEquals(1, ok("getTenantPolicy", target, null).getJSONObject("data").getInt("tenantType"));
+        assertEquals("Policy organization", ok("getWorkspacePolicy", workspaceTarget, null).getJSONObject("data").getStr("tenantName"));
+        fixture.jdbc.update("UPDATE arte_platform_tenant_member SET role=2,version=version+1 WHERE tenant_id=?", tenantId);
+        rejected("getTenantPolicy", target, null, alice, 403, "ACCESS_DENIED");
+        assertNotNull(ok("getWorkspacePolicy", workspaceTarget, null).getJSONObject("data").getJSONObject("policy"));
+    }
+
+    @Test
+    void policyPageUpdatesKeepCompleteRulesAndEnforceTenantCeiling() throws Exception {
+        var scope = initialize().getJSONObject("workspace").getJSONObject("scope");
+        String tenantId = scope.getStr("tenantId");
+        var tenantView = ok("getTenantPolicy", JSONUtil.createObj().set("tenantId", tenantId).toString(), null).getJSONObject("data");
+        var rules = tenantView.getJSONObject("policy").getJSONObject("rules");
+        var creationTypes = rules.getJSONArray("allowedCreationTypes").toString();
+        var exports = rules.getJSONArray("exportTypes").toString();
+        rules.set("personalCredentialsAllowed", true).set("allowedProtocols", List.of("chat-completions-sse"))
+                .set("allowedProviders", List.of("deepseek")).set("allowedDestinations", List.of("api.deepseek.com"));
+        var workspaceTarget = JSONUtil.createObj().set("scope", scope);
+        var spaceCommand = JSONUtil.createObj().set("scope", scope).set("expectedWorkspaceVersion", 0)
+                .set("expectedPolicyVersion", 0).set("rules", rules);
+        rejected("updateWorkspacePolicy", spaceCommand.toString(), "above-ceiling", alice, 403, "POLICY_DENIED");
+        var tenantCommand = JSONUtil.createObj().set("tenantId", tenantId).set("expectedTenantVersion", tenantView.getLong("tenantVersion"))
+                .set("expectedPolicyVersion", tenantView.getJSONObject("policy").getLong("version"))
+                .set("membersMayCreateWorkspace", tenantView.getJSONObject("policy").getBool("membersMayCreateWorkspace")).set("rules", rules);
+        rejected("updateTenantPolicy", JSONUtil.parseObj(tenantCommand.toString()).set("rolePresetVersion", 99).toString(), "forged-metadata", alice, 400, "INVALID_ARGUMENT");
+        ok("updateTenantPolicy", tenantCommand.toString(), "page-tenant-policy");
+        var beforeSpace = ok("getWorkspacePolicy", workspaceTarget.toString(), null).getJSONObject("data");
+        assertEquals(1L, beforeSpace.getLong("tenantPolicyVersion"));
+        assertTrue(beforeSpace.getJSONObject("policy").getJSONObject("rules").getJSONArray("allowedProviders").isEmpty());
+        var result = ok("updateWorkspacePolicy", spaceCommand.toString(), "page-workspace-policy").getJSONObject("data").getJSONObject("value");
+        assertEquals(creationTypes, result.getJSONObject("rules").getJSONArray("allowedCreationTypes").toString());
+        assertEquals(exports, result.getJSONObject("rules").getJSONArray("exportTypes").toString());
+        assertEquals(rules, result.getJSONObject("rules"));
+        rejected("updateWorkspacePolicy", spaceCommand.toString(), "page-stale", alice, 409, "VERSION_CONFLICT");
+        rejected("getTenantPolicy", JSONUtil.createObj().set("tenantId", tenantId).set("actor", "another-user").toString(), null, alice, 400, "INVALID_ARGUMENT");
+    }
+
+    @Test
     void policyHttpRejectsMissingVersionsMalformedRulesAndCrossTenantScope() throws Exception {
         var scope = initialize().getJSONObject("workspace").getJSONObject("scope");
         String tenantId = scope.getStr("tenantId");

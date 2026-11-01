@@ -61,7 +61,7 @@ API Key、SecretRef。个人密钥仍在模型草稿页单独提供，并用环�
 HTTP (S) 地址不能包含 userinfo、查询参数或片段；原 DNS／地址检查、禁止重定向等规则继续生效。 本批未将部署出口硬上限迁移为租户政策，也没有放宽它。
 
 审核连接出现在模型草稿的模板下拉框，还要求租户和空间同时允许个人凭据、协议、供应商、目的地主机。 空白名单继续拒绝。两级政策仍通过既有治理
-HTTP 配置；第二批增加页面。
+HTTP 配置；第二批已增加[租户与空间政策页面](MODEL_DATABASE_AUTHORITY_BATCH2.md)。第一批交付边界仍按上述记录保留。
 
 默认 `application-ai.yml` 导入的运行配置文件已移除六类模型业务属性：
 `arte.ai-new.connections/bindings/capabilities/rates/grants/budgets`。 DATABASE 可删除 app.properties

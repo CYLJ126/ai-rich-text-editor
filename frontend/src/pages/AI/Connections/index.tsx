@@ -11,7 +11,8 @@ export default function ConnectionsPage() {
   return <main style={{maxWidth: 960, margin: '0 auto', padding: 24}}>
     <Flex justify="space-between" align="center" wrap gap={12}>
       <Typography.Title level={3}>平台审核连接管理</Typography.Title>
-      <Button href="/AI/Models" disabled={unsafe}>返回模型管理</Button>
+      <Flex gap={8} wrap><Button href="/Workspace/Policies" disabled={unsafe}>租户与空间政策</Button>
+        <Button href="/AI/Models" disabled={unsafe}>返回模型管理</Button></Flex>
     </Flex>
     <ConnectionManager key={userId} userId={userId} onUnsafeChange={setUnsafe}/>
   </main>;

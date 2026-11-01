@@ -1,0 +1,31 @@
+.workspace-policy-page {
+  width: 100%;
+  max-width: 1120px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.workspace-policy-page > header {
+  margin-bottom: 16px;
+}
+
+.workspace-policy-page .ant-typography,
+.workspace-policy-page .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
+.workspace-policy-page .ant-form > .ant-btn {
+  margin: 12px 0;
+}
+
+.workspace-policy-page .ant-select {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .workspace-policy-page {
+    padding: 12px;
+  }
+}

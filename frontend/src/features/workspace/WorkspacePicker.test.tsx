@@ -5,8 +5,9 @@ import WorkspacePicker from './WorkspacePicker';
 import {useWorkspaceDirectory} from './useWorkspace';
 import * as api from '@/services/platform/workspace';
 import {AiApiError} from '@/services/arte-ai';
+import {history} from '@umijs/max';
 
-vi.mock('@umijs/max', () => ({request: vi.fn()}));
+vi.mock('@umijs/max', () => ({request: vi.fn(), history: {push: vi.fn()}}));
 vi.mock('@/services/platform/workspace', async original => ({
   ...(await original<typeof import('@/services/platform/workspace')>()),
   getWorkspace: vi.fn(),
@@ -166,4 +167,17 @@ it('shows continue searching for an empty nonterminal page and loads a selectabl
   fireEvent.click(screen.getByRole('button', {name: '继续查找'}));
   await screen.findByRole('button', {name: '协作空间'});
   expect(screen.queryByRole('button', {name: '继续查找'})).not.toBeInTheDocument();
+});
+
+it('opens policy settings only after the active module allows navigation', async () => {
+  let proceed: (() => void) | undefined;
+  const guard = vi.fn((_scope: api.WorkspaceScope, open: () => void) => {
+    proceed = open;
+  });
+  render(<WorkspacePicker userId={userId} presentation="inline" beforeSelect={guard}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '租户与空间政策'}));
+  expect(guard).toHaveBeenCalledWith(a, expect.any(Function));
+  expect(history.push).not.toHaveBeenCalled();
+  proceed?.();
+  expect(history.push).toHaveBeenCalledWith('/Workspace/Policies');
 });

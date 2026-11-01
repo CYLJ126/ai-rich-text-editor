@@ -1,5 +1,7 @@
 package com.arte.core.pojo.workspace;
 
+import com.arte.core.enums.workspace.TenantTypeEnum;
+
 /**
  * 同一次治理当前读取得的政策、父记录版本和权限代次，供管理端构造 CAS 命令。
  *
@@ -11,10 +13,12 @@ public final class WorkspacePolicyViews {
     private WorkspacePolicyViews() {
     }
 
-    public record TenantPolicyView(TenantPolicy policy, long tenantVersion, long tenantEpoch) {
+    public record TenantPolicyView(TenantPolicy policy, long tenantVersion, long tenantEpoch,
+                                   String tenantName, TenantTypeEnum tenantType) {
     }
 
     public record WorkspacePolicyView(WorkspacePolicy policy, long workspaceVersion, long workspaceEpoch,
-                                      long tenantPolicyVersion, long tenantEpoch) {
+                                      long tenantPolicyVersion, long tenantEpoch, String tenantName,
+                                      TenantTypeEnum tenantType) {
     }
 }
