@@ -472,17 +472,6 @@ function WorkspaceChat({
                        setModelMode(String(value));
                        if (value === 'manage') setModelManagementVisited(true);
                      }}/>
-          {/* 个人模型管理，即“我可管理” Tab页 */}
-          {modelManagementVisited && <div hidden={modelMode !== 'manage'}>
-            <PersonalModelManager
-              context={context}
-              onUnsafeChange={setModelManagementUnsafe}
-              onUpdated={modelsUpdated}
-              onBrowse={() => {
-                setModelMode('catalog');
-                recheckAccess();
-              }}/>
-          </div>}
           {/* 可用模型 Tab页 */}
           <div hidden={modelMode !== 'catalog'} className='scrollbar-none'>
             <Typography.Paragraph>当前可用目录；可在“我可管理”中添加个人模型。</Typography.Paragraph>
@@ -548,6 +537,17 @@ function WorkspaceChat({
                 t={t} translate={translate}/>
             </Flex>
           </div>
+          {/* 个人模型管理，即“我可管理” Tab页 */}
+          {modelManagementVisited && <div hidden={modelMode !== 'manage'}>
+            <PersonalModelManager
+              context={context}
+              onUnsafeChange={setModelManagementUnsafe}
+              onUpdated={modelsUpdated}
+              onBrowse={() => {
+                setModelMode('catalog');
+                recheckAccess();
+              }}/>
+          </div>}
         </>
       },
       {

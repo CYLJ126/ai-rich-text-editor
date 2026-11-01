@@ -153,6 +153,7 @@ export default function ChatConfigurationForm({
     const options = reusable ? discovery.options : await discovery.load(parsed.data);
     if (!options) return;
     const previous = options.find((option) => matchesModel(values, option));
+    // 旧模型失效时可预选当前唯一选项；下拉框有值只表示草稿已填充，不代表旧配置恢复成功。
     const option = previous ?? (options.length === 1 ? options[0] : undefined);
     selectModel(option, previous ? values : undefined);
     if (!refreshRevision && fixedScope && !restored && !edited.current && option && option.budgetRefs.length === 1) {
@@ -160,8 +161,9 @@ export default function ChatConfigurationForm({
       if (valid.success) onRestore(valid.data, option);
     }
     if (restore && restored && !edited.current) {
-      const valid =
-        previous && selectedChatConfigSchema(previous).safeParse(values);
+      // 校验加载目录前保存的旧值，避免 selectModel 补入的新引用、预算或推荐参数掩盖旧配置失效。
+      // 模型绑定／能力版本不匹配、预算不兼容或参数不合法时，提示用户重新确认并手动应用。
+      const valid = previous && selectedChatConfigSchema(previous).safeParse(values);
       if (previous && valid?.success) {
         setRestoreInvalid(false);
         onRestore(valid.data, previous);
@@ -233,6 +235,7 @@ export default function ChatConfigurationForm({
       fieldErrors(parsed.error.issues);
       return;
     }
+    // 当前选择和参数通过校验后，清除旧配置恢复失败的提示，并交给父组件应用、保存新配置。
     setRestoreInvalid(false);
     onApply(parsed.data, chosen);
   }
@@ -336,6 +339,9 @@ export default function ChatConfigurationForm({
             title={t('optionsEmpty')}
           />
         )}
+      {/* 此提示针对浏览器保存的旧配置，不表示当前模型不可用，也不由预算余额决定。
+          操作：加载可用配置 → 确认模型和兼容预算 → 按需在高级参数中使用模型推荐额度 → 应用配置。
+          仅重新选择模型或刷新预算不会清除此提示；应用失败时须查看字段错误，包括折叠的高级参数。 */}
       {restoreInvalid && (
         <Alert
           className="mb-3"

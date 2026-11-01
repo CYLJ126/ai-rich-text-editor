@@ -28,7 +28,12 @@ export function matchesModel(config: ChatConfigValues, option: ChatModelOption):
     && config.capabilityId === option.capability.id && config.capabilityVersion === option.capability.version;
 }
 
-/** 缓存及表单还需经过当前发现结果检查，前端检查不替代提交时的授权。 */
+/**
+ * 缓存恢复与手动应用共用校验：基础字段／采样参数合法，模型绑定和能力的 ID、版本完全匹配，
+ * 预算属于当前模型的兼容列表，输入／输出 Token 和超时不超限，输入与输出之和不超过上下文窗口。
+ * 此处不检查预算余额；缓存未通过时，配置表单显示“保存的模型、预算或参数已不再可用”。
+ * 前端检查不替代提交时的授权。
+ */
 export function selectedChatConfigSchema(option: ChatModelOption) {
   return chatConfigSchema.superRefine((config, ctx) => {
     const issue = (field: keyof ChatTestConfig, message: string) => ctx.addIssue({
