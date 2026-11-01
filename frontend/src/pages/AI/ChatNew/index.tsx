@@ -463,6 +463,7 @@ function WorkspaceChat({
       {
         key: 'models',
         label: '',
+        className: 'ainew-models-pane',
         icon: <Tooltip title='模型管理'><AppstoreOutlined aria-label="模型管理"/></Tooltip>,
         children: <>
           <Segmented block aria-label="模型视图" value={modelMode}
@@ -471,35 +472,82 @@ function WorkspaceChat({
                        setModelMode(String(value));
                        if (value === 'manage') setModelManagementVisited(true);
                      }}/>
-          {modelManagementVisited && <div hidden={modelMode !== 'manage'}><PersonalModelManager context={context}
-                                                                                                onUnsafeChange={setModelManagementUnsafe}
-                                                                                                onUpdated={modelsUpdated}
-                                                                                                onBrowse={() => {
-                                                                                                  setModelMode('catalog');
-                                                                                                  recheckAccess();
-                                                                                                }}/></div>}
-          <div hidden={modelMode !== 'catalog'}>
-            <Typography.Paragraph>当前可用目录；可在“我可管理”中添加个人模型。</Typography.Paragraph>{!options.length &&
-          (optionsState?.loading ? <Flex align="center" gap={8} role="status" className="ainew-loading">
-            <Spin size="small"/><Typography.Text>正在加载可用模型…</Typography.Text>
-          </Flex> : <Typography.Paragraph>{modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
-            : modelsAccessIssue === 'login' ? '请重新登录后查看可用模型。'
-              : optionsState?.error ? '可用模型暂时无法读取，请重新加载。'
-                : '此空间尚无可用 AI 配置，请联系管理员确认模型和预算配置。'}</Typography.Paragraph>)}{options.map(item =>
-          <Card
-            size="small" className="ainew-model-card" key={modelOptionKey(item)} styles={{body: {padding: 12}}}>
-            <Flex vertical gap={8} align="flex-start">
-              <Tag>{item.source === 'PERSONAL' ? '个人凭据发布' : item.source ? '平台目录发布' : '既有目录'}</Tag>
-              <Typography.Text strong>{item.displayName}</Typography.Text><Typography.Paragraph type="secondary"
-                                                                                                className="ainew-muted">文本／流式
-              · {item.binding.id}@{item.binding.version}</Typography.Paragraph>
-              <Typography.Paragraph type="secondary" className="ainew-muted">窗口 {item.contextWindowTokens} Token ·
-                输出上限 {item.limits.maxOutputTokens} ·
-                兼容预算 {item.budgetRefs.length} 个</Typography.Paragraph>
-              <Button size="small"
-                      onClick={() => chooseModel(modelOptionKey(item))}>{config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}</Button>
+          {/* 个人模型管理，即“我可管理” Tab页 */}
+          {modelManagementVisited && <div hidden={modelMode !== 'manage'}>
+            <PersonalModelManager
+              context={context}
+              onUnsafeChange={setModelManagementUnsafe}
+              onUpdated={modelsUpdated}
+              onBrowse={() => {
+                setModelMode('catalog');
+                recheckAccess();
+              }}/>
+          </div>}
+          {/* 可用模型 Tab页 */}
+          <div hidden={modelMode !== 'catalog'} className='scrollbar-none'>
+            <Typography.Paragraph>当前可用目录；可在“我可管理”中添加个人模型。</Typography.Paragraph>
+
+            {!options.length && (optionsState?.loading
+              ? <Flex align="center" gap={8} role="status" className="ainew-loading">
+                <Spin size="small"/>
+                <Typography.Text>正在加载可用模型…</Typography.Text>
+              </Flex>
+              : <Typography.Paragraph>{modelsAccessIssue === 'forbidden' ? '请联系管理员确认此空间的 AI 使用权限。'
+                : modelsAccessIssue === 'login' ? '请重新登录后查看可用模型。' : optionsState?.error ? '可用模型暂时无法读取，请重新加载。'
+                  : '此空间尚无可用 AI 配置，请联系管理员确认模型和预算配置。'}
+              </Typography.Paragraph>)}
+
+            {options.map(item =>
+              <Card
+                size="small" className="ainew-model-card" key={modelOptionKey(item)} styles={{body: {padding: 12}}}>
+                <Flex vertical gap={8} align="flex-start">
+                  <Tag>{item.source === 'PERSONAL' ? '个人凭据发布' : item.source ? '平台目录发布' : '既有目录'}</Tag>
+                  <Typography.Text strong>{item.displayName}</Typography.Text>
+                  <Typography.Paragraph type="secondary" className="ainew-muted">文本／流式
+                    · {item.binding.id}@{item.binding.version}
+                  </Typography.Paragraph>
+                  <Typography.Paragraph type="secondary" className="ainew-muted">
+                    窗口 {item.contextWindowTokens} Token ·
+                    输出上限 {item.limits.maxOutputTokens} ·
+                    兼容预算 {item.budgetRefs.length} 个
+                  </Typography.Paragraph>
+
+                  <Button size="small" onClick={() => chooseModel(modelOptionKey(item))}>
+                    {config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion ? '已应用 · 调整参数' : '用于此会话'}
+                  </Button>
+                </Flex>
+              </Card>)}
+
+            <Flex vertical className="ainew-configuration">
+              {dirty && <Tag color="orange">有未应用更改</Tag>}
+              {cache.warning && <Alert type="warning" title={cache.warning}/>}
+              <ChatConfigurationForm
+                sharedDiscovery={discovery} key={selectedId}
+                draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
+                initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
+                fixedScope={workspace.scope} restored={cache.value} applied={config}
+                invalidationRevision={editingId === selectedId ? invalidation : 0}
+                externalModel={editingId === selectedId ? externalModel : undefined}
+                applyRevision={editingId === selectedId ? applyRevision : 0}
+                cancelRevision={editingId === selectedId ? cancelRevision : 0}
+                refreshRevision={discoveryRefresh.id === selectedId ? discoveryRefresh.revision : 0}
+                onOptions={(items, error, loading) => setOptionsState({
+                  id: selectedId,
+                  options: items,
+                  error,
+                  loading
+                })}
+                onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={activate}
+                onRestore={activate}
+                onCancel={cancel} onReset={() => {
+                setFormDraft(null);
+                setConfigState(null);
+                setDirtyState({id: selectedId, dirty: false});
+                removeValue(storageKey(context, 'configuration', selectedId), true);
+              }}
+                t={t} translate={translate}/>
             </Flex>
-          </Card>)}</div>
+          </div>
         </>
       },
       {
@@ -512,13 +560,14 @@ function WorkspaceChat({
         key: 'workspace-ai',
         label: '',
         icon: <Tooltip title='空间 AI 配置'><GoldOutlined aria-label="空间 AI 配置"/></Tooltip>,
-        children: <WorkspaceAiSettings scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
-                                       onUpdated={() => {
-                                         setDiscoveryRefresh(value => ({
-                                           id: selectedId,
-                                           revision: value.id === selectedId ? value.revision + 1 : 1
-                                         }));
-                                       }}/>
+        children: <WorkspaceAiSettings
+          scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
+          onUpdated={() => {
+            setDiscoveryRefresh(value => ({
+              id: selectedId,
+              revision: value.id === selectedId ? value.revision + 1 : 1
+            }));
+          }}/>
       },
       {
         key: 'ai-tool',
@@ -537,43 +586,17 @@ function WorkspaceChat({
       },
     ]}/>
 
-    <Flex vertical className="ainew-configuration" hidden={tab !== 'models' || modelMode !== 'catalog'}>
-      {dirty && <Tag color="orange">有未应用更改</Tag>}
-      {cache.warning && <Alert type="warning" title={cache.warning}/>}
-      <ChatConfigurationForm
-        sharedDiscovery={discovery} key={selectedId}
-        draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
-        initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
-        fixedScope={workspace.scope} restored={cache.value} applied={config}
-        invalidationRevision={editingId === selectedId ? invalidation : 0}
-        externalModel={editingId === selectedId ? externalModel : undefined}
-        applyRevision={editingId === selectedId ? applyRevision : 0}
-        cancelRevision={editingId === selectedId ? cancelRevision : 0}
-        refreshRevision={discoveryRefresh.id === selectedId ? discoveryRefresh.revision : 0}
-        onOptions={(items, error, loading) => setOptionsState({
-          id: selectedId,
-          options: items,
-          error,
-          loading
-        })}
-        onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={activate}
-        onRestore={activate}
-        onCancel={cancel} onReset={() => {
-        setFormDraft(null);
-        setConfigState(null);
-        setDirtyState({id: selectedId, dirty: false});
-        removeValue(storageKey(context, 'configuration', selectedId), true);
-      }}
-        t={t} translate={translate}/>
-    </Flex>
+    {/* 模型管理-可用模型页面附加展示的内容 TODO 待迁移到上述models child */}
+
   </Flex>;
 
   // 中间栏：消息列表 + 输入框
   const content = <Flex component="section" vertical className="ainew-main">
     <Flex component="header" align="center" justify="space-between" gap={8} wrap className="ainew-conversation-header">
-      <Flex vertical className="ainew-conversation-heading"><Typography.Title
-        level={2}>{conversations.selected?.title ?? 'AI 聊天（新版）'}</Typography.Title>
-        <Typography.Text type="secondary" className="ainew-muted">通用文本聊天</Typography.Text></Flex>
+      <Flex vertical className="ainew-conversation-heading">
+        <Typography.Title level={2}>{conversations.selected?.title ?? 'AI 聊天（新版）'}</Typography.Title>
+        <Typography.Text type="secondary" className="ainew-muted">通用文本聊天</Typography.Text>
+      </Flex>
     </Flex>
     {(warning || conversations.storageWarning || conversations.selectionNotice) &&
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
@@ -582,13 +605,11 @@ function WorkspaceChat({
              title={modelsAccessIssue === 'login' ? '登录已失效，请重新登录。'
                : modelsAccessIssue === 'forbidden' ? '当前账号暂无此空间的 AI 使用权限'
                  : optionsState.error && !(optionsState.error instanceof AiApiError && optionsState.error.code === '205001')
-                   ? '可用模型暂时加载失败，请重试。'
-                   : '此空间尚无可用 AI 模型或兼容预算。'}
+                   ? '可用模型暂时加载失败，请重试。' : '此空间尚无可用 AI 模型或兼容预算。'}
              description={modelsAccessIssue === 'login' ? '重新登录后再检查可用模型和会话。'
                : modelsAccessIssue === 'forbidden' ? '你仍可阅读已获授权的会话。请联系管理员确认 AI 使用权限，或切换到可用的工作空间。'
                  : optionsState.error && !(optionsState.error instanceof AiApiError && optionsState.error.code === '205001')
-                   ? '请检查网络连接后重新加载；已获授权的会话仍可阅读。'
-                   : '请联系管理员确认当前空间的模型和预算配置。已获授权的会话仍可阅读。'}
+                   ? '请检查网络连接后重新加载；已获授权的会话仍可阅读。' : '请联系管理员确认当前空间的模型和预算配置。已获授权的会话仍可阅读。'}
              action={modelsAccessIssue === 'login' ? <Button href="/user/login">重新登录</Button>
                : modelsAccessIssue === 'forbidden' ?
                  <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
