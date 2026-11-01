@@ -23,11 +23,12 @@ import java.util.Optional;
  * <p>
  * 本类只保存原始事实，不计算资源授权、不解密密钥、不发送网络请求，也不自行提交事务。
  * 凭据撤销同样遵守事务和治理门控；验证 ID 不匹配调用范围时按不存在处理，不能借查询结果扩展已锁范围。
+ * 继承的 MyBatis-Plus 方法含事务注解，Spring 会创建 CGLIB 子类代理，因此本类不能声明为 final。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 15:55 ✾
  */
-public final class ModelDraftStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto> implements ModelDraftStore {
+public class ModelDraftStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto> implements ModelDraftStore {
 
     private final PlatformModelDraftMapper mapper;
     private final PlatformJson json;

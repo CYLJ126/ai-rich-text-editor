@@ -1,8 +1,10 @@
 package com.arte.core.utils.crypto;
 
+import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,6 +28,7 @@ public class Sm4UtilTest {
 
         assertEquals(originalText, decrypted);
         System.out.println("SM4 Test - Key: " + key);
+        System.out.println("SM4 Test - Key base64: " + Base64.getEncoder().encodeToString(Hex.decode(key)));
         System.out.println("SM4 Test - Original: " + originalText);
         System.out.println("SM4 Test - Encrypted: " + encrypted);
         System.out.println("SM4 Test - Decrypted: " + decrypted);

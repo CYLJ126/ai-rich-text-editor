@@ -13,6 +13,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 
 /**
  * SM4 算法工具类
@@ -34,6 +35,15 @@ public class Sm4Util extends AbstractGmUtil {
      */
     public static String generateKeyHex() {
         return Hex.toHexString(generateKey()).toUpperCase();
+    }
+
+    /**
+     * 生成 SM4 密钥（Base64 字符串）
+     *
+     * @return Base64 字符串
+     */
+    public static String generateKeyBase64() {
+        return Base64.getEncoder().encodeToString(generateKey());
     }
 
     /**

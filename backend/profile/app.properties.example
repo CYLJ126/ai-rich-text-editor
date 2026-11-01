@@ -346,3 +346,8 @@ arte.ai-new-tool-mcp.enabled=true
 arte.ai-new-tool-mcp.version=v1
 arte.ai-new-tool-mcp.endpoint=
 arte.ai-new-tool-mcp.allowed-origins=
+
+# 开启模型管理功能
+arte.ai-new-model-management.enabled=true
+arte.ai-new-model-publication.enabled=true
+# 环境变量中还要添加（用 Sm4Util.generateKeyBase64 生成 KEY）：ARTE_MODEL_CREDENTIAL_KEY=bxxedw/TnSnR9422ANDwlw==

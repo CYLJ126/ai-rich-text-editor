@@ -19,11 +19,12 @@ import java.util.Optional;
  * 个人发布证据的持久化适配
  * <p>
  * 当前读加入原事务及范围门控，载荷须匹配索引和摘要。
+ * 继承的 MyBatis-Plus 方法含事务注解，Spring 会创建 CGLIB 子类代理，因此本类不能声明为 final。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 20:55 ✾
  */
-public final class PersonalModelStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto>
+public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto>
         implements PersonalModelStore {
     private final PlatformPersonalModelMapper mapper;
     private final PlatformJson json;
