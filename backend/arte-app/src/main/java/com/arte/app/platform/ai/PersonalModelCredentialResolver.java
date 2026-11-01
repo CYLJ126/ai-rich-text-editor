@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 /**
  * 外发边界的个人凭据用途解析器
  * <p>
- * 只为本人的真实 RUNNING 调用解密精确发布固定的凭据代次。
+ * 只为真实 RUNNING 调用解密精确发布固定的凭据代次；个人凭据限本人，租户凭据额外要求独立用途授权。
  * 再次检查当前身份、公共模型权限、政策、范围、发布和兼容预算；密钥仅存于本次 BearerCredential，不缓存或写回执。
  * 普通登记凭据保留原解析器；个人 SecretRef 缺失、撤销或不匹配时直接拒绝，不能回退环境变量。
  *
@@ -106,7 +106,7 @@ public final class PersonalModelCredentialResolver implements ConnectionCredenti
         publications.lock(actor, scope);
         PersonalModels.Release release = releases.find(scope, invocation.request().binding(), true)
                 .orElseThrow(() -> GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE"));
-        if (!release.secret().equals(secret) || publications.readiness(actor, release) != null) {
+        if (!release.secret().equals(secret) || publications.readiness(actor, release, scope) != null) {
             throw GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE");
         }
         ModelPublication publication = models.findCurrentBinding(scope.tenantId(), release.binding()).orElseThrow().publication();
@@ -122,7 +122,6 @@ public final class PersonalModelCredentialResolver implements ConnectionCredenti
             throw GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE");
         }
         ModelDrafts.Credential credential = drafts.credential(release.resource()).orElseThrow();
-        return new BearerCredential(cipher.decrypt(credential, DefaultModelDraftService.associatedData(credential.resource(),
-                credential.scope(), credential.responsibleSubjectId(), credential.version())));
+        return new BearerCredential(cipher.decrypt(credential, DefaultModelDraftService.associatedData(credential)));
     }
 }

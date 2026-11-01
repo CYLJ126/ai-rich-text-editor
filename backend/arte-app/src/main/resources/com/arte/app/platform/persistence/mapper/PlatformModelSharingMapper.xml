@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.arte.app.platform.persistence.mapper.PlatformModelSharingMapper">
+    <select id="find" resultType="com.arte.app.platform.persistence.mapper.PlatformModelSharingMapper$Row">
+        SELECT resource_key,tenant_id,version,payload FROM arte_ai_model_sharing WHERE resource_key=#{key}
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <select id="scopes" resultType="com.arte.core.pojo.platform.Scope">
+        SELECT tenant_id,workspace_id FROM arte_ai_model_use_scope WHERE resource_key=#{key} ORDER BY workspace_id
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <select id="tenantRows" resultType="com.arte.app.platform.persistence.mapper.PlatformModelSharingMapper$Row">
+        SELECT resource_key,tenant_id,version,payload FROM arte_ai_model_sharing WHERE tenant_id=#{tenant} ORDER BY
+        resource_key LIMIT 257
+        <if test="current">FOR UPDATE</if>
+    </select>
+    <insert id="insert">INSERT INTO arte_ai_model_sharing(resource_key,tenant_id,version,payload)
+        VALUES(#{row.resourceKey},#{row.tenantId},#{row.version},#{row.payload})
+    </insert>
+    <update id="replace">UPDATE arte_ai_model_sharing SET version=#{row.version},payload=#{row.payload}
+        WHERE resource_key=#{row.resourceKey} AND tenant_id=#{row.tenantId} AND version=#{expected}
+    </update>
+    <delete id="clearScopes">DELETE FROM arte_ai_model_use_scope WHERE resource_key=#{key}</delete>
+    <insert id="insertScope">INSERT INTO arte_ai_model_use_scope(resource_key,tenant_id,workspace_id)
+        VALUES(#{key},#{tenant},#{workspace})
+    </insert>
+</mapper>

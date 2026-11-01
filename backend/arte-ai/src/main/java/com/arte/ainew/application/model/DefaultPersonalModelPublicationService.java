@@ -73,6 +73,13 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
     private final WorkspaceStore workspaces;
     private final Clock clock;
     private final Supplier<ModelGateway> gateway;
+    private final TenantMembershipStore tenantMembers;
+    private final TenantStore tenants;
+    private com.arte.ainew.spi.model.ModelSharingStore sharing;
+
+    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing) {
+        this.sharing = sharing;
+    }
 
     public DefaultPersonalModelPublicationService(ModelResourceStore models, ModelDraftStore drafts, PersonalModelStore releases,
                                                   ModelConnectionTemplates templates, Supplier<PreparedConfiguration> catalog,
@@ -91,6 +98,8 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
         this.workspaces = workspaces;
         this.clock = clock;
         this.gateway = gateway;
+        this.tenantMembers = tenantMembers;
+        this.tenants = tenants;
         this.locks = new WorkspaceGovernanceLocks(tx, tenants, workspaces, tenantMembers, members, preferences);
         this.principals = new CurrentPrincipalResolver(identity);
         this.commands = new DefaultCommandExecutor(tx, principals, receipts, ids, clock);
@@ -110,7 +119,7 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
      */
     public ModelResource current(Scope scope, ResourceRef resource) {
         ModelResource value = models.findCurrent(resource).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        if (!value.ownership().tenantId().equals(scope.tenantId()) || !Objects.equals(value.ownership().workspaceId(), scope.workspaceId())) {
+        if (!value.ownership().tenantId().equals(scope.tenantId()) || !value.managementScope().equals(scope)) {
             throw error(PlatformErrorCodeEnum.NOT_FOUND);
         }
         return value;
@@ -238,13 +247,19 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
                     check(models.insertVersion(value));
                     check(releases.insert(release));
                     check(models.replace(new ModelResource(resource, old.ownership(), draft.name(), old.createdBy(), ModelResource.State.PUBLISHED,
-                            bindingRef.id(), nextVersion, old.createdAt()), old.version()));
+                            bindingRef.id(), nextVersion, old.createdAt(), old.managementScope()), old.version()));
                     // 在提交前校验实际目录容量和精确引用冲突，不提交无法装配的版本。
                     mergeDefinitions(reviewed.configuration(), releases.list(scope, true).stream()
                             .map(item -> models.findCurrentBinding(scope.tenantId(), item.binding()).orElseThrow().publication()).toList());
-                    Workspace workspace = locks.lockWorkspace(scope).orElseThrow();
-                    check(workspaces.replace(new Workspace(workspace.scope(), workspace.name(), workspace.description(), workspace.state(), workspace.createdBy(),
-                            Math.incrementExact(workspace.version()), Math.incrementExact(workspace.authEpoch()), workspace.createdAt(), PlatformTimes.notBefore(clock, workspace.updatedAt())), workspace.version()));
+                    if (old.ownership().workspaceId() == null) {
+                        com.arte.core.pojo.workspace.Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow();
+                        check(tenants.replace(new com.arte.core.pojo.workspace.Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(), tenant.createdBy(),
+                                Math.incrementExact(tenant.version()), Math.incrementExact(tenant.authEpoch()), tenant.createdAt(), PlatformTimes.notBefore(clock, tenant.updatedAt())), tenant.version()));
+                    } else {
+                        Workspace workspace = locks.lockWorkspace(scope).orElseThrow();
+                        check(workspaces.replace(new Workspace(workspace.scope(), workspace.name(), workspace.description(), workspace.state(), workspace.createdBy(),
+                                Math.incrementExact(workspace.version()), Math.incrementExact(workspace.authEpoch()), workspace.createdAt(), PlatformTimes.notBefore(clock, workspace.updatedAt())), workspace.version()));
+                    }
                     effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "model:personal:published", operation, nextVersion,
                             Map.of("resourceId", resource.resourceId(), "bindingId", bindingRef.id(), "bindingVersion", bindingRef.version()));
                     return new DefaultCommandExecutor.Result<>(value, nextVersion);
@@ -290,11 +305,12 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
     public PersonalModels.Status status(TrustedActor actor, Scope scope, ResourceRef resource, DefinitionRef binding) {
         return tx.required(() -> {
             lock(actor, scope);
-            current(scope, resource);
-            require(actor, scope, resource, MODEL_READ);
             PersonalModels.Release release = releases.find(scope, binding, true).filter(value -> value.resource().equals(resource))
                     .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-            String reason = readiness(actor, release);
+            lock(actor, release.scope());
+            current(release.scope(), resource);
+            require(actor, scope, resource, MODEL_READ);
+            String reason = readiness(actor, release, scope);
             List<String> budgets = List.of();
             if (reason == null) {
                 try {
@@ -320,6 +336,17 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
      * 调用方须已取得当前主体和范围门控；只返回安全状态码，不泄露凭据。
      */
     public String readiness(TrustedActor actor, PersonalModels.Release release) {
+        return readiness(actor, release, release.scope());
+    }
+
+    /**
+     * 实际使用空间独立于管理空间；同租户范围扩展仍在原父租户门控内。
+     */
+    public String readiness(TrustedActor actor, PersonalModels.Release release, Scope executionScope) {
+        if (!executionScope.tenantId().equals(release.scope().tenantId())) {
+            return "MODEL_USE_DENIED";
+        }
+        lock(actor, release.scope());
         ModelResource model = current(release.scope(), release.resource());
         if (model.state() != ModelResource.State.PUBLISHED) {
             return "MODEL_DISABLED";
@@ -329,8 +356,8 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
             return "ADAPTER_UNAVAILABLE";
         }
         try {
-            authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(release.scope(), WORKSPACE_AI_USE, "personal-model"));
-            require(actor, release.scope(), release.resource(), MODEL_USE);
+            authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(executionScope, WORKSPACE_AI_USE, "personal-model"));
+            require(actor, executionScope, release.resource(), MODEL_USE);
         } catch (PlatformException denied) {
             if (denied.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) {
                 throw denied;
@@ -343,12 +370,21 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
             return "CREDENTIAL_STALE";
         }
         if (!credential.responsibleSubjectId().equals(actor.principal().subjectId())) {
-            return "CREDENTIAL_USE_DENIED";
+            if (credential.kind() != com.arte.ainew.pojo.model.ModelDrafts.CredentialKind.TENANT || sharing == null || model.ownership().workspaceId() != null) {
+                return "CREDENTIAL_USE_DENIED";
+            }
+            com.arte.ainew.pojo.model.ModelSharingPolicy policy = sharing.find(model.resource(), true).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
+            com.arte.core.pojo.workspace.TenantMembership member = tenantMembers.lock(executionScope.tenantId(), actor.principal().subjectId()).orElse(null);
+            if (policy.credentialVersion() != credential.version() || member == null
+                    || member.state() != com.arte.core.enums.workspace.MembershipStateEnum.ACTIVE
+                    || !Objects.equals(policy.consumers().get(actor.principal().subjectId()), member.generation())) {
+                return "CREDENTIAL_USE_DENIED";
+            }
         }
         try {
-            if (!templates.digest(templates.require(release.scope(), release.template())).equals(release.templateDigest())) {
-                return "TEMPLATE_STALE";
-            }
+            // 运行出口取租户与实际使用空间政策，管理空间只用于维护，不替代目标空间准入。
+            if (!templates.digest(templates.require(executionScope, release.template())).equals(release.templateDigest())) {
+                return "TEMPLATE_STALE";}
         } catch (PlatformException denied) {
             if (denied.getCode() != PlatformErrorCodeEnum.ACCESS_DENIED) {
                 throw denied;

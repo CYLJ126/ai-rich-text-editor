@@ -104,7 +104,7 @@ public final class DefaultModelDraftService implements ModelDraftService {
     private ModelResource current(Scope scope, ResourceRef ref) {
         var value = models.findCurrent(ref).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         if (!ref.type().equals(MODEL) || !ref.tenantId().equals(scope.tenantId())
-                || !scope.workspaceId().equals(value.ownership().workspaceId()))
+                || !scope.equals(value.managementScope()))
             throw error(PlatformErrorCodeEnum.NOT_FOUND);
         return value;
     }
@@ -172,7 +172,7 @@ public final class DefaultModelDraftService implements ModelDraftService {
 
     private CredentialView view(TrustedActor actor, ResourceRef ref, Credential value) {
         return new CredentialView(ref.resourceId(), value == null ? "MISSING" : value.revoked() ? "REVOKED" : "CONFIGURED",
-                value == null ? 0 : value.version(), value != null && value.responsibleSubjectId().equals(actor.principal().subjectId()));
+                value == null ? 0 : value.version(), value != null && value.responsibleSubjectId().equals(actor.principal().subjectId()), value == null ? "PERSONAL" : value.kind().name());
     }
 
     @Override
@@ -215,15 +215,30 @@ public final class DefaultModelDraftService implements ModelDraftService {
         return DefaultCommandExecutor.digest(List.of("model-credential-v1", ref.tenantId(), scope.workspaceId(), ref.resourceId(), responsible, Long.toString(version)));
     }
 
+    public static String associatedData(Credential credential) {
+        String base = associatedData(credential.resource(), credential.scope(), credential.responsibleSubjectId(), credential.version());
+        return credential.kind() == CredentialKind.PERSONAL ? base : DefaultCommandExecutor.digest(List.of("tenant-credential-v1", base));
+    }
+
     @Override
     public CommandReceipt<CredentialView> replaceCredential(TrustedActor actor, CommandMeta meta, Scope scope, ResourceRef ref, long expected, String token) {
+        return replaceCredential(actor, meta, scope, ref, expected, token, CredentialKind.PERSONAL);
+    }
+
+    @Override
+    public CommandReceipt<CredentialView> replaceCredential(TrustedActor actor, CommandMeta meta, Scope scope, ResourceRef ref, long expected, String token, CredentialKind kind) {
         new BearerCredential(token); // 仅接受合法单行密钥；校验异常不包含密钥内容。
         return commands.execute(actor, meta, range(scope), "model:credential:replace", "model:credential:view:v1", CredentialView.class,
-                List.of(ref.resourceId(), Long.toString(expected), cipher.fingerprint(token)), () -> lock(actor, scope), value -> {
+                kind == CredentialKind.PERSONAL ? List.of(ref.resourceId(), Long.toString(expected), cipher.fingerprint(token))
+                        : List.of(ref.resourceId(), Long.toString(expected), cipher.fingerprint(token), kind.name()), () -> lock(actor, scope), value -> {
                     require(actor, scope, ref, MODEL_EDIT);
                     owner(actor, scope, store.credential(ref).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND)));
                 }, operation -> {
                     require(actor, scope, ref, MODEL_EDIT);
+                    ModelResource model = current(scope, ref);
+                    if ((model.ownership().workspaceId() == null) != (kind == CredentialKind.TENANT)) {
+                        throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+                    }
                     var draft = store.draft(ref).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
                     templates.require(scope, draft.settings().connectionTemplate());
                     var old = store.credential(ref).orElse(null);
@@ -231,9 +246,10 @@ public final class DefaultModelDraftService implements ModelDraftService {
                     check((old == null ? 0 : old.version()) == expected);
                     String responsible = actor.principal().subjectId();
                     long next = Math.incrementExact(expected);
-                    String encrypted = cipher.encrypt(token, associatedData(ref, scope, responsible, next));
+                    String aad = associatedData(ref, scope, responsible, next);
+                    String encrypted = cipher.encrypt(token, kind == CredentialKind.PERSONAL ? aad : DefaultCommandExecutor.digest(List.of("tenant-credential-v1", aad)));
                     var value = new Credential(ref, scope, old == null ? new DefinitionRef("secret", "personal-model-" + ids.nextId(), "v1") : old.secret(),
-                            responsible, cipher.activeKeyId(), encrypted, false, next, PlatformTimes.businessNow(clock));
+                            responsible, cipher.activeKeyId(), encrypted, false, next, PlatformTimes.businessNow(clock), kind);
                     check(store.saveCredential(value, expected));
                     event(actor, scope, ref, operation, "model:credential:replaced", next);
                     return new DefaultCommandExecutor.Result<>(view(actor, ref, value), next);
@@ -251,7 +267,7 @@ public final class DefaultModelDraftService implements ModelDraftService {
                     owner(actor, scope, old);
                     check(old.version() == expected);
                     var value = old.revoked() ? old : new Credential(ref, scope, old.secret(), old.responsibleSubjectId(), old.keyId(), null, true,
-                            Math.incrementExact(expected), PlatformTimes.businessNow(clock));
+                            Math.incrementExact(expected), PlatformTimes.businessNow(clock), old.kind());
                     if (!old.revoked()) check(store.saveCredential(value, expected));
                     event(actor, scope, ref, operation, "model:credential:revoked", value.version());
                     return new DefaultCommandExecutor.Result<>(view(actor, ref, value), value.version());
@@ -321,7 +337,7 @@ public final class DefaultModelDraftService implements ModelDraftService {
             var c = usableCredential(actor, scope, v.resource());
             var d = store.draft(v.resource()).orElseThrow();
             var connection = templates.require(scope, d.settings().connectionTemplate());
-            String plaintext = cipher.decrypt(c, associatedData(c.resource(), c.scope(), c.responsibleSubjectId(), c.version()));
+            String plaintext = cipher.decrypt(c, associatedData(c));
             change(v, ValidationState.RUNNING, "RUNNING");
             return Optional.of(new Probe(connection, d.settings().remoteModel(), plaintext));
         });

@@ -8,7 +8,7 @@ CREATE TABLE arte_ai_model_resource
     resource_key char(64) CHARACTER SET ascii COLLATE ascii_bin         NOT NULL COMMENT '租户 ID、model 资源类型及资源 ID 经长度前缀编码后的 SHA-256 摘要，用作物理主键；读取时仍核对完整资源身份',
     tenant_id    varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '模型管理资源所属租户 ID，与资源引用、主空间及载荷中的归属一致',
     resource_id  varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '服务器生成的稳定模型管理资源 ID；独立于 bindingRef，新发布版本沿用原资源身份及 ACL',
-    workspace_id varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '模型资源归属的主空间 ID，与租户 ID 共同限定范围；不表示已授权的其他使用空间',
+    workspace_id varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '模型固定管理空间；空间模型亦为归属空间，租户模型真实归属取载荷 ownership，使用范围另行授权',
     payload      longtext                                               NOT NULL COMMENT '模型管理元数据的固定结构 JSON：资源引用、归属、名称、创建者、状态、绑定族、版本及创建时间；不含凭据明文或预算账本',
     version      bigint                                                 NOT NULL COMMENT '管理资源乐观锁版本，初始为 0；关联新发布版本或停用时递增，通过 CAS 更新，与公共 ACL 版本独立',
     PRIMARY KEY (resource_key),

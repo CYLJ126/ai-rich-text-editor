@@ -27,7 +27,9 @@ export default function ModelsPage() {
         level={3}>模型管理</Typography.Title><Typography.Text>{workspace?.name ?? '尚未选择工作空间'}</Typography.Text>
       </div>
       <Flex gap={8} wrap><Button href="/Workspace/Policies" disabled={unsafe}>租户与空间政策</Button><Button
-        href="/AI/Connections" disabled={unsafe}>管理审核连接</Button><Button href="/AI/ModelPlans"
+        href="/AI/Connections" disabled={unsafe}>管理审核连接</Button><Button href="/AI/ModelSharing"
+                                                                              disabled={unsafe}>租户模型与授权</Button><Button
+        href="/AI/ModelPlans"
                                                                               disabled={unsafe}>审核模型与费率</Button><Button
         disabled={unsafe}
                                  onClick={() => setShowSpaces(value => !value)}>选择工作空间</Button><Button

@@ -303,6 +303,18 @@ public final class DefaultResourceAccessService implements ResourceAccessService
             throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
         }
         Scope scope = new Scope(descriptor.ownership().tenantId(), descriptor.ownership().workspaceId());
+        return registerInScope(actor, descriptor, scope, meta);
+    }
+
+    @Override
+    public ResourceAccess registerTenantCreated(TrustedActor actor, ResourceDescriptor descriptor, Scope scope, CommandMeta meta) {
+        if (descriptor.ownership().workspaceId() != null || !descriptor.ownership().tenantId().equals(scope.tenantId())) {
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        }
+        return tx.required(() -> registerInScope(actor, descriptor, scope, meta));
+    }
+
+    private ResourceAccess registerInScope(TrustedActor actor, ResourceDescriptor descriptor, Scope scope, CommandMeta meta) {
         List<String> fields = fields(scope, descriptor.resource(), descriptor.version());
         fields.add(descriptor.createdBy());
         fields.add(descriptor.domainState());
@@ -322,6 +334,10 @@ public final class DefaultResourceAccessService implements ResourceAccessService
                         throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
                     }
                     Action create = creation(descriptor.resource().type());
+                    if (descriptor.ownership().workspaceId() == null) {
+                        authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.tenantRequest(scope.tenantId(),
+                                TENANT_POLICY_WRITE, "tenant-resource-create"));
+                    }
                     authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, create, "resource-create"));
                     ResourceAccess root = new ResourceAccess(descriptor.resource(), descriptor.ownership(), ResourceVisibilityEnum.EXPLICIT, 0);
                     // 保存资源 ACL 根，即保存资源整体的访问配置。

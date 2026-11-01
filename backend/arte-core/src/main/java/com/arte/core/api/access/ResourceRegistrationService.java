@@ -24,4 +24,12 @@ public interface ResourceRegistrationService {
      * @return 已登记的资源 ACL 根记录
      */
     ResourceAccess registerCreated(TrustedActor actor, ResourceDescriptor descriptor, CommandMeta meta);
+
+    /**
+     * 在明确管理空间的原创建事务内登记租户资源；同时要求租户治理和空间创建资格。
+     */
+    default ResourceAccess registerTenantCreated(TrustedActor actor, ResourceDescriptor descriptor,
+                                                 com.arte.core.pojo.platform.Scope managementScope, CommandMeta meta) {
+        throw new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "tenant-resource");
+    }
 }

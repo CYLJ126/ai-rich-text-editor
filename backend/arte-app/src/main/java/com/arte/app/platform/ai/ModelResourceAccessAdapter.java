@@ -25,6 +25,11 @@ import static com.arte.core.constant.platform.PlatformResourceTypes.MODEL;
 public final class ModelResourceAccessAdapter implements ResourceDescriptorProvider, DomainAccessConditionProvider {
 
     private final ModelResourceStore store;
+    private com.arte.ainew.spi.model.ModelSharingStore sharing;
+
+    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing) {
+        this.sharing = sharing;
+    }
 
     public ModelResourceAccessAdapter(ModelResourceStore store) {
         this.store = store;
@@ -54,11 +59,28 @@ public final class ModelResourceAccessAdapter implements ResourceDescriptorProvi
     public AccessReasonEnum evaluate(TrustedActor actor, AccessRequest request, ResourceDescriptor descriptor, VerifiedScope scope) {
         if (MODEL_USE.equals(request.action()) && !descriptor.domainState().equals(ModelResource.State.PUBLISHED.name()))
             return AccessReasonEnum.DOMAIN_DENIED;
-        return AccessReasonEnum.ALLOWED;
+        return range(request, descriptor, false);
     }
 
     @Override
     public AccessReasonEnum evaluateCurrent(TrustedActor actor, AccessRequest request, ResourceDescriptor descriptor, VerifiedScope scope) {
-        return evaluate(actor, request, descriptor, scope); // 所有状态只取自传入的当前可信描述，无第二套快照。
+        if (MODEL_USE.equals(request.action()) && !descriptor.domainState().equals(ModelResource.State.PUBLISHED.name())) {
+            return AccessReasonEnum.DOMAIN_DENIED;
+        }
+        return range(request, descriptor, true);
+    }
+
+    private AccessReasonEnum range(AccessRequest request, ResourceDescriptor descriptor, boolean current) {
+        if (!MODEL_USE.equals(request.action()) || descriptor.ownership().workspaceId() != null) {
+            return AccessReasonEnum.ALLOWED;
+        }
+        if (sharing == null) {
+            return AccessReasonEnum.AUTHORITY_UNAVAILABLE;
+        }
+        com.arte.ainew.pojo.model.ModelSharingPolicy policy = sharing.find(request.resource(), current).orElse(null);
+        if (policy == null) {
+            return AccessReasonEnum.AUTHORITY_UNAVAILABLE;
+        }
+        return policy.workspaceIds().contains(request.scope().workspaceId()) ? AccessReasonEnum.ALLOWED : AccessReasonEnum.DOMAIN_DENIED;
     }
 }

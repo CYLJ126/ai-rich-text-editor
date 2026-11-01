@@ -11,6 +11,9 @@ import java.util.List;
  * @since 2026/10/31 20:55 ✾
  */
 public interface PlatformPersonalModelMapper {
+    Row findShared(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("binding") String binding, @Param("current") boolean current);
+
+    List<Row> listShared(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("current") boolean current);
 
     /**
      * 发布证据数据库行。

@@ -40,7 +40,7 @@ export const modelStatusText: Record<string, string> = {
   ADAPTER_UNAVAILABLE: '当前部署不支持此发布的生成协议或能力。',
   MODEL_USE_DENIED: '当前没有模型或空间 AI 使用权限。',
   CREDENTIAL_STALE: '凭据已撤销或轮换，请由责任主体重新验证并发布。',
-  CREDENTIAL_USE_DENIED: '此模型使用他人的个人凭据；分享模型不转交个人密钥用途。',
+  CREDENTIAL_USE_DENIED: '当前没有此凭据的使用资格；个人密钥仅本人可用，租户凭据须由责任主体单独授权。',
   TEMPLATE_STALE: '连接模板已变化，请重新检查配置、验证并发布。',
   TEMPLATE_UNAVAILABLE: '连接模板或当前政策已不可用，请联系空间负责人。',
   NO_COMPATIBLE_BUDGET: '已发布，但缺少本人兼容预算。请联系空间负责人；发布不会创建预算或提高额度。',

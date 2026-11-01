@@ -34,8 +34,8 @@ const stateName = {DRAFT: '草稿', PUBLISHED: '已发布', DISABLED: '已停用
 const commandName = {
   create: '创建模型',
   save: '保存草稿',
-  credential: '保存个人密钥',
-  revoke: '撤销个人密钥',
+  credential: '保存凭据',
+  revoke: '撤销凭据',
   validate: '连接验证',
   publish: '发布版本',
   disable: '停用模型'
@@ -134,7 +134,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
     <Flex vertical gap={10} className="personal-models-intro">
       <Typography.Text strong>我可管理的模型</Typography.Text>
       <Typography.Paragraph
-        type="secondary">当前空间中有读取资格的模型，包含草稿、停用和缺少预算项。模型归空间，个人密钥只由责任主体维护和使用。
+        type="secondary">当前管理空间中有读取资格的模型，包含草稿、停用和缺少预算项。个人密钥仅本人可用，租户凭据须另行授权用途。
       </Typography.Paragraph>
       {vm.closed && <Alert type="warning" title="账号会话已结束，请重新登录后打开模型管理。"/>}
       {vm.error && <Alert type="warning" showIcon title={vm.error}/>}
@@ -274,7 +274,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
               type="secondary">保存只修改草稿，不改变已发布版本。远端模型及费率还须匹配平台审核方案。</Typography.Paragraph>
           </Card>
 
-          <Card size="small" title="个人凭据">
+          <Card size="small" title={detail.model.ownershipType === 'TENANT' ? '租户凭据' : '个人凭据'}>
             <Flex vertical gap={8}>
               <Typography.Text>
                 {credential?.state === 'MISSING' ? '尚未配置密钥' : credential?.state === 'REVOKED' ? '密钥已撤销' : '密钥已配置，不能读取原值'}
@@ -283,22 +283,23 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
               {!canCredential && <Typography.Text
                 type="secondary">当前不能维护此密钥。编辑或使用模型不自动转交凭据责任。</Typography.Text>}
 
-              <Input.Password aria-label="个人 API 密钥"
+              <Input.Password aria-label={detail.model.ownershipType === 'TENANT' ? '租户 API 密钥' : '个人 API 密钥'}
                               value={token}
                               onChange={event => setToken(event.target.value)}
                               disabled={disabled || !canCredential || !draft}
                               visibilityToggle={false} autoComplete="new-password"
                               maxLength={8192}
-                              placeholder="仅输入本人提供的密钥"/>
+                              placeholder={detail.model.ownershipType === 'TENANT' ? '仅输入有权提供给该租户使用的密钥' : '仅输入本人提供的密钥'}/>
 
               <Button disabled={disabled || dirty || !draft || !canCredential || !token}
                       onClick={() => {
                         if (credential) void submit('credential', {
                           ...located,
-                          expectedVersion: credential.version
+                          expectedVersion: credential.version,
+                          ...(detail.model.ownershipType === 'TENANT' ? {credentialKind: 'TENANT' as const} : {}),
                         }, token);
                       }}>
-                保存或替换本人密钥
+                {detail.model.ownershipType === 'TENANT' ? '保存或替换租户密钥' : '保存或替换本人密钥'}
               </Button>
 
               <Popconfirm title="撤销本人密钥？旧发布将停止新调用，历史和费用记录保留。"
@@ -313,7 +314,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
               </Popconfirm>
 
               <Typography.Text
-                type="secondary">密钥不写入本地或会话存储。替换后须重新验证并发布，旧代次不会自动升级。</Typography.Text>
+                type="secondary">密钥不写入本地或会话存储。租户密钥须另行授权用途，模型共享不会转交个人密钥。替换后须重新验证并发布，旧代次不会自动升级。</Typography.Text>
             </Flex>
           </Card>
 

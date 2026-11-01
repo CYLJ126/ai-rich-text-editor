@@ -72,7 +72,8 @@ public final class ModelDraftPayload {
      */
     public record CredentialRequest(@NotNull Scope scope, @NotBlank @Size(max = 256) String resourceId,
                                     @NotNull @Min(0) Long expectedVersion,
-                                    @NotBlank @Size(max = 8192) String token) implements StrictPlatformRequest {
+                                    @NotBlank @Size(max = 8192) String token,
+                                    @Pattern(regexp = "PERSONAL|TENANT") String credentialKind) implements StrictPlatformRequest {
         @Override
         public @NonNull String toString() {
             return "CredentialRequest[REDACTED]";

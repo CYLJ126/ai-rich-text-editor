@@ -213,7 +213,7 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
 
     static void validate(Scope scope, ModelAccessCandidate candidate, ModelResourceVersion version, ModelResource resource) {
         if (!version.resource().equals(resource.resource()) || !scope.tenantId().equals(resource.ownership().tenantId())
-                || !scope.workspaceId().equals(resource.ownership().workspaceId())
+                || resource.ownership().workspaceId() != null && !scope.workspaceId().equals(resource.ownership().workspaceId())
                 || !candidate.binding().definition().equals(version.publication().binding().definition())
                 || !Objects.equals(resource.bindingId(), candidate.binding().definition().id())
                 || !candidate.publication(version.publication()).contentDigest().equals(version.publication().contentDigest())) {

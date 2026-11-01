@@ -16,6 +16,7 @@ export const connectionRefSchema = ref('connection');
 export const modelResourceSchema = z.object({
   resourceId: id, scope: workspaceScopeSchema, name: z.string().min(1).max(100), createdBy: id,
   state: z.enum(['DRAFT', 'PUBLISHED', 'DISABLED']), bindingId: id.nullable(), version, createdAt: z.string(),
+  ownershipType: z.enum(['WORKSPACE', 'TENANT']).optional(),
 });
 export const modelFieldsSchema = z.object({
   name: z.string().trim().min(1).max(100), connectionTemplate: connectionRefSchema,
@@ -33,7 +34,7 @@ const credentialSchema = z.object({
   resourceId: id,
   state: z.enum(['MISSING', 'CONFIGURED', 'REVOKED']),
   version,
-  mayMaintain: z.boolean()
+  mayMaintain: z.boolean(), kind: z.enum(['PERSONAL', 'TENANT']).optional(),
 });
 export const modelDraftSchema = z.object({draft: draftSchema.nullable(), credential: credentialSchema});
 export const modelValidationSchema = z.object({
@@ -188,7 +189,11 @@ export const modelCommandSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('credential'),
     key: id,
-    request: z.object({...located, expectedVersion: version}).strict()
+    request: z.object({
+      ...located,
+      expectedVersion: version,
+      credentialKind: z.enum(['PERSONAL', 'TENANT']).optional()
+    }).strict()
   }).strict(),
   z.object({
     kind: z.literal('revoke'),

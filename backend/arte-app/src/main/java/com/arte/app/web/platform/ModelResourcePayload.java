@@ -74,10 +74,10 @@ public final class ModelResourcePayload {
     }
 
     public record Resource(String resourceId, Scope scope, String name, String createdBy, String state,
-                           String bindingId, long version, Instant createdAt) {
+                           String bindingId, long version, Instant createdAt, String ownershipType) {
         public static Resource from(ModelResource value) {
-            return new Resource(value.resource().resourceId(), new Scope(value.ownership().tenantId(), value.ownership().workspaceId()),
-                    value.name(), value.createdBy(), value.state().name(), value.bindingId(), value.version(), value.createdAt());
+            return new Resource(value.resource().resourceId(), value.managementScope(),
+                    value.name(), value.createdBy(), value.state().name(), value.bindingId(), value.version(), value.createdAt(), value.ownership().type().name());
         }
     }
 

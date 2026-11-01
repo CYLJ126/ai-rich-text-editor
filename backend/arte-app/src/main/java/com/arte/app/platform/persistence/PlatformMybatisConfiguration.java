@@ -51,12 +51,18 @@ public class PlatformMybatisConfiguration {
                 PlatformOutboxMapper.class, PlatformAuditMapper.class)) {
             configuration.addMapper(mapper);
         }
+        configuration.addMapper(PlatformModelSharingMapper.class);
         return new PlatformMybatisSession(new MybatisSqlSessionFactoryBuilder().build(configuration));
     }
 
     @Bean
     PlatformModelDraftMapper platformModelDraftMapper(PlatformMybatisSession session) {
         return session.mapper(PlatformModelDraftMapper.class);
+    }
+
+    @Bean
+    PlatformModelSharingMapper platformModelSharingMapper(PlatformMybatisSession session) {
+        return session.mapper(PlatformModelSharingMapper.class);
     }
 
     @Bean

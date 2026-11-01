@@ -52,6 +52,19 @@ public final class DefaultModelResourceService implements ModelResourceService {
     private final WorkspaceStore workspaces;
     private final PlatformIdGenerator ids;
     private final Clock clock;
+    private final TenantStore tenants;
+    private com.arte.ainew.spi.model.ModelSharingStore sharing;
+    private java.util.function.Consumer<TrustedActor> tenantCreation = actor -> {
+        throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
+    };
+
+    public void tenantCreation(java.util.function.Consumer<TrustedActor> permission) {
+        this.tenantCreation = permission;
+    }
+
+    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing) {
+        this.sharing = sharing;
+    }
 
     public DefaultModelResourceService(ModelResourceStore store, ModelPublicationSource publications, PublicTransactionRunner tx,
                                        IdentityProvider identity, TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers,
@@ -66,6 +79,7 @@ public final class DefaultModelResourceService implements ModelResourceService {
         this.registration = registration;
         this.ids = ids;
         this.clock = clock;
+        this.tenants = tenants;
         this.locks = new WorkspaceGovernanceLocks(tx, tenants, workspaces, tenantMembers, members, preferences);
         this.commands = new DefaultCommandExecutor(tx, new CurrentPrincipalResolver(identity), receipts, ids, clock);
         this.effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
@@ -82,7 +96,7 @@ public final class DefaultModelResourceService implements ModelResourceService {
     private ModelResource current(Scope scope, ResourceRef ref) {
         ModelResource value = store.findCurrent(ref).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         if (!value.resource().equals(ref) || !scope.tenantId().equals(value.ownership().tenantId())
-                || !scope.workspaceId().equals(value.ownership().workspaceId())) {
+                || !scope.equals(value.managementScope())) {
             throw error(PlatformErrorCodeEnum.NOT_FOUND);
         }
         return value;
@@ -90,17 +104,39 @@ public final class DefaultModelResourceService implements ModelResourceService {
 
     @Override
     public CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command) {
-        return commands.execute(actor, command.meta(), range(command.scope()), "model:create", "model:resource:v1", ModelResource.class, List.of(command.name()),
+        return create(actor, command, false);
+    }
+
+    @Override
+    public CommandReceipt<ModelResource> createTenant(TrustedActor actor, ModelResourceCommands.Create command) {
+        if (sharing == null) {
+            throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
+        }
+        return create(actor, command, true);
+    }
+
+    private CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command, boolean tenant) {
+        return commands.execute(actor, command.meta(), range(command.scope()), tenant ? "model:tenant:create" : "model:create", "model:resource:v1", ModelResource.class, List.of(command.name()),
                 () -> lock(actor, command.scope()), value -> {
                     current(command.scope(), value.resource());
                     require(actor, command.scope(), value.resource(), MODEL_READ);
                 }, operation -> {
                     authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(command.scope(), MODEL_CREATE, "model-create"));
+                    if (tenant) {
+                        authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.tenantRequest(command.scope().tenantId(), TENANT_POLICY_WRITE, "tenant-model-create"));
+                        tenantCreation.accept(actor);
+                    }
                     ModelResource value = new ModelResource(new ResourceRef(command.scope().tenantId(), MODEL, ids.nextId()),
-                            new ResourceOwnership(ResourceOwnershipTypeEnum.WORKSPACE, command.scope().tenantId(), command.scope().workspaceId()), command.name(),
-                            actor.principal().subjectId(), ModelResource.State.DRAFT, null, 0, PlatformTimes.businessNow(clock));
+                            new ResourceOwnership(tenant ? ResourceOwnershipTypeEnum.TENANT : ResourceOwnershipTypeEnum.WORKSPACE,
+                                    command.scope().tenantId(), tenant ? null : command.scope().workspaceId()), command.name(),
+                            actor.principal().subjectId(), ModelResource.State.DRAFT, null, 0, PlatformTimes.businessNow(clock), command.scope());
                     check(store.insert(value));
-                    registration.registerCreated(actor, value.descriptor(), new CommandMeta("model-register:" + operation, command.meta().traceId()));
+                    if (tenant) {
+                        check(sharing.insert(com.arte.ainew.pojo.model.ModelSharingPolicy.initial(value)));
+                        registration.registerTenantCreated(actor, value.descriptor(), command.scope(), new CommandMeta("model-register:" + operation, command.meta().traceId()));
+                    } else {
+                        registration.registerCreated(actor, value.descriptor(), new CommandMeta("model-register:" + operation, command.meta().traceId()));
+                    }
                     effects.append(actor, range(command.scope()), "model:created", operation, 0, Map.of("resourceId", value.resource().resourceId()));
                     return new DefaultCommandExecutor.Result<>(value, 0);
                 });
@@ -123,6 +159,10 @@ public final class DefaultModelResourceService implements ModelResourceService {
                 }, operation -> {
                     ModelResource oldModelResource = current(command.scope(), command.resource());
                     require(actor, command.scope(), command.resource(), MODEL_PUBLISH);
+                    // 租户发布必须经过草稿、租户凭据及验证流程，不能借旧目录采用绕过范围与用途门控。
+                    if (oldModelResource.ownership().workspaceId() == null) {
+                        throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
+                    }
                     check(oldModelResource.version() == command.expectedVersion());
                     if (oldModelResource.bindingId() != null && !oldModelResource.bindingId().equals(command.binding().id())) {
                         throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
@@ -146,7 +186,7 @@ public final class DefaultModelResourceService implements ModelResourceService {
                     ModelResourceVersion value = new ModelResourceVersion(oldModelResource.resource(), published, actor.principal().subjectId(), PlatformTimes.businessNow(clock));
                     check(store.insertVersion(value));
                     ModelResource next = new ModelResource(oldModelResource.resource(), oldModelResource.ownership(), oldModelResource.name(), oldModelResource.createdBy(), ModelResource.State.PUBLISHED, command.binding().id(),
-                            Math.incrementExact(oldModelResource.version()), oldModelResource.createdAt());
+                            Math.incrementExact(oldModelResource.version()), oldModelResource.createdAt(), oldModelResource.managementScope());
                     check(store.replace(next, oldModelResource.version()));
                     bump(actor, command.scope(), next, operation, "model:version:associated");
                     return new DefaultCommandExecutor.Result<>(value, next.version());
@@ -172,7 +212,7 @@ public final class DefaultModelResourceService implements ModelResourceService {
                     if (old.state() == ModelResource.State.DISABLED) {
                         return new DefaultCommandExecutor.Result<>(old, old.version());
                     }
-                    ModelResource next = new ModelResource(old.resource(), old.ownership(), old.name(), old.createdBy(), ModelResource.State.DISABLED, old.bindingId(), Math.incrementExact(old.version()), old.createdAt());
+                    ModelResource next = new ModelResource(old.resource(), old.ownership(), old.name(), old.createdBy(), ModelResource.State.DISABLED, old.bindingId(), Math.incrementExact(old.version()), old.createdAt(), old.managementScope());
                     check(store.replace(next, old.version()));
                     bump(actor, c.scope(), next, operation, "model:disabled");
                     return new DefaultCommandExecutor.Result<>(next, next.version());
@@ -200,6 +240,13 @@ public final class DefaultModelResourceService implements ModelResourceService {
     }
 
     private void bump(TrustedActor actor, Scope scope, ModelResource value, String operation, String event) {
+        if (value.ownership().workspaceId() == null) {
+            com.arte.core.pojo.workspace.Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow();
+            check(tenants.replace(new com.arte.core.pojo.workspace.Tenant(tenant.id(), tenant.name(), tenant.type(), tenant.personalSubjectId(), tenant.state(), tenant.createdBy(),
+                    Math.incrementExact(tenant.version()), Math.incrementExact(tenant.authEpoch()), tenant.createdAt(), PlatformTimes.notBefore(clock, tenant.updatedAt())), tenant.version()));
+            effects.append(actor, range(scope), event, operation, value.version(), Map.of("resourceId", value.resource().resourceId()));
+            return;
+        }
         Workspace w = locks.lockWorkspace(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         check(workspaces.replace(new Workspace(w.scope(), w.name(), w.description(), w.state(), w.createdBy(), Math.incrementExact(w.version()),
                 Math.incrementExact(w.authEpoch()), w.createdAt(), PlatformTimes.notBefore(clock, w.updatedAt())), w.version()));

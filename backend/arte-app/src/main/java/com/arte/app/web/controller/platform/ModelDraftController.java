@@ -96,7 +96,7 @@ public class ModelDraftController {
     public Mono<ResultContext<CommandReceipt<CredentialView>>> replace(Authentication auth, @Valid @RequestBody CredentialRequest request,
                                                                        @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         return executor.call(auth, actor -> service.replaceCredential(actor, meta(key, http), request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()),
-                request.expectedVersion(), request.token())).map(v -> ok(v, locale));
+                request.expectedVersion(), request.token(), request.credentialKind() == null ? CredentialKind.PERSONAL : CredentialKind.valueOf(request.credentialKind()))).map(v -> ok(v, locale));
     }
 
     /**

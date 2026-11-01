@@ -8,6 +8,7 @@ export default {
   'menu.AI.Connections': '连接管理',
   'menu.Workspace.Policies': '租户与空间政策',
   'menu.AI.ModelPlans': '审核模型与费率',
+  'menu.AI.ModelSharing': '租户模型与授权',
   'menu.HomePage': '首页',
   'menu.welcome': '欢迎',
   'menu.more-blocks': '更多区块',

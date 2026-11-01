@@ -20,6 +20,16 @@ import java.util.List;
  * @since 2026/10/31 15:55 ✾
  */
 public interface ModelDraftService {
+    /**
+     * 显式指定个人或租户凭据，不因模型分享自动转交用途。
+     */
+    default CommandReceipt<CredentialView> replaceCredential(TrustedActor actor, CommandMeta meta, Scope scope,
+                                                             ResourceRef resource, long expectedVersion, String token, CredentialKind kind) {
+        if (kind != CredentialKind.PERSONAL) {
+            throw new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "tenant-credential");
+        }
+        return replaceCredential(actor, meta, scope, resource, expectedVersion, token);
+    }
 
     /**
      * 分批查询当前空间中操作者具有 model:read 权限的模型管理资源，不按创建者身份代替授权过滤。

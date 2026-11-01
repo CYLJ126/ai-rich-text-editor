@@ -32,8 +32,11 @@ import java.time.Clock;
 public class PlatformModelResourceConfiguration {
 
     @Bean
-    ModelResourceAccessAdapter modelResourceAccessAdapter(ModelResourceStore store) {
-        return new ModelResourceAccessAdapter(store);
+    ModelResourceAccessAdapter modelResourceAccessAdapter(ModelResourceStore store,
+                                                          org.springframework.beans.factory.ObjectProvider<com.arte.ainew.spi.model.ModelSharingStore> sharing) {
+        ModelResourceAccessAdapter adapter = new ModelResourceAccessAdapter(store);
+        adapter.sharing(sharing.getIfAvailable());
+        return adapter;
     }
 
     @Bean
@@ -47,7 +50,20 @@ public class PlatformModelResourceConfiguration {
                                               @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, IdentityProvider identity, TenantStore tenants, WorkspaceStore workspaces,
                                               TenantMembershipStore tenantMembers, WorkspaceMembershipStore members, PreferenceStore preferences,
                                               @Qualifier("platformAuthorizationService") AuthorizationService authorization, ResourceRegistrationService registration,
-                                              CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new DefaultModelResourceService(store, publications, tx, identity, tenants, workspaces, tenantMembers, members, preferences, authorization, registration, receipts, outbox, audit, ids, clock);
+                                              CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock,
+                                              org.springframework.beans.factory.ObjectProvider<com.arte.ainew.spi.model.ModelSharingStore> sharing,
+                                              RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource source) {
+        DefaultModelResourceService service = new DefaultModelResourceService(store, publications, tx, identity, tenants, workspaces, tenantMembers, members, preferences, authorization, registration, receipts, outbox, audit, ids, clock);
+        service.sharing(sharing.getIfAvailable());
+        RbacToolPermissionReader permissions = new RbacToolPermissionReader(source);
+        service.tenantCreation(actor -> {
+            String name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() ->
+                    new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.UNAUTHENTICATED, "tenant-model"));
+            java.util.Set<String> current = permissions.current(name);
+            if (!current.contains("tenantModel:create") && !current.contains("aiConfiguration:manage") && !current.contains("admin")) {
+                throw new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.ACCESS_DENIED, "tenant-model");
+            }
+        });
+        return service;
     }
 }

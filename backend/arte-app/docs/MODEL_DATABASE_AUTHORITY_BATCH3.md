@@ -12,6 +12,8 @@
 `model:publish`、本人凭据责任、成功验证及当前政策，不要求平台管理权限。 本批没有新增表或 DDL，复用 `arte_ai_control_revision`
 、head、公共命令回执、审计和 Outbox。 租户级模型、跨空间使用和团队凭据用途仍属第四批，旧目录迁移仍属第五批。
 
+后续[第四批](MODEL_DATABASE_AUTHORITY_BATCH4.md)已交付租户模型、同租户跨空间准入、授权页面及独立租户凭据用途；上述内容保留第三批当时边界。
+
 ## 页面操作
 
 1. 平台管理员在 `/AI/Connections` 登记并启用受支持的审核连接。

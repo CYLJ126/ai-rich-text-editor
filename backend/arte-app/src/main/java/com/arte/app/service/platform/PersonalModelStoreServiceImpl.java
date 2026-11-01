@@ -28,6 +28,13 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
         implements PersonalModelStore {
     private final PlatformPersonalModelMapper mapper;
     private final PlatformJson json;
+    private com.arte.ainew.spi.model.ModelSharingStore sharing;
+    private com.arte.ainew.spi.model.ModelResourceStore models;
+
+    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing, com.arte.ainew.spi.model.ModelResourceStore models) {
+        this.sharing = sharing;
+        this.models = models;
+    }
 
     public PersonalModelStoreServiceImpl(PlatformModelResourceMapper resources, PlatformPersonalModelMapper mapper,
                                          PublicTransactionRunner tx, PlatformJson json) {
@@ -64,8 +71,15 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
     @Override
     public Optional<Release> find(Scope scope, DefinitionRef binding, boolean current) {
         gate(scope, current);
-        return Optional.ofNullable(mapper.find(scopeKey(scope), bindingKey(scope, binding), current)).map(row -> {
-            Release release = decode(scope, row);
+        if (sharing != null) {
+            sharing.validateTenant(scope.tenantId(), current);
+        }
+        PlatformPersonalModelMapper.Row row = mapper.find(scopeKey(scope), bindingKey(scope, binding), current);
+        if (row == null && sharing != null) {
+            row = mapper.findShared(scope.tenantId(), scope.workspaceId(), bindingKey(scope, binding), current);
+        }
+        return Optional.ofNullable(row).map(found -> {
+            Release release = decodeForUse(scope, found, current);
             if (!release.binding().equals(binding)) {
                 throw new IllegalStateException("Personal binding mismatch");
             }
@@ -76,11 +90,48 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
     @Override
     public List<Release> list(Scope scope, boolean current) {
         gate(scope, current);
-        List<PlatformPersonalModelMapper.Row> rows = mapper.list(scopeKey(scope), current);
-        if (rows.size() > 256) {
+        if (sharing != null) {
+            sharing.validateTenant(scope.tenantId(), current);
+        }
+        java.util.Map<String, Release> values = new java.util.LinkedHashMap<>();
+        List<PlatformPersonalModelMapper.Row> rows = new java.util.ArrayList<>(mapper.list(scopeKey(scope), current));
+        if (sharing != null) {
+            rows.addAll(mapper.listShared(scope.tenantId(), scope.workspaceId(), current));
+        }
+        for (PlatformPersonalModelMapper.Row row : rows) {
+            Release release = decodeForUse(scope, row, current);
+            Release previous = values.putIfAbsent(row.bindingKey(), release);
+            if (previous != null && !previous.equals(release)) {
+                throw new IllegalStateException("Conflicting shared release");
+            }
+        }
+        if (values.size() > 256) {
             throw new IllegalStateException("Personal publication limit exceeded");
         }
-        return rows.stream().map(row -> decode(scope, row)).toList();
+        return List.copyOf(values.values());
+    }
+
+    private Release decodeForUse(Scope scope, PlatformPersonalModelMapper.Row row, boolean current) {
+        Release release = json.read(row.payload(), Release.class);
+        decode(release.scope(), row);
+        if (!release.resource().tenantId().equals(scope.tenantId())) {
+            throw new IllegalStateException("Cross tenant release");
+        }
+        if (sharing != null) {
+            com.arte.ainew.pojo.model.ModelResource model = (current ? models.findCurrent(release.resource()) : models.find(release.resource())).orElseThrow();
+            if (model.ownership().workspaceId() == null) {
+                com.arte.ainew.pojo.model.ModelSharingPolicy policy = sharing.find(model.resource(), current).orElseThrow();
+                if (!model.managementScope().equals(release.scope()) || !policy.managementScope().equals(release.scope())
+                        || !scope.equals(release.scope()) && !policy.workspaceIds().contains(scope.workspaceId())) {
+                    throw new IllegalStateException("Invalid tenant model use scope");
+                }
+                return release;
+            }
+        }
+        if (!release.scope().equals(scope)) {
+            throw new IllegalStateException("Workspace publication cannot cross scopes");
+        }
+        return release;
     }
 
     @Override

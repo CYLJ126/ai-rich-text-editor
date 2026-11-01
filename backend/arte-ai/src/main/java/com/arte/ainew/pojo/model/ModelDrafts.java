@@ -88,10 +88,19 @@ public final class ModelDrafts {
      * @param revoked              是否已撤销，撤销记录不能继续提供解密及验证用途
      * @param version              凭据乐观锁及业务代次；首次持久化为 1，替换或首次撤销时递增
      * @param updatedAt            当前凭据版本的业务更新时间
+     * @param kind                 PERSONAL 仅本人使用；TENANT 额外要求精确代次的独立用途授权
      */
+    public enum CredentialKind {PERSONAL, TENANT}
+
     public record Credential(ResourceRef resource, Scope scope, DefinitionRef secret, String responsibleSubjectId,
-                             String keyId, String ciphertext, boolean revoked, long version, Instant updatedAt) {
+                             String keyId, String ciphertext, boolean revoked, long version, Instant updatedAt,
+                             CredentialKind kind) {
+        public Credential(ResourceRef resource, Scope scope, DefinitionRef secret, String responsibleSubjectId,
+                          String keyId, String ciphertext, boolean revoked, long version, Instant updatedAt) {
+            this(resource, scope, secret, responsibleSubjectId, keyId, ciphertext, revoked, version, updatedAt, CredentialKind.PERSONAL);
+        }
         public Credential {
+            kind = kind == null ? CredentialKind.PERSONAL : kind;
             scopeMatches(resource, scope);
             Objects.requireNonNull(resource);
             Objects.requireNonNull(scope);
@@ -115,8 +124,16 @@ public final class ModelDrafts {
      * @param state       脱敏状态：MISSING 未提供、CONFIGURED 已配置、REVOKED 已撤销
      * @param version     当前或回执对应的凭据版本；尚未提供时为 0
      * @param mayMaintain 当前操作者是否匹配已登记责任主体；只是维护提示，不替代实际操作的身份及权限复核
+     * @param kind        安全凭据类型，不包含密钥、密文或内部成员代次
      */
-    public record CredentialView(String resourceId, String state, long version, boolean mayMaintain) {
+    public record CredentialView(String resourceId, String state, long version, boolean mayMaintain, String kind) {
+        public CredentialView {
+            kind = kind == null ? CredentialKind.PERSONAL.name() : kind;
+        }
+
+        public CredentialView(String resourceId, String state, long version, boolean mayMaintain) {
+            this(resourceId, state, version, mayMaintain, CredentialKind.PERSONAL.name());
+        }
     }
 
     /**

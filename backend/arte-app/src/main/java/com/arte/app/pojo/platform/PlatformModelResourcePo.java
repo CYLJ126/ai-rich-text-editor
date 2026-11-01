@@ -25,6 +25,9 @@ public class PlatformModelResourcePo implements Serializable {
     private String resourceKey;
     private String tenantId;
     private String resourceId;
+    /**
+     * 固定管理空间；租户模型的归属与允许使用空间不能从此列推断。
+     */
     private String workspaceId;
     private String payload;
     private Long version;

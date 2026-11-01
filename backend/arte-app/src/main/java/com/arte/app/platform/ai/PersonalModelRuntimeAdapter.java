@@ -24,7 +24,7 @@ import java.util.*;
 import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
 
 /**
- * 将本空间个人发布接入唯一控制目录及公共模型资格，不修改原 Grant、预算或执行主体。
+ * 将空间发布和显式准入的租户模型接入唯一控制目录，不修改原 Grant、预算或执行主体。
  * 个人命名空间始终受保护，不以旧授权兜底；发现与执行均校验不可变内容及当前凭据用途。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -95,9 +95,10 @@ public final class PersonalModelRuntimeAdapter implements PersonalModelRuntime {
                 continue;
             }
             ModelResourceVersion version = version(release, true);
-            ModelResource model = publications.current(scope, release.resource());
+            publications.lock(actor, release.scope());
+            ModelResource model = publications.current(release.scope(), release.resource());
             PlatformModelAclAccess.validate(scope, candidate, version, model);
-            if (publications.readiness(actor, release) != null) {
+            if (publications.readiness(actor, release, scope) != null) {
                 continue;
             }
             AuthorizationVersions basis = authorization.requireInCurrentTransaction(actor,

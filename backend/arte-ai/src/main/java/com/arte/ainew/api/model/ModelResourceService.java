@@ -15,6 +15,13 @@ import com.arte.core.pojo.platform.*;
  * @since 2026/10/30 22:40 ✾
  */
 public interface ModelResourceService {
+    /**
+     * 创建租户归属的私有模型，管理空间由命令明确指定。
+     */
+    default com.arte.core.pojo.platform.CommandReceipt<com.arte.ainew.pojo.model.ModelResource> createTenant(
+            com.arte.core.pojo.platform.TrustedActor actor, com.arte.ainew.pojo.model.ModelResourceCommands.Create command) {
+        throw new com.arte.core.exception.platform.PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "tenant-model");
+    }
 
     CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command);
 

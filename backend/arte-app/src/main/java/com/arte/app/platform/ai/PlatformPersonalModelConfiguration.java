@@ -37,11 +37,14 @@ public class PlatformPersonalModelConfiguration {
     @Bean
     PersonalModelStore personalModelStore(PlatformModelResourceMapper resources, PlatformPersonalModelMapper mapper,
                                           @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, PlatformJson json,
-                                          NewAiProperties properties, ModelManagementProperties management) {
+                                          NewAiProperties properties, ModelManagementProperties management,
+                                          ObjectProvider<ModelSharingStore> sharing, ModelResourceStore models) {
         if (!properties.enabled() || !"DATABASE".equals(properties.configurationMode()) || !"appDataSource".equals(properties.dataSourceBean()) || !management.enabled()) {
             throw new IllegalStateException("Personal model publication requires enabled model management and DATABASE AI on appDataSource");
         }
-        return new PersonalModelStoreServiceImpl(resources, mapper, tx, json);
+        PersonalModelStoreServiceImpl store = new PersonalModelStoreServiceImpl(resources, mapper, tx, json);
+        store.sharing(sharing.getIfAvailable(), models);
+        return store;
     }
 
     @Bean
@@ -51,10 +54,13 @@ public class PlatformPersonalModelConfiguration {
                                                                            TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers, WorkspaceMembershipStore members,
                                                                            PreferenceStore preferences, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                                                            CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
-                                                                           @Qualifier("platformWorkspaceClock") Clock clock, ObjectProvider<com.arte.ainew.spi.gateway.ModelGateway> gateway) {
-        return new DefaultPersonalModelPublicationService(models, drafts, releases, templates,
+                                                                           @Qualifier("platformWorkspaceClock") Clock clock, ObjectProvider<com.arte.ainew.spi.gateway.ModelGateway> gateway,
+                                                                           ObjectProvider<ModelSharingStore> sharing) {
+        DefaultPersonalModelPublicationService service = new DefaultPersonalModelPublicationService(models, drafts, releases, templates,
                 () -> control.getObject().reviewedModelCatalog(), (actor, scope) -> control.getObject().personalModelConfiguration(actor, scope),
                 tx, identity, tenants, workspaces, tenantMembers, members, preferences, authorization, receipts, outbox, audit, ids, clock, gateway::getIfAvailable);
+        service.sharing(sharing.getIfAvailable());
+        return service;
     }
 
     @Bean

@@ -30,7 +30,7 @@ public final class PersonalModels {
      * 个人发布附加证据，精确内容仍由 ModelResourceVersion 保存；发布后不得覆盖。
      *
      * @param resource          稳定模型资源引用
-     * @param scope             模型主空间
+     * @param scope             固定管理空间；租户模型的执行空间由独立使用范围决定
      * @param binding           服务端分配的个人模型精确绑定
      * @param templateBinding   采用的已审核平台模型精确绑定，用于固定协议、能力及费率政策
      * @param template          原连接模板引用

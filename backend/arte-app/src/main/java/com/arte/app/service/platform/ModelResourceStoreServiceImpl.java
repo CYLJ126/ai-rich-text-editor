@@ -45,7 +45,7 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
         return baseMapper.candidates(scope.tenantId(), scope.workspaceId(), afterKey, limit).stream().map(row -> {
             var ref = new ResourceRef(scope.tenantId(), MODEL, row.getResourceId());
             var value = decode(row, ref);
-            if (!scope.workspaceId().equals(value.ownership().workspaceId())) throw conflict();
+            if (!scope.equals(value.managementScope())) throw conflict();
             return value;
         }).toList();
     }
@@ -80,7 +80,7 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
         row.setResourceKey(resourceKey(modelResource.resource()));
         row.setTenantId(modelResource.resource().tenantId());
         row.setResourceId(modelResource.resource().resourceId());
-        row.setWorkspaceId(modelResource.ownership().workspaceId());
+        row.setWorkspaceId(modelResource.managementScope().workspaceId());
         row.setVersion(modelResource.version());
         row.setPayload(json.write(modelResource));
         return row;
@@ -89,7 +89,7 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
     private ModelResource decode(PlatformModelResourceDto row, ResourceRef ref) {
         ModelResource modelResource = json.read(row.getPayload(), ModelResource.class);
         if (!modelResource.resource().equals(ref) || !row.getResourceKey().equals(resourceKey(ref)) || !row.getTenantId().equals(ref.tenantId())
-                || !row.getResourceId().equals(ref.resourceId()) || !Objects.equals(row.getWorkspaceId(), modelResource.ownership().workspaceId()) || row.getVersion() != modelResource.version()) {
+                || !row.getResourceId().equals(ref.resourceId()) || !Objects.equals(row.getWorkspaceId(), modelResource.managementScope().workspaceId()) || row.getVersion() != modelResource.version()) {
             throw conflict();
         }
         return modelResource;
@@ -127,7 +127,7 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
     @Override
     public boolean insert(ModelResource modelResource) {
         gate(modelResource.resource().tenantId());
-        requireScope(new Scope(modelResource.ownership().tenantId(), modelResource.ownership().workspaceId()));
+        requireScope(modelResource.managementScope());
         if (modelResource.version() != 0 || modelResource.state() != ModelResource.State.DRAFT) {
             throw new IllegalArgumentException("New resource must be a draft");
         }
@@ -139,8 +139,8 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
         gate(modelResource.resource().tenantId());
         next(modelResource.version(), expected);
         ModelResource old = findCurrent(modelResource.resource()).orElseThrow();
-        if (!old.ownership().equals(modelResource.ownership()) || !old.createdBy().equals(modelResource.createdBy()) || !old.createdAt().equals(modelResource.createdAt())
-                || !old.name().equals(modelResource.name()) || old.bindingId() != null && !old.bindingId().equals(modelResource.bindingId())
+        if (!old.ownership().equals(modelResource.ownership()) || !old.managementScope().equals(modelResource.managementScope()) || !old.createdBy().equals(modelResource.createdBy()) || !old.createdAt().equals(modelResource.createdAt())
+                || old.bindingId() != null && !old.bindingId().equals(modelResource.bindingId())
                 || modelResource.state() == ModelResource.State.DRAFT) {
             throw new IllegalArgumentException("Immutable model identity changed");
         }
@@ -175,7 +175,7 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
     public boolean insertVersion(ModelResourceVersion v) {
         gate(v.resource().tenantId());
         var root = findCurrent(v.resource()).orElseThrow();
-        requireScope(new Scope(root.ownership().tenantId(), root.ownership().workspaceId()));
+        requireScope(root.managementScope());
         if (root.bindingId() != null && !root.bindingId().equals(v.publication().binding().definition().id()))
             throw conflict();
         var definitions = v.publication().definitionDigests().entrySet().stream().sorted(Comparator.comparing((Map.Entry<DefinitionRef, String> e) -> e.getKey().type())
