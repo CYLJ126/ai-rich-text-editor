@@ -3,6 +3,8 @@ export default {
   'menu.AI.Tools': 'AI Tools',
   'menu.ChatNew': 'AI Chat (New)',
   'menu.AI.ChatNew': 'AI Chat (New)',
+  'menu.aiModels': 'Model Management',
+  'menu.AI.Models': 'Model Management',
   'menu.HomePage': 'Home Page',
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',

@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {useModel} from '@umijs/max';
+import {history, useModel} from '@umijs/max';
 import {Alert, Button, Flex, Typography} from 'antd';
 import PersonalModelManager from '@/features/ainew/PersonalModelManager';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
@@ -28,7 +28,7 @@ export default function ModelsPage() {
       </div>
       <Flex gap={8} wrap><Button disabled={unsafe}
                                  onClick={() => setShowSpaces(value => !value)}>选择工作空间</Button><Button
-        href="/AI/ChatNew" disabled={unsafe}>返回聊天</Button></Flex>
+        onClick={() => history.push('/AI/ChatNew')} disabled={unsafe}>返回聊天</Button></Flex>
     </Flex>
     {unsafe && <Alert type="info" title="请先保存或放弃未保存内容、清除临时密钥，或确认恢复记录后再切换。"/>}
     {(showSpaces || !workspace) && <WorkspacePicker userId={userId} presentation="inline"/>}

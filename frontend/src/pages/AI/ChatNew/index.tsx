@@ -1,6 +1,6 @@
 import {useConfigurationDiscovery} from '@/features/ainew/useConfigurationSelection';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {useIntl, useModel} from '@umijs/max';
+import {history, useIntl, useModel} from '@umijs/max';
 import {
   Alert,
   Button,
@@ -829,7 +829,7 @@ export default function ChatNewPage() {
         onPlatformConfig={() => setCatalogOpen(true)}/>
     </Flex>
     <WorkspacePicker userId={userId} presentation="inline"/>
-    {workspace && <Button href="/AI/Models">管理当前空间模型</Button>}
+    {workspace && <Button onClick={() => history.push('/AI/Models')}>管理当前空间模型</Button>}
   </>;
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">

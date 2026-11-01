@@ -3,6 +3,8 @@ export default {
   'menu.AI.Tools': 'AI 工具',
   'menu.ChatNew': 'AI 聊天（新版）',
   'menu.AI.ChatNew': 'AI 聊天（新版）',
+  'menu.aiModels': '模型管理',
+  'menu.AI.Models': '模型管理',
   'menu.HomePage': '首頁',
   'menu.welcome': '歡迎',
   'menu.more-blocks': '更多區塊',
