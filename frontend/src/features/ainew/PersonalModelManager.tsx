@@ -55,7 +55,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
   const [formError, setFormError] = useState('');
   const [plan, setPlan] = useState('');
   const detail = vm.detail;
-  const unsafe = dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || vm.blocked;
+  const unsafe = dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked;
 
   useEffect(() => {
     onUnsafeChange?.(unsafe);

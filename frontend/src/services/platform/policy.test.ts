@@ -42,6 +42,17 @@ it('rejects foreign tenant or space policy responses', async () => {
   }));
   await expect(getPolicy('workspace', policyScope)).rejects.toBeInstanceOf(AiApiError);
 });
+it('accepts a tenant-only target but requires a complete target for workspace policy', async () => {
+  vi.mocked(postResult).mockResolvedValue(reply(tenantPolicyView));
+  await expect(getPolicy('tenant', {tenantId: policyScope.tenantId})).resolves.toEqual({
+    kind: 'tenant',
+    value: tenantPolicyView
+  });
+  expect(postResult).toHaveBeenCalledWith('getTenantPolicy', {tenantId: policyScope.tenantId}, undefined, undefined, '/arte/workspace');
+  vi.mocked(postResult).mockClear();
+  await expect(getPolicy('workspace', {tenantId: policyScope.tenantId})).rejects.toThrow();
+  expect(postResult).not.toHaveBeenCalled();
+});
 it('requires complete supported rules and keeps unknown schema fields from being silently lost', async () => {
   const rules = {...policyRules, futurePolicy: true};
   vi.mocked(postResult).mockResolvedValue(reply({...tenantPolicyView, policy: {...tenantPolicyView.policy, rules}}));

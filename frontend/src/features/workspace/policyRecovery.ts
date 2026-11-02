@@ -1,6 +1,6 @@
 import {z} from 'zod';
-import {type PolicyCommand, policyCommandSchema, type PolicyKind} from '@/services/platform/policy';
-import type {WorkspaceScope} from '@/services/platform/workspace';
+import {type PolicyCommand, policyCommandSchema, type PolicyKind, type PolicyScope} from '@/services/platform/policy';
+import {workspaceScopeSchema} from '@/services/platform/workspace';
 
 const operationSchema = z.object({
   schemaVersion: z.literal(1),
@@ -11,16 +11,17 @@ const operationSchema = z.object({
 export type PolicyOperation = z.infer<typeof operationSchema>;
 
 /** 租户命令按租户恢复，空间命令按完整 scope 恢复；跨空间进入同租户时仍能找到原租户操作。 */
-function key(userId: string, scope: WorkspaceScope, kind: PolicyKind) {
+function key(userId: string, scope: PolicyScope, kind: PolicyKind) {
+  if (kind === 'workspace') workspaceScopeSchema.parse(scope);
   return `arte.workspace.policy.v1.${encodeURIComponent(JSON.stringify([userId, scope.tenantId, kind === 'workspace' ? scope.workspaceId : '', kind]))}`;
 }
 
-function belongs(command: PolicyCommand, scope: WorkspaceScope, kind: PolicyKind) {
+function belongs(command: PolicyCommand, scope: PolicyScope, kind: PolicyKind) {
   return command.kind === kind && (command.kind === 'tenant' ? command.request.tenantId === scope.tenantId
     : command.request.scope.tenantId === scope.tenantId && command.request.scope.workspaceId === scope.workspaceId);
 }
 
-export function readPolicyOperation(userId: string, scope: WorkspaceScope, kind: PolicyKind): {
+export function readPolicyOperation(userId: string, scope: PolicyScope, kind: PolicyKind): {
   operation: PolicyOperation | null;
   blocked: boolean
 } {
@@ -35,7 +36,7 @@ export function readPolicyOperation(userId: string, scope: WorkspaceScope, kind:
   }
 }
 
-export function savePolicyOperation(userId: string, scope: WorkspaceScope, kind: PolicyKind, operation: PolicyOperation | null) {
+export function savePolicyOperation(userId: string, scope: PolicyScope, kind: PolicyKind, operation: PolicyOperation | null) {
   try {
     if (operation) {
       const parsed = operationSchema.parse(operation);

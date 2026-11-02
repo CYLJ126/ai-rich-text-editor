@@ -62,6 +62,8 @@ export const policyCommandSchema = z.discriminatedUnion('kind', [
   }).strict(),
 ]);
 export type PolicyKind = 'tenant' | 'workspace';
+/** 租户政策仅需 tenantId；空间政策在请求时另行校验完整空间范围。 */
+export type PolicyScope = { tenantId: string; workspaceId?: string };
 export type PolicyRules = z.infer<typeof policyRulesSchema>;
 export type PolicyCommand = z.infer<typeof policyCommandSchema>;
 export type TenantPolicyView = z.infer<typeof tenantViewSchema>;
@@ -74,17 +76,18 @@ const base = '/arte/workspace';
 const sameScope = (left: WorkspaceScope, right: WorkspaceScope) => left.tenantId === right.tenantId && left.workspaceId === right.workspaceId;
 const invalid = (status: number) => new AiApiError(status, {code: 'INVALID_POLICY_RESPONSE'}, '政策响应与当前范围或支持的结构不一致');
 
-export async function getPolicy(kind: PolicyKind, scope: WorkspaceScope, options?: AiRequestOptions): Promise<PolicySnapshot> {
-  const target = workspaceScopeSchema.parse(scope);
+export async function getPolicy(kind: PolicyKind, scope: PolicyScope, options?: AiRequestOptions): Promise<PolicySnapshot> {
+  const tenantId = id.parse(scope.tenantId);
+  const target = kind === 'workspace' ? workspaceScopeSchema.parse(scope) : null;
   const response = await postResult<unknown>(kind === 'tenant' ? 'getTenantPolicy' : 'getWorkspacePolicy',
-    kind === 'tenant' ? {tenantId: target.tenantId} : {scope: target}, options, undefined, base);
+    kind === 'tenant' ? {tenantId} : {scope: target}, options, undefined, base);
   if (kind === 'tenant') {
     const parsed = tenantViewSchema.safeParse(response.body.data);
-    if (!parsed.success || parsed.data.policy.tenantId !== target.tenantId) throw invalid(response.httpStatus);
+    if (!parsed.success || parsed.data.policy.tenantId !== tenantId) throw invalid(response.httpStatus);
     return {kind, value: parsed.data};
   }
   const parsed = workspaceViewSchema.safeParse(response.body.data);
-  if (!parsed.success || !sameScope(parsed.data.policy.scope, target)) throw invalid(response.httpStatus);
+  if (!parsed.success || !target || !sameScope(parsed.data.policy.scope, target)) throw invalid(response.httpStatus);
   return {kind, value: parsed.data};
 }
 

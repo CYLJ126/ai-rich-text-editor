@@ -229,6 +229,7 @@ it('recovers an uncertain save with its original request and key after remount w
   manager();
   await screen.findByRole('button', {name: '重试确认原操作'});
   expect(api.executeModelCommand).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(unsafe).toHaveBeenLastCalledWith(true));
   fireEvent.click(screen.getByRole('button', {name: '重试确认原操作'}));
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledTimes(2));
   expect(vi.mocked(api.executeModelCommand).mock.calls[1]).toEqual(original);

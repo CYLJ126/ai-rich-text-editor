@@ -24,8 +24,21 @@
   min-width: 0;
 }
 
+.workspace-policy-page .policy-scope-controls {
+  margin-bottom: 12px;
+}
+
+.workspace-policy-page .policy-scope-controls .ant-select {
+  width: 360px;
+  max-width: 100%;
+}
+
 @media (max-width: 600px) {
   .workspace-policy-page {
     padding: 12px;
+  }
+
+  .workspace-policy-page .policy-scope-controls .ant-select {
+    width: 100%;
   }
 }

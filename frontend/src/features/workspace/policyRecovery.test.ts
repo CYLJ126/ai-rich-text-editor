@@ -19,6 +19,7 @@ it('recovers the same tenant operation across its spaces but isolates accounts a
     ...policyScope,
     workspaceId: 'another-space'
   }, 'tenant').operation).toEqual(tenant);
+  expect(readPolicyOperation('alice', {tenantId: policyScope.tenantId}, 'tenant').operation).toEqual(tenant);
   expect(readPolicyOperation('bob', policyScope, 'tenant').operation).toBeNull();
   expect(readPolicyOperation('alice', {...policyScope, tenantId: 'another-tenant'}, 'tenant').operation).toBeNull();
 });

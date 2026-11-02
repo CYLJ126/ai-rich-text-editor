@@ -54,6 +54,15 @@
   margin-bottom: 16px;
 }
 
+.personal-models-page .model-workspace-select {
+  width: 360px;
+  max-width: 100%;
+}
+
+.model-workspace-menu-actions {
+  padding: 8px;
+}
+
 @container (min-width: 760px) {
   .personal-models-grid {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -63,5 +72,9 @@
 @media (max-width: 600px) {
   .personal-models-page {
     padding: 12px;
+  }
+
+  .personal-models-page .model-workspace-select {
+    width: 100%;
   }
 }

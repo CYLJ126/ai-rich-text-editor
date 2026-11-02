@@ -7,10 +7,10 @@ import {
   type PolicyCommand,
   policyCommandSchema,
   type PolicyKind,
+  type PolicyScope,
   type PolicySnapshot,
   type TenantPolicyView
 } from '@/services/platform/policy';
-import type {WorkspaceScope} from '@/services/platform/workspace';
 import {type PolicyOperation, readPolicyOperation, savePolicyOperation} from './policyRecovery';
 import {
   deepSeekDraft,
@@ -23,7 +23,7 @@ import {
 import PolicyRulesFields from './PolicyRulesFields';
 
 type Props = {
-  userId: string; scope: WorkspaceScope; kind: PolicyKind; workspaceName?: string; refreshRevision?: number;
+  userId: string; scope: PolicyScope; kind: PolicyKind; workspaceName?: string; refreshRevision?: number;
   ceiling?: TenantPolicyView | null;
   onUnsafeChange?: (unsafe: boolean) => void; onSaved?: () => void;
   onSnapshot?: (snapshot: PolicySnapshot | null) => void;
