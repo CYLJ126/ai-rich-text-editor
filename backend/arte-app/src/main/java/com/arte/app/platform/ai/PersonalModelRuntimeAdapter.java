@@ -49,7 +49,7 @@ public final class PersonalModelRuntimeAdapter implements PersonalModelRuntime {
         this.clock = clock;
     }
 
-    private ModelResourceVersion version(PersonalModels.Release release, boolean current) {
+    ModelResourceVersion version(PersonalModels.Release release, boolean current) {
         ModelResourceVersion version = (current ? models.findCurrentBinding(release.scope().tenantId(), release.binding())
                 : models.findBinding(release.scope().tenantId(), release.binding())).orElseThrow(() -> DefaultPersonalModelPublicationService.error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
         if (!version.resource().equals(release.resource()) || version.publication().source() != ModelPublication.Source.PERSONAL

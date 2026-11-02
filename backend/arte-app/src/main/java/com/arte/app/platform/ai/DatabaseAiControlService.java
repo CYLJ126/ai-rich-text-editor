@@ -15,6 +15,7 @@ import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.model.ModelUsagePreparation;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
@@ -558,6 +559,131 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
+     * 当前执行空间中，单一精确费率的受信预算规则及账户状态。调用方须已核验模型资格。
+     */
+    record UsageBudget(ModelUsagePreparation.State state, String reason,
+                       List<String> budgetRefs, Money approvedLimit) {
+    }
+
+    /**
+     * 查询或准备当前用户在目标执行空间内、与所选模型精确费率兼容的预算账户。
+     * <p>
+     * 已准备空间只采用当前保存的批准规则；空间尚未准备时，仅政策管理者可采用当前已发布默认模板。
+     * 查询模式不写入业务数据，准备模式只为当前用户和所选费率初始化账户，并在需要时准备空间 AI 配置。
+     * 已有账户直接复用，不提高额度或改写预留、已计费用及账户版本；发现账本缺失或归属不一致时拒绝处理。
+     * <p>
+     * 调用方须已核验模型、精确发布及凭据用途资格，并在同一可写事务中调用；
+     * 本方法继续核验空间 AI 使用资格，相关写入与调用方的命令回执、审计及事件共同提交或回滚。
+     *
+     * @param actor       当前可信操作主体，预算固定归属于该主体，不接受客户端自报其他用户
+     * @param scope       实际执行的租户及工作空间，不以模型管理空间代替
+     * @param rate        所选模型关联的精确费率引用，批准规则须同时匹配费率标识和版本
+     * @param prepare     是否执行准备；false 仅查询当前条件，true 按批准规则复用或初始化账户
+     * @param operationId 调用方的服务端命令操作标识，用于关联空间 AI 准备事件及审计；查询模式可为空
+     * @return 当前准备状态、原因码、兼容预算引用及批准额度；READY 不保证余额足够或供应商成功
+     * @throws IllegalStateException 当前不存在可写事务时拒绝处理
+     * @throws PlatformException     当前资格核验失败，或目录、预算定义及账户事实缺失或不一致时拒绝处理
+     */
+    UsageBudget modelUsageBudget(TrustedActor actor, Scope scope, DefinitionRef rate, boolean prepare, String operationId) {
+        tx.requireWritable();
+        return inScope(actor, scope, WORKSPACE_AI_USE, () -> {
+            // 使用当前锁定的目录版本，未初始化时只返回阻塞状态。
+            Long revision = mapper.headCurrent();
+            if (revision == null || revision == 0) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "CATALOG_NOT_INITIALIZED", List.of(), null);
+            }
+            String payload = mapper.revision(revision);
+            if (payload == null) {
+                throw unavailable();
+            }
+            Catalog catalog = json.read(payload, Catalog.class);
+            // 已准备空间沿用保存的规则，未准备空间使用当前默认模板。
+            WorkspaceConfiguration config = mapper.workspace(scope.tenantId(), scope.workspaceId()) == null ? null : ownConfiguration(scope);
+            Preset preset = config == null ? catalog.defaults() : config.preset();
+            if (!preset.enabled()) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_DISABLED", List.of(), null);
+            }
+            // 批准额度必须匹配所选模型的精确费率，不从其他费率借用额度。
+            BudgetPreset rule = preset.budgets().stream().filter(b -> b.rate().equals(rate)).findFirst().orElse(null);
+            if (rule == null) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_NOT_CONFIGURED", List.of(), null);
+            }
+            NewAiProperties.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
+                    .orElseThrow(DatabaseAiControlService::unavailable);
+            if (definition.toolPerCall() != null || !definition.currency().equals(rule.limit().currency())) {
+                throw unavailable();
+            }
+            // 模型使用资格不能替代首次准备空间 AI 所需的政策管理资格。
+            if (config == null && !allows(actor, scope, WORKSPACE_POLICY_WRITE)) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_NOT_PREPARED", List.of(), rule.limit());
+            }
+            ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId());
+            String ownerKey = hash(scope.tenantId(), scope.workspaceId(), owner.subjectId());
+            // 当前读取本主体的预算定义，校验实际归属并收集匹配费率的记录。
+            List<NewAiProperties.Budget> existing = new ArrayList<>();
+            for (PlatformAiControlRow row : mapper.budgets(scope.tenantId(), scope.workspaceId(), owner.subjectId())) {
+                NewAiProperties.Budget budget = json.read(row.getPayload(), NewAiProperties.Budget.class);
+                if (!budget.owner().equals(owner) || !budget.budgetRef().equals(row.getBudgetRef())) {
+                    throw unavailable();
+                }
+                if (budget.rate().equals(rate)) {
+                    existing.add(budget);
+                }
+            }
+            if (existing.size() > 1) {
+                throw unavailable();
+            }
+            if (!existing.isEmpty()) {
+                // 已有定义却丢失账户属于权威损坏，禁止以“初始化”清零历史费用。
+                NewAiProperties.Budget budget = existing.getFirst();
+                String encoded = mapper.account(hash(budget.budgetRef()), ownerKey);
+                if (encoded == null) {
+                    throw unavailable();
+                }
+                BudgetCommands.Account account = codec.decode(encoded, BudgetCommands.Account.class);
+                if (!account.owner().equals(owner) || !account.budgetRef().equals(budget.budgetRef())
+                        || !account.rateVersion().equals(rate) || !account.limit().equals(budget.limit())
+                        || !account.limit().currency().equals(rule.limit().currency())) {
+                    throw unavailable();
+                }
+                if (config == null) {
+                    if (!prepare) {
+                        return new UsageBudget(ModelUsagePreparation.State.PREPARABLE, "WORKSPACE_AI_NOT_PREPARED", List.of(budget.budgetRef()), rule.limit());
+                    }
+                    validate(catalog, preset);
+                    check(mapper.insertWorkspace(workspaceRow(new WorkspaceConfiguration(scope, preset, revision, 0))) == 1);
+                    // 仅补齐空间 AI 配置，已有预算账户及费用记录保持原样。
+                    effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:prepared",
+                            operationId, 0, Map.of("templateVersion", Long.toString(revision)));
+                }
+                return new UsageBudget(ModelUsagePreparation.State.READY, "READY", List.of(budget.budgetRef()), rule.limit());
+            }
+            String ref = "ws-budget-" + hash(scope.tenantId(), scope.workspaceId(), owner.subjectId(), rate.id(), rate.version());
+            // 有账户却缺失定义同样拒绝，避免为孤立账本重复分配额度。
+            if (mapper.account(hash(ref), ownerKey) != null) {
+                throw unavailable();
+            }
+            if (rule.limit().amount().signum() == 0) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_ZERO", List.of(), rule.limit());
+            }
+            if (!prepare) {
+                return new UsageBudget(ModelUsagePreparation.State.PREPARABLE, "BUDGET_NOT_PREPARED", List.of(), rule.limit());
+            }
+            if (config == null) {
+                // 与账户及命令回执同事务；不调用 ensure，避免顺带建立其他费率的账户。
+                validate(catalog, preset);
+                config = new WorkspaceConfiguration(scope, preset, revision, 0);
+                check(mapper.insertWorkspace(workspaceRow(config)) == 1);
+                effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:prepared",
+                        operationId, 0, Map.of("templateVersion", Long.toString(revision)));
+            }
+            // 只按已批准规则初始化当前用户、当前精确费率的账户。
+            prepareBudgets(scope, owner.subjectId(), new Preset(true, List.of(), List.of(rule)), false);
+            return new UsageBudget(ModelUsagePreparation.State.READY, "READY", List.of(ref), rule.limit());
+        });
+    }
+
+    /**
      * 按需准备空间 AI 配置及当前主体预算；不参与公共空间创建事务。
      * 准备失败只回滚本次 AI 写入，已创建的公共空间继续可用。
      */
@@ -787,7 +913,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     private CommandReceipt<CatalogView> changeCatalog(TrustedActor actor, CommandMeta meta, long expected, String action,
-                                                          String intent, java.util.function.UnaryOperator<Catalog> change) {
+                                                      String intent, java.util.function.UnaryOperator<Catalog> change) {
         if (expected < 0) throw new IllegalArgumentException("Invalid catalog version");
         return commands.execute(actor, meta, new CommandScope(null, null), action, "ai:catalog:view:v1", CatalogView.class,
                 List.of(Long.toString(expected), intent), () -> {

@@ -71,6 +71,18 @@ public class PlatformPersonalModelConfiguration {
     }
 
     @Bean
+    DatabaseModelUsagePreparationService modelUsagePreparationService(DatabaseAiControlService control,
+                                                                      DefaultPersonalModelPublicationService publications, PersonalModelRuntimeAdapter runtime, PersonalModelStore releases,
+                                                                      ModelResourceStore models, ModelAclScopeStore scopes,
+                                                                      @Qualifier("platformAuthorizationService") AuthorizationService authorization,
+                                                                      @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, IdentityProvider identity,
+                                                                      CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
+                                                                      @Qualifier("platformWorkspaceClock") Clock clock, ObjectProvider<com.arte.ainew.spi.gateway.ModelGateway> gateway) {
+        return new DatabaseModelUsagePreparationService(control, publications, runtime, releases, models, scopes,
+                authorization, tx, identity, receipts, outbox, audit, ids, clock, gateway::getIfAvailable);
+    }
+
+    @Bean
     PersonalModelCredentialResolver personalModelCredentialResolver(NewAiGenerationProperties http, ObjectProvider<ExecutionReadStore> executions,
                                                                     PersonalModelStore releases, ModelResourceStore models, ModelDraftStore drafts, ModelCredentialCipher cipher,
                                                                     DefaultPersonalModelPublicationService publications, ObjectProvider<DatabaseAiControlService> control, IdentityProvider identity,

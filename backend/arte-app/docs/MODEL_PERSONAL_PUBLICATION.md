@@ -58,6 +58,9 @@ CREDENTIAL_USE_DENIED。 责任转交、团队凭据使用授权、跨空间复�
 
 ## 预算和状态
 
+A1 已另增[模型使用准备后端](MODEL_USAGE_PREPARATION_A1.md)：用户可按目标空间批准规则显式准备兼容预算；发布本身仍不分配账户或开通空间
+AI。前端入口由 A2 接续。
+
 发布不新增预算、不提高额度、不重置账户或预留。使用当前 `tenantId + workspaceId + subjectId` 的独立预算，费率引用和币种继续由既有执行链路核验。
 没有兼容预算也可保留发布记录；状态接口报告 NO_COMPATIBLE_BUDGET，聊天发现过滤该项。空间 AI 未准备或不可用时报告
 WORKSPACE_AI_UNAVAILABLE，发布不暗中调用 ensure。

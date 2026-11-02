@@ -43,6 +43,7 @@ public final class PlatformJson {
                     Map.entry("resource:access:v1", com.arte.core.pojo.access.ResourceAccessViews.AccessView.class),
                     Map.entry("resource:grant:v1", com.arte.core.pojo.access.ResourceAccessViews.GrantResult.class),
                     Map.entry("resource:void:v1", Void.class),
+                    Map.entry("model:usage:preparation:v1", com.arte.ainew.pojo.model.ModelUsagePreparation.class),
                     Map.entry("model:resource:v1", com.arte.ainew.pojo.model.ModelResource.class),
                     Map.entry("model:sharing:v1", com.arte.ainew.pojo.model.ModelSharingPolicy.class),
                     Map.entry("model:version:v1", com.arte.ainew.pojo.model.ModelResourceVersion.class),
