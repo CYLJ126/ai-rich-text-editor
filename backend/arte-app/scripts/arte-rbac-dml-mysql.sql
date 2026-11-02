@@ -17,9 +17,18 @@ INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (4, 'HomePage', 'HomePage', 'HomeOutlined', '/HomePage', null, 1, 1, '首页', '1', 1, 'system', sysdate(),
         'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (6, 'UserManagement', 'User Management', null, '/Administration/UserManagement', 1, 1, 1, '用户管理', '1', 1, 'system', sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (7, 'MenuManagement', 'Menu Management', null, '/Administration/MenuManagement', 1, 1, 1, '菜单管理', '1', 1, 'system', sysdate(), 'system', sysdate());
-INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version, create_by, create_time, update_by, update_time) VALUES (8, 'RoleManagement', 'Role Management', null, '/Administration/RoleManagement', 1, 1, 1, '角色管理', '1', 1, 'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (6, 'UserManagement', 'User Management', null, '/Administration/UserManagement', 1, 1, 1, '用户管理', '1', 1,
+        'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (7, 'MenuManagement', 'Menu Management', null, '/Administration/MenuManagement', 1, 1, 1, '菜单管理', '1', 1,
+        'system', sysdate(), 'system', sysdate());
+INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
+                            show_flag, row_version, create_by, create_time, update_by, update_time)
+VALUES (8, 'RoleManagement', 'Role Management', null, '/Administration/RoleManagement', 1, 1, 1, '角色管理', '1', 1,
+        'system', sysdate(), 'system', sysdate());
 INSERT INTO arte_rbac_menu (id, menu_code, menu_name, icon, menu_url, father_id, order_id, status, description,
                             show_flag, row_version, create_by, create_time, update_by, update_time)
 VALUES (5, 'Personal', 'Personal', 'userOutlined', '/Personal', null, 2, 1, '个人管理', '1', 1, 'system', sysdate(),
@@ -169,52 +178,98 @@ VALUES (76, 'pdf', 'handle', 'PDF处理', 1, 'PDF处理', 0, 'system', sysdate()
 
 
 -- arte_rbac_relation
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (1, 'admin', 'admin', 'user_to_role', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (2, 'admin', 'HomePage', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (3, 'admin', 'Learn', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (4, 'admin', 'Administration', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (5, 'admin', 'UserManagement', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (6, 'admin', 'MenuManagement', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (7, 'admin', 'RoleManagement', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (8, 'admin', 'Chatbot', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (10, 'admin', 'Writing', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (11, 'admin', 'user:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (12, 'admin', 'user:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (13, 'admin', 'menu:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (14, 'admin', 'menu:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (15, 'admin', 'user:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (16, 'admin', 'user:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (17, 'admin', 'tag:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (18, 'admin', 'tag:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (19, 'admin', 'tag:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (20, 'admin', 'tag:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (21, 'admin', 'tagRelation:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (22, 'admin', 'tagRelation:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (23, 'admin', 'tagRelation:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (24, 'admin', 'menu:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (25, 'admin', 'menu:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (26, 'admin', 'menuOperation:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (27, 'admin', 'menuOperation:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (28, 'admin', 'menuOperation:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (29, 'admin', 'summary:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (30, 'admin', 'summary:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (31, 'admin', 'summary:format', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (32, 'admin', 'website:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (33, 'admin', 'website:refresh', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (34, 'admin', 'sticky:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (35, 'admin', 'sticky:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (36, 'admin', 'sticky:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (37, 'admin', 'sticky:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (38, 'admin', 'role:add', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (39, 'admin', 'role:delete', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (40, 'admin', 'role:list', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (41, 'admin', 'role:update', 'role_to_operation', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (42, 'admin', 'StickyNote', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (43, 'admin', 'TagManagement', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (44, 'admin', 'Personal', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (45, 'admin', 'CacheTest', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (46, 'admin', 'TextFormatter', 'role_to_menu', 'system', sysdate());
-INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time) VALUES (47, 'admin', 'Tools', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (1, 'admin', 'admin', 'user_to_role', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (2, 'admin', 'HomePage', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (3, 'admin', 'Learn', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (4, 'admin', 'Administration', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (5, 'admin', 'UserManagement', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (6, 'admin', 'MenuManagement', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (7, 'admin', 'RoleManagement', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (8, 'admin', 'Chatbot', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (10, 'admin', 'Writing', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (11, 'admin', 'user:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (12, 'admin', 'user:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (13, 'admin', 'menu:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (14, 'admin', 'menu:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (15, 'admin', 'user:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (16, 'admin', 'user:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (17, 'admin', 'tag:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (18, 'admin', 'tag:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (19, 'admin', 'tag:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (20, 'admin', 'tag:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (21, 'admin', 'tagRelation:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (22, 'admin', 'tagRelation:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (23, 'admin', 'tagRelation:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (24, 'admin', 'menu:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (25, 'admin', 'menu:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (26, 'admin', 'menuOperation:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (27, 'admin', 'menuOperation:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (28, 'admin', 'menuOperation:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (29, 'admin', 'summary:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (30, 'admin', 'summary:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (31, 'admin', 'summary:format', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (32, 'admin', 'website:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (33, 'admin', 'website:refresh', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (34, 'admin', 'sticky:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (35, 'admin', 'sticky:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (36, 'admin', 'sticky:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (37, 'admin', 'sticky:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (38, 'admin', 'role:add', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (39, 'admin', 'role:delete', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (40, 'admin', 'role:list', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (41, 'admin', 'role:update', 'role_to_operation', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (42, 'admin', 'StickyNote', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (43, 'admin', 'TagManagement', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (44, 'admin', 'Personal', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (45, 'admin', 'CacheTest', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (46, 'admin', 'TextFormatter', 'role_to_menu', 'system', sysdate());
+INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
+VALUES (47, 'admin', 'Tools', 'role_to_menu', 'system', sysdate());
 INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
 VALUES (48, 'admin', 'PdfHandler', 'user_to_menu', 'system', sysdate());
 INSERT INTO arte_rbac_relation (id, source, target, binding_type, create_by, create_time)
@@ -222,10 +277,17 @@ VALUES (49, 'admin', 'pdf:handle', 'user_to_operation', 'system', sysdate());
 
 
 -- arte_rbac_role
-INSERT INTO arte_rbac_role (id, role_code, role_name, status, description, create_by, update_by, create_time, update_time, row_version) VALUES (1, 'admin', '管理员', '1', '拥有系统管理相关权限', 'system', 'system', sysdate(), sysdate(), 0);
-INSERT INTO arte_rbac_role (id, role_code, role_name, status, description, create_by, update_by, create_time, update_time, row_version) VALUES (2, 'ascetic', '修者', '1', '游客', 'system', 'system', sysdate(), sysdate(), 0);
+INSERT INTO arte_rbac_role (id, role_code, role_name, status, description, create_by, update_by, create_time,
+                            update_time, row_version)
+VALUES (1, 'admin', '管理员', '1', '拥有系统管理相关权限', 'system', 'system', sysdate(), sysdate(), 0);
+INSERT INTO arte_rbac_role (id, role_code, role_name, status, description, create_by, update_by, create_time,
+                            update_time, row_version)
+VALUES (2, 'ascetic', '修者', '1', '游客', 'system', 'system', sysdate(), sysdate(), 0);
 -- arte_rbac_user
-INSERT INTO arte_rbac_user (id, user_name, status, mobile, email, password, description, create_by, update_by, create_time, update_time, row_version) VALUES (1, 'admin', '1', '', '', '$2a$10$XqyDPLzYsyRjNmPur/CZnOxoGZUT12xfZ1/wlhHMWBTNoOjfR0nae', null, 'system', 'system', sysdate(), sysdate(), 0);
+INSERT INTO arte_rbac_user (id, user_name, status, mobile, email, password, description, create_by, update_by,
+                            create_time, update_time, row_version)
+VALUES (1, 'admin', '1', '', '', '$2a$10$XqyDPLzYsyRjNmPur/CZnOxoGZUT12xfZ1/wlhHMWBTNoOjfR0nae', null, 'system',
+        'system', sysdate(), sysdate(), 0);
 
 -- 新版 AI 聊天入口（已有数据库使用 20261011-ai-chat-new-menu.sql）
 INSERT INTO arte_rbac_menu (menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag,
@@ -417,3 +479,126 @@ WHERE binding.target = 'ChatNew'
                   WHERE existing.source = binding.source
                     AND existing.target = 'aiModels'
                     AND existing.binding_type = binding.binding_type);
+
+-- 环境配置菜单：只组织现有页面，不新增租户管理、工具实现或业务操作权限。
+-- 已有环境执行本脚本；新环境的 arte-rbac-dml-mysql.sql 已包含相同内容。
+-- 在目标应用库执行（如 arte）；先暂停并发菜单维护，核对同码／同路径冲突。
+-- 可复用已手工登记的 Environment /Environment 顶级菜单；不覆盖已有菜单或启停状态。
+-- 仅向已存在的 admin 角色分配父／子菜单，其他角色与用户通过菜单管理分配。
+-- 执行后在“角色管理”查看 admin 详情以刷新角色缓存，再刷新当前登录信息和页面。
+-- SQL 不会清除 Redis 缓存；重启或重新登录不能替代权限缓存刷新。
+SET NAMES utf8mb4;
+
+INSERT INTO arte_rbac_menu
+(menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version,
+ create_by, create_time, update_by, update_time)
+SELECT 'Environment',
+       '环境配置',
+       'ControlOutlined',
+       '/Environment',
+       NULL,
+       5,
+       1,
+       '租户、工作空间、模型、工具及其他环境资源配置',
+       '1',
+       0,
+       'system',
+       CURRENT_TIMESTAMP,
+       'system',
+       CURRENT_TIMESTAMP WHERE NOT EXISTS (
+    SELECT 1 FROM arte_rbac_menu WHERE menu_code = 'Environment' OR menu_url = '/Environment'
+);
+
+INSERT INTO arte_rbac_menu
+(menu_code, menu_name, icon, menu_url, father_id, order_id, status, description, show_flag, row_version,
+ create_by, create_time, update_by, update_time)
+SELECT entry.menu_code,
+       entry.menu_name,
+       entry.icon,
+       entry.menu_url,
+       parent.id,
+       entry.order_id,
+       1,
+       entry.description,
+       '1',
+       0,
+       'system',
+       CURRENT_TIMESTAMP,
+       'system',
+       CURRENT_TIMESTAMP
+FROM arte_rbac_menu parent
+         CROSS JOIN (SELECT 'EnvironmentTenants'     AS menu_code,
+                            '租户配置'               AS menu_name,
+                            'ApartmentOutlined'      AS icon,
+                            '/Environment/Tenants'   AS menu_url,
+                            1                        AS order_id,
+                            '已有租户及空间政策配置' AS description
+                     UNION ALL
+                     SELECT 'EnvironmentWorkspaces',
+                            '工作空间配置',
+                            'AppstoreOutlined',
+                            '/Environment/Workspaces',
+                            2,
+                            '工作空间选择、创建、信息维护与个人偏好'
+                     UNION ALL
+                     SELECT 'EnvironmentModels',
+                            '模型配置',
+                            'RobotOutlined',
+                            '/Environment/Models',
+                            3,
+                            '现有模型管理、草稿、凭据、验证及发布'
+                     UNION ALL
+                     SELECT 'EnvironmentTools',
+                            '工具配置',
+                            'ToolOutlined',
+                            '/Environment/Tools',
+                            4,
+                            '现有工具目录、本人空间配置及调用') entry
+WHERE parent.menu_code = 'Environment'
+  AND parent.menu_url = '/Environment'
+  AND parent.father_id IS NULL
+  AND parent.status = 1
+  AND parent.show_flag = '1'
+  AND (SELECT COUNT(*)
+       FROM arte_rbac_menu
+       WHERE menu_code = 'Environment'
+          OR menu_url = '/Environment') = 1
+  AND NOT EXISTS (SELECT 1
+                  FROM arte_rbac_menu existing
+                  WHERE existing.menu_code = entry.menu_code
+                     OR existing.menu_url = entry.menu_url);
+
+INSERT INTO arte_rbac_relation (source, target, binding_type, create_by, create_time)
+SELECT DISTINCT assigned_role.role_code, menu.menu_code, 'role_to_menu', 'system', CURRENT_TIMESTAMP
+FROM arte_rbac_role assigned_role
+         JOIN arte_rbac_menu parent
+              ON parent.menu_code = 'Environment' AND parent.menu_url = '/Environment'
+                  AND parent.father_id IS NULL AND parent.status = 1 AND parent.show_flag = '1'
+         JOIN arte_rbac_menu menu ON menu.id = parent.id OR menu.father_id = parent.id
+         JOIN (SELECT 'Environment' AS menu_code, '/Environment' AS menu_url
+               UNION ALL
+               SELECT 'EnvironmentTenants', '/Environment/Tenants'
+               UNION ALL
+               SELECT 'EnvironmentWorkspaces', '/Environment/Workspaces'
+               UNION ALL
+               SELECT 'EnvironmentModels', '/Environment/Models'
+               UNION ALL
+               SELECT 'EnvironmentTools', '/Environment/Tools') expected
+              ON expected.menu_code = menu.menu_code AND expected.menu_url = menu.menu_url
+WHERE assigned_role.role_code = 'admin'
+  AND assigned_role.status = 1
+  AND menu.status = 1
+  AND menu.show_flag = '1'
+  AND (SELECT COUNT(*)
+       FROM arte_rbac_menu
+       WHERE menu_code = 'Environment'
+          OR menu_url = '/Environment') = 1
+  AND NOT EXISTS (SELECT 1
+                  FROM arte_rbac_menu conflict
+                  WHERE (conflict.menu_code = menu.menu_code OR conflict.menu_url = menu.menu_url)
+                    AND conflict.id <> menu.id)
+  AND NOT EXISTS (SELECT 1
+                  FROM arte_rbac_relation existing
+                  WHERE existing.source = assigned_role.role_code
+                    AND existing.target = menu.menu_code
+                    AND existing.binding_type = 'role_to_menu');

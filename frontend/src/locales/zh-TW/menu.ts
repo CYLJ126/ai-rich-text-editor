@@ -1,4 +1,13 @@
 export default {
+  'menu.Environment': '環境配置',
+  'menu.Environment.EnvironmentTenants': '租戶配置',
+  'menu.Environment.Tenants': '租戶配置',
+  'menu.Environment.EnvironmentWorkspaces': '工作空間配置',
+  'menu.Environment.Workspaces': '工作空間配置',
+  'menu.Environment.EnvironmentModels': '模型配置',
+  'menu.Environment.Models': '模型配置',
+  'menu.Environment.EnvironmentTools': '工具配置',
+  'menu.Environment.Tools': '工具配置',
   'menu.aiTool': 'AI 工具',
   'menu.AI.Tools': 'AI 工具',
   'menu.ChatNew': 'AI 聊天（新版）',

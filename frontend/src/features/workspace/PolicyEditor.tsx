@@ -277,27 +277,33 @@ function Editor({
                   setDirty(true);
                   setError('');
                 }} onFinish={() => submit(form.getFieldsValue(true))}>
+
             {kind === 'tenant' &&
               <Form.Item name="membersMayCreateWorkspace" label="允许成员创建工作空间" valuePropName="checked">
                 <Switch aria-label="允许成员创建工作空间"/>
               </Form.Item>}
+
             <Button disabled={locked} onClick={() => {
               form.setFieldsValue(deepSeekDraft(form.getFieldsValue(true)));
               setDirty(true);
               setError('');
             }}>填入 DeepSeek 个人模型规则</Button>
+
             <Typography.Paragraph
               type="secondary">只填充草稿，保留已有名单和其他规则。保存不会代替模型授权，也不会扩大部署出口范围。</Typography.Paragraph>
+
+            {/* 表单字段 */}
             <PolicyRulesFields form={form}/>
+
             {(dirty || pending) && <>
               <Typography.Title level={5}>保存前变更预览</Typography.Title>
               <Table size="small" pagination={false} dataSource={changes} scroll={{x: true}} columns={[
-                {title: '项目', dataIndex: 'field'}, {
-                  title: '当前服务器政策',
-                  dataIndex: 'current'
-                }, {title: '完整草稿', dataIndex: 'draft'},
+                {title: '项目', dataIndex: 'field'},
+                {title: '当前服务器政策', dataIndex: 'current'},
+                {title: '完整草稿', dataIndex: 'draft'},
               ]}/>
             </>}
+
             <Button type="primary" htmlType="submit" loading={saving} disabled={locked || stale || !dirty}>
               {kind === 'tenant' ? '保存租户政策' : '保存空间政策'}
             </Button>

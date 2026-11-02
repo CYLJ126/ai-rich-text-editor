@@ -1,4 +1,13 @@
 export default {
+  'menu.Environment': 'Environment Configuration',
+  'menu.Environment.EnvironmentTenants': 'Tenant Configuration',
+  'menu.Environment.Tenants': 'Tenant Configuration',
+  'menu.Environment.EnvironmentWorkspaces': 'Workspace Configuration',
+  'menu.Environment.Workspaces': 'Workspace Configuration',
+  'menu.Environment.EnvironmentModels': 'Model Configuration',
+  'menu.Environment.Models': 'Model Configuration',
+  'menu.Environment.EnvironmentTools': 'Tool Configuration',
+  'menu.Environment.Tools': 'Tool Configuration',
   'menu.aiTool': 'AI Tools',
   'menu.AI.Tools': 'AI Tools',
   'menu.ChatNew': 'AI Chat (New)',
