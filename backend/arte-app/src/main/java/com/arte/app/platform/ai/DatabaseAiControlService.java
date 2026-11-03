@@ -1,6 +1,7 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.model.ReviewedModelPlanChecks;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
@@ -14,12 +15,16 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.model.ModelUsagePreparation;
+import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
+import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.model.PersonalModelRuntime;
+import com.arte.ainew.spi.model.ReviewedModelPlanSource;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
 import com.arte.app.platform.persistence.PlatformJson;
@@ -28,6 +33,7 @@ import com.arte.app.pojo.platform.PlatformAiControlRow;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
+import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.application.workspace.WorkspaceMutationEffects;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
@@ -87,6 +93,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final List<String> connectionOrigins;
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
     private ObjectProvider<PersonalModelRuntime> personalModels;
+    private ObjectProvider<ModelGateway> modelGateways;
+
+    @Autowired
+    void modelGateways(ObjectProvider<ModelGateway> modelGateways) {
+        this.modelGateways = modelGateways;
+    }
 
     /**
      * 延迟接入个人发布定义，避免改变唯一控制来源及其启动依赖关系。
@@ -104,10 +116,20 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     /**
      * 取得原写事务内锁定的审核目录，供普通用户发布核对，不授予平台配置修改权。
      */
-    public PreparedConfiguration reviewedModelCatalog() {
+    public ReviewedModelPlanSource.Snapshot reviewedModelCatalog() {
         tx.requireWritable();
         Published value = publishedCurrent();
-        return new PreparedConfiguration(value.catalog().properties(infrastructure, List.of(), List.of()), value.version());
+        return new ReviewedModelPlanSource.Snapshot(value.catalog().reviewedPlans(), value.catalog().properties(infrastructure, List.of(), List.of()).connections(),
+                value.catalog().rates().stream().map(rate -> new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall())).toList(),
+                value.version(), infrastructure.releaseRef());
+    }
+
+    /**
+     * 原事务中的执行定义读取；仅供尚待 M2 收口的既有资源资格适配，不作为审核方案来源。
+     */
+    NewAiProperties currentDefinitions() {
+        tx.requireWritable();
+        return publishedCurrent().catalog().properties(infrastructure, List.of(), List.of());
     }
 
     /**
@@ -485,6 +507,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     private void validate(Catalog catalog, Preset preset) {
+        for (ReviewedModelPlan plan : catalog.reviewedPlans()) {
+            if (catalog.connections().stream().noneMatch(connection -> connection.definition().equals(plan.connection()))
+                    || catalog.rates().stream().noneMatch(rate -> rate.definition().equals(plan.rate()) && rate.toolPerCall() == null)) {
+                throw new IllegalArgumentException("Unresolved reviewed plan dependency");
+            }
+        }
         if (catalog.bindings().stream().anyMatch(b -> b.definition().version().equalsIgnoreCase("latest")))
             throw new IllegalArgumentException("Published models require fixed versions");
         var properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
@@ -499,9 +527,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (!rate.currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0)
                 throw new IllegalArgumentException("Invalid budget currency or limit");
         }
-        if (preset.enabled() && (preset.budgets().isEmpty() || preset.bindings().isEmpty()
-                && preset.budgets().stream().noneMatch(b -> catalog.rates().stream().anyMatch(r -> r.definition().equals(b.rate()) && r.toolPerCall() != null))))
-            throw new IllegalArgumentException("Enabled AI requires approved model or tool budgets");
+
     }
 
     private WorkspaceConfiguration prepare(TrustedActor actor, Scope scope, String operationId) {
@@ -833,7 +859,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     ConnectionDefinition.State.ENABLED, java.time.Duration.ofSeconds(settings.connectTimeoutSeconds()),
                     java.time.Duration.ofSeconds(settings.responseTimeoutSeconds()), settings.maxResponseBytes()));
             return new Catalog(old.capabilities(), old.bindings(), connections, old.rates(), old.legacyGrants(), old.legacyBudgets(),
-                    old.defaults(), old.disabledConnections());
+                    old.defaults(), old.disabledConnections(), old.reviewedPlans());
         });
     }
 
@@ -849,7 +875,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (enabled) disabled.remove(id);
             else disabled.add(id);
             return new Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(),
-                    old.defaults(), disabled);
+                    old.defaults(), disabled, old.reviewedPlans());
         });
     }
 
@@ -874,7 +900,13 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
-     * 不依赖已有同名绑定，原子追加能力、绑定与费率；不自动授权或分配预算。
+     * 发布独立审核方案及必要的新费率，不生成能力／绑定、不授予使用权或初始化账户。
+     *
+     * @param actor    当前平台审核主体
+     * @param meta     原操作键及追踪信息
+     * @param expected 当前目录修订，用于同事务 CAS
+     * @param settings 受审连接、远端模型、能力及精确十进制价格
+     * @return 包含新方案的目录命令回执；方案版本与目录修订分别递增
      */
     public CommandReceipt<CatalogView> publishModelPlan(TrustedActor actor, CommandMeta meta, long expected, ReviewedModelSettings settings) {
         return changeCatalog(actor, meta, expected, "ai:model-plan:publish", json.write(settings), old -> {
@@ -890,26 +922,62 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 throw new IllegalArgumentException("Connection origin is not permitted by deployment policy");
             }
             String family = "reviewed-" + settings.id();
-            String version = "db-v" + Math.incrementExact(expected);
+            List<ReviewedModelPlan> familyPlans = old.reviewedPlans().stream().filter(plan -> plan.planRef().id().equals(family)).toList();
+            ReviewedModelPlan previous = familyPlans.isEmpty() ? null : familyPlans.getLast();
             Set<CapabilityDescriptor.Feature> features = new HashSet<>(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING));
             if (settings.usageReporting()) {
                 features.add(CapabilityDescriptor.Feature.USAGE_REPORTING);
             }
-            CapabilityDescriptor capability = new CapabilityDescriptor(new DefinitionRef("capability", family, version),
-                    CapabilityDescriptor.Kind.GENERATION, ControlDefinitionChecks.INPUT_SCHEMA, ControlDefinitionChecks.OUTPUT_SCHEMA,
-                    features, CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
-            DefinitionRef rate = new DefinitionRef("rate", family, version);
-            List<CapabilityDescriptor> capabilities = new ArrayList<>(old.capabilities());
-            capabilities.add(capability);
-            List<ResolvedBinding> bindings = new ArrayList<>(old.bindings());
-            bindings.add(new ResolvedBinding(new DefinitionRef("binding", family, version), capability, settings.connection(),
-                    settings.remoteModel(), settings.contextWindowTokens(), rate));
+            if (settings.toolCalls()) {
+                features.add(CapabilityDescriptor.Feature.TOOL_CALLS);
+            }
             List<NewAiProperties.Rate> rates = new ArrayList<>(old.rates());
             Currency currency = Currency.getInstance(settings.currency());
-            rates.add(new NewAiProperties.Rate(rate, new Money(new BigDecimal(settings.inputPerMillion()), currency),
-                    new Money(new BigDecimal(settings.outputPerMillion()), currency)));
-            return new Catalog(capabilities, bindings, old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections());
+            Money input = new Money(new BigDecimal(settings.inputPerMillion()), currency);
+            Money output = new Money(new BigDecimal(settings.outputPerMillion()), currency);
+            NewAiProperties.Rate priorRate = previous == null ? null : rates.stream().filter(rate -> rate.definition().equals(previous.rate())).findFirst().orElseThrow();
+            boolean unchangedPrice = previous != null && previous.remoteModel().equals(settings.remoteModel())
+                    && priorRate.inputPerMillion().equals(input) && priorRate.outputPerMillion().equals(output);
+            DefinitionRef rateRef;
+            if (unchangedPrice) {
+                rateRef = previous.rate();
+            } else {
+                long rateVersion = rates.stream().filter(rate -> rate.definition().id().equals(family)).count() + 1;
+                rateRef = new DefinitionRef("rate", family, "v" + rateVersion);
+                rates.add(new NewAiProperties.Rate(rateRef, input, output));
+            }
+            ReviewedModelPlan plan = new ReviewedModelPlan(new DefinitionRef("model-plan", family, "v" + (familyPlans.size() + 1)),
+                    settings.remoteModel(), settings.connection(), settings.remoteModel(), features, settings.contextWindowTokens(), rateRef,
+                    PlatformTimes.businessNow(clock), actor.principal().subjectId(), Math.incrementExact(expected));
+            ModelGateway gateway = modelGateways == null ? null : modelGateways.getIfAvailable();
+            ResolvedBinding metadata = ReviewedModelPlanChecks.metadata(plan);
+            if (gateway == null || !gateway.supportsTextChat(metadata, connection)
+                    || settings.toolCalls() && !gateway.supportsToolChat(metadata, connection)) {
+                throw new IllegalArgumentException("Reviewed capabilities are not supported by the model adapter");
+            }
+            List<ReviewedModelPlan> plans = new ArrayList<>(old.reviewedPlans());
+            plans.add(plan);
+            return new Catalog(old.capabilities(), old.bindings(), old.connections(), rates, old.legacyGrants(), old.legacyBudgets(),
+                    old.defaults(), old.disabledConnections(), plans);
         });
+    }
+
+    /**
+     * 独立发布默认 AI 开关和费率批准上限；不接收模型绑定、Grant、凭据或账户。
+     *
+     * @param actor    当前平台配置主体
+     * @param meta     原操作键及追踪信息
+     * @param expected 当前目录修订
+     * @param enabled  首次空间准备采用的默认开关
+     * @param rateCaps 完整精确费率额度上限集合，重复费率拒绝
+     * @return 默认模板发布回执；不覆盖已有空间或初始化账户
+     */
+    public CommandReceipt<CatalogView> updateDefaultAiPolicy(TrustedActor actor, CommandMeta meta, long expected,
+                                                             boolean enabled, List<BudgetPreset> rateCaps) {
+        Preset defaults = new Preset(enabled, List.of(), rateCaps);
+        return changeCatalog(actor, meta, expected, "ai:default-policy:update", canonical(defaults), old ->
+                new Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(),
+                        defaults, old.disabledConnections(), old.reviewedPlans()));
     }
 
     private CommandReceipt<CatalogView> changeCatalog(TrustedActor actor, CommandMeta meta, long expected, String action,
@@ -922,7 +990,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     mapper.head(true);
                 }, saved -> requireCatalogManager(actor), operation -> {
                     check(Objects.equals(mapper.head(true), expected));
-                    var before = published(false);
+                    Published before = published(false);
                     Catalog data = change.apply(before == null ? Catalog.empty() : before.catalog());
                     return appendCatalog(actor, operation, expected, data);
                 });
@@ -953,7 +1021,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                         if (!old.legacyGrants().equals(data.legacyGrants()) || !old.legacyBudgets().equals(data.legacyBudgets())
                                 || !data.bindings().containsAll(old.bindings()) || !old.connections().equals(data.connections())
                                 || !old.disabledConnections().equals(data.disabledConnections())
-                                || !data.capabilities().containsAll(old.capabilities()) || !data.rates().containsAll(old.rates()))
+                                || !data.capabilities().containsAll(old.capabilities()) || !data.rates().containsAll(old.rates())
+                                || !data.reviewedPlans().containsAll(old.reviewedPlans()))
                             throw new IllegalArgumentException("Published resource versions and legacy ownership are immutable");
                     }
                     long next = Math.incrementExact(expected);

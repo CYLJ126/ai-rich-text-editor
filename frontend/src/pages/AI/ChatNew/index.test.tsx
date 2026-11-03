@@ -56,7 +56,7 @@ vi.mock('@/services/platform/ai', () => ({
   getWorkspaceAi: vi.fn(async () => {
     throw new Error('FIXED mode');
   }),
-  getAiCatalog: vi.fn(), initializeAiCatalog: vi.fn(), updateWorkspaceAi: vi.fn(), publishAiCatalog: vi.fn(),
+  getAiCatalog: vi.fn(), initializeAiCatalog: vi.fn(), updateWorkspaceAi: vi.fn(), updateDefaultAiPolicy: vi.fn(),
   refKey: (ref: { type: string; id: string; version: string }) => JSON.stringify([ref.type, ref.id, ref.version])
 }));
 const scope = {tenantId: 'tenant', workspaceId: 'workspace'};

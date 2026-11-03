@@ -1,5 +1,7 @@
 package com.arte.app.web.controller.platform;
 
+import com.arte.ainew.pojo.budget.Money;
+import com.arte.app.platform.ai.AiControlData.BudgetPreset;
 import com.arte.app.platform.ai.AiControlData.Preset;
 import com.arte.app.platform.ai.AiControlData.WorkspaceView;
 import com.arte.app.platform.ai.DatabaseAiControlService;
@@ -17,10 +19,10 @@ import com.arte.core.pojo.platform.CommandMeta;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +30,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -62,9 +66,6 @@ public class WorkspaceAiConfigurationController {
 
     public record UpdateRequest(@NotNull Scope scope, @NotNull @Min(0) Long expectedWorkspaceVersion,
                                 @NotNull @Min(0) Long expectedVersion, @NotNull Preset preset) {
-    }
-
-    public record PublishRequest(@NotNull @Min(0) Long expectedVersion, @NotNull AiCatalogPayload catalog) {
     }
 
     private <T> Mono<ResultContext<T>> call(Authentication authentication, Locale locale, Function<TrustedActor, T> work) {
@@ -105,18 +106,21 @@ public class WorkspaceAiConfigurationController {
     @PostMapping("/initializeCatalog")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
     public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> initializeCatalog(Authentication auth,
-                                                                                @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.initializeCatalog(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)))));
+                                                                                        @RequestHeader("Idempotency-Key") String key,
+                                                                                        HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.initializeCatalog(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)))));
     }
 
     public record ConnectionFields(
-            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 256) String id,
-            @jakarta.validation.constraints.NotBlank String providerId, @NotNull java.net.URI endpoint,
-            @Min(1) @jakarta.validation.constraints.Max(60) long connectTimeoutSeconds,
-            @Min(1) @jakarta.validation.constraints.Max(900) long responseTimeoutSeconds,
-            @Min(1) @jakarta.validation.constraints.Max(33554432) int maxResponseBytes) implements StrictPlatformRequest {
+            @NotBlank @Size(max = 256) String id,
+            @NotBlank String providerId, @NotNull java.net.URI endpoint,
+            @Min(1) @Max(60) long connectTimeoutSeconds,
+            @Min(1) @Max(900) long responseTimeoutSeconds,
+            @Min(1) @Max(33554432) int maxResponseBytes) implements StrictPlatformRequest {
         DatabaseAiControlService.ConnectionSettings settings() {
-            return new DatabaseAiControlService.ConnectionSettings(id, providerId, endpoint, connectTimeoutSeconds, responseTimeoutSeconds, maxResponseBytes);
+            return new DatabaseAiControlService.ConnectionSettings(id, providerId, endpoint, connectTimeoutSeconds,
+                    responseTimeoutSeconds, maxResponseBytes);
         }
     }
 
@@ -125,50 +129,78 @@ public class WorkspaceAiConfigurationController {
     }
 
     public record ConnectionStateRequest(@NotNull @Min(0) Long expectedVersion,
-                                         @jakarta.validation.constraints.NotBlank String id,
+                                         @NotBlank String id,
                                          @NotNull Boolean enabled) implements StrictPlatformRequest {
     }
 
     @PostMapping("/getConnections")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
     public Mono<ResultContext<AiConnectionPayload.View>> connections(Authentication auth, Locale locale) {
-        return call(auth, locale, actor -> AiConnectionPayload.View.from(service.connectionCatalog(actor), service.allowedConnectionOrigins()));
+        return call(auth, locale, actor -> AiConnectionPayload.View.from(service.connectionCatalog(actor),
+                service.allowedConnectionOrigins()));
     }
 
     @PostMapping("/publishConnection")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
     public Mono<ResultContext<CommandReceipt<AiConnectionPayload.View>>> publishConnection(Authentication auth,
-                                                                                           @Valid @RequestBody ConnectionRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+                                                                                           @Valid @RequestBody ConnectionRequest request,
+                                                                                           @RequestHeader("Idempotency-Key") String key,
+                                                                                           HttpServletRequest http, Locale locale) {
         return call(auth, locale, actor -> AiConnectionPayload.View.receipt(service.publishConnection(actor,
-                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.settings().settings()), service.allowedConnectionOrigins()));
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(),
+                request.settings().settings()), service.allowedConnectionOrigins()));
     }
 
     @PostMapping("/setConnectionEnabled")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
     public Mono<ResultContext<CommandReceipt<AiConnectionPayload.View>>> connectionState(Authentication auth,
-                                                                                         @Valid @RequestBody ConnectionStateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+                                                                                         @Valid @RequestBody ConnectionStateRequest request,
+                                                                                         @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         return call(auth, locale, actor -> AiConnectionPayload.View.receipt(service.setConnectionEnabled(actor,
-                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.id(), request.enabled()), service.allowedConnectionOrigins()));
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.id(),
+                request.enabled()), service.allowedConnectionOrigins()));
     }
 
-    @PostMapping("/publishCatalog")
+    public record DefaultPolicyRequest(@NotNull @Min(0) Long expectedCatalogVersion, @NotNull Boolean enabled,
+                                       @NotNull @Size(max = 100) List<@NotNull @Valid DefaultRateCap> rateCaps) implements StrictPlatformRequest {
+    }
+
+    public record DefaultRateCap(@NotNull DefinitionRef rate,
+                                 @NotNull @Valid DefaultBudgetLimit limit) implements StrictPlatformRequest {
+        BudgetPreset preset() {
+            return new BudgetPreset(rate,
+                    new Money(new BigDecimal(limit.amount()), Currency.getInstance(limit.currency())));
+        }
+    }
+
+    public record DefaultBudgetLimit(@NotBlank @Pattern(regexp = "[0-9]{1,18}(\\.[0-9]{1,18})?") String amount,
+                                     @NotBlank @Pattern(regexp = "[A-Z]{3}") String currency) implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/updateDefaultAiPolicy")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
-    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> publish(Authentication auth, @Valid @RequestBody PublishRequest request,
-                                                                    @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.publish(actor,
-                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.catalog().toCatalog())));
+    public Mono<ResultContext<CommandReceipt<AiCatalogPayload.View>>> updateDefaultAiPolicy(Authentication auth,
+                                                                                            @Valid @RequestBody DefaultPolicyRequest request,
+                                                                                            @RequestHeader("Idempotency-Key") String key,
+                                                                                            HttpServletRequest http,
+                                                                                            Locale locale) {
+        return call(auth, locale, actor -> AiCatalogPayload.View.receipt(service.updateDefaultAiPolicy(actor,
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedCatalogVersion(), request.enabled(),
+                request.rateCaps().stream().map(DefaultRateCap::preset).toList())));
     }
 
-    public record ModelPlanFields(@jakarta.validation.constraints.NotBlank String id,
-                                  @NotNull com.arte.core.pojo.reference.DefinitionRef connection,
-                                  @jakarta.validation.constraints.NotBlank String remoteModel,
+    public record ModelPlanFields(@NotBlank String id,
+                                  @NotNull DefinitionRef connection,
+                                  @NotBlank String remoteModel,
                                   @NotNull Long contextWindowTokens,
-                                  @jakarta.validation.constraints.NotBlank String currency,
-                                  @jakarta.validation.constraints.NotBlank String inputPerMillion,
-                                  @jakarta.validation.constraints.NotBlank String outputPerMillion,
-                                  @NotNull Boolean usageReporting) implements StrictPlatformRequest {
+                                  @NotBlank String currency,
+                                  @NotBlank String inputPerMillion,
+                                  @NotBlank String outputPerMillion,
+                                  @NotNull Boolean usageReporting,
+                                  @NotNull Boolean toolCalls) implements StrictPlatformRequest {
         ReviewedModelSettings settings() {
-            return new ReviewedModelSettings(id, connection, remoteModel, contextWindowTokens, currency, inputPerMillion, outputPerMillion, usageReporting);
+            return new ReviewedModelSettings(id, connection, remoteModel, contextWindowTokens, currency, inputPerMillion,
+                    outputPerMillion, usageReporting, toolCalls);
         }
     }
 
@@ -185,7 +217,10 @@ public class WorkspaceAiConfigurationController {
     @PostMapping("/publishModelPlan")
     @PreAuthorize("@pcs.check('aiConfiguration:manage')")
     public Mono<ResultContext<CommandReceipt<AiModelPlanPayload.View>>> publishModelPlan(Authentication auth,
-                                                                                         @Valid @RequestBody ModelPlanRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+                                                                                         @Valid @RequestBody ModelPlanRequest request,
+                                                                                         @RequestHeader("Idempotency-Key") String key,
+                                                                                         HttpServletRequest http,
+                                                                                         Locale locale) {
         return call(auth, locale, actor -> AiModelPlanPayload.View.receipt(service.publishModelPlan(actor,
                 new CommandMeta(key, PlatformHttpContext.traceId(http)), request.expectedVersion(), request.settings().settings())));
     }

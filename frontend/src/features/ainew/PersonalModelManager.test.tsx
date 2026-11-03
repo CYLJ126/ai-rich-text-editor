@@ -109,7 +109,7 @@ beforeEach(() => {
   }]));
   vi.mocked(api.listModelVersions).mockResolvedValue(response({records: [], current: 1, size: 10, total: 0}));
   vi.mocked(api.listPublicationOptions).mockResolvedValue(response([{
-    templateBinding: ref('binding', 'reviewed-model'),
+    planRef: ref('model-plan', 'reviewed-model'),
     rate: ref('rate', 'reviewed-price'),
     catalogRevision: 7,
     contextWindowTokens: 8192
@@ -213,7 +213,7 @@ it('validates once then publishes exact dependencies and never applies a chat se
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledWith(expect.objectContaining({
     kind: 'publish', request: {
       scope, resourceId: 'model', expectedVersion: 0, draftVersion: 4, credentialVersion: 2, validationId: 'validation',
-      templateBinding: ref('binding', 'reviewed-model'), catalogRevision: 7,
+      planRef: ref('model-plan', 'reviewed-model'), catalogRevision: 7,
     }
   }), undefined));
   expect(localStorage.setItem).not.toHaveBeenCalled();

@@ -17,7 +17,7 @@ import {type Operation, readOperation, saveOperation} from './storage';
 type Fields = Omit<ModelPlanSettings, 'connection'> & { connectionKey: string };
 type Saved = { scope: { tenantId: string; workspaceId: string }; command: ModelPlanCommand };
 type Props = { userId: string; onUnsafeChange?: (value: boolean) => void };
-const defaults = {currency: 'CNY', contextWindowTokens: 8192, usageReporting: false};
+const defaults = {currency: 'CNY', contextWindowTokens: 8192, usageReporting: false, toolCalls: false};
 
 /** 平台登记价格不代替个人模型验证，也不授予执行资格。 */
 export default function ModelPlanManager(props: Props) {
@@ -162,21 +162,21 @@ function Manager({userId, onUnsafeChange}: Props) {
 
   function edit(plan: ManagedModelPlan) {
     form.setFieldsValue({
-      id: plan.binding.id.startsWith('reviewed-') ? plan.binding.id.slice(9) : '',
+      id: plan.planRef.id.startsWith('reviewed-') ? plan.planRef.id.slice(9) : '',
       connectionKey: refKey(plan.connection),
       remoteModel: plan.remoteModel,
       contextWindowTokens: plan.contextWindowTokens,
       currency: plan.currency,
       inputPerMillion: plan.inputPerMillion,
       outputPerMillion: plan.outputPerMillion,
-      usageReporting: plan.usageReporting
+      usageReporting: plan.usageReporting, toolCalls: plan.toolCalls
     });
     setDirty(true);
     setNotice('');
   }
 
   return <Flex vertical gap={16} aria-label="审核模型与费率管理">
-    <Typography.Paragraph>平台管理员审核远端模型、容量与费率后发布方案。个人模型继续使用本人密钥验证并发布；登记方案不探测供应商、不分配预算。</Typography.Paragraph>
+    <Typography.Paragraph>平台管理员审核远端模型、容量与费率后发布方案。个人模型继续使用本人密钥验证并发布；登记方案不探测供应商、不分配预算，也不会直接成为聊天候选。</Typography.Paragraph>
     {blocked &&
       <Alert showIcon type="warning" title="恢复记录无法可靠保存或读取，已阻止新操作；请保留本页并检查浏览器存储。"/>}
     {error && <Alert showIcon type="warning" title={error}/>}{notice && <Alert showIcon type="info" title={notice}/>}
@@ -226,6 +226,10 @@ function Manager({userId, onUnsafeChange}: Props) {
             aria-label="输出单价" stringMode min="0"/></Form.Item>
           <Form.Item name="usageReporting" label="声明支持用量报告" valuePropName="checked"><Switch
             aria-label="声明支持用量报告"/></Form.Item>
+          <Form.Item name="toolCalls" label="声明支持工具调用" valuePropName="checked"><Switch
+            aria-label="声明支持工具调用"/></Form.Item>
+          <Typography.Paragraph
+            type="secondary">能力声明需要审核者核实；连接探测不证明工具调用能力，程序还会核验适配支持。</Typography.Paragraph>
           <Typography.Paragraph
             type="secondary">价格按原币种十进制保存，不自动换汇。修改价格、容量或目标均追加新固定版本；旧模型、历史调用及预算不会自动升级。</Typography.Paragraph>
           <Flex gap={8} wrap><Button aria-label="发布模型与费率版本" type="primary" htmlType="submit" loading={saving}
@@ -237,8 +241,8 @@ function Manager({userId, onUnsafeChange}: Props) {
         </Form>
       </Card>
       {!view.plans.length && <Typography.Text>尚无审核模型方案，可以从已有审核连接独立创建。</Typography.Text>}
-      {[...view.plans].reverse().map(plan => <Card size="small" key={refKey(plan.binding)}
-                                                   title={`${plan.remoteModel} · ${plan.binding.id}@${plan.binding.version}`}>
+      {[...view.plans].reverse().map(plan => <Card size="small" key={refKey(plan.planRef)}
+                                                   title={`${plan.remoteModel} · ${plan.planRef.id}@${plan.planRef.version}`}>
         <Flex vertical gap={8}><Typography.Text>{plan.connection.id}@{plan.connection.version} ·
           上下文 {plan.contextWindowTokens} Token</Typography.Text>
           <Typography.Text>输入 {plan.inputPerMillion} / 输出 {plan.outputPerMillion} {plan.currency}／百万 Token ·

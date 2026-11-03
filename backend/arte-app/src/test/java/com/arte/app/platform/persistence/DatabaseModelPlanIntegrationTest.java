@@ -57,8 +57,8 @@ class DatabaseModelPlanIntegrationTest {
             DatabaseAiControlService service = prepare(c);
             CatalogView view = service.publishModelPlan(f.f.f.actor, f.f.meta("plan"), 1, settings("0.000000000000000001")).value();
             assertEquals(2, view.version());
-            assertEquals("never-seeded-model", view.catalog().bindings().getFirst().remoteOperation());
-            assertEquals("reviewed-brand-new", view.catalog().bindings().getFirst().definition().id());
+            assertEquals("never-seeded-model", view.catalog().reviewedPlans().getFirst().remoteModel());
+            assertEquals("reviewed-brand-new", view.catalog().reviewedPlans().getFirst().planRef().id());
             assertEquals("0.000000000000000001", AiModelPlanPayload.View.from(view).plans().getFirst().inputPerMillion());
             assertTrue(view.catalog().legacyGrants().isEmpty());
             assertTrue(view.catalog().legacyBudgets().isEmpty());
@@ -69,7 +69,8 @@ class DatabaseModelPlanIntegrationTest {
             DatabaseAiControlService service = c.getBean(DatabaseAiControlService.class);
             assertEquals(2, service.catalog().version());
             assertEquals("2.123456789012345678", service.definitions().rates().getFirst().outputPerMillion().amount().toPlainString());
-            assertEquals(1, service.definitions().bindings().size());
+            assertTrue(service.definitions().bindings().isEmpty());
+            assertEquals(1, service.catalog().catalog().reviewedPlans().size());
         });
     }
 
@@ -84,8 +85,10 @@ class DatabaseModelPlanIntegrationTest {
             CatalogView next = service.publishModelPlan(f.f.f.actor, f.f.meta("second"), 2, settings("3")).value();
             assertEquals(2, next.catalog().rates().size());
             assertEquals(first.value().catalog().rates().getFirst(), next.catalog().rates().getFirst());
-            assertEquals(first.value().catalog().bindings().getFirst(), next.catalog().bindings().getFirst());
-            assertEquals("db-v3", next.catalog().bindings().getLast().definition().version());
+            assertEquals(first.value().catalog().reviewedPlans().getFirst(), next.catalog().reviewedPlans().getFirst());
+            assertEquals("v2", next.catalog().reviewedPlans().getLast().planRef().version());
+            assertTrue(next.catalog().bindings().isEmpty());
+            assertTrue(next.catalog().capabilities().isEmpty());
             assertEquals("1", service.historicalRate(first.value().catalog().rates().getFirst().definition()).inputPerMillion().amount().toPlainString());
             assertEquals("3", service.historicalRate(next.catalog().rates().getLast().definition()).inputPerMillion().amount().toPlainString());
             assertEquals(first.operationId(), service.publishModelPlan(f.f.f.actor, f.f.meta("first"), 1, settings("1")).operationId());
@@ -153,9 +156,105 @@ class DatabaseModelPlanIntegrationTest {
                         assertFalse(body.contains("endpoint"));
                         assertFalse(body.contains("credential"));
                         assertEquals(200, f.f.http(mvc, "getModelPlans", "{}", null, auth, online, true));
+                        assertEquals(404, f.f.http(mvc, "publishCatalog", "{}", "old-path", auth, online, true));
+                        String policy = "{\"expectedCatalogVersion\":2,\"enabled\":true,\"rateCaps\":[]}";
+                        assertEquals(403, f.f.http(mvc, "updateDefaultAiPolicy", policy, "policy", auth, online, false));
+                        assertEquals(400, f.f.http(mvc, "updateDefaultAiPolicy", policy, null, auth, online, true));
+                        assertEquals(400, f.f.http(mvc, "updateDefaultAiPolicy", policy.replace("\"enabled\"", "\"bindings\":[],\"enabled\""), "inject", auth, online, true));
+                        assertEquals(200, f.f.http(mvc, "updateDefaultAiPolicy", policy, "policy", auth, online, true));
+                        String caps = mapper.writeValueAsString(Map.of("expectedCatalogVersion", 3, "enabled", true, "rateCaps", List.of(
+                                Map.of("rate", new DefinitionRef("rate", "reviewed-brand-new", "v1"),
+                                        "limit", Map.of("amount", "0.000000000000000001", "currency", "CNY")))));
+                        org.springframework.mock.web.MockHttpServletResponse capResult = f.f.httpResponse(mvc, "updateDefaultAiPolicy", caps, "exact-cap", auth, online, true);
+                        assertEquals(200, capResult.getStatus(), capResult.getContentAsString());
+                        assertEquals("0.000000000000000001", mapper.readTree(capResult.getContentAsString()).get("data").get("value")
+                                .get("catalog").get("defaults").get("rateCaps").get(0).get("limit").get("amount").asString());
+                        assertEquals(400, f.f.http(mvc, "updateDefaultAiPolicy", caps.replace("\"currency\"", "\"secret\":\"hidden\",\"currency\""), "nested-inject", auth, online, true));
                     } catch (Exception error) {
                         throw new AssertionError(error);
                     }
                 });
     }
+
+    @Test
+    void capacityAndConnectionRevisionsDoNotChangeTheRateOrFollowGlobalRevisionNumbers() {
+        f.context().run(c -> {
+            DatabaseAiControlService service = prepare(c);
+            CatalogView first = service.publishModelPlan(f.f.f.actor, f.f.meta("first-plan"), 1, settings("1")).value();
+            service.publishConnection(f.f.f.actor, f.f.meta("unrelated-connection"), 2, f.settings("v2"));
+            ReviewedModelSettings changed = new ReviewedModelSettings("brand-new", settings("1").connection(),
+                    "never-seeded-model", 32768, "CNY", "01.00", "2.123456789012345678", false);
+            CatalogView second = service.publishModelPlan(f.f.f.actor, f.f.meta("capacity-only"), 3, changed).value();
+            assertEquals("v2", second.catalog().reviewedPlans().getLast().planRef().version());
+            assertEquals(4, second.catalog().reviewedPlans().getLast().catalogRevision());
+            assertEquals(first.catalog().reviewedPlans().getFirst().rate(), second.catalog().reviewedPlans().getLast().rate());
+            assertEquals(1, second.catalog().rates().size());
+            assertEquals(2, second.catalog().reviewedPlans().size());
+            assertTrue(service.definitions().bindings().isEmpty());
+            assertTrue(service.definitions().capabilities().isEmpty());
+        });
+    }
+
+    @Test
+    void changingRemoteModelOrCurrencyCreatesAnExplicitNewRate() {
+        f.context().run(c -> {
+            DatabaseAiControlService service = prepare(c);
+            CatalogView first = service.publishModelPlan(f.f.f.actor, f.f.meta("first"), 1, settings("1")).value();
+            ReviewedModelSettings target = new ReviewedModelSettings("brand-new", settings("1").connection(),
+                    "another-model", 65536, "CNY", "1", "2.123456789012345678", true);
+            CatalogView second = service.publishModelPlan(f.f.f.actor, f.f.meta("target"), 2, target).value();
+            assertNotEquals(first.catalog().reviewedPlans().getFirst().rate(), second.catalog().reviewedPlans().getLast().rate());
+            ReviewedModelSettings currency = new ReviewedModelSettings("brand-new", settings("1").connection(),
+                    "another-model", 65536, "USD", "1", "2.123456789012345678", true);
+            CatalogView third = service.publishModelPlan(f.f.f.actor, f.f.meta("currency"), 3, currency).value();
+            assertEquals("v3", third.catalog().reviewedPlans().getLast().rate().version());
+            assertEquals(3, third.catalog().rates().size());
+        });
+    }
+
+    @Test
+    void explicitToolDeclarationIsRetainedAndUnsupportedAdapterCannotApproveIt() {
+        f.context().run(c -> {
+            DatabaseAiControlService service = prepare(c);
+            ReviewedModelSettings tools = new ReviewedModelSettings("brand-new", settings("1").connection(),
+                    "never-seeded-model", 65536, "CNY", "1", "2", true, true);
+            CatalogView approved = service.publishModelPlan(f.f.f.actor, f.f.meta("tools"), 1, tools).value();
+            assertTrue(approved.catalog().reviewedPlans().getFirst().features().contains(com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.TOOL_CALLS));
+            assertTrue(AiModelPlanPayload.View.from(approved).plans().getFirst().toolCalls());
+            com.arte.ainew.spi.gateway.ModelGateway unsupported = org.mockito.Mockito.mock(com.arte.ainew.spi.gateway.ModelGateway.class);
+            org.mockito.Mockito.when(unsupported.supportsTextChat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+            org.springframework.beans.factory.support.StaticListableBeanFactory factory = new org.springframework.beans.factory.support.StaticListableBeanFactory(Map.of("gateway", unsupported));
+            ReflectionTestUtils.setField(service, "modelGateways", factory.getBeanProvider(com.arte.ainew.spi.gateway.ModelGateway.class));
+            assertThrows(IllegalArgumentException.class, () -> service.publishModelPlan(f.f.f.actor, f.f.meta("unsupported-tools"), 2, tools));
+            assertEquals(2, service.catalog().version());
+            assertEquals(1, service.catalog().catalog().reviewedPlans().size());
+        });
+    }
+
+    @Test
+    void defaultPolicyIsIndependentAndPlansRemainUndiscoverableEvenWithAnApprovedBudget() {
+        f.context().run(c -> {
+            DatabaseAiControlService service = prepare(c);
+            CatalogView plan = service.publishModelPlan(f.f.f.actor, f.f.meta("plan"), 1, settings("1")).value();
+            com.arte.app.platform.ai.AiControlData.BudgetPreset cap = new com.arte.app.platform.ai.AiControlData.BudgetPreset(
+                    plan.catalog().reviewedPlans().getFirst().rate(), new com.arte.ainew.pojo.budget.Money(new java.math.BigDecimal("100"), java.util.Currency.getInstance("CNY")));
+            long accounts = f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Long.class);
+            long spaces = f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Long.class);
+            com.arte.core.pojo.platform.CommandReceipt<CatalogView> updated = service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("policy"), 2, true, List.of(cap));
+            assertEquals(updated.operationId(), service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("policy"), 2, true, List.of(cap)).operationId());
+            assertEquals(accounts, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Long.class));
+            assertEquals(spaces, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Long.class));
+            assertTrue(updated.value().catalog().defaults().bindings().isEmpty());
+            assertThrows(IllegalArgumentException.class, () -> service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("duplicate"), 3, true, List.of(cap, cap)));
+            service.ensure(f.f.f.actor, f.scope);
+            com.arte.ainew.common.execution.ExecutionContext execution = f.f.execution(service, f.scope,
+                    java.util.Set.of(com.arte.ainew.application.auth.AdmissionAuthorization.INVOKE), "review-is-not-execution");
+            assertTrue(c.getBean(com.arte.ainew.application.control.ChatConfigurationQueryService.class).discover(execution).block(java.time.Duration.ofSeconds(10)).options().isEmpty());
+            assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.api.control.BindingManager.class).resolve(
+                    plan.catalog().reviewedPlans().getFirst().planRef(), new DefinitionRef("capability", "reviewed-brand-new", "v1"), execution).block(java.time.Duration.ofSeconds(10)));
+            service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("changed-default"), 3, false, List.of());
+            assertTrue(service.get(f.f.f.actor, f.scope).configuration().preset().enabled());
+        });
+    }
+
 }

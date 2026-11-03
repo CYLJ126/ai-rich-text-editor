@@ -32,7 +32,7 @@ public final class PersonalModels {
      * @param resource          稳定模型资源引用
      * @param scope             固定管理空间；租户模型的执行空间由独立使用范围决定
      * @param binding           服务端分配的个人模型精确绑定
-     * @param templateBinding   采用的已审核平台模型精确绑定，用于固定协议、能力及费率政策
+     * @param planRef   采用的精确 model-plan 审核方案，用于固定协议、能力及费率政策
      * @param template          原连接模板引用
      * @param templateDigest    验证时及发布时一致的连接模板摘要
      * @param catalogRevision   审核来源的精确目录修订，不是个人模型版本
@@ -44,7 +44,7 @@ public final class PersonalModels {
      * @param publishedBy       发布者稳定主体 ID，不代替资源归属
      * @param publishedAt       发布业务时间
      */
-    public record Release(ResourceRef resource, Scope scope, DefinitionRef binding, DefinitionRef templateBinding,
+    public record Release(ResourceRef resource, Scope scope, DefinitionRef binding, DefinitionRef planRef,
                           DefinitionRef template, String templateDigest, long catalogRevision, long draftVersion,
                           long credentialVersion, DefinitionRef secret, String validationId, int maxOutputTokens,
                           String publishedBy, Instant publishedAt) {
@@ -52,7 +52,7 @@ public final class PersonalModels {
             Objects.requireNonNull(resource);
             Objects.requireNonNull(scope);
             binding.requireType("binding");
-            templateBinding.requireType("binding");
+            planRef.requireType("model-plan");
             template.requireType("connection");
             secret.requireType("secret");
             if (!resource.tenantId().equals(scope.tenantId()) || catalogRevision < 1 || draftVersion < 1 || credentialVersion < 1
@@ -68,12 +68,12 @@ public final class PersonalModels {
     /**
      * 受信发布方案，用户只能选择已审核且与草稿连接和远端模型匹配的项目。
      *
-     * @param templateBinding     审核模型的精确绑定
+     * @param planRef     审核方案的精确 model-plan 引用
      * @param rate                固定模型费率引用，不能由用户自报金额
      * @param catalogRevision     当前审核目录修订，提交时须再次比较
      * @param contextWindowTokens 审核模型允许的上下文上限
      */
-    public record Option(DefinitionRef templateBinding, DefinitionRef rate, long catalogRevision,
+    public record Option(DefinitionRef planRef, DefinitionRef rate, long catalogRevision,
                          long contextWindowTokens) {
     }
 

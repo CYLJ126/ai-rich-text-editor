@@ -179,7 +179,7 @@ class DatabaseAiControlIntegrationTest {
             var rates = new ArrayList<>(old.rates());
             rates.add(new NewAiProperties.Rate(v2, money("3"), money("4")));
             db.publish(f.actor, meta("ports-rate-v2"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(),
-                    old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults()));
+                    old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans()));
             f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
                     () -> definitions.available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT));
@@ -324,7 +324,7 @@ class DatabaseAiControlIntegrationTest {
             var modelV2 = new ResolvedBinding(new DefinitionRef("binding", modelV1.definition().id(), "v2"), v2,
                     modelV1.connection(), modelV1.remoteOperation(), modelV1.contextWindowTokens(), modelV1.rate());
             var upgraded = new AiControlData.Catalog(List.of(v1, v2), List.of(modelV1, modelV2), old.connections(), old.rates(),
-                    old.legacyGrants(), old.legacyBudgets(), old.defaults());
+                    old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans());
             var receipt = db.publish(f.actor, meta("upgrade"), 1, upgraded);
             assertEquals(2, receipt.resultVersion());
             assertEquals(receipt.operationId(), db.publish(f.actor, meta("upgrade"), 1, upgraded).operationId());
@@ -337,7 +337,7 @@ class DatabaseAiControlIntegrationTest {
                     workspace.workspaceVersion(), workspace.configuration().version(), preset));
             var approved = new AiControlData.Preset(true, List.of(modelV1.definition(), modelV2.definition()), old.defaults().budgets());
             db.publish(f.actor, meta("approve-v2"), 2, new AiControlData.Catalog(upgraded.capabilities(), upgraded.bindings(), old.connections(), old.rates(),
-                    old.legacyGrants(), old.legacyBudgets(), approved));
+                    old.legacyGrants(), old.legacyBudgets(), approved, old.disabledConnections(), old.reviewedPlans()));
             assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
             db.update(f.actor, meta("select-v2"), scope, workspace.workspaceVersion(), workspace.configuration().version(), preset);
             current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
@@ -355,11 +355,11 @@ class DatabaseAiControlIntegrationTest {
 
             var redefined = new CapabilityDescriptor(v1.definition(), v1.kind(), v1.inputSchema(), v1.outputSchema(), features, v1.sideEffect(), v1.availability());
             assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("rewrite"), 3,
-                    new AiControlData.Catalog(List.of(redefined, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+                    new AiControlData.Catalog(List.of(redefined, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans())));
             assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("remove"), 3,
-                    new AiControlData.Catalog(List.of(v2), List.of(modelV2), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+                    new AiControlData.Catalog(List.of(v2), List.of(modelV2), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans())));
             assertThrows(IllegalArgumentException.class, () -> db.publish(f.actor, meta("duplicate"), 3,
-                    new AiControlData.Catalog(List.of(v1, v2, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults())));
+                    new AiControlData.Catalog(List.of(v1, v2, v2), upgraded.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans())));
             assertThrows(IllegalArgumentException.class, () -> new DefinitionRef("capability", v1.definition().id(), "latest"));
             assertEquals(3, db.catalog().version());
         });
@@ -792,7 +792,7 @@ class DatabaseAiControlIntegrationTest {
             var defaults = new AiControlData.Preset(true, old.defaults().bindings(), List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("50"))));
             var other = c.getBean(DefaultWorkspaceServices.class).workspaces().create(f.actor, new WorkspaceCommands.CreateWorkspace(meta("next"), scope.tenantId(), "Prepare later", "")).value().scope();
             assertNull(db.get(f.actor, other).configuration());
-            db.publish(f.actor, meta("template"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), defaults));
+            db.publish(f.actor, meta("template"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), defaults, old.disabledConnections(), old.reviewedPlans()));
             assertEquals(preset, db.get(f.actor, scope).configuration().preset());
             assertNull(db.get(f.actor, other).configuration());
             var prepared = db.ensure(f.actor, other).configuration();
@@ -905,69 +905,35 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void httpCatalogUsesStableRemoteFieldsAndPublishesBrowserJsonWithOriginalKeyRecovery() {
+    void httpCatalogIsReadOnlySafeAndRejectsTheFormerFullCatalogWriteRoute() {
         f.initialize();
         context().withUserConfiguration(HttpSecurity.class, com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class)
                 .withBean("pcs", com.arte.app.web.security.PermissionCheckService.class, com.arte.app.web.security.PermissionCheckService::new)
                 .run(c -> {
-                    assertNull(c.getStartupFailure());
                     try {
-                        // 与真实 WebConfig 使用同一 mapper，不依赖 PlatformJson 的持久化专用模块。
-                        var json = com.arte.core.serialize.SerializerFactory.buildJsonMapperWithoutTypeProperty();
-                        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(c.getBean(com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class))
+                        tools.jackson.databind.json.JsonMapper json = com.arte.core.serialize.SerializerFactory.buildJsonMapperWithoutTypeProperty();
+                        org.springframework.test.web.servlet.MockMvc mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                                .standaloneSetup(c.getBean(com.arte.app.web.controller.platform.WorkspaceAiConfigurationController.class))
                                 .setControllerAdvice(new com.arte.app.web.advice.PlatformExceptionHandler())
                                 .setMessageConverters(new org.springframework.http.converter.json.JacksonJsonHttpMessageConverter(json)).build();
-                        var online = new com.arte.core.pojo.UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(f.jdbc.queryForObject(
+                        com.arte.core.pojo.UserOnlineInfo online = new com.arte.core.pojo.UserOnlineInfo().setId(1L).setUserName("alice").setAccountCreatedAt(f.jdbc.queryForObject(
                                 "SELECT create_time FROM arte_rbac_user WHERE id=1", (row, index) -> row.getObject(1, java.time.LocalDateTime.class)));
-                        var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
+                        org.springframework.security.core.Authentication auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+                                .authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
                         DatabaseAiTestCatalog.publish(c.getBean(DatabaseAiControlService.class), c, f.actor, meta("http-seed"));
-                        var response = httpResponse(mvc, "getCatalog", "{}", null, auth, online, true);
+                        org.springframework.mock.web.MockHttpServletResponse response = httpResponse(mvc, "getCatalog", "{}", null, auth, online, true);
                         assertEquals(200, response.getStatus());
-                        var body = json.readValue(response.getContentAsString(), Map.class);
-                        var data = (Map<String, Object>) body.get("data");
-                        var catalog = (Map<String, Object>) data.get("catalog");
-                        var models = (List<Map<String, Object>>) catalog.get("bindings");
-                        var original = models.getFirst();
-                        assertEquals(Set.of("definition", "capability", "connection", "remoteOperation", "contextWindowTokens", "rate"), original.keySet());
-                        assertEquals("deepseek-chat", original.get("remoteOperation"));
-                        var capabilities = (List<Map<String, Object>>) catalog.get("capabilities");
-                        var capability = new LinkedHashMap<>(capabilities.getFirst());
-                        var capRef = new LinkedHashMap<>((Map<String, Object>) capability.get("definition"));
-                        capRef.put("version", "v2");
-                        capability.put("definition", capRef);
-                        var features = new ArrayList<>((List<String>) capability.get("features"));
-                        features.add("TOOL_CALLS");
-                        capability.put("features", features);
-                        capabilities.add(capability);
-                        var model = new LinkedHashMap<>(original);
-                        var modelRef = new LinkedHashMap<>((Map<String, Object>) model.get("definition"));
-                        modelRef.put("version", "v2");
-                        model.put("definition", modelRef);
-                        model.put("capability", capability);
-                        models.add(model);
-                        var request = Map.of("expectedVersion", 1, "catalog", catalog);
-                        var published = httpResponse(mvc, "publishCatalog", json.writeValueAsString(request), "http-upgrade", auth, online, true);
-                        assertEquals(200, published.getStatus(), published.getContentAsString());
-                        var receipt = json.readTree(published.getContentAsString()).get("data");
-                        assertEquals(2, receipt.get("value").get("version").asLong());
-                        assertEquals("deepseek-chat", receipt.get("value").get("catalog").get("bindings").get(1).get("remoteOperation").asString());
-                        assertFalse(receipt.get("value").get("catalog").get("bindings").get(1).has("target"));
-
-                        // 已有页面可能暂存旧 target 形状；同义转换后仍重放原回执，不追加第三版。
-                        original.put("target", Map.of("connection", original.remove("connection"), "operation", original.remove("remoteOperation")));
-                        var replay = httpResponse(mvc, "publishCatalog", json.writeValueAsString(request), "http-upgrade", auth, online, true);
-                        assertEquals(200, replay.getStatus(), replay.getContentAsString());
-                        assertEquals(receipt.get("operationId"), json.readTree(replay.getContentAsString()).get("data").get("operationId"));
-                        original.put("target", Map.of("kind", "LOCAL", "adapter", ref("tool-adapter", "invalid")));
-                        assertEquals(400, http(mvc, "publishCatalog", json.writeValueAsString(request), "bad-target", auth, online, true));
-                        original.put("target", Map.of("connection", ref("connection", "deepseek"), "operation", "deepseek-chat"));
-                        original.put("remoteOperation", "conflicting-operation");
-                        assertEquals(400, http(mvc, "publishCatalog", json.writeValueAsString(request), "conflicting-target", auth, online, true));
-                        assertEquals(400, http(mvc, "publishCatalog", "{\"expectedVersion\":2,\"catalog\":{}}", "missing-fields", auth, online, true));
-                        assertEquals(2, c.getBean(DatabaseAiControlService.class).catalog().version());
-                    } catch (Exception error) {
-                        throw new RuntimeException(error);
+                        String body = response.getContentAsString();
+                        assertTrue(body.contains("reviewedPlans"));
+                        assertTrue(body.contains("rateCaps"));
+                        assertFalse(body.contains("legacyGrants"));
+                        assertFalse(body.contains("legacyBudgets"));
+                        assertFalse(body.contains("credential"));
+                        assertFalse(body.contains("bindings"));
+                        assertEquals(404, http(mvc, "publishCatalog", "{\"expectedVersion\":1,\"catalog\":{}}", "blocked", auth, online, true));
+                        assertEquals(1, c.getBean(DatabaseAiControlService.class).catalog().version());
+                    } catch (Exception failure) {
+                        throw new AssertionError(failure);
                     }
                 });
     }

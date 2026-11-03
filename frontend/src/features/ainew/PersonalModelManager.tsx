@@ -91,7 +91,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
   }, [detail?.model.resourceId, detail?.draft.draft, form]);
 
   useEffect(() => {
-    setPlan(detail?.options.length === 1 ? refKey(detail.options[0].templateBinding) : '');
+    setPlan(detail?.options.length === 1 ? refKey(detail.options[0].planRef) : '');
   }, [detail?.options]);
 
   useEffect(() => {
@@ -367,8 +367,8 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
               <Select aria-label="审核发布方案" value={plan || undefined} onChange={setPlan}
                       disabled={disabled || !detail.actions.has('model:publish')}
                       options={detail.options.map(item => ({
-                        value: refKey(item.templateBinding),
-                        label: `${item.templateBinding.id}@${item.templateBinding.version} · ${item.rate.id}@${item.rate.version} · 目录 ${item.catalogRevision}`
+                        value: refKey(item.planRef),
+                        label: `${item.planRef.id}@${item.planRef.version} · ${item.rate.id}@${item.rate.version} · 目录 ${item.catalogRevision}`
                       }))}/>
 
               {!detail.options.length && <Typography.Text
@@ -377,14 +377,14 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
               <Button type="primary"
                       disabled={disabled || !canPublish || !plan || !detail.actions.has('model:publish')}
                       onClick={() => {
-                        const option = detail.options.find(item => refKey(item.templateBinding) === plan);
+                        const option = detail.options.find(item => refKey(item.planRef) === plan);
                         if (option && draft && credential && validation) void submit('publish', {
                           ...located,
                           expectedVersion: detail.model.version,
                           draftVersion: draft.version,
                           credentialVersion: credential.version,
                           validationId: validation.validationId,
-                          templateBinding: option.templateBinding,
+                          planRef: option.planRef,
                           catalogRevision: option.catalogRevision
                         });
                       }}>

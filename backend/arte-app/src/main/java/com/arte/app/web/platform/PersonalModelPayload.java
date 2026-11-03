@@ -39,14 +39,14 @@ public final class PersonalModelPayload {
      * @param draftVersion      当前草稿版本
      * @param credentialVersion 本人的当前凭据代次
      * @param validationId      本人成功且十分钟内的验证 ID
-     * @param templateBinding   方案接口返回的精确审核绑定
+     * @param planRef   方案接口返回的精确 model-plan 引用
      * @param catalogRevision   方案接口返回的审核目录修订
      */
     public record PublishRequest(@NotNull Scope scope, @NotBlank @Size(max = 256) String resourceId,
                                  @NotNull @Min(0) Long expectedVersion, @NotNull @Min(1) Long draftVersion,
                                  @NotNull @Min(1) Long credentialVersion,
                                  @NotBlank @Size(max = 256) String validationId,
-                                 @NotNull DefinitionRef templateBinding,
+                                 @NotNull DefinitionRef planRef,
                                  @NotNull @Min(1) Long catalogRevision) implements StrictPlatformRequest {
     }
 

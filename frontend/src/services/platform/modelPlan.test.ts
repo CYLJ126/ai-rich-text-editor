@@ -36,7 +36,7 @@ it('treats mismatching returned model, connection, price or version as uncertain
       version: 'db-v99'
     }
   },
-    {binding: {...managedPlan.binding, version: 'db-v99'}}, {rate: {...managedPlan.rate, version: 'db-v99'}}]) {
+    {planRef: {...managedPlan.planRef, version: 'db-v99'}}, {rate: {...managedPlan.rate, version: 'db-v99'}}]) {
     const wrong = receipt();
     wrong.value.plans = [{...managedPlan, ...extra}];
     vi.mocked(postResult).mockResolvedValueOnce(response(wrong));
@@ -72,4 +72,29 @@ it('reads large valid historical prices without applying the new form input limi
     plans: [{...managedPlan, inputPerMillion: '123456789012345678901234567890'}]
   }));
   expect((await getModelPlans()).plans[0].inputPerMillion).toBe('123456789012345678901234567890');
+});
+
+it('accepts a new plan version that reuses its exact rate after an unrelated global revision', async () => {
+  const original = {...managedPlan, inputPerMillion: planCommand.settings.inputPerMillion};
+  vi.mocked(postResult).mockResolvedValue(response({
+    operationId: 'revision-seven', status: 1, delivery: 0,
+    resultVersion: 7, acceptedAt: 'now', completedAt: 'now', value: {
+      version: 7, initialized: true,
+      plans: [original, {
+        ...original,
+        planRef: {...original.planRef, version: 'v2'},
+        contextWindowTokens: 16384,
+        catalogRevision: 7
+      }]
+    }
+  }));
+  await publishModelPlan({
+    expectedVersion: 6,
+    settings: {...planCommand.settings, contextWindowTokens: 16384}
+  }, 'same-rate-key');
+});
+it('does not accept an undeclared or missing tool capability in a successful response', async () => {
+  vi.mocked(postResult).mockResolvedValue(response(receipt()));
+  await expect(publishModelPlan({...planCommand, settings: {...planCommand.settings, toolCalls: true}}, 'tool-key'))
+    .rejects.toMatchObject({code: 'INVALID_MODEL_PLAN_RESPONSE'});
 });

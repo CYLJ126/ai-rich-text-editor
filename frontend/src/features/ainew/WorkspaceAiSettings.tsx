@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Divider, Flex, Form, Input, InputNumber, Modal, Select, Switch, Typography} from 'antd';
+import {Alert, Button, Divider, Flex, Form, InputNumber, Select, Switch, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {
   type AiPreset,
@@ -7,8 +7,8 @@ import {
   getAiCatalog,
   getWorkspaceAi,
   initializeAiCatalog,
-  publishAiCatalog,
   refKey,
+  updateDefaultAiPolicy,
   updateWorkspaceAi,
   type WorkspaceAiView
 } from '@/services/platform/ai';
@@ -24,47 +24,53 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   adminOnly?: boolean
 }) {
   const [restored] = useState(() => readOperation<{
-    kind: 'workspace' | 'initialize' | 'publish';
+    kind: 'workspace' | 'initialize' | 'policy';
+    confirmed?: boolean;
     request: unknown
   }>(context, 'ai-configuration', ''));
-  const [unsafe, setUnsafe] = useState(!!restored.warning);
+  const live = useRef(true);
   useEffect(() => {
-    onUnsafeChange?.(unsafe);
-  }, [unsafe, onUnsafeChange]);
+    live.current = true;
+    const logout = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === context.userId) live.current = false;
+    };
+    window.addEventListener('arte-account-session-cleared', logout);
+    return () => {
+      live.current = false;
+      window.removeEventListener('arte-account-session-cleared', logout);
+    };
+  }, [context.userId]);
+  const [unsafe, setUnsafe] = useState(!!restored.warning);
+  const [view, setView] = useState<WorkspaceAiView>();
+  const [preset, setPreset] = useState<AiPreset>();
+  const [catalog, setCatalog] = useState<CatalogView>();
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const pending = useRef<{
+    kind: 'workspace' | 'initialize' | 'policy';
+    confirmed?: boolean;
+    key: string;
+    request: unknown
+  } | null>(restored.value ? {...restored.value.request, key: restored.value.key} : null);
+  const writing = useRef(false);
+  const [uncertain, setUncertain] = useState(!!restored.value);
+  const [catalogEditable, setCatalogEditable] = useState(false);
+  const [policyDirty, setPolicyDirty] = useState(false);
+  const protectedState = unsafe || uncertain || saving || policyDirty;
+  useEffect(() => {
+    onUnsafeChange?.(protectedState);
+  }, [protectedState, onUnsafeChange]);
+  useEffect(() => () => onUnsafeChange?.(false), [onUnsafeChange]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (unsafe) {
+      if (protectedState) {
         event.preventDefault();
         event.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [unsafe]);
-  const [view, setView] = useState<WorkspaceAiView>();
-  const [preset, setPreset] = useState<AiPreset>();
-  const [catalog, setCatalog] = useState<CatalogView>();
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [modelOpen, setModelOpen] = useState(false);
-  const [modelForm] = Form.useForm();
-  const capabilityKey = Form.useWatch('capability', modelForm);
-  const upgradeTools = Form.useWatch('upgradeTools', modelForm);
-  const selectedCapability = catalog?.catalog?.capabilities.find(c => refKey(c.definition) === capabilityKey);
-  const hasToolCalls = (capability: {
-    [key: string]: unknown
-  }) => Array.isArray(capability.features) && capability.features.includes('TOOL_CALLS');
-  const canUpgradeTools = selectedCapability?.kind === 'GENERATION' && selectedCapability.availability === 'EXECUTABLE'
-    && selectedCapability.sideEffect === 'READ_ONLY' && Array.isArray(selectedCapability.features)
-    && ['TEXT_INPUT', 'STREAMING'].every(f => (selectedCapability.features as string[]).includes(f))
-    && !hasToolCalls(selectedCapability);
-  const pending = useRef<{
-    kind: 'workspace' | 'initialize' | 'publish';
-    key: string;
-    request: unknown
-  } | null>(restored.value ? {...restored.value.request, key: restored.value.key} : null);
-  const [uncertain, setUncertain] = useState(!!restored.value);
-  const [catalogEditable, setCatalogEditable] = useState(false);
+  }, [protectedState]);
   useEffect(() => {
     if (adminOnly) {
       void readCatalog();
@@ -83,35 +89,70 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
   }, [scope]);
   const canEdit = !!view?.canManage && !saving && !uncertain && !unsafe;
 
-  async function run(kind: 'workspace' | 'initialize' | 'publish', request: unknown) {
-    if (pending.current && pending.current.kind !== kind) return;
+  async function run(kind: 'workspace' | 'initialize' | 'policy', request: unknown) {
+    if (!live.current || writing.current || (pending.current && pending.current.kind !== kind)) return;
     const operation = pending.current ?? {kind, key: crypto.randomUUID(), request};
     pending.current = operation;
-    setUnsafe(!saveOperation(context, 'ai-configuration', '', {
+    const persist = () => saveOperation(context, 'ai-configuration', '', {
       key: operation.key,
-      request: {scope: context.scope, kind: operation.kind, request: operation.request}
-    }));
+      request: {
+        scope: context.scope, kind: operation.kind, request: operation.request,
+        ...(operation.kind === 'policy' ? {confirmed: operation.confirmed ?? false} : {})
+      }
+    });
+    if (!persist()) {
+      setUnsafe(true);
+      setUncertain(true);
+      setError('无法保存原请求和操作键，本次未提交。恢复浏览器存储后确认原操作。');
+      return;
+    }
+    writing.current = true;
+    setUnsafe(false);
     setSaving(true);
+    setUncertain(true);
     setError('');
     try {
-      if (kind === 'workspace') {
+      if (kind === 'policy') {
+        if (!operation.confirmed) {
+          await updateDefaultAiPolicy(operation.request as Parameters<typeof updateDefaultAiPolicy>[0], operation.key);
+          if (!live.current) return;
+          operation.confirmed = true;
+          if (!persist()) {
+            setUnsafe(true);
+            setError('默认模板已确认，但本地确认状态未保存。请恢复存储后重新读取。');
+            return;
+          }
+        }
+        if (!await readCatalog()) {
+          setError('默认模板已确认，但当前目录读取失败。确认原操作只会重新读取，不再次发布。');
+          return;
+        }
+      } else if (kind === 'workspace') {
         const {body} = await updateWorkspaceAi(operation.request as Parameters<typeof updateWorkspaceAi>[0], operation.key);
+        if (!live.current) return;
+        const configuration = body.data.value.configuration;
+        if (!configuration) throw new AiApiError(200, {code: 'INVALID_WORKSPACE_AI_RESPONSE'});
         setView(body.data.value);
-        setPreset(body.data.value.configuration!.preset);
-        onUpdated();
+        setPreset(configuration.preset);
       } else {
-        const {body} = kind === 'initialize' ? await initializeAiCatalog(operation.key)
-          : await publishAiCatalog(operation.request as Parameters<typeof publishAiCatalog>[0], operation.key);
+        const {body} = await initializeAiCatalog(operation.key);
+        if (!live.current) return;
         setCatalog(body.data.value);
         setCatalogEditable(true);
-        setModelOpen(false);
-        onUpdated();
+      }
+      if (!live.current) return;
+      if (!saveOperation(context, 'ai-configuration', '', null)) {
+        setUnsafe(true);
+        setError('配置已确认，但恢复记录无法清除。请恢复存储后确认原操作。');
+        return;
       }
       pending.current = null;
       setUncertain(false);
-      saveOperation(context, 'ai-configuration', '', null);
       setUnsafe(false);
+      setPolicyDirty(false);
+      onUpdated();
     } catch (failure) {
+      if (!live.current) return;
       const unknown = !(failure instanceof AiApiError) || failure.httpStatus >= 500 || (failure.httpStatus >= 200 && failure.httpStatus < 300);
       setUncertain(unknown);
       if (!unknown) {
@@ -123,17 +164,22 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
           : failure instanceof AiApiError && failure.httpStatus === 409 ? '配置已发生变化，请重新读取最新配置后修改。'
             : '配置未能保存，请检查模型、费率、预算额度和版本。');
     } finally {
-      setSaving(false);
+      writing.current = false;
+      if (live.current) setSaving(false);
     }
   }
 
   async function readCatalog() {
     try {
       const {body} = await getAiCatalog();
+      if (!live.current) return false;
       setCatalog(body.data);
       setCatalogEditable(true);
+      return true;
     } catch {
-      setError('只有平台配置管理员可以维护已发布模型和新空间默认模板。');
+      if (!live.current) return false;
+      setError('只有平台配置管理员可以维护审核目录和新空间默认模板。');
+      return false;
     }
   }
 
@@ -159,6 +205,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
     });
   }
 
+  const publishedCatalog = catalog?.catalog;
   return <Flex component="section" vertical gap={12} className="ai-management-panel" aria-label="空间 AI 配置">
     <Typography.Paragraph>在当前空间选择已发布模型并维护独立预算。首次使用 AI 时按已发布默认模板准备，已有 AI
       配置不会被模板更新覆盖。</Typography.Paragraph>
@@ -193,7 +240,7 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
                                                   onChange={keys => setPreset({
                                                     ...preset,
                                                     budgets: [...preset.budgets.filter(b => !view.toolRates?.some(r => refKey(r.definition) === refKey(b.rate))),
-                                                      ...view.toolRates!.filter(r => keys.includes(refKey(r.definition))).map(r => preset.budgets.find(b => refKey(b.rate) === refKey(r.definition))
+                                                      ...(view.toolRates ?? []).filter(r => keys.includes(refKey(r.definition))).map(r => preset.budgets.find(b => refKey(b.rate) === refKey(r.definition))
                                                         ?? {
                                                           rate: r.definition,
                                                           limit: {currency: r.toolPerCall.currency, amount: '0'}
@@ -211,189 +258,93 @@ export default function WorkspaceAiSettings({scope, context, onUpdated, onUnsafe
       </Form>
       <Typography.Paragraph>调整额度会保留已预留金额和已计费用；提高已批准额度需平台管理员权限。额度低于已占用金额时，会阻止新的调用。</Typography.Paragraph>
       <Flex gap={8} wrap>
-      <Button type="primary" loading={saving} disabled={!canEdit} onClick={() => void run('workspace', {
-        scope, expectedVersion: view.configuration!.version,
-        expectedWorkspaceVersion: view.workspaceVersion, preset
-      })}>保存空间 AI 配置</Button>
+        <Button type="primary" loading={saving} disabled={!canEdit} onClick={() => {
+          if (!view.configuration) return;
+          void run('workspace', {
+            scope, expectedVersion: view.configuration.version,
+            expectedWorkspaceVersion: view.workspaceVersion, preset
+          });
+        }}>保存空间 AI 配置</Button>
       <Button disabled={saving || uncertain || unsafe}
               onClick={() => void reload().catch(() => setError('最新配置读取失败，请重试。'))}>重新读取配置</Button>
       </Flex>
     </>}
     <Divider className="ai-management-divider"/>
-    <Button disabled={saving || uncertain || unsafe}
-            onClick={() => void readCatalog()}>维护已发布模型与默认模板</Button>
-    {catalogEditable && catalog?.catalog && <>
-      <Typography.Paragraph>发布版本：{catalog.version}。新增模型或能力使用新的固定版本，保留历史配置。发布模型后，在下方“新空间默认模型”中选中并发布模板，批准空间选用；已有空间再到空间
-        AI 设置选择新模型并保存，配置不会自动覆盖。</Typography.Paragraph>
-      <Button disabled={saving || uncertain || unsafe} onClick={() => {
-        modelForm.resetFields();
-        setModelOpen(true);
-      }}>发布新模型</Button>
+    <Button disabled={saving || uncertain || unsafe || policyDirty}
+            onClick={() => void readCatalog()}>维护默认 AI 模板</Button>
+    {catalogEditable && catalog && publishedCatalog && <>
+      <Typography.Paragraph>目录修订：{catalog.version}。这里只维护首次空间准备的默认开关与费率上限；不创建实际模型，不启用审核方案，不初始化账户。</Typography.Paragraph>
       <Form component="div" layout="vertical" className="ai-management-form">
-        <Typography.Paragraph>创建空间不会准备 AI 配置或预算；首次进入 AI
-          功能时按需准备，并使用当时已发布的默认模板。修改模板不会覆盖已准备的空间。</Typography.Paragraph>
         <Form.Item label="首次准备时启用 AI"><Switch aria-label="首次准备时启用 AI"
-                                                   disabled={saving || uncertain || unsafe}
-                                                   checked={catalog.catalog.defaults.enabled}
-                                                   onChange={enabled => setCatalog({
-                                                     ...catalog,
-                                                     catalog: {
-                                                       ...catalog.catalog!,
-                                                       defaults: {...catalog.catalog!.defaults, enabled}
-                                                     }
-                                                   })}/></Form.Item>
-      <Form.Item label="新空间默认模型"><Select aria-label="新空间默认模型" mode="multiple"
-                                                disabled={saving || uncertain || unsafe}
-                                                value={catalog.catalog.defaults.bindings.map(refKey)}
-                                                options={catalog.catalog.bindings.map(b => ({
-                                                  label: `${b.remoteOperation} · ${b.definition.version}`,
-                                                  value: refKey(b.definition)
-                                                }))}
-                                                onChange={keys => {
-                                                  const data = catalog.catalog!;
-                                                  const selected = data.bindings.filter(b => keys.includes(refKey(b.definition)));
-                                                  const retainedTools = data.defaults.budgets.filter(b => data.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate)));
-                                                  const rates = selected.map(b => b.rate).filter((rate, index, all) => all.findIndex(r => refKey(r) === refKey(rate)) === index);
-                                                  setCatalog({
-                                                    ...catalog, catalog: {
-                                                      ...data, defaults: {
-                                                        ...data.defaults, bindings: selected.map(b => b.definition),
-                                                        budgets: [...retainedTools, ...rates.map(rate => data.defaults.budgets.find(b => refKey(b.rate) === refKey(rate)) ?? {
-                                                          rate,
-                                                          limit: {
-                                                            amount: '0',
-                                                            currency: data.rates.find(r => refKey(r.definition) === refKey(rate))!.inputPerMillion!.currency
+                                                     disabled={saving || uncertain || unsafe}
+                                                     checked={publishedCatalog.defaults.enabled}
+                                                     onChange={enabled => {
+                                                       setPolicyDirty(true);
+                                                       setCatalog({
+                                                         ...catalog,
+                                                         catalog: {
+                                                           ...publishedCatalog,
+                                                           defaults: {...publishedCatalog.defaults, enabled}
+                                                         }
+                                                       });
+                                                     }}/></Form.Item>
+        <Form.Item label="默认费率批准上限"><Select aria-label="默认费率批准上限" mode="multiple"
+                                                    disabled={saving || uncertain || unsafe}
+                                                    value={publishedCatalog.defaults.rateCaps.map(item => refKey(item.rate))}
+                                                    options={publishedCatalog.rates.map(rate => ({
+                                                      value: refKey(rate.definition),
+                                                      label: `${rate.definition.id}@${rate.definition.version} · ${(rate.inputPerMillion ?? rate.toolPerCall)?.currency}`
+                                                    }))}
+                                                    onChange={keys => {
+                                                      setPolicyDirty(true);
+                                                      const data = publishedCatalog;
+                                                      setCatalog({
+                                                        ...catalog, catalog: {
+                                                          ...data, defaults: {
+                                                            ...data.defaults,
+                                                            rateCaps: data.rates.filter(rate => keys.includes(refKey(rate.definition))).flatMap(rate => {
+                                                              const unit = rate.inputPerMillion ?? rate.toolPerCall;
+                                                              return unit ? [data.defaults.rateCaps.find(item => refKey(item.rate) === refKey(rate.definition))
+                                                              ?? {
+                                                                rate: rate.definition,
+                                                                limit: {amount: '0', currency: unit.currency}
+                                                              }] : [];
+                                                            })
                                                           }
-                                                        })]
-                                                      }
-                                                    }
-                                                  });
-                                                }}/></Form.Item>
-        {catalog.catalog.rates.some(r => r.toolPerCall) &&
-          <Form.Item label="新空间默认工具预算"><Select aria-label="新空间默认工具预算" mode="multiple"
-                                                        disabled={saving || uncertain || unsafe}
-                                                        value={catalog.catalog.defaults.budgets.filter(b => catalog.catalog!.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate))).map(b => refKey(b.rate))}
-                                                        options={catalog.catalog.rates.filter(r => r.toolPerCall).map(r => ({
-                                                          value: refKey(r.definition),
-                                                          label: `${r.definition.id} · ${r.toolPerCall!.currency}`
-                                                        }))}
-                                                        onChange={keys => {
-                                                          const data = catalog.catalog!;
-                                                          setCatalog({
-                                                            ...catalog, catalog: {
-                                                              ...data, defaults: {
-                                                                ...data.defaults, budgets: [
-                                                                  ...data.defaults.budgets.filter(b => !data.rates.some(r => r.toolPerCall && refKey(r.definition) === refKey(b.rate))),
-                                                                  ...data.rates.filter(r => r.toolPerCall && keys.includes(refKey(r.definition))).map(r => data.defaults.budgets.find(b => refKey(b.rate) === refKey(r.definition))
-                                                                    ?? {
-                                                                      rate: r.definition,
-                                                                      limit: {
-                                                                        currency: r.toolPerCall!.currency,
-                                                                        amount: '0'
-                                                                      }
-                                                                    })
-                                                                ]
-                                                              }
-                                                            }
-                                                          });
-                                                        }}/></Form.Item>}
-      {catalog.catalog.defaults.budgets.map((budget, index) => <Form.Item key={refKey(budget.rate)}
-                                                                          label={`新空间默认额度 · ${budget.limit.currency} · ${budget.rate.id}`}>
-        <InputNumber aria-label={`默认预算额度 ${budget.rate.id}`} stringMode min="0" max="1000000000"
-                     disabled={saving || uncertain || unsafe}
-                     value={String(budget.limit.amount)} onChange={value => setCatalog({
-          ...catalog, catalog: {
-            ...catalog.catalog!, defaults: {
-              ...catalog.catalog!.defaults,
-              budgets: catalog.catalog!.defaults.budgets.map((b, i) => index === i ? {
-                ...b,
-                limit: {...b.limit, amount: value ?? '0'}
-              } : b)
-            }
-          }
-        })}/>
-      </Form.Item>)}
+                                                        }
+                                                      });
+                                                    }}/></Form.Item>
+        {publishedCatalog.defaults.rateCaps.map((item, index) => <Form.Item key={refKey(item.rate)}
+                                                                            label={`默认费率上限 · ${item.limit.currency} · ${item.rate.id}@${item.rate.version}`}>
+          <InputNumber aria-label={`默认预算额度 ${item.rate.id}`} stringMode min="0" max="1000000000"
+                       disabled={saving || uncertain || unsafe} value={String(item.limit.amount)} onChange={amount => {
+            setPolicyDirty(true);
+            const data = publishedCatalog;
+            setCatalog({
+              ...catalog, catalog: {
+                ...data, defaults: {
+                  ...data.defaults,
+                  rateCaps: data.defaults.rateCaps.map((value, i) => i === index ? {
+                    ...value,
+                    limit: {...value.limit, amount: amount ?? '0'}
+                  } : value)
+                }
+              }
+            });
+          }}/>
+        </Form.Item>)}
       </Form>
-      <Button loading={saving} disabled={uncertain || unsafe} onClick={() => void run('publish', {
-        expectedVersion: catalog.version,
-        catalog: catalog.catalog
-      })}>发布新空间默认模板</Button>
+      <Typography.Paragraph>修改默认模板不会覆盖已有空间。实际模型请到模型管理创建、验证并发布；空间启用和独立预算规则将在后续批次接入。</Typography.Paragraph>
+      <Button loading={saving} disabled={uncertain || unsafe} onClick={() => void run('policy', {
+        expectedCatalogVersion: catalog.version, enabled: publishedCatalog.defaults.enabled,
+        rateCaps: publishedCatalog.defaults.rateCaps.map(item => ({
+          ...item,
+          limit: {...item.limit, amount: String(item.limit.amount)}
+        }))
+      })}>发布默认 AI 模板</Button>
+      <Button disabled={saving || uncertain || unsafe} onClick={() => void readCatalog().then(ok => {
+        if (ok) setPolicyDirty(false);
+      })}>放弃默认模板修改并重新读取</Button>
     </>}
-    <Modal title="发布新模型" open={modelOpen} onCancel={() => !saving && setModelOpen(false)} confirmLoading={saving}
-           okButtonProps={{disabled: uncertain || unsafe}} onOk={() => void modelForm.validateFields().then(values => {
-      if (!catalog?.catalog) return;
-      const data = catalog.catalog;
-      const baseCapability = data.capabilities.find(c => refKey(c.definition) === values.capability);
-      const connection = data.connections.find(c => refKey(c.definition) === values.connection)?.definition;
-      const rate = data.rates.find(r => refKey(r.definition) === values.rate)?.definition;
-      if (!baseCapability || !connection || !rate) {
-        setError('所选发布资源已不可用，请重新读取配置后选择。');
-        return;
-      }
-      const capability = values.upgradeTools && canUpgradeTools ? {
-        ...baseCapability,
-        definition: {...baseCapability.definition, version: values.capabilityVersion.trim()},
-        features: [...(baseCapability.features as string[]), 'TOOL_CALLS']
-      } : baseCapability;
-      const binding = {
-        definition: {type: 'binding', id: values.id.trim(), version: values.version.trim()}, capability, connection,
-        rate, remoteOperation: values.remoteOperation.trim(), contextWindowTokens: values.contextWindowTokens
-      };
-      return run('publish', {
-        expectedVersion: catalog.version,
-        catalog: {
-          ...data,
-          capabilities: capability === baseCapability ? data.capabilities : [...data.capabilities, capability],
-          bindings: [...data.bindings, binding]
-        }
-      });
-    }).catch(() => {
-    })}>
-      <Form form={modelForm} layout="vertical">
-        <Form.Item name="id" label="模型标识" rules={[{required: true, whitespace: true}]}><Input
-          maxLength={256}/></Form.Item>
-        <Form.Item name="version" label="固定版本" rules={[{required: true, whitespace: true}, {
-          validator: (_, value) =>
-            value?.trim().toLowerCase() === 'latest' || catalog?.catalog?.bindings.some(b => b.definition.id === modelForm.getFieldValue('id')?.trim() && b.definition.version === value?.trim())
-              ? Promise.reject(new Error('请填写未发布的固定模型版本，例如 v2')) : Promise.resolve()
-        }]}><Input maxLength={256}/></Form.Item>
-        <Form.Item name="remoteOperation" label="供应商模型名称" rules={[{required: true, whitespace: true}]}><Input
-          maxLength={256}/></Form.Item>
-        <Form.Item name="contextWindowTokens" label="上下文容量" rules={[{required: true}]}><InputNumber min={2}
-                                                                                                         max={10000000}/></Form.Item>
-        <Form.Item name="capability" label="已发布能力" rules={[{required: true}]}><Select
-          onChange={() => {
-            modelForm.setFieldsValue({upgradeTools: false, capabilityVersion: undefined});
-          }}
-          options={catalog?.catalog?.capabilities.map(c => ({
-            label: `${c.definition.id}@${c.definition.version} · ${hasToolCalls(c) ? '支持工具调用' : '纯文本'}`,
-            value: refKey(c.definition)
-          }))}/></Form.Item>
-        {canUpgradeTools && <Form.Item name="upgradeTools" label="为此模型发布工具调用能力" valuePropName="checked">
-          <Switch aria-label="为此模型发布工具调用能力"/>
-        </Form.Item>}
-        {canUpgradeTools && upgradeTools && <>
-          <Alert type="info"
-                 title="在原能力基础上增加 TOOL_CALLS，并与新模型版本一同发布。请确认供应商模型支持工具调用；当前内置适配器支持 DeepSeek Chat Completions SSE。"/>
-          <Form.Item name="capabilityVersion" label="新能力固定版本" rules={[{required: true, whitespace: true}, {
-            validator: (_, value) =>
-              value?.trim().toLowerCase() === 'latest' || catalog?.catalog?.capabilities.some(c => c.definition.id === selectedCapability?.definition.id && c.definition.version === value?.trim())
-                ? Promise.reject(new Error('请填写未发布的能力版本，例如 v2')) : Promise.resolve()
-          }]}>
-            <Input maxLength={256} placeholder="例如 v2"/>
-          </Form.Item>
-        </>}
-        <Form.Item name="connection" label="已审核连接" rules={[{required: true}]}><Select
-          options={catalog?.catalog?.connections.map(c => ({
-            label: `${c.providerId} · ${c.definition.id}`,
-            value: refKey(c.definition)
-          }))}/></Form.Item>
-        <Form.Item name="rate" label="固定费率" rules={[{required: true}]}><Select
-          options={catalog?.catalog?.rates.filter(r => !r.toolPerCall).map(r => ({
-            label: `${r.definition.id} · ${r.inputPerMillion!.currency}`,
-            value: refKey(r.definition)
-          }))}/></Form.Item>
-      </Form>
-    </Modal>
   </Flex>;
 }

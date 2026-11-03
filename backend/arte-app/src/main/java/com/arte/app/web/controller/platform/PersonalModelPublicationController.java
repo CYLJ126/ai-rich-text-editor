@@ -4,7 +4,6 @@ import com.arte.ainew.api.model.PersonalModelPublicationService;
 import com.arte.ainew.pojo.model.PersonalModels;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.web.platform.ModelResourcePayload;
-import com.arte.app.web.platform.PersonalModelPayload.OptionsRequest;
 import com.arte.app.web.platform.PersonalModelPayload.PublishRequest;
 import com.arte.app.web.platform.PersonalModelPayload.StatusRequest;
 import com.arte.app.web.platform.PlatformHttpContext;
@@ -21,7 +20,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -46,19 +44,13 @@ public class PersonalModelPublicationController {
         this.publications = publications;
     }
 
-    @PostMapping("/listPersonalModelPublicationOptions")
-    public Mono<ResultContext<List<PersonalModels.Option>>> options(Authentication auth, @Valid @RequestBody OptionsRequest request, Locale locale) {
-        return executor.call(auth, actor -> publications.options(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId())))
-                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
-    }
-
     @PostMapping("/publishPersonalModel")
     public Mono<ResultContext<CommandReceipt<ModelResourcePayload.Version>>> publish(Authentication auth, @Valid @RequestBody PublishRequest request,
                                                                                      @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         CommandMeta meta = new CommandMeta(key, PlatformHttpContext.traceId(http));
         return executor.call(auth, actor -> PlatformHttpViews.receipt(publications.publish(actor, meta, request.scope(),
                         ModelResourcePayload.ref(request.scope(), request.resourceId()), request.expectedVersion(), request.draftVersion(),
-                        request.credentialVersion(), request.validationId(), request.templateBinding(), request.catalogRevision()), ModelResourcePayload.Version::from))
+                        request.credentialVersion(), request.validationId(), request.planRef(), request.catalogRevision()), ModelResourcePayload.Version::from))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 

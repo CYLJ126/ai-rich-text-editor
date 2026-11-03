@@ -20,13 +20,22 @@ import java.util.Objects;
  * @param currency            ISO 币种，输入输出价格使用同一币种。
  * @param inputPerMillion     每百万输入 Token 价格，使用十进制字符串。
  * @param outputPerMillion    每百万输出 Token 价格，使用十进制字符串。
+ * @param toolCalls           是否明确声明支持工具调用，仍须网关适配支持
  * @param usageReporting      是否声明供应商支持返回用量，登记不构成探测证据。
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/01 14:45 ✾
  */
 public record ReviewedModelSettings(String id, DefinitionRef connection, String remoteModel,
                                     long contextWindowTokens, String currency, String inputPerMillion,
-                                    String outputPerMillion, boolean usageReporting) {
+                                    String outputPerMillion, boolean usageReporting, boolean toolCalls) {
+
+    /**
+     * 受信内部调用可省略工具能力，默认不声明支持。
+     */
+    public ReviewedModelSettings(String id, DefinitionRef connection, String remoteModel, long contextWindowTokens,
+                                 String currency, String inputPerMillion, String outputPerMillion, boolean usageReporting) {
+        this(id, connection, remoteModel, contextWindowTokens, currency, inputPerMillion, outputPerMillion, usageReporting, false);
+    }
 
     public ReviewedModelSettings {
         if (id == null || !id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,95}")) {

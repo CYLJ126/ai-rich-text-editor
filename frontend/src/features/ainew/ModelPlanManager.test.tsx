@@ -55,7 +55,7 @@ it('publishes a new remote model and exact prices independently of existing mode
   await create();
   await screen.findByText('模型与费率已发布到数据库，旧版本和预算保持原值。');
   expect(api.publishModelPlan).toHaveBeenCalledWith(planCommand, expect.any(String));
-  expect(screen.getByText('new-remote-model · reviewed-new-model@db-v2')).toBeInTheDocument();
+  expect(screen.getByText('new-remote-model · reviewed-new-model@v1')).toBeInTheDocument();
 });
 it('restores and retries only the original command and key without automatic submission', async () => {
   vi.mocked(api.publishModelPlan).mockRejectedValueOnce(new TypeError('network'));

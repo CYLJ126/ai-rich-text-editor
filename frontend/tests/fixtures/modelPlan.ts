@@ -10,12 +10,13 @@ export const planCommand: ModelPlanCommand = {
     currency: 'CNY',
     inputPerMillion: '0.000000000000000001',
     outputPerMillion: '2.123456789012345678',
-    usageReporting: false,
+    usageReporting: false, toolCalls: false,
   }
 };
 export const managedPlan: ManagedModelPlan = {
-  binding: {type: 'binding', id: 'reviewed-new-model', version: 'db-v2'},
-  rate: {type: 'rate', id: 'reviewed-new-model', version: 'db-v2'}, ...planCommand.settings
+  planRef: {type: 'model-plan', id: 'reviewed-new-model', version: 'v1'},
+  displayName: 'new-remote-model', publishedAt: '2026-11-03T00:00:00Z', publishedBy: 'admin', catalogRevision: 2,
+  rate: {type: 'rate', id: 'reviewed-new-model', version: 'v1'}, ...planCommand.settings
 };
 export const planConnections: ConnectionView = {
   version: 1, initialized: true, allowedOrigins: ['https://api.deepseek.com'], connections: [{

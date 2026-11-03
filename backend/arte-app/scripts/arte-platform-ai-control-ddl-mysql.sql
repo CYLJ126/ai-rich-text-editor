@@ -2,7 +2,7 @@
 CREATE TABLE arte_ai_control_revision
 (
     version      bigint       NOT NULL COMMENT '已发布控制面修订版本，正整数；历史不可覆盖',
-    payload      longtext     NOT NULL COMMENT '模型、连接、费率、默认模板和旧范围授权的固定结构 JSON；仅保存密钥引用',
+    payload longtext NOT NULL COMMENT '审核连接、独立 reviewedPlans、精确费率、默认开关与费率上限及工具定义的固定结构 JSON；审核方案不生成执行绑定或用户账户',
     published_by varchar(256) NOT NULL COMMENT '发布者稳定主体 ID，供审计关联',
     published_at timestamp(6) NOT NULL COMMENT '修订发布时间，微秒精度',
     PRIMARY KEY (version),

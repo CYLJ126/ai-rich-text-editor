@@ -2,6 +2,7 @@ package com.arte.ainew.application.model;
 
 import com.arte.ainew.api.model.PersonalModelPublicationService;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.RateDefinition;
@@ -10,16 +11,9 @@ import com.arte.ainew.pojo.model.ModelDrafts.Credential;
 import com.arte.ainew.pojo.model.ModelDrafts.Draft;
 import com.arte.ainew.pojo.model.ModelDrafts.Validation;
 import com.arte.ainew.pojo.model.ModelDrafts.ValidationState;
-import com.arte.ainew.pojo.model.ModelPublication;
-import com.arte.ainew.pojo.model.ModelResource;
-import com.arte.ainew.pojo.model.ModelResourceVersion;
-import com.arte.ainew.pojo.model.PersonalModels;
-import com.arte.ainew.spi.auth.AiControlConfigurationSource.PreparedConfiguration;
+import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.spi.gateway.ModelGateway;
-import com.arte.ainew.spi.model.ModelConnectionTemplates;
-import com.arte.ainew.spi.model.ModelDraftStore;
-import com.arte.ainew.spi.model.ModelResourceStore;
-import com.arte.ainew.spi.model.PersonalModelStore;
+import com.arte.ainew.spi.model.*;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
@@ -62,7 +56,7 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
     private final ModelDraftStore drafts;
     private final PersonalModelStore releases;
     private final ModelConnectionTemplates templates;
-    private final Supplier<PreparedConfiguration> catalog;
+    private final ReviewedModelPlanSource catalog;
     private final BiFunction<TrustedActor, Scope, NewAiProperties> configuration;
     private final PublicTransactionRunner tx;
     private final WorkspaceGovernanceLocks locks;
@@ -82,7 +76,7 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
     }
 
     public DefaultPersonalModelPublicationService(ModelResourceStore models, ModelDraftStore drafts, PersonalModelStore releases,
-                                                  ModelConnectionTemplates templates, Supplier<PreparedConfiguration> catalog,
+                                                  ModelConnectionTemplates templates, ReviewedModelPlanSource catalog,
                                                   BiFunction<TrustedActor, Scope, NewAiProperties> configuration, PublicTransactionRunner tx, IdentityProvider identity,
                                                   TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers, WorkspaceMembershipStore members,
                                                   PreferenceStore preferences, AuthorizationService authorization, CommandReceiptStore receipts, PublicOutboxStore outbox,
@@ -140,24 +134,23 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
         return new DefinitionRef("secret", value.secret().id(), "v" + value.version());
     }
 
-    private boolean matches(Draft draft, ResolvedBinding binding) {
-        return binding.capability().kind() == CapabilityDescriptor.Kind.GENERATION
-                && binding.capability().availability() == CapabilityDescriptor.Availability.EXECUTABLE
-                && binding.capability().features().containsAll(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING))
-                && binding.connection().equals(draft.settings().connectionTemplate())
-                && binding.remoteOperation().equals(draft.settings().remoteModel())
+    private boolean matches(Draft draft, ReviewedModelPlan plan) {
+        return plan.connection().equals(draft.settings().connectionTemplate())
+                && plan.remoteModel().equals(draft.settings().remoteModel())
                 && draft.settings().contextWindowTokens() >= 2
-                && draft.settings().contextWindowTokens() <= binding.contextWindowTokens()
+                && draft.settings().contextWindowTokens() <= plan.contextWindowTokens()
                 && draft.settings().maxOutputTokens() < draft.settings().contextWindowTokens();
     }
 
-    private List<PersonalModels.Option> options(Draft draft, PreparedConfiguration reviewed) {
-        templates.require(draft.scope(), draft.settings().connectionTemplate());
-        return reviewed.configuration().bindings().stream().filter(binding -> matches(draft, binding))
-                .filter(binding -> gateway.get() != null && reviewed.configuration().connections().stream()
-                        .anyMatch(connection -> connection.definition().equals(binding.connection()) && gateway.get().supportsTextChat(binding, connection)))
-                .filter(binding -> reviewed.configuration().rates().stream().anyMatch(rate -> rate.definition().equals(binding.rate()) && rate.toolPerCall() == null))
-                .map(binding -> new PersonalModels.Option(binding.definition(), binding.rate(), reviewed.catalogRevision(), binding.contextWindowTokens())).toList();
+    private List<PersonalModels.Option> options(Draft draft, ReviewedModelPlanSource.Snapshot reviewed) {
+        ConnectionDefinition connection = templates.require(draft.scope(), draft.settings().connectionTemplate());
+        ModelGateway currentGateway = gateway.get();
+        return reviewed.plans().stream().filter(plan -> matches(draft, plan))
+                .filter(plan -> currentGateway != null && currentGateway.supportsTextChat(ReviewedModelPlanChecks.metadata(plan), connection)
+                        && (!plan.features().contains(CapabilityDescriptor.Feature.TOOL_CALLS)
+                        || currentGateway.supportsToolChat(ReviewedModelPlanChecks.metadata(plan), connection)))
+                .filter(plan -> reviewed.rates().stream().anyMatch(rate -> rate.definition().equals(plan.rate()) && rate.toolPerCall() == null))
+                .map(plan -> new PersonalModels.Option(plan.planRef(), plan.rate(), reviewed.catalogRevision(), plan.contextWindowTokens())).toList();
     }
 
     @Override
@@ -167,17 +160,17 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
             current(scope, resource);
             require(actor, scope, resource, MODEL_PUBLISH);
             Draft draft = drafts.draft(resource).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-            return options(draft, catalog.get());
+            return options(draft, catalog.read());
         });
     }
 
     @Override
     public CommandReceipt<ModelResourceVersion> publish(TrustedActor actor, CommandMeta meta, Scope scope, ResourceRef resource,
-                                                        long expectedVersion, long draftVersion, long credentialVersion, String validationId, DefinitionRef templateBinding, long catalogRevision) {
+                                                        long expectedVersion, long draftVersion, long credentialVersion, String validationId, DefinitionRef planRef, long catalogRevision) {
         return commands.execute(actor, meta, new CommandScope(scope.tenantId(), scope.workspaceId()), "model:personal:publish",
                 "model:version:v1", ModelResourceVersion.class,
                 List.of(resource.resourceId(), Long.toString(expectedVersion), Long.toString(draftVersion), Long.toString(credentialVersion),
-                        validationId, templateBinding.type(), templateBinding.id(), templateBinding.version(), Long.toString(catalogRevision)),
+                        validationId, planRef.type(), planRef.id(), planRef.version(), Long.toString(catalogRevision)),
                 () -> lock(actor, scope), value -> {
                     current(scope, resource);
                     require(actor, scope, resource, MODEL_PUBLISH);
@@ -212,23 +205,20 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
                             || !now.isBefore(validation.checkedAt().plusSeconds(600))) {
                         throw error(PlatformErrorCodeEnum.VERSION_CONFLICT);
                     }
-                    PreparedConfiguration reviewed = catalog.get();
+                    ReviewedModelPlanSource.Snapshot reviewed = catalog.read();
                     check(Objects.equals(reviewed.catalogRevision(), catalogRevision));
-                    PersonalModels.Option option = options(draft, reviewed).stream().filter(value -> value.templateBinding().equals(templateBinding))
+                    PersonalModels.Option option = options(draft, reviewed).stream().filter(value -> value.planRef().equals(planRef))
                             .findFirst().orElseThrow(() -> error(PlatformErrorCodeEnum.INVALID_ARGUMENT));
-                    ResolvedBinding base = reviewed.configuration().bindings().stream().filter(value -> value.definition().equals(templateBinding)).findFirst().orElseThrow();
-                    NewAiProperties.Rate rate = reviewed.configuration().rates().stream().filter(value -> value.definition().equals(option.rate())).findFirst().orElseThrow();
+                    ReviewedModelPlan base = reviewed.plans().stream().filter(value -> value.planRef().equals(planRef)).findFirst().orElseThrow();
+                    RateDefinition rate = reviewed.rates().stream().filter(value -> value.definition().equals(option.rate())).findFirst().orElseThrow();
                     long nextVersion = Math.incrementExact(old.version());
                     String version = "v" + nextVersion;
                     DefinitionRef bindingRef = new DefinitionRef("binding", family(resource), version);
                     DefinitionRef connectionRef = new DefinitionRef("connection", family(resource), version);
-                    CapabilityDescriptor cap = base.capability();
-                    Set<CapabilityDescriptor.Feature> features = new HashSet<>(Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING));
-                    if (cap.features().contains(CapabilityDescriptor.Feature.USAGE_REPORTING)) {
-                        features.add(CapabilityDescriptor.Feature.USAGE_REPORTING);
-                    }
-                    CapabilityDescriptor personal = new CapabilityDescriptor(new DefinitionRef("capability", family(resource), version), cap.kind(),
-                            cap.inputSchema(), cap.outputSchema(), features, cap.sideEffect(), CapabilityDescriptor.Availability.EXECUTABLE);
+                    CapabilityDescriptor personal = new CapabilityDescriptor(new DefinitionRef("capability", family(resource), version), CapabilityDescriptor.Kind.GENERATION,
+                            ControlDefinitionChecks.INPUT_SCHEMA,
+                            ControlDefinitionChecks.OUTPUT_SCHEMA, base.features(),
+                            CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
                     ResolvedBinding binding = new ResolvedBinding(bindingRef, personal, connectionRef, draft.settings().remoteModel(), draft.settings().contextWindowTokens(), rate.definition());
                     String endpoint = template.endpoint().toASCIIString().replaceAll("/+$", "");
                     if (endpoint.endsWith("/chat/completions")) {
@@ -236,10 +226,10 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
                     }
                     ConnectionDefinition connection = new ConnectionDefinition(connectionRef, template.providerId(), template.protocol(), URI.create(endpoint),
                             secret(credential), template.state(), template.connectTimeout(), template.responseTimeout(), template.maxResponseBytes());
-                    ModelPublication publication = new ModelPublication(ModelPublication.Source.PERSONAL, null, reviewed.configuration().releaseRef(), binding, connection,
-                            new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), null));
+                    ModelPublication publication = new ModelPublication(ModelPublication.Source.PERSONAL, null, reviewed.releaseRef(), binding, connection,
+                            rate);
                     ModelResourceVersion value = new ModelResourceVersion(resource, publication, actor.principal().subjectId(), now);
-                    PersonalModels.Release release = new PersonalModels.Release(resource, scope, bindingRef, templateBinding, template.definition(), digest,
+                    PersonalModels.Release release = new PersonalModels.Release(resource, scope, bindingRef, planRef, template.definition(), digest,
                             catalogRevision, draftVersion, credentialVersion, secret(credential), validationId, draft.settings().maxOutputTokens(), actor.principal().subjectId(), now);
                     if (releases.list(scope, true).size() >= 256) {
                         throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
@@ -249,7 +239,8 @@ public final class DefaultPersonalModelPublicationService implements PersonalMod
                     check(models.replace(new ModelResource(resource, old.ownership(), draft.name(), old.createdBy(), ModelResource.State.PUBLISHED,
                             bindingRef.id(), nextVersion, old.createdAt(), old.managementScope()), old.version()));
                     // 在提交前校验实际目录容量和精确引用冲突，不提交无法装配的版本。
-                    mergeDefinitions(reviewed.configuration(), releases.list(scope, true).stream()
+                    mergeDefinitions(new NewAiProperties(false, null, reviewed.releaseRef(), null, null, List.of(), List.of(), List.of(), List.of(),
+                            reviewed.rates().stream().map(item -> new NewAiProperties.Rate(item.definition(), item.inputPerMillion(), item.outputPerMillion(), item.toolPerCall())).toList(), List.of()), releases.list(scope, true).stream()
                             .map(item -> models.findCurrentBinding(scope.tenantId(), item.binding()).orElseThrow().publication()).toList());
                     if (old.ownership().workspaceId() == null) {
                         com.arte.core.pojo.workspace.Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow();

@@ -40,12 +40,12 @@ public interface PersonalModelPublicationService {
      * @param draftVersion      期望草稿版本
      * @param credentialVersion 期望凭据代次
      * @param validationId      成功验证 ID，须为本主体且与依赖一致
-     * @param templateBinding   选定的审核模型精确绑定
+     * @param planRef   选定的审核模型精确绑定
      * @param catalogRevision   选定方案的当前目录修订
      * @return 新精确版本的幂等回执，不表示已具备兼容预算或已调用模型
      */
     CommandReceipt<ModelResourceVersion> publish(TrustedActor actor, CommandMeta meta, Scope scope, ResourceRef resource,
-                                                 long expectedVersion, long draftVersion, long credentialVersion, String validationId, DefinitionRef templateBinding, long catalogRevision);
+                                                 long expectedVersion, long draftVersion, long credentialVersion, String validationId, DefinitionRef planRef, long catalogRevision);
 
     /**
      * 查询精确个人发布对当前主体的运行准备状态，缺少兼容预算时明确说明。

@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {connectionCommandSchema} from '@/services/platform/connection';
 import {modelPlanCommandSchema} from '@/services/platform/modelPlan';
+import {defaultAiPolicySchema} from '@/services/platform/defaultAiPolicyContract';
 import type {AiScope} from '@/services/arte-ai';
 
 export interface BrowserContext {
@@ -33,8 +34,8 @@ const schemas = {
     }),
     z.object({
       scope: scopeSchema,
-      kind: z.literal('publish'),
-      request: z.object({expectedVersion: version, catalog: z.record(z.string(), z.unknown())})
+      kind: z.literal('policy'), confirmed: z.boolean().optional(),
+      request: defaultAiPolicySchema
     })
   ]),
   send: z.object({

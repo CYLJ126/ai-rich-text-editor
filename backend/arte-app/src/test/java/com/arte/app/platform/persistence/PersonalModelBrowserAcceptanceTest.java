@@ -94,6 +94,7 @@ class PersonalModelBrowserAcceptanceTest {
                         new ModelResourceController(executor, c.getBean(ModelResourceService.class), c.getBean(ModelAclMigrationService.class)),
                         new ModelDraftController(executor, c.getBean(ModelDraftService.class), c.getBean(ModelConnectionValidator.class)),
                         new PersonalModelPublicationController(executor, c.getBean(PersonalModelPublicationService.class)),
+                        new ReviewedModelPlanController(executor, c.getBean(PersonalModelPublicationService.class)),
                         new ModelUsagePreparationController(executor, c.getBean(ModelUsagePreparationService.class)),
                         new NewAiConfigurationController(c.getBean(ChatConfigurationQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),
                         new NewAiBudgetController(c.getBean(BudgetAccountQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),

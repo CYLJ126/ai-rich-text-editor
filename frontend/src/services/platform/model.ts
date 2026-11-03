@@ -50,7 +50,7 @@ export const modelVersionSchema = z.object({
 });
 const templateSchema = z.object({reference: connectionRefSchema, providerId: id, protocol: ref('protocol')});
 const optionSchema = z.object({
-  templateBinding: modelRefSchema,
+  planRef: ref('model-plan'),
   rate: ref('rate'),
   catalogRevision: positive,
   contextWindowTokens: positive
@@ -138,7 +138,7 @@ export async function listModelVersions(scope: WorkspaceScope, resourceId: strin
   return result;
 }
 
-export const listPublicationOptions = (scope: WorkspaceScope, resourceId: string, options?: AiRequestOptions) => call('ai-new/model-resource', 'listPersonalModelPublicationOptions', {
+export const listPublicationOptions = (scope: WorkspaceScope, resourceId: string, options?: AiRequestOptions) => call('ai-new/model-draft', 'listReviewedModelPlans', {
   scope,
   resourceId
 }, z.array(optionSchema).max(256), options);
@@ -208,7 +208,7 @@ export const modelCommandSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('publish'), key: id, request: z.object({
       ...located, expectedVersion: version, draftVersion: positive, credentialVersion: positive,
-      validationId: id, templateBinding: modelRefSchema, catalogRevision: positive
+      validationId: id, planRef: ref('model-plan'), catalogRevision: positive
     }).strict()
   }).strict(),
   z.object({

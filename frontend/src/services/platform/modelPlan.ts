@@ -16,10 +16,12 @@ export const modelPlanSettingsSchema = z.object({
   inputPerMillion: price,
   outputPerMillion: price,
   usageReporting: z.boolean(),
+  toolCalls: z.boolean(),
 }).strict();
 export const modelPlanCommandSchema = z.object({expectedVersion: version, settings: modelPlanSettingsSchema}).strict();
 const planSchema = z.object({
-  binding: reference('binding'),
+  planRef: reference('model-plan'),
+  displayName: id,
   connection: reference('connection'),
   rate: reference('rate'),
   remoteModel: id,
@@ -27,11 +29,16 @@ const planSchema = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/),
   inputPerMillion: publishedPrice,
   outputPerMillion: publishedPrice,
-  usageReporting: z.boolean()
+  usageReporting: z.boolean(), toolCalls: z.boolean(),
+  publishedAt: id, publishedBy: id, catalogRevision: version.refine(value => value > 0)
 });
 const viewSchema = z.object({version, initialized: z.boolean(), plans: z.array(planSchema).max(256)})
   .refine(view => view.initialized === (view.version > 0))
-  .refine(view => new Set(view.plans.map(plan => JSON.stringify(plan.binding))).size === view.plans.length);
+  .refine(view => new Set(view.plans.map(plan => JSON.stringify(plan.planRef))).size === view.plans.length)
+  .refine(view => view.plans.every(plan => /^v[1-9][0-9]*$/.test(plan.planRef.version)
+    && /^v[1-9][0-9]*$/.test(plan.rate.version) && plan.rate.id === plan.planRef.id
+    && Number(plan.rate.version.slice(1)) <= Number(plan.planRef.version.slice(1))
+    && plan.catalogRevision <= view.version));
 export type ModelPlanSettings = z.infer<typeof modelPlanSettingsSchema>;
 export type ModelPlanCommand = z.infer<typeof modelPlanCommandSchema>;
 export type ModelPlanView = z.infer<typeof viewSchema>;
@@ -58,11 +65,13 @@ export async function publishModelPlan(command: ModelPlanCommand, key: string): 
   if (!receipt.success || receipt.data.resultVersion !== request.expectedVersion + 1 || receipt.data.value.version !== receipt.data.resultVersion)
     throw invalid(response.httpStatus);
   const settings = request.settings;
-  const plan = receipt.data.value.plans.find(p => p.binding.id === `reviewed-${settings.id}` && p.binding.version === `db-v${receipt.data.resultVersion}`);
-  if (!plan || plan.remoteModel !== settings.remoteModel || plan.contextWindowTokens !== settings.contextWindowTokens
-    || plan.rate.id !== `reviewed-${settings.id}` || plan.rate.version !== `db-v${receipt.data.resultVersion}`
+  const plan = receipt.data.value.plans.find(p => p.planRef.id === `reviewed-${settings.id}`
+    && p.catalogRevision === receipt.data.resultVersion);
+  const familyCount = receipt.data.value.plans.filter(p => p.planRef.id === `reviewed-${settings.id}`).length;
+  if (!plan || plan.planRef.version !== `v${familyCount}` || plan.remoteModel !== settings.remoteModel
+    || plan.contextWindowTokens !== settings.contextWindowTokens || plan.rate.id !== `reviewed-${settings.id}`
     || plan.connection.id !== settings.connection.id || plan.connection.version !== settings.connection.version
-    || plan.currency !== settings.currency || plan.usageReporting !== settings.usageReporting
+    || plan.currency !== settings.currency || plan.usageReporting !== settings.usageReporting || plan.toolCalls !== settings.toolCalls
     || decimal(plan.inputPerMillion) !== decimal(settings.inputPerMillion) || decimal(plan.outputPerMillion) !== decimal(settings.outputPerMillion))
     throw invalid(response.httpStatus);
 }

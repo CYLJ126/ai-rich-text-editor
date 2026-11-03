@@ -119,7 +119,7 @@ class PlatformToolBillingIntegrationTest {
         var rates = new ArrayList<>(old.rates());
         rates.add(new NewAiProperties.Rate(PRICE.rate(), null, null, PRICE.perCall()));
         var preset = new AiControlData.Preset(true, List.of(), List.of(new AiControlData.BudgetPreset(PRICE.rate(), money("10"))));
-        db.publish(rig.base.f.actor, rig.base.meta("publish-tool-price"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), preset));
+        db.publish(rig.base.f.actor, rig.base.meta("publish-tool-price"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), preset, old.disabledConnections(), old.reviewedPlans()));
         var current = db.get(rig.base.f.actor, rig.scope);
         db.update(rig.base.f.actor, rig.base.meta("approve-tool-budget"), rig.scope, current.workspaceVersion(), current.configuration().version(), preset, true);
     }

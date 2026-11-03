@@ -14,7 +14,7 @@ vi.mock('@/services/platform/ai', async (original) => ({
   updateWorkspaceAi: vi.fn(),
   getAiCatalog: vi.fn(),
   initializeAiCatalog: vi.fn(),
-  publishAiCatalog: vi.fn()
+  updateDefaultAiPolicy: vi.fn()
 }));
 const scope = {tenantId: 'tenant', workspaceId: 'space'};
 const context = {userId: 'user', scope};
@@ -104,81 +104,39 @@ it('keeps consumers unmounted after rejected provisioning and supports explicit 
   await screen.findByText('聊天消费者');
 });
 
-const textCapability = {
-  definition: {type: 'capability', id: 'text', version: 'v1'}, kind: 'GENERATION',
-  inputSchema: {type: 'schema', id: 'generation-request', version: 'v1'},
-  outputSchema: {type: 'schema', id: 'model-result', version: 'v1'},
-  features: ['TEXT_INPUT', 'STREAMING', 'USAGE_REPORTING'], sideEffect: 'READ_ONLY', availability: 'EXECUTABLE'
-};
 const originalCatalog: api.AiCatalog = {
-  capabilities: [textCapability],
-  bindings: [{
-    definition: binding, capability: textCapability, connection: view.models[0].connection,
-    remoteOperation: 'deepseek-chat', contextWindowTokens: 65536, rate
-  }],
-  connections: [{definition: view.models[0].connection, providerId: 'deepseek', endpoint: 'https://example.invalid'}],
+  reviewedPlans: [], connections: [],
   rates: [{
     definition: rate,
     inputPerMillion: {amount: '1', currency: 'CNY'},
     outputPerMillion: {amount: '2', currency: 'CNY'}
   }],
-  legacyGrants: [], legacyBudgets: [], defaults: preset
+  defaults: {enabled: true, rateCaps: [{rate, limit: {amount: '100', currency: 'CNY'}}]}
 };
 
-async function selectField(label: string, option: string) {
-  fireEvent.mouseDown(screen.getByLabelText(label));
-  fireEvent.click(await screen.findByText(option, {selector: '.ant-select-item-option-content'}));
-}
-
-async function prepareUpgrade() {
+it('publishes only default switch and rate caps and retries an uncertain operation with the same request and key', async () => {
   vi.mocked(api.getAiCatalog).mockResolvedValue(response({version: 1, catalog: structuredClone(originalCatalog)}));
+  vi.mocked(api.updateDefaultAiPolicy).mockRejectedValueOnce(new TypeError('uncertain'));
   render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
-  fireEvent.click(await screen.findByRole('button', {name: '发布新模型'}));
-  fireEvent.change(screen.getByLabelText('模型标识'), {target: {value: 'model'}});
-  fireEvent.change(screen.getByLabelText('固定版本'), {target: {value: 'v2'}});
-  fireEvent.change(screen.getByLabelText('供应商模型名称'), {target: {value: 'deepseek-chat'}});
-  fireEvent.change(screen.getByLabelText('上下文容量'), {target: {value: '65536'}});
-  await selectField('已发布能力', 'text@v1 · 纯文本');
-  fireEvent.click(await screen.findByRole('switch', {name: '为此模型发布工具调用能力'}));
-  fireEvent.change(await screen.findByLabelText('新能力固定版本'), {target: {value: 'v2'}});
-  await selectField('已审核连接', 'deepseek · connection');
-  await selectField('固定费率', 'price · CNY');
-}
-
-it('publishes a new tool capability and model atomically while preserving old versions and workspace defaults', async () => {
-  vi.mocked(api.publishAiCatalog).mockRejectedValueOnce(new TypeError('uncertain'));
-  await prepareUpgrade();
-  fireEvent.click(screen.getByRole('button', {name: /^(确\s*定|OK)$/}));
-  await waitFor(() => expect(api.publishAiCatalog).toHaveBeenCalledTimes(1));
-  const original = vi.mocked(api.publishAiCatalog).mock.calls[0];
-  expect(original[0]).toMatchObject({
-    expectedVersion: 1, catalog: {
-      capabilities: [textCapability, {
-        ...textCapability,
-        definition: {...textCapability.definition, version: 'v2'},
-        features: [...textCapability.features, 'TOOL_CALLS']
-      }],
-      bindings: [originalCatalog.bindings[0], {
-        definition: {...binding, version: 'v2'},
-        capability: {definition: {...textCapability.definition, version: 'v2'}}
-      }],
-      defaults: preset
-    }
+  expect(await screen.findByRole('button', {name: '发布默认 AI 模板'})).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '发布新模型'})).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('新空间默认模型')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('默认预算额度 price'), {target: {value: '80'}});
+  fireEvent.click(screen.getByRole('button', {name: '发布默认 AI 模板'}));
+  await waitFor(() => expect(api.updateDefaultAiPolicy).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(api.updateDefaultAiPolicy).mock.calls[0];
+  expect(original[0]).toEqual({
+    expectedCatalogVersion: 1,
+    enabled: true,
+    rateCaps: [{rate, limit: {amount: '80', currency: 'CNY'}}]
   });
   expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
   await screen.findByText('保存结果待确认，请保留本页并按原操作重试。');
   cleanup();
   render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
   fireEvent.click(await screen.findByRole('button', {name: '重试确认原配置操作'}));
-  await waitFor(() => expect(api.publishAiCatalog).toHaveBeenCalledTimes(2));
-  expect(vi.mocked(api.publishAiCatalog).mock.calls[1]).toEqual(original);
-});
-it('rejects reuse of an existing capability version before publishing', async () => {
-  await prepareUpgrade();
-  fireEvent.change(screen.getByLabelText('新能力固定版本'), {target: {value: 'v1'}});
-  fireEvent.click(screen.getByRole('button', {name: /^(确\s*定|OK)$/}));
-  await screen.findByText('请填写未发布的能力版本，例如 v2');
-  expect(api.publishAiCatalog).not.toHaveBeenCalled();
+  await waitFor(() => expect(api.updateDefaultAiPolicy).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(api.updateDefaultAiPolicy).mock.calls[1]).toEqual(original);
 });
 
 it('shows and saves approved tool budgets alongside the existing model account', async () => {
@@ -220,4 +178,42 @@ it('shows and saves approved tool budgets alongside the existing model account',
       {rate: toolRate, limit: {currency: 'USD', amount: '4'}},
     ],
   });
+});
+
+it('does not publish when the original command cannot be stored', async () => {
+  vi.mocked(api.getAiCatalog).mockResolvedValue(response({version: 1, catalog: structuredClone(originalCatalog)}));
+  render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
+  await screen.findByRole('button', {name: '发布默认 AI 模板'});
+  const storage = vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+  try {
+    fireEvent.click(screen.getByRole('button', {name: '发布默认 AI 模板'}));
+    await screen.findByText('无法保存原请求和操作键，本次未提交。恢复浏览器存储后确认原操作。');
+    expect(api.updateDefaultAiPolicy).not.toHaveBeenCalled();
+  } finally {
+    storage.mockRestore();
+  }
+});
+it('after confirmed policy success and a failed reread, remount confirmation only rereads', async () => {
+  vi.mocked(api.getAiCatalog).mockResolvedValueOnce(response({version: 1, catalog: structuredClone(originalCatalog)}))
+    .mockRejectedValueOnce(new TypeError('read unavailable'));
+  vi.mocked(api.updateDefaultAiPolicy).mockResolvedValue(response({
+    operationId: 'policy',
+    status: 1,
+    delivery: 0,
+    value: {version: 2, catalog: structuredClone(originalCatalog)},
+    resultVersion: 2,
+    acceptedAt: 'now',
+    completedAt: 'now'
+  }));
+  render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '发布默认 AI 模板'}));
+  await screen.findByText('默认模板已确认，但当前目录读取失败。确认原操作只会重新读取，不再次发布。');
+  cleanup();
+  vi.mocked(api.getAiCatalog).mockResolvedValue(response({version: 2, catalog: structuredClone(originalCatalog)}));
+  render(<WorkspaceAiSettings scope={scope} context={context} adminOnly onUpdated={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '重试确认原配置操作'}));
+  await waitFor(() => expect(screen.queryByRole('button', {name: '重试确认原配置操作'})).not.toBeInTheDocument());
+  expect(api.updateDefaultAiPolicy).toHaveBeenCalledTimes(1);
 });

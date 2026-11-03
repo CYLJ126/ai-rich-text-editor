@@ -38,6 +38,11 @@ final class DatabaseAiTestCatalog {
         source.budgets().stream().filter(b -> approved.isEmpty() || approved.contains(b.budgetRef())).forEach(b -> budgets.merge(b.rate(),
                 new AiControlData.BudgetPreset(b.rate(), b.limit()), (a, next) -> a.limit().amount().compareTo(next.limit().amount()) <= 0 ? a : next));
         return new AiControlData.Catalog(source.capabilities(), source.bindings(), source.connections(), source.rates(), source.grants(),
-                source.budgets(), new AiControlData.Preset(!bindings.isEmpty(), bindings, List.copyOf(budgets.values())));
+                source.budgets(), new AiControlData.Preset(!bindings.isEmpty(), bindings, List.copyOf(budgets.values())), java.util.Set.of(), source.bindings().stream()
+                .filter(binding -> binding.capability().kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION)
+                .map(binding -> new com.arte.ainew.pojo.model.ReviewedModelPlan(
+                        new DefinitionRef("model-plan", binding.definition().id(), binding.definition().version()), binding.remoteOperation(),
+                        binding.connection(), binding.remoteOperation(), binding.capability().features(), binding.contextWindowTokens(), binding.rate(),
+                        java.time.Instant.parse("2026-01-01T00:00:00Z"), actor.principal().subjectId(), 1)).toList());
     }
 }

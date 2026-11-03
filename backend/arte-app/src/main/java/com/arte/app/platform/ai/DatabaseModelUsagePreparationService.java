@@ -108,7 +108,7 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
                     || !manifest.bindings().contains(binding)) {
                 reason = "MODEL_NOT_MIGRATED";
             } else {
-                NewAiProperties config = control.reviewedModelCatalog().configuration();
+                NewAiProperties config = control.currentDefinitions();
                 ResolvedBinding selected = config.bindings().stream().filter(value -> value.definition().equals(binding)).findFirst()
                         .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
                 ConnectionDefinition connection = config.connections().stream().filter(value -> value.definition().equals(selected.connection())).findFirst()

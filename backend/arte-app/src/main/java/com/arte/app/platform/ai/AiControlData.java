@@ -5,6 +5,7 @@ import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.reference.DefinitionRef;
 
@@ -47,10 +48,18 @@ public final class AiControlData {
     public record Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                           List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
                           List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
-                          Preset defaults, Set<String> disabledConnections) {
+                          Preset defaults, Set<String> disabledConnections, List<ReviewedModelPlan> reviewedPlans) {
+
         /**
-         * 兼容已有不可变修订；缺少运行状态集合表示没有被单独停用的连接。
+         * 受信内部定义装配入口；审核方案必须显式传入，不能从运行绑定推导。
          */
+        public Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
+                       List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
+                       List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
+                       Preset defaults, Set<String> disabledConnections) {
+            this(capabilities, bindings, connections, rates, legacyGrants, legacyBudgets, defaults, disabledConnections, List.of());
+        }
+
         public Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                        List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
                        List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets, Preset defaults) {
@@ -58,6 +67,10 @@ public final class AiControlData {
         }
 
         public Catalog {
+            reviewedPlans = List.copyOf(reviewedPlans);
+            if (reviewedPlans.size() > 256 || reviewedPlans.stream().map(ReviewedModelPlan::planRef).distinct().count() != reviewedPlans.size()) {
+                throw new IllegalArgumentException("Invalid reviewed plan directory");
+            }
             capabilities = List.copyOf(capabilities);
             bindings = List.copyOf(bindings);
             connections = List.copyOf(connections);

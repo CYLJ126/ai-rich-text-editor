@@ -2,7 +2,7 @@ package com.arte.app.web.platform;
 
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.app.platform.ai.AiControlData.CatalogView;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -20,9 +20,11 @@ public final class AiModelPlanPayload {
     private AiModelPlanPayload() {
     }
 
-    public record Plan(DefinitionRef binding, DefinitionRef connection, DefinitionRef rate, String remoteModel,
+    public record Plan(DefinitionRef planRef, String displayName, DefinitionRef connection, DefinitionRef rate,
+                       String remoteModel,
                        long contextWindowTokens, String currency, String inputPerMillion, String outputPerMillion,
-                       boolean usageReporting) {
+                       boolean usageReporting, boolean toolCalls, java.time.Instant publishedAt, String publishedBy,
+                       long catalogRevision) {
     }
 
     public record View(long version, boolean initialized, List<Plan> plans) {
@@ -30,17 +32,17 @@ public final class AiModelPlanPayload {
             if (view.catalog() == null) {
                 return new View(view.version(), false, List.of());
             }
-            List<Plan> plans = view.catalog().bindings().stream()
-                    .filter(binding -> binding.capability().kind() == CapabilityDescriptor.Kind.GENERATION)
-                    .map(binding -> plan(binding, view.catalog().rates().stream().filter(rate -> rate.definition().equals(binding.rate()))
+            List<Plan> plans = view.catalog().reviewedPlans().stream()
+                    .map(plan -> plan(plan, view.catalog().rates().stream().filter(rate -> rate.definition().equals(plan.rate()))
                             .findFirst().orElseThrow())).toList();
             return new View(view.version(), true, plans);
         }
 
-        private static Plan plan(ResolvedBinding binding, NewAiProperties.Rate rate) {
-            return new Plan(binding.definition(), binding.connection(), rate.definition(), binding.remoteOperation(),
-                    binding.contextWindowTokens(), rate.currency().getCurrencyCode(), rate.inputPerMillion().amount().toPlainString(),
-                    rate.outputPerMillion().amount().toPlainString(), binding.capability().features().contains(CapabilityDescriptor.Feature.USAGE_REPORTING));
+        private static Plan plan(ReviewedModelPlan plan, NewAiProperties.Rate rate) {
+            return new Plan(plan.planRef(), plan.displayName(), plan.connection(), plan.rate(), plan.remoteModel(),
+                    plan.contextWindowTokens(), rate.currency().getCurrencyCode(), rate.inputPerMillion().amount().toPlainString(),
+                    rate.outputPerMillion().amount().toPlainString(), plan.features().contains(CapabilityDescriptor.Feature.USAGE_REPORTING),
+                    plan.features().contains(CapabilityDescriptor.Feature.TOOL_CALLS), plan.publishedAt(), plan.publishedBy(), plan.catalogRevision());
         }
 
         public static CommandReceipt<View> receipt(CommandReceipt<CatalogView> receipt) {
