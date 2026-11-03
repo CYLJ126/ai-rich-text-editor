@@ -9,7 +9,10 @@ const state = vi.hoisted(() => ({
     scope: {tenantId: 'tenant', workspaceId: 'space'}, name: '空间', state: 0, currentRole: 0, version: 0,
   }
 }));
-vi.mock('@umijs/max', () => ({useModel: () => ({initialState: {currentUser: {id: 'user'}}})}));
+vi.mock('@umijs/max', () => ({
+  history: {push: vi.fn()},
+  useModel: () => ({initialState: {currentUser: {id: 'user'}}})
+}));
 vi.mock('@/features/workspace/useWorkspace', () => ({useCurrentWorkspace: () => state.workspace}));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <p>空间管理</p>}));
 vi.mock('@/features/workspace/WorkspaceQuickSelect', () => ({default: () => <p>空间切换</p>}));
@@ -46,7 +49,8 @@ it('keeps space navigation available and retries AI preparation after failure', 
 it('shows initial AI configuration when the space has no published template', async () => {
   vi.mocked(getWorkspaceAi).mockResolvedValue({body: {data: {needsImport: true}}} as never);
   render(<ToolsPage/>);
-  expect(await screen.findByText('准备 AI 配置')).toBeInTheDocument();
+  expect(await screen.findByText('平台审核目录尚未准备，请联系平台配置管理员。')).toBeInTheDocument();
+  expect(screen.queryByText('准备 AI 配置')).not.toBeInTheDocument();
   expect(screen.queryByText('工具消费者')).not.toBeInTheDocument();
   expect(screen.getByText('空间切换')).toBeInTheDocument();
 });

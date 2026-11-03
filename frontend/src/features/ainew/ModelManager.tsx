@@ -247,14 +247,18 @@ function ModelManager({
         <Card size="small" title="添加模型">
           <Flex vertical gap={8}>
             <Select aria-label="模型归属" value={modelKind} disabled={disabled || dirty || !!name || !!token}
-                    options={[{value: 'PERSONAL', label: '个人模型'}, {value: 'TENANT', label: '租户模型'}]}
+                    options={vm.creationKinds.map(value => ({
+                      value,
+                      label: value === 'PERSONAL' ? '个人模型' : '租户模型'
+                    }))}
                     onChange={setModelKind}/>
             <Typography.Text type="secondary">{modelKind === 'PERSONAL'
               ? '个人模型使用本人密钥；管理空间固定，发布后还需配置执行空间。'
               : '模型归租户，当前空间用于维护；创建还需租户治理及模型创建资格，凭据用途须独立授权。'}</Typography.Text>
             <Input aria-label="新模型名称" value={name} onChange={event => setName(event.target.value)} maxLength={100}
                    disabled={disabled || !vm.canCreate} placeholder="模型展示名称"/>
-            <Button aria-label="创建私有模型" disabled={disabled || !vm.canCreate || !name.trim() || dirty || !!token}
+            <Button aria-label="创建私有模型"
+                    disabled={disabled || !vm.creationKinds.includes(modelKind) || !name.trim() || dirty || !!token}
                     loading={vm.saving}
                     onClick={() => void submit('create', {
                       scope: context.scope,

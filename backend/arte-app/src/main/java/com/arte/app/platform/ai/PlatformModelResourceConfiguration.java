@@ -33,8 +33,9 @@ public class PlatformModelResourceConfiguration {
 
     @Bean
     ModelResourceAccessAdapter modelResourceAccessAdapter(ModelResourceStore store,
+                                                          @Qualifier("platformTransactionRunner") PublicTransactionRunner transactions,
                                                           org.springframework.beans.factory.ObjectProvider<com.arte.ainew.spi.model.ModelSharingStore> sharing) {
-        ModelResourceAccessAdapter adapter = new ModelResourceAccessAdapter(store);
+        ModelResourceAccessAdapter adapter = new ModelResourceAccessAdapter(store, transactions);
         adapter.sharing(sharing.getIfAvailable());
         return adapter;
     }

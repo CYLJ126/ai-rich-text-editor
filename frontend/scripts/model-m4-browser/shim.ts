@@ -136,6 +136,9 @@ export async function request(url: string, options: {
       versions.set(id, (versions.get(id) ?? 1) + 1);
       data = receipt(ruleView(id), request.expectedRuleVersion + 1);
       break;
+    case 'getModelCreationOptions':
+      data = ['PERSONAL', 'TENANT'];
+      break;
     case 'listModelResources':
       data = {records: resources, nextCursor: null};
       break;

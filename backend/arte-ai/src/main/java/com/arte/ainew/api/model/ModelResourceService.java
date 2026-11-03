@@ -6,6 +6,8 @@ import com.arte.ainew.pojo.model.ModelResourceVersion;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.*;
 
+import java.util.List;
+
 /**
  * 模型资源管理服务接口
  * <p>
@@ -19,7 +21,12 @@ public interface ModelResourceService {
     /**
      * 返回当前主体可执行的模型管理动作，仅作为展示快照。
      */
-    java.util.List<String> actions(TrustedActor actor, Scope scope, ResourceRef resource);
+    List<String> actions(TrustedActor actor, Scope scope, ResourceRef resource);
+
+    /**
+     * 查询当前范围可创建的模型归属，仅供展示；提交时仍复核当前资格。
+     */
+    List<ModelResourceCommands.ModelKind> creationOptions(TrustedActor actor, Scope scope);
 
     CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command);
 

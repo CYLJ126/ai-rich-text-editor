@@ -1,0 +1,19 @@
+{
+  "accounts": [
+    {
+      "WORKSPACE_SNAPSHOT": "{\"schemaVersion\":1,\"type\":\"budget-account\",\"body\":{\"budgetRef\":\"ws-budget-c5a73963d67bdc6d8a5e75e25aaff4423e8d351266db6ac2715c94cb8ac7f075\",\"owner\":{\"tenantId\":\"07eb89e9-5b75-4114-9d06-9f52f5799e32\",\"workspaceId\":\"0f77d0e3-08c5-4117-b81b-02fecf18c2ec\",\"subjectId\":\"06c2ff9e-7803-4c1e-acf6-cb9f8bca7e75\"},\"limit\":{\"amount\":\"1E+2\",\"currency\":\"CNY\"},\"held\":{\"amount\":\"0\",\"currency\":\"CNY\"},\"charged\":{\"amount\":\"0.000007\",\"currency\":\"CNY\"},\"rateVersion\":{\"type\":\"rate\",\"id\":\"reviewed-m5-text\",\"version\":\"v1\"},\"version\":2}}"
+    }
+  ],
+  "models": [
+    {
+      "TOTAL": 1
+    }
+  ],
+  "preparations": 1,
+  "providerCalls": 1,
+  "settlements": [
+    {
+      "WORKSPACE_SNAPSHOT": "{\"schemaVersion\":1,\"type\":\"budget-settlement\",\"body\":{\"settlementKey\":\"a2878adcf7cf4ec60c6047fde469c7b1c9a98b9b4ea09edc41747d52fea6aa7f\",\"reservationId\":\"00bdc653e24b47542beaf21c8d8c74902a41085c27c0d8d9c6cf9c39ecaf17af\",\"state\":\"SETTLED\",\"usage\":{\"basis\":\"PROVIDER_REPORTED\",\"inputTokens\":3,\"outputTokens\":2,\"totalTokens\":5},\"charge\":{\"amount\":\"0.000007\",\"currency\":\"CNY\"},\"recordedAt\":\"2026-11-03T13:29:26.316Z\"}}"
+    }
+  ]
+}

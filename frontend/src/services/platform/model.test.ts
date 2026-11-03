@@ -170,3 +170,11 @@ it('rejects a reviewed catalog revision change between pages instead of publishi
     .mockResolvedValueOnce(answer({records: [], catalogRevision: 8, nextCursor: null}));
   await expect(api.listPublicationOptions(scope, 'model')).rejects.toMatchObject({code: 'MODEL_PLAN_REVISION_CHANGED'});
 });
+
+it('reads scoped creation choices from the server and rejects malformed permission snapshots', async () => {
+  vi.mocked(request).mockResolvedValue(answer(['PERSONAL']));
+  expect((await api.getModelCreationOptions(scope)).body.data).toEqual(['PERSONAL']);
+  expect(request).toHaveBeenLastCalledWith('/arte/ai-new/model-resource/getModelCreationOptions', expect.objectContaining({data: {scope}}));
+  vi.mocked(request).mockResolvedValue(answer(['ADMIN']));
+  await expect(api.getModelCreationOptions(scope)).rejects.toThrow();
+});

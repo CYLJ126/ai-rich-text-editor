@@ -1,13 +1,16 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.pojo.model.ModelResource;
+import com.arte.ainew.pojo.model.ModelSharingPolicy;
 import com.arte.ainew.spi.model.ModelResourceStore;
+import com.arte.ainew.spi.model.ModelSharingStore;
 import com.arte.core.enums.access.AccessReasonEnum;
 import com.arte.core.pojo.access.*;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.pojo.workspace.VerifiedScope;
 import com.arte.core.spi.access.DomainAccessConditionProvider;
 import com.arte.core.spi.access.ResourceDescriptorProvider;
+import com.arte.core.spi.platform.PublicTransactionRunner;
 
 import java.util.Optional;
 
@@ -25,14 +28,16 @@ import static com.arte.core.constant.platform.PlatformResourceTypes.MODEL;
 public final class ModelResourceAccessAdapter implements ResourceDescriptorProvider, DomainAccessConditionProvider {
 
     private final ModelResourceStore store;
-    private com.arte.ainew.spi.model.ModelSharingStore sharing;
+    private final PublicTransactionRunner transactions;
+    private ModelSharingStore sharing;
 
-    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing) {
+    public void sharing(ModelSharingStore sharing) {
         this.sharing = sharing;
     }
 
-    public ModelResourceAccessAdapter(ModelResourceStore store) {
+    public ModelResourceAccessAdapter(ModelResourceStore store, PublicTransactionRunner transactions) {
         this.store = store;
+        this.transactions = transactions;
     }
 
     @Override
@@ -57,9 +62,14 @@ public final class ModelResourceAccessAdapter implements ResourceDescriptorProvi
 
     @Override
     public AccessReasonEnum evaluate(TrustedActor actor, AccessRequest request, ResourceDescriptor descriptor, VerifiedScope scope) {
-        if (MODEL_USE.equals(request.action()) && !descriptor.domainState().equals(ModelResource.State.PUBLISHED.name()))
+        if (MODEL_USE.equals(request.action()) && !descriptor.domainState().equals(ModelResource.State.PUBLISHED.name())) {
             return AccessReasonEnum.DOMAIN_DENIED;
-        return range(request, descriptor, false);
+        }
+        // 已有快照或写事务时复用原边界；独立批量查询才开启只读事务。
+        if (transactions.isTransactionActive()) {
+            return range(request, descriptor, false);
+        }
+        return transactions.readOnly(() -> range(request, descriptor, false));
     }
 
     @Override
@@ -77,7 +87,7 @@ public final class ModelResourceAccessAdapter implements ResourceDescriptorProvi
         if (sharing == null) {
             return AccessReasonEnum.AUTHORITY_UNAVAILABLE;
         }
-        com.arte.ainew.pojo.model.ModelSharingPolicy policy = sharing.find(request.resource(), current).orElse(null);
+        ModelSharingPolicy policy = sharing.find(request.resource(), current).orElse(null);
         if (policy == null) {
             return AccessReasonEnum.AUTHORITY_UNAVAILABLE;
         }

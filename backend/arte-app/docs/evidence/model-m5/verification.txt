@@ -1,0 +1,41 @@
+M5 verification — 2026-11-03 (Asia/Shanghai)
+Scope: isolated H2 / dedicated MySQL 8.4 / loopback provider; no business DB or external supplier.
+
+Backend final affected regression
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 62, Failures: 0, Errors: 0, Skipped: 0
+[WARNING] Tests run: 241, Failures: 0, Errors: 0, Skipped: 2
+BUILD SUCCESS
+
+MySQL 8.4 new-install and authorization
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+
+MySQL current-read activation race
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+
+Opt-in browser bridge final shutdown
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+
+Frontend management/services
+Test Files  23 passed (23)
+Tests  200 passed (200)
+
+ChatNew page
+Test Files  1 passed (1)
+Tests  18 passed (18)
+
+ChatNew workspace integration
+Test Files  1 passed (1)
+Tests  17 passed (17)
+
+Frontend production build: exit 0, 338 assets.
+Full tsc: exit 2, 106 existing diagnostics, 0 added / 0 removed versus M4 (file + message, ignoring line offsets).
+Targeted Biome lint: exit 0, 0 errors, 3 existing noNonNullAssertion warnings; services excluded by project Biome configuration.
+AC matrix: 33 passed at stated layers; AC23/AC29/AC30/AC37 partially verified.
+Personal and tenant ledger JSON: each 1 account / 1 preparation / 1 generation provider call / 1 SETTLED; charged 0.000007 CNY, held 0, rate reviewed-m5-text@v1.
+390px workspace viewport: clientWidth = scrollWidth = 375px.
+Manual template and historical sections preserved; 28 unrelated original diff blocks and staged diff unchanged.
+No production JWT/cache, external supplier, full ChatNew browser, multi-node or deployment certification.

@@ -96,8 +96,8 @@ arte_ai_invocation
 | arte_platform_audit           | 可保留作为历史审计，不参与启动或恢复旧业务配置；功能重置不要求清空                                                                                              |
 
 不要清空整个 command／outbox／audit，它们还服务于公共空间、政策及其他资源。 通用 `resource:*` ACL 命令不是都属于模型，不能直接按这个前缀全删。先从模型
-ACL Outbox 的
-`event.attributes.operationId` 收集其 operation_id，再清相应 command；也可核对回执中 value.resource 或 value.grants 的资源类型。
+ACL Outbox 的 `event.attributes.operationId` 收集其 operation_id，再清相应 command；也可核对回执中 value.resource 或
+value.grants 的资源类型。
 其中 `resource:void:v1` 回执没有目标内容，需通过关联事件定位；无法确认目标的历史通用回执可保留，不作为重新建模的入口。 这些关联
 operation_id 应在删除模型事件之前收集。
 

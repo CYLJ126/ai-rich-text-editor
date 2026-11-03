@@ -102,6 +102,33 @@ public final class DefaultModelResourceService implements ModelResourceService {
         return value;
     }
 
+    /**
+     * 复用创建门控读取可选归属，不登记资源、回执、预算或凭据。
+     */
+    @Override
+    public List<ModelResourceCommands.ModelKind> creationOptions(TrustedActor actor, Scope scope) {
+        return tx.required(() -> {
+            lock(actor, scope);
+            authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_READ, "model-create-options"));
+            List<ModelResourceCommands.ModelKind> allowed = new ArrayList<>();
+            for (ModelResourceCommands.ModelKind kind : ModelResourceCommands.ModelKind.values()) {
+                if (kind == ModelResourceCommands.ModelKind.TENANT && sharing == null) {
+                    continue;
+                }
+                try {
+                    requireCreation(actor, scope, kind == ModelResourceCommands.ModelKind.TENANT);
+                    allowed.add(kind);
+                } catch (PlatformException denied) {
+                    if (!Set.of(PlatformErrorCodeEnum.ACCESS_DENIED, PlatformErrorCodeEnum.POLICY_DENIED,
+                            PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED).contains(denied.getCode())) {
+                        throw denied;
+                    }
+                }
+            }
+            return List.copyOf(allowed);
+        });
+    }
+
     @Override
     public CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command) {
         boolean tenant = command.modelKind() == ModelResourceCommands.ModelKind.TENANT;

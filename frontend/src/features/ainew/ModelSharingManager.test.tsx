@@ -211,3 +211,11 @@ it('does not reapply an acknowledged operation when only the post-save read fail
   expect(api.executeSharingCommand).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('button', {name: '重试确认原授权操作'})).not.toBeInTheDocument();
 });
+
+it('loads tenant scope and consumer settings immediately from the embedded selected resource', async () => {
+  render(<ModelSharingManager context={sharingContext} model={sharingModel} embedded/>);
+  expect(await screen.findByRole('combobox', {name: '允许使用的空间'})).toBeInTheDocument();
+  expect(api.getModelSharing).toHaveBeenCalledWith(sharingContext.scope, sharingModel.resourceId, expect.anything());
+  expect(modelApi.listManagedModels).not.toHaveBeenCalled();
+  expect(screen.queryByRole('combobox', {name: '选择授权模型'})).not.toBeInTheDocument();
+});

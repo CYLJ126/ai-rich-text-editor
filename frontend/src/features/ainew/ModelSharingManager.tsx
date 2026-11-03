@@ -273,7 +273,7 @@ function Manager({context, onUnsafeChange, model: suppliedModel, embedded, disab
       setGrantTotal(0);
     }
     let policyOk = true;
-    const current = records.find((r) => r.resourceId === id);
+    const current = suppliedModel?.resourceId === id ? suppliedModel : records.find((r) => r.resourceId === id);
     if (current?.ownershipType === 'TENANT') {
       try {
         const value = await api.getModelSharing(context.scope, id, {

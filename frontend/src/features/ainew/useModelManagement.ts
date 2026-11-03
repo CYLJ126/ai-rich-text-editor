@@ -1,7 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import * as api from '@/services/platform/model';
 import {AiApiError} from '@/services/arte-ai/request';
-import {checkWorkspaceAccess} from '@/services/platform/workspace';
 import {type BrowserContext, readValue, storageKey, writeValue} from './storage';
 import {modelFailure, readModelCommand, saveModelCommand, uncertainModelFailure} from './modelManagementState';
 
@@ -33,7 +32,8 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
   const [cursor, setCursor] = useState<string | null>(null);
   const visitedCursors = useRef(new Set<string>());
   const [loading, setLoading] = useState(false);
-  const [canCreate, setCanCreate] = useState(false);
+  const [creationKinds, setCreationKinds] = useState<('PERSONAL' | 'TENANT')[]>([]);
+  const canCreate = creationKinds.length > 0;
   const [selected, setSelected] = useState(restored.command && 'resourceId' in restored.command.request ? restored.command.request.resourceId : initialResourceId ?? null);
   const [detail, setDetail] = useState<ModelDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -90,10 +90,10 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
     }
     setLoading(true);
     setError('');
-    setCanCreate(false);
+    setCreationKinds([]);
     const results = await Promise.allSettled([
       api.listManagedModels(context.scope, after, {signal: controller.signal}),
-      checkWorkspaceAccess(context.scope, 'workspace', 'model:create', {signal: controller.signal}),
+      api.getModelCreationOptions(context.scope, {signal: controller.signal}),
     ]);
     if (!live.current || controller.signal.aborted) return;
     const [list, access] = results;
@@ -107,7 +107,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
         setRecords(previous => append ? [...previous, ...page.records.filter(item => !previous.some(old => old.resourceId === item.resourceId))] : page.records);
         setCursor(page.nextCursor);
       }
-      setCanCreate(access.status === 'fulfilled' && access.value.body.data.allowed);
+      setCreationKinds(access.status === 'fulfilled' ? access.value.body.data : []);
       if (access.status === 'rejected') setError('无法核验创建权限，当前只允许读取。');
     } else {
       setError(modelFailure(list.reason, true));
@@ -293,7 +293,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
           setDetail(null);
           setStatus(null);
           setRecords([]);
-          setCanCreate(false);
+          setCreationKinds([]);
         }
       }
       return false;
@@ -308,7 +308,18 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
     if (selected) void open(selected);
   }, []);
   return {
-    records, cursor, loading, canCreate, selected, detail, detailLoading, selectedVersion, status, statusError, pending,
+    records,
+    cursor,
+    loading,
+    canCreate,
+    creationKinds,
+    selected,
+    detail,
+    detailLoading,
+    selectedVersion,
+    status,
+    statusError,
+    pending,
     blocked, saving, error, notice, closed, hasTemporarySecret, loadList, open, selectVersion, queryValidation, run,
     clearSecret: () => {
       secret.current = null;

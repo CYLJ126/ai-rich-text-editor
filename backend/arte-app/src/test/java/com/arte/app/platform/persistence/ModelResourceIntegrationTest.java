@@ -104,7 +104,7 @@ class ModelResourceIntegrationTest {
                 new PlatformIdentityProperties(true, 0L, List.of()), List::of, CLOCK);
         stores = new PlatformServiceTestFactory(f.source, f.tx, f.json, null);
         store = stores.models();
-        var adapter = new ModelResourceAccessAdapter(store);
+        var adapter = new ModelResourceAccessAdapter(store, f.tx);
         platform = new DefaultWorkspaceServices(identity, f.tx, stores.tenants(), stores.workspaces(), stores.tenantMembers(), stores.workspaceMembers(), stores.policies(),
                 stores.preferences(), stores.receipts(), stores.outbox(), stores.audit(), () -> UUID.randomUUID().toString(), CLOCK, new DefaultWorkspacePolicies(stores.templates()),
                 stores.facts(), List.of(), WorkspaceBrowseBudget.defaults(), System::nanoTime, stores.grants(), List.of(adapter), List.of(adapter));

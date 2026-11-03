@@ -130,8 +130,10 @@ class TenantModelSharingIntegrationTest {
     void setup() throws Exception {
         f.setup();
         f.f.f.f.jdbc.update("UPDATE arte_platform_tenant SET type=1,personal_subject_id=NULL,name='Model team' WHERE id=?", f.f.scope.tenantId());
-        String sql = Files.readString(Path.of("scripts/arte-ai-model-sharing-ddl-mysql.sql"))
-                .replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replaceAll("(?i)ENGINE=InnoDB", "");
+        String sql = Files.readString(Path.of("scripts/arte-ai-model-sharing-ddl-mysql.sql"));
+        if (f.f.f.f.mysql == null) {
+            sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replaceAll("(?i)ENGINE=InnoDB", "");
+        }
         try (Connection connection = f.f.f.f.source.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)));
         }

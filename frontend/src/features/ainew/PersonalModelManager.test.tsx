@@ -14,6 +14,7 @@ vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/platform/model', async original => ({
   ...(await original<typeof import('@/services/platform/model')>()),
   listManagedModels: vi.fn(),
+  getModelCreationOptions: vi.fn(),
   getManagedModel: vi.fn(),
   getModelDraft: vi.fn(),
   checkModelActions: vi.fn(),
@@ -113,6 +114,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   sessionStorage.clear();
   localStorage.clear();
+  vi.mocked(api.getModelCreationOptions).mockResolvedValue(response(['PERSONAL', 'TENANT']));
   vi.mocked(checkWorkspaceAccess).mockResolvedValue(response({allowed: true, reason: 'ALLOWED', checkedAt: 'now'}));
   vi.mocked(api.listManagedModels).mockResolvedValue(response({records: [model], nextCursor: null}));
   vi.mocked(api.getManagedModel).mockResolvedValue(response(model));
@@ -405,4 +407,12 @@ it('reads and refreshes returned execution B while preserving management M and m
   expect(writeUsage).not.toHaveBeenCalled();
   readUsage.mockRestore();
   writeUsage.mockRestore();
+});
+
+it('does not expose executable tenant creation when the server only allows personal models', async () => {
+  vi.mocked(api.getModelCreationOptions).mockResolvedValue(response(['PERSONAL']));
+  manager();
+  await screen.findByRole('button', {name: '管理 我的模型'});
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '模型归属'}));
+  expect(screen.queryByText('租户模型', {selector: '.ant-select-item-option-content'})).not.toBeInTheDocument();
 });

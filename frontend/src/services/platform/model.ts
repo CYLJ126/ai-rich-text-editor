@@ -119,6 +119,10 @@ export type PublicationStatus = z.infer<typeof statusSchema>;
 export const MODEL_ACTIONS = ['model:edit', 'model:validate', 'model:publish', 'model:disable', 'model:use'] as const;
 export type ModelAction = typeof MODEL_ACTIONS[number];
 
+/** 当前归属创建资格快照；服务端提交仍重新核验。 */
+export const getModelCreationOptions = (scope: WorkspaceScope, options?: AiRequestOptions) =>
+  call('ai-new/model-resource', 'getModelCreationOptions', {scope}, z.array(z.enum(['PERSONAL', 'TENANT'])).max(2), options);
+
 export async function listManagedModels(scope: WorkspaceScope, cursor: string | null = null, options?: AiRequestOptions) {
   const result = await call('ai-new/model-draft', 'listModelResources', {scope, cursor, size: 20},
     z.object({records: z.array(modelResourceSchema).max(100), nextCursor: z.string().max(129).nullable()}), options);

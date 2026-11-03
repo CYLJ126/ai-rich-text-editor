@@ -24,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -49,6 +50,16 @@ public class ModelResourceController {
         this.executor = executor;
         this.models = models;
         this.migration = migration;
+    }
+
+    /**
+     * 返回当前主体在管理空间可创建的归属；不以菜单或前端角色推断资格。
+     */
+    @PostMapping("/getModelCreationOptions")
+    public Mono<ResultContext<List<ModelResourceCommands.ModelKind>>> getModelCreationOptions(Authentication auth,
+                                                                                              @Valid @RequestBody ScopeRequest request, Locale locale) {
+        return executor.call(auth, actor -> models.creationOptions(actor, request.scope()))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
     /**
