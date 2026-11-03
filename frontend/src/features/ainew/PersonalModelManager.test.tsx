@@ -2,11 +2,14 @@ import React from 'react';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/model';
+import * as usage from '@/services/platform/modelUsage';
+import {notifyAiConfiguration} from './aiConfigurationEvents';
 import {checkWorkspaceAccess} from '@/services/platform/workspace';
 import {AiApiError} from '@/services/arte-ai/request';
 import PersonalModelManager from './PersonalModelManager';
 import {storageKey} from './storage';
 
+vi.mock('./ModelSharingManager', () => ({default: () => <p>模型授权详情</p>}));
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/platform/model', async original => ({
   ...(await original<typeof import('@/services/platform/model')>()),
@@ -356,4 +359,50 @@ it('never sends a write when recovery storage fails', async () => {
   storage.mockRestore();
   fireEvent.click(screen.getByRole('button', {name: '重试确认原操作'}));
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledTimes(1));
+});
+
+it('creates tenant resources in the same detail flow without a second tab or refresh', async () => {
+  manager();
+  await screen.findByRole('button', {name: '管理 我的模型'});
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '模型归属'}));
+  fireEvent.click(await screen.findByText('租户模型', {selector: '.ant-select-item-option-content'}));
+  fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '租户模型'}});
+  fireEvent.click(screen.getByRole('button', {name: '创建私有模型'}));
+  await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledWith(expect.objectContaining({
+    kind: 'create', request: {scope, name: '租户模型', modelKind: 'TENANT'}
+  }), undefined));
+  await screen.findByRole('button', {name: '保存模型草稿'});
+  expect(updated).toHaveBeenCalledWith({kind: 'create', resourceId: 'model'});
+});
+
+it('reads and refreshes returned execution B while preserving management M and making no budget write', async () => {
+  const execution = {...scope, workspaceId: 'execution-B'};
+  const readUsage = vi.spyOn(usage, 'getModelUsagePreparation').mockResolvedValue({
+    scope: execution,
+    resource: {tenantId: scope.tenantId, type: 'model', resourceId: 'model'},
+    binding: {...release.binding, type: 'binding'},
+    rate: {...release.rate, type: 'rate'},
+    state: 'READY',
+    reason: 'READY',
+    allowedActions: [],
+    budgetRefs: ['execution-B-budget'],
+    approvedLimit: {amount: '10', currency: 'CNY'}
+  });
+  const writeUsage = vi.spyOn(usage, 'prepareModelUsage');
+  vi.mocked(api.listModelVersions).mockResolvedValue(response({records: [release], current: 1, size: 10, total: 1}));
+  render(<PersonalModelManager context={context} executionScope={execution}
+                               initialModel={{resourceId: release.resourceId, binding: release.binding}}
+                               onUpdated={updated}/>);
+  await waitFor(() => expect(readUsage).toHaveBeenCalledWith({
+    scope: execution,
+    resourceId: 'model',
+    binding: release.binding
+  }, expect.anything()));
+  expect(api.getManagedModel).toHaveBeenCalledWith(scope, 'model', expect.anything());
+  act(() => notifyAiConfiguration(context.userId, execution));
+  await waitFor(() => expect(readUsage).toHaveBeenCalledTimes(2));
+  expect(api.getManagedModel).toHaveBeenCalledTimes(1);
+  expect(writeUsage).not.toHaveBeenCalled();
+  readUsage.mockRestore();
+  writeUsage.mockRestore();
 });

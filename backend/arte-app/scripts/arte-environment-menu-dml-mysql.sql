@@ -57,7 +57,7 @@ FROM arte_rbac_menu parent
                             'AppstoreOutlined',
                             '/Environment/Workspaces',
                             2,
-                            '工作空间选择、创建、信息维护与个人偏好'
+                            '工作空间目录、信息、偏好与目标空间 AI 配置'
                      UNION ALL
                      SELECT 'EnvironmentModels',
                             '模型配置',

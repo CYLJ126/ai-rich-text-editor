@@ -15,6 +15,10 @@ import {
 type Space = { scope: WorkspaceScope; name: string };
 type Props = {
   context: BrowserContext;
+  model?: ManagedModel;
+  embedded?: boolean;
+  disabled?: boolean;
+  onCreated?: (resourceId: string) => void;
   onUnsafeChange?: (value: boolean) => void;
 };
 const actionNames: Record<string, string> = {
@@ -36,7 +40,7 @@ export default function ModelSharingManager(props: Props) {
   );
 }
 
-function Manager({context, onUnsafeChange}: Props) {
+function Manager({context, onUnsafeChange, model: suppliedModel, embedded, disabled, onCreated}: Props) {
   const [restored] = useState(() => readSharingOperation(context));
   const operation = useRef<SharingOperation | null>(restored.operation);
   const initial = restored.operation?.command;
@@ -56,7 +60,7 @@ function Manager({context, onUnsafeChange}: Props) {
   const [blocked, setBlocked] = useState(restored.blocked);
   const [records, setRecords] = useState<ManagedModel[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState(initialId);
+  const [selected, setSelected] = useState(initialId || suppliedModel?.resourceId || '');
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [spaceCursor, setSpaceCursor] = useState<string | null>(null);
   const [members, setMembers] = useState<
@@ -125,8 +129,11 @@ function Manager({context, onUnsafeChange}: Props) {
     dirtyConsumers ||
     dirtyAcl ||
     !!name;
-  const locked = loading || saving || !!pending || blocked;
-  const model = records.find((record) => record.resourceId === selected);
+  const locked = disabled || loading || saving || !!pending || blocked;
+  const model = suppliedModel?.resourceId === selected ? suppliedModel : records.find((record) => record.resourceId === selected);
+  useEffect(() => {
+    if (embedded && !operation.current && !blocked && !saving && !dirtyScopes && !dirtyConsumers && !dirtyAcl) setSelected(suppliedModel?.resourceId ?? '');
+  }, [embedded, suppliedModel?.resourceId]);
   const aclScope = {
     tenantId: context.scope.tenantId,
     workspaceId: aclWorkspace,
@@ -293,12 +300,22 @@ function Manager({context, onUnsafeChange}: Props) {
 
   useEffect(() => {
     live.current = true;
-    void models();
+    if (!embedded) void models();
     void directory();
     void loadMembers();
+    const logout = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== context.userId) return;
+      live.current = false;
+      reader.current?.abort();
+      setAccess(undefined);
+      setSharing(undefined);
+      setGrants([]);
+    };
+    window.addEventListener('arte-account-session-cleared', logout);
     return () => {
       live.current = false;
       reader.current?.abort();
+      window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, []);
   useEffect(() => {
@@ -311,7 +328,7 @@ function Manager({context, onUnsafeChange}: Props) {
 
   async function run(command?: api.SharingCommand) {
     if (
-      !live.current ||
+      !live.current || disabled ||
       writing.current ||
       blocked ||
       (command && operation.current)
@@ -353,9 +370,10 @@ function Manager({context, onUnsafeChange}: Props) {
       if (created) {
         setName('');
         setSelected(created.resourceId);
-        await models();
+        onCreated?.(created.resourceId);
+        if (!embedded) await models();
         setNotice(
-          '租户私有模型已创建，请到模型管理保存草稿、租户密钥并验证发布。',
+          '原租户创建操作已确认，已在统一详情定位；请继续保存草稿、密钥并验证发布。',
         );
       } else {
         const fresh = await load();
@@ -455,37 +473,9 @@ function Manager({context, onUnsafeChange}: Props) {
           </Button>
         </Card>
       )}
-      <Card size="small" title="创建租户私有模型">
-        <Flex gap={8} wrap>
-          <Input
-            aria-label="租户模型名称"
-            value={name}
-            maxLength={100}
-            disabled={locked}
-            onChange={(e) => setName(e.target.value)}
-            style={{maxWidth: 360}}
-          />
-          <Button
-            disabled={locked || !name.trim() || stale}
-            onClick={() =>
-              submit({
-                kind: 'create',
-                request: {scope: context.scope, name: name.trim()},
-              })
-            }
-          >
-            创建租户私有模型
-          </Button>
-          <Button disabled={locked || !name} onClick={() => setName('')}>
-            清空名称
-          </Button>
-        </Flex>
-        <Typography.Paragraph type="secondary">
-          需要租户治理、当前空间创建资格及专门模型创建／平台配置权限；模型归租户，当前空间用于草稿与密钥维护。
-        </Typography.Paragraph>
-      </Card>
+
       <Flex gap={8} wrap>
-        <Select
+        {!embedded && <Select
           aria-label="选择授权模型"
           value={selected || undefined}
           disabled={
@@ -497,7 +487,7 @@ function Manager({context, onUnsafeChange}: Props) {
             label: `${r.name} · ${r.ownershipType === 'TENANT' ? '租户' : '空间'}模型`,
           }))}
           onChange={setSelected}
-        />
+        />}
         <Button
           disabled={locked}
           onClick={() => {
@@ -507,7 +497,7 @@ function Manager({context, onUnsafeChange}: Props) {
         >
           重新读取并保留草稿
         </Button>
-        {cursor && (
+        {!embedded && cursor && (
           <Button disabled={locked} onClick={() => void models(cursor)}>
             继续查找模型
           </Button>
@@ -526,6 +516,8 @@ function Manager({context, onUnsafeChange}: Props) {
           </Button>
         )}
       </Flex>
+      {embedded && !selected && !pending &&
+        <Typography.Text>选择模型后在此维护授权；创建入口已合并到上方模型管理。</Typography.Text>}
       {sharing && (
         <Card size="small" title="租户模型使用范围与租户凭据用途">
           <Typography.Paragraph>

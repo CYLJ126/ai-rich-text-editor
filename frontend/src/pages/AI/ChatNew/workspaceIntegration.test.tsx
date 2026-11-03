@@ -12,6 +12,10 @@ import {workspaceStorageKey} from '@/features/workspace/useWorkspace';
 
 const state = vi.hoisted(() => ({workspace: null as WorkspaceView | null, userId: 'page-user'}));
 vi.mock('@umijs/max', () => ({
+  history: {
+    push: vi.fn(), block: vi.fn(() => () => {
+    })
+  },
   request: vi.fn(),
   useModel: () => ({initialState: {currentUser: {id: state.userId}}}),
   useIntl: () => ({
@@ -42,7 +46,16 @@ vi.mock('@/services/arte-ai', async original => ({
 let userSequence = 0;
 const otherScope = {tenantId: 'other-tenant', workspaceId: 'other-space'};
 vi.mock('@/services/platform/ai', () => ({
-  getWorkspaceAi: vi.fn(async () => ({body: {data: {needsImport: false}}})),
+  getWorkspaceAi: vi.fn(async () => ({
+    body: {
+      data: {
+        needsImport: false,
+        models: [],
+        canManage: false,
+        configuration: null
+      }
+    }
+  })),
   getAiCatalog: vi.fn(), initializeAiCatalog: vi.fn(), updateWorkspaceAi: vi.fn(), updateDefaultAiPolicy: vi.fn(),
   refKey: (ref: { type: string; id: string; version: string }) => JSON.stringify([ref.type, ref.id, ref.version])
 }));

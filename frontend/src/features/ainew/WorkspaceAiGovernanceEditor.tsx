@@ -21,7 +21,8 @@ import {type BrowserContext, readOperation, saveOperation} from './storage';
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
 /** 空间治理命令分别保存原请求和原键；不将模型选择联动为预算修改或账户准备。 */
-export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, onUnsafeChange}: {
+export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, onUnsafeChange, refreshRevision = 0}: {
+  refreshRevision?: number;
   scope: WorkspaceScope; context: BrowserContext; onUpdated: () => void; onUnsafeChange?: (unsafe: boolean) => void
 }) {
   const [restored] = useState(() => readOperation<Operation>(context, 'workspace-ai-governance', ''));
@@ -30,6 +31,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
   const [uncertain, setUncertain] = useState(!!restored.value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [saved, setSaved] = useState('');
   const [view, setView] = useState<WorkspaceAiView>();
   const [ruleView, setRuleView] = useState<WorkspaceBudgetRulesView>();
   const [rates, setRates] = useState<BudgetRateOption[]>([]);
@@ -40,6 +42,8 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
   const dirty = dirtyKind !== null;
   const live = useRef(true);
   const writing = useRef(false);
+  const reader = useRef<AbortController | null>(null);
+  const [loading, setLoading] = useState(false);
   const unsafe = blocked || uncertain || saving || dirty;
   useEffect(() => {
     onUnsafeChange?.(unsafe);
@@ -56,7 +60,16 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsafe]);
 
-  async function load(signal?: AbortSignal) {
+  async function load(outerSignal?: AbortSignal) {
+    reader.current?.abort();
+    const controller = new AbortController();
+    reader.current = controller;
+    const signal = controller.signal;
+    const cancel = () => controller.abort();
+    if (outerSignal?.aborted) return;
+    outerSignal?.addEventListener('abort', cancel, {once: true});
+    setLoading(true);
+    try {
     const result = (await getWorkspaceAi(scope, {signal})).body.data;
     if (!live.current || signal?.aborted) return;
     if (result.configuration && (result.configuration.scope.tenantId !== scope.tenantId || result.configuration.scope.workspaceId !== scope.workspaceId)) {
@@ -87,6 +100,10 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
     setModels(result.configuration?.models ?? []);
     setRules(budget?.configuration?.rules ?? []);
     setDirtyKind(null);
+    } finally {
+      outerSignal?.removeEventListener('abort', cancel);
+      if (live.current && !signal.aborted) setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -96,6 +113,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
       if ((event as CustomEvent<string>).detail === context.userId) {
         live.current = false;
         controller.abort();
+        reader.current?.abort();
       }
     };
     window.addEventListener('arte-account-session-cleared', logout);
@@ -105,6 +123,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
     return () => {
       live.current = false;
       controller.abort();
+      reader.current?.abort();
       window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, [scope, context.userId]);
@@ -155,6 +174,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
       pending.current = null;
       setUncertain(false);
       setBlocked(false);
+      setSaved(operation.kind === 'prepare' ? '首次准备已保存；尚未选择模型或创建账户。' : operation.kind === 'models' ? '空间开关与模型版本已保存；预算规则保持独立。' : '独立预算规则已保存；模型选择保持独立。');
       onUpdated();
     } catch (failure) {
       if (!live.current) return;
@@ -172,12 +192,14 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
     }
   }
 
-  const canEdit = !!view?.canManage && !saving && !uncertain && !blocked;
+  const canEdit = !!view?.canManage && !loading && !saving && !uncertain && !blocked;
   const canEditModels = canEdit && dirtyKind !== 'rules';
   const canEditRules = canEdit && dirtyKind !== 'models';
   return <Flex component="section" vertical gap={12} aria-label="空间 AI 配置">
     <Typography.Paragraph>为此空间启用实际模型的固定版本，并独立维护费率预算规则。首次准备不选择模型，也不创建本人账户。</Typography.Paragraph>
     {dirty && <Typography.Text>请先保存当前修改，或重新读取放弃修改后，再编辑另一项。</Typography.Text>}
+    {saved && <Alert type="success" title={saved}/>}
+    {refreshRevision > 0 && <Typography.Text>空间配置有更新，请按需重新读取；当前草稿保持不变。</Typography.Text>}
     {error && <Alert type="warning" title={error}/>}
     {blocked && <Alert type="warning" title="原操作记录暂不可用，请恢复浏览器存储后确认。"/>}
     {uncertain && <Button loading={saving} disabled={blocked}
@@ -263,7 +285,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
         }}>保存独立预算规则</Button>
       </>}
     </>}
-    <Button disabled={saving || uncertain || blocked}
+    <Button disabled={loading || saving || uncertain || blocked}
             onClick={() => void load().catch(() => setError('最新配置读取失败，请重试。'))}>重新读取配置</Button>
   </Flex>;
 }

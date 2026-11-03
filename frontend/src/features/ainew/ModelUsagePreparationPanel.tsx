@@ -32,23 +32,25 @@ export const usageReasonText: Record<string, string> = {
 
 type Props = {
   context: BrowserContext;
+  refreshRevision?: number;
   target: Omit<ModelUsageRequest, 'scope'> | null;
   disabled?: boolean;
   navigationDisabled?: boolean;
   onUnsafeChange: (unsafe: boolean) => void;
   onPrepared: () => void;
   onUseInChat?: () => void;
+  onConfigureWorkspace?: (model: Omit<ModelUsageRequest, 'scope'>) => void;
 };
 
 /** 恢复只自动读取当前状态；未知写结果始终按原请求及原键确认，成功后的重读失败不再次写入。 */
 export default function ModelUsagePreparationPanel({
-                                                     context,
+                                                     context, refreshRevision = 0,
                                                      target,
                                                      disabled = false,
                                                      navigationDisabled = false,
                                                      onUnsafeChange,
                                                      onPrepared,
-                                                     onUseInChat
+                                                     onUseInChat, onConfigureWorkspace
                                                    }: Props) {
   const [restored] = useState(() => readModelUsageOperation(context));
   const [operation, setOperation] = useState<ModelUsageOperation | null>(restored.operation);
@@ -139,7 +141,7 @@ export default function ModelUsagePreparationPanel({
     setNotice('');
     void refresh();
     return () => read.current?.abort();
-  }, [requestKey]);
+  }, [requestKey, refreshRevision]);
 
   async function prepare() {
     if (!request || !live.current || closed || writingRef.current || disabled) return;
@@ -221,7 +223,12 @@ export default function ModelUsagePreparationPanel({
       {state && <Alert type={state.state === 'READY' ? 'success' : state.state === 'PREPARABLE' ? 'info' : 'warning'}
                        title={usageReasonText[state.reason] ?? '当前准备条件未满足，请重新核对权限、模型和预算规则。'}/>}
       {state?.allowedActions.includes('CONFIGURE_WORKSPACE_AI') &&
-        <Typography.Text>您可以维护此执行空间的 AI 配置；完成后重新检查。</Typography.Text>}
+        <Flex vertical gap={8}><Typography.Text>您可以维护此执行空间的 AI 配置；完成后重新检查。</Typography.Text>
+          {onConfigureWorkspace && request && <Button disabled={disabled || navigationDisabled || unsafe || closed}
+                                                      onClick={() => onConfigureWorkspace({
+                                                        resourceId: request.resourceId,
+                                                        binding: request.binding
+                                                      })}>配置此空间 AI</Button>}</Flex>}
       {state?.approvedLimit &&
         <Typography.Text>规则批准额度：{state.approvedLimit.amount} {state.approvedLimit.currency}（非账户余额）</Typography.Text>}
       {operation &&
@@ -235,10 +242,11 @@ export default function ModelUsagePreparationPanel({
                 onClick={() => void prepare()}>
           {operation?.phase === 'pending' ? '重试确认原准备操作' : '准备此模型用于聊天'}
         </Button>
-        <Button disabled={closed || disabled || navigationDisabled || unsafe || loading || state?.state !== 'READY'}
+        {onUseInChat &&
+          <Button disabled={closed || disabled || navigationDisabled || unsafe || loading || state?.state !== 'READY'}
                 onClick={() => void returnToChat()}>
           返回聊天并选择此版本
-        </Button>
+          </Button>}
       </Flex>
     </Flex>
   </Card>;

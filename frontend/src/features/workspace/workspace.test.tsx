@@ -435,3 +435,25 @@ it('search starts at the beginning and late continuation responses cannot overwr
   expect(hook.result.current.records).toEqual([]);
   expect(api.browseAccessibleWorkspaces).toHaveBeenLastCalledWith(null, 'missing', expect.anything());
 });
+
+it('only invokes explicit chat navigation after the protected selection actually commits', async () => {
+  const userId = `account-${++counter}`;
+  const hook = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(hook.result.current.current?.scope).toEqual(a));
+  let commit: (() => void) | undefined;
+  const unregister = registerWorkspaceGuard(userId, (_scope, proceed) => {
+    commit = proceed;
+  });
+  const navigate = vi.fn();
+  await act(async () => {
+    await hook.result.current.select(b, navigate);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+  expect(hook.result.current.current?.scope).toEqual(a);
+  await act(async () => {
+    commit?.();
+  });
+  expect(hook.result.current.current?.scope).toEqual(b);
+  expect(navigate).toHaveBeenCalledTimes(1);
+  unregister();
+});

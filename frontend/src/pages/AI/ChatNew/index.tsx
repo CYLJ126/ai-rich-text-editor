@@ -7,7 +7,6 @@ import {
   Card,
   Collapse,
   Descriptions,
-  Drawer,
   Empty,
   Flex,
   Form,
@@ -25,7 +24,6 @@ import {
   AppstoreOutlined,
   FileWordOutlined,
   FunctionOutlined,
-  GoldOutlined,
   HomeOutlined,
   LockOutlined,
   MessageOutlined,
@@ -43,8 +41,10 @@ import messages from '@/locales/zh-CN/aiChat';
 import WorkspacePicker from '@/features/workspace/WorkspacePicker';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
-import WorkspaceAiSettings from '@/features/ainew/WorkspaceAiSettings';
-import PersonalModelManager from '@/features/ainew/PersonalModelManager';
+import WorkspaceAiUsagePanel from '@/features/ainew/WorkspaceAiUsagePanel';
+import {aiLocation, useAiLeaveGuard} from '@/features/ainew/aiNavigation';
+import {subscribeAiConfiguration} from '@/features/ainew/aiConfigurationEvents';
+import ModelManager from '@/features/ainew/ModelManager';
 import PreparedModelNotice, {useModelChatHandoff} from '@/features/ainew/PreparedModelNotice';
 import {clearModelChatHandoff, type ModelChatHandoff, readModelChatHandoff} from '@/features/ainew/modelUsageRecovery';
 import type {ModelChange} from '@/features/ainew/useModelManagement';
@@ -101,6 +101,8 @@ function WorkspaceChat({
   translate: (id: string) => string;
   protectRef: React.RefObject<((proceed: () => void) => void) | null>;
 }) {
+  const {initialState} = useModel('@@initialState');
+  const hasWorkspaceMenu = initialState?.currentUser?.menus?.includes('EnvironmentWorkspaces') === true;
   const context = useMemo<BrowserContext>(() => ({userId, scope: workspace.scope}), [userId, workspace.scope]);
   const {saved: preparedModel} = useModelChatHandoff(context);
   const conversations = useConversationDirectory(workspace.scope, context);
@@ -159,6 +161,10 @@ function WorkspaceChat({
   }, [workspaceRevision, layout.open]);
   const [accessHelpOpen, setAccessHelpOpen] = useState(false);
   const [discoveryRefresh, setDiscoveryRefresh] = useState({id: '', revision: 0});
+  useEffect(() => subscribeAiConfiguration(userId, workspace.scope, () => {
+    setWarning('空间 AI 配置已变化，正在重读可用目录；请核对后手动应用，当前会话和模型选择保持不变。');
+    setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
+  }), [userId, workspace.scope, selectedId]);
   const [interaction, setInteraction] = useState<ChatInteractionState>({pending: false, active: false});
   const [switchAction, setSwitchAction] = useState<(() => void) | null>(null);
   const cancelSwitch = useRef<(() => void) | null>(null);
@@ -192,9 +198,12 @@ function WorkspaceChat({
     const next = afterApply.current;
     afterApply.current = null;
     cancelSwitch.current = null;
-    next?.();
+    if (next) window.setTimeout(next, 0);
     return true;
   }
+
+  useAiLeaveGuard(dirty || modelManagementUnsafe || aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave,
+    React.useCallback(() => setWarning('请先应用或取消配置修改，保存模型编辑并确认原操作后再离开。'), []));
 
   const guardState = useRef({
     dirty,
@@ -499,7 +508,7 @@ function WorkspaceChat({
         className: 'ainew-models-pane',
         icon: <Tooltip title='模型管理'><AppstoreOutlined aria-label="模型管理"/></Tooltip>,
         children: <>
-          <Segmented block aria-label="模型视图" value={modelMode}
+          <Segmented block aria-label="模型视图" value={modelMode} disabled={aiSettingsUnsafe || modelManagementUnsafe}
                      options={[{label: '可用模型', value: 'catalog'}, {label: '我可管理', value: 'manage'}]}
                      onChange={value => {
                        setModelMode(String(value));
@@ -507,7 +516,11 @@ function WorkspaceChat({
                      }}/>
           {/* 可用模型 Tab页 */}
           <div hidden={modelMode !== 'catalog'} className='scrollbar-none'>
-            <Typography.Paragraph>当前可用目录；可在“我可管理”中添加个人模型。</Typography.Paragraph>
+            <Typography.Paragraph>当前可用目录；可在“我可管理”中维护个人／租户模型。</Typography.Paragraph>
+            <WorkspaceAiUsagePanel context={context}
+                                   disabled={dirty || modelManagementUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave}
+                                   onUnsafeChange={setAiSettingsUnsafe} onPrepared={recheckAccess}
+                                   onNavigate={proceed => guard(proceed)}/>
 
             {!options.length && (optionsState?.loading
               ? <Flex align="center" gap={8} role="status" className="ainew-loading">
@@ -573,10 +586,20 @@ function WorkspaceChat({
           </div>
           {/* 个人模型管理，即“我可管理” Tab页 */}
           {modelManagementVisited && <div hidden={modelMode !== 'manage'}>
-            <PersonalModelManager
+            <ModelManager
               context={context}
+              disabled={aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave}
               onUnsafeChange={setModelManagementUnsafe}
               onUpdated={modelsUpdated}
+              onConfigureWorkspace={model => {
+                if (!hasWorkspaceMenu) {
+                  setWarning('当前账号缺少工作空间配置菜单，请联系菜单管理员；模型管理和现有聊天仍可使用。');
+                  return;
+                }
+                guard(() => history.push(aiLocation('workspaces', userId, {
+                  scope: workspace.scope, management: workspace.scope, chat: workspace.scope, model, returnTo: 'models'
+                })));
+              }}
               onUseInChat={() => {
                 setModelMode('catalog');
                 setTab('models');
@@ -595,19 +618,6 @@ function WorkspaceChat({
         label: '',
         icon: <Tooltip title='助手管理'><RobotOutlined aria-label="助手管理"/></Tooltip>,
         children: <Typography.Paragraph>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</Typography.Paragraph>
-      },
-      {
-        key: 'workspace-ai',
-        label: '',
-        icon: <Tooltip title='空间 AI 配置'><GoldOutlined aria-label="空间 AI 配置"/></Tooltip>,
-        children: <WorkspaceAiSettings
-          scope={workspace.scope} context={context} onUnsafeChange={setAiSettingsUnsafe}
-          onUpdated={() => {
-            setDiscoveryRefresh(value => ({
-              id: selectedId,
-              revision: value.id === selectedId ? value.revision + 1 : 1
-            }));
-          }}/>
       },
       {
         key: 'ai-tool',
@@ -814,14 +824,9 @@ export default function ChatNewPage() {
   const protect = useRef<((proceed: () => void) => void) | null>(null);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogUnsafe, setCatalogUnsafe] = useState(false);
+  const catalogUnsafe = false;
   const [preparationUnsafe, setPreparationUnsafe] = useState(false);
-  const [aiPreparationRevision, setAiPreparationRevision] = useState(0);
-  const catalogContext = useMemo<BrowserContext>(() => ({
-    userId,
-    scope: {tenantId: 'control-admin', workspaceId: 'catalog'}
-  }), [userId]);
+  const aiPreparationRevision = 0;
   const [tenantId, setTenantId] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
   const fixedScopeKey = `arte.ainew.fixedScope.v1.${encodeURIComponent(JSON.stringify([userId]))}`;
@@ -852,8 +857,6 @@ export default function ChatNewPage() {
   useEffect(() => {
     if (previousAccount.current && previousAccount.current !== userId) {
       clearAccountSession(previousAccount.current);
-      setCatalogOpen(false);
-      setCatalogUnsafe(false);
       setPreparationUnsafe(false);
     }
     previousAccount.current = userId;
@@ -869,7 +872,10 @@ export default function ChatNewPage() {
         name={workspace?.name}
         onManage={() => setWorkspaceRevision(value => value + 1)}
         onConnect={() => setConnectionOpen(true)}
-        onPlatformConfig={() => setCatalogOpen(true)}/>
+        onPlatformConfig={() => {
+          const proceed = () => history.push('/AI/ModelPlans');
+          if (protect.current) protect.current(proceed); else proceed();
+        }}/>
     </Flex>
     <WorkspacePicker userId={userId} presentation="inline"/>
     {workspace && <Button onClick={() => history.push('/AI/Models')}>管理当前空间模型</Button>}
@@ -877,12 +883,6 @@ export default function ChatNewPage() {
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">
     {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
-    {/* 平台 AI 配置 */}
-    <Drawer title="平台 AI 配置" open={catalogOpen} onClose={() => !catalogUnsafe && setCatalogOpen(false)} size={640}>
-      <WorkspaceAiSettings key={userId} scope={catalogContext.scope} context={catalogContext} adminOnly
-                           onUnsafeChange={setCatalogUnsafe}
-                           onUpdated={() => setAiPreparationRevision(value => value + 1)}/>
-    </Drawer>
     {legacy?.userId === userId && <Alert type="info" title="当前使用手动指定的已有 AI scope" description={<>
       <Descriptions column={1} size="small" className="ainew-info" items={[
         {key: 'tenant', label: '租户', children: legacy.scope.tenantId},
@@ -900,7 +900,10 @@ export default function ChatNewPage() {
           userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}
           onChooseWorkspace={() => setWorkspaceRevision(value => value + 1)}
           workspaceRevision={workspaceRevision}
-          onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => setCatalogOpen(true)}
+          onConnect={() => setConnectionOpen(true)} onPlatformConfig={() => {
+          const proceed = () => history.push('/AI/ModelPlans');
+          if (protect.current) protect.current(proceed); else proceed();
+        }}
           workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
       </WorkspaceAiPreparation>
       : <Flex vertical className="ainew-bootstrap">

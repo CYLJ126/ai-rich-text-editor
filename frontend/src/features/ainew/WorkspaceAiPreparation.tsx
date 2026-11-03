@@ -4,7 +4,8 @@ import {AiApiError} from '@/services/arte-ai';
 import {getWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import type {BrowserContext} from './storage';
-import WorkspaceAiSettings from './WorkspaceAiSettings';
+import {history} from '@umijs/max';
+import {aiLocation} from './aiNavigation';
 import '../aiManagement.css';
 
 /** 只读确认目标空间可访问，禁止页面读取自动创建配置或本人预算。 */
@@ -55,8 +56,9 @@ export default function WorkspaceAiPreparation({
   const status = state === 'loading' ? <Flex align="center" gap={8} role="status">
       <Spin size="small"/><Typography.Text>正在读取空间 AI 配置…</Typography.Text>
     </Flex>
-    : state === 'import' ? <WorkspaceAiSettings scope={scope} context={context} onUnsafeChange={onUnsafeChange}
-                                                onUpdated={() => setRevision(value => value + 1)}/>
+    : state === 'import' ? <Alert type="info" title="平台审核目录尚未准备，请联系平台配置管理员。"
+                                  action={<Button
+                                    onClick={() => history.push(aiLocation('models', context.userId, {}))}>打开模型配置</Button>}/>
       : <Alert type="info" title={error}
                action={<Button onClick={() => setRevision(value => value + 1)}>重新检查</Button>}/>;
   return <Flex vertical gap={12} className="ainew-bootstrap ai-preparation-panel">{status}{fallback}</Flex>;

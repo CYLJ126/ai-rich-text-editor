@@ -1,5 +1,5 @@
 import React from 'react';
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {history} from '@umijs/max';
 import ModelsPage from './index';
@@ -7,181 +7,159 @@ import ConnectionsPage from '@/pages/AI/Connections';
 import ModelPlansPage from '@/pages/AI/ModelPlans';
 import ModelSharingPage from '@/pages/AI/ModelSharing';
 import * as coordination from '@/features/workspace/useWorkspace';
-import type {WorkspaceView} from '@/services/platform/workspace';
+import * as api from '@/services/platform/workspace';
 
-vi.mock('@umijs/max', () => ({history: {push: vi.fn()}, useModel: () => ({initialState: {currentUser: user}})}));
-vi.mock('@/features/workspace/useWorkspace', () => ({
-  useWorkspaceDirectory: () => {
-    React.useSyncExternalStore(subscribe, () => revision);
-    return directory;
+vi.mock('@umijs/max', () => ({
+  history: {
+    push: vi.fn(), replace: vi.fn(), block: vi.fn(() => () => {
+    })
   },
-  protectWorkspaceChange: vi.fn((_user, _scope, proceed) => proceed()),
+  useModel: () => ({initialState: {currentUser: user}})
+}));
+vi.mock('@/features/workspace/useWorkspace', () => ({
+  useWorkspaceDirectory: () => directory,
   registerWorkspaceGuard: vi.fn(() => () => {
-  }),
+  })
 }));
-vi.mock('@/features/ainew/PersonalModelManager', () => ({
-  default: ({context, onUnsafeChange}: EditorProps) => <Editor key={JSON.stringify(context)} name="模型草稿"
-                                                               context={context} onUnsafeChange={onUnsafeChange}/>,
+vi.mock('@/services/platform/workspace', async original => ({
+  ...await original<typeof import('@/services/platform/workspace')>(),
+  getWorkspace: vi.fn()
 }));
-vi.mock('@/features/ainew/ModelSharingManager', () => ({
-  default: ({context, onUnsafeChange}: EditorProps) => <Editor key={JSON.stringify(context)} name="模型授权"
-                                                               context={context} onUnsafeChange={onUnsafeChange}/>,
+vi.mock('@/features/ainew/ModelManager', () => ({
+  default: ({context, executionScope, onUnsafeChange}: EditorProps) => <Editor name="模型草稿" context={context}
+                                                                               executionScope={executionScope}
+                                                                               onUnsafeChange={onUnsafeChange}/>
 }));
 vi.mock('@/features/ainew/ConnectionManager', () => ({
-  default: ({onUnsafeChange}: EditorProps) => <Editor name="连接草稿" onUnsafeChange={onUnsafeChange}/>,
+  default: ({onUnsafeChange}: EditorProps) => <Editor name="连接草稿" onUnsafeChange={onUnsafeChange}/>
 }));
 vi.mock('@/features/ainew/ModelPlanManager', () => ({
-  default: ({onUnsafeChange}: EditorProps) => <Editor name="费率草稿" onUnsafeChange={onUnsafeChange}/>,
+  default: ({onUnsafeChange}: EditorProps) => <Editor name="费率草稿" onUnsafeChange={onUnsafeChange}/>
 }));
-
+vi.mock('@/features/ainew/DefaultAiTemplateEditor', () => ({
+  default: ({onUnsafeChange}: EditorProps) => <Editor name="默认模板" onUnsafeChange={onUnsafeChange}/>
+}));
 type EditorProps = {
-  context?: { scope: { tenantId: string; workspaceId: string } };
+  executionScope?: { workspaceId: string };
+  context?: { scope: { workspaceId: string } };
   onUnsafeChange?: (value: boolean) => void
 };
-const mounts = new Map<string, number>();
 
-function Editor({name, context, onUnsafeChange}: EditorProps & { name: string }) {
+function Editor({name, context, executionScope, onUnsafeChange}: EditorProps & { name: string }) {
   const [value, setValue] = React.useState('');
-  const [pending, setPending] = React.useState(false);
   React.useEffect(() => {
-    mounts.set(name, (mounts.get(name) ?? 0) + 1);
-  }, [name]);
-  React.useEffect(() => {
-    onUnsafeChange?.(!!value || pending);
-  }, [value, pending, onUnsafeChange]);
+    onUnsafeChange?.(!!value);
+  }, [value, onUnsafeChange]);
   React.useEffect(() => () => onUnsafeChange?.(false), [onUnsafeChange]);
-  return <div>
-    <input aria-label={name} value={value} onChange={event => setValue(event.target.value)}/>
-    <button type="button" onClick={() => setPending(true)}>模拟{name}待确认</button>
-    {context && <span>{name}空间：{context.scope.workspaceId}</span>}
-  </div>;
+  return <div><input aria-label={name} value={value} onChange={event => setValue(event.target.value)}/>
+    {context && <span>{name}空间：{context.scope.workspaceId}</span>}{executionScope &&
+      <span>使用条件空间：{executionScope.workspaceId}</span>}</div>;
 }
 
-const spaces: WorkspaceView[] = [
+const spaces: api.WorkspaceView[] = [
   {scope: {tenantId: 'tenant', workspaceId: 'first'}, name: '空间一', state: 0, currentRole: 0, version: 0},
   {scope: {tenantId: 'tenant', workspaceId: 'second'}, name: '空间二', state: 0, currentRole: 0, version: 0},
 ];
-let user: { id: string } | null;
-let directory: Pick<ReturnType<typeof coordination.useWorkspaceDirectory>, 'current' | 'records' | 'loading'
-  | 'selecting' | 'saving' | 'pending' | 'recoveryBlocked' | 'unsafeToLeave' | 'search' | 'exhausted'
-  | 'cursorExpired' | 'nextCursor' | 'error' | 'warning' | 'select' | 'setSearch' | 'load' | 'loadMore'>;
-let revision = 0;
-const listeners = new Set<() => void>();
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
+let user: { id: string; menus?: string[] } | null;
+let directory: Pick<ReturnType<typeof coordination.useWorkspaceDirectory>, 'current' | 'records' | 'loading' | 'exhausted'
+  | 'cursorExpired' | 'nextCursor' | 'error' | 'select' | 'load' | 'loadMore'>;
 beforeEach(() => {
-  vi.resetAllMocks();
-  mounts.clear();
-  revision = 0;
-  user = {id: 'operator'};
+  vi.clearAllMocks();
+  window.history.replaceState(null, '', '/Environment/Models');
+  user = {id: 'operator', menus: ['EnvironmentWorkspaces']};
   directory = {
-    current: spaces[0], records: spaces.map(space => ({...space, defaultWorkspace: false})),
-    loading: false, selecting: false, saving: false, pending: null, recoveryBlocked: false, unsafeToLeave: false,
-    search: '', exhausted: true, cursorExpired: false, nextCursor: null, error: null, warning: null,
-    select: vi.fn(async scope => {
-      directory.current = spaces.find(space => space.scope.workspaceId === scope.workspaceId) ?? null;
-      revision++;
-      listeners.forEach(listener => {
-        listener();
-      });
-      return !!directory.current;
-    }),
-    setSearch: vi.fn(async () => {
-    }), load: vi.fn(async () => {
-    }), loadMore: vi.fn(async () => {
-    }),
+    current: spaces[0],
+    records: spaces.map(space => ({...space, defaultWorkspace: false})),
+    loading: false,
+    exhausted: true,
+    cursorExpired: false,
+    nextCursor: null,
+    error: null,
+    select: vi.fn(),
+    load: vi.fn(),
+    loadMore: vi.fn()
   };
-  vi.mocked(coordination.protectWorkspaceChange).mockImplementation((_user, _scope, proceed) => proceed());
-  vi.mocked(coordination.registerWorkspaceGuard).mockImplementation(() => () => {
-  });
+  vi.mocked(api.getWorkspace).mockResolvedValue({body: {data: spaces[1]}} as never);
 });
 afterEach(cleanup);
-
-it('organizes four tabs and keeps return-to-chat navigation inside the application', () => {
+it('has exactly three ordered tabs and defaults to model management', async () => {
   render(<ModelsPage/>);
-  expect(screen.getAllByRole('tab')).toHaveLength(4);
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['审核连接', '审核模型与费率', '模型管理']);
   expect(screen.getByRole('tab', {name: '模型管理'})).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByRole('tab', {name: '租户模型与授权'})).toBeInTheDocument();
-  expect(screen.getByRole('tab', {name: '审核连接'})).toBeInTheDocument();
-  expect(screen.getByRole('tab', {name: '审核模型与费率'})).toBeInTheDocument();
-  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeInTheDocument();
-  expect(screen.queryByRole('button', {name: '管理审核连接'})).not.toBeInTheDocument();
-  expect(mounts.get('连接草稿')).toBeUndefined();
+  await screen.findByText('模型草稿空间：first');
   fireEvent.click(screen.getByRole('button', {name: '返回聊天'}));
   expect(history.push).toHaveBeenCalledWith('/AI/ChatNew');
 });
-
-it('keeps drafts mounted when switching tabs and aggregates their leave protection', async () => {
+it('keeps platform drafts while choosing a local management scope without switching chat', async () => {
   render(<ModelsPage/>);
-  fireEvent.change(screen.getByLabelText('模型草稿'), {target: {value: '模型未保存'}});
+  await screen.findByText('模型草稿空间：first');
   fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
   fireEvent.change(await screen.findByLabelText('连接草稿'), {target: {value: '连接未保存'}});
-  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
-  expect(screen.getByLabelText('模型草稿')).toHaveValue('模型未保存');
-  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
-  expect(mounts.get('模型草稿')).toBe(1);
-  fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
-  expect(screen.getByLabelText('连接草稿')).toHaveValue('连接未保存');
-});
-
-it('preserves platform drafts across workspace changes while refreshing workspace-scoped managers', async () => {
-  render(<ModelsPage/>);
-  fireEvent.click(screen.getByRole('tab', {name: '租户模型与授权'}));
-  await screen.findByLabelText('模型授权');
-  fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
-  fireEvent.change(await screen.findByLabelText('连接草稿'), {target: {value: '连接未保存'}});
-  fireEvent.click(screen.getByRole('tab', {name: '审核模型与费率'}));
-  fireEvent.change(await screen.findByLabelText('费率草稿'), {target: {value: '费率未保存'}});
-  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeEnabled();
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '选择工作空间'}));
   fireEvent.click(await screen.findByText('空间二（tenant / second）', {selector: '.ant-select-item-option-content'}));
-  await waitFor(() => expect(directory.select).toHaveBeenCalledWith(spaces[1].scope));
-  expect(screen.getByLabelText('费率草稿')).toHaveValue('费率未保存');
-  fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
+  expect(directory.select).not.toHaveBeenCalled();
+  expect(directory.current).toEqual(spaces[0]);
   expect(screen.getByLabelText('连接草稿')).toHaveValue('连接未保存');
-  expect(mounts.get('连接草稿')).toBe(1);
-  expect(mounts.get('费率草稿')).toBe(1);
   fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
-  expect(screen.getByText('模型草稿空间：second')).toBeInTheDocument();
-  expect(mounts.get('模型草稿')).toBe(2);
-  expect(mounts.get('模型授权')).toBe(2);
+  await screen.findByText('模型草稿空间：second');
 });
-
-it.each([['models', '模型草稿'], ['sharing', '模型授权']] as const)('blocks space changes for a pending %s operation, including external selectors', async (initialTab, name) => {
-  render(<ModelsPage initialTab={initialTab}/>);
-  fireEvent.click(await screen.findByRole('button', {name: `模拟${name}待确认`}));
-  await waitFor(() => expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeDisabled());
+it('protects unsaved model state across tabs, local scope and external navigation', async () => {
+  render(<ModelsPage/>);
+  fireEvent.change(await screen.findByLabelText('模型草稿'), {target: {value: '未保存'}});
+  fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
+  await screen.findByLabelText('连接草稿');
+  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
   const proceed = vi.fn();
   vi.mocked(coordination.registerWorkspaceGuard).mock.calls.at(-1)?.[1](spaces[1].scope, proceed);
   expect(proceed).not.toHaveBeenCalled();
+  expect(history.block).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
+  expect(screen.getByLabelText('模型草稿')).toHaveValue('未保存');
+});
+it('keeps default platform template only in the plans tab', async () => {
+  render(<ModelsPage/>);
+  expect(screen.queryByLabelText('默认模板')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', {name: '审核模型与费率'}));
+  fireEvent.change(await screen.findByLabelText('默认模板'), {target: {value: '未发布'}});
   expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
 });
-
-it('opens platform configuration even when no usable workspace is available', async () => {
-  directory.current = null;
-  directory.records = [];
-  directory.error = new Error('空间不可用');
-  render(<ModelsPage initialTab="connections"/>);
-  expect(await screen.findByLabelText('连接草稿')).toBeInTheDocument();
-  expect(mounts.get('模型草稿')).toBeUndefined();
+it('does not require governance menu to manage models and explains a missing menu separately', async () => {
+  user = {id: 'operator', menus: []};
+  render(<ModelsPage/>);
+  await screen.findByLabelText('模型草稿');
+  expect(screen.getByRole('button', {name: '工作空间配置'})).toBeDisabled();
+  expect(screen.getByText(/当前账号未分配工作空间配置菜单/)).toBeInTheDocument();
 });
-
-it.each([
-  [ConnectionsPage, '审核连接'], [ModelPlansPage, '审核模型与费率'], [ModelSharingPage, '租户模型与授权'],
-] as const)('keeps the old page route as a direct entry into its configuration tab', (Page, label) => {
-  render(<Page/>);
-  expect(screen.getByRole('tab', {name: label})).toHaveAttribute('aria-selected', 'true');
-  expect(history.push).not.toHaveBeenCalled();
+it('redirects the old workspace-ai deep link preserving full target, without substituting chat scope', () => {
+  window.history.replaceState(null, '', '/Environment/Models?tab=workspace-ai&tenantId=tenant&workspaceId=second');
+  render(<ModelsPage/>);
+  expect(history.replace).toHaveBeenCalledWith(expect.stringContaining('Workspaces?account=operator&tab=ai&tenantId=tenant&workspaceId=second'));
+  expect(directory.select).not.toHaveBeenCalled();
 });
-
-it('does not mount any model configuration before login', () => {
+it('does not fall back to current space for an invalid explicit target', async () => {
+  window.history.replaceState(null, '', '/Environment/Models?tenantId=tenant&workspaceId=second');
+  vi.mocked(api.getWorkspace).mockRejectedValue(new Error('denied'));
+  render(<ModelsPage/>);
+  await screen.findByText('指定管理空间不可读或已失效，请重新选择。');
+  expect(screen.queryByLabelText('模型草稿')).not.toBeInTheDocument();
+});
+it.each([[ConnectionsPage, '审核连接'], [ModelPlansPage, '审核模型与费率'], [ModelSharingPage, '模型管理']] as const)(
+  'maps compatibility routes to the corresponding unified tab', (Page, name) => {
+    render(<Page/>);
+    expect(screen.getByRole('tab', {name})).toHaveAttribute('aria-selected', 'true');
+  });
+it('does not mount configuration before login', () => {
   user = null;
   render(<ModelsPage/>);
   expect(screen.getByText('请登录后管理模型。')).toBeInTheDocument();
-  expect(mounts.size).toBe(0);
+});
+
+it('keeps returned execution conditions separate from management and original chat scopes', async () => {
+  window.history.replaceState(null, '', '/Environment/Models?tenantId=tenant&workspaceId=second&execution-tenantId=tenant&execution-workspaceId=first&chat-tenantId=tenant&chat-workspaceId=first');
+  render(<ModelsPage/>);
+  await screen.findByText('模型草稿空间：second');
+  expect(screen.getByText('使用条件空间：first')).toBeInTheDocument();
+  expect(directory.current?.scope.workspaceId).toBe('first');
+  expect(directory.select).not.toHaveBeenCalled();
 });

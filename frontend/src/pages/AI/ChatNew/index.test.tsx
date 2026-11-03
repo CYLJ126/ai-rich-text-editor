@@ -9,6 +9,10 @@ import {readModelChatHandoff, saveModelChatHandoff} from '@/features/ainew/model
 
 const state = vi.hoisted(() => ({workspace: null as WorkspaceView | null, userId: 'page-user'}));
 vi.mock('@umijs/max', () => ({
+  history: {
+    push: vi.fn(), block: vi.fn(() => () => {
+    })
+  },
   request: vi.fn(),
   useModel: () => ({initialState: {currentUser: {id: state.userId}}}),
   useIntl: () => ({
@@ -24,7 +28,7 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
   })
 }));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button type="button">公共空间选择器</button>}));
-vi.mock('@/features/ainew/PersonalModelManager', () => ({
+vi.mock('@/features/ainew/ModelManager', () => ({
   default: ({onUpdated}: { onUpdated: (change: { kind: string; resourceId: string }) => void }) =>
     <section aria-label="个人管理测试入口">
       <button onClick={() => onUpdated({kind: 'publish', resourceId: 'personal'})}>确认个人发布</button>
@@ -52,7 +56,16 @@ vi.mock('@/services/arte-ai', async original => ({
   createDefaultConversation: vi.fn()
 }));
 vi.mock('@/services/platform/ai', () => ({
-  getWorkspaceAi: vi.fn(async () => ({body: {data: {needsImport: false}}})),
+  getWorkspaceAi: vi.fn(async () => ({
+    body: {
+      data: {
+        needsImport: false,
+        models: [],
+        canManage: false,
+        configuration: null
+      }
+    }
+  })),
   getAiCatalog: vi.fn(), initializeAiCatalog: vi.fn(), updateWorkspaceAi: vi.fn(), updateDefaultAiPolicy: vi.fn(),
   refKey: (ref: { type: string; id: string; version: string }) => JSON.stringify([ref.type, ref.id, ref.version])
 }));

@@ -10,13 +10,13 @@ export const environmentEntries = [
     menuCode: 'EnvironmentWorkspaces',
     path: '/Environment/Workspaces',
     title: '工作空间配置',
-    description: '选择、新建工作空间，维护空间信息和个人偏好。',
+    description: '维护空间信息和个人偏好，独立配置目标空间 AI 模型与预算规则。',
   },
   {
     menuCode: 'EnvironmentModels',
     path: '/Environment/Models',
     title: '模型配置',
-    description: '管理模型草稿、凭据、验证、发布及已有授权配置。',
+    description: '按审核连接、审核方案、实际模型三个页签维护个人／租户模型与授权。',
   },
   {
     menuCode: 'EnvironmentTools',

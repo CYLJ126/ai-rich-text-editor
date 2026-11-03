@@ -1,0 +1,31 @@
+M4 verification 2026-11-03
+
+Frontend regression:
+- 16 management/navigation/workspace/configuration/environment files: 149 passed.
+- Additional execution-B usage/notification regression in existing manager file: 1 passed.
+- ChatNew index (separate serial run): 18 passed.
+- ChatNew workspace integration (separate serial run): 17 passed.
+- Unique files: 18. Total distinct tests: 185 passed.
+- Production build: exit 0, final build after execution-scope navigation update.
+- TypeScript: 106 existing diagnostics, no new normalized file/error diagnostics vs M3.
+- Core-file Biome: 21 files checked, 0 errors, 5 warnings.
+
+Browser:
+- M4 in-memory fixture at 127.0.0.1:5244. Formal UI components, simulated APIs only.
+- Model tabs: connections / plans / models; default models.
+- Tenant create opens detail immediately; tenant ownership/credential labels shown.
+- Configure B keeps current A; explicit preparation, model save and independent rule save verified.
+- Dirty switch blocked navigation and target changes; reread discarded draft.
+- Narrow override: 390 x 844. Both pages: clientWidth=375, scrollWidth=375.
+- Workspace B: actual-1@v1 selected; rate-1@v1 limit=25 CNY. No real budget account.
+- Final screenshots: workspace-wide.jpg, workspace-390.jpg, models-390.jpg.
+- Browser tab closed; viewport reset; fixture server stopped.
+
+Repository/docs:
+- git diff --check: passed.
+- Manual template preserved exactly against pre-M4 working file.
+- Existing staged diff and 28 unrelated working-diff blocks unchanged.
+- 240 local references checked; one pre-existing missing historical top-level draft link, no new missing targets.
+- Menu assignment audit: source SQL checked and read-only query supplied; live assignments/cache not queried.
+- No business database, SQL execution, backend logic change, permissions grant or deployment.
+- M5 integration/roles/faults/real provider acceptance remains separate.

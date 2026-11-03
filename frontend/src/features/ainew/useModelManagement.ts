@@ -20,7 +20,7 @@ export interface ModelDetail {
 /** 管理读取及命令协调：迟到响应不能跨资源／空间覆盖，未确认写入只按原请求和原键确认。 */
 export type ModelChange = { kind: api.ModelCommand['kind'] | 'prepare'; resourceId: string | null };
 
-export function useModelManagement(context: BrowserContext, onUpdated: (change: ModelChange) => void) {
+export function useModelManagement(context: BrowserContext, onUpdated: (change: ModelChange) => void, initialResourceId?: string, initialModel?: import('@/services/platform/ai').ModelSelection) {
   const [restored] = useState(() => readModelCommand(context));
   const [pending, setPending] = useState<api.ModelCommand | null>(restored.command);
   const pendingRef = useRef(pending);
@@ -34,7 +34,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
   const visitedCursors = useRef(new Set<string>());
   const [loading, setLoading] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
-  const [selected, setSelected] = useState(restored.command && 'resourceId' in restored.command.request ? restored.command.request.resourceId : null);
+  const [selected, setSelected] = useState(restored.command && 'resourceId' in restored.command.request ? restored.command.request.resourceId : initialResourceId ?? null);
   const [detail, setDetail] = useState<ModelDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [status, setStatus] = useState<api.PublicationStatus | null>(null);
@@ -47,6 +47,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
   const statusRead = useRef<AbortController | null>(null);
   const secret = useRef<string | null>(null);
   const [hasTemporarySecret, setHasTemporarySecret] = useState(false);
+  const locating = useRef(!!initialModel);
   const update = useRef(onUpdated);
   update.current = onUpdated;
 
@@ -164,6 +165,17 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
       if (reads[0].status === 'fulfilled' && reads[0].value) value.options = reads[0].value.body.data;
       if (reads[1].status === 'fulfilled' && reads[1].value && reads[1].value.body.data.resourceId === resourceId) value.validation = reads[1].value.body.data;
       if (reads[0].status === 'rejected') setError('当前无法取得发布方案；发布功能可能未开放或资格已变化。可以继续读取草稿与历史。');
+      if (locating.current && initialModel?.resourceId === resourceId) {
+        let exact = value.versions.find(item => item.binding.id === initialModel.binding.id && item.binding.version === initialModel.binding.version);
+        for (let current = 2; !exact && (current - 1) * 10 < value.totalVersions; current++) {
+          const response = await api.listModelVersions(context.scope, resourceId, current, {signal: controller.signal});
+          if (!live.current || controller.signal.aborted) return;
+          exact = response.body.data.records.find(item => item.binding.id === initialModel.binding.id && item.binding.version === initialModel.binding.version);
+        }
+        if (!exact) throw new Error('定位版本不可读或已失效，请重新选择；不会采用最新版本。');
+        locating.current = false;
+        void selectVersion(exact);
+      }
       setDetail(value);
     } catch (failure) {
       if (live.current && !controller.signal.aborted) {

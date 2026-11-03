@@ -6,8 +6,18 @@ import WorkspaceConfigurationPage from '@/pages/Environment/Workspaces';
 
 const session = vi.hoisted(() => ({user: null as { id: string; menus: string[] } | null}));
 vi.mock('@umijs/max', () => ({
+  history: {
+    location: {search: ''}, listen: vi.fn(() => () => {
+    }), push: vi.fn(), block: vi.fn(() => () => {
+    })
+  },
   useModel: () => ({initialState: {currentUser: session.user}}),
   Link: ({to, children}: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
+}));
+vi.mock('@/features/workspace/useWorkspace', () => ({
+  useWorkspaceDirectory: () => ({current: null, select: vi.fn()}),
+  registerWorkspaceGuard: vi.fn(() => () => {
+  })
 }));
 vi.mock('@/features/workspace/WorkspacePicker', () => ({
   default: ({userId, presentation}: { userId: string; presentation: string }) =>

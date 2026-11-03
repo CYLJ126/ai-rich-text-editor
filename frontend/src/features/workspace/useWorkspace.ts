@@ -13,7 +13,7 @@ import {
 
 export const workspaceStorageKey = (userId: string, kind: string) =>
   `arte.ainew.${kind}.v1.${encodeURIComponent(JSON.stringify([userId]))}`;
-const key = z.string().min(1).max(256).refine(value => value.trim() === value && !/[\x00-\x1f\x7f]/.test(value));
+const key = z.string().min(1).max(256).refine(value => value.trim() === value && Array.from(value).every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127));
 const pendingSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('initialize'), key, operationId: key.optional()}),
   z.object({
@@ -133,7 +133,9 @@ class WorkspaceDirectory {
 
   private update(change: Partial<DirectoryState>) {
     this.state = {...this.state, ...change};
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach(listener => {
+      listener();
+    });
   }
 
   attach = () => {
@@ -206,7 +208,7 @@ class WorkspaceDirectory {
     });
   }
 
-  select = async (scope: api.WorkspaceScope) => {
+  select = async (scope: api.WorkspaceScope, onSelected?: () => void) => {
     if (this.state.unsafeToLeave || this.state.recoveryBlocked) {
       this.update({warning: '未确认空间操作无法安全恢复，请先处理原操作后再切换。'});
       return false;
@@ -224,6 +226,7 @@ class WorkspaceDirectory {
       protectWorkspaceChange(this.userId, scope, () => {
         if (this.stopped || controller.signal.aborted) return;
         this.accept(view, true);
+        onSelected?.();
         if (this.state.preference && !this.state.pending && !this.write) void this.updatePreference({lastScope: scope});
       });
       return true;

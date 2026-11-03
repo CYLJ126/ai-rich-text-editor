@@ -26,9 +26,13 @@ export default function WorkspacePicker({
                                           beforeSelect,
                                           open: controlledOpen,
                                           onOpenChange,
+                                          onConfigure, configurationDisabled, onUnsafeChange,
                                           presentation = 'drawer'
                                         }: {
   userId: string;
+  onConfigure?: (view: WorkspaceView) => void;
+  configurationDisabled?: boolean;
+  onUnsafeChange?: (unsafe: boolean) => void;
   presentation?: 'drawer' | 'inline';
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -62,6 +66,11 @@ export default function WorkspacePicker({
     // Refresh the concurrency token, while retaining the user's name/description for explicit review and resubmission.
     setEditor({kind: 'rename', view: directory.current!});
   }, [directory.current, directory.pending, editor]);
+  useEffect(() => {
+      onUnsafeChange?.(!!editor || directory.unsafeToLeave || directory.saving || !!directory.pending || directory.recoveryBlocked);
+    },
+    [editor, directory.unsafeToLeave, directory.saving, directory.pending, directory.recoveryBlocked, onUnsafeChange]);
+  useEffect(() => () => onUnsafeChange?.(false), [onUnsafeChange]);
   const role = ['负责人', '管理员', '成员', '访客'];
   const state = ['正常', '已归档', '关闭处理中', '已删除'];
   const locked = directory.saving || !!directory.pending || directory.recoveryBlocked;
@@ -173,6 +182,8 @@ export default function WorkspacePicker({
               <Tag>个人默认空间</Tag>}
               {directory.favorite(item.scope) && <Tag>已收藏</Tag>}</Flex>
             <Flex gap={8} wrap>
+              {onConfigure && <Button size="small" disabled={configurationDisabled || !!editor || locked}
+                                      onClick={() => onConfigure(item)} aria-label={`配置 ${item.name}`}>配置</Button>}
               <Button size="small" disabled={!directory.preference || locked}
                       onClick={() => void directory.updatePreference({
                         favorites: directory.favorite(item.scope)
@@ -216,7 +227,8 @@ export default function WorkspacePicker({
             ]}/>
         }]}/>
     </>}
-    <Typography.Paragraph>邀请、成员管理及空间关闭将在对应能力接入后开放。模型和预算在进入聊天后检查。</Typography.Paragraph>
+    <Typography.Paragraph>邀请、成员管理及空间关闭将在对应能力接入后开放。点击空间“配置”可维护此空间
+      AI；进入／切换及个人偏好与配置目标相互独立。</Typography.Paragraph>
   </Flex>;
   return <>
     {presentation === 'drawer' &&

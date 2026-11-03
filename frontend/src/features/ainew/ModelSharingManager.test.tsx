@@ -83,15 +83,22 @@ async function selectTarget() {
   fireEvent.click(await screen.findByText('Target'));
 }
 
-it('creates an explicitly tenant-owned model without a credential or hidden grant', async () => {
-  render(<ModelSharingManager context={sharingContext}/>);
-  fireEvent.change(screen.getByRole('textbox', {name: '租户模型名称'}), {target: {value: 'New tenant model'}});
-  fireEvent.click(screen.getByRole('button', {name: '创建租户私有模型'}));
-  await screen.findByText('租户私有模型已创建，请到模型管理保存草稿、租户密钥并验证发布。');
+it('keeps creation in the unified manager and recovers an old create with its original key', async () => {
+  saveSharingOperation(sharingContext, {
+    key: 'original-create', scope: sharingContext.scope, command: {
+      kind: 'create', request: {scope: sharingContext.scope, name: 'New tenant model'}
+    }
+  });
+  const created = vi.fn();
+  render(<ModelSharingManager context={sharingContext} embedded onCreated={created}/>);
+  expect(screen.queryByRole('button', {name: '创建租户私有模型'})).not.toBeInTheDocument();
+  expect(api.executeSharingCommand).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '重试确认原授权操作'}));
+  await waitFor(() => expect(created).toHaveBeenCalledWith(sharingModel.resourceId));
   expect(api.executeSharingCommand).toHaveBeenCalledWith({
     kind: 'create',
     request: {scope: sharingContext.scope, name: 'New tenant model'}
-  }, expect.any(String));
+  }, 'original-create');
 });
 it('saves allowed spaces without implicitly approving model actions or credential consumers', async () => {
   render(<ModelSharingManager context={sharingContext}/>);
