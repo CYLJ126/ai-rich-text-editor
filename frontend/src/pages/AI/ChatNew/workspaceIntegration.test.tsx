@@ -42,10 +42,7 @@ vi.mock('@/services/arte-ai', async original => ({
 let userSequence = 0;
 const otherScope = {tenantId: 'other-tenant', workspaceId: 'other-space'};
 vi.mock('@/services/platform/ai', () => ({
-  ensureWorkspaceAi: vi.fn(async () => ({body: {data: {needsImport: false}}})),
-  getWorkspaceAi: vi.fn(async () => {
-    throw new Error('FIXED mode');
-  }),
+  getWorkspaceAi: vi.fn(async () => ({body: {data: {needsImport: false}}})),
   getAiCatalog: vi.fn(), initializeAiCatalog: vi.fn(), updateWorkspaceAi: vi.fn(), updateDefaultAiPolicy: vi.fn(),
   refKey: (ref: { type: string; id: string; version: string }) => JSON.stringify([ref.type, ref.id, ref.version])
 }));

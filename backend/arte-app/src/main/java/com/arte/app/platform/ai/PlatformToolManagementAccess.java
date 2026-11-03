@@ -351,7 +351,7 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
         var value = json.read(row.getPayload(), AiControlData.WorkspaceConfiguration.class);
         if (!value.scope().equals(scope) || value.version() != row.getVersion())
             throw new IllegalStateException("Tool AI configuration identity mismatch");
-        return value.preset().enabled();
+        return value.enabled();
     }
 
     /**

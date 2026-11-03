@@ -96,7 +96,7 @@ class ModelAclRuntimeIntegrationTest {
     ModelResource prepare(ApplicationContext c, ModelPublication.Source origin) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
         DatabaseAiTestCatalog.publish(db, c, f.f.actor, f.meta("import"));
-        db.ensure(f.f.actor, scope);
+        DatabaseAiTestCatalog.prepareWithAccounts(c, f.f.actor, scope);
         ModelResourceService models = c.getBean(ModelResourceService.class);
         ModelResource model = models.create(f.f.actor, new ModelResourceCommands.Create(f.meta("model"), scope, "Published database model")).value();
         models.associate(f.f.actor, new ModelResourceCommands.Associate(f.meta("associate"), scope, model.resource(), model.version(), f.ref("binding", "text"), origin, origin == ModelPublication.Source.DATABASE ? 1L : null));
@@ -171,7 +171,7 @@ class ModelAclRuntimeIntegrationTest {
         context().run(c -> {
             DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.f.actor, f.meta("reviewed"));
-            db.ensure(f.f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.f.actor, scope);
             assertThrows(RuntimeException.class, () -> c.getBean(ModelAclMigrationService.class).migrate(f.f.actor,
                     new ModelAclMigrationService.Migrate(f.meta("migration"), scope, AiEntitlement.Source.DATABASE, Set.of(f.ref("binding", "text")), 0)));
             assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(execution(c, "empty")).block(WAIT).options().isEmpty());

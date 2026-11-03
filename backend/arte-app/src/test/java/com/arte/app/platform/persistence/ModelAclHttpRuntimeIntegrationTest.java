@@ -72,7 +72,7 @@ class ModelAclHttpRuntimeIntegrationTest {
     ModelResource prepare(ApplicationContext c, ManagementHttpHarness http, boolean activate) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
         DatabaseAiTestCatalog.publish(db, c, f.f.f.actor, f.f.meta("import"));
-        db.ensure(f.f.f.actor, f.scope);
+        DatabaseAiTestCatalog.prepareWithAccounts(c, f.f.f.actor, f.scope);
         JSONObject created = http.ok(MODEL + "createModelResource", json(Map.of("scope", f.scope, "name", "HTTP database model", "modelKind", "PERSONAL")), "http-create", alice).getJSONObject("data").getJSONObject("value");
         String id = created.getStr("resourceId");
         return c.getBean(ModelResourceService.class).get(f.f.f.actor, f.scope, new com.arte.core.pojo.access.ResourceRef(f.scope.tenantId(), com.arte.core.constant.platform.PlatformResourceTypes.MODEL, id));

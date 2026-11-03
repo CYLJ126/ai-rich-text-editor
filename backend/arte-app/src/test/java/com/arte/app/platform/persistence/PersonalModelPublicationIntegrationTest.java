@@ -18,6 +18,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
+import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
@@ -87,7 +88,6 @@ class PersonalModelPublicationIntegrationTest {
     final ModelAclRuntimeIntegrationTest f = new ModelAclRuntimeIntegrationTest();
     static final Duration WAIT = Duration.ofSeconds(20);
     static final String TOKEN = "private-personal-key-for-test";
-    final TestModelSelections selections = new TestModelSelections();
     ModelResource model;
     String validation;
 
@@ -115,7 +115,7 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     ApplicationContextRunner personalConfiguration(ApplicationContextRunner base) {
-        return base.withBean(TestModelSelections.class, () -> selections).withUserConfiguration(PlatformModelDraftConfiguration.class, PlatformModelPublicationConfiguration.class, ModelPublicationStartupSafety.class)
+        return base.withUserConfiguration(PlatformModelDraftConfiguration.class, PlatformModelPublicationConfiguration.class, ModelPublicationStartupSafety.class)
                 .withPropertyValues("arte.ai-new-model-management.enabled=true", "arte.ai-new-model-publication.enabled=true",
                         "arte.ai-new-model-management.active-key-id=primary", "arte.ai-new-model-management.fingerprint-key-id=primary",
                         "arte.ai-new-model-management.encryption-keys.primary=" + Base64.getEncoder().encodeToString(new byte[16]));
@@ -167,7 +167,7 @@ class PersonalModelPublicationIntegrationTest {
     void prepare(ApplicationContext c, String host, boolean network) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
         DatabaseAiTestCatalog.publish(db, c, f.f.f.actor, f.f.meta("import"));
-        db.ensure(f.f.f.actor, f.scope);
+        DatabaseAiTestCatalog.prepare(c, f.f.f.actor, f.scope);
         policy(c, host, true);
         f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");
         model = c.getBean(ModelResourceService.class).create(f.f.f.actor, new ModelResourceCommands.Create(f.f.meta("create-personal"), f.scope, "Personal")).value();
@@ -178,13 +178,13 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     void save(ApplicationContext c, long version, String remote) {
-        c.getBean(ModelDraftService.class).save(f.f.f.actor, f.f.meta("draft-" + version), f.scope, model.resource(), version, "Personal",
+        c.getBean(ModelDraftService.class).save(f.f.f.actor, f.f.meta("draft-" + model.resource().resourceId() + "-" + version), f.scope, model.resource(), version, "Personal",
                 new Settings(f.f.ref("model-plan", "text"), 8192, 128));
     }
 
     void validate(ApplicationContext c, long dv, long cv, boolean network) {
         ModelDraftService drafts = c.getBean(ModelDraftService.class);
-        validation = drafts.requestValidation(f.f.f.actor, f.f.meta("validation-" + dv + "-" + cv), f.scope, model.resource(), dv, cv).value().id();
+        validation = drafts.requestValidation(f.f.f.actor, f.f.meta("validation-" + model.resource().resourceId() + "-" + dv + "-" + cv), f.scope, model.resource(), dv, cv).value().id();
         Probe probe = drafts.claimValidation(f.f.f.actor, f.scope, validation).orElseThrow();
         ProbeResult result = network ? c.getBean(ModelConnectionValidator.class).validate(probe).block(WAIT) : new ProbeResult(true, "MODEL_FOUND");
         assertEquals(ValidationState.SUCCEEDED, drafts.completeValidation(f.f.f.actor, f.scope, validation, result).state());
@@ -193,8 +193,9 @@ class PersonalModelPublicationIntegrationTest {
     ModelResourceVersion publishSelectedFixture(ApplicationContext c, String key, long mv, long dv, long cv) {
         ModelResourceVersion version = c.getBean(ModelPublicationService.class).publish(f.f.f.actor, f.f.meta(key), f.scope, model.resource(), mv, dv, cv,
                 validation, f.f.ref("model-plan", "text"), 1).value();
-        // 单独安装隔离回归的启用事实，生产发布服务从不自动启用。
-        selections.enable(f.scope, model.resource().resourceId(), version.publication().binding().definition());
+        // 发布后显式调用真实空间启用与本人准备接口。
+        DatabaseAiTestCatalog.select(c, f.f.f.actor, f.scope, model.resource().resourceId(), version.publication().binding().definition());
+        DatabaseAiTestCatalog.prepareOwn(c, f.f.f.actor, f.scope, model.resource().resourceId(), version.publication().binding().definition());
         return version;
     }
 
@@ -228,7 +229,7 @@ class PersonalModelPublicationIntegrationTest {
             ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
             assertEquals(version, publishSelectedFixture(c, "publish", 0, 1, 1));
             assertEquals(0, f.count("arte_ai_model_acl_scope"));
-            assertEquals(accounts, f.count("arte_ai_account"));
+            assertEquals(accounts + 1, f.count("arte_ai_account"));
             assertEquals("VALID", status(c, version).reason());
             ExecutionContext execution = f.execution(c, "discover");
             AiEntitlement entitlement = c.getBean(AiResourceEntitlementService.class).resolve(version.publication().binding().definition(), version.publication().binding().capability().definition(), execution).block(WAIT);
@@ -296,8 +297,9 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            f.f.f.jdbc.update("DELETE FROM arte_ai_budget_definition");
             ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
+            f.f.f.jdbc.update("DELETE FROM arte_ai_account");
+            f.f.f.jdbc.update("DELETE FROM arte_ai_budget_definition");
             assertEquals("VALID", status(c, version).reason());
             ExecutionContext execution = f.f.execution(c.getBean(DatabaseAiControlService.class), f.scope, Set.of(AdmissionAuthorization.INVOKE), "discover");
             assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(execution).block(WAIT).options().isEmpty());
@@ -441,7 +443,7 @@ class PersonalModelPublicationIntegrationTest {
                 assertTrue(reviewed.defaults().budgets().isEmpty());
                 db.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("independent-budget"), 2, true,
                         List.of(new AiControlData.BudgetPreset(plan.rate(), f.f.money("100"))));
-                db.ensure(f.f.f.actor, f.scope);
+                DatabaseAiTestCatalog.prepare(c, f.f.f.actor, f.scope);
                 policy(c, "127.0.0.1", true);
                 f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");
                 model = c.getBean(ModelResourceService.class).create(f.f.f.actor,
@@ -457,7 +459,8 @@ class PersonalModelPublicationIntegrationTest {
                         0, 1, 1, validation, option.planRef(), option.catalogRevision()).value();
                 assertTrue(version.publication().binding().capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS));
                 published.set(version);
-                selections.enable(f.scope, model.resource().resourceId(), version.publication().binding().definition());
+                DatabaseAiTestCatalog.select(c, f.f.f.actor, f.scope, model.resource().resourceId(), version.publication().binding().definition());
+                DatabaseAiTestCatalog.prepareOwn(c, f.f.f.actor, f.scope, model.resource().resourceId(), version.publication().binding().definition());
                 assertTrue(status(c, version).valid());
                 Invocation accepted = accept(c, version, 128);
                 MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
@@ -494,6 +497,11 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     void loopback(boolean missingKey) {
+        loopback(missingKey, null);
+    }
+
+    void loopback(boolean missingKey, String governanceChange) {
+        java.util.concurrent.atomic.AtomicReference<Runnable> duringResponse = new java.util.concurrent.atomic.AtomicReference<>();
         AtomicInteger calls = new AtomicInteger();
         reactor.netty.DisposableServer server = HttpServer.create().host("127.0.0.1").port(0).route(routes -> routes
                 .get("/v1/models", (request, response) -> {
@@ -505,17 +513,31 @@ class PersonalModelPublicationIntegrationTest {
                     return request.receive().aggregate().asString().flatMap(body -> {
                         assertTrue(body.contains("deepseek-chat"));
                         assertFalse(body.contains(TOKEN));
-                        return response.header("Content-Type", "text/event-stream").sendString(Mono.just(
-                                "data: {\"id\":\"personal-test\",\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")).then();
+                        Runnable change = duringResponse.get();
+                        return Mono.fromRunnable(() -> {
+                            if (change != null) {
+                                change.run();
+                            }
+                        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()).then(response.header("Content-Type", "text/event-stream").sendString(Mono.just(
+                                "data: {\"id\":\"personal-test\",\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")).then());
                     });
                 })).bindNow();
         try {
             String origin = "http://127.0.0.1:" + server.port();
-            realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1", "arte.ai-new-generation.allowed-origins[0]=" + origin).run(c -> {
+            realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1", "arte.ai-new-generation.allowed-origins[0]=" + origin,
+                    "arte.ai-new.capabilities[0].features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT"),
+                    "arte.ai-new.bindings[0].capability.features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT")).run(c -> {
                 assertNull(c.getStartupFailure());
                 prepare(c, "127.0.0.1", true);
                 ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
                 Invocation accepted = accept(c, version, 128);
+                com.arte.app.platform.ai.WorkspaceAiGovernanceService governance = c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class);
+                if ("RULE".equals(governanceChange)) {
+                    duringResponse.set(() -> {
+                        com.arte.app.platform.ai.AiControlData.BudgetRulesView rules = governance.getRules(f.f.f.actor, f.scope);
+                        governance.updateRules(f.f.f.actor, f.f.meta("in-flight-revoke"), f.scope, rules.workspaceVersion(), rules.configuration().version(), List.of());
+                    });
+                }
                 if (missingKey) {
                     ReflectionTestUtils.setField(c.getBean(ModelPublicationCredentialResolver.class), "cipher", new Sm4ModelCredentialCipher(
                             new ModelManagementProperties(true, "replacement", "replacement", Map.of("replacement", Base64.getEncoder().encodeToString(new byte[16])))));
@@ -546,6 +568,85 @@ class PersonalModelPublicationIntegrationTest {
                         assertEquals(1, calls.get());
                         assertEquals(1L, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_settlement WHERE evidence_kind='PROVIDER_BILL'", Long.class));
                         assertTrue(settlement.contains("SETTLED"));
+                    }
+                    if ("RULE".equals(governanceChange)) {
+                        assertEquals("BUDGET_RULE_NOT_CONFIGURED", c.getBean(com.arte.ainew.api.model.ModelUsagePreparationService.class)
+                                .status(f.f.f.actor, f.scope, model.resource(), version.publication().binding().definition()).reason());
+                        assertThrows(RuntimeException.class, () -> accept(c, version, 128));
+                        BudgetCommands.Account account = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec().decode(
+                                f.f.f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class), BudgetCommands.Account.class);
+                        assertTrue(account.charged().amount().signum() > 0);
+                        assertEquals(0, account.held().amount().signum());
+                    }
+                    if ("VERSION".equals(governanceChange)) {
+                        save(c, 1, "deepseek-chat");
+                        validate(c, 2, 1, true);
+                        ModelResourceVersion next = publishSelectedFixture(c, "version-switch", 1, 2, 1);
+                        assertNotEquals(version.publication().binding().definition(), next.publication().binding().definition());
+                        assertEquals("MODEL_VERSION_NOT_ENABLED", c.getBean(com.arte.ainew.api.model.ModelUsagePreparationService.class)
+                                .status(f.f.f.actor, f.scope, model.resource(), version.publication().binding().definition()).reason());
+                        ExecutionContext retry = f.execution(c, "regenerate-old-version");
+                        long conversationVersion = c.getBean(com.arte.ainew.api.conversation.ConversationService.class)
+                                .find(accepted.conversation().conversationId(), retry).block(WAIT).version();
+                        EntryRequests.Regenerate regeneration = new EntryRequests.Regenerate(accepted.request().context().executionId(), conversationVersion,
+                                new ExecutionOptions(retry.deadline(), 1, 4096, 0, 0, Duration.ofSeconds(60)));
+                        assertThrows(RuntimeException.class, () -> c.getBean(ChatService.class).regenerate(regeneration, retry).block(WAIT));
+                        assertEquals(1, f.count("arte_ai_invocation"));
+                        assertEquals(1, calls.get());
+                    }
+                    if ("CHILD".equals(governanceChange)) {
+                        com.arte.ainew.pojo.context.ContextSnapshot snapshot = payloads.find(message.owner(), accepted.contextSnapshotId()).block(WAIT);
+                        com.arte.app.platform.ai.tool.LocalTextTools local = new com.arte.app.platform.ai.tool.LocalTextTools(Clock.systemUTC());
+                        com.arte.ainew.pojo.tool.ToolDefinitionRevision tool = local.definitions().tools().getFirst();
+                        com.arte.core.pojo.value.StructuredValue.ObjectValue configuration = new com.arte.core.pojo.value.StructuredValue.ObjectValue(Map.of());
+                        com.arte.ainew.pojo.tool.ToolBindingResolution resolution = new com.arte.ainew.pojo.tool.ToolBindingResolution(
+                                new DefinitionRef("binding", "m3-child-tool", "p1-" + "1".repeat(64)), new DefinitionRef("binding", "m3-child-tool", "r1"), message.owner(),
+                                tool, tool.tool().checksum(), configuration, com.arte.ainew.serialization.ToolCatalogDigests.configuration(configuration),
+                                tool.tool().defaultPolicy(), Set.of(), Map.of());
+                        com.arte.ainew.pojo.tool.ToolSchemaDefinition schema = local.definitions().schemas().stream().filter(value -> value.definition().equals(tool.tool().inputSchema())).findFirst().orElseThrow();
+                        com.arte.ainew.pojo.tool.ToolSetSnapshot tools = new com.arte.ainew.pojo.tool.ToolSetSnapshot(message.owner(),
+                                List.of(new com.arte.ainew.pojo.tool.ToolSetSnapshot.Entry("tool_0", resolution, resolution.effectivePolicy(), schema)));
+                        snapshot = com.arte.ainew.application.tool.chat.ToolChatInputs.snapshot(UUID.randomUUID().toString(), snapshot, snapshot.messages(), tools,
+                                Clock.systemUTC().instant(), c.getBean(NewAiProperties.class).limits());
+                        ExecutionContext original = accepted.request().context();
+                        ExecutionContext root = new ExecutionContext("m3-tool-chat-run", original.traceId(), original.authorization(), original.deadline(),
+                                null, null, original.releaseRef(), "m3-run");
+                        com.arte.ainew.pojo.tool.ToolChatBudgetPlan plan = new com.arte.ainew.pojo.tool.ToolChatBudgetPlan(List.of(f.f.money("1")), List.of(
+                                new com.arte.ainew.pojo.tool.ToolChatBudgetPlan.Selection(version.publication().binding().definition(), version.publication().binding().capability().definition(),
+                                        CapabilityDescriptor.Kind.GENERATION, com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode.CHARGE, original.budgetRef(),
+                                        version.publication().rate().definition(), new com.arte.ainew.pojo.tool.ToolChatBudgetPlan.ModelPrice(version.publication().rate().inputPerMillion(), version.publication().rate().outputPerMillion())),
+                                new com.arte.ainew.pojo.tool.ToolChatBudgetPlan.Selection(resolution.definition(), tool.tool().capability(), CapabilityDescriptor.Kind.TOOL,
+                                        com.arte.ainew.spi.persistence.DispatchPreparationStore.BillingMode.FREE, null, null, null)));
+                        com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore runs = new com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore(f.f.f.source,
+                                new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec(), c.getBean("newAiPersistenceScheduler", reactor.core.scheduler.Scheduler.class));
+                        com.arte.ainew.pojo.tool.ToolChatRunSnapshot fixed = new com.arte.ainew.pojo.tool.ToolChatRunSnapshot(root, snapshot, version.publication().binding(),
+                                new GenerationOptions(128, null, null, List.of()), tools,
+                                new com.arte.ainew.pojo.tool.ToolChatRunSnapshot.Limits(Duration.ofSeconds(60), 2, 2, 1), Clock.systemUTC().instant(), plan);
+                        assertTrue(runs.accept(fixed, value -> {
+                        }).block(WAIT).successful());
+                        com.arte.ainew.pojo.tool.ToolChatCommands.Lease lease = runs.claim("m3-run-worker", 1, Duration.ofSeconds(60)).block(WAIT).getFirst();
+                        com.arte.ainew.pojo.tool.ToolChatStep step = runs.advance(new com.arte.ainew.pojo.tool.ToolChatCommands.Advance(lease, 0, "m3-plan-model",
+                                com.arte.ainew.pojo.tool.ToolChatRun.State.RUNNING, com.arte.ainew.pojo.tool.ToolChatRun.Phase.WAITING_MODEL, 0,
+                                List.of(new com.arte.ainew.pojo.tool.ToolChatStep.Plan(0, new com.arte.ainew.pojo.tool.ToolChatStep.Model(snapshot))), Clock.systemUTC().instant(), null, null), value -> {
+                        }).block(WAIT).value().steps().getFirst();
+                        com.arte.ainew.application.tool.chat.ToolChatBudgetSelector selector = new com.arte.ainew.application.tool.chat.ToolChatBudgetSelector(runs,
+                                c.getBean(AdmissionAuthorization.class), c.getBean(AiResourceEntitlementService.class), c.getBean(PublishedAiCatalog.class),
+                                c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class), c.getBean(com.arte.ainew.api.execution.BudgetService.class), null, Clock.systemUTC());
+                        ExecutionContext childContext = selector.child(root.executionId(), step.childExecutionId(), Set.of(AdmissionAuthorization.INVOKE), original.deadline(), root).block(WAIT);
+                        com.arte.ainew.pojo.execution.InvocationRequest<com.arte.ainew.pojo.generation.GenerationRequest> childRequest = new com.arte.ainew.pojo.execution.InvocationRequest<>(
+                                accepted.request().capability(), accepted.request().binding(), accepted.request().kind(), new com.arte.ainew.pojo.generation.GenerationRequest(snapshot.messages(), new GenerationOptions(128, null, null, List.of()), tools.descriptions(), new com.arte.ainew.pojo.generation.GenerationRequest.TextOutput()),
+                                new ExecutionOptions(childContext.deadline(), 1, 4096, 1, 1, Duration.ofSeconds(60)), childContext);
+                        AcceptedExecution child = c.getBean(com.arte.ainew.api.execution.InvocationCoordinator.class).submit(
+                                new com.arte.ainew.pojo.execution.InvocationSubmission<>(childRequest, snapshot, null, null, null)).block(WAIT);
+                        Invocation childInvocation = executions.find(message.owner(), child.executionId()).block(WAIT);
+                        assertEquals("m3-tool-chat-run", childInvocation.request().context().parentExecutionId());
+                        com.arte.app.platform.ai.AiControlData.BudgetRulesView rules = governance.getRules(f.f.f.actor, f.scope);
+                        governance.updateRules(f.f.f.actor, f.f.meta("child-rule-revoke"), f.scope, rules.workspaceVersion(), rules.configuration().version(), List.of());
+                        ContextSnapshot childSnapshot = snapshot;
+                        assertThrows(RuntimeException.class, () -> selector.child(root.executionId(), step.childExecutionId(), Set.of(AdmissionAuthorization.INVOKE), original.deadline(), root).block(WAIT));
+                        assertThrows(RuntimeException.class, () -> c.getBean(AiAdmissionAuthorizationGuard.class).authorize(new AiAdmissionAuthorizationGuard.Check(childRequest, version.publication().binding(), childSnapshot, tools,
+                                AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND)).block(WAIT));
+                        assertEquals(1, calls.get());
                     }
                     assertEquals(ExecutionOwners.from(accepted.request().context()), message.owner());
                 }

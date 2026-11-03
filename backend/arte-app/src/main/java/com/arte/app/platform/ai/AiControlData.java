@@ -5,6 +5,8 @@ import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
+import com.arte.ainew.pojo.model.ModelSelection;
 import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -67,6 +69,9 @@ public final class AiControlData {
         }
 
         public Catalog {
+            if (reviewedPlans == null) {
+                throw new IllegalArgumentException("AI catalog requires reviewedPlans; legacy catalog payloads must be recreated explicitly");
+            }
             reviewedPlans = List.copyOf(reviewedPlans);
             if (reviewedPlans.size() > 256 || reviewedPlans.stream().map(ReviewedModelPlan::planRef).distinct().count() != reviewedPlans.size()) {
                 throw new IllegalArgumentException("Invalid reviewed plan directory");
@@ -97,18 +102,75 @@ public final class AiControlData {
         }
     }
 
-    public record WorkspaceConfiguration(Scope scope, Preset preset, long templateVersion, long version) {
-    }
+    /**
+     * 目标空间显式启用的实际模型版本，不保存预算规则或个人账户。
+     */
+    public record WorkspaceConfiguration(Scope scope, boolean enabled, List<ModelSelection> models,
+                                         long templateVersion, long version) {
 
-    public record Model(DefinitionRef binding, String name, DefinitionRef connection, DefinitionRef rate) {
-    }
-
-    public record WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion,
-                                boolean canManage, boolean needsImport, List<Model> models, Preset defaults,
-                                List<NewAiProperties.Rate> toolRates) {
-        public WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion, boolean canManage, boolean needsImport, List<Model> models, Preset defaults) {
-            this(mode, configuration, workspaceVersion, canManage, needsImport, models, defaults, List.of());
+        public WorkspaceConfiguration {
+            Objects.requireNonNull(scope);
+            models = List.copyOf(models);
+            if (models.size() > 100 || models.stream().map(ModelSelection::resourceId).distinct().count() != models.size()
+                    || templateVersion < 1 || version < 0) {
+                throw new IllegalArgumentException("Invalid workspace model selection");
+            }
         }
+    }
+
+    /**
+     * 独立保存的精确费率批准规则，规则存在不授予模型或凭据使用权。
+     */
+    public record BudgetRules(Scope scope, List<BudgetPreset> rules, long version) {
+
+        public BudgetRules {
+            Objects.requireNonNull(scope);
+            rules = new Preset(false, List.of(), rules).budgets();
+            if (version < 0) {
+                throw new IllegalArgumentException("Invalid budget rule version");
+            }
+        }
+    }
+
+    /**
+     * 可读取且允许在目标空间启用的实际模型固定版本，不受本人账户是否已准备影响。
+     */
+    public record Model(String resourceId, DefinitionRef binding, String name, ModelKind kind,
+                        DefinitionRef connection, DefinitionRef rate, boolean enabled) {
+    }
+
+    /**
+     * 空间模型配置及当前主体允许的治理操作，读取不创建配置或账户。
+     */
+    public record WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion,
+                                boolean canManage, boolean needsImport, long templateVersion, List<Model> models,
+                                Preset defaults,
+                                List<NewAiProperties.Rate> toolRates) {
+    }
+
+    /**
+     * 预算规则治理投影，不包含其他主体的预算账户。
+     */
+    public record BudgetRulesView(Scope scope, BudgetRules configuration, long workspaceVersion, boolean canManage,
+                                  boolean canRaiseBudget, List<BudgetPreset> approvedCaps) {
+    }
+
+    /**
+     * 安全的精确费率候选，保留既有规则使用的历史版本供读取和撤销。
+     */
+    public record BudgetRateOption(DefinitionRef rate, String kind, String currency, boolean configured) {
+    }
+
+    /**
+     * 有界安全候选列表；游标绑定当前主体、目标空间及控制目录版本。
+     */
+    public record ModelOptions(List<Model> items, String nextCursor) {
+    }
+
+    /**
+     * 有界安全费率列表，不以先启用模型作为查询前置条件。
+     */
+    public record BudgetRateOptions(List<BudgetRateOption> items, String nextCursor) {
     }
 
     public record CatalogView(long version, Catalog catalog) {

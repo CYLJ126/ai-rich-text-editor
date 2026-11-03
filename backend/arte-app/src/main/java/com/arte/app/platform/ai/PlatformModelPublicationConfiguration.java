@@ -79,16 +79,15 @@ public class PlatformModelPublicationConfiguration {
     }
 
     @Bean
-    DatabaseModelUsagePreparationService modelUsagePreparationService(DatabaseAiControlService control,
+    DatabaseModelUsagePreparationService modelUsagePreparationService(DatabaseAiControlService control, WorkspaceAiGovernanceService governance,
                                                                       DefaultModelPublicationService publications, ModelPublicationRuntimeAdapter runtime,
-                                                                      ModelPublicationStore releases, ModelResourceStore models, ModelAclScopeStore scopes,
+                                                                      ModelPublicationStore releases, ModelResourceStore models,
                                                                       @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                                                       @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
                                                                       IdentityProvider identity, CommandReceiptStore receipts, PublicOutboxStore outbox,
-                                                                      AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock,
-                                                                      ObjectProvider<ModelGateway> gateway) {
-        return new DatabaseModelUsagePreparationService(control, publications, runtime, releases, models, scopes,
-                authorization, tx, identity, receipts, outbox, audit, ids, clock, gateway::getIfAvailable);
+                                                                      AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock) {
+        return new DatabaseModelUsagePreparationService(control, governance, publications, runtime, releases, models,
+                authorization, tx, identity, receipts, outbox, audit, ids, clock);
     }
 
     @Bean

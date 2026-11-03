@@ -16,6 +16,7 @@ const context = {userId: 'user', scope};
 const target = {resourceId: 'model', binding: {type: 'binding' as const, id: 'personal-model', version: 'v1'}};
 const request = {scope, ...target};
 const available: api.ModelUsagePreparation = {
+  allowedActions: ['PREPARE_OWN_BUDGET'],
   scope, resource: {tenantId: 'tenant', type: 'model', resourceId: 'model'},
   binding: target.binding, rate: {type: 'rate', id: 'rate', version: 'v1'},
   state: 'PREPARABLE', reason: 'BUDGET_NOT_PREPARED', budgetRefs: [], approvedLimit: {amount: '10', currency: 'CNY'}

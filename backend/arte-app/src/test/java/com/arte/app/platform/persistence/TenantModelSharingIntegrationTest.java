@@ -220,10 +220,10 @@ class TenantModelSharingIntegrationTest {
     void prepare(ApplicationContext c, String host, boolean network) {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
         DatabaseAiTestCatalog.publish(db, c, actor(), meta("catalog"));
-        db.ensure(actor(), f.f.scope);
+        DatabaseAiTestCatalog.prepareWithAccounts(c, actor(), f.f.scope);
         f.policy(c, host, true);
         target = c.getBean(DefaultWorkspaceServices.class).workspaces().create(actor(), new WorkspaceCommands.CreateWorkspace(meta("target-space"), f.f.scope.tenantId(), "Target", "")).value().scope();
-        db.ensure(actor(), target);
+        DatabaseAiTestCatalog.prepareWithAccounts(c, actor(), target);
         f.model = c.getBean(ModelResourceService.class).create(actor(), new ModelResourceCommands.Create(meta("tenant-model"), f.f.scope, "Tenant model", ModelResourceCommands.ModelKind.TENANT)).value();
         assertNull(f.model.ownership().workspaceId());
         assertEquals(f.f.scope, f.model.managementScope());
@@ -245,8 +245,8 @@ class TenantModelSharingIntegrationTest {
             return null;
         });
         assertTrue(c.getBean(WorkspaceMembershipStore.class).find(f.f.scope, bob.principal().subjectId()).isEmpty());
-        db.ensure(bob, target);
-        f.selections.enable(target, f.model.resource().resourceId(), version.publication().binding().definition());
+        DatabaseAiTestCatalog.prepareWithAccounts(c, bob, target);
+
     }
 
     void grant(ApplicationContext c) {
@@ -257,6 +257,9 @@ class TenantModelSharingIntegrationTest {
 
     void scopes(ApplicationContext c, long expected, Set<String> workspaces) {
         c.getBean(DefaultModelSharingService.class).scopes(actor(), meta("scopes-" + expected), f.f.scope, f.model.resource(), expected, workspaces);
+        if (workspaces.contains(target.workspaceId())) {
+            DatabaseAiTestCatalog.select(c, actor(), target, f.model.resource().resourceId(), version.publication().binding().definition());
+        }
     }
 
     void consumers(ApplicationContext c, long expected, Set<String> subjects) {
@@ -424,6 +427,20 @@ class TenantModelSharingIntegrationTest {
                 grant(c);
                 scopes(c, 0, Set.of(target.workspaceId()));
                 consumers(c, 1, Set.of(bob.principal().subjectId()));
+                // 本例从无账户开始，经正式本人准备接口再进入真实跨空间生成与结算。
+                com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
+                f.f.f.f.jdbc.query("SELECT id_key,workspace_snapshot FROM arte_ai_account", (org.springframework.jdbc.core.RowCallbackHandler) row -> {
+                    com.arte.ainew.pojo.budget.BudgetCommands.Account account = codec.decode(row.getString(2), com.arte.ainew.pojo.budget.BudgetCommands.Account.class);
+                    if (account.owner().subjectId().equals(bob.principal().subjectId()) && account.owner().workspaceId().equals(target.workspaceId())) {
+                        f.f.f.f.jdbc.update("DELETE FROM arte_ai_account WHERE id_key=?", row.getString(1));
+                    }
+                });
+                f.f.f.f.jdbc.update("DELETE FROM arte_ai_budget_definition WHERE tenant_id=? AND workspace_id=? AND subject_id=?", target.tenantId(), target.workspaceId(), bob.principal().subjectId());
+                com.arte.ainew.api.model.ModelUsagePreparationService preparation = c.getBean(com.arte.ainew.api.model.ModelUsagePreparationService.class);
+                assertEquals(com.arte.ainew.pojo.model.ModelUsagePreparation.State.PREPARABLE,
+                        preparation.status(bob, target, f.model.resource(), version.publication().binding().definition()).state());
+                assertEquals(com.arte.ainew.pojo.model.ModelUsagePreparation.State.READY,
+                        preparation.prepare(bob, meta("real-target-own-budget"), target, f.model.resource(), version.publication().binding().definition()).value().state());
                 com.arte.ainew.pojo.execution.Invocation accepted = acceptBob(c);
                 com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence executions = c.getBean(com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence.class);
                 com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence payloads = c.getBean(com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence.class);

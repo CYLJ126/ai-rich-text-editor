@@ -13,6 +13,24 @@ import java.util.List;
  */
 public interface PlatformAiControlMapper {
 
+    int insertRevision(@Param("version") long version, @Param("payload") String payload, @Param("actor") String actor);
+
+    int insertRules(@Param("row") PlatformAiControlRow row);
+
+    int insertWorkspace(@Param("row") PlatformAiControlRow row);
+
+    int insertBudget(@Param("row") PlatformAiControlRow row);
+
+    int insertAccount(@Param("key") String key, @Param("owner") String owner, @Param("payload") String payload);
+
+    int replaceAccount(@Param("key") String key, @Param("owner") String owner, @Param("payload") String payload);
+
+    int replaceBudget(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);
+
+    int replaceWorkspace(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);
+
+    int replaceRules(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);
+
     Long head(@Param("lock") boolean lock);
 
     /**
@@ -22,31 +40,27 @@ public interface PlatformAiControlMapper {
 
     String revision(@Param("version") long version);
 
-    int insertRevision(@Param("version") long version, @Param("payload") String payload, @Param("actor") String actor);
-
     int advance(@Param("expected") long expected, @Param("version") long version);
 
     PlatformAiControlRow workspace(@Param("tenant") String tenant, @Param("workspace") String workspace);
 
     PlatformAiControlRow workspaceRead(@Param("tenant") String tenant, @Param("workspace") String workspace);
 
+    /**
+     * 独立预算规则按范围锁定，与模型启用共享公共空间治理门控。
+     */
+    PlatformAiControlRow rules(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("current") boolean current);
+
+    /**
+     * 启动时校验安装表存在；不执行 DDL。
+     */
+    int rulesSafety();
+
     List<PlatformAiControlRow> budgetsRead(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("subject") String subject);
-
-    int insertWorkspace(@Param("row") PlatformAiControlRow row);
-
-    int replaceWorkspace(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);
 
     List<PlatformAiControlRow> budgets(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("subject") String subject);
 
     List<PlatformAiControlRow> workspaceBudgets(@Param("tenant") String tenant, @Param("workspace") String workspace);
 
-    int insertBudget(@Param("row") PlatformAiControlRow row);
-
-    int replaceBudget(@Param("row") PlatformAiControlRow row, @Param("expected") long expected);
-
     String account(@Param("key") String key, @Param("owner") String owner);
-
-    int insertAccount(@Param("key") String key, @Param("owner") String owner, @Param("payload") String payload);
-
-    int replaceAccount(@Param("key") String key, @Param("owner") String owner, @Param("payload") String payload);
 }

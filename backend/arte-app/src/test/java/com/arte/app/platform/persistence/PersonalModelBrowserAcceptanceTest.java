@@ -79,7 +79,7 @@ class PersonalModelBrowserAcceptanceTest {
                 assertNull(c.getStartupFailure());
                 DatabaseAiControlService control = c.getBean(DatabaseAiControlService.class);
                 DatabaseAiTestCatalog.publish(control, c, f.f.f.f.actor, f.f.f.meta("browser-import"));
-                control.ensure(f.f.f.f.actor, f.f.scope);
+                DatabaseAiTestCatalog.prepareWithAccounts(c, f.f.f.f.actor, f.f.scope);
                 f.policy(c, "127.0.0.1", true);
                 f.f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");
                 if (Boolean.getBoolean("model.browser.a2")) {

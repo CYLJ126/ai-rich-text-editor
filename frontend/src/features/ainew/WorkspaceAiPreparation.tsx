@@ -1,13 +1,13 @@
 import React, {useEffect, useState} from 'react';
 import {Alert, Button, Flex, Spin, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
-import {ensureWorkspaceAi} from '@/services/platform/ai';
+import {getWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import type {BrowserContext} from './storage';
 import WorkspaceAiSettings from './WorkspaceAiSettings';
 import '../aiManagement.css';
 
-/** 空间准备完成后才挂载聊天请求，避免新空间的授权和预算创建与首次发现竞争。 */
+/** 只读确认目标空间可访问，禁止页面读取自动创建配置或本人预算。 */
 export default function WorkspaceAiPreparation({
                                                  scope,
                                                  context,
@@ -35,7 +35,7 @@ export default function WorkspaceAiPreparation({
     if (legacy) return;
     const controller = new AbortController();
     if (state !== 'ready') setState('loading');
-    ensureWorkspaceAi(scope, {signal: controller.signal}).then(({body}) => {
+    getWorkspaceAi(scope, {signal: controller.signal}).then(({body}) => {
       if (!controller.signal.aborted) setState(body.data.needsImport ? 'import' : 'ready');
     }).catch(failure => {
       if (controller.signal.aborted) return;
@@ -45,7 +45,7 @@ export default function WorkspaceAiPreparation({
         setError(failure instanceof AiApiError && failure.httpStatus === 403
           ? '此空间暂不可用，请联系空间负责人或平台管理员确认访问权限与 AI 配置。'
           : failure instanceof AiApiError && failure.httpStatus === 401 ? '登录已失效，请重新登录。'
-            : '空间 AI 配置暂时无法准备，请稍后重试。');
+            : '空间 AI 配置暂时无法读取，请稍后重试。');
         setState('error');
       }
     });
@@ -53,7 +53,7 @@ export default function WorkspaceAiPreparation({
   }, [scope, legacy, revision, refreshRevision]);
   if (state === 'ready') return <>{children}</>;
   const status = state === 'loading' ? <Flex align="center" gap={8} role="status">
-      <Spin size="small"/><Typography.Text>正在准备空间 AI 配置…</Typography.Text>
+      <Spin size="small"/><Typography.Text>正在读取空间 AI 配置…</Typography.Text>
     </Flex>
     : state === 'import' ? <WorkspaceAiSettings scope={scope} context={context} onUnsafeChange={onUnsafeChange}
                                                 onUpdated={() => setRevision(value => value + 1)}/>

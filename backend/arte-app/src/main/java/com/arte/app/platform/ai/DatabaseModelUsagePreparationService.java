@@ -3,8 +3,6 @@ package com.arte.app.platform.ai;
 import com.arte.ainew.api.model.ModelUsagePreparationService;
 import com.arte.ainew.application.model.DefaultModelPublicationService;
 import com.arte.ainew.pojo.model.*;
-import com.arte.ainew.spi.gateway.ModelGateway;
-import com.arte.ainew.spi.model.ModelAclScopeStore;
 import com.arte.ainew.spi.model.ModelPublicationStore;
 import com.arte.ainew.spi.model.ModelResourceStore;
 import com.arte.core.api.access.AuthorizationService;
@@ -24,7 +22,6 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_AI_USE;
@@ -39,30 +36,28 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_AI_USE;
 public final class DatabaseModelUsagePreparationService implements ModelUsagePreparationService {
 
     private final DatabaseAiControlService control;
+    private final WorkspaceAiGovernanceService governance;
     private final DefaultModelPublicationService publications;
     private final ModelPublicationRuntimeAdapter runtime;
     private final ModelPublicationStore releases;
     private final ModelResourceStore models;
-    private final ModelAclScopeStore scopes;
     private final AuthorizationService authorization;
     private final PublicTransactionRunner tx;
     private final DefaultCommandExecutor commandExecutor;
     private final WorkspaceMutationEffects effects;
-    private final Supplier<ModelGateway> gateway;
 
-    public DatabaseModelUsagePreparationService(DatabaseAiControlService control, DefaultModelPublicationService publications,
-                                                ModelPublicationRuntimeAdapter runtime, ModelPublicationStore releases, ModelResourceStore models, ModelAclScopeStore scopes,
+    public DatabaseModelUsagePreparationService(DatabaseAiControlService control, WorkspaceAiGovernanceService governance, DefaultModelPublicationService publications,
+                                                ModelPublicationRuntimeAdapter runtime, ModelPublicationStore releases, ModelResourceStore models,
                                                 AuthorizationService authorization, PublicTransactionRunner tx, IdentityProvider identity, CommandReceiptStore receipts,
-                                                PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, Clock clock, Supplier<ModelGateway> gateway) {
+                                                PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, Clock clock) {
         this.control = control;
+        this.governance = governance;
         this.publications = publications;
         this.runtime = runtime;
         this.releases = releases;
         this.models = models;
-        this.scopes = scopes;
         this.authorization = authorization;
         this.tx = tx;
-        this.gateway = gateway;
         this.commandExecutor = new DefaultCommandExecutor(tx, new CurrentPrincipalResolver(identity), receipts, ids, clock);
         this.effects = new WorkspaceMutationEffects(outbox, audit, ids, clock);
     }
@@ -95,19 +90,19 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
             if (!runtime.version(release, true).equals(version)) {
                 throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
             }
-            reason = publications.readiness(actor, release, scope);
-            if (reason == null && !runtime.isSelected(scope, release, true)) {
-                reason = "MODEL_NOT_ENABLED";
+            reason = governance.selectionBlocker(scope, resource.resourceId(), binding);
+            if (reason == null) {
+                reason = publications.readiness(actor, release, scope);
             }
         } else {
             reason = "RESOURCE_PUBLICATION_REQUIRED";
         }
         if (reason != null) {
             return new ModelUsagePreparation(scope, resource, binding, publication.rate().definition(),
-                    ModelUsagePreparation.State.BLOCKED, reason, List.of(), null);
+                    ModelUsagePreparation.State.BLOCKED, reason, List.of(), null, governance.usageActions(actor, scope, reason));
         }
         DatabaseAiControlService.UsageBudget budget = control.modelUsageBudget(actor, scope, publication.rate().definition(), prepare, operationId);
-        return new ModelUsagePreparation(scope, resource, binding, publication.rate().definition(), budget.state(), budget.reason(), budget.budgetRefs(), budget.approvedLimit());
+        return new ModelUsagePreparation(scope, resource, binding, publication.rate().definition(), budget.state(), budget.reason(), budget.budgetRefs(), budget.approvedLimit(), governance.usageActions(actor, scope, budget.reason()));
     }
 
     @Override

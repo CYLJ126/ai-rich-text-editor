@@ -21,10 +21,12 @@ export const usageReasonText: Record<string, string> = {
   BUDGET_NOT_PREPARED: '已有批准的额度规则，可以为本人准备所选精确费率的预算。',
   BUDGET_RULE_NOT_CONFIGURED: '当前空间尚未批准此精确费率的额度。请联系配置管理员维护空间 AI 预算规则，再重新检查。',
   BUDGET_RULE_ZERO: '批准额度为零，暂不能初始化预算。请联系配置管理员核对额度。',
-  WORKSPACE_AI_NOT_PREPARED: '当前空间 AI 尚未准备；只有具备空间政策管理资格的人可以采用已发布默认模板。',
-  WORKSPACE_AI_DISABLED: '当前空间 AI 或默认模板已关闭。请联系空间负责人检查聊天中的空间 AI 配置。',
+  WORKSPACE_AI_NOT_PREPARED: '当前空间 AI 尚未准备，请由空间负责人显式完成首次准备。',
+  WORKSPACE_AI_DISABLED: '当前空间 AI 已关闭，请联系空间负责人检查此空间的配置。',
   CATALOG_NOT_INITIALIZED: '发布目录尚未初始化，请联系平台配置管理员。',
   MODEL_NOT_MIGRATED: '此旧目录模型尚未显式切入公共授权，请联系配置管理员核对迁移。',
+  MODEL_NOT_ENABLED: '此模型尚未在当前空间启用，请联系空间负责人配置。',
+  MODEL_VERSION_NOT_ENABLED: '当前空间启用的是此模型的其他固定版本，请检查所选版本。',
   CONNECTION_DISABLED: '审核连接已停用，请联系平台配置管理员。',
 };
 
@@ -218,6 +220,8 @@ export default function ModelUsagePreparationPanel({
       {notice && <Alert type="success" showIcon title={notice}/>}
       {state && <Alert type={state.state === 'READY' ? 'success' : state.state === 'PREPARABLE' ? 'info' : 'warning'}
                        title={usageReasonText[state.reason] ?? '当前准备条件未满足，请重新核对权限、模型和预算规则。'}/>}
+      {state?.allowedActions.includes('CONFIGURE_WORKSPACE_AI') &&
+        <Typography.Text>您可以维护此执行空间的 AI 配置；完成后重新检查。</Typography.Text>}
       {state?.approvedLimit &&
         <Typography.Text>规则批准额度：{state.approvedLimit.amount} {state.approvedLimit.currency}（非账户余额）</Typography.Text>}
       {operation &&
@@ -227,7 +231,8 @@ export default function ModelUsagePreparationPanel({
                 onClick={() => void refresh()}>重新读取当前准备状态</Button>
         <Button type="primary" loading={writing}
                 disabled={closed || disabled || loading || !request || operation?.phase === 'confirmed'
-                  || (!operation && (blocked || state?.state !== 'PREPARABLE'))} onClick={() => void prepare()}>
+                  || (!operation && (blocked || state?.state !== 'PREPARABLE' || !state.allowedActions.includes('PREPARE_OWN_BUDGET')))}
+                onClick={() => void prepare()}>
           {operation?.phase === 'pending' ? '重试确认原准备操作' : '准备此模型用于聊天'}
         </Button>
         <Button disabled={closed || disabled || navigationDisabled || unsafe || loading || state?.state !== 'READY'}

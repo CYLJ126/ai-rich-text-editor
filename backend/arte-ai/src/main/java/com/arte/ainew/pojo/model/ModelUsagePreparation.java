@@ -22,11 +22,18 @@ import java.util.Objects;
  * @param reason        准备状态对应的安全原因码，用于提示可准备、缺少规则或其他阻塞条件
  * @param budgetRefs    当前主体在执行空间内可复用的兼容预算引用；尚未准备或被阻塞时可能为空
  * @param approvedLimit 受信空间规则批准的额度，无法取得适用规则时可为空，不表示账户余额或新增额度
+ * @param allowedActions 当前主体获准的补救动作，精确目标由 scope、resource、binding 定位；不代替写入授权
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/02 21:30 ✾
  */
 public record ModelUsagePreparation(Scope scope, ResourceRef resource, DefinitionRef binding, DefinitionRef rate,
-                                    State state, String reason, List<String> budgetRefs, Money approvedLimit) {
+                                    State state, String reason, List<String> budgetRefs, Money approvedLimit,
+                                    List<String> allowedActions) {
+
+    public ModelUsagePreparation(Scope scope, ResourceRef resource, DefinitionRef binding, DefinitionRef rate,
+                                 State state, String reason, List<String> budgetRefs, Money approvedLimit) {
+        this(scope, resource, binding, rate, state, reason, budgetRefs, approvedLimit, List.of());
+    }
 
     /**
      * 模型使用条件及兼容预算的准备阶段，区分已具备、可显式准备和当前被阻塞。
@@ -34,7 +41,7 @@ public record ModelUsagePreparation(Scope scope, ResourceRef resource, Definitio
     public enum State {
         // 当前模型使用条件及兼容账户已具备，但不保证余额足够或供应商调用成功。
         READY,
-        // 当前资格和批准规则允许显式准备，仍需完成空间 AI 或兼容账户初始化。
+        // 当前资格和批准规则允许显式准备，仍需显式完成本人兼容账户初始化。
         PREPARABLE,
         // 当前存在权限、凭据、政策或预算规则等阻塞条件，需要先处理对应原因。
         BLOCKED
@@ -48,5 +55,6 @@ public record ModelUsagePreparation(Scope scope, ResourceRef resource, Definitio
         Objects.requireNonNull(state);
         Objects.requireNonNull(reason);
         budgetRefs = List.copyOf(budgetRefs);
+        allowedActions = List.copyOf(allowedActions);
     }
 }

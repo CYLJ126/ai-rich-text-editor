@@ -17,6 +17,31 @@ const scopeSchema = z.object({tenantId: id, workspaceId: id});
 const ref = z.object({type: id, id, version: id});
 const version = z.number().int().nonnegative();
 const schemas = {
+  'workspace-ai-governance': z.discriminatedUnion('kind', [
+    z.object({
+      scope: scopeSchema, kind: z.literal('prepare'), confirmed: z.boolean().optional(),
+      request: z.object({
+        scope: scopeSchema,
+        expectedWorkspaceVersion: version,
+        expectedTemplateVersion: version
+      }).strict()
+    }).strict(),
+    z.object({
+      scope: scopeSchema, kind: z.literal('models'), confirmed: z.boolean().optional(), request: z.object({
+        scope: scopeSchema, expectedWorkspaceVersion: version, expectedVersion: version, enabled: z.boolean(),
+        models: z.array(z.object({resourceId: id, binding: ref}).strict()).max(100)
+      }).strict()
+    }).strict(),
+    z.object({
+      scope: scopeSchema, kind: z.literal('rules'), confirmed: z.boolean().optional(), request: z.object({
+        scope: scopeSchema, expectedWorkspaceVersion: version, expectedRuleVersion: version,
+        rules: z.array(z.object({
+          rate: ref,
+          limit: z.object({amount: z.union([z.string().min(1), z.number()]), currency: id}).strict()
+        }).strict()).max(100)
+      }).strict()
+    }).strict()
+  ]),
   'model-plan-configuration': z.object({scope: scopeSchema, command: modelPlanCommandSchema}).strict(),
   'connection-configuration': z.object({scope: scopeSchema, command: connectionCommandSchema}).strict(),
   'ai-configuration': z.discriminatedUnion('kind', [

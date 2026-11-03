@@ -246,14 +246,14 @@ class DatabaseModelPlanIntegrationTest {
             assertEquals(spaces, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Long.class));
             assertTrue(updated.value().catalog().defaults().bindings().isEmpty());
             assertThrows(IllegalArgumentException.class, () -> service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("duplicate"), 3, true, List.of(cap, cap)));
-            service.ensure(f.f.f.actor, f.scope);
+            DatabaseAiTestCatalog.prepare(c, f.f.f.actor, f.scope);
             com.arte.ainew.common.execution.ExecutionContext execution = f.f.execution(service, f.scope,
                     java.util.Set.of(com.arte.ainew.application.auth.AdmissionAuthorization.INVOKE), "review-is-not-execution");
             assertTrue(c.getBean(com.arte.ainew.application.control.ChatConfigurationQueryService.class).discover(execution).block(java.time.Duration.ofSeconds(10)).options().isEmpty());
             assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.api.control.BindingManager.class).resolve(
                     plan.catalog().reviewedPlans().getFirst().planRef(), new DefinitionRef("capability", "reviewed-brand-new", "v1"), execution).block(java.time.Duration.ofSeconds(10)));
             service.updateDefaultAiPolicy(f.f.f.actor, f.f.meta("changed-default"), 3, false, List.of());
-            assertTrue(service.get(f.f.f.actor, f.scope).configuration().preset().enabled());
+            assertTrue(service.get(f.f.f.actor, f.scope).configuration().enabled());
         });
     }
 

@@ -24,8 +24,10 @@ public final class DatabaseAiControlStartupSafety implements SmartInitializingSi
 
     @Override
     public void afterSingletonsInstantiated() {
-        if (environment.acceptsProfiles(org.springframework.core.env.Profiles.of("ai-fixed")))
+        if (environment.acceptsProfiles(org.springframework.core.env.Profiles.of("ai-fixed"))) {
             throw new IllegalStateException("DATABASE mode must not load the ai-fixed file definitions profile");
+        }
         source.definitions();
+        source.workspaceSafety();
     }
 }

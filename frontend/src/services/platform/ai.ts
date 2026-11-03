@@ -20,13 +20,23 @@ export interface BudgetPreset {
   limit: Money
 }
 
-export interface AiPreset {
+export interface ModelSelection {
+  resourceId: string;
+  binding: DefinitionRef
+}
+
+export interface WorkspaceAiConfiguration {
+  scope: WorkspaceScope;
   enabled: boolean;
-  bindings: DefinitionRef[];
-  budgets: BudgetPreset[]
+  models: ModelSelection[];
+  templateVersion: number;
+  version: number
 }
 
 export interface AiModel {
+  resourceId: string;
+  kind: 'PERSONAL' | 'TENANT';
+  enabled: boolean;
   binding: DefinitionRef;
   name: string;
   connection: DefinitionRef;
@@ -35,13 +45,14 @@ export interface AiModel {
 
 export interface WorkspaceAiView {
   mode: 'DATABASE';
-  configuration: { scope: WorkspaceScope; preset: AiPreset; templateVersion: number; version: number } | null;
+  configuration: WorkspaceAiConfiguration | null;
   workspaceVersion: number;
   canManage: boolean;
   needsImport: boolean;
+  templateVersion: number;
   models: AiModel[];
   toolRates?: { definition: DefinitionRef; toolPerCall: Money }[];
-  defaults: AiPreset | null;
+  defaults: { enabled: boolean; budgets: BudgetPreset[] } | null;
 }
 
 export interface AiCatalog {
@@ -62,17 +73,92 @@ export interface CatalogView {
 }
 
 const base = '/arte/workspace/ai';
-export const ensureWorkspaceAi = (scope: WorkspaceScope, options?: AiRequestOptions) => postResult<WorkspaceAiView>('ensure', {scope}, options, undefined, base);
 export const getWorkspaceAi = (scope: WorkspaceScope, options?: AiRequestOptions) => postResult<WorkspaceAiView>('getConfiguration', {scope}, options, undefined, base);
-export const updateWorkspaceAi = (request: {
+export const updateWorkspaceAi = async (request: {
   scope: WorkspaceScope;
   expectedWorkspaceVersion: number;
   expectedVersion: number;
-  preset: AiPreset
+  enabled: boolean;
+  models: ModelSelection[]
 }, key: string, options?: AiRequestOptions) => {
   requireIdempotencyKey(key);
-  return postResult<CommandReceipt<WorkspaceAiView>>('updateConfiguration', request, options, key, base);
+  const response = await postResult<CommandReceipt<WorkspaceAiView>>('updateConfiguration', request, options, key, base);
+  const receipt = response.body.data;
+  const configuration = receipt?.value?.configuration;
+  if (!validReceipt(receipt, request.expectedVersion + 1) || !configuration || !sameTarget(configuration.scope, request.scope)
+    || receipt.value.workspaceVersion !== request.expectedWorkspaceVersion + 1 || configuration.version !== receipt.resultVersion
+    || configuration.enabled !== request.enabled || modelKeys(configuration.models) !== modelKeys(request.models)) {
+    throw new AiApiError(response.httpStatus, {code: 'INVALID_WORKSPACE_AI_RESPONSE'}, '空间模型回执无效，请确认原操作');
+  }
+  return response;
 };
+
+export interface WorkspaceBudgetRulesView {
+  scope: WorkspaceScope;
+  configuration: { scope: WorkspaceScope; rules: BudgetPreset[]; version: number } | null;
+  workspaceVersion: number;
+  canManage: boolean;
+  canRaiseBudget: boolean;
+  approvedCaps: BudgetPreset[];
+}
+
+export interface BudgetRateOption {
+  rate: DefinitionRef;
+  kind: 'MODEL' | 'TOOL';
+  currency: string;
+  configured: boolean
+}
+
+export const getWorkspaceBudgetRules = (scope: WorkspaceScope, options?: AiRequestOptions) => postResult<WorkspaceBudgetRulesView>('getBudgetRules', {scope}, options, undefined, base);
+export const listWorkspaceModelOptions = (scope: WorkspaceScope, cursor?: string, options?: AiRequestOptions) => postResult<{
+  items: AiModel[];
+  nextCursor: string | null
+}>('listModelOptions', {scope, cursor}, options, undefined, base);
+export const listWorkspaceBudgetRateOptions = (scope: WorkspaceScope, cursor?: string, options?: AiRequestOptions) => postResult<{
+  items: BudgetRateOption[];
+  nextCursor: string | null
+}>('listBudgetRateOptions', {scope, cursor}, options, undefined, base);
+export const prepareWorkspaceAi = async (request: {
+  scope: WorkspaceScope;
+  expectedWorkspaceVersion: number;
+  expectedTemplateVersion: number
+}, key: string) => {
+  requireIdempotencyKey(key);
+  const response = await postResult<CommandReceipt<WorkspaceAiView>>('prepareConfiguration', request, undefined, key, base);
+  const receipt = response.body.data;
+  const configuration = receipt?.value?.configuration;
+  if (!validReceipt(receipt, 0) || !configuration || !sameTarget(configuration.scope, request.scope)
+    || configuration.version !== 0 || configuration.templateVersion !== request.expectedTemplateVersion
+    || configuration.models.length !== 0 || receipt.value.workspaceVersion !== request.expectedWorkspaceVersion + 1) {
+    throw new AiApiError(response.httpStatus, {code: 'INVALID_WORKSPACE_AI_RESPONSE'}, '空间首次准备回执无效，请确认原操作');
+  }
+  return response;
+};
+export const updateWorkspaceBudgetRules = async (request: {
+  scope: WorkspaceScope;
+  expectedWorkspaceVersion: number;
+  expectedRuleVersion: number;
+  rules: BudgetPreset[]
+}, key: string) => {
+  requireIdempotencyKey(key);
+  const response = await postResult<CommandReceipt<WorkspaceBudgetRulesView>>('updateBudgetRules', request, undefined, key, base);
+  const receipt = response.body.data;
+  const configuration = receipt?.value?.configuration;
+  if (!validReceipt(receipt, request.expectedRuleVersion + 1) || !configuration || !sameTarget(receipt.value.scope, request.scope)
+    || !sameTarget(configuration.scope, request.scope) || configuration.version !== receipt.resultVersion
+    || receipt.value.workspaceVersion !== request.expectedWorkspaceVersion + 1 || capKeys(configuration.rules) !== capKeys(request.rules)) {
+    throw new AiApiError(response.httpStatus, {code: 'INVALID_WORKSPACE_RULE_RESPONSE'}, '预算规则回执无效，请确认原操作');
+  }
+  return response;
+};
+const sameTarget = (a: WorkspaceScope, b: WorkspaceScope) => a?.tenantId === b.tenantId && a?.workspaceId === b.workspaceId;
+const validReceipt = (receipt: CommandReceipt<unknown>, version: number) => !!receipt && receipt.status === 1
+  && (receipt.delivery === 0 || receipt.delivery === 1) && typeof receipt.operationId === 'string' && !!receipt.operationId
+  && receipt.resultVersion === version;
+const modelKeys = (models: ModelSelection[]) => JSON.stringify(models.map(model => [model.resourceId, refKey(model.binding)]).sort());
+const capKeys = (items: BudgetPreset[]) => JSON.stringify(items.map(item => [refKey(item.rate),
+  String(item.limit.amount).replace(/^(0+)(?=\d)/, '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''), item.limit.currency]).sort());
+
 export const getAiCatalog = (options?: AiRequestOptions) => postResult<CatalogView>('getCatalog', {}, options, undefined, base);
 export const initializeAiCatalog = (key: string) => {
   requireIdempotencyKey(key);

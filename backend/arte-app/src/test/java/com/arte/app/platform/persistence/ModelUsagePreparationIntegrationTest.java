@@ -105,11 +105,18 @@ class ModelUsagePreparationIntegrationTest {
                 String.class, scope().tenantId(), scope().workspaceId()), AiControlData.WorkspaceConfiguration.class);
     }
 
+    AiControlData.Preset preset(ApplicationContext c) {
+        return DatabaseAiTestCatalog.preset(c, config());
+    }
+
     void preset(AiControlData.Preset preset) {
-        var old = config();
-        var next = new AiControlData.WorkspaceConfiguration(scope(), preset, old.templateVersion(), old.version() + 1);
+        AiControlData.WorkspaceConfiguration old = config();
+        AiControlData.WorkspaceConfiguration next = new AiControlData.WorkspaceConfiguration(scope(), preset.enabled(), old.models(), old.templateVersion(), old.version() + 1);
         jdbc().update("UPDATE arte_ai_workspace_configuration SET payload=?,version=? WHERE tenant_id=? AND workspace_id=?",
                 f.f.f.f.json.write(next), next.version(), scope().tenantId(), scope().workspaceId());
+        AiControlData.BudgetRules rules = new AiControlData.BudgetRules(scope(), preset.budgets(), 0);
+        jdbc().update("UPDATE arte_ai_workspace_budget_rule SET payload=?,version=0 WHERE tenant_id=? AND workspace_id=?",
+                f.f.f.f.json.write(rules), scope().tenantId(), scope().workspaceId());
     }
 
     void denied(Runnable action, PlatformErrorCodeEnum code) {
@@ -166,7 +173,7 @@ class ModelUsagePreparationIntegrationTest {
         f.context().run(c -> {
             prepare(c);
             removeAccounts();
-            var original = config().preset();
+            var original = preset(c);
             preset(new AiControlData.Preset(true, List.of(), List.of()));
             assertEquals("BUDGET_RULE_NOT_CONFIGURED", status(c).reason());
             denied(() -> run(c, "no-rule"), PlatformErrorCodeEnum.ACCESS_DENIED);
@@ -194,16 +201,18 @@ class ModelUsagePreparationIntegrationTest {
     }
 
     @Test
-    void unpreparedSpaceUsesApprovedTemplateWithoutPreparingOtherRates() {
+    void unpreparedSpaceRequiresSeparateGovernanceAndCannotPrepareOwnBudget() {
         f.context().run(c -> {
             prepare(c);
             removeAccounts();
             jdbc().update("DELETE FROM arte_ai_workspace_configuration WHERE tenant_id=? AND workspace_id=?", scope().tenantId(), scope().workspaceId());
-            assertEquals(ModelUsagePreparation.State.PREPARABLE, status(c).state());
+            jdbc().update("DELETE FROM arte_ai_workspace_budget_rule WHERE tenant_id=? AND workspace_id=?", scope().tenantId(), scope().workspaceId());
+            assertEquals("WORKSPACE_AI_NOT_PREPARED", status(c).reason());
+            assertEquals(ModelUsagePreparation.State.BLOCKED, status(c).state());
+            assertTrue(status(c).allowedActions().contains("CONFIGURE_WORKSPACE_AI"));
+            denied(() -> run(c, "prepare-space"), PlatformErrorCodeEnum.ACCESS_DENIED);
             assertEquals(0, count("arte_ai_workspace_configuration"));
-            assertEquals(ModelUsagePreparation.State.READY, run(c, "prepare-space").value().state());
-            assertEquals(1, count("arte_ai_workspace_configuration"));
-            assertEquals(1, count("arte_ai_account"));
+            assertEquals(0, count("arte_ai_account"));
         });
     }
 
@@ -226,7 +235,6 @@ class ModelUsagePreparationIntegrationTest {
         f.context().run(c -> {
             prepare(c);
             removeAccounts();
-            jdbc().update("DELETE FROM arte_ai_workspace_configuration WHERE tenant_id=? AND workspace_id=?", scope().tenantId(), scope().workspaceId());
             Object effects = ReflectionTestUtils.getField(c.getBean(DatabaseModelUsagePreparationService.class), "effects");
             ReflectionTestUtils.setField(effects, "audit", (AuditSink) entry -> {
                 throw new IllegalStateException("audit unavailable");
@@ -235,7 +243,7 @@ class ModelUsagePreparationIntegrationTest {
             assertThrows(RuntimeException.class, () -> run(c, "rollback"));
             assertEquals(0, count("arte_ai_account"));
             assertEquals(0, count("arte_ai_budget_definition"));
-            assertEquals(0, count("arte_ai_workspace_configuration"));
+            assertEquals(1, count("arte_ai_workspace_configuration"));
             assertEquals(commands, count("arte_platform_command"));
             assertEquals(events, count("arte_platform_outbox"));
         });
@@ -297,7 +305,7 @@ class ModelUsagePreparationIntegrationTest {
         f.context().run(c -> {
             prepare(c);
             removeAccounts();
-            var original = config().preset();
+            var original = preset(c);
             var rule = original.budgets().getFirst();
             var otherRate = new DefinitionRef("rate", rule.rate().id(), "other-version");
             // 旧费率规则不能用于新版本，即便币种与金额相同。
@@ -326,14 +334,13 @@ class ModelUsagePreparationIntegrationTest {
     }
 
     @Test
-    void unpreparedSpaceWithExistingLedgerIsPreparedWithoutChangingTheLedger() {
+    void missingRulesAreAuthorityDamageAndCannotResetExistingLedger() {
         f.context().run(c -> {
             prepare(c);
             String encoded = jdbc().queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class);
-            jdbc().update("DELETE FROM arte_ai_workspace_configuration WHERE tenant_id=? AND workspace_id=?", scope().tenantId(), scope().workspaceId());
-            assertEquals(ModelUsagePreparation.State.PREPARABLE, status(c).state());
-            assertEquals(ModelUsagePreparation.State.READY, run(c, "existing-space").value().state());
-            assertEquals(1, count("arte_ai_workspace_configuration"));
+            jdbc().update("DELETE FROM arte_ai_workspace_budget_rule WHERE tenant_id=? AND workspace_id=?", scope().tenantId(), scope().workspaceId());
+            denied(() -> status(c), PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            denied(() -> run(c, "existing-space"), PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
             assertEquals(encoded, jdbc().queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class));
         });
     }

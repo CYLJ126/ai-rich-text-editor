@@ -84,14 +84,14 @@ class ModelConfigurationM2IntegrationTest {
             assertEquals(ModelDrafts.CredentialKind.PERSONAL, version.publication().credentialKind());
             assertEquals(accounts, f.f.count("arte_ai_account"));
             assertEquals(spaces, f.f.count("arte_platform_workspace"));
-            assertTrue(f.selections.list(f.f.scope, true).isEmpty());
+            assertTrue(c.getBean(com.arte.core.spi.platform.PublicTransactionRunner.class).required(() -> c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).list(f.f.scope, true)).isEmpty());
             assertTrue(f.status(c, version).valid());
             assertEquals("VALID", f.status(c, version).reason());
-            assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(f.f.execution(c, "m2-discover")).block(PersonalModelPublicationIntegrationTest.WAIT).options().isEmpty());
+            assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(f.f.f.execution(c.getBean(DatabaseAiControlService.class), f.f.scope, java.util.Set.of(com.arte.ainew.application.auth.AdmissionAuthorization.INVOKE), "m2-discover")).block(PersonalModelPublicationIntegrationTest.WAIT).options().isEmpty());
             assertThrows(RuntimeException.class, () -> f.accept(c, version, 128));
             assertEquals(version, publications.publish(f.f.f.f.actor, f.f.f.meta("m2-publish"), f.f.scope, f.model.resource(), 0, 1, 1,
                     f.validation, f.f.f.ref("model-plan", "text"), 1).value());
-            assertTrue(f.selections.list(f.f.scope, true).isEmpty());
+            assertTrue(c.getBean(com.arte.core.spi.platform.PublicTransactionRunner.class).required(() -> c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).list(f.f.scope, true)).isEmpty());
         });
     }
 

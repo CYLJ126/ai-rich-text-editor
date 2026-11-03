@@ -618,7 +618,10 @@ class PlatformToolManagementAccessTest {
     }
 
     private void enabled(boolean enabled) {
-        var value = new AiControlData.WorkspaceConfiguration(scope, new AiControlData.Preset(enabled, List.of(), List.of()), 0, 0);
+        var value = new AiControlData.WorkspaceConfiguration(scope, enabled, List.of(), 1, 0);
+        if (f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_budget_rule WHERE tenant_id=? AND workspace_id=?", Integer.class, scope.tenantId(), scope.workspaceId()) == 0) {
+            f.jdbc.update("INSERT INTO arte_ai_workspace_budget_rule(tenant_id,workspace_id,payload,version) VALUES(?,?,?,0)", scope.tenantId(), scope.workspaceId(), f.json.write(new AiControlData.BudgetRules(scope, List.of(), 0)));
+        }
         int rows = f.jdbc.update("UPDATE arte_ai_workspace_configuration SET payload=? WHERE tenant_id=? AND workspace_id=?", f.json.write(value), scope.tenantId(), scope.workspaceId());
         if (rows == 0)
             f.jdbc.update("INSERT INTO arte_ai_workspace_configuration(tenant_id,workspace_id,payload,version) VALUES(?,?,?,0)", scope.tenantId(), scope.workspaceId(), f.json.write(value));

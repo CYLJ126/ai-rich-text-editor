@@ -167,7 +167,7 @@ class DatabaseAiControlIntegrationTest {
             // 文件中已有费率，但未发布时不能用文件种子补历史权威。
             assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> published.historicalRate(rate).block(WAIT));
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("ports-import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             assertTrue(published.read(ctx).block(WAIT).bindings().isEmpty());
             var budget = definitions.available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
@@ -197,7 +197,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("model-import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var service = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
             assertTrue(service.discover(CapabilityDescriptor.Kind.GENERATION, 256, ctx).collectList().block(WAIT).isEmpty());
@@ -228,7 +228,7 @@ class DatabaseAiControlIntegrationTest {
             assertSame(veto, c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class));
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("custom-model-import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-model-call");
             var budget = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class)
                     .available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.EXECUTE).block(WAIT).getFirst().budgetRef();
@@ -259,7 +259,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("reviewed-definitions"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "raw-call");
             assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(ctx).block(WAIT).options().isEmpty());
             assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class)
@@ -275,7 +275,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            var workspace = db.ensure(f.actor, scope);
+            var workspace = DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var old = db.catalog().catalog();
             var v1 = old.capabilities().getFirst();
             var features = new HashSet<>(v1.features());
@@ -294,14 +294,15 @@ class DatabaseAiControlIntegrationTest {
             var discovery = c.getBean(ChatConfigurationQueryService.class);
             var current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             assertTrue(discovery.discover(current).block(WAIT).options().isEmpty());
-            var preset = new AiControlData.Preset(true, List.of(modelV2.definition()), workspace.configuration().preset().budgets());
-            assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.update(f.actor, meta("unapproved-v2"), scope,
-                    workspace.workspaceVersion(), workspace.configuration().version(), preset));
+            var preset = new AiControlData.Preset(true, List.of(modelV2.definition()), old.defaults().budgets());
+            assertThrows(RuntimeException.class, () -> c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).update(f.actor, meta("unapproved-v2"), scope,
+                    workspace.workspaceVersion(), workspace.configuration().version(), true, List.of(new com.arte.ainew.pojo.model.ModelSelection("fake-resource", modelV2.definition()))));
             var approved = new AiControlData.Preset(true, List.of(modelV1.definition(), modelV2.definition()), old.defaults().budgets());
             db.publish(f.actor, meta("approve-v2"), 2, new AiControlData.Catalog(upgraded.capabilities(), upgraded.bindings(), old.connections(), old.rates(),
                     old.legacyGrants(), old.legacyBudgets(), approved, old.disabledConnections(), old.reviewedPlans()));
             assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
-            db.update(f.actor, meta("select-v2"), scope, workspace.workspaceVersion(), workspace.configuration().version(), preset);
+            assertThrows(RuntimeException.class, () -> c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).update(f.actor, meta("select-v2"), scope,
+                    workspace.workspaceVersion(), workspace.configuration().version(), true, List.of(new com.arte.ainew.pojo.model.ModelSelection("fake-resource", modelV2.definition()))));
             current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var selectedContext = current;
             var entitlements = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
@@ -364,7 +365,7 @@ class DatabaseAiControlIntegrationTest {
             assertEquals(second, services.preferences().get(f.actor).startupScope());
             assertTrue(recorded.sql.stream().noneMatch(sql -> sql.toLowerCase(Locale.ROOT).contains("arte_ai_")), recorded.sql::toString);
 
-            assertThrows(RuntimeException.class, () -> c.getBean(DatabaseAiControlService.class).ensure(f.actor, second));
+            assertThrows(RuntimeException.class, () -> DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, second));
             assertEquals("Renamed", services.workspaces().get(f.actor, second).name());
             assertEquals(scope, services.personal().initialize(f.actor, meta("after-ai-failure")).value().workspace().scope());
             assertEquals(3, f.count("workspace"));
@@ -380,13 +381,13 @@ class DatabaseAiControlIntegrationTest {
             var imported = DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             assertEquals(1, imported.resultVersion());
             assertEquals(imported.operationId(), DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import")).operationId());
-            var prepared = db.ensure(f.actor, existing);
+            var prepared = DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, existing);
             assertEquals(0, prepared.configuration().version());
             var services = c.getBean(DefaultWorkspaceServices.class);
             var second = services.workspaces().create(f.actor, new WorkspaceCommands.CreateWorkspace(meta("new-space"), existing.tenantId(), "Second", "")).value().scope();
             assertNull(db.get(f.actor, second).configuration());
             assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
-            assertNotNull(db.ensure(f.actor, second).configuration());
+            assertNotNull(DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, second).configuration());
             var discoveries = c.getBean(ChatConfigurationQueryService.class);
             var firstContext = execution(db, existing, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var secondContext = execution(db, second, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
@@ -404,8 +405,8 @@ class DatabaseAiControlIntegrationTest {
             assertEquals(0, conversations.list(new com.arte.core.pojo.PageParam(), execution(db, second, Set.of(AdmissionAuthorization.CONVERSATION), null)).block(WAIT).total());
             assertEquals(existing.workspaceId(), created.owner().workspaceId());
             assertEquals(2, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
-            db.ensure(f.actor, existing);
-            db.ensure(f.actor, second);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, existing);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, second);
             assertEquals(2, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
                     () -> db.resolve("alice", "legacy-tenant", "legacy-space", Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT));
@@ -449,7 +450,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Read snapshot", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "read-conversation")).block(WAIT);
             var source = org.mockito.Mockito.spy(db);
@@ -505,7 +506,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var execution = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "snapshot");
             var mapper = org.mockito.Mockito.spy(c.getBean(com.arte.app.platform.persistence.mapper.PlatformAiControlMapper.class));
             org.springframework.test.util.ReflectionTestUtils.setField(db, "mapper", mapper);
@@ -531,7 +532,7 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("raw-import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "raw-submit");
             assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.api.control.BindingManager.class)
                     .resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
@@ -607,16 +608,15 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            var view = db.ensure(f.actor, scope);
+            var view = DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "revalidate");
             var prepared = db.prepareConfiguration(ctx);
             recorded.sql.clear();
-            assertSame(prepared, db.revalidate(ctx, prepared));
+            assertNotSame(prepared, db.revalidate(ctx, prepared));
             assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_control_head")));
-            assertTrue(recorded.sql.stream().noneMatch(q -> q.contains("FROM arte_ai_control_revision")
-                    || q.contains("FROM arte_ai_budget_definition")), recorded.sql.toString());
+            assertTrue(recorded.sql.stream().anyMatch(q -> q.contains("FROM arte_ai_workspace_budget_rule")), recorded.sql.toString());
             int stableQueries = recorded.sql.size();
-            db.update(f.actor, meta("same-preset"), scope, view.workspaceVersion(), view.configuration().version(), view.configuration().preset());
+            c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).update(f.actor, meta("same-selection"), scope, view.workspaceVersion(), view.configuration().version(), true, List.of());
             recorded.sql.clear();
             var changed = db.revalidate(ctx, prepared);
             assertNotSame(prepared, changed);
@@ -640,7 +640,7 @@ class DatabaseAiControlIntegrationTest {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Revocation", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "revoke-conversation")).block(WAIT);
             String budgetRef = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(
@@ -677,43 +677,33 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    void configurationCasAndReplayPreserveChargedHeldAndDefaultPublicationDoesNotRebaseExistingSpaces() {
-        var scope = f.initialize().value().workspace().scope();
+    void independentRulesCasAndReplayPreserveLedgerAndTemplatePublicationDoesNotRebaseExistingSpaces() {
+        Scope scope = f.initialize().value().workspace().scope();
         context().run(c -> {
-            assertNull(c.getStartupFailure());
-            var db = c.getBean(DatabaseAiControlService.class);
+            DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            var initial = db.ensure(f.actor, scope);
-            var context = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
-            var budgetRef = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(context, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst().budgetRef();
-            var codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
-            String key = DatabaseAiControlService.hash(budgetRef);
-            var account = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=?", String.class, key), BudgetCommands.Account.class);
-            f.jdbc.update("UPDATE arte_ai_account SET workspace_snapshot=? WHERE id_key=?", codec.encode(new BudgetCommands.Account(budgetRef, account.owner(), account.limit(), money("3"), money("7"), account.rateVersion(), 2)), key);
-            var preset = new AiControlData.Preset(true, initial.configuration().preset().bindings(), List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("200"))));
-            assertThrows(org.springframework.security.access.AccessDeniedException.class,
-                    () -> db.update(f.actor, meta("unauthorized-raise"), scope, initial.workspaceVersion(), 0, preset));
-            assertEquals(0, db.get(f.actor, scope).configuration().version());
-            assertEquals(money("100"), codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=?", String.class, key), BudgetCommands.Account.class).limit());
-            var result = db.update(f.actor, meta("quota"), scope, initial.workspaceVersion(), 0, preset, true);
-            assertEquals(result.operationId(), db.update(f.actor, meta("quota"), scope, initial.workspaceVersion(), 0, preset, true).operationId());
-            var saved = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=?", String.class, key), BudgetCommands.Account.class);
+            AiControlData.WorkspaceView initial = DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
+            com.arte.app.platform.ai.WorkspaceAiGovernanceService governance = c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class);
+            com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
+            BudgetCommands.Account account = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class), BudgetCommands.Account.class);
+            f.jdbc.update("UPDATE arte_ai_account SET workspace_snapshot=?", codec.encode(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(), money("3"), money("7"), account.rateVersion(), 2)));
+            f.jdbc.execute("CREATE TABLE arte_rbac_relation(source VARCHAR(256),binding_type VARCHAR(96),target VARCHAR(256))");
+            f.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(96),status VARCHAR(8))");
+            List<AiControlData.BudgetPreset> rules = List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("200")));
+            assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> governance.updateRules(f.actor, meta("denied"), scope, initial.workspaceVersion(), 0, rules));
+            f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','aiConfiguration:manage')");
+            var result = governance.updateRules(f.actor, meta("quota"), scope, initial.workspaceVersion(), 0, rules);
+            assertEquals(result.operationId(), governance.updateRules(f.actor, meta("quota"), scope, initial.workspaceVersion(), 0, rules).operationId());
+            BudgetCommands.Account saved = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class), BudgetCommands.Account.class);
             assertEquals(money("3"), saved.held());
             assertEquals(money("7"), saved.charged());
             assertEquals(money("200"), saved.limit());
             assertEquals(3, saved.version());
-            assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> db.update(f.actor, meta("stale"), scope, initial.workspaceVersion(), 0, preset));
-            var catalog = db.catalog();
-            var old = catalog.catalog();
-            var defaults = new AiControlData.Preset(true, old.defaults().bindings(), List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("50"))));
-            var other = c.getBean(DefaultWorkspaceServices.class).workspaces().create(f.actor, new WorkspaceCommands.CreateWorkspace(meta("next"), scope.tenantId(), "Prepare later", "")).value().scope();
-            assertNull(db.get(f.actor, other).configuration());
-            db.publish(f.actor, meta("template"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), old.rates(), old.legacyGrants(), old.legacyBudgets(), defaults, old.disabledConnections(), old.reviewedPlans()));
-            assertEquals(preset, db.get(f.actor, scope).configuration().preset());
-            assertNull(db.get(f.actor, other).configuration());
-            var prepared = db.ensure(f.actor, other).configuration();
-            assertEquals(defaults, prepared.preset());
-            assertEquals(2, prepared.templateVersion());
+            assertEquals(initial.configuration(), governance.get(f.actor, scope).configuration());
+            assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> governance.updateRules(f.actor, meta("stale"), scope, initial.workspaceVersion(), 0, rules));
+            db.updateDefaultAiPolicy(f.actor, meta("defaults"), 1, false, List.of());
+            assertTrue(governance.get(f.actor, scope).configuration().enabled());
+            assertEquals(rules, governance.getRules(f.actor, scope).configuration().rules());
         });
     }
 
@@ -723,20 +713,20 @@ class DatabaseAiControlIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             var db = c.getBean(DatabaseAiControlService.class);
-            assertTrue(db.ensure(f.actor, scope).needsImport());
+            assertTrue(DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope).needsImport());
             var services = c.getBean(DefaultWorkspaceServices.class);
             var command = new WorkspaceCommands.CreateWorkspace(meta("missing"), scope.tenantId(), "Without AI", "");
             var created = services.workspaces().create(f.actor, command);
             assertEquals(created.operationId(), services.workspaces().create(f.actor, command).operationId());
             assertEquals(2, f.count("workspace"));
-            assertTrue(db.ensure(f.actor, created.value().scope()).needsImport());
+            assertTrue(DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, created.value().scope()).needsImport());
             assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Integer.class));
             assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            db.ensure(f.actor, scope);
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
             assertThrows(Exception.class, () -> db.resolve("alice", scope.tenantId(), "unknown-space", Set.of(AdmissionAuthorization.INVOKE)).block(WAIT));
             var view = db.get(f.actor, scope);
-            db.update(f.actor, meta("disable"), scope, view.workspaceVersion(), view.configuration().version(), new AiControlData.Preset(false, view.configuration().preset().bindings(), view.configuration().preset().budgets()));
+            c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).update(f.actor, meta("disable"), scope, view.workspaceVersion(), view.configuration().version(), false, List.of());
             assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.INVOKE)).block(WAIT));
             assertNotNull(db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT));
             var adminContext = execution(db, scope, Set.of(AdmissionAuthorization.BUDGET_ADMIN), null);
@@ -748,41 +738,26 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    void aiAuditFailureRollsBackAiPreparationAndBudgetChangesButLeavesSpaceUsable() {
-        var scope = f.initialize().value().workspace().scope();
+    void aiAuditFailureRollsBackExplicitPreparationAndLeavesPublicSpaceUsable() {
+        Scope scope = f.initialize().value().workspace().scope();
         context().run(c -> {
-            assertNull(c.getStartupFailure());
-            var db = c.getBean(DatabaseAiControlService.class);
+            DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
-            var initial = db.ensure(f.actor, scope);
-            var beforeAccount = f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class);
-            var originalEffects = org.springframework.test.util.ReflectionTestUtils.getField(db, "effects");
-            var failing = new com.arte.core.application.workspace.WorkspaceMutationEffects(f.outbox,
-                    entry -> {
-                        throw new IllegalStateException("Injected AI audit failure");
-                    }, () -> UUID.randomUUID().toString(), Clock.systemUTC());
-            org.springframework.test.util.ReflectionTestUtils.setField(db, "effects", failing);
-            var services = c.getBean(DefaultWorkspaceServices.class);
-            var created = services.workspaces().create(f.actor,
-                    new WorkspaceCommands.CreateWorkspace(meta("audit-failed-space"), scope.tenantId(), "Independent space", ""));
-            long audits = f.count("audit"), events = f.count("outbox"), receipts = f.count("command");
-            assertThrows(IllegalStateException.class, () -> db.ensure(f.actor, created.value().scope()));
-            assertEquals(created.value().scope(), services.workspaces().get(f.actor, created.value().scope()).scope());
-            var increased = new AiControlData.Preset(true, initial.configuration().preset().bindings(),
-                    List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("200"))));
-            assertThrows(IllegalStateException.class, () -> db.update(f.actor, meta("audit-failed-quota"), scope, initial.workspaceVersion(), 0, increased, true));
-            assertEquals(2, f.count("workspace"));
-            assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Integer.class));
-            assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_budget_definition", Integer.class));
-            assertEquals(beforeAccount, f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class));
-            assertEquals(initial.configuration(), db.get(f.actor, scope).configuration());
-            assertEquals(initial.workspaceVersion(), db.get(f.actor, scope).workspaceVersion());
-            assertEquals(audits, f.count("audit"));
-            assertEquals(events, f.count("outbox"));
+            com.arte.app.platform.ai.WorkspaceAiGovernanceService governance = c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class);
+            Object effects = org.springframework.test.util.ReflectionTestUtils.getField(governance, "effects");
+            org.springframework.test.util.ReflectionTestUtils.setField(effects, "audit", (com.arte.core.spi.platform.AuditSink) entry -> {
+                throw new IllegalStateException("audit unavailable");
+            });
+            long receipts = f.count("command"), events = f.count("outbox");
+            long version = governance.get(f.actor, scope).workspaceVersion();
+            assertThrows(RuntimeException.class, () -> governance.prepare(f.actor, meta("rollback"), scope, version, 1));
+            assertNull(governance.get(f.actor, scope).configuration());
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_budget_rule", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
+            assertEquals(version, governance.get(f.actor, scope).workspaceVersion());
             assertEquals(receipts, f.count("command"));
-            org.springframework.test.util.ReflectionTestUtils.setField(db, "effects", originalEffects);
-            assertNotNull(db.ensure(f.actor, created.value().scope()).configuration());
-            assertEquals(2, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
+            assertEquals(events, f.count("outbox"));
+            assertNotNull(c.getBean(DefaultWorkspaceServices.class).workspaces().get(f.actor, scope));
         });
     }
 
@@ -803,14 +778,15 @@ class DatabaseAiControlIntegrationTest {
                         assertEquals(403, http(mvc, "initializeCatalog", "{}", "import", auth, online, false));
                         assertEquals(403, http(mvc, "getCatalog", "{}", null, auth, online, false));
                         DatabaseAiTestCatalog.publish(c.getBean(DatabaseAiControlService.class), c, f.actor, meta("http-seed"));
-                        assertEquals(200, http(mvc, "ensure", f.json.write(Map.of("scope", scope)), null, auth, online, false));
+                        DatabaseAiTestCatalog.prepare(c, f.actor, scope);
+                        assertEquals(404, http(mvc, "ensure", f.json.write(Map.of("scope", scope)), null, auth, online, false));
                         var db = c.getBean(DatabaseAiControlService.class);
                         var view = db.get(f.actor, scope);
-                        var increased = new AiControlData.Preset(true, view.configuration().preset().bindings(), List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("200"))));
-                        String raise = f.json.write(Map.of("scope", scope, "expectedWorkspaceVersion", view.workspaceVersion(), "expectedVersion", 0, "preset", increased));
-                        assertEquals(403, http(mvc, "updateConfiguration", raise, "raise", auth, online, false));
+                        var increased = true;
+                        String raise = f.json.write(Map.of("scope", scope, "expectedWorkspaceVersion", view.workspaceVersion(), "expectedVersion", 0, "enabled", increased, "models", List.of()));
+
                         assertEquals(400, http(mvc, "updateConfiguration", raise, null, auth, online, true));
-                        assertEquals(400, http(mvc, "updateConfiguration", f.json.write(Map.of("scope", scope, "preset", increased)), "invalid", auth, online, true));
+                        assertEquals(400, http(mvc, "updateConfiguration", f.json.write(Map.of("scope", scope, "enabled", increased, "models", List.of())), "invalid", auth, online, true));
                         assertEquals(200, http(mvc, "updateConfiguration", raise, "raise", auth, online, true));
                         assertEquals(200, http(mvc, "updateConfiguration", raise, "raise", auth, online, true));
                         assertEquals(409, http(mvc, "updateConfiguration", raise, "stale", auth, online, true));

@@ -15,6 +15,7 @@ const preparationSchema = z.object({
   binding, rate,
   state: z.enum(['READY', 'PREPARABLE', 'BLOCKED']), reason: z.string().min(1).max(96),
   budgetRefs: z.array(id).max(256),
+  allowedActions: z.array(z.enum(['PREPARE_OWN_BUDGET', 'CONFIGURE_WORKSPACE_AI'])).max(2).default([]),
   approvedLimit: z.object({amount, currency: z.string().regex(/^[A-Z]{3}$/)}).nullable(),
 }).refine(value => value.state !== 'READY' || value.reason === 'READY' && value.budgetRefs.length > 0)
   .refine(value => new Set(value.budgetRefs).size === value.budgetRefs.length);

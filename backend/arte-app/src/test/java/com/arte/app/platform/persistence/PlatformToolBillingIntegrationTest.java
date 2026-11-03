@@ -121,7 +121,8 @@ class PlatformToolBillingIntegrationTest {
         var preset = new AiControlData.Preset(true, List.of(), List.of(new AiControlData.BudgetPreset(PRICE.rate(), money("10"))));
         db.publish(rig.base.f.actor, rig.base.meta("publish-tool-price"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), preset, old.disabledConnections(), old.reviewedPlans()));
         var current = db.get(rig.base.f.actor, rig.scope);
-        db.update(rig.base.f.actor, rig.base.meta("approve-tool-budget"), rig.scope, current.workspaceVersion(), current.configuration().version(), preset, true);
+        c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).updateRules(rig.base.f.actor, rig.base.meta("approve-tool-budget"), rig.scope, current.workspaceVersion(), 0, preset.budgets());
+        DatabaseAiTestCatalog.prepareWithAccounts(c, rig.base.f.actor, rig.scope);
     }
 
     String publishAndBind(ToolAcceptanceRig rig, org.springframework.test.web.servlet.MockMvc mvc, Contract contract) throws Exception {

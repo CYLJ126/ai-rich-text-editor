@@ -38,6 +38,8 @@ import com.arte.core.application.workspace.WorkspaceMutationEffects;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.pojo.access.AccessDecision;
+import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
@@ -49,11 +51,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
+import tools.jackson.core.JacksonException;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -74,6 +78,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
 @EnableConfigurationProperties(NewAiGenerationProperties.class)
+@Import(WorkspaceAiGovernanceConfiguration.class)
 public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
 
     private final PlatformAiControlMapper mapper;
@@ -94,6 +99,13 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
     private ObjectProvider<ModelPublicationRuntime> resourceModels;
     private ObjectProvider<ModelGateway> modelGateways;
+
+    private WorkspaceAiGovernanceService workspaceAi;
+
+    @Autowired
+    void workspaceAi(WorkspaceAiGovernanceService workspaceAi) {
+        this.workspaceAi = workspaceAi;
+    }
 
     @Autowired
     void modelGateways(ObjectProvider<ModelGateway> modelGateways) {
@@ -165,6 +177,28 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private record Published(long version, Catalog catalog) {
     }
 
+    /**
+     * 读取精确目录载荷，旧格式或损坏数据明确拒绝，不补空审核方案或覆盖历史。
+     *
+     * @param version 持久化目录的精确修订版本，用于定位失败数据
+     * @param payload 该版本的原始载荷；缺失时报告权威不可用
+     * @return 当前结构的完整目录
+     */
+    private Catalog readCatalog(long version, String payload) {
+        if (payload == null) {
+            throw unavailable();
+        }
+        try {
+            return json.read(payload, Catalog.class);
+        } catch (JacksonException failure) {
+            throw new IllegalStateException("AI 审核目录修订 " + version
+                    + " 的载荷与当前格式不兼容或已损坏，请检查 reviewedPlans 等必填字段。"
+                    + "按已确认的全新数据方案重新建立 AI 相关数据及初始化 schema；"
+                    + "不要仅重置 arte_ai_control_head 或给旧载荷补空列表。"
+                    + "详见 backend/arte-app/docs/MODEL_CONFIGURATION_M3.md。", failure);
+        }
+    }
+
     private Published published(boolean required) {
         return published(required, false);
     }
@@ -176,7 +210,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (version == 0) throw unavailable();
         String payload = mapper.revision(version);
         if (payload == null) throw unavailable();
-        return new Published(version, json.read(payload, Catalog.class));
+        return new Published(version, readCatalog(version, payload));
     }
 
     /**
@@ -187,7 +221,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (version == null || version == 0) throw unavailable();
         String payload = mapper.revision(version);
         if (payload == null) throw unavailable();
-        return new Published(version, json.read(payload, Catalog.class));
+        return new Published(version, readCatalog(version, payload));
     }
 
     /**
@@ -262,13 +296,15 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     private Snapshot readSnapshot(TrustedActor actor, String name, Scope scope, Set<String> requested, boolean includeConfiguration) {
         if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
-                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
+                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested)) {
             throw new AccessDeniedException("Workspace AI action denied");
-        var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
+        }
+        List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
                 requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-read"));
-        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN))
+        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN)) {
             requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-read"));
+        }
         int requiredActions = requests.size();
         int policyAction = requested.contains(AdmissionAuthorization.BUDGET_ADMIN) ? 1 : -1;
         int invokeAction = requested.contains(AdmissionAuthorization.INVOKE) ? 0 : -1;
@@ -280,32 +316,40 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             invokeAction = requests.size();
             requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_AI_USE, "database-ai-options"));
         }
-        var decisions = guardsAuthorization().batchCheck(actor, requests);
-        if (decisions.size() != requests.size()) throw unavailable();
+        List<AccessDecision> decisions = guardsAuthorization().batchCheck(actor, requests);
+        if (decisions.size() != requests.size()) {
+            throw unavailable();
+        }
         if (decisions.subList(0, requiredActions).stream().anyMatch(d -> !d.allowed())) {
-            if (decisions.stream().anyMatch(d -> d.reason() == com.arte.core.enums.access.AccessReasonEnum.AUTHORITY_UNAVAILABLE))
+            if (decisions.stream().anyMatch(d -> d.reason() == com.arte.core.enums.access.AccessReasonEnum.AUTHORITY_UNAVAILABLE)) {
                 throw unavailable();
+            }
             throw new AccessDeniedException("Workspace AI access denied");
         }
-        var row = mapper.workspaceRead(scope.tenantId(), scope.workspaceId());
-        var settings = configurationRow(scope, row);
-        if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
+        PlatformAiControlRow row = mapper.workspaceRead(scope.tenantId(), scope.workspaceId());
+        WorkspaceConfiguration settings = configurationRow(scope, row);
+        if (!settings.enabled() && requested.contains(AdmissionAuthorization.INVOKE)) {
             throw new AccessDeniedException("Workspace AI disabled");
-        var auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
+        }
+        ExecutionAuthorization auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
                 scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
-        if (!includeConfiguration) return new Snapshot(auth, null);
-        var definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
+        if (!includeConfiguration) {
+            return new Snapshot(auth, null);
+        }
+        List<NewAiProperties.Budget> definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
                 .map(b -> json.read(b.getPayload(), NewAiProperties.Budget.class)).toList();
-        var permissions = new HashSet<>(Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
-        if (settings.preset().enabled() && decisions.get(invokeAction).allowed())
+        Set<String> permissions = new HashSet<>(Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
+        if (settings.enabled() && decisions.get(invokeAction).allowed()) {
             permissions.add(AdmissionAuthorization.INVOKE);
-        if (decisions.get(policyAction).allowed()) permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
-        var grant = workspaceGrant(actor, settings, permissions, name, definitions);
-        var catalog = published(true).catalog();
-        var bindings = catalog.bindings().stream().filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
-                && settings.preset().bindings().contains(b.definition())).toList();
-        var filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
-                List.of(), List.of(), settings.preset(), catalog.disabledConnections());
+        }
+        if (decisions.get(policyAction).allowed()) {
+            permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
+        }
+        Catalog catalog = published(true).catalog();
+        NewAiProperties.Grant grant = workspaceGrant(actor, settings, permissions, name, definitions, catalog);
+        List<ResolvedBinding> bindings = catalog.bindings().stream().filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION).toList();
+        Catalog filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
+                List.of(), List.of(), catalog.defaults(), catalog.disabledConnections());
         return new Snapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
     }
 
@@ -340,9 +384,13 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     private WorkspaceConfiguration configurationRow(Scope scope, PlatformAiControlRow row) {
-        if (row == null) throw new AccessDeniedException("Workspace AI is not prepared");
-        var value = json.read(row.getPayload(), WorkspaceConfiguration.class);
-        if (!value.scope().equals(scope) || value.version() != row.getVersion()) throw unavailable();
+        if (row == null) {
+            throw new AccessDeniedException("Workspace AI is not prepared");
+        }
+        WorkspaceConfiguration value = json.read(row.getPayload(), WorkspaceConfiguration.class);
+        if (!value.scope().equals(scope) || value.version() != row.getVersion()) {
+            throw unavailable();
+        }
         return value;
     }
 
@@ -351,13 +399,19 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 .map(row -> json.read(row.getPayload(), NewAiProperties.Budget.class)).toList();
     }
 
-    private NewAiProperties.Grant workspaceGrant(TrustedActor actor, WorkspaceConfiguration value, Set<String> permissions, String name, List<NewAiProperties.Budget> definitions) {
-        var rates = value.preset().budgets().stream().map(BudgetPreset::rate).toList();
-        var refs = definitions.stream().filter(b -> rates.contains(b.rate()))
+    private NewAiProperties.Grant workspaceGrant(TrustedActor actor, WorkspaceConfiguration value, Set<String> permissions, String name, List<NewAiProperties.Budget> definitions, Catalog catalog) {
+        boolean current = !tx.isReadOnly();
+        BudgetRules rules = workspaceAi.rulesForConfiguration(value.scope(), current, value);
+        Set<DefinitionRef> rates = rules.rules().stream().filter(rule -> rule.limit().amount().signum() > 0)
+                .map(BudgetPreset::rate).collect(java.util.stream.Collectors.toSet());
+        Set<String> refs = definitions.stream().filter(budget -> rates.contains(budget.rate()))
                 .map(NewAiProperties.Budget::budgetRef).collect(java.util.stream.Collectors.toSet());
+        Set<String> bindings = new HashSet<>(value.models().stream().map(model -> model.binding().id()).toList());
+        // 工具定义由独立 Tool 治理授权，模型选择不控制工具预算规则或执行绑定。
+        catalog.bindings().stream().filter(binding -> binding.capability().kind() != CapabilityDescriptor.Kind.GENERATION)
+                .map(binding -> binding.definition().id()).forEach(bindings::add);
         return new NewAiProperties.Grant(name, actor.principal().subjectId(), ExecutionPrincipal.Kind.USER,
-                value.scope().tenantId(), value.scope().workspaceId(), "workspace-ai:" + value.version(), true, permissions,
-                value.preset().bindings().stream().map(DefinitionRef::id).collect(java.util.stream.Collectors.toSet()), refs);
+                value.scope().tenantId(), value.scope().workspaceId(), "workspace-ai:" + value.version(), true, permissions, bindings, refs);
     }
 
     /**
@@ -371,35 +425,41 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
      * 写入／派发边界使用当前事务门控，与展示读取的 MVCC 快照分开。
      */
     private CurrentSnapshot currentSnapshot(String name, String subjectId, Scope scope, Set<String> requested, boolean includeConfiguration) {
-        var actor = actor(name);
-        if (subjectId != null && !actor.principal().subjectId().equals(subjectId))
+        TrustedActor actor = actor(name);
+        if (subjectId != null && !actor.principal().subjectId().equals(subjectId)) {
             throw new AccessDeniedException("Stable identity mismatch");
+        }
         if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
-                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
+                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested)) {
             throw new AccessDeniedException("Workspace AI action denied");
+        }
         if (workspaces.getObject().find(scope).isEmpty()) {
             throw new AccessDeniedException("Workspace AI access denied");
         }
-        var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
+        List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
                 requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-write"));
-        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN))
+        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN)) {
             requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-write"));
+        }
         return guards.getObject().inCurrentTransaction(actor, requests, () -> {
-            var settings = ownConfiguration(scope);
-            if (!settings.preset().enabled() && requested.contains(AdmissionAuthorization.INVOKE))
+            WorkspaceConfiguration settings = ownConfiguration(scope);
+            if (!settings.enabled() && requested.contains(AdmissionAuthorization.INVOKE)) {
                 throw new AccessDeniedException("Workspace AI disabled");
-            var auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
+            }
+            ExecutionAuthorization auth = new ExecutionAuthorization(ExecutionPrincipal.from(actor.principal(), name),
                     scope.tenantId(), scope.workspaceId(), requested, "workspace-ai:" + settings.version());
-            if (!includeConfiguration) return new CurrentSnapshot(auth, null, null);
-            var definitions = budgets(scope, actor.principal().subjectId());
-            var grant = workspaceGrant(actor, settings, requested, name, definitions);
-            var publication = publishedCurrent();
-            var catalog = publication.catalog();
-            var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
+            if (!includeConfiguration) {
+                return new CurrentSnapshot(auth, null, null);
+            }
+            List<NewAiProperties.Budget> definitions = budgets(scope, actor.principal().subjectId());
+            Published publication = publishedCurrent();
+            Catalog catalog = publication.catalog();
+            NewAiProperties.Grant grant = workspaceGrant(actor, settings, requested, name, definitions, catalog);
+            Catalog filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
                     .filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
-                            && settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
-                    List.of(), List.of(), settings.preset(), catalog.disabledConnections());
+                    ).toList(), catalog.connections(), catalog.rates(),
+                    List.of(), List.of(), catalog.defaults(), catalog.disabledConnections());
             return new CurrentSnapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
         });
     }
@@ -444,44 +504,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     @Override
     public PreparedConfiguration revalidate(ExecutionContext context, PreparedConfiguration prepared) {
-        if (resourceModels != null && resourceModels.getIfAvailable() != null) {
-            return prepareConfiguration(context);
-        }
-        var principal = context.authorization().principal();
-        if (principal.kind() != ExecutionPrincipal.Kind.USER)
-            throw new AccessDeniedException("Stable identity mismatch");
-        try {
-            return tx.required(() -> {
-                var current = currentSnapshot(principal.subjectName(), principal.subjectId(),
-                        new Scope(context.authorization().tenantId(), context.authorization().workspaceId()),
-                        context.authorization().scopes(), false);
-                // 成员、策略、账户状态及空间开关已按当前门控重新检查；版本只决定是否重读配置内容。
-                var expected = prepared.configuration().grants().stream().filter(g -> g.enabled()
-                        && g.subjectId().equals(principal.subjectId()) && g.subjectName().equals(principal.subjectName())
-                        && g.principalKind() == principal.kind()
-                        && g.tenantId().equals(context.authorization().tenantId())
-                        && g.workspaceId().equals(context.authorization().workspaceId())
-                        && g.scopes().containsAll(context.authorization().scopes())).findFirst();
-                Long revision = mapper.headCurrent();
-                if (prepared.catalogRevision() != null && prepared.catalogRevision().equals(revision)
-                        && expected.isPresent() && expected.get().grantRef().equals(current.authorization().grantRef()))
-                    return prepared;
-                // 来源没有凭证或配置变化时，回退到完整读取和具体 binding/预算校验。
-                return prepareConfiguration(context);
-            });
-        } catch (PlatformException failure) {
-            if (failure.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw failure;
-            throw new AccessDeniedException("Workspace AI access denied", failure);
-        }
-    }
-
-    private PlatformAiControlRow workspaceRow(WorkspaceConfiguration value) {
-        var row = new PlatformAiControlRow();
-        row.setTenantId(value.scope().tenantId());
-        row.setWorkspaceId(value.scope().workspaceId());
-        row.setVersion(value.version());
-        row.setPayload(json.write(value));
-        return row;
+        // 模型选择与规则独立 CAS；目录或模型版本不变不能证明规则仍批准此账户。
+        return prepareConfiguration(context);
     }
 
     private void validate(Catalog catalog, Preset preset) {
@@ -491,45 +515,37 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 throw new IllegalArgumentException("Unresolved reviewed plan dependency");
             }
         }
-        if (catalog.bindings().stream().anyMatch(b -> b.definition().version().equalsIgnoreCase("latest")))
+        if (catalog.bindings().stream().anyMatch(b -> b.definition().version().equalsIgnoreCase("latest"))) {
             throw new IllegalArgumentException("Published models require fixed versions");
-        var properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
+        }
+        NewAiProperties properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
         ControlDefinitionChecks.validate(properties);
-        for (var ref : preset.bindings()) {
-            var binding = catalog.bindings().stream().filter(b -> b.definition().equals(ref)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published model"));
-            if (preset.budgets().stream().noneMatch(b -> b.rate().equals(binding.rate())))
+        for (DefinitionRef ref : preset.bindings()) {
+            ResolvedBinding binding = catalog.bindings().stream().filter(b -> b.definition().equals(ref)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published model"));
+            if (preset.budgets().stream().noneMatch(b -> b.rate().equals(binding.rate()))) {
                 throw new IllegalArgumentException("Model requires compatible budget");
+            }
         }
-        for (var budget : preset.budgets()) {
-            var rate = catalog.rates().stream().filter(r -> r.definition().equals(budget.rate())).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published rate"));
-            if (!rate.currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0)
+        for (BudgetPreset budget : preset.budgets()) {
+            NewAiProperties.Rate rate = catalog.rates().stream().filter(r -> r.definition().equals(budget.rate())).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published rate"));
+            if (!rate.currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0) {
                 throw new IllegalArgumentException("Invalid budget currency or limit");
+            }
         }
 
-    }
-
-    private WorkspaceConfiguration prepare(TrustedActor actor, Scope scope, String operationId) {
-        var row = mapper.workspace(scope.tenantId(), scope.workspaceId());
-        if (row != null) return ownConfiguration(scope);
-        var p = published(true, true);
-        validate(p.catalog(), p.catalog().defaults());
-        var value = new WorkspaceConfiguration(scope, p.catalog().defaults(), p.version(), 0);
-        check(mapper.insertWorkspace(workspaceRow(value)) == 1);
-        if (value.preset().enabled()) prepareBudgets(scope, actor.principal().subjectId(), value.preset(), false);
-        effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:prepared", operationId, 0,
-                Map.of("templateVersion", Long.toString(p.version())));
-        return value;
     }
 
     private void prepareBudgets(Scope scope, String subject, Preset preset, boolean update) {
-        var owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), subject);
-        var existing = budgets(scope, subject);
-        for (var item : preset.budgets()) {
-            var old = existing.stream().filter(b -> b.rate().equals(item.rate())).findFirst();
-            var definition = old.orElseGet(() -> new NewAiProperties.Budget("ws-budget-" + hash(scope.tenantId(), scope.workspaceId(), subject, item.rate().id(), item.rate().version()), owner, item.limit(), item.rate()));
-            if (!definition.owner().equals(owner)) throw unavailable();
+        ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), subject);
+        List<NewAiProperties.Budget> existing = budgets(scope, subject);
+        for (BudgetPreset item : preset.budgets()) {
+            Optional<NewAiProperties.Budget> old = existing.stream().filter(b -> b.rate().equals(item.rate())).findFirst();
+            NewAiProperties.Budget definition = old.orElseGet(() -> new NewAiProperties.Budget("ws-budget-" + hash(scope.tenantId(), scope.workspaceId(), subject, item.rate().id(), item.rate().version()), owner, item.limit(), item.rate()));
+            if (!definition.owner().equals(owner)) {
+                throw unavailable();
+            }
             if (old.isEmpty()) {
-                var row = new PlatformAiControlRow();
+                PlatformAiControlRow row = new PlatformAiControlRow();
                 row.setBudgetRef(definition.budgetRef());
                 row.setTenantId(scope.tenantId());
                 row.setWorkspaceId(scope.workspaceId());
@@ -541,17 +557,23 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             String key = hash(definition.budgetRef()), ownerKey = hash(scope.tenantId(), scope.workspaceId(), subject);
             String encoded = mapper.account(key, ownerKey);
             if (encoded == null) {
-                var zero = new Money(BigDecimal.ZERO, definition.limit().currency());
+                if (old.isPresent()) {
+                    throw unavailable();
+                }
+                Money zero = new Money(BigDecimal.ZERO, definition.limit().currency());
                 check(mapper.insertAccount(key, ownerKey, codec.encode(new BudgetCommands.Account(definition.budgetRef(), owner, definition.limit(), zero, zero, definition.rate(), 0))) == 1);
             } else {
-                var account = codec.decode(encoded, BudgetCommands.Account.class);
-                if (!account.owner().equals(owner) || !account.budgetRef().equals(definition.budgetRef()) || !account.rateVersion().equals(item.rate()))
+                BudgetCommands.Account account = codec.decode(encoded, BudgetCommands.Account.class);
+                if (!account.owner().equals(owner) || !account.budgetRef().equals(definition.budgetRef()) || !account.rateVersion().equals(item.rate())
+                        || !account.limit().equals(definition.limit())) {
                     throw unavailable();
+                }
                 if (update && !account.limit().equals(item.limit())) {
-                    if (!account.limit().currency().equals(item.limit().currency()))
+                    if (!account.limit().currency().equals(item.limit().currency())) {
                         throw new IllegalArgumentException("Budget currency is immutable");
-                    var rows = mapper.budgets(scope.tenantId(), scope.workspaceId(), subject);
-                    var row = rows.stream().filter(r -> r.getBudgetRef().equals(definition.budgetRef())).findFirst().orElseThrow();
+                    }
+                    List<PlatformAiControlRow> rows = mapper.budgets(scope.tenantId(), scope.workspaceId(), subject);
+                    PlatformAiControlRow row = rows.stream().filter(r -> r.getBudgetRef().equals(definition.budgetRef())).findFirst().orElseThrow();
                     long expected = row.getVersion();
                     row.setVersion(Math.incrementExact(expected));
                     row.setPayload(json.write(new NewAiProperties.Budget(definition.budgetRef(), owner, item.limit(), item.rate())));
@@ -572,8 +594,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     /**
      * 查询或准备当前用户在目标执行空间内、与所选模型精确费率兼容的预算账户。
      * <p>
-     * 已准备空间只采用当前保存的批准规则；空间尚未准备时，仅政策管理者可采用当前已发布默认模板。
-     * 查询模式不写入业务数据，准备模式只为当前用户和所选费率初始化账户，并在需要时准备空间 AI 配置。
+     * 仅采用目标空间显式保存的独立批准规则；未准备空间必须先完成独立治理命令。
+     * 查询模式不写入业务数据，准备模式只为当前用户和所选费率初始化账户，不修改空间配置或批准规则。
      * 已有账户直接复用，不提高额度或改写预留、已计费用及账户版本；发现账本缺失或归属不一致时拒绝处理。
      * <p>
      * 调用方须已核验模型、精确发布及凭据用途资格，并在同一可写事务中调用；
@@ -600,26 +622,26 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (payload == null) {
                 throw unavailable();
             }
-            Catalog catalog = json.read(payload, Catalog.class);
-            // 已准备空间沿用保存的规则，未准备空间使用当前默认模板。
+            Catalog catalog = readCatalog(revision, payload);
             WorkspaceConfiguration config = mapper.workspace(scope.tenantId(), scope.workspaceId()) == null ? null : ownConfiguration(scope);
-            Preset preset = config == null ? catalog.defaults() : config.preset();
-            if (!preset.enabled()) {
+            if (config == null) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_NOT_PREPARED", List.of(), null);
+            }
+            if (!config.enabled()) {
                 return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_DISABLED", List.of(), null);
             }
-            // 批准额度必须匹配所选模型的精确费率，不从其他费率借用额度。
-            BudgetPreset rule = preset.budgets().stream().filter(b -> b.rate().equals(rate)).findFirst().orElse(null);
+            BudgetRules rules = workspaceAi.rules(scope, true);
+            BudgetPreset rule = rules.rules().stream().filter(b -> b.rate().equals(rate)).findFirst().orElse(null);
             if (rule == null) {
                 return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_NOT_CONFIGURED", List.of(), null);
             }
             NewAiProperties.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
                     .orElseThrow(DatabaseAiControlService::unavailable);
-            if (definition.toolPerCall() != null || !definition.currency().equals(rule.limit().currency())) {
+            if (!definition.currency().equals(rule.limit().currency())) {
                 throw unavailable();
             }
-            // 模型使用资格不能替代首次准备空间 AI 所需的政策管理资格。
-            if (config == null && !allows(actor, scope, WORKSPACE_POLICY_WRITE)) {
-                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_NOT_PREPARED", List.of(), rule.limit());
+            if (rule.limit().amount().signum() == 0) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_ZERO", List.of(), rule.limit());
             }
             ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId());
             String ownerKey = hash(scope.tenantId(), scope.workspaceId(), owner.subjectId());
@@ -647,18 +669,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 BudgetCommands.Account account = codec.decode(encoded, BudgetCommands.Account.class);
                 if (!account.owner().equals(owner) || !account.budgetRef().equals(budget.budgetRef())
                         || !account.rateVersion().equals(rate) || !account.limit().equals(budget.limit())
-                        || !account.limit().currency().equals(rule.limit().currency())) {
+                        || !account.limit().equals(rule.limit())) {
                     throw unavailable();
-                }
-                if (config == null) {
-                    if (!prepare) {
-                        return new UsageBudget(ModelUsagePreparation.State.PREPARABLE, "WORKSPACE_AI_NOT_PREPARED", List.of(budget.budgetRef()), rule.limit());
-                    }
-                    validate(catalog, preset);
-                    check(mapper.insertWorkspace(workspaceRow(new WorkspaceConfiguration(scope, preset, revision, 0))) == 1);
-                    // 仅补齐空间 AI 配置，已有预算账户及费用记录保持原样。
-                    effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:prepared",
-                            operationId, 0, Map.of("templateVersion", Long.toString(revision)));
                 }
                 return new UsageBudget(ModelUsagePreparation.State.READY, "READY", List.of(budget.budgetRef()), rule.limit());
             }
@@ -673,14 +685,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (!prepare) {
                 return new UsageBudget(ModelUsagePreparation.State.PREPARABLE, "BUDGET_NOT_PREPARED", List.of(), rule.limit());
             }
-            if (config == null) {
-                // 与账户及命令回执同事务；不调用 ensure，避免顺带建立其他费率的账户。
-                validate(catalog, preset);
-                config = new WorkspaceConfiguration(scope, preset, revision, 0);
-                check(mapper.insertWorkspace(workspaceRow(config)) == 1);
-                effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:prepared",
-                        operationId, 0, Map.of("templateVersion", Long.toString(revision)));
-            }
             // 只按已批准规则初始化当前用户、当前精确费率的账户。
             prepareBudgets(scope, owner.subjectId(), new Preset(true, List.of(), List.of(rule)), false);
             return new UsageBudget(ModelUsagePreparation.State.READY, "READY", List.of(ref), rule.limit());
@@ -688,95 +692,69 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     /**
-     * 按需准备空间 AI 配置及当前主体预算；不参与公共空间创建事务。
-     * 准备失败只回滚本次 AI 写入，已创建的公共空间继续可用。
+     * 只读空间配置；首次准备由独立的幂等治理命令显式执行。
      */
-    public WorkspaceView ensure(TrustedActor actor, Scope scope) {
-        return inScope(actor, scope, WORKSPACE_READ, () -> {
-            var p = published(false, true);
-            if (p == null) return view(actor, scope, null, null);
-            WorkspaceConfiguration config;
-            if (mapper.workspace(scope.tenantId(), scope.workspaceId()) == null) {
-                config = inScope(actor, scope, WORKSPACE_POLICY_WRITE, () -> prepare(actor, scope, UUID.randomUUID().toString()));
-            } else config = ownConfiguration(scope);
-            if (config.preset().enabled() && allows(actor, scope, WORKSPACE_AI_USE)) {
-                var before = budgets(scope, actor.principal().subjectId());
-                prepareBudgets(scope, actor.principal().subjectId(), config.preset(), false);
-                if (before.isEmpty())
-                    effects.append(actor, new CommandScope(scope.tenantId(), scope.workspaceId()), "workspace:ai:account-prepared",
-                            UUID.randomUUID().toString(), config.version(), Map.of());
-            }
-            return view(actor, scope, config, p);
-        });
+    void workspaceSafety() {
+        workspaceAi.startupSafety();
     }
 
     public WorkspaceView get(TrustedActor actor, Scope scope) {
-        return inScope(actor, scope, WORKSPACE_READ, () -> {
-            var p = published(false, true);
-            var row = mapper.workspace(scope.tenantId(), scope.workspaceId());
-            return view(actor, scope, row == null ? null : ownConfiguration(scope), p);
-        });
-    }
-
-    private WorkspaceView view(TrustedActor actor, Scope scope, WorkspaceConfiguration config, Published published) {
-        var workspace = workspaces.getObject().lock(scope).orElseThrow(DatabaseAiControlService::unavailable);
-        return new WorkspaceView("DATABASE", config, workspace.version(), allows(actor, scope, WORKSPACE_POLICY_WRITE), published == null,
-                published == null ? List.of() : published.catalog().bindings().stream().filter(b -> published.catalog().defaults().bindings().contains(b.definition())
-                                || config != null && config.preset().bindings().contains(b.definition()))
-                        .map(b -> new Model(b.definition(), b.remoteOperation(), b.connection(), b.rate())).toList(),
-                published == null ? null : published.catalog().defaults(), published == null ? List.of() : published.catalog().rates().stream()
-                .filter(r -> r.toolPerCall() != null && (published.catalog().defaults().budgets().stream().anyMatch(b -> b.rate().equals(r.definition()))
-                        || config != null && config.preset().budgets().stream().anyMatch(b -> b.rate().equals(r.definition())))).toList());
-    }
-
-    public CommandReceipt<WorkspaceView> update(TrustedActor actor, CommandMeta meta, Scope scope, long expectedWorkspaceVersion, long expectedVersion, Preset preset) {
-        return update(actor, meta, scope, expectedWorkspaceVersion, expectedVersion, preset, false);
+        return workspaceAi.get(actor, scope);
     }
 
     /**
-     * canRaiseBudget is supplied by trusted HTTP/RBAC adaptation, never by the request body.
+     * 在已有物理事务中共享锁定最新审核目录，不允许文件配置兜底。
      */
-    public CommandReceipt<WorkspaceView> update(TrustedActor actor, CommandMeta meta, Scope scope, long expectedWorkspaceVersion, long expectedVersion, Preset preset, boolean canRaiseBudget) {
-        var commandScope = new CommandScope(scope.tenantId(), scope.workspaceId());
-        return commands.execute(actor, meta, commandScope, "workspace:ai:update", "workspace:ai:view:v1", WorkspaceView.class,
-                List.of(Long.toString(expectedWorkspaceVersion), Long.toString(expectedVersion), canonical(preset)),
-                () -> inScope(actor, scope, WORKSPACE_POLICY_WRITE, () -> true), saved -> {
-                    if (saved.configuration() == null || !saved.configuration().scope().equals(scope))
-                        throw unavailable();
-                    inScope(actor, scope, WORKSPACE_POLICY_WRITE, () -> true);
-                }, operationId -> {
-                    var p = published(true);
-                    var old = ownConfiguration(scope);
-                    var workspace = workspaces.getObject().lock(scope).orElseThrow(DatabaseAiControlService::unavailable);
-                    check(old.version() == expectedVersion && workspace.version() == expectedWorkspaceVersion);
-                    validate(p.catalog(), preset);
-                    var approvedModels = new HashSet<>(p.catalog().defaults().bindings());
-                    approvedModels.addAll(old.preset().bindings());
-                    if (!approvedModels.containsAll(preset.bindings()))
-                        throw new AccessDeniedException("Model is not approved for public workspaces");
-                    if (!canRaiseBudget) {
-                        var template = json.read(mapper.revision(old.templateVersion()), Catalog.class).defaults();
-                        for (var budget : preset.budgets()) {
-                            var cap = java.util.stream.Stream.concat(old.preset().budgets().stream(), template.budgets().stream())
-                                    .filter(b -> b.rate().equals(budget.rate())).map(b -> b.limit().amount()).max(BigDecimal::compareTo)
-                                    .orElseGet(() -> p.catalog().defaults().budgets().stream().filter(b -> b.rate().equals(budget.rate()))
-                                            .map(b -> b.limit().amount()).findFirst().orElse(BigDecimal.ZERO));
-                            if (budget.limit().amount().compareTo(cap) > 0)
-                                throw new AccessDeniedException("Raising allocated budget requires platform configuration permission");
-                        }
-                    }
-                    var updated = new WorkspaceConfiguration(scope, preset, old.templateVersion(), Math.incrementExact(old.version()));
-                    check(mapper.replaceWorkspace(workspaceRow(updated), old.version()) == 1);
-                    for (var subject : mapper.workspaceBudgets(scope.tenantId(), scope.workspaceId()).stream().map(PlatformAiControlRow::getSubjectId).distinct().sorted().toList()) {
-                        prepareBudgets(scope, subject, preset, true);
-                    }
-                    if (preset.enabled()) prepareBudgets(scope, actor.principal().subjectId(), preset, true);
-                    var changed = new com.arte.core.pojo.workspace.Workspace(scope, workspace.name(), workspace.description(), workspace.state(), workspace.createdBy(),
-                            Math.incrementExact(workspace.version()), Math.incrementExact(workspace.authEpoch()), workspace.createdAt(), clock.instant());
-                    check(workspaces.getObject().replace(changed, workspace.version()));
-                    effects.append(actor, commandScope, "workspace:ai:updated", operationId, updated.version(), Map.of("workspaceEpoch", Long.toString(changed.authEpoch())));
-                    return new DefaultCommandExecutor.Result<>(view(actor, scope, updated, p), updated.version());
-                });
+    CatalogView workspaceCatalog() {
+        tx.requireWritable();
+        Long version = mapper.headCurrent();
+        if (version == null) {
+            throw unavailable();
+        }
+        return new CatalogView(version, version == 0 ? null : readCatalog(version, mapper.revision(version)));
+    }
+
+    Preset workspaceTemplate(long version) {
+        String payload = mapper.revision(version);
+        if (payload == null) {
+            throw unavailable();
+        }
+        return readCatalog(version, payload).defaults();
+    }
+
+    /**
+     * 平台提额权限按原 appDataSource 事务读取当前 RBAC，不采信 HTTP 布尔标志。
+     */
+    boolean canManageCatalog(TrustedActor actor) {
+        String name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(DatabaseAiControlService::unavailable);
+        Set<String> permissions = catalogPermissions.current(name);
+        return permissions.contains("admin") || permissions.contains("aiConfiguration:manage");
+    }
+
+    void validateBudgetRules(Catalog catalog, List<BudgetPreset> rules) {
+        validate(catalog, new Preset(false, List.of(), rules));
+    }
+
+    /**
+     * 只调整已经存在且匹配新规则的账户，保留撤销规则的所有历史定义及账本。
+     */
+    void adjustExistingAccounts(Scope scope, List<BudgetPreset> rules) {
+        Map<String, List<BudgetPreset>> subjects = new TreeMap<>();
+        for (PlatformAiControlRow row : mapper.workspaceBudgets(scope.tenantId(), scope.workspaceId())) {
+            NewAiProperties.Budget definition = json.read(row.getPayload(), NewAiProperties.Budget.class);
+            if (!definition.owner().equals(new ExecutionOwner(scope.tenantId(), scope.workspaceId(), row.getSubjectId()))
+                    || !definition.budgetRef().equals(row.getBudgetRef())) {
+                throw unavailable();
+            }
+            for (BudgetPreset rule : rules) {
+                if (rule.rate().equals(definition.rate())) {
+                    subjects.computeIfAbsent(row.getSubjectId(), ignored -> new ArrayList<>()).add(rule);
+                }
+            }
+        }
+        for (Map.Entry<String, List<BudgetPreset>> subject : subjects.entrySet()) {
+            prepareBudgets(scope, subject.getKey(), new Preset(true, List.of(), subject.getValue()), true);
+        }
     }
 
     private static String canonical(Preset preset) {

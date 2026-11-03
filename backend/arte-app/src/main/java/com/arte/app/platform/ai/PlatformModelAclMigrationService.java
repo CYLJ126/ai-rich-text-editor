@@ -184,7 +184,7 @@ public final class PlatformModelAclMigrationService implements ModelAclMigration
             throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
         }
         AiControlData.WorkspaceConfiguration configuration = json.read(row.getPayload(), AiControlData.WorkspaceConfiguration.class);
-        if (!configuration.scope().equals(scope) || !configuration.preset().enabled() || !configuration.preset().bindings().containsAll(command.bindings())) {
+        if (!configuration.scope().equals(scope) || !configuration.enabled() || !configuration.models().stream().map(com.arte.ainew.pojo.model.ModelSelection::binding).toList().containsAll(command.bindings())) {
             throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
         }
         Long revision = catalog.headCurrent();

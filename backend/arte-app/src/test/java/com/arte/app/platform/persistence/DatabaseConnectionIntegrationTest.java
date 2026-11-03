@@ -19,13 +19,14 @@ import com.arte.core.spi.workspace.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.URI;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -57,6 +58,53 @@ class DatabaseConnectionIntegrationTest {
     ApplicationContextRunner context() {
         return f.context().withUserConfiguration(DatabaseAiControlStartupSafety.class)
                 .withPropertyValues("arte.ai-new-generation.allowed-origins[0]=https://api.deepseek.com");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void incompatibleCatalogFailsStartupWithRevisionAndFieldWithoutChangingData(boolean explicitNull) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        for (String field : List.of("capabilities", "bindings", "connections", "rates", "legacyGrants", "legacyBudgets", "disabledConnections")) {
+            payload.put(field, List.of());
+        }
+        payload.put("defaults", new com.arte.app.platform.ai.AiControlData.Preset(false, List.of(), List.of()));
+        if (explicitNull) {
+            payload.put("reviewedPlans", null);
+        }
+        String encoded = f.f.json.write(payload);
+        f.f.jdbc.update("INSERT INTO arte_ai_control_revision(version,payload,published_by,published_at) VALUES(1,?,?,CURRENT_TIMESTAMP)",
+                encoded, f.f.actor.principal().subjectId());
+        f.f.jdbc.update("UPDATE arte_ai_control_head SET version=1 WHERE id=1");
+        context().run(c -> {
+            Throwable failure = c.getStartupFailure();
+            assertNotNull(failure);
+            List<String> messages = new ArrayList<>();
+            while (failure != null) {
+                assertFalse(failure instanceof NullPointerException);
+                messages.add(String.valueOf(failure.getMessage()));
+                failure = failure.getCause();
+            }
+            assertTrue(messages.stream().anyMatch(message -> message.contains("reviewedPlans")), messages.toString());
+            assertTrue(messages.stream().anyMatch(message -> message.contains("修订 1")), messages.toString());
+        });
+        assertEquals(encoded, f.f.jdbc.queryForObject("SELECT payload FROM arte_ai_control_revision WHERE version=1", String.class));
+        assertEquals(1, f.f.jdbc.queryForObject("SELECT version FROM arte_ai_control_head WHERE id=1", Integer.class));
+        assertEquals(0, f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_workspace_configuration", Integer.class));
+        assertEquals(0, f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
+    }
+
+    @Test
+    void currentEmptyCatalogWritesReviewedPlansAndStartsAfterReassembly() {
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            c.getBean(DatabaseAiControlService.class).initializeCatalog(f.f.actor, f.meta("current-empty-catalog"));
+        });
+        assertTrue(f.f.jdbc.queryForObject("SELECT payload FROM arte_ai_control_revision WHERE version=1", String.class)
+                .contains("\"reviewedPlans\":[]"));
+        context().run(c -> {
+            assertNull(c.getStartupFailure());
+            assertTrue(c.getBean(DatabaseAiControlService.class).catalog().catalog().reviewedPlans().isEmpty());
+        });
     }
 
     @Test
@@ -102,7 +150,7 @@ class DatabaseConnectionIntegrationTest {
             assertEquals(initialized.operationId(), db.initializeCatalog(f.f.actor, f.meta("initialize")).operationId());
             assertTrue(db.catalog().catalog().connections().isEmpty());
             assertFalse(db.catalog().catalog().defaults().enabled());
-            assertNotNull(db.ensure(f.f.actor, scope).configuration());
+            assertNotNull(DatabaseAiTestCatalog.prepareWithAccounts(c, f.f.actor, scope).configuration());
         });
     }
 

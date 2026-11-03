@@ -23,12 +23,23 @@ CREATE TABLE arte_ai_workspace_configuration
 (
     tenant_id    varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '所属公共租户 ID',
     workspace_id varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '所属公共空间 ID，与租户共同限定范围',
-    payload      longtext                                               NOT NULL COMMENT '空间模型固定引用、独立预算预设、启用状态及模板来源；不包含历史消息或密钥',
+    payload longtext NOT NULL COMMENT '实际模型资源与固定版本选择、启用状态及模板来源；预算规则独立保存；不包含历史消息或密钥',
     version      bigint                                                 NOT NULL COMMENT '空间 AI 配置的乐观锁版本，更新时递增',
     PRIMARY KEY (tenant_id, workspace_id),
     FOREIGN KEY (tenant_id, workspace_id) REFERENCES arte_platform_workspace (tenant_id, id),
     CHECK (version >= 0)
 ) ENGINE=InnoDB COMMENT='空间独立 AI 设置；模板发布不覆盖已有配置';
+
+CREATE TABLE arte_ai_workspace_budget_rule
+(
+    tenant_id    varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '规则所属租户',
+    workspace_id varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '规则所属目标空间',
+    payload      longtext                                               NOT NULL COMMENT '独立精确费率批准规则；不保存主体账户或模型授权',
+    version      bigint                                                 NOT NULL COMMENT '规则集合 CAS 版本，与模型配置版本独立',
+    PRIMARY KEY (tenant_id, workspace_id),
+    FOREIGN KEY (tenant_id, workspace_id) REFERENCES arte_platform_workspace (tenant_id, id),
+    CHECK (version >= 0)
+) ENGINE=InnoDB COMMENT='目标空间独立预算规则；撤销不删除历史账本';
 
 CREATE TABLE arte_ai_budget_definition
 (
