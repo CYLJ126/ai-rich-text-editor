@@ -43,11 +43,24 @@ const draft: api.ModelDraft = {
   draft: {
     resource: {tenantId: scope.tenantId, type: 'model', resourceId: 'model'}, scope, name: '我的模型',
     settings: {
-      connectionTemplate: template,
-      remoteModel: 'reviewed-model',
+      planRef: ref('model-plan', 'reviewed-model'),
       contextWindowTokens: 8192,
       maxOutputTokens: 512
-    }, version: 4, updatedAt: 'now'
+    },
+    plan: {
+      planRef: ref('model-plan', 'reviewed-model'),
+      displayName: 'Reviewed',
+      connection: template,
+      remoteModel: 'reviewed-model',
+      features: ['TEXT_INPUT', 'STREAMING'],
+      contextWindowTokens: 8192,
+      rate: ref('rate', 'reviewed-price'),
+      publishedAt: 'now',
+      publishedBy: 'admin',
+      catalogRevision: 1
+    },
+    version: 4,
+    updatedAt: 'now'
   },
   credential: {resourceId: 'model', state: 'CONFIGURED', version: 2, mayMaintain: true}
 };
@@ -64,11 +77,11 @@ const release: api.ModelVersion = {
   remoteOperation: 'reviewed-model',
   contextWindowTokens: 8192,
   rate: ref('rate', 'reviewed-price'),
-  source: 'PERSONAL',
+  source: 'RESOURCE',
   catalogRevision: null,
   releaseRef: 'release',
   linkedBy: 'user',
-  linkedAt: 'now'
+  linkedAt: 'now', planRef: ref('model-plan', 'reviewed-model'), credentialKind: 'PERSONAL'
 };
 const response = <T, >(data: T) => ({httpStatus: 200, body: {success: true as const, code: '200', desc: 'OK', data}});
 const receipt = (value: unknown) => ({
@@ -112,14 +125,17 @@ beforeEach(() => {
     planRef: ref('model-plan', 'reviewed-model'),
     rate: ref('rate', 'reviewed-price'),
     catalogRevision: 7,
-    contextWindowTokens: 8192
+    contextWindowTokens: 8192,
+    displayName: 'Reviewed',
+    connection: template,
+    remoteModel: 'reviewed-model',
+    features: ['TEXT_INPUT', 'STREAMING']
   }]));
   vi.mocked(api.getModelValidation).mockResolvedValue(response(validation));
   vi.mocked(api.getPublicationStatus).mockResolvedValue(response({
     binding: release.binding,
-    ready: false,
-    reason: 'NO_COMPATIBLE_BUDGET',
-    budgetRefs: [],
+    valid: true,
+    reason: 'VALID',
     maxOutputTokens: 512
   }));
   vi.mocked(api.executeModelCommand).mockImplementation(async command => {
@@ -143,7 +159,7 @@ it('lists readable models without filtering by creator and creates using current
   fireEvent.click(screen.getByRole('button', {name: '创建私有模型'}));
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledWith(expect.objectContaining({
     kind: 'create',
-    request: {scope, name: '个人模型'}
+    request: {scope, name: '个人模型', modelKind: 'PERSONAL'}
   }), undefined));
   await screen.findByRole('button', {name: '保存模型草稿'});
   expect(updated).toHaveBeenCalledWith({kind: 'create', resourceId: 'model'});
@@ -278,12 +294,12 @@ it('retains the temporary credential when the same account and scope receive a n
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledTimes(2));
   expect(vi.mocked(api.executeModelCommand).mock.calls[1]).toEqual(original);
 });
-it('shows a published version without budget and leaves creation/allowance to the server', async () => {
+it('separates valid publication dependencies from workspace enablement and personal budget', async () => {
   vi.mocked(api.listModelVersions).mockResolvedValue(response({records: [release], current: 1, size: 10, total: 1}));
   manager();
   await open();
   fireEvent.click(screen.getByRole('button', {name: /reviewed-model\s*·\s*查看版本 v1/}));
-  await screen.findByText('已发布，但缺少本人兼容预算。请联系空间负责人；发布不会创建预算或提高额度。');
+  await screen.findByText('发布依赖有效；聊天还需目标空间启用和本人预算。');
   expect(api.executeModelCommand).not.toHaveBeenCalled();
 });
 it('supports empty filtered pages with a continuation cursor', async () => {

@@ -5,6 +5,8 @@
 M1 已编码并完成阶段验证。M2 实际模型统一、M3 空间启用／独立预算规则、M4 四 Tab 与统一详情、M5
 综合验收尚未交付；不能把本批作为完整新配置链路单独部署。本轮按全新数据设计，未清库、迁移或操作业务数据库。
 
+后继进度：M2 已完成统一实际模型后端，见 [M2 交付说明](MODEL_CONFIGURATION_M2.md)；本文其余内容保留 M1 当批契约与验证事实。
+
 ## 1. 本批结果
 
 - 新增独立 ReviewedModelPlan 和 ReviewedModelPlanSource，审核方案持久化在目录修订 reviewedPlans 中，不从 runtime bindings

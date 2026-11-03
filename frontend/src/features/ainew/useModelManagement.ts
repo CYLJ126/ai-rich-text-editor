@@ -157,7 +157,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
       if (actions.status === 'rejected' || templates.status === 'rejected' || versions.status === 'rejected') setError('部分管理条件无法核验。相关操作保持关闭，请重新读取。');
       const remembered = readValue<{ validationId: string }>(storageKey(context, 'model-validation', resourceId));
       const reads = await Promise.allSettled([
-        value.actions.has('model:publish') && value.draft.draft ? api.listPublicationOptions(context.scope, resourceId, {signal: controller.signal}) : Promise.resolve(null),
+        value.actions.has('model:edit') ? api.listPublicationOptions(context.scope, resourceId, {signal: controller.signal}) : Promise.resolve(null),
         remembered.value?.validationId && value.actions.has('model:validate') ? api.getModelValidation(context.scope, remembered.value.validationId, {signal: controller.signal}) : Promise.resolve(null),
       ]);
       if (!live.current || controller.signal.aborted) return;
@@ -183,7 +183,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
     setSelectedVersion(value);
     setStatus(null);
     setStatusError('');
-    if (value.source !== 'PERSONAL') return;
+    if (value.source !== 'RESOURCE') return;
     try {
       const result = await api.getPublicationStatus(context.scope, value.resourceId, value.binding, {signal: controller.signal});
       if (live.current && !controller.signal.aborted) setStatus(result.body.data);

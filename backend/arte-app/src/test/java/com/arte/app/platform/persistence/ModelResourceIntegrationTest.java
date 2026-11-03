@@ -224,15 +224,13 @@ class ModelResourceIntegrationTest {
     }
 
     @Test
-    void databaseReadsExactPublishedRevisionWithoutHeadOrAutoImport() {
+    void databaseDefinitionsCannotBeAdoptedAsActualModelReleases() {
         dbRevision(1, seed);
-        dbRevision(2, seed("changed-in-later-revision"));
-        var model = create("create");
-        var v = models.associate(f.actor, association("db", model, V1, ModelPublication.Source.DATABASE, 1L)).value();
-        assertEquals(1L, v.publication().catalogRevision());
-        assertEquals("test-model", v.publication().binding().remoteOperation());
-        assertEquals(0L, catalog.mapper().head(false)); // 读取明确不可变修订，不依赖 latest 指针。
-        assertThrows(PlatformException.class, () -> models.associate(f.actor, association("missing", current(model), V2, ModelPublication.Source.DATABASE, 99L)));
+        ModelResource model = create("create");
+        assertThrows(PlatformException.class, () -> models.associate(f.actor, association("db-adopt", model, V1, ModelPublication.Source.DATABASE, 1L)));
+        assertEquals(0, count("arte_ai_model_version"));
+        assertEquals(0, count("arte_ai_model_definition_source"));
+        assertEquals(0, current(model).version());
     }
 
     @Test
@@ -251,9 +249,9 @@ class ModelResourceIntegrationTest {
         dbRevision(1, seed);
         dbRevision(2, seed);
         var model = create("create");
-        var first = models.associate(f.actor, association("first", model, V1, ModelPublication.Source.DATABASE, 1L)).value();
+        var first = models.associate(f.actor, association("first", model, V1, ModelPublication.Source.FIXED, null)).value();
         var published = current(model);
-        var second = models.associate(f.actor, association("same-definition", published, V1, ModelPublication.Source.DATABASE, 2L)).value();
+        var second = models.associate(f.actor, association("same-definition", published, V1, ModelPublication.Source.FIXED, null)).value();
         assertEquals(first, second);
         assertEquals(published, current(model));
         assertEquals(1, count("arte_ai_model_version"));

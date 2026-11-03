@@ -1,10 +1,10 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.app.platform.persistence.mapper.PlatformModelDraftMapper;
+import com.arte.app.platform.persistence.mapper.PlatformModelPublicationMapper;
 import com.arte.app.platform.persistence.mapper.PlatformModelResourceMapper;
-import com.arte.app.platform.persistence.mapper.PlatformPersonalModelMapper;
 import com.arte.app.service.platform.ModelDraftStoreServiceImpl;
-import com.arte.app.service.platform.PersonalModelStoreServiceImpl;
+import com.arte.app.service.platform.ModelPublicationStoreServiceImpl;
 import com.arte.core.spi.platform.PublicTransactionRunner;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
@@ -31,15 +31,15 @@ class ModelStoreProxyIntegrationTest {
             context.registerBean(ModelDraftStoreServiceImpl.class, () -> new ModelDraftStoreServiceImpl(
                     context.getBean(PlatformModelResourceMapper.class), mock(PlatformModelDraftMapper.class),
                     mock(PublicTransactionRunner.class), new PlatformJson()));
-            context.registerBean(PersonalModelStoreServiceImpl.class, () -> new PersonalModelStoreServiceImpl(
-                    context.getBean(PlatformModelResourceMapper.class), mock(PlatformPersonalModelMapper.class),
+            context.registerBean(ModelPublicationStoreServiceImpl.class, () -> new ModelPublicationStoreServiceImpl(
+                    context.getBean(PlatformModelResourceMapper.class), mock(PlatformModelPublicationMapper.class),
                     mock(PublicTransactionRunner.class), new PlatformJson()));
 
             context.refresh();
 
             // ServiceImpl 继承的事务方法会让两个 Bean 都进入 CGLIB 代理路径。
             assertTrue(AopUtils.isCglibProxy(context.getBean(ModelDraftStoreServiceImpl.class)));
-            assertTrue(AopUtils.isCglibProxy(context.getBean(PersonalModelStoreServiceImpl.class)));
+            assertTrue(AopUtils.isCglibProxy(context.getBean(ModelPublicationStoreServiceImpl.class)));
         }
     }
 

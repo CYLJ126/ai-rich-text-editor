@@ -5,12 +5,12 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * 个人模型不可变发布证据的专用 SQL，只使用平台数据源，不保存密钥明文。
+ * 实际模型不可变发布证据的专用 SQL，只使用平台数据源，不保存密钥明文。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 20:55 ✾
  */
-public interface PlatformPersonalModelMapper {
+public interface PlatformModelPublicationMapper {
     Row findShared(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("binding") String binding, @Param("current") boolean current);
 
     List<Row> listShared(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("current") boolean current);

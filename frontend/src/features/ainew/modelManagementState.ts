@@ -35,6 +35,7 @@ export function uncertainModelFailure(error: unknown) {
 }
 
 export const modelStatusText: Record<string, string> = {
+  VALID: '发布依赖有效；聊天还需目标空间启用和本人预算。',
   READY: '当前可用于聊天，发送时仍会复核权限和预算余额。',
   MODEL_DISABLED: '模型已停用，全部发布版本停止新调用。',
   ADAPTER_UNAVAILABLE: '当前部署不支持此发布的生成协议或能力。',

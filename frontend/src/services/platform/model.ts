@@ -19,16 +19,27 @@ export const modelResourceSchema = z.object({
   ownershipType: z.enum(['WORKSPACE', 'TENANT']).optional(),
 });
 export const modelFieldsSchema = z.object({
-  name: z.string().trim().min(1).max(100), connectionTemplate: connectionRefSchema,
-  remoteModel: z.string().min(1).max(256).refine(value => !/[\x00-\x1f\x7f]/.test(value)),
+  name: z.string().trim().min(1).max(100), planRef: ref('model-plan'),
   contextWindowTokens: positive.max(10_000_000), maxOutputTokens: positive.max(1_000_000),
 }).refine(value => value.maxOutputTokens < value.contextWindowTokens, '输出上限须小于上下文窗口');
 const draftSchema = z.object({
   resource: z.object({tenantId: id, type: z.literal('model'), resourceId: id}), scope: workspaceScopeSchema,
   name: z.string(), settings: z.object({
-    connectionTemplate: connectionRefSchema, remoteModel: id,
+    planRef: ref('model-plan'),
     contextWindowTokens: positive.max(10_000_000), maxOutputTokens: positive
-  }), version: positive, updatedAt: z.string(),
+  }), plan: z.object({
+    planRef: ref('model-plan'),
+    displayName: id,
+    connection: connectionRefSchema,
+    remoteModel: id,
+    features: z.array(id),
+    contextWindowTokens: positive,
+    rate: ref('rate'),
+    publishedAt: id,
+    publishedBy: id,
+    catalogRevision: positive
+  }),
+  version: positive, updatedAt: z.string(),
 });
 const credentialSchema = z.object({
   resourceId: id,
@@ -45,21 +56,29 @@ export const modelValidationSchema = z.object({
 export const modelVersionSchema = z.object({
   resourceId: id, binding: modelRefSchema, capability: ref('capability'), connection: connectionRefSchema,
   providerId: id, remoteOperation: id, contextWindowTokens: positive, rate: ref('rate'),
-  source: z.enum(['PERSONAL', 'FIXED', 'DATABASE']), catalogRevision: positive.nullable(), releaseRef: id,
-  linkedBy: id, linkedAt: z.string(),
+  source: z.enum(['RESOURCE', 'FIXED', 'DATABASE', 'PERSONAL']),
+  catalogRevision: positive.nullable(),
+  releaseRef: id,
+  linkedBy: id,
+  linkedAt: z.string(),
+  planRef: ref('model-plan').nullable(),
+  credentialKind: z.enum(['PERSONAL', 'TENANT']).nullable(),
 });
 const templateSchema = z.object({reference: connectionRefSchema, providerId: id, protocol: ref('protocol')});
 const optionSchema = z.object({
   planRef: ref('model-plan'),
   rate: ref('rate'),
   catalogRevision: positive,
-  contextWindowTokens: positive
+  contextWindowTokens: positive,
+  displayName: id,
+  connection: connectionRefSchema,
+  remoteModel: id,
+  features: z.array(id)
 });
 const statusSchema = z.object({
   binding: modelRefSchema,
-  ready: z.boolean(),
+  valid: z.boolean(),
   reason: z.string().max(96),
-  budgetRefs: z.array(id).max(256),
   maxOutputTokens: positive
 });
 const receipt = <T extends z.ZodType>(value: T) => z.object({
@@ -138,13 +157,46 @@ export async function listModelVersions(scope: WorkspaceScope, resourceId: strin
   return result;
 }
 
-export const listPublicationOptions = (scope: WorkspaceScope, resourceId: string, options?: AiRequestOptions) => call('ai-new/model-draft', 'listReviewedModelPlans', {
-  scope,
-  resourceId
-}, z.array(optionSchema).max(256), options);
+/** 有界分页取得可采用方案；草稿未保存时同样可查询，不推断连接或价格。 */
+export async function listPublicationOptions(scope: WorkspaceScope, resourceId: string, options?: AiRequestOptions) {
+  const records: PublicationOption[] = [];
+  let cursor: string | null = null;
+  let revision: number | null = null;
+  const seen = new Set<string>();
+  const seenCursors = new Set<string>();
+  do {
+    const response = await call('ai-new/model-draft', 'listReviewedModelPlans', {scope, resourceId, cursor, size: 100},
+      z.object({
+        records: z.array(draftSchema.shape.plan).max(100),
+        catalogRevision: positive,
+        nextCursor: z.string().max(129).nullable()
+      }), options);
+    const page: {
+      records: z.infer<typeof draftSchema.shape.plan>[];
+      catalogRevision: number;
+      nextCursor: string | null
+    } = response.body.data;
+    if (revision !== null && revision !== page.catalogRevision) throw new AiApiError(409, {code: 'MODEL_PLAN_REVISION_CHANGED'});
+    revision = page.catalogRevision;
+    for (const item of page.records) {
+      const key = JSON.stringify(item.planRef);
+      assertResponse(!seen.has(key));
+      seen.add(key);
+      records.push({...item, catalogRevision: page.catalogRevision});
+    }
+    cursor = page.nextCursor;
+    if (cursor) {
+      assertResponse(!seenCursors.has(cursor) && seenCursors.size < 256);
+      seenCursors.add(cursor);
+    }
+    assertResponse(records.length <= 256);
+    if (!cursor) return {...response, body: {...response.body, data: records}};
+  } while (seen.size < 256);
+  throw new AiApiError(200, {code: 'INVALID_MODEL_RESPONSE'});
+}
 
 export async function getPublicationStatus(scope: WorkspaceScope, resourceId: string, binding: ModelVersion['binding'], options?: AiRequestOptions) {
-  const result = await call('ai-new/model-resource', 'getPersonalModelPublicationStatus', {
+  const result = await call('ai-new/model-resource', 'getModelPublicationStatus', {
     scope,
     resourceId,
     binding
@@ -179,12 +231,24 @@ export const modelCommandSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('create'),
     key: id,
-    request: z.object({scope: workspaceScopeSchema, name: z.string().trim().min(1).max(100)}).strict()
+    request: z.object({
+      scope: workspaceScopeSchema,
+      name: z.string().trim().min(1).max(100),
+      modelKind: z.enum(['PERSONAL', 'TENANT'])
+    }).strict()
   }).strict(),
   z.object({
     kind: z.literal('save'),
     key: id,
-    request: z.object({...located, expectedVersion: version, ...modelFieldsSchema.shape}).strict()
+    request: z.object({
+      ...located, expectedVersion: version, name: modelFieldsSchema.shape.name,
+      settings: z.object({
+        planRef: ref('model-plan'),
+        contextWindowTokens: positive,
+        maxOutputTokens: positive
+      }).strict()
+        .refine(value => value.maxOutputTokens < value.contextWindowTokens)
+    }).strict()
   }).strict(),
   z.object({
     kind: z.literal('credential'),
@@ -239,7 +303,7 @@ export async function executeModelCommand(command: ModelCommand, token?: string)
       return (await call('ai-new/model-draft', 'validateModelDraft', request,
         z.object({receipt: receipt(modelValidationSchema), current: modelValidationSchema}), undefined, key)).body.data;
     case 'publish':
-      return (await call('ai-new/model-resource', 'publishPersonalModel', request, receipt(modelVersionSchema), undefined, key)).body.data;
+      return (await call('ai-new/model-resource', 'publishModel', request, receipt(modelVersionSchema), undefined, key)).body.data;
     case 'disable':
       return (await call('ai-new/model-resource', 'disableModelResource', request, receipt(modelResourceSchema), undefined, key)).body.data;
   }

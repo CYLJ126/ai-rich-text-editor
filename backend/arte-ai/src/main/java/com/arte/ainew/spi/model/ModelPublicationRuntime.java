@@ -9,21 +9,21 @@ import com.arte.core.pojo.platform.TrustedActor;
 import java.util.List;
 
 /**
- * 个人发布的配置及公共资格适配
+ * 资源发布的配置及公共资格适配
  * <p>
  * 不并入旧 Grant，不扩大原执行或预算归属。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 20:55 ✾
  */
-public interface PersonalModelRuntime {
+public interface ModelPublicationRuntime {
 
     /**
      * 将同空间不可变个人定义并入已授权的同次配置，精确引用冲突必须拒绝。
      *
      * @param actor   当前可信主体
      * @param scope   已核验的执行范围
-     * @param base    原配置及预算，不能被个人模型覆盖
+     * @param base    原配置及预算，不能被实际模型覆盖
      * @param current 是否在原写事务中读取当前事实
      * @return 同一发布标识下的完整配置，不含密钥明文，不改变原 Grant 和预算
      */

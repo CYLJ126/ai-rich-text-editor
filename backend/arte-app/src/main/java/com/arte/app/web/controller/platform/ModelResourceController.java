@@ -57,14 +57,15 @@ public class ModelResourceController {
     @PostMapping("/createModelResource")
     public Mono<ResultContext<CommandReceipt<Resource>>> createModelResource(Authentication auth, @Valid @RequestBody CreateRequest request,
                                                                              @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        ModelResourceCommands.Create command = new ModelResourceCommands.Create(meta(key, http), request.scope(), request.name());
-        return executor.call(auth, actor -> PlatformHttpViews.receipt(models.create(actor, command), Resource::from))
+        ModelResourceCommands.Create command = new ModelResourceCommands.Create(meta(key, http), request.scope(), request.name(), request.modelKind());
+        return executor.call(auth, actor -> PlatformHttpViews.receipt(models.create(actor, command), value -> Resource.from(value).withActions(models.actions(actor, value.managementScope(), value.resource()))))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getModelResource")
     public Mono<ResultContext<Resource>> getModelResource(Authentication auth, @Valid @RequestBody GetRequest request, Locale locale) {
-        return executor.call(auth, actor -> Resource.from(models.get(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()))))
+        return executor.call(auth, actor -> Resource.from(models.get(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId())))
+                        .withActions(models.actions(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()))))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 

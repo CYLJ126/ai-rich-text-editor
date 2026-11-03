@@ -1,30 +1,11 @@
 package com.arte.app.platform.persistence;
 
 import cn.hutool.json.JSONObject;
-import com.arte.ainew.api.context.ContextService;
-import com.arte.ainew.api.control.BindingManager;
-import com.arte.ainew.api.control.CapabilityCatalog;
-import com.arte.ainew.api.conversation.ConversationService;
-import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.model.ModelResourceService;
-import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.entry.DefaultChatService;
-import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
-import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.pojo.control.AiEntitlement;
-import com.arte.ainew.pojo.execution.ExecutionCommands;
-import com.arte.ainew.pojo.execution.Invocation;
-import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.model.ModelResource;
-import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
-import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
-import com.arte.ainew.spi.control.BudgetDefinitionProvider;
-import com.arte.ainew.spi.control.PublishedAiCatalog;
-import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.web.controller.platform.ModelResourceController;
 import com.arte.app.web.controller.platform.ResourceAccessController;
@@ -39,13 +20,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.Authentication;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import static com.arte.core.constant.platform.PlatformActions.MODEL_USE;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * 生产装配＋方法安全＋管理 HTTP＋真实受理／派发原子写；网关禁止真实模型网络。
@@ -92,14 +73,8 @@ class ModelAclHttpRuntimeIntegrationTest {
         DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
         DatabaseAiTestCatalog.publish(db, c, f.f.f.actor, f.f.meta("import"));
         db.ensure(f.f.f.actor, f.scope);
-        JSONObject created = http.ok(MODEL + "createModelResource", json(Map.of("scope", f.scope, "name", "HTTP database model")), "http-create", alice).getJSONObject("data").getJSONObject("value");
+        JSONObject created = http.ok(MODEL + "createModelResource", json(Map.of("scope", f.scope, "name", "HTTP database model", "modelKind", "PERSONAL")), "http-create", alice).getJSONObject("data").getJSONObject("value");
         String id = created.getStr("resourceId");
-        JSONObject associated = http.ok(MODEL + "associateModelResourceVersion", json(Map.of("scope", f.scope, "resourceId", id, "expectedVersion", 0,
-                "binding", f.f.ref("binding", "text"), "source", "DATABASE", "catalogRevision", 1)), "http-associate", alice).getJSONObject("data");
-        assertEquals(id, associated.getJSONObject("value").getStr("resourceId"));
-        if (activate) {
-            activate(http);
-        }
         return c.getBean(ModelResourceService.class).get(f.f.f.actor, f.scope, new com.arte.core.pojo.access.ResourceRef(f.scope.tenantId(), com.arte.core.constant.platform.PlatformResourceTypes.MODEL, id));
     }
 
@@ -123,105 +98,32 @@ class ModelAclHttpRuntimeIntegrationTest {
     }
 
     @Test
-    void httpActivationAndRevocationReachProductionEntitlementWithoutChangingBudgetOrOwner() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            try (ManagementHttpHarness http = http(c)) {
-                ModelResource model = prepare(c, http, true);
-                ExecutionContext execution = f.execution(c, "discovery");
-                AiEntitlement allowed = resolve(c, execution);
-                assertEquals(model.resource(), allowed.modelAccess().resource());
-                assertEquals(f.f.f.actor.principal().subjectId(), allowed.executionOwner().subjectId());
-                assertEquals(f.scope.workspaceId(), allowed.executionOwner().workspaceId());
-                long accounts = f.count("arte_ai_account");
-                Invocation accepted = f.accept(c);
-                assertEquals(Invocation.State.ACCEPTED, accepted.state());
-                revoke(c, http, model);
-                assertThrows(RuntimeException.class, () -> resolve(c, execution));
-                assertEquals(1, c.getBean(BudgetDefinitionProvider.class).available(execution, BudgetDefinitionProvider.Operation.EXECUTE).block(WAIT).size());
-                assertEquals(accounts, f.count("arte_ai_account"));
-            }
-        });
-    }
-
-    @Test
-    void unMigratedHttpAclChangesDoNotSilentlySwitchLegacyAndActivationRemovesGrantFallback() {
+    void databaseHttpCannotAdoptAnExistingBareBindingOrActivateAManifest() {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             try (ManagementHttpHarness http = http(c)) {
                 ModelResource model = prepare(c, http, false);
-                ExecutionContext execution = f.execution(c, "legacy");
-                assertNull(resolve(c, execution).modelAccess());
-                revoke(c, http, model);
-                assertNull(resolve(c, execution).modelAccess());
+                http.rejected(MODEL + "associateModelResourceVersion", json(Map.of("scope", f.scope, "resourceId", model.resource().resourceId(),
+                                "expectedVersion", 0, "binding", f.f.ref("binding", "text"), "source", "DATABASE", "catalogRevision", 1)),
+                        "bare-adopt", alice, 409, "CAPABILITY_NOT_ENABLED");
+                http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.scope, "expectedVersion", 0, "source", "DATABASE",
+                        "bindings", List.of(f.f.ref("binding", "text")))), "bare-migrate", alice, 409, "CAPABILITY_NOT_ENABLED");
+                assertEquals(0, f.count("arte_ai_model_version"));
                 assertEquals(0, f.count("arte_ai_model_acl_scope"));
-                activate(http);
-                assertThrows(RuntimeException.class, () -> resolve(c, execution));
-                assertEquals(1, f.count("arte_ai_model_acl_scope"));
-            }
-        });
-    }
-
-    @Test
-    void httpRevokeAfterAdmissionPreflightRollsBackAllExecutionWrites() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            try (ManagementHttpHarness http = http(c)) {
-                ModelResource model = prepare(c, http, true);
-                AiAdmissionAuthorizationGuard guard = c.getBean(AiAdmissionAuthorizationGuard.class);
-                AiAdmissionAuthorizationGuard racing = check -> guard.authorize(check).doOnNext(ignored -> revoke(c, http, model));
-                MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
-                NewAiProperties properties = c.getBean(NewAiProperties.class);
-                AdmissionAuthorization authorization = c.getBean(AdmissionAuthorization.class);
-                AdmissionInvocationCoordinator coordinator = new AdmissionInvocationCoordinator(authorization, c.getBean(CapabilityCatalog.class), c.getBean(BindingManager.class), executions,
-                        c.getBean(MybatisPayloadPersistence.class), executions, properties, Clock.systemUTC(), c.getBean(AiExecutionPolicyProvider.class), racing, c.getBean(PublishedAiCatalog.class), c.getBean(BudgetDefinitionProvider.class));
-                ChatService chat = new DefaultChatService(authorization, c.getBean(ConversationService.class), c.getBean(BindingManager.class), c.getBean(ContextService.class), coordinator,
-                        Clock.systemUTC(), executions, executions, properties);
-                String conversation = f.conversation(c);
-                ExecutionContext execution = f.execution(c, "race-submit");
-                assertThrows(RuntimeException.class, () -> chat.submit(f.request(conversation, execution), execution).block(WAIT));
                 assertEquals(0, f.count("arte_ai_invocation"));
-                assertEquals(0, f.count("arte_ai_turn"));
-                assertEquals(0, f.count("arte_ai_outbox"));
-                assertThrows(RuntimeException.class, () -> resolve(c, execution));
             }
         });
     }
 
     @Test
-    void httpRevokeAfterDispatchPreflightLeavesNoAttemptOrBudgetReservation() {
+    void databaseHttpCannotUseAFixedSourceLabelToBypassResourcePublication() {
         context().run(c -> {
-            assertNull(c.getStartupFailure());
             try (ManagementHttpHarness http = http(c)) {
-                ModelResource model = prepare(c, http, true);
-                Invocation invocation = f.accept(c);
-                AiAdmissionAuthorizationGuard.Permit permit = c.getBean(AiAdmissionAuthorizationGuard.class).authorize(f.check(c, invocation, AiAdmissionAuthorizationGuard.Boundary.DISPATCH)).block(WAIT);
-                MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
-                OutboxMessage message = executions.claim(OutboxMessage.Kind.DISPATCH, "http-worker", Duration.ofMinutes(1), 1).block(WAIT).getFirst();
-                revoke(c, http, model);
-                DispatchPreparationStore.Command command = new DispatchPreparationStore.Command(new ExecutionCommands.Version(message.owner(), message.invocationId(), invocation.version()), message,
-                        "attempt", Duration.ofSeconds(30), f.f.money("1"), f.f.ref("rate", "text-price"), Duration.ofMinutes(5));
-                assertThrows(RuntimeException.class, () -> executions.prepareDispatch(command, () -> permit.requireInCurrentTransaction(invocation.request())).block(WAIT));
-                assertEquals(0, f.count("arte_ai_attempt"));
-                assertEquals(0, f.count("arte_ai_reservation"));
-                assertEquals(Invocation.State.ACCEPTED, executions.find(message.owner(), message.invocationId()).block(WAIT).state());
-            }
-        });
-    }
-
-    @Test
-    void externalSendRechecksRightsChangedThroughManagementHttp() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            try (ManagementHttpHarness http = http(c)) {
-                ModelResource model = prepare(c, http, true);
-                Invocation invocation = f.accept(c);
-                AiAdmissionAuthorizationGuard guard = c.getBean(AiAdmissionAuthorizationGuard.class);
-                AiAdmissionAuthorizationGuard.Check check = f.check(c, invocation, AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND);
-                assertNotNull(guard.authorize(check).block(WAIT).connection());
-                revoke(c, http, model);
-                assertThrows(RuntimeException.class, () -> guard.authorize(check).block(WAIT));
-                assertEquals(0, f.count("arte_ai_attempt"));
+                ModelResource model = prepare(c, http, false);
+                http.rejected(MODEL + "associateModelResourceVersion", json(Map.of("scope", f.scope, "resourceId", model.resource().resourceId(),
+                                "expectedVersion", 0, "binding", f.f.ref("binding", "text"), "source", "FIXED")),
+                        "fixed-adopt", alice, 409, "CAPABILITY_NOT_ENABLED");
+                assertEquals(0, f.count("arte_ai_model_version"));
             }
         });
     }

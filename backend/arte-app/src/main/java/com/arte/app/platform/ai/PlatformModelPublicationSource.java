@@ -46,30 +46,17 @@ public final class PlatformModelPublicationSource implements ModelPublicationSou
     @Override
     public ModelPublication requireCurrent(TrustedActor actor, Scope scope, ModelPublication.Source source, Long revision, DefinitionRef binding) {
         tx.requireWritable();
-        if (source == ModelPublication.Source.PERSONAL) {
-            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        if (source != ModelPublication.Source.FIXED || "DATABASE".equals(fixed.configurationMode())) {
+            throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
         }
         var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() -> error(PlatformErrorCodeEnum.UNAUTHENTICATED));
         var current = permissions.current(name);
         if (!current.contains("admin") && !current.contains("aiConfiguration:manage"))
             throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
-        NewAiProperties properties;
-        if (source == ModelPublication.Source.DATABASE) {
-            if (revision == null || revision <= 0) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
-            var payload = mapper.revision(revision);
-            if (payload == null) throw error(PlatformErrorCodeEnum.NOT_FOUND);
-            properties = json.read(payload, AiControlData.Catalog.class).properties(fixed, java.util.List.of(), java.util.List.of());
-        } else {
-            if (revision != null) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
-            if ("DATABASE".equals(fixed.configurationMode())) {
-                // 旧 FIXED 仅保留来源标记；DATABASE 中其精确定义也必须已存在于数据库，不再读取文件。
-                Long head = mapper.headCurrent();
-                if (head == null || head == 0) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-                var payload = mapper.revision(head);
-                if (payload == null) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-                properties = json.read(payload, AiControlData.Catalog.class).properties(fixed, java.util.List.of(), java.util.List.of());
-            } else properties = fixed;
+        if (revision != null) {
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
         }
+        NewAiProperties properties = fixed;
         var definitions = new PublishedAiDefinitions(properties.releaseRef(), properties.capabilities(), properties.bindings(), properties.connections(),
                 properties.rates().stream().map(r -> new RateDefinition(r.definition(), r.inputPerMillion(), r.outputPerMillion(), r.toolPerCall())).toList());
         var model = definitions.bindings().stream().filter(b -> b.definition().equals(binding)).findFirst().orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));

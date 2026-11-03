@@ -1,17 +1,12 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.api.model.ModelUsagePreparationService;
-import com.arte.ainew.application.model.DefaultPersonalModelPublicationService;
-import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.pojo.control.AiEntitlement;
-import com.arte.ainew.pojo.control.ConnectionDefinition;
-import com.arte.ainew.pojo.control.RateDefinition;
-import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.application.model.DefaultModelPublicationService;
 import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.model.ModelAclScopeStore;
+import com.arte.ainew.spi.model.ModelPublicationStore;
 import com.arte.ainew.spi.model.ModelResourceStore;
-import com.arte.ainew.spi.model.PersonalModelStore;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
@@ -44,9 +39,9 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_AI_USE;
 public final class DatabaseModelUsagePreparationService implements ModelUsagePreparationService {
 
     private final DatabaseAiControlService control;
-    private final DefaultPersonalModelPublicationService publications;
-    private final PersonalModelRuntimeAdapter runtime;
-    private final PersonalModelStore releases;
+    private final DefaultModelPublicationService publications;
+    private final ModelPublicationRuntimeAdapter runtime;
+    private final ModelPublicationStore releases;
     private final ModelResourceStore models;
     private final ModelAclScopeStore scopes;
     private final AuthorizationService authorization;
@@ -55,8 +50,8 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
     private final WorkspaceMutationEffects effects;
     private final Supplier<ModelGateway> gateway;
 
-    public DatabaseModelUsagePreparationService(DatabaseAiControlService control, DefaultPersonalModelPublicationService publications,
-                                                PersonalModelRuntimeAdapter runtime, PersonalModelStore releases, ModelResourceStore models, ModelAclScopeStore scopes,
+    public DatabaseModelUsagePreparationService(DatabaseAiControlService control, DefaultModelPublicationService publications,
+                                                ModelPublicationRuntimeAdapter runtime, ModelPublicationStore releases, ModelResourceStore models, ModelAclScopeStore scopes,
                                                 AuthorizationService authorization, PublicTransactionRunner tx, IdentityProvider identity, CommandReceiptStore receipts,
                                                 PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, Clock clock, Supplier<ModelGateway> gateway) {
         this.control = control;
@@ -94,38 +89,18 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
         ModelResourceVersion version = requireModel(actor, scope, resource, binding);
         ModelPublication publication = version.publication();
         String reason = null;
-        if (publication.source() == ModelPublication.Source.PERSONAL) {
-            PersonalModels.Release release = releases.find(scope, binding, true).filter(value -> value.resource().equals(resource))
+        if (publication.source() == ModelPublication.Source.RESOURCE) {
+            ModelPublications.Release release = releases.find(scope, binding, true).filter(value -> value.resource().equals(resource))
                     .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
             if (!runtime.version(release, true).equals(version)) {
                 throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
             }
             reason = publications.readiness(actor, release, scope);
-        } else {
-            // 旧发布必须已明确切入公共模型资格；准备预算不替代或自动执行目录迁移。
-            ModelAclScope manifest = scopes.findCurrent(scope).orElse(null);
-            if (manifest == null || manifest.configurationSource() != AiEntitlement.Source.DATABASE
-                    || !manifest.bindings().contains(binding)) {
-                reason = "MODEL_NOT_MIGRATED";
-            } else {
-                NewAiProperties config = control.currentDefinitions();
-                ResolvedBinding selected = config.bindings().stream().filter(value -> value.definition().equals(binding)).findFirst()
-                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
-                ConnectionDefinition connection = config.connections().stream().filter(value -> value.definition().equals(selected.connection())).findFirst()
-                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
-                NewAiProperties.Rate rate = config.rates().stream().filter(value -> value.definition().equals(selected.rate())).findFirst()
-                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
-                if (connection.state() != ConnectionDefinition.State.ENABLED) {
-                    reason = "CONNECTION_DISABLED";
-                } else {
-                    RateDefinition rateDefinition = new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall());
-                    PlatformModelAclAccess.validate(scope, new ModelAccessCandidate(selected, connection,
-                            rateDefinition, config.releaseRef()), version, models.findCurrent(resource).orElseThrow());
-                    if (gateway.get() == null || !gateway.get().supportsTextChat(selected, connection)) {
-                        reason = "ADAPTER_UNAVAILABLE";
-                    }
-                }
+            if (reason == null && !runtime.isSelected(scope, release, true)) {
+                reason = "MODEL_NOT_ENABLED";
             }
+        } else {
+            reason = "RESOURCE_PUBLICATION_REQUIRED";
         }
         if (reason != null) {
             return new ModelUsagePreparation(scope, resource, binding, publication.rate().definition(),

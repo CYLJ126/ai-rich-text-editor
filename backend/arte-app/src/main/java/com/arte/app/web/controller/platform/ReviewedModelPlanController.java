@@ -1,10 +1,10 @@
 package com.arte.app.web.controller.platform;
 
-import com.arte.ainew.api.model.PersonalModelPublicationService;
-import com.arte.ainew.pojo.model.PersonalModels;
+import com.arte.ainew.api.model.ModelDraftService;
+import com.arte.ainew.pojo.model.ModelDrafts;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
+import com.arte.app.web.platform.ModelPublicationPayload.OptionsRequest;
 import com.arte.app.web.platform.ModelResourcePayload;
-import com.arte.app.web.platform.PersonalModelPayload.OptionsRequest;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
 import jakarta.validation.Valid;
@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -35,16 +34,16 @@ import java.util.Locale;
 public class ReviewedModelPlanController {
 
     private final PlatformAuthenticatedExecutor executor;
-    private final PersonalModelPublicationService publications;
+    private final ModelDraftService publications;
 
-    public ReviewedModelPlanController(PlatformAuthenticatedExecutor executor, PersonalModelPublicationService publications) {
+    public ReviewedModelPlanController(PlatformAuthenticatedExecutor executor, ModelDraftService publications) {
         this.executor = executor;
         this.publications = publications;
     }
 
     @PostMapping("/listReviewedModelPlans")
-    public Mono<ResultContext<List<PersonalModels.Option>>> options(Authentication auth, @Valid @RequestBody OptionsRequest request, Locale locale) {
-        return executor.call(auth, actor -> publications.options(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId())))
+    public Mono<ResultContext<ModelDrafts.ReviewedPlanList>> options(Authentication auth, @Valid @RequestBody OptionsRequest request, Locale locale) {
+        return executor.call(auth, actor -> publications.plans(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()), request.cursor(), request.size()))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 

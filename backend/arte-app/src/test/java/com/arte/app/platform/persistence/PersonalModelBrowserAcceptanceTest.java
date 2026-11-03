@@ -92,9 +92,9 @@ class PersonalModelBrowserAcceptanceTest {
                 NewAiHttpContext aiHttp = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
                 try (ManagementHttpHarness http = new ManagementHttpHarness(
                         new ModelResourceController(executor, c.getBean(ModelResourceService.class), c.getBean(ModelAclMigrationService.class)),
-                        new ModelDraftController(executor, c.getBean(ModelDraftService.class), c.getBean(ModelConnectionValidator.class)),
-                        new PersonalModelPublicationController(executor, c.getBean(PersonalModelPublicationService.class)),
-                        new ReviewedModelPlanController(executor, c.getBean(PersonalModelPublicationService.class)),
+                        new ModelDraftController(executor, c.getBean(ModelDraftService.class), c.getBean(ModelConnectionValidator.class), c.getBean(ModelResourceService.class)),
+                        new ModelPublicationController(executor, c.getBean(ModelPublicationService.class)),
+                        new ReviewedModelPlanController(executor, c.getBean(com.arte.ainew.api.model.ModelDraftService.class)),
                         new ModelUsagePreparationController(executor, c.getBean(ModelUsagePreparationService.class)),
                         new NewAiConfigurationController(c.getBean(ChatConfigurationQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),
                         new NewAiBudgetController(c.getBean(BudgetAccountQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),

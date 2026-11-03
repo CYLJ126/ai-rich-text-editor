@@ -26,10 +26,10 @@ public interface ModelAclAccess {
      *
      * @param migrated         是否已整体迁移旧目录
      * @param allowed          通过公共授权的精确绑定证明
-     * @param personalBindings 个人保护引用，即使被拒绝也不能退回旧 Grant
+     * @param resourceBindings 个人保护引用，即使被拒绝也不能退回旧 Grant
      */
     record Decision(boolean migrated, Map<DefinitionRef, ModelAccessProof> allowed,
-                    Set<DefinitionRef> personalBindings) {
+                    Set<DefinitionRef> resourceBindings) {
 
         public Decision(boolean migrated, Map<DefinitionRef, ModelAccessProof> allowed) {
             this(migrated, allowed, Set.of());
@@ -37,8 +37,8 @@ public interface ModelAclAccess {
 
         public Decision {
             allowed = Map.copyOf(allowed);
-            personalBindings = Set.copyOf(personalBindings);
-            if (!migrated && !personalBindings.containsAll(allowed.keySet())) {
+            resourceBindings = Set.copyOf(resourceBindings);
+            if (!migrated && !resourceBindings.containsAll(allowed.keySet())) {
                 throw new IllegalArgumentException("Legacy scope cannot carry ACL proofs");
             }
             allowed.keySet().forEach(reference -> reference.requireType("binding"));

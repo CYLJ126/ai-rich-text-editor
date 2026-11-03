@@ -65,7 +65,7 @@ class ModelDraftIntegrationTest {
     MutableClock clock = new MutableClock();
     static final String TOKEN = "test-private-api-key-DO-NOT-RETURN";
     static final String ROOT = "/ai-new/model-draft/";
-    Settings settings = new Settings(ModelResourceIntegrationTest.CONN, "test-model", 8192, 1024);
+    Settings settings = new Settings(new com.arte.core.pojo.reference.DefinitionRef("model-plan", "test-plan", "v1"), 8192, 1024);
 
     static class MutableClock extends Clock {
         Instant value = Instant.now();
@@ -118,7 +118,12 @@ class ModelDraftIntegrationTest {
     }
 
     ModelDraftService graph(AuditSink audit) {
-        return new DefaultModelDraftService(f.store, store, templates, cipher, f.f.tx, f.identity, f.stores.tenants(), f.stores.workspaces(),
+        return new DefaultModelDraftService(f.store, store, templates, cipher, () -> new com.arte.ainew.spi.model.ReviewedModelPlanSource.Snapshot(
+                List.of(new com.arte.ainew.pojo.model.ReviewedModelPlan(settings.planRef(), "Test model", ModelResourceIntegrationTest.CONN, "test-model",
+                        Set.of(com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.TEXT_INPUT, com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.STREAMING),
+                        8192, f.seed.rates().getFirst().definition(), Instant.parse("2026-01-01T00:00:00Z"), f.f.actor.principal().subjectId(), 1)),
+                f.seed.connections(), f.seed.rates().stream().map(rate -> new com.arte.ainew.pojo.control.RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall())).toList(), 1, f.seed.releaseRef()),
+                () -> org.mockito.Mockito.mock(com.arte.ainew.spi.gateway.ModelGateway.class, invocation -> invocation.getMethod().getName().startsWith("supports") ? true : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation)), f.f.tx, f.identity, f.stores.tenants(), f.stores.workspaces(),
                 f.stores.tenantMembers(), f.stores.workspaceMembers(), f.stores.preferences(), f.platform.authorization(), f.stores.receipts(), f.stores.outbox(), audit,
                 () -> UUID.randomUUID().toString(), clock);
     }
@@ -390,13 +395,12 @@ class ModelDraftIntegrationTest {
             calls.incrementAndGet();
             return new ProbeResult(true, "MODEL_FOUND");
         });
-        try (var http = new ManagementHttpHarness(new ModelDraftController(executor, service, validator))) {
+        try (var http = new ManagementHttpHarness(new ModelDraftController(executor, service, validator, f.models))) {
             var auth = ManagementHttpHarness.login(f.f.jdbc, 1, "alice");
             f.f.jdbc.update("DELETE FROM arte_rbac_relation");
             Map<String, Object> target = Map.of("scope", f.scope, "resourceId", model.resource().resourceId());
             var body = new HashMap<String, Object>(target);
-            body.putAll(Map.of("expectedVersion", 0, "name", "HTTP model", "connectionTemplate", ModelResourceIntegrationTest.CONN,
-                    "remoteModel", "test-model", "contextWindowTokens", 8192, "maxOutputTokens", 1024));
+            body.putAll(Map.of("expectedVersion", 0, "name", "HTTP model", "settings", settings));
             http.ok(ROOT + "saveModelDraft", f.f.json.write(body), "save-http", auth);
             var key = new HashMap<String, Object>(target);
             key.putAll(Map.of("expectedVersion", 0, "token", TOKEN));

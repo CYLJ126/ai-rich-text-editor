@@ -19,11 +19,25 @@ public final class ModelResourceCommands {
     private ModelResourceCommands() {
     }
 
-    public record Create(CommandMeta meta, Scope scope, String name) {
+    /**
+     * 创建时固定的合法模型预设；归属和凭据种类由服务端推导。
+     */
+    public enum ModelKind {
+        // 管理空间归属，使用个人凭据。
+        PERSONAL,
+        // 当前租户归属，使用租户凭据。
+        TENANT
+    }
+
+    public record Create(CommandMeta meta, Scope scope, String name, ModelKind modelKind) {
+        public Create(CommandMeta meta, Scope scope, String name) {
+            this(meta, scope, name, ModelKind.PERSONAL);
+        }
         public Create {
             Objects.requireNonNull(meta);
             Objects.requireNonNull(scope);
             name = PlatformChecks.name(name);
+            Objects.requireNonNull(modelKind);
         }
     }
 

@@ -141,14 +141,15 @@ export async function executeSharingCommand(command: SharingCommand, key: string
   const value = sharingCommandSchema.parse(command);
   const shared = ['create', 'scopes', 'consumers'].includes(value.kind);
   const path = {
-    create: 'createTenantModel', scopes: 'updateModelUseScopes', consumers: 'updateModelCredentialConsumers',
+    create: 'createModelResource', scopes: 'updateModelUseScopes', consumers: 'updateModelCredentialConsumers',
     grant: 'grantResourceAccess', revoke: 'revokeResourceGrant', visibility: 'changeResourceVisibility'
   }[value.kind];
   const envelope = z.object({
     operationId: id, status: z.literal(1), delivery: z.union([z.literal(0), z.literal(1)]), resultVersion: version,
     acceptedAt: z.string(), completedAt: z.string().nullable(), value: z.unknown().optional()
   });
-  const result = await call(shared ? 'ai-new/model-sharing' : 'resource/access', path, value.request, envelope, undefined, key);
+  const result = await call(value.kind === 'create' ? 'ai-new/model-resource' : shared ? 'ai-new/model-sharing' : 'resource/access', path,
+    value.kind === 'create' ? {...value.request, modelKind: 'TENANT'} : value.request, envelope, undefined, key);
   if (value.kind === 'create') {
     const model = modelResourceSchema.safeParse(result.value);
     if (!model.success || model.data.ownershipType !== 'TENANT' || !same(model.data.scope, value.request.scope) || model.data.name !== value.request.name || model.data.version !== 0 || result.resultVersion !== 0) throw invalid();

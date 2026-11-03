@@ -80,7 +80,7 @@ class ModelUsagePreparationIntegrationTest {
 
     void prepare(ApplicationContext c) {
         f.prepare(c);
-        version = f.publish(c, "publish-a1", 0, 1, 1);
+        version = f.publishSelectedFixture(c, "publish-a1", 0, 1, 1);
     }
 
     void removeAccounts() {
@@ -339,14 +339,12 @@ class ModelUsagePreparationIntegrationTest {
     }
 
     @Test
-    void explicitlyMigratedDatabaseModelAlsoUsesApprovedExactRateWithoutLegacyFallback() {
+    void bareDatabaseAssociationCannotPrepareAUsageBudget() {
         f.context().run(c -> {
-            var adopted = f.f.prepare(c);
+            assertThrows(RuntimeException.class, () -> f.f.prepare(c));
             removeAccounts();
-            var exact = f.f.f.ref("binding", "text");
-            var usage = service(c).prepare(f.f.f.f.actor, meta("adopted-model"), scope(), adopted.resource(), exact);
-            assertEquals(ModelUsagePreparation.State.READY, usage.value().state());
-            assertEquals(1, count("arte_ai_account"));
+            assertEquals(0, count("arte_ai_account"));
+            assertEquals(0, count("arte_ai_budget_definition"));
         });
     }
 

@@ -169,7 +169,7 @@ class DatabaseAiControlIntegrationTest {
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("ports-import"));
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
-            assertEquals(ref("binding", "text"), published.read(ctx).block(WAIT).bindings().getFirst().definition());
+            assertTrue(published.read(ctx).block(WAIT).bindings().isEmpty());
             var budget = definitions.available(ctx, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
             assertEquals(new ExecutionOwner(scope.tenantId(), scope.workspaceId(), f.actor.principal().subjectId()), budget.owner());
             assertEquals(money("100"), budget.limit());
@@ -200,14 +200,13 @@ class DatabaseAiControlIntegrationTest {
             db.ensure(f.actor, scope);
             var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var service = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
-            var found = service.discover(CapabilityDescriptor.Kind.GENERATION, 256, ctx).collectList().block(WAIT).getFirst();
-            assertEquals(com.arte.ainew.pojo.control.AiEntitlement.Source.DATABASE, found.source());
-            assertEquals(found.binding(), service.resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT).binding());
+            assertTrue(service.discover(CapabilityDescriptor.Kind.GENERATION, 256, ctx).collectList().block(WAIT).isEmpty());
+            assertThrows(RuntimeException.class, () -> service.resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
             f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
-                    () -> service.resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
+                    () -> service.resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
-                    () -> c.getBean(com.arte.ainew.api.control.BindingManager.class).resolve(found.binding().definition(), found.binding().capability().definition(), ctx).block(WAIT));
+                    () -> c.getBean(com.arte.ainew.api.control.BindingManager.class).resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
         });
     }
 
@@ -254,55 +253,18 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    void replacingPolicyPortControlsDiscoveryAndFinalAdmissionInThePhysicalTransaction() {
+    void reviewedDefinitionsAndApprovedBudgetCannotProduceAnExecutableModel() {
         var scope = f.initialize().value().workspace().scope();
-        var advertisedTokens = new java.util.concurrent.atomic.AtomicInteger(64);
-        var checked = new java.util.concurrent.atomic.AtomicInteger();
-        var policies = new com.arte.ainew.spi.control.AiExecutionPolicyProvider() {
-            private com.arte.ainew.pojo.control.AiExecutionPolicy policy(int tokens) {
-                return new com.arte.ainew.pojo.control.AiExecutionPolicy(65536, tokens, 1000000, Duration.ofSeconds(120), Duration.ofMinutes(10));
-            }
-
-            public reactor.core.publisher.Mono<com.arte.ainew.pojo.control.AiExecutionPolicy> current(ExecutionContext ctx) {
-                return reactor.core.publisher.Mono.fromSupplier(() -> policy(advertisedTokens.get()));
-            }
-
-            public com.arte.ainew.pojo.control.AiExecutionPolicy inCurrentTransaction(ExecutionContext ctx) {
-                assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
-                assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.hasResource(f.source));
-                checked.incrementAndGet();
-                return policy(64);
-            }
-        };
-        context().withBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class, () -> policies).run(c -> {
+        context().run(c -> {
             assertNull(c.getStartupFailure());
-            assertSame(policies, c.getBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class));
             var db = c.getBean(DatabaseAiControlService.class);
-            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("custom-policy-import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("reviewed-definitions"));
             db.ensure(f.actor, scope);
-            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION), "custom-policy-call");
-            var option = c.getBean(ChatConfigurationQueryService.class).discover(ctx).block(WAIT).options().getFirst();
-            assertEquals(64, option.limits().maxOutputTokens());
-            var submissionContext = new ExecutionContext(ctx.executionId(), ctx.traceId(), ctx.authorization(), ctx.deadline(), null,
-                    option.budgetRefs().getFirst(), ctx.releaseRef(), ctx.idempotencyKey());
-            var conversation = c.getBean(ConversationService.class).create("Policy tightening", null, List.of(),
-                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "policy-conversation")).block(WAIT);
-            // 异步预检暂时仍允许 128；真正写入时的当前政策已收紧为 64。
-            advertisedTokens.set(512);
-            var message = new com.arte.ainew.pojo.generation.ChatMessage("policy-message", com.arte.ainew.pojo.generation.ChatMessage.Role.USER,
-                    List.of(new com.arte.ainew.pojo.generation.ChatMessage.Text("hello")), List.of(), null);
-            var input = new com.arte.ainew.pojo.context.ContextRequest(List.of(message), null, List.of(), List.of(), null,
-                    new com.arte.ainew.pojo.context.ContextBudget(65536, 32768, 512, 0));
-            var request = new com.arte.ainew.pojo.entry.EntryRequests.Chat(conversation.conversationId(), 0, null, null, input,
-                    option.capability(), option.binding(), new com.arte.ainew.pojo.generation.GenerationOptions(128, null, null, List.of()),
-                    new com.arte.ainew.pojo.execution.ExecutionOptions(submissionContext.deadline(), 1, 1000000, 0, 0, Duration.ofSeconds(60)));
-            var failure = assertThrows(com.arte.ainew.application.support.AdmissionException.class,
-                    () -> c.getBean(com.arte.ainew.api.entry.ChatService.class).submit(request, submissionContext).block(WAIT));
-            assertEquals(com.arte.core.enums.ResultCodeEnum.AI_EXECUTION_LIMIT_EXCEEDED, failure.getResultCode());
-            assertEquals(1, checked.get());
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "raw-call");
+            assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(ctx).block(WAIT).options().isEmpty());
+            assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class)
+                    .resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
             assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
-            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
-            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox", Integer.class));
         });
     }
 
@@ -331,7 +293,7 @@ class DatabaseAiControlIntegrationTest {
             assertEquals(workspace.configuration(), db.get(f.actor, scope).configuration());
             var discovery = c.getBean(ChatConfigurationQueryService.class);
             var current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
-            assertFalse(discovery.discover(current).block(WAIT).options().getFirst().toolCallsSupported());
+            assertTrue(discovery.discover(current).block(WAIT).options().isEmpty());
             var preset = new AiControlData.Preset(true, List.of(modelV2.definition()), workspace.configuration().preset().budgets());
             assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.update(f.actor, meta("unapproved-v2"), scope,
                     workspace.workspaceVersion(), workspace.configuration().version(), preset));
@@ -343,14 +305,10 @@ class DatabaseAiControlIntegrationTest {
             current = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var selectedContext = current;
             var entitlements = c.getBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class);
-            assertEquals(List.of(modelV2.definition()), entitlements.discover(CapabilityDescriptor.Kind.GENERATION, 256, selectedContext)
-                    .map(value -> value.binding().definition()).collectList().block(WAIT));
-            assertEquals(modelV2, entitlements.resolve(modelV2.definition(), v2.definition(), selectedContext).block(WAIT).binding());
-            assertThrows(com.arte.ainew.application.support.AdmissionException.class,
-                    () -> entitlements.resolve(modelV1.definition(), v1.definition(), selectedContext).block(WAIT));
-            var option = discovery.discover(current).block(WAIT).options().getFirst();
-            assertEquals(modelV2.definition(), option.binding());
-            assertTrue(option.toolCallsSupported());
+            assertTrue(entitlements.discover(CapabilityDescriptor.Kind.GENERATION, 256, selectedContext).collectList().block(WAIT).isEmpty());
+            assertThrows(RuntimeException.class, () -> entitlements.resolve(modelV2.definition(), v2.definition(), selectedContext).block(WAIT));
+            assertThrows(RuntimeException.class, () -> entitlements.resolve(modelV1.definition(), v1.definition(), selectedContext).block(WAIT));
+            assertTrue(discovery.discover(current).block(WAIT).options().isEmpty());
             assertEquals(v1, db.catalog().catalog().capabilities().getFirst());
 
             var redefined = new CapabilityDescriptor(v1.definition(), v1.kind(), v1.inputSchema(), v1.outputSchema(), features, v1.sideEffect(), v1.availability());
@@ -432,12 +390,14 @@ class DatabaseAiControlIntegrationTest {
             var discoveries = c.getBean(ChatConfigurationQueryService.class);
             var firstContext = execution(db, existing, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
             var secondContext = execution(db, second, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
-            var first = discoveries.discover(firstContext).block(WAIT).options().getFirst();
-            var next = discoveries.discover(secondContext).block(WAIT).options().getFirst();
-            assertNotEquals(first.budgetRefs(), next.budgetRefs());
+            assertTrue(discoveries.discover(firstContext).block(WAIT).options().isEmpty());
+            assertTrue(discoveries.discover(secondContext).block(WAIT).options().isEmpty());
+            var first = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(firstContext, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
+            var next = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(secondContext, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
+            assertNotEquals(first.budgetRef(), next.budgetRef());
             var accounts = c.getBean(BudgetAccountQueryService.class);
-            assertEquals(money("100"), accounts.account(first.budgetRefs().getFirst(), firstContext).block(WAIT).limit());
-            assertEquals(money("100"), accounts.account(next.budgetRefs().getFirst(), secondContext).block(WAIT).limit());
+            assertEquals(money("100"), accounts.account(first.budgetRef(), firstContext).block(WAIT).limit());
+            assertEquals(money("100"), accounts.account(next.budgetRef(), secondContext).block(WAIT).limit());
             var conversations = c.getBean(ConversationService.class);
             var created = conversations.create("First space only", null, List.of(), execution(db, existing, Set.of(AdmissionAuthorization.CONVERSATION), "conversation")).block(WAIT);
             assertEquals(1, conversations.list(new com.arte.core.pojo.PageParam(), execution(db, existing, Set.of(AdmissionAuthorization.CONVERSATION), null)).block(WAIT).total());
@@ -447,8 +407,8 @@ class DatabaseAiControlIntegrationTest {
             db.ensure(f.actor, existing);
             db.ensure(f.actor, second);
             assertEquals(2, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class));
-            var legacy = db.resolve("alice", "legacy-tenant", "legacy-space", Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT);
-            assertEquals("legacy-v1", legacy.grantRef());
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> db.resolve("alice", "legacy-tenant", "legacy-space", Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT));
         });
     }
 
@@ -507,11 +467,14 @@ class DatabaseAiControlIntegrationTest {
                 assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_control_head")).count());
                 assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
                 assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")).count());
+                assertTrue(options.isEmpty());
                 int discoveryQueries = recorded.sql.size();
                 assertTrue(discoveryQueries <= 20, recorded.sql.toString());
+                String budgetRef = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class)
+                        .available(execution(db, scope, Set.of(AdmissionAuthorization.READ), null), com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst().budgetRef();
                 recorded.sql.clear();
                 http.read(target, Set.of(AdmissionAuthorization.READ), WAIT, true,
-                        ctx -> c.getBean(BudgetAccountQueryService.class).account(options.getFirst().budgetRefs().getFirst(), ctx)).block(WAIT);
+                        ctx -> c.getBean(BudgetAccountQueryService.class).account(budgetRef, ctx)).block(WAIT);
                 recorded.assertNoLocks();
                 org.mockito.Mockito.verify(source).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.READ), true);
                 assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
@@ -550,7 +513,7 @@ class DatabaseAiControlIntegrationTest {
             var scheduler = c.getBean("newAiPersistenceScheduler", reactor.core.scheduler.Scheduler.class);
             var authorization = new AdmissionAuthorization(source, seed(), Clock.systemUTC(), source, scheduler);
             var catalog = new FixedControlCatalog(seed(), authorization, Clock.systemUTC(), source, scheduler);
-            assertEquals(ref("binding", "text"), catalog.resolve(ref("binding", "text"), ref("capability", "text"), execution).block(WAIT).definition());
+            assertThrows(RuntimeException.class, () -> catalog.resolve(ref("binding", "text"), ref("capability", "text"), execution).block(WAIT));
             org.mockito.Mockito.verify(source).configuration(execution);
             org.mockito.Mockito.verify(source, org.mockito.Mockito.never()).grant(org.mockito.ArgumentMatchers.any());
             org.mockito.Mockito.verify(source, org.mockito.Mockito.never()).resolve(org.mockito.ArgumentMatchers.anyString(),
@@ -563,64 +526,18 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    void databaseChatSubmissionCommitsWithoutDispatchingProvider() {
+    void bareDatabaseModelIsRejectedBeforeAnyChatExecutionWrites() {
         var scope = f.initialize().value().workspace().scope();
-        var recorded = new SqlRecorder(f.source);
-        context(recorded).run(c -> {
-            assertNull(c.getStartupFailure());
+        context().run(c -> {
             var db = c.getBean(DatabaseAiControlService.class);
-            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("raw-import"));
             db.ensure(f.actor, scope);
-            var conversation = c.getBean(ConversationService.class).create("Chat", null, List.of(),
-                    execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "create-chat")).block(WAIT);
-            var discovered = c.getBean(ChatConfigurationQueryService.class).discover(
-                    execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null)).block(WAIT);
-            var option = discovered.options().getFirst();
-            var request = new LinkedHashMap<String, Object>();
-            request.put("scope", scope);
-            request.put("conversationId", conversation.conversationId());
-            request.put("expectedVersion", 0);
-            request.put("text", "梦游天姥吟留别全文");
-            request.put("capability", option.capability());
-            request.put("binding", option.binding());
-            request.put("budgetRef", option.budgetRefs().getFirst());
-            request.put("maxInputTokens", 32768);
-            request.put("generationOptions", Map.of("maxOutputTokens", 512, "stopSequences", List.of()));
-            request.put("timeoutSeconds", 60);
-            var controller = new com.arte.ainew.web.controller.NewAiChatController(c.getBean(com.arte.ainew.api.entry.ChatService.class),
-                    c.getBean(com.arte.ainew.api.control.BindingManager.class), new com.arte.ainew.web.NewAiHttpContext(
-                    c.getBean(com.arte.ainew.context.ExecutionContextFactory.class), c.getBean(NewAiProperties.class)), c.getBean(NewAiProperties.class));
-            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
-                    .setControllerAdvice(new com.arte.ainew.web.ConversationExceptionHandler()).build();
-            var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of());
-            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
-            try {
-                recorded.sql.clear();
-                var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/ai-new/chat/turnsForChat")
-                        .header("Idempotency-Key", "chat").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(f.json.write(request))).andReturn();
-                result.getAsyncResult(15000);
-                result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(result)).andReturn();
-                assertEquals(202, result.getResponse().getStatus(), result.getResponse().getContentAsString());
-                int queries = recorded.sql.size();
-                assertTrue(queries <= 90, "chat preparation SQL=" + queries + ": " + recorded.sql);
-                assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_workspace_configuration")
-                        && q.toUpperCase().contains("FOR UPDATE")).count());
-                assertEquals(2, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
-                assertTrue(recorded.sql.stream().noneMatch(q -> q.startsWith("SELECT external_created_at FROM")));
-                System.out.println("CHAT_PREPARATION_SQL_COUNT=" + queries);
-                var byTable = new java.util.TreeMap<String, Integer>();
-                var tablePattern = java.util.regex.Pattern.compile("(?i)\\b(?:FROM|INTO|UPDATE)\\s+([a-z_]+)");
-                recorded.sql.forEach(sql -> {
-                    var match = tablePattern.matcher(sql);
-                    if (match.find()) byTable.merge(match.group(1), 1, Integer::sum);
-                });
-                System.out.println("CHAT_PREPARATION_SQL_BY_TABLE=" + byTable);
-                assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
-                assertEquals(1, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
-                verifyDispatchPreparation(c, recorded);
-            } finally {
-                org.springframework.security.core.context.SecurityContextHolder.clearContext();
-            }
+            var ctx = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), "raw-submit");
+            assertThrows(RuntimeException.class, () -> c.getBean(com.arte.ainew.api.control.BindingManager.class)
+                    .resolve(ref("binding", "text"), ref("capability", "text"), ctx).block(WAIT));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Integer.class));
+            assertEquals(0, f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_outbox", Integer.class));
         });
     }
 
@@ -717,7 +634,7 @@ class DatabaseAiControlIntegrationTest {
     }
 
     @Test
-    void revokedMembershipBetweenPreparationAndAdmissionCannotCommitAChat() {
+    void revokedMemberCannotUseARemovedBareDatabaseBinding() {
         var scope = f.initialize().value().workspace().scope();
         context().run(c -> {
             assertNull(c.getStartupFailure());
@@ -726,18 +643,17 @@ class DatabaseAiControlIntegrationTest {
             db.ensure(f.actor, scope);
             var conversation = c.getBean(ConversationService.class).create("Revocation", null, List.of(),
                     execution(db, scope, Set.of(AdmissionAuthorization.CONVERSATION), "revoke-conversation")).block(WAIT);
-            var option = c.getBean(ChatConfigurationQueryService.class).discover(
-                            execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null))
-                    .block(WAIT).options().getFirst();
+            String budgetRef = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(
+                    execution(db, scope, Set.of(AdmissionAuthorization.READ), null), com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst().budgetRef();
             var properties = c.getBean(NewAiProperties.class);
             var http = new com.arte.ainew.web.NewAiHttpContext(c.getBean(com.arte.ainew.context.ExecutionContextFactory.class), properties);
             org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                     org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
             try {
-                assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> http.prepare(
+                assertThrows(com.arte.ainew.application.support.AdmissionException.class, () -> http.prepare(
                         new com.arte.ainew.web.request.ConversationRequests.Scope(scope.tenantId(), scope.workspaceId()),
                         Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ),
-                        WAIT, option.budgetRefs().getFirst(), "revoked-chat", ctx -> {
+                        WAIT, budgetRef, "revoked-chat", ctx -> {
                             // Revoke after the entry snapshot was acquired, while internal assembly reuses it.
                             f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
                             var message = new com.arte.ainew.pojo.generation.ChatMessage("user-message",
@@ -746,7 +662,7 @@ class DatabaseAiControlIntegrationTest {
                             var selection = new com.arte.ainew.pojo.context.ContextRequest(List.of(message), null, List.of(), List.of(), null,
                                     new com.arte.ainew.pojo.context.ContextBudget(65536, 32768, 512, 0));
                             var request = new com.arte.ainew.pojo.entry.EntryRequests.Chat(conversation.conversationId(), 0, null, null,
-                                    selection, option.capability(), option.binding(),
+                                    selection, ref("capability", "text"), ref("binding", "text"),
                                     new com.arte.ainew.pojo.generation.GenerationOptions(512, null, null, List.of()),
                                     new com.arte.ainew.pojo.execution.ExecutionOptions(ctx.deadline(), 1,
                                             properties.limits().maxOutputBytes(), 0, 0, WAIT));
@@ -769,7 +685,7 @@ class DatabaseAiControlIntegrationTest {
             DatabaseAiTestCatalog.publish(db, c, f.actor, meta("import"));
             var initial = db.ensure(f.actor, scope);
             var context = execution(db, scope, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), null);
-            var budgetRef = c.getBean(ChatConfigurationQueryService.class).discover(context).block(WAIT).options().getFirst().budgetRefs().getFirst();
+            var budgetRef = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(context, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst().budgetRef();
             var codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
             String key = DatabaseAiControlService.hash(budgetRef);
             var account = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account WHERE id_key=?", String.class, key), BudgetCommands.Account.class);

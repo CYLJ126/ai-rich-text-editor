@@ -98,7 +98,8 @@ public class ModelResourceStoreServiceImpl extends PlatformStoreSupport<Platform
     private static String snapshotDigest(ModelResourceVersion v) {
         ModelPublication modelPublication = v.publication();
         return DefaultCommandExecutor.digest(Arrays.asList(resourceKey(v.resource()), modelPublication.contentDigest(), modelPublication.source().name(),
-                modelPublication.catalogRevision() == null ? null : modelPublication.catalogRevision().toString(), modelPublication.releaseRef(), v.linkedBy(), v.linkedAt().toString()));
+                modelPublication.catalogRevision() == null ? null : modelPublication.catalogRevision().toString(), modelPublication.releaseRef(), modelPublication.planRef() == null ? null : com.arte.core.serialize.CanonicalJson.encode(modelPublication.planRef()),
+                modelPublication.credentialKind() == null ? null : modelPublication.credentialKind().name(), v.linkedBy(), v.linkedAt().toString()));
     }
 
     private ModelResourceVersion decode(PlatformModelVersionDto row, String tenant, DefinitionRef binding) {

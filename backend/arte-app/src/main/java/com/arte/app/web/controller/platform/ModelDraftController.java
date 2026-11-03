@@ -1,6 +1,7 @@
 package com.arte.app.web.controller.platform;
 
 import com.arte.ainew.api.model.ModelDraftService;
+import com.arte.ainew.api.model.ModelResourceService;
 import com.arte.ainew.pojo.model.ModelDrafts.*;
 import com.arte.ainew.spi.model.ModelConnectionValidator;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
@@ -46,11 +47,13 @@ public class ModelDraftController {
 
     private final PlatformAuthenticatedExecutor executor;
     private final ModelDraftService service;
+    private final ModelResourceService models;
     private final ModelConnectionValidator validator;
 
-    public ModelDraftController(PlatformAuthenticatedExecutor executor, ModelDraftService service, ModelConnectionValidator validator) {
+    public ModelDraftController(PlatformAuthenticatedExecutor executor, ModelDraftService service, ModelConnectionValidator validator, ModelResourceService models) {
         this.executor = executor;
         this.service = service;
+        this.models = models;
         this.validator = validator;
     }
 
@@ -59,8 +62,11 @@ public class ModelDraftController {
      */
     @PostMapping("/listModelResources")
     public Mono<ResultContext<ModelListView>> list(Authentication auth, @Valid @RequestBody ListRequest request, Locale locale) {
-        return executor.call(auth, actor -> service.list(actor, request.scope(), request.cursor(), request.size()))
-                .map(v -> ok(new ModelListView(v.records().stream().map(ModelResourcePayload.Resource::from).toList(), v.nextCursor()), locale));
+        return executor.call(auth, actor -> {
+            ModelList page = service.list(actor, request.scope(), request.cursor(), request.size());
+            return new ModelListView(page.records().stream().map(model -> ModelResourcePayload.Resource.from(model)
+                    .withActions(models.actions(actor, request.scope(), model.resource()))).toList(), page.nextCursor());
+        }).map(value -> ok(value, locale));
     }
 
     /**
@@ -86,7 +92,7 @@ public class ModelDraftController {
     public Mono<ResultContext<CommandReceipt<Draft>>> save(Authentication auth, @Valid @RequestBody SaveRequest request,
                                                            @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         return executor.call(auth, actor -> service.save(actor, meta(key, http), request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()),
-                request.expectedVersion(), request.name(), request.settings())).map(v -> ok(v, locale));
+                request.expectedVersion(), request.name(), request.settings().value())).map(v -> ok(v, locale));
     }
 
     /**
@@ -95,8 +101,10 @@ public class ModelDraftController {
     @PostMapping("/replaceModelCredential")
     public Mono<ResultContext<CommandReceipt<CredentialView>>> replace(Authentication auth, @Valid @RequestBody CredentialRequest request,
                                                                        @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return executor.call(auth, actor -> service.replaceCredential(actor, meta(key, http), request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()),
-                request.expectedVersion(), request.token(), request.credentialKind() == null ? CredentialKind.PERSONAL : CredentialKind.valueOf(request.credentialKind()))).map(v -> ok(v, locale));
+        return executor.call(auth, actor -> request.credentialKind() == null
+                ? service.replaceCredential(actor, meta(key, http), request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()), request.expectedVersion(), request.token())
+                : service.replaceCredential(actor, meta(key, http), request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()),
+                request.expectedVersion(), request.token(), CredentialKind.valueOf(request.credentialKind()))).map(v -> ok(v, locale));
     }
 
     /**

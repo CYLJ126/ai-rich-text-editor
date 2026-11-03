@@ -120,10 +120,10 @@ class ModelManagementHttpIntegrationTest {
 
     @Test
     void createQueryAssociateListAndDisablePreserveStableIdentityAndSafePublicationShape() {
-        JSONObject draft = model("createModelResource", Map.of("scope", f.f.scope, "name", "HTTP draft"), "create").getJSONObject("value");
+        JSONObject draft = model("createModelResource", Map.of("scope", f.f.scope, "name", "HTTP draft", "modelKind", "PERSONAL"), "create").getJSONObject("value");
         assertEquals("DRAFT", draft.getStr("state"));
         assertEquals(f.f.f.actor.principal().subjectId(), draft.getStr("createdBy"));
-        assertEquals(draft.getStr("resourceId"), model("createModelResource", Map.of("scope", f.f.scope, "name", "HTTP draft"), "create").getJSONObject("value").getStr("resourceId"));
+        assertEquals(draft.getStr("resourceId"), model("createModelResource", Map.of("scope", f.f.scope, "name", "HTTP draft", "modelKind", "PERSONAL"), "create").getJSONObject("value").getStr("resourceId"));
         assertEquals(f.model.resource().resourceId(), model("getModelResource", modelTarget(), null).getStr("resourceId"));
         Map<String, Object> association = Map.of("scope", f.f.scope, "resourceId", f.model.resource().resourceId(), "expectedVersion", 1, "binding", V2, "source", "FIXED");
         JSONObject first = model("associateModelResourceVersion", association, "v2");
@@ -132,7 +132,7 @@ class ModelManagementHttpIntegrationTest {
         assertEquals(2L, first.getLong("resultVersion"));
         assertEquals(f.model.resource().resourceId(), first.getJSONObject("value").getStr("resourceId"));
         String visible = first.toString();
-        for (String hidden : List.of("credential", "endpoint", "example.invalid", "credential-independent", "snapshot_digest", "target")) {
+        for (String hidden : List.of("\"credential\":", "endpoint", "example.invalid", "credential-independent", "snapshot_digest", "target")) {
             assertFalse(visible.contains(hidden), visible);
         }
         JSONObject versions = model("listModelResourceVersions", modelTarget(), null);
@@ -232,7 +232,7 @@ class ModelManagementHttpIntegrationTest {
 
     @Test
     void missingAndMalformedVersionSourceBindingAndIdempotencyInputsAreRejected() {
-        Map<String, Object> create = Map.of("scope", f.f.scope, "name", "Draft");
+        Map<String, Object> create = Map.of("scope", f.f.scope, "name", "Draft", "modelKind", "PERSONAL");
         http.rejected(MODEL + "createModelResource", json(create), null, alice, 400, "INVALID_ARGUMENT");
         http.rejected(MODEL + "createModelResource", json(create), " bad ", alice, 400, "INVALID_ARGUMENT");
         http.rejected(ACL + "grantResourceAccess", json(Map.of("target", target(), "recipient", Map.of("kind", "SUBJECT", "subjectId", bobPrincipal.subjectId()), "actions", List.of("model:use"))), "key", alice, 400, "INVALID_ARGUMENT");
@@ -256,7 +256,7 @@ class ModelManagementHttpIntegrationTest {
         duplicate.put("actions", List.of("model:use", "model:use"));
         http.rejected(ACL + "grantResourceAccess", json(duplicate), "duplicate", alice, 400, "INVALID_ARGUMENT");
         for (String field : List.of("actor", "owner", "createdBy", "publication", "traceId")) {
-            Map<String, Object> input = new HashMap<>(Map.of("scope", f.f.scope, "name", "forged"));
+            Map<String, Object> input = new HashMap<>(Map.of("scope", f.f.scope, "name", "forged", "modelKind", "PERSONAL"));
             input.put(field, Map.of("subjectId", bobPrincipal.subjectId()));
             http.rejected(MODEL + "createModelResource", json(input), "forged", alice, 400, "INVALID_ARGUMENT");
         }
@@ -332,7 +332,7 @@ class ModelManagementHttpIntegrationTest {
             http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.f.scope, "source", "FIXED", "expectedVersion", 0, "bindings", refs)), "invalid", alice,
                     refs.size() == 1 ? 404 : 400, refs.size() == 1 ? "NOT_FOUND" : "INVALID_ARGUMENT");
         }
-        http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.f.scope, "source", "DATABASE", "expectedVersion", 0, "bindings", List.of(V1))), "switch", alice, 400, "INVALID_ARGUMENT");
+        http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.f.scope, "source", "DATABASE", "expectedVersion", 0, "bindings", List.of(V1))), "switch", alice, 409, "CAPABILITY_NOT_ENABLED");
         assertEquals(0, f.f.count("arte_ai_model_acl_scope"));
     }
 

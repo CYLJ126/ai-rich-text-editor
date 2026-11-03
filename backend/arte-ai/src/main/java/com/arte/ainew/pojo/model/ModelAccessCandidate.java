@@ -29,6 +29,6 @@ public record ModelAccessCandidate(ResolvedBinding binding, ConnectionDefinition
     }
 
     public ModelPublication publication(ModelPublication origin) {
-        return new ModelPublication(origin.source(), origin.catalogRevision(), releaseRef, binding, connection, rate);
+        return new ModelPublication(origin.source(), origin.catalogRevision(), releaseRef, binding, connection, rate, origin.planRef(), origin.credentialKind());
     }
 }

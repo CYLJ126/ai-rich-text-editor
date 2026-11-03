@@ -3,6 +3,7 @@ package com.arte.app.web.platform;
 import com.arte.ainew.pojo.model.ModelAclScope;
 import com.arte.ainew.pojo.model.ModelPublication;
 import com.arte.ainew.pojo.model.ModelResource;
+import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
 import com.arte.ainew.pojo.model.ModelResourceVersion;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.Scope;
@@ -31,8 +32,8 @@ public final class ModelResourcePayload {
     private ModelResourcePayload() {
     }
 
-    public record CreateRequest(@NotNull Scope scope,
-                                @NotBlank @Size(max = 100) String name) implements StrictPlatformRequest {
+    public record CreateRequest(@NotNull Scope scope, @NotBlank @Size(max = 100) String name,
+                                @NotNull ModelKind modelKind) implements StrictPlatformRequest {
     }
 
     public record GetRequest(@NotNull Scope scope,
@@ -74,10 +75,16 @@ public final class ModelResourcePayload {
     }
 
     public record Resource(String resourceId, Scope scope, String name, String createdBy, String state,
-                           String bindingId, long version, Instant createdAt, String ownershipType) {
+                           String bindingId, long version, Instant createdAt, String ownershipType,
+                           String credentialKind, List<String> allowedActions) {
+        public Resource withActions(List<String> actions) {
+            return new Resource(resourceId, scope, name, createdBy, state, bindingId, version, createdAt, ownershipType, credentialKind, List.copyOf(actions));
+        }
+
         public static Resource from(ModelResource value) {
             return new Resource(value.resource().resourceId(), value.managementScope(),
-                    value.name(), value.createdBy(), value.state().name(), value.bindingId(), value.version(), value.createdAt(), value.ownership().type().name());
+                    value.name(), value.createdBy(), value.state().name(), value.bindingId(), value.version(), value.createdAt(), value.ownership().type().name(),
+                    value.ownership().workspaceId() == null ? "TENANT" : "PERSONAL", List.of());
         }
     }
 
@@ -86,13 +93,15 @@ public final class ModelResourcePayload {
      */
     public record Version(String resourceId, DefinitionRef binding, DefinitionRef capability, DefinitionRef connection,
                           String providerId, String remoteOperation, Long contextWindowTokens, DefinitionRef rate,
-                          String source, Long catalogRevision, String releaseRef, String linkedBy, Instant linkedAt) {
+                          String source, Long catalogRevision, String releaseRef, String linkedBy, Instant linkedAt,
+                          DefinitionRef planRef, String credentialKind) {
         public static Version from(ModelResourceVersion value) {
             ModelPublication publication = value.publication();
             return new Version(value.resource().resourceId(), publication.binding().definition(), publication.binding().capability().definition(),
                     publication.connection().definition(), publication.connection().providerId(), publication.binding().remoteOperation(),
                     publication.binding().contextWindowTokens(), publication.rate().definition(), publication.source().name(), publication.catalogRevision(),
-                    publication.releaseRef(), value.linkedBy(), value.linkedAt());
+                    publication.releaseRef(), value.linkedBy(), value.linkedAt(), publication.planRef(),
+                    publication.credentialKind() == null ? null : publication.credentialKind().name());
         }
     }
 

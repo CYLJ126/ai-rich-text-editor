@@ -37,8 +37,8 @@ CREATE TABLE arte_ai_model_definition_source
     definition_type    varchar(96) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin  NOT NULL COMMENT '已登记定义类型；首批为模型 binding 及其 capability、connection、rate 依赖',
     definition_id      varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '发布定义的原始 ID，与类型及版本共同确定内容身份，不代表资源归属或使用授权',
     definition_version varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '发布定义的精确字符串版本；同一精确引用不得被不同内容覆盖',
-    source int NOT NULL COMMENT '已登记的内容权威来源：0 FIXED 固定部署定义，1 DATABASE 数据库已发布定义，2 PERSONAL 个人发布；相同依赖保留原权威',
+    source int NOT NULL COMMENT '已登记的内容权威来源：0 FIXED 固定部署定义，1 DATABASE 数据库已发布定义，2 PERSONAL 历史个人发布，3 RESOURCE 实际模型资源发布；相同依赖保留原权威',
     content_digest     char(64) CHARACTER SET ascii COLLATE ascii_bin         NOT NULL COMMENT '该定义规范化内容的 SHA-256 摘要；能力特性集合排序、数值归一化，用于拒绝同一精确引用的内容冲突',
     PRIMARY KEY (definition_key),
-    CONSTRAINT ck_ai_model_definition_source CHECK (source >= 0 AND source <= 2)
+    CONSTRAINT ck_ai_model_definition_source CHECK (source >= 0 AND source <= 3)
 ) ENGINE=InnoDB COMMENT='模型发布定义来源登记：固定精确引用的内容权威及摘要，不直接授予模型、凭据或预算权限';

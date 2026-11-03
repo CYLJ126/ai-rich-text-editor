@@ -60,12 +60,17 @@ public class PlatformModelDraftConfiguration {
     }
 
     @Bean
+    ReviewedModelPlanSource reviewedModelPlans(ObjectProvider<DatabaseAiControlService> control) {
+        return () -> control.getObject().reviewedModelCatalog();
+    }
+
+    @Bean
     ModelDraftService modelDraftService(ModelResourceStore models, ModelDraftStore store, ModelConnectionTemplates templates,
-                                        ModelCredentialCipher cipher, @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
+                                        ModelCredentialCipher cipher, ReviewedModelPlanSource plans, ObjectProvider<com.arte.ainew.spi.gateway.ModelGateway> gateway, @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
                                         IdentityProvider identity, TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers,
                                         WorkspaceMembershipStore members, PreferenceStore preferences, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                         CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new DefaultModelDraftService(models, store, templates, cipher, tx, identity, tenants, workspaces, tenantMembers,
+        return new DefaultModelDraftService(models, store, templates, cipher, plans, gateway::getIfAvailable, tx, identity, tenants, workspaces, tenantMembers,
                 members, preferences, authorization, receipts, outbox, audit, ids, clock);
     }
 }

@@ -70,7 +70,7 @@ public class AiResourceEntitlementServiceTest {
     public void reservedPersonalBindingsCannotUseLegacyGrantButOrdinaryPersonalNamesRemainCompatible() {
         ResolvedBinding original = properties.bindings().getFirst();
         NewAiProperties.Grant old = properties.grants().getFirst();
-        for (String id : List.of("personal-legacy-model", "personal-" + "a".repeat(64))) {
+        for (String id : List.of("personal-legacy-model", "resource-" + "a".repeat(64))) {
             DefinitionRef reference = new DefinitionRef("binding", id, "v1");
             ResolvedBinding binding = new ResolvedBinding(reference, original.capability(), original.target(), original.contextWindowTokens(), original.rate());
             NewAiProperties.Grant grant = new NewAiProperties.Grant(old.subjectName(), old.subjectId(), old.principalKind(), old.tenantId(), old.workspaceId(),

@@ -104,28 +104,21 @@ public final class DefaultModelResourceService implements ModelResourceService {
 
     @Override
     public CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command) {
-        return create(actor, command, false);
-    }
-
-    @Override
-    public CommandReceipt<ModelResource> createTenant(TrustedActor actor, ModelResourceCommands.Create command) {
-        if (sharing == null) {
+        boolean tenant = command.modelKind() == ModelResourceCommands.ModelKind.TENANT;
+        if (tenant && sharing == null) {
             throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
         }
-        return create(actor, command, true);
+        return create(actor, command, tenant);
     }
 
     private CommandReceipt<ModelResource> create(TrustedActor actor, ModelResourceCommands.Create command, boolean tenant) {
-        return commands.execute(actor, command.meta(), range(command.scope()), tenant ? "model:tenant:create" : "model:create", "model:resource:v1", ModelResource.class, List.of(command.name()),
+        return commands.execute(actor, command.meta(), range(command.scope()), "model:create", "model:resource:v2", ModelResource.class, List.of(command.name(), tenant ? "TENANT" : "PERSONAL"),
                 () -> lock(actor, command.scope()), value -> {
                     current(command.scope(), value.resource());
+                    requireCreation(actor, command.scope(), tenant);
                     require(actor, command.scope(), value.resource(), MODEL_READ);
                 }, operation -> {
-                    authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(command.scope(), MODEL_CREATE, "model-create"));
-                    if (tenant) {
-                        authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.tenantRequest(command.scope().tenantId(), TENANT_POLICY_WRITE, "tenant-model-create"));
-                        tenantCreation.accept(actor);
-                    }
+                    requireCreation(actor, command.scope(), tenant);
                     ModelResource value = new ModelResource(new ResourceRef(command.scope().tenantId(), MODEL, ids.nextId()),
                             new ResourceOwnership(tenant ? ResourceOwnershipTypeEnum.TENANT : ResourceOwnershipTypeEnum.WORKSPACE,
                                     command.scope().tenantId(), tenant ? null : command.scope().workspaceId()), command.name(),
@@ -140,6 +133,17 @@ public final class DefaultModelResourceService implements ModelResourceService {
                     effects.append(actor, range(command.scope()), "model:created", operation, 0, Map.of("resourceId", value.resource().resourceId()));
                     return new DefaultCommandExecutor.Result<>(value, 0);
                 });
+    }
+
+    /**
+     * 创建和同键确认均检查当前模型创建资格及租户预设的额外治理资格。
+     */
+    private void requireCreation(TrustedActor actor, Scope scope, boolean tenant) {
+        authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, MODEL_CREATE, "model-create"));
+        if (tenant) {
+            authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.tenantRequest(scope.tenantId(), TENANT_POLICY_WRITE, "tenant-model-create"));
+            tenantCreation.accept(actor);
+        }
     }
 
     @Override
@@ -217,6 +221,27 @@ public final class DefaultModelResourceService implements ModelResourceService {
                     bump(actor, c.scope(), next, operation, "model:disabled");
                     return new DefaultCommandExecutor.Result<>(next, next.version());
                 });
+    }
+
+    @Override
+    public List<String> actions(TrustedActor actor, Scope scope, ResourceRef resource) {
+        return tx.required(() -> {
+            lock(actor, scope);
+            current(scope, resource);
+            require(actor, scope, resource, MODEL_READ);
+            List<String> allowed = new ArrayList<>();
+            for (Action action : List.of(MODEL_READ, MODEL_EDIT, MODEL_VALIDATE, MODEL_PUBLISH, MODEL_DISABLE, MODEL_USE)) {
+                try {
+                    require(actor, scope, resource, action);
+                    allowed.add(action.value());
+                } catch (PlatformException denied) {
+                    if (!Set.of(PlatformErrorCodeEnum.ACCESS_DENIED, PlatformErrorCodeEnum.POLICY_DENIED).contains(denied.getCode())) {
+                        throw denied;
+                    }
+                }
+            }
+            return List.copyOf(allowed);
+        });
     }
 
     @Override

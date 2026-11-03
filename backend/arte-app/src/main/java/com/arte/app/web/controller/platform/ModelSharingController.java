@@ -1,9 +1,7 @@
 package com.arte.app.web.controller.platform;
 
-import com.arte.ainew.api.model.ModelResourceService;
 import com.arte.ainew.application.model.DefaultModelSharingService;
 import com.arte.ainew.pojo.model.ModelDrafts;
-import com.arte.ainew.pojo.model.ModelResourceCommands;
 import com.arte.ainew.pojo.model.ModelSharingPolicy;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.web.platform.ModelResourcePayload;
@@ -43,12 +41,10 @@ public class ModelSharingController {
 
     private final PlatformAuthenticatedExecutor executor;
     private final DefaultModelSharingService sharing;
-    private final ModelResourceService models;
 
-    public ModelSharingController(PlatformAuthenticatedExecutor executor, DefaultModelSharingService sharing, ModelResourceService models) {
+    public ModelSharingController(PlatformAuthenticatedExecutor executor, DefaultModelSharingService sharing) {
         this.executor = executor;
         this.sharing = sharing;
-        this.models = models;
     }
 
     public record Get(@NotNull Scope scope, @NotBlank String resourceId) implements StrictPlatformRequest {
@@ -97,13 +93,6 @@ public class ModelSharingController {
             throw new IllegalArgumentException("Duplicate sharing target");
         }
         return Set.copyOf(values);
-    }
-
-    @PostMapping("/createTenantModel")
-    public Mono<ResultContext<CommandReceipt<ModelResourcePayload.Resource>>> create(Authentication auth,
-                                                                                     @Valid @RequestBody ModelResourcePayload.CreateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
-        return executor.call(auth, actor -> PlatformHttpViews.receipt(models.createTenant(actor, new ModelResourceCommands.Create(meta(key, http), request.scope(), request.name())), ModelResourcePayload.Resource::from))
-                .map(v -> ok(v, locale));
     }
 
     @PostMapping("/listTenantModelMembers")

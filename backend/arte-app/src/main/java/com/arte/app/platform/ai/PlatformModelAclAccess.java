@@ -6,8 +6,8 @@ import com.arte.ainew.pojo.control.AiEntitlement;
 import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.ainew.spi.model.ModelAclScopeStore;
+import com.arte.ainew.spi.model.ModelPublicationRuntime;
 import com.arte.ainew.spi.model.ModelResourceStore;
-import com.arte.ainew.spi.model.PersonalModelRuntime;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
@@ -53,26 +53,26 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
     private final WorkspaceGovernanceLocks locks;
     private final Scheduler scheduler;
     private final Clock clock;
-    private Supplier<PersonalModelRuntime> personal = () -> null;
+    private Supplier<ModelPublicationRuntime> personal = () -> null;
 
     /**
      * 延迟安装个人发布门控；未启用时保持旧读取和兼容语义。
      */
-    public PlatformModelAclAccess personalRuntime(Supplier<PersonalModelRuntime> personal) {
+    public PlatformModelAclAccess resourceRuntime(Supplier<ModelPublicationRuntime> personal) {
         this.personal = personal;
         return this;
     }
 
     private Decision mergePersonal(Decision legacy, ExecutionContext context, List<ModelAccessCandidate> candidates) {
-        PersonalModelRuntime runtime = personal.get();
+        ModelPublicationRuntime runtime = personal.get();
         if (runtime == null) {
             return legacy;
         }
         Decision own = runtime.check(context, candidates);
         Map<DefinitionRef, ModelAccessProof> allowed = new LinkedHashMap<>(legacy.allowed());
-        own.personalBindings().forEach(allowed::remove);
+        own.resourceBindings().forEach(allowed::remove);
         allowed.putAll(own.allowed());
-        return new Decision(legacy.migrated(), allowed, own.personalBindings());
+        return new Decision(legacy.migrated(), allowed, own.resourceBindings());
     }
 
     public PlatformModelAclAccess(ModelAclScopeStore scopes, ModelResourceStore models, IdentityProvider identity,
@@ -94,6 +94,10 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
         List<ModelAccessCandidate> inputs = List.copyOf(candidates);
         Supplier<Decision> work = () -> {
             Scope scope = scope(context);
+            if (source == AiEntitlement.Source.DATABASE) {
+                Decision own = mergePersonal(new Decision(true, Map.of()), context, inputs);
+                return new Decision(true, own.allowed(), own.resourceBindings());
+            }
             Optional<ModelAclScope> manifest = scopes.find(scope);
             Decision legacy = manifest.map(modelAclScope -> decide(actor(context, false), modelAclScope, source, inputs, false))
                     .orElseGet(() -> new Decision(false, Map.of()));
@@ -113,6 +117,10 @@ public final class PlatformModelAclAccess implements ModelAclAccess {
         }
         if (locks.lockWorkspace(scope).isEmpty()) {
             return new Decision(false, Map.of());
+        }
+        if (source == AiEntitlement.Source.DATABASE) {
+            Decision own = mergePersonal(new Decision(true, Map.of()), context, candidates);
+            return new Decision(true, own.allowed(), own.resourceBindings());
         }
         Optional<ModelAclScope> manifest = scopes.findCurrent(scope);
         Decision legacy = manifest.map(modelAclScope -> decide(actor(context, true), modelAclScope, source, List.copyOf(candidates), true))

@@ -1,43 +1,30 @@
 package com.arte.app.platform.persistence;
 
-import com.arte.ainew.api.context.ContextService;
-import com.arte.ainew.api.control.BindingManager;
-import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.model.ModelAclMigrationService;
 import com.arte.ainew.api.model.ModelResourceService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.application.entry.DefaultChatService;
-import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.AiEntitlement;
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.entry.EntryRequests;
-import com.arte.ainew.pojo.execution.ExecutionCommands;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.Invocation;
-import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.model.ModelPublication;
 import com.arte.ainew.pojo.model.ModelResource;
 import com.arte.ainew.pojo.model.ModelResourceCommands;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
-import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
-import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
-import com.arte.ainew.spi.control.PublishedAiCatalog;
-import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.platform.ai.ModelAclStartupSafety;
 import com.arte.app.platform.ai.PlatformModelAclConfiguration;
@@ -56,7 +43,6 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -162,131 +148,37 @@ class ModelAclRuntimeIntegrationTest {
     }
 
     @Test
-    void productionAssemblyDiscoveryAdmissionAndAclRevocationUseOneAuthority() {
+    void databaseAssociationCannotCreateAnExecutableResource() {
         context().run(c -> {
             assertNull(c.getStartupFailure());
-            ModelResource model = prepare(c);
-            ExecutionContext execution = execution(c, "discover");
-            AiEntitlement result = c.getBean(AiResourceEntitlementService.class).resolve(f.ref("binding", "text"), f.ref("capability", "text"), execution).block(WAIT);
-            assertEquals(model.resource(), result.modelAccess().resource());
-            assertEquals(ModelPublication.Source.DATABASE, result.modelAccess().definitionSource());
-            assertEquals(1, c.getBean(ChatConfigurationQueryService.class).discover(execution).block(WAIT).options().size());
-            Invocation accepted = accept(c);
-            assertEquals(Invocation.State.ACCEPTED, accepted.state());
-            assertEquals(1, count("arte_ai_turn"));
-            revoke(c, model);
-            assertTrue(c.getBean(AiResourceEntitlementService.class).discover(CapabilityDescriptor.Kind.GENERATION, 256, execution).collectList().block(WAIT).isEmpty());
-            assertThrows(RuntimeException.class, () -> c.getBean(AiResourceEntitlementService.class).resolve(f.ref("binding", "text"), f.ref("capability", "text"), execution).block(WAIT));
-            assertEquals(1, c.getBean(BudgetDefinitionProvider.class).available(execution, BudgetDefinitionProvider.Operation.EXECUTE).block(WAIT).size());
+            assertThrows(RuntimeException.class, () -> prepare(c));
+            assertEquals(0, count("arte_ai_model_version"));
+            assertEquals(0, count("arte_ai_invocation"));
         });
     }
 
     @Test
-    void identicalImportedFixedDefinitionRetainsItsOriginalAuthority() {
+    void fixedLabelCannotAdoptBareDatabaseContent() {
         context().run(c -> {
-            assertNull(c.getStartupFailure());
-            ModelResource model = prepare(c, ModelPublication.Source.FIXED);
-            AiEntitlement result = c.getBean(AiResourceEntitlementService.class).resolve(f.ref("binding", "text"), f.ref("capability", "text"), execution(c, "copy")).block(WAIT);
-            assertEquals(AiEntitlement.Source.DATABASE, result.source());
-            assertEquals(ModelPublication.Source.FIXED, result.modelAccess().definitionSource());
-            assertEquals(model.resource(), result.modelAccess().resource());
+            assertThrows(RuntimeException.class, () -> prepare(c, ModelPublication.Source.FIXED));
+            assertEquals(0, count("arte_ai_model_version"));
+            assertEquals(0, count("arte_ai_model_definition_source"));
         });
     }
 
     @Test
-    void revokeAfterAdmissionPreflightRollsBackInvocationTurnAndOutbox() {
+    void legacyManifestCannotEnableDatabaseModelsOrCreateAnExecution() {
         context().run(c -> {
-            assertNull(c.getStartupFailure());
-            ModelResource model = prepare(c);
-            AiAdmissionAuthorizationGuard original = c.getBean(AiAdmissionAuthorizationGuard.class);
-            AiAdmissionAuthorizationGuard racing = check -> original.authorize(check).doOnNext(ignored -> revoke(c, model));
-            MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
-            NewAiProperties properties = c.getBean(NewAiProperties.class);
-            AdmissionAuthorization authorization = c.getBean(AdmissionAuthorization.class);
-            AdmissionInvocationCoordinator coordinator = new AdmissionInvocationCoordinator(authorization, c.getBean(CapabilityCatalog.class), c.getBean(BindingManager.class), executions,
-                    c.getBean(MybatisPayloadPersistence.class), executions, properties, Clock.systemUTC(), c.getBean(AiExecutionPolicyProvider.class), racing,
-                    c.getBean(PublishedAiCatalog.class), c.getBean(BudgetDefinitionProvider.class));
-            ChatService chat = new DefaultChatService(authorization, c.getBean(ConversationService.class), c.getBean(BindingManager.class), c.getBean(ContextService.class),
-                    coordinator, Clock.systemUTC(), executions, executions, properties);
-            String conversation = conversation(c);
-            ExecutionContext execution = execution(c, "race-submit");
-            assertThrows(RuntimeException.class, () -> chat.submit(request(conversation, execution), execution).block(WAIT));
+            DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
+            DatabaseAiTestCatalog.publish(db, c, f.f.actor, f.meta("reviewed"));
+            db.ensure(f.f.actor, scope);
+            assertThrows(RuntimeException.class, () -> c.getBean(ModelAclMigrationService.class).migrate(f.f.actor,
+                    new ModelAclMigrationService.Migrate(f.meta("migration"), scope, AiEntitlement.Source.DATABASE, Set.of(f.ref("binding", "text")), 0)));
+            assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(execution(c, "empty")).block(WAIT).options().isEmpty());
+            assertThrows(RuntimeException.class, () -> accept(c));
             assertEquals(0, count("arte_ai_invocation"));
             assertEquals(0, count("arte_ai_turn"));
             assertEquals(0, count("arte_ai_outbox"));
-            assertEquals(0, c.getBean(ConversationService.class).find(conversation, execution).block(WAIT).version());
-        });
-    }
-
-    @Test
-    void revokeAfterDispatchPreflightCreatesNeitherAttemptNorReservation() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            ModelResource model = prepare(c);
-            Invocation invocation = accept(c);
-            AiAdmissionAuthorizationGuard.Permit permit = c.getBean(AiAdmissionAuthorizationGuard.class).authorize(check(c, invocation, AiAdmissionAuthorizationGuard.Boundary.DISPATCH)).block(WAIT);
-            MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
-            OutboxMessage message = executions.claim(OutboxMessage.Kind.DISPATCH, "acl-worker", Duration.ofSeconds(60), 1).block(WAIT).getFirst();
-            revoke(c, model);
-            DispatchPreparationStore.Command command = new DispatchPreparationStore.Command(new ExecutionCommands.Version(message.owner(), message.invocationId(), invocation.version()),
-                    message, "attempt", Duration.ofSeconds(30), f.money("1"), f.ref("rate", "text-price"), Duration.ofMinutes(5));
-            assertThrows(RuntimeException.class, () -> executions.prepareDispatch(command, () -> permit.requireInCurrentTransaction(invocation.request())).block(WAIT));
-            assertEquals(0, count("arte_ai_attempt"));
-            assertEquals(0, count("arte_ai_reservation"));
-            assertEquals(Invocation.State.ACCEPTED, executions.find(message.owner(), message.invocationId()).block(WAIT).state());
-        });
-    }
-
-    @Test
-    void externalSendRechecksAclEvenAfterEarlierSendPermitAllowed() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            ModelResource model = prepare(c);
-            Invocation invocation = accept(c);
-            AiAdmissionAuthorizationGuard guard = c.getBean(AiAdmissionAuthorizationGuard.class);
-            AiAdmissionAuthorizationGuard.Check check = check(c, invocation, AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND);
-            assertNotNull(guard.authorize(check).block(WAIT).connection());
-            revoke(c, model);
-            assertThrows(RuntimeException.class, () -> guard.authorize(check).block(WAIT));
-            assertEquals(0, count("arte_ai_attempt"));
-        });
-    }
-
-    @Test
-    void restartCannotDisablePublicAclOrInstallLegacyEntitlementAfterMigration() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            prepare(c);
-        });
-        f.context().withUserConfiguration(ModelAclStartupSafety.class).run(c -> assertNotNull(c.getStartupFailure()));
-        context().withBean(AiResourceEntitlementService.class, () -> org.mockito.Mockito.mock(AiResourceEntitlementService.class))
-                .run(c -> assertNotNull(c.getStartupFailure()));
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            assertNotNull(c.getBean(AiResourceEntitlementService.class));
-        });
-    }
-
-    @Test
-    void customLegacyEntitlementsPreventActivatingScopeBeforeRestart() {
-        context().withBean(AiResourceEntitlementService.class, () -> org.mockito.Mockito.mock(AiResourceEntitlementService.class)).run(c -> {
-            assertNull(c.getStartupFailure());
-            assertThrows(IllegalStateException.class, () -> prepare(c));
-            assertEquals(0, count("arte_ai_model_acl_scope"));
-        });
-    }
-
-    @Test
-    void otherWorkspaceCannotBorrowMappedModelEvenWithSamePublishedBinding() {
-        context().run(c -> {
-            assertNull(c.getStartupFailure());
-            prepare(c);
-            DefaultWorkspaceServices services = c.getBean(DefaultWorkspaceServices.class);
-            Scope second = services.workspaces().create(f.f.actor, new com.arte.core.pojo.workspace.WorkspaceCommands.CreateWorkspace(f.meta("second"), scope.tenantId(), "Second", "")).value().scope();
-            c.getBean(DatabaseAiControlService.class).ensure(f.f.actor, second);
-            assertThrows(RuntimeException.class, () -> c.getBean(ModelAclMigrationService.class).migrate(f.f.actor,
-                    new ModelAclMigrationService.Migrate(f.meta("cross-space"), second, AiEntitlement.Source.DATABASE, Set.of(f.ref("binding", "text")), 0)));
-            assertEquals(1, count("arte_ai_model_acl_scope"));
         });
     }
 }

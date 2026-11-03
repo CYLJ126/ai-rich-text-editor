@@ -32,7 +32,7 @@ interface Props {
   useInChatDisabled?: boolean;
 }
 
-type Fields = Omit<ModelFields, 'connectionTemplate'> & { template: string };
+type Fields = Omit<ModelFields, 'planRef'> & { template: string };
 const stateName = {DRAFT: '草稿', PUBLISHED: '已发布', DISABLED: '已停用'};
 const commandName = {
   create: '创建模型',
@@ -82,8 +82,8 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
     if (!detail) return;
     const draft = detail.draft.draft;
     form.setFieldsValue({
-      name: draft?.name ?? detail.model.name, template: draft ? refKey(draft.settings.connectionTemplate) : undefined,
-      remoteModel: draft?.settings.remoteModel ?? '', contextWindowTokens: draft?.settings.contextWindowTokens ?? 8192,
+      name: draft?.name ?? detail.model.name, template: draft ? refKey(draft.settings.planRef) : undefined,
+      contextWindowTokens: draft?.settings.contextWindowTokens ?? 8192,
       maxOutputTokens: draft?.settings.maxOutputTokens ?? 512
     });
     setDirty(false);
@@ -91,7 +91,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
   }, [detail?.model.resourceId, detail?.draft.draft, form]);
 
   useEffect(() => {
-    setPlan(detail?.options.length === 1 ? refKey(detail.options[0].planRef) : '');
+    setPlan(detail?.draft.draft ? refKey(detail.draft.draft.settings.planRef) : '');
   }, [detail?.options]);
 
   useEffect(() => {
@@ -125,13 +125,14 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
   }
 
   async function save(values: Fields) {
-    const template = detail?.templates.find(item => refKey(item.reference) === values.template);
-    const parsed = modelFieldsSchema.safeParse({...values, connectionTemplate: template?.reference});
+    const template = detail?.options.find(item => refKey(item.planRef) === values.template);
+    const parsed = modelFieldsSchema.safeParse({...values, planRef: template?.planRef});
     if (!parsed.success) {
-      setFormError('请填写名称、有效审核模板、远端模型和正确的容量；输出上限须小于上下文窗口。');
+      setFormError('请填写名称、有效审核方案和正确的容量；输出上限须小于上下文窗口。');
       return;
     }
-    await submit('save', {...located, expectedVersion: draft?.version ?? 0, ...parsed.data});
+    const {name: displayName, ...settings} = parsed.data;
+    await submit('save', {...located, expectedVersion: draft?.version ?? 0, name: displayName, settings});
   }
 
   return <section className="personal-models ai-management-panel" aria-label="个人模型管理">
@@ -208,7 +209,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
                     loading={vm.saving}
                     onClick={() => void submit('create', {
                       scope: context.scope,
-                      name: name.trim()
+                      name: name.trim(), modelKind: 'PERSONAL'
                     })}>创建私有模型</Button>
             {!vm.canCreate &&
               <Typography.Text type="secondary">当前创建资格未通过，不以空间角色代替动作授权。</Typography.Text>}
@@ -219,7 +220,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前列表没有可读模型"/>}
         {vm.records.map(model =>
           <Card size="small" key={model.resourceId}
-                className={model.resourceId === vm.selected ? 'personal-model-selected' : ''}>
+                className={model.resourceId === vm.selected ? 'model-resource-selected' : ''}>
             <Flex vertical gap={8}>
               <Typography.Text strong>{model.name}</Typography.Text>
               <Flex wrap gap={6}><Tag>{stateName[model.state]}</Tag><Typography.Text
@@ -251,21 +252,20 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
           <Card size="small" title="配置草稿">
             {!detail.actions.has('model:edit') &&
               <Typography.Paragraph>当前只有读取资格，不能编辑此草稿。</Typography.Paragraph>}
-            {!detail.templates.length &&
-              <Alert type="info" title="当前没有可用连接模板。请联系空间负责人确认个人凭据政策与部署审核配置。"/>}
+            {!detail.options.length &&
+              <Alert type="info" title="当前没有可采用审核方案，请确认当前模型政策与平台审核配置。"/>}
             <Form<Fields> form={form} layout="vertical" className="ai-management-form" onFinish={save}
                           onValuesChange={() => setDirty(true)}
                           disabled={disabled || !detail.actions.has('model:edit')} autoComplete="off">
               <Form.Item name="name" label="展示名称" rules={[{required: true, whitespace: true, max: 100}]}><Input
                 aria-label="模型展示名称" maxLength={100}/></Form.Item>
-              <Form.Item name="template" label="审核连接模板" rules={[{required: true}]}><Select
-                aria-label="审核连接模板" options={detail.templates.map(item => ({
-                value: refKey(item.reference),
-                label: `${item.providerId} · ${item.reference.id}@${item.reference.version}`
+              <Form.Item name="template" label="审核模型方案" rules={[{required: true}]}><Select
+                aria-label="审核模型方案" options={detail.options.map(item => ({
+                value: refKey(item.planRef),
+                label: `${item.displayName} · ${item.planRef.id}@${item.planRef.version}`
               }))}/></Form.Item>
-              <Form.Item name="remoteModel" label="远端模型名"
-                         rules={[{required: true, whitespace: true, max: 256}]}><Input aria-label="远端模型名"
-                                                                                       maxLength={256}/></Form.Item>
+              {draft && <Typography.Text type="secondary">方案模型：{draft.plan.remoteModel} ·
+                费率 {draft.plan.rate.id}@{draft.plan.rate.version}</Typography.Text>}
               <Form.Item name="contextWindowTokens" label="上下文窗口（Token）" rules={[{required: true}]}><InputNumber
                 aria-label="上下文窗口" min={2} max={10_000_000} precision={0}/></Form.Item>
               <Form.Item name="maxOutputTokens" label="输出上限（Token）" rules={[{required: true}]}><InputNumber
@@ -274,7 +274,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
               <Flex gap={8} wrap>
                 <Button htmlType="submit"
                         type="primary"
-                        disabled={disabled || !detail.actions.has('model:edit') || !detail.templates.length}>
+                        disabled={disabled || !detail.actions.has('model:edit') || !detail.options.length}>
                   保存模型草稿
                 </Button>
                 <Button disabled={usageUnsafe || vm.saving || !!vm.pending}
@@ -365,14 +365,14 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
               <Typography.Text>审核发布方案</Typography.Text>
 
               <Select aria-label="审核发布方案" value={plan || undefined} onChange={setPlan}
-                      disabled={disabled || !detail.actions.has('model:publish')}
+                      disabled
                       options={detail.options.map(item => ({
                         value: refKey(item.planRef),
                         label: `${item.planRef.id}@${item.planRef.version} · ${item.rate.id}@${item.rate.version} · 目录 ${item.catalogRevision}`
                       }))}/>
 
               {!detail.options.length && <Typography.Text
-                type="secondary">暂无匹配方案。先保存当前配置；如已保存，请由平台配置管理员在“审核模型与费率”登记相同连接和远端模型，并核对容量及个人发布开关，再重新读取模型。</Typography.Text>}
+                type="secondary">暂无可采用方案，请联系平台配置管理员发布审核方案后重新读取。</Typography.Text>}
 
               <Button type="primary"
                       disabled={disabled || !canPublish || !plan || !detail.actions.has('model:publish')}
@@ -396,7 +396,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
             </Flex>
           </Card>
 
-          <Card size="small" title="发布版本与运行状态">
+          <Card size="small" title="发布版本与依赖状态">
             <Flex vertical gap={8}>
               {!detail.versions.length && <Typography.Text type="secondary">尚无发布版本。</Typography.Text>}
               {detail.versions.map(item =>
@@ -418,11 +418,11 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat
                 费率 {vm.selectedVersion.rate.id}@{vm.selectedVersion.rate.version}
               </Typography.Paragraph>}
 
-              {vm.selectedVersion?.source !== 'PERSONAL' && vm.selectedVersion &&
+              {vm.selectedVersion?.source !== 'RESOURCE' && vm.selectedVersion &&
                 <Typography.Text>此版本来自原平台目录，当前可用性请在聊天目录中重新核验。</Typography.Text>}
 
               {vm.statusError && <Alert type="warning" title={vm.statusError}/>}
-              {vm.status && <Alert type={vm.status.ready ? 'success' : 'warning'}
+              {vm.status && <Alert type={vm.status.valid ? 'success' : 'warning'}
                                    title={modelStatusText[vm.status.reason] ?? '当前尚未就绪，请重新检查权限与发布依赖。'}/>}
               {vm.status && <Button
                 onClick={() => vm.selectedVersion && void vm.selectVersion(vm.selectedVersion)}>

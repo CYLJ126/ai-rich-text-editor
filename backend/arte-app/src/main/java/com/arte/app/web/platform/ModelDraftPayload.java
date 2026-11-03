@@ -41,24 +41,31 @@ public final class ModelDraftPayload {
     }
 
     /**
-     * 保存模型配置草稿的请求，不发布可执行版本，也不直接修改既有发布。
+     * 保存采用精确审核方案的草稿，不接受连接、远端模型或费率覆盖。
      *
-     * @param scope               模型所属的租户和主空间范围
-     * @param resourceId          已创建的稳定模型资源 ID
-     * @param expectedVersion     期望的当前草稿版本；首次保存为 0，不是模型管理或凭据版本
-     * @param name                草稿配置的展示名称，最长 100 字符
-     * @param connectionTemplate  审核连接模板的精确引用，不允许自报 endpoint 或平台密钥
-     * @param remoteModel         供应商接口使用的远端模型标识，最长 256 字符
-     * @param contextWindowTokens 声明的上下文窗口 token 上限，范围为 1～10000000
-     * @param maxOutputTokens     声明的单次输出 token 上限，须为正数且由业务对象进一步校验不超过上下文窗口
+     * @param scope           模型固定管理空间
+     * @param resourceId      稳定资源 ID
+     * @param expectedVersion 当前草稿版本，首次为 0
+     * @param name            待发布展示名
+     * @param settings        方案引用及收紧容量
      */
     public record SaveRequest(@NotNull Scope scope, @NotBlank @Size(max = 256) String resourceId,
                               @NotNull @Min(0) Long expectedVersion, @NotBlank @Size(max = 100) String name,
-                              @NotNull DefinitionRef connectionTemplate, @NotBlank @Size(max = 256) String remoteModel,
-                              @NotNull @Min(1) @Max(10000000) Long contextWindowTokens,
-                              @NotNull @Min(1) Integer maxOutputTokens) implements StrictPlatformRequest {
-        public Settings settings() {
-            return new Settings(connectionTemplate, remoteModel, contextWindowTokens, maxOutputTokens);
+                              @NotNull @jakarta.validation.Valid DraftSettings settings) implements StrictPlatformRequest {
+    }
+
+    /**
+     * 草稿可写规格；其余模型规格由服务端从审核方案派生。
+     *
+     * @param planRef             固定审核方案引用
+     * @param contextWindowTokens 不超过审核方案的上下文上限
+     * @param maxOutputTokens     小于上下文的输出上限
+     */
+    public record DraftSettings(@NotNull DefinitionRef planRef,
+                                @NotNull @Min(2) @Max(10000000) Long contextWindowTokens,
+                                @NotNull @Min(1) Integer maxOutputTokens) implements StrictPlatformRequest {
+        public Settings value() {
+            return new Settings(planRef, contextWindowTokens, maxOutputTokens);
         }
     }
 

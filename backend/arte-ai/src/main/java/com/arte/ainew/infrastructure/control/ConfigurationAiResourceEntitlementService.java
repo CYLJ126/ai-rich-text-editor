@@ -9,7 +9,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.*;
 import com.arte.ainew.pojo.model.ModelAccessCandidate;
 import com.arte.ainew.pojo.model.ModelAccessProof;
-import com.arte.ainew.pojo.model.PersonalModels;
+import com.arte.ainew.pojo.model.ModelPublications;
 import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.core.enums.ResultCodeEnum;
@@ -113,7 +113,7 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
             ModelAclAccess.Decision checked = modelAcl == null ? new ModelAclAccess.Decision(false, Map.of())
                     : modelAcl.checkCurrent(context, source, List.of(candidate));
             // 确认当前仍有模型使用权，且授权方式未在预检后发生切换。
-            boolean protectedModel = checked.migrated() || checked.personalBindings().contains(candidate.binding().definition());
+            boolean protectedModel = checked.migrated() || checked.resourceBindings().contains(candidate.binding().definition());
             if (!allowed(configuration, candidate, context, checked) || protectedModel != (expected.modelAccess() != null)) {
                 throw unavailable();
             }
@@ -263,8 +263,8 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @return 当前选定的授权规则是否允许该候选；不表示已通过全部执行门控
      */
     private boolean allowed(NewAiProperties configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
-        if (decision.migrated() || decision.personalBindings().contains(candidate.binding().definition())
-                || PersonalModels.isPersonalBinding(candidate.binding().definition())) {
+        if (decision.migrated() || decision.resourceBindings().contains(candidate.binding().definition())
+                || ModelPublications.isResourceBinding(candidate.binding().definition())) {
             return decision.allowed().containsKey(candidate.binding().definition());
         }
         return authorization.grant(configuration, context).bindingIds().contains(candidate.binding().definition().id());

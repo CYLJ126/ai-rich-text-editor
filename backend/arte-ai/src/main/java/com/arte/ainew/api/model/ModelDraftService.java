@@ -21,6 +21,11 @@ import java.util.List;
  */
 public interface ModelDraftService {
     /**
+     * 按当前管理资格、连接政策及适配能力分页读取可选方案，不要求已保存草稿或已有预算。
+     */
+    ReviewedPlanList plans(TrustedActor actor, Scope scope, ResourceRef resource, String cursor, int size);
+
+    /**
      * 显式指定个人或租户凭据，不因模型分享自动转交用途。
      */
     default CommandReceipt<CredentialView> replaceCredential(TrustedActor actor, CommandMeta meta, Scope scope,

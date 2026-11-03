@@ -4,7 +4,6 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.api.model.ModelResourceService;
-import com.arte.ainew.api.model.PersonalModelPublicationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.model.DefaultModelSharingService;
 import com.arte.ainew.common.execution.AcceptedExecution;
@@ -168,7 +167,7 @@ class TenantModelSharingIntegrationTest {
             PolicyRules rules = home.policy().rules();
             policies.updateWorkspacePolicy(actor(), new WorkspaceCommands.UpdateWorkspacePolicy(meta("management-policy"), f.f.scope, home.workspaceVersion(), home.policy().version(),
                     new PolicyRules(rules.allowedCreationTypes(), rules.extraCreationRoles(), rules.guestAiAllowed(), false, rules.allowedProtocols(), rules.allowedProviders(), rules.allowedDestinations(), rules.exportTypes(), rules.egressTypes(), rules.shareTargetKinds())));
-            assertTrue(status(c).ready(), status(c).reason());
+            assertTrue(status(c).valid(), status(c).reason());
         });
     }
 
@@ -194,7 +193,7 @@ class TenantModelSharingIntegrationTest {
         context().run(c -> {
             prepare(c);
             ModelResourceService models = c.getBean(ModelResourceService.class);
-            ModelResource draft = models.createTenant(actor(), new ModelResourceCommands.Create(meta("tenant-adoption-draft"), f.f.scope, "No legacy adoption")).value();
+            ModelResource draft = models.create(actor(), new ModelResourceCommands.Create(meta("tenant-adoption-draft"), f.f.scope, "No legacy adoption", ModelResourceCommands.ModelKind.TENANT)).value();
             assertThrows(PlatformException.class, () -> models.associate(actor(), new ModelResourceCommands.Associate(
                     meta("tenant-adoption"), f.f.scope, draft.resource(), 0, f.f.f.ref("binding", "text"), ModelPublication.Source.DATABASE, 1L)));
             assertEquals(ModelResource.State.DRAFT, models.get(actor(), f.f.scope, draft.resource()).state());
@@ -225,13 +224,13 @@ class TenantModelSharingIntegrationTest {
         f.policy(c, host, true);
         target = c.getBean(DefaultWorkspaceServices.class).workspaces().create(actor(), new WorkspaceCommands.CreateWorkspace(meta("target-space"), f.f.scope.tenantId(), "Target", "")).value().scope();
         db.ensure(actor(), target);
-        f.model = c.getBean(ModelResourceService.class).createTenant(actor(), new ModelResourceCommands.Create(meta("tenant-model"), f.f.scope, "Tenant model")).value();
+        f.model = c.getBean(ModelResourceService.class).create(actor(), new ModelResourceCommands.Create(meta("tenant-model"), f.f.scope, "Tenant model", ModelResourceCommands.ModelKind.TENANT)).value();
         assertNull(f.model.ownership().workspaceId());
         assertEquals(f.f.scope, f.model.managementScope());
         f.save(c, 0, "deepseek-chat");
         c.getBean(ModelDraftService.class).replaceCredential(actor(), meta("tenant-key"), f.f.scope, f.model.resource(), 0, PersonalModelPublicationIntegrationTest.TOKEN, ModelDrafts.CredentialKind.TENANT);
         f.validate(c, 1, 1, network);
-        version = f.publish(c, "publish-tenant", 0, 1, 1);
+        version = f.publishSelectedFixture(c, "publish-tenant", 0, 1, 1);
         f.f.f.f.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-30 10:00:00"));
         RbacIdentityProvider identity = c.getBean(RbacIdentityProvider.class);
         bob = new TrustedActor(identity.resolveAuthenticatedName("bob").orElseThrow(), Instant.now());
@@ -247,6 +246,7 @@ class TenantModelSharingIntegrationTest {
         });
         assertTrue(c.getBean(WorkspaceMembershipStore.class).find(f.f.scope, bob.principal().subjectId()).isEmpty());
         db.ensure(bob, target);
+        f.selections.enable(target, f.model.resource().resourceId(), version.publication().binding().definition());
     }
 
     void grant(ApplicationContext c) {
@@ -263,8 +263,15 @@ class TenantModelSharingIntegrationTest {
         c.getBean(DefaultModelSharingService.class).consumers(actor(), meta("consumers-" + expected), f.f.scope, f.model.resource(), expected, 1, subjects);
     }
 
-    PersonalModels.Status status(ApplicationContext c) {
-        return c.getBean(PersonalModelPublicationService.class).status(bob, target, f.model.resource(), version.publication().binding().definition());
+    ModelPublications.Status status(ApplicationContext c) {
+        return f.f.f.f.tx.required(() -> {
+            com.arte.ainew.application.model.DefaultModelPublicationService publications = c.getBean(com.arte.ainew.application.model.DefaultModelPublicationService.class);
+            publications.lock(bob, target);
+            com.arte.ainew.pojo.model.ModelPublications.Release release = c.getBean(com.arte.ainew.spi.model.ModelPublicationStore.class)
+                    .find(target, version.publication().binding().definition(), true).orElseThrow();
+            String reason = publications.readiness(bob, release, target);
+            return new ModelPublications.Status(release.binding(), reason == null, reason == null ? "READY" : reason, release.maxOutputTokens());
+        });
     }
 
     Invocation acceptBob(ApplicationContext c) {
@@ -295,7 +302,7 @@ class TenantModelSharingIntegrationTest {
             scopes(c, 0, Set.of(f.f.scope.workspaceId(), target.workspaceId()));
             assertEquals("CREDENTIAL_USE_DENIED", status(c).reason());
             consumers(c, 1, Set.of(bob.principal().subjectId()));
-            assertTrue(status(c).ready(), status(c).reason());
+            assertTrue(status(c).valid(), status(c).reason());
             ExecutionAuthorization auth = c.getBean(DatabaseAiControlService.class).resolve("bob", target.tenantId(), target.workspaceId(), Set.of(AdmissionAuthorization.INVOKE)).block(Duration.ofSeconds(10));
             ExecutionContext context = new ExecutionContext(UUID.randomUUID().toString(), "tenant-model", auth, Instant.now().plusSeconds(60), null, null, "release-v1", "test");
             assertEquals(version.publication().binding(), c.getBean(AiResourceEntitlementService.class).resolve(version.publication().binding().definition(),
@@ -312,7 +319,7 @@ class TenantModelSharingIntegrationTest {
             grant(c);
             scopes(c, 0, Set.of(target.workspaceId()));
             consumers(c, 1, Set.of(bob.principal().subjectId()));
-            assertTrue(status(c).ready());
+            assertTrue(status(c).valid());
             c.getBean(ModelDraftService.class).replaceCredential(actor(), meta("rotate"), f.f.scope, f.model.resource(), 1, "replacement-test-key", ModelDrafts.CredentialKind.TENANT);
             assertEquals("CREDENTIAL_STALE", status(c).reason());
             assertEquals(2, c.getBean(DefaultModelSharingService.class).consumers(actor(), meta("consumers-1"), f.f.scope, f.model.resource(), 1, 1, Set.of(bob.principal().subjectId())).value().version());
@@ -332,7 +339,7 @@ class TenantModelSharingIntegrationTest {
             scopes(c, 0, Set.of(target.workspaceId()));
             assertThrows(RuntimeException.class, () -> scopes(c, 0, Set.of()));
             assertThrows(RuntimeException.class, () -> c.getBean(DefaultModelSharingService.class).consumers(bob, meta("stolen-key"), f.f.scope, f.model.resource(), 1, 1, Set.of(bob.principal().subjectId())));
-            assertThrows(RuntimeException.class, () -> c.getBean(ModelResourceService.class).createTenant(bob, new ModelResourceCommands.Create(meta("member-tenant"), target, "Denied")));
+            assertThrows(RuntimeException.class, () -> c.getBean(ModelResourceService.class).create(bob, new ModelResourceCommands.Create(meta("member-tenant"), target, "Denied", ModelResourceCommands.ModelKind.TENANT)));
         });
     }
 
@@ -383,14 +390,14 @@ class TenantModelSharingIntegrationTest {
             grant(c);
             scopes(c, 0, Set.of(target.workspaceId()));
             consumers(c, 1, Set.of(bob.principal().subjectId()));
-            assertTrue(status(c).ready());
+            assertTrue(status(c).valid());
             f.f.f.f.jdbc.update("UPDATE arte_platform_tenant_member SET generation=generation+1,version=version+1 WHERE subject_id=? AND tenant_id=?", bob.principal().subjectId(), target.tenantId());
             long acl = c.getBean(com.arte.core.spi.access.ResourceGrantStore.class).findAccess(f.model.resource()).orElseThrow().aclVersion();
             c.getBean(DefaultWorkspaceServices.class).resources().grant(actor(), new ResourceAccessCommands.GrantResource(meta("rejoined-model-acl"), target, f.model.resource(), acl,
                     new GrantRecipient.Subject(bob.principal().subjectId()), Set.of(MODEL_READ, MODEL_USE), null));
             assertEquals("CREDENTIAL_USE_DENIED", status(c).reason());
             consumers(c, 2, Set.of(bob.principal().subjectId()));
-            assertTrue(status(c).ready());
+            assertTrue(status(c).valid());
         });
     }
 
@@ -437,7 +444,7 @@ class TenantModelSharingIntegrationTest {
             });
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
-                assertTrue(status(c).ready());
+                assertTrue(status(c).valid());
                 assertEquals(1, calls.get());
             });
         } finally {
@@ -452,7 +459,7 @@ class TenantModelSharingIntegrationTest {
             reactor.core.scheduler.Scheduler scheduler = reactor.core.scheduler.Schedulers.newBoundedElastic(2, 32, "tenant-sharing-http");
             com.arte.app.platform.identity.PlatformAuthenticatedExecutor executor = new com.arte.app.platform.identity.PlatformAuthenticatedExecutor(
                     c.getBean(com.arte.app.platform.identity.RbacIdentityProvider.class), new PlatformPersistenceExecutor(scheduler, f.f.f.f.tx));
-            try (ManagementHttpHarness http = new ManagementHttpHarness(new com.arte.app.web.controller.platform.ModelSharingController(executor, c.getBean(DefaultModelSharingService.class), c.getBean(ModelResourceService.class)))) {
+            try (ManagementHttpHarness http = new ManagementHttpHarness(new com.arte.app.web.controller.platform.ModelSharingController(executor, c.getBean(DefaultModelSharingService.class)))) {
                 org.springframework.security.core.Authentication auth = ManagementHttpHarness.login(f.f.f.f.jdbc, 1, "alice");
                 Map<String, Object> request = Map.of("scope", f.f.scope, "resourceId", f.model.resource().resourceId(), "expectedVersion", 0, "workspaceIds", List.of(target.workspaceId()));
                 String json = f.f.f.f.json.write(request);

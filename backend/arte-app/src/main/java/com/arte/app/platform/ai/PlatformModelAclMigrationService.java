@@ -106,6 +106,9 @@ public final class PlatformModelAclMigrationService implements ModelAclMigration
 
     @Override
     public CommandReceipt<ModelAclScope> migrate(TrustedActor actor, Migrate command) {
+        if ("DATABASE".equals(properties.configurationMode()) || command.source() == AiEntitlement.Source.DATABASE) {
+            throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
+        }
         List<String> fields = new ArrayList<>(List.of(command.source().name(), Long.toString(command.expectedVersion())));
         command.bindings().stream().sorted(Comparator.comparing(DefinitionRef::id).thenComparing(DefinitionRef::version)).forEach(ref -> {
             fields.add(ref.type());

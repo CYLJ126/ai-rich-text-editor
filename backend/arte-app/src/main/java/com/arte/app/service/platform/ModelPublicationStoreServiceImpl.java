@@ -1,10 +1,12 @@
 package com.arte.app.service.platform;
 
-import com.arte.ainew.pojo.model.PersonalModels.Release;
-import com.arte.ainew.spi.model.PersonalModelStore;
+import com.arte.ainew.pojo.model.ModelPublications.Release;
+import com.arte.ainew.spi.model.ModelPublicationStore;
+import com.arte.ainew.spi.model.ModelResourceStore;
+import com.arte.ainew.spi.model.ModelSharingStore;
 import com.arte.app.platform.persistence.PlatformJson;
+import com.arte.app.platform.persistence.mapper.PlatformModelPublicationMapper;
 import com.arte.app.platform.persistence.mapper.PlatformModelResourceMapper;
-import com.arte.app.platform.persistence.mapper.PlatformPersonalModelMapper;
 import com.arte.app.pojo.platform.PlatformModelResourceDto;
 import com.arte.core.application.platform.DefaultCommandExecutor;
 import com.arte.core.pojo.platform.Scope;
@@ -16,7 +18,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 个人发布证据的持久化适配
+ * 资源发布证据的持久化适配
  * <p>
  * 当前读加入原事务及范围门控，载荷须匹配索引和摘要。
  * 继承的 MyBatis-Plus 方法含事务注解，Spring 会创建 CGLIB 子类代理，因此本类不能声明为 final。
@@ -24,20 +26,20 @@ import java.util.Optional;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/31 20:55 ✾
  */
-public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto>
-        implements PersonalModelStore {
-    private final PlatformPersonalModelMapper mapper;
-    private final PlatformJson json;
-    private com.arte.ainew.spi.model.ModelSharingStore sharing;
-    private com.arte.ainew.spi.model.ModelResourceStore models;
+public class ModelPublicationStoreServiceImpl extends PlatformStoreSupport<PlatformModelResourceMapper, PlatformModelResourceDto> implements ModelPublicationStore {
 
-    public void sharing(com.arte.ainew.spi.model.ModelSharingStore sharing, com.arte.ainew.spi.model.ModelResourceStore models) {
+    private final PlatformModelPublicationMapper mapper;
+    private final PlatformJson json;
+    private ModelSharingStore sharing;
+    private ModelResourceStore models;
+
+    public void sharing(ModelSharingStore sharing, ModelResourceStore models) {
         this.sharing = sharing;
         this.models = models;
     }
 
-    public PersonalModelStoreServiceImpl(PlatformModelResourceMapper resources, PlatformPersonalModelMapper mapper,
-                                         PublicTransactionRunner tx, PlatformJson json) {
+    public ModelPublicationStoreServiceImpl(PlatformModelResourceMapper resources, PlatformModelPublicationMapper mapper,
+                                            PublicTransactionRunner tx, PlatformJson json) {
         super(resources, tx);
         this.mapper = mapper;
         this.json = json;
@@ -59,7 +61,7 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
         }
     }
 
-    private Release decode(Scope scope, PlatformPersonalModelMapper.Row row) {
+    private Release decode(Scope scope, PlatformModelPublicationMapper.Row row) {
         Release value = json.read(row.payload(), Release.class);
         if (!value.scope().equals(scope) || !bindingKey(scope, value.binding()).equals(row.bindingKey())
                 || !CanonicalJson.digest(value).equals(row.digest())) {
@@ -74,7 +76,7 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
         if (sharing != null) {
             sharing.validateTenant(scope.tenantId(), current);
         }
-        PlatformPersonalModelMapper.Row row = mapper.find(scopeKey(scope), bindingKey(scope, binding), current);
+        PlatformModelPublicationMapper.Row row = mapper.find(scopeKey(scope), bindingKey(scope, binding), current);
         if (row == null && sharing != null) {
             row = mapper.findShared(scope.tenantId(), scope.workspaceId(), bindingKey(scope, binding), current);
         }
@@ -94,11 +96,11 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
             sharing.validateTenant(scope.tenantId(), current);
         }
         java.util.Map<String, Release> values = new java.util.LinkedHashMap<>();
-        List<PlatformPersonalModelMapper.Row> rows = new java.util.ArrayList<>(mapper.list(scopeKey(scope), current));
+        List<PlatformModelPublicationMapper.Row> rows = new java.util.ArrayList<>(mapper.list(scopeKey(scope), current));
         if (sharing != null) {
             rows.addAll(mapper.listShared(scope.tenantId(), scope.workspaceId(), current));
         }
-        for (PlatformPersonalModelMapper.Row row : rows) {
+        for (PlatformModelPublicationMapper.Row row : rows) {
             Release release = decodeForUse(scope, row, current);
             Release previous = values.putIfAbsent(row.bindingKey(), release);
             if (previous != null && !previous.equals(release)) {
@@ -111,7 +113,7 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
         return List.copyOf(values.values());
     }
 
-    private Release decodeForUse(Scope scope, PlatformPersonalModelMapper.Row row, boolean current) {
+    private Release decodeForUse(Scope scope, PlatformModelPublicationMapper.Row row, boolean current) {
         Release release = json.read(row.payload(), Release.class);
         decode(release.scope(), row);
         if (!release.resource().tenantId().equals(scope.tenantId())) {
@@ -139,6 +141,6 @@ public class PersonalModelStoreServiceImpl extends PlatformStoreSupport<Platform
         gate(release.scope(), true);
         String resourceKey = DefaultCommandExecutor.digest(List.of(release.resource().tenantId(), release.resource().type().value(), release.resource().resourceId()));
         return insertRecord(() -> mapper.insert(scopeKey(release.scope()), resourceKey,
-                new PlatformPersonalModelMapper.Row(bindingKey(release.scope(), release.binding()), CanonicalJson.digest(release), json.write(release))));
+                new PlatformModelPublicationMapper.Row(bindingKey(release.scope(), release.binding()), CanonicalJson.digest(release), json.write(release))));
     }
 }

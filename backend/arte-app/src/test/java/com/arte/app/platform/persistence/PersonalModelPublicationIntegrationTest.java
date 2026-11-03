@@ -4,8 +4,8 @@ import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.model.ModelDraftService;
+import com.arte.ainew.api.model.ModelPublicationService;
 import com.arte.ainew.api.model.ModelResourceService;
-import com.arte.ainew.api.model.PersonalModelPublicationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.application.execution.GenerationDispatcher;
@@ -43,9 +43,14 @@ import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.model.ModelConnectionValidator;
 import com.arte.app.platform.ai.*;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
-import com.arte.app.web.controller.platform.PersonalModelPublicationController;
+import com.arte.app.platform.identity.PlatformIdentityConfiguration;
+import com.arte.app.platform.identity.RbacAccountMapperConfiguration;
+import com.arte.app.platform.identity.RbacAccountReader;
+import com.arte.app.platform.workspace.PlatformWorkspaceConfiguration;
+import com.arte.app.web.controller.platform.ModelPublicationController;
 import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
 import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.workspace.*;
 import com.arte.core.spi.platform.AuditSink;
 import com.arte.core.spi.workspace.*;
@@ -82,13 +87,14 @@ class PersonalModelPublicationIntegrationTest {
     final ModelAclRuntimeIntegrationTest f = new ModelAclRuntimeIntegrationTest();
     static final Duration WAIT = Duration.ofSeconds(20);
     static final String TOKEN = "private-personal-key-for-test";
+    final TestModelSelections selections = new TestModelSelections();
     ModelResource model;
     String validation;
 
     @BeforeEach
     void setup() throws Exception {
         f.setup();
-        for (String file : List.of("arte-ai-model-draft-ddl-mysql.sql", "arte-ai-model-personal-publication-ddl-mysql.sql")) {
+        for (String file : List.of("arte-ai-model-draft-ddl-mysql.sql", "arte-ai-model-publication-ddl-mysql.sql")) {
             String sql = Files.readString(Path.of("scripts", file));
             if (f.f.f.mysql == null) {
                 sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replaceAll("(?i)ENGINE=InnoDB", "").replaceAll("(?im)^SET\\s+[^;]*;", "");
@@ -109,7 +115,7 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     ApplicationContextRunner personalConfiguration(ApplicationContextRunner base) {
-        return base.withUserConfiguration(PlatformModelDraftConfiguration.class, PlatformPersonalModelConfiguration.class, PersonalModelStartupSafety.class)
+        return base.withBean(TestModelSelections.class, () -> selections).withUserConfiguration(PlatformModelDraftConfiguration.class, PlatformModelPublicationConfiguration.class, ModelPublicationStartupSafety.class)
                 .withPropertyValues("arte.ai-new-model-management.enabled=true", "arte.ai-new-model-publication.enabled=true",
                         "arte.ai-new-model-management.active-key-id=primary", "arte.ai-new-model-management.fingerprint-key-id=primary",
                         "arte.ai-new-model-management.encryption-keys.primary=" + Base64.getEncoder().encodeToString(new byte[16]));
@@ -121,16 +127,16 @@ class PersonalModelPublicationIntegrationTest {
 
     ApplicationContextRunner realGenerationContext(boolean fileSeed) {
         ApplicationContextRunner base = new ApplicationContextRunner().withUserConfiguration(
-                        com.arte.app.platform.workspace.PlatformWorkspaceConfiguration.class,
-                        com.arte.app.platform.identity.PlatformIdentityConfiguration.class, PlatformPersistenceConfiguration.class,
+                        PlatformWorkspaceConfiguration.class,
+                        PlatformIdentityConfiguration.class, PlatformPersistenceConfiguration.class,
                         DatabaseAiControlService.class, DatabaseAiControlIntegrationTest.Stores.class, NewAiAdmissionConfiguration.class,
                         PlatformModelResourceConfiguration.class, PlatformModelAclConfiguration.class, ModelAclStartupSafety.class)
                 .withConfiguration(org.springframework.boot.autoconfigure.AutoConfigurations.of(NewAiGenerationConfiguration.class))
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
                         "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true", "arte.ai-new-generation.enabled=true")
                 .withBean("appDataSource", javax.sql.DataSource.class, () -> f.f.f.source)
-                .withBean(com.arte.app.platform.identity.RbacAccountReader.class, () -> new com.arte.app.platform.identity.RbacAccountReader(f.f.f.source,
-                        new com.arte.app.platform.identity.RbacAccountMapperConfiguration().identityUserMapper(f.f.f.source)))
+                .withBean(RbacAccountReader.class, () -> new RbacAccountReader(f.f.f.source,
+                        new RbacAccountMapperConfiguration().identityUserMapper(f.f.f.source)))
                 .withBean(org.redisson.api.RedissonClient.class, () -> org.mockito.Mockito.mock(org.redisson.api.RedissonClient.class));
         base = fileSeed ? base.withPropertyValues(f.f.seedProperties()) : base.withPropertyValues(
                 "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE", "arte.ai-new.release-ref=release-v1");
@@ -173,7 +179,7 @@ class PersonalModelPublicationIntegrationTest {
 
     void save(ApplicationContext c, long version, String remote) {
         c.getBean(ModelDraftService.class).save(f.f.f.actor, f.f.meta("draft-" + version), f.scope, model.resource(), version, "Personal",
-                new Settings(f.f.ref("connection", "deepseek"), remote, 8192, 128));
+                new Settings(f.f.ref("model-plan", "text"), 8192, 128));
     }
 
     void validate(ApplicationContext c, long dv, long cv, boolean network) {
@@ -184,13 +190,16 @@ class PersonalModelPublicationIntegrationTest {
         assertEquals(ValidationState.SUCCEEDED, drafts.completeValidation(f.f.f.actor, f.scope, validation, result).state());
     }
 
-    ModelResourceVersion publish(ApplicationContext c, String key, long mv, long dv, long cv) {
-        return c.getBean(PersonalModelPublicationService.class).publish(f.f.f.actor, f.f.meta(key), f.scope, model.resource(), mv, dv, cv,
+    ModelResourceVersion publishSelectedFixture(ApplicationContext c, String key, long mv, long dv, long cv) {
+        ModelResourceVersion version = c.getBean(ModelPublicationService.class).publish(f.f.f.actor, f.f.meta(key), f.scope, model.resource(), mv, dv, cv,
                 validation, f.f.ref("model-plan", "text"), 1).value();
+        // 单独安装隔离回归的启用事实，生产发布服务从不自动启用。
+        selections.enable(f.scope, model.resource().resourceId(), version.publication().binding().definition());
+        return version;
     }
 
-    PersonalModels.Status status(ApplicationContext c, ModelResourceVersion version) {
-        return c.getBean(PersonalModelPublicationService.class).status(f.f.f.actor, f.scope, model.resource(), version.publication().binding().definition());
+    ModelPublications.Status status(ApplicationContext c, ModelResourceVersion version) {
+        return c.getBean(ModelPublicationService.class).status(f.f.f.actor, f.scope, model.resource(), version.publication().binding().definition());
     }
 
     Invocation accept(ApplicationContext c, ModelResourceVersion version, int output) {
@@ -215,25 +224,25 @@ class PersonalModelPublicationIntegrationTest {
             assertNull(c.getStartupFailure());
             prepare(c);
             long accounts = f.count("arte_ai_account");
-            assertEquals(1, c.getBean(PersonalModelPublicationService.class).options(f.f.f.actor, f.scope, model.resource()).size());
-            ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
-            assertEquals(version, publish(c, "publish", 0, 1, 1));
+            assertEquals(1, c.getBean(ModelPublicationService.class).options(f.f.f.actor, f.scope, model.resource()).size());
+            ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
+            assertEquals(version, publishSelectedFixture(c, "publish", 0, 1, 1));
             assertEquals(0, f.count("arte_ai_model_acl_scope"));
             assertEquals(accounts, f.count("arte_ai_account"));
-            assertEquals("READY", status(c, version).reason());
+            assertEquals("VALID", status(c, version).reason());
             ExecutionContext execution = f.execution(c, "discover");
             AiEntitlement entitlement = c.getBean(AiResourceEntitlementService.class).resolve(version.publication().binding().definition(), version.publication().binding().capability().definition(), execution).block(WAIT);
             assertEquals(model.resource(), entitlement.modelAccess().resource());
-            assertEquals(ModelPublication.Source.PERSONAL, entitlement.modelAccess().definitionSource());
+            assertEquals(ModelPublication.Source.RESOURCE, entitlement.modelAccess().definitionSource());
             assertEquals(ExecutionOwners.from(execution), entitlement.executionOwner());
             ChatConfigurationOptions.ModelOption option = c.getBean(ChatConfigurationQueryService.class).discover(execution).block(WAIT).options().stream()
                     .filter(value -> value.binding().equals(version.publication().binding().definition())).findFirst().orElseThrow();
             assertEquals(128, option.limits().maxOutputTokens());
             assertEquals("Personal", option.displayName());
             assertEquals(model.resource().resourceId(), option.resourceId());
-            assertEquals("PERSONAL", option.source());
-            save(c, 1, "unreviewed-expensive-model");
-            assertTrue(c.getBean(PersonalModelPublicationService.class).options(f.f.f.actor, f.scope, model.resource()).isEmpty());
+            assertEquals("RESOURCE", option.source());
+            assertThrows(RuntimeException.class, () -> c.getBean(ModelDraftService.class).save(f.f.f.actor, f.f.meta("unreviewed-plan"), f.scope, model.resource(), 1,
+                    "Unreviewed", new Settings(new DefinitionRef("model-plan", "missing", "v1"), 8192, 128)));
             assertEquals(version.publication().binding(), c.getBean(BindingManager.class).resolve(version.publication().binding().definition(), version.publication().binding().capability().definition(), execution).block(WAIT));
             assertEquals(Invocation.State.ACCEPTED, accept(c, version, 128).state());
             assertThrows(RuntimeException.class, () -> accept(c, version, 129));
@@ -245,16 +254,16 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            PersonalModelPublicationService service = c.getBean(PersonalModelPublicationService.class);
+            ModelPublicationService service = c.getBean(ModelPublicationService.class);
             assertThrows(RuntimeException.class, () -> service.publish(f.f.f.actor, f.f.meta("wrong-catalog"), f.scope, model.resource(), 0, 1, 1, validation, f.f.ref("model-plan", "text"), 2));
             assertThrows(RuntimeException.class, () -> service.publish(f.f.f.actor, f.f.meta("wrong-binding"), f.scope, model.resource(), 0, 1, 1, validation, f.f.ref("binding", "other"), 1));
             save(c, 1, "deepseek-chat");
-            assertThrows(RuntimeException.class, () -> publish(c, "stale-validation", 0, 2, 1));
-            assertEquals(0, f.count("arte_ai_model_personal_publication"));
+            assertThrows(RuntimeException.class, () -> publishSelectedFixture(c, "stale-validation", 0, 2, 1));
+            assertEquals(0, f.count("arte_ai_model_publication"));
             assertEquals(0, f.count("arte_ai_model_version"));
             validate(c, 2, 1, false);
-            assertNotNull(publish(c, "fresh", 0, 2, 1));
-            assertThrows(RuntimeException.class, () -> publish(c, "fresh", 1, 2, 1));
+            assertNotNull(publishSelectedFixture(c, "fresh", 0, 2, 1));
+            assertThrows(RuntimeException.class, () -> publishSelectedFixture(c, "fresh", 1, 2, 1));
         });
     }
 
@@ -263,19 +272,19 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            ModelResourceVersion first = publish(c, "first", 0, 1, 1);
+            ModelResourceVersion first = publishSelectedFixture(c, "first", 0, 1, 1);
             String firstValidation = validation;
             c.getBean(ModelDraftService.class).replaceCredential(f.f.f.actor, f.f.meta("rotate"), f.scope, model.resource(), 1, "replacement-personal-key");
             assertEquals("CREDENTIAL_STALE", status(c, first).reason());
             assertThrows(RuntimeException.class, () -> accept(c, first, 128));
             validate(c, 1, 2, false);
-            ModelResourceVersion second = publish(c, "second", 1, 1, 2);
+            ModelResourceVersion second = publishSelectedFixture(c, "second", 1, 1, 2);
             assertEquals(first.resource(), second.resource());
             assertEquals(first.publication().binding().definition().id(), second.publication().binding().definition().id());
             assertNotEquals(first.publication().connection().credential(), second.publication().connection().credential());
             assertEquals(2, f.count("arte_ai_model_version"));
-            assertEquals("READY", status(c, second).reason());
-            assertEquals(first, c.getBean(PersonalModelPublicationService.class).publish(f.f.f.actor, f.f.meta("first"), f.scope,
+            assertEquals("VALID", status(c, second).reason());
+            assertEquals(first, c.getBean(ModelPublicationService.class).publish(f.f.f.actor, f.f.meta("first"), f.scope,
                     model.resource(), 0, 1, 1, firstValidation, f.f.ref("model-plan", "text"), 1).value());
             c.getBean(ModelDraftService.class).revokeCredential(f.f.f.actor, f.f.meta("revoke"), f.scope, model.resource(), 2);
             assertEquals("CREDENTIAL_STALE", status(c, second).reason());
@@ -288,11 +297,11 @@ class PersonalModelPublicationIntegrationTest {
             assertNull(c.getStartupFailure());
             prepare(c);
             f.f.f.jdbc.update("DELETE FROM arte_ai_budget_definition");
-            ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
-            assertEquals("NO_COMPATIBLE_BUDGET", status(c, version).reason());
+            ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
+            assertEquals("VALID", status(c, version).reason());
             ExecutionContext execution = f.f.execution(c.getBean(DatabaseAiControlService.class), f.scope, Set.of(AdmissionAuthorization.INVOKE), "discover");
             assertTrue(c.getBean(ChatConfigurationQueryService.class).discover(execution).block(WAIT).options().isEmpty());
-            assertEquals(1, f.count("arte_ai_model_personal_publication"));
+            assertEquals(1, f.count("arte_ai_model_publication"));
         });
     }
 
@@ -301,7 +310,7 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
+            ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
             Invocation invocation = accept(c, version, 128);
             AiAdmissionAuthorizationGuard guard = c.getBean(AiAdmissionAuthorizationGuard.class);
             AiAdmissionAuthorizationGuard.Permit permit = guard.authorize(check(c, invocation, version, AiAdmissionAuthorizationGuard.Boundary.DISPATCH)).block(WAIT);
@@ -322,12 +331,12 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            PersonalModelPublicationService service = c.getBean(PersonalModelPublicationService.class);
+            ModelPublicationService service = c.getBean(ModelPublicationService.class);
             ReflectionTestUtils.setField(service, "clock", Clock.offset(Clock.systemUTC(), Duration.ofMinutes(11)));
-            assertThrows(RuntimeException.class, () -> publish(c, "expired", 0, 1, 1));
+            assertThrows(RuntimeException.class, () -> publishSelectedFixture(c, "expired", 0, 1, 1));
             ReflectionTestUtils.setField(service, "clock", Clock.systemUTC());
             policy(c, "api.deepseek.com", false);
-            assertThrows(RuntimeException.class, () -> publish(c, "policy-denied", 0, 1, 1));
+            assertThrows(RuntimeException.class, () -> publishSelectedFixture(c, "policy-denied", 0, 1, 1));
             assertEquals(0, f.count("arte_ai_model_version"));
         });
     }
@@ -337,13 +346,13 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            Object effects = ReflectionTestUtils.getField(c.getBean(PersonalModelPublicationService.class), "effects");
+            Object effects = ReflectionTestUtils.getField(c.getBean(ModelPublicationService.class), "effects");
             ReflectionTestUtils.setField(effects, "audit", (AuditSink) entry -> {
                 throw new IllegalStateException("test audit failure");
             });
             long receipts = f.count("arte_platform_command");
-            assertThrows(RuntimeException.class, () -> publish(c, "rollback", 0, 1, 1));
-            assertEquals(0, f.count("arte_ai_model_personal_publication"));
+            assertThrows(RuntimeException.class, () -> publishSelectedFixture(c, "rollback", 0, 1, 1));
+            assertEquals(0, f.count("arte_ai_model_publication"));
             assertEquals(0, f.count("arte_ai_model_version"));
             assertEquals(0, f.count("arte_ai_model_definition_source"));
             assertEquals(receipts, f.count("arte_platform_command"));
@@ -355,13 +364,13 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
+            ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
             ConnectionCredentialResolver resolver = c.getBean(ConnectionCredentialResolver.class);
             assertThrows(RuntimeException.class, () -> resolver.resolve(version.publication().connection().credential(), f.execution(c, "made-up-execution")).block(WAIT));
             Invocation accepted = accept(c, version, 128);
             assertThrows(RuntimeException.class, () -> resolver.resolve(version.publication().connection().credential(), accepted.request().context()).block(WAIT));
         });
-        f.context().withUserConfiguration(PersonalModelStartupSafety.class).run(c -> assertNotNull(c.getStartupFailure()));
+        f.context().withUserConfiguration(ModelPublicationStartupSafety.class).run(c -> assertNotNull(c.getStartupFailure()));
     }
 
     @Test
@@ -371,20 +380,20 @@ class PersonalModelPublicationIntegrationTest {
             prepare(c);
             PlatformAuthenticatedExecutor executor = new PlatformAuthenticatedExecutor(c.getBean(com.arte.app.platform.identity.RbacIdentityProvider.class),
                     new PlatformPersistenceExecutor(c.getBean("newAiPersistenceScheduler", reactor.core.scheduler.Scheduler.class), f.f.f.tx));
-            PersonalModelPublicationController controller = new PersonalModelPublicationController(executor, c.getBean(PersonalModelPublicationService.class));
+            ModelPublicationController controller = new ModelPublicationController(executor, c.getBean(ModelPublicationService.class));
             String scopeJson = f.f.f.json.write(f.scope);
             String body = "{\"scope\":" + scopeJson + ",\"resourceId\":\"" + model.resource().resourceId() + "\"}";
-            try (ManagementHttpHarness http = new ManagementHttpHarness(controller, new com.arte.app.web.controller.platform.ReviewedModelPlanController(executor, c.getBean(PersonalModelPublicationService.class)))) {
+            try (ManagementHttpHarness http = new ManagementHttpHarness(controller, new com.arte.app.web.controller.platform.ReviewedModelPlanController(executor, c.getBean(ModelDraftService.class)))) {
                 org.springframework.security.core.Authentication auth = ManagementHttpHarness.login(f.f.f.jdbc, 1, "alice");
                 http.ok("/ai-new/model-draft/listReviewedModelPlans", body, null, auth);
                 http.rejected("/ai-new/model-draft/listReviewedModelPlans", body.substring(0, body.length() - 1) + ",\"endpoint\":\"https://attacker.invalid\"}", null, auth, 400, "INVALID_ARGUMENT");
                 String publish = body.substring(0, body.length() - 1) + ",\"expectedVersion\":0,\"draftVersion\":1,\"credentialVersion\":1,\"validationId\":\"" + validation + "\",\"planRef\":" + f.f.f.json.write(f.f.ref("model-plan", "text")) + ",\"catalogRevision\":1}";
-                String result = http.ok("/ai-new/model-resource/publishPersonalModel", publish, "http-publish", auth).toString();
+                String result = http.ok("/ai-new/model-resource/publishModel", publish, "http-publish", auth).toString();
                 assertTrue(result.contains("PERSONAL"));
                 assertFalse(result.contains(TOKEN));
                 assertFalse(result.contains("ciphertext"));
                 assertFalse(result.contains("endpoint"));
-                assertFalse(result.contains("personal-model-"));
+                assertFalse(result.contains("model-resource-"));
             }
         });
     }
@@ -438,17 +447,18 @@ class PersonalModelPublicationIntegrationTest {
                 model = c.getBean(ModelResourceService.class).create(f.f.f.actor,
                         new ModelResourceCommands.Create(f.f.meta("independent-model"), f.scope, "Independent model")).value();
                 ModelDraftService drafts = c.getBean(ModelDraftService.class);
-                drafts.save(f.f.f.actor, f.f.meta("independent-draft"), f.scope, model.resource(), 0, "Independent model", new Settings(connection, "independent-model", 8192, 128));
+                drafts.save(f.f.f.actor, f.f.meta("independent-draft"), f.scope, model.resource(), 0, "Independent model", new Settings(reviewed.reviewedPlans().getFirst().planRef(), 8192, 128));
                 drafts.replaceCredential(f.f.f.actor, f.f.meta("independent-key"), f.scope, model.resource(), 0, TOKEN);
                 validate(c, 1, 1, true);
-                PersonalModelPublicationService publications = c.getBean(PersonalModelPublicationService.class);
-                PersonalModels.Option option = publications.options(f.f.f.actor, f.scope, model.resource()).getFirst();
+                ModelPublicationService publications = c.getBean(ModelPublicationService.class);
+                ModelPublications.Option option = publications.options(f.f.f.actor, f.scope, model.resource()).getFirst();
                 assertEquals(plan.planRef(), option.planRef());
                 ModelResourceVersion version = publications.publish(f.f.f.actor, f.f.meta("independent-publish"), f.scope, model.resource(),
                         0, 1, 1, validation, option.planRef(), option.catalogRevision()).value();
                 assertTrue(version.publication().binding().capability().features().contains(CapabilityDescriptor.Feature.TOOL_CALLS));
                 published.set(version);
-                assertTrue(status(c, version).ready());
+                selections.enable(f.scope, model.resource().resourceId(), version.publication().binding().definition());
+                assertTrue(status(c, version).valid());
                 Invocation accepted = accept(c, version, 128);
                 MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
                 MybatisPayloadPersistence payloads = c.getBean(MybatisPayloadPersistence.class);
@@ -470,7 +480,7 @@ class PersonalModelPublicationIntegrationTest {
                 assertEquals(3, c.getBean(DatabaseAiControlService.class).catalog().version());
                 assertTrue(c.getBean(DatabaseAiControlService.class).definitions().bindings().isEmpty());
                 assertEquals("independent-model", c.getBean(DatabaseAiControlService.class).catalog().catalog().reviewedPlans().getFirst().remoteModel());
-                assertTrue(status(c, published.get()).ready());
+                assertTrue(status(c, published.get()).valid());
                 assertEquals(1, calls.get());
             });
         } finally {
@@ -504,10 +514,10 @@ class PersonalModelPublicationIntegrationTest {
             realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1", "arte.ai-new-generation.allowed-origins[0]=" + origin).run(c -> {
                 assertNull(c.getStartupFailure());
                 prepare(c, "127.0.0.1", true);
-                ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
+                ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
                 Invocation accepted = accept(c, version, 128);
                 if (missingKey) {
-                    ReflectionTestUtils.setField(c.getBean(PersonalModelCredentialResolver.class), "cipher", new Sm4ModelCredentialCipher(
+                    ReflectionTestUtils.setField(c.getBean(ModelPublicationCredentialResolver.class), "cipher", new Sm4ModelCredentialCipher(
                             new ModelManagementProperties(true, "replacement", "replacement", Map.of("replacement", Base64.getEncoder().encodeToString(new byte[16])))));
                 }
                 MybatisExecutionPersistence executions = c.getBean(MybatisExecutionPersistence.class);
@@ -516,7 +526,7 @@ class PersonalModelPublicationIntegrationTest {
                     com.arte.ainew.spi.gateway.ModelGateway gateway = c.getBean(com.arte.ainew.spi.gateway.ModelGateway.class);
                     assertInstanceOf(DefaultModelGateway.class, gateway);
                     assertEquals(1, c.getBeansOfType(ConnectionCredentialResolver.class).size());
-                    assertInstanceOf(PersonalModelCredentialResolver.class, c.getBean(ConnectionCredentialResolver.class));
+                    assertInstanceOf(ModelPublicationCredentialResolver.class, c.getBean(ConnectionCredentialResolver.class));
                     GenerationDispatcher dispatcher = new GenerationDispatcher(c.getBean(AdmissionAuthorization.class), c.getBean(CapabilityCatalog.class), c.getBean(BindingManager.class),
                             c.getBean(PublishedAiCatalog.class), c.getBean(AiExecutionPolicyProvider.class), c.getBean(AiAdmissionAuthorizationGuard.class), executions, executions, executions, payloads, payloads, executions,
                             gateway, c.getBean(NewAiProperties.class), new NewAiExecutionProperties(true, false, 0, null, null, null, null), Clock.systemUTC(), null);
@@ -550,7 +560,7 @@ class PersonalModelPublicationIntegrationTest {
         context().run(c -> {
             assertNull(c.getStartupFailure());
             prepare(c);
-            ModelResourceVersion version = publish(c, "publish", 0, 1, 1);
+            ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);
             f.f.f.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-30 10:00:00"));
             com.arte.app.platform.identity.RbacIdentityProvider identity = c.getBean(com.arte.app.platform.identity.RbacIdentityProvider.class);
             TrustedActor bob = new TrustedActor(identity.resolveAuthenticatedName("bob").orElseThrow(), Instant.now());
@@ -569,8 +579,8 @@ class PersonalModelPublicationIntegrationTest {
                             new com.arte.core.pojo.access.GrantRecipient.Subject(bob.principal().subjectId()),
                             Set.of(com.arte.core.constant.platform.PlatformActions.MODEL_READ, com.arte.core.constant.platform.PlatformActions.MODEL_USE,
                                     com.arte.core.constant.platform.PlatformActions.MODEL_PUBLISH), null));
-            PersonalModelPublicationService service = c.getBean(PersonalModelPublicationService.class);
-            assertEquals("CREDENTIAL_USE_DENIED", service.status(bob, f.scope, model.resource(), version.publication().binding().definition()).reason());
+            ModelPublicationService service = c.getBean(ModelPublicationService.class);
+            assertEquals("VALID", service.status(bob, f.scope, model.resource(), version.publication().binding().definition()).reason());
             assertThrows(RuntimeException.class, () -> service.publish(bob, f.f.meta("bob-publish"), f.scope, model.resource(), 1, 1, 1, validation, f.f.ref("model-plan", "text"), 1));
             ExecutionAuthorization authorization = c.getBean(DatabaseAiControlService.class).resolve("bob", f.scope.tenantId(), f.scope.workspaceId(), Set.of(AdmissionAuthorization.INVOKE)).block(WAIT);
             ExecutionContext execution = new ExecutionContext(UUID.randomUUID().toString(), "bob-test", authorization, Instant.now().plusSeconds(60), null, null, "release-v1", "bob");
@@ -591,7 +601,7 @@ class PersonalModelPublicationIntegrationTest {
                     results.add(threads.submit(() -> {
                         start.await();
                         try {
-                            publish(c, key, 0, 1, 1);
+                            publishSelectedFixture(c, key, 0, 1, 1);
                             return true;
                         } catch (com.arte.core.exception.platform.PlatformException conflict) {
                             assertEquals(com.arte.core.enums.platform.PlatformErrorCodeEnum.VERSION_CONFLICT, conflict.getCode());
@@ -607,7 +617,7 @@ class PersonalModelPublicationIntegrationTest {
                     }
                 }
                 assertEquals(1, successes);
-                assertEquals(1, f.count("arte_ai_model_personal_publication"));
+                assertEquals(1, f.count("arte_ai_model_publication"));
                 assertEquals(1, f.count("arte_ai_model_version"));
             }
         });

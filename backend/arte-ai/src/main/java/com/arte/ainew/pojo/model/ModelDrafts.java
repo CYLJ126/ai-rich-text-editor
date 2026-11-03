@@ -33,22 +33,18 @@ public final class ModelDrafts {
     }
 
     /**
-     * 用户在受控连接模板上填写的模型配置，不接受任意网络地址或平台密钥引用。
-     * 容量字段只经过本地范围检查，不代表已验证供应商实际支持的能力。
+     * 实际模型草稿选择的精确审核方案及收紧后的容量，连接、远端模型和费率均由服务端派生。
      *
-     * @param connectionTemplate  审核连接模板的精确 connection 引用，含固定版本
-     * @param remoteModel         供应商接口使用的远端模型标识，不是本地稳定模型资源 ID
-     * @param contextWindowTokens 声明的上下文窗口上限，范围为 1～10000000 个 token
-     * @param maxOutputTokens     声明的单次最大输出 token 数，须为正数且不超过上下文窗口
+     * @param planRef             固定版本的 model-plan 审核方案引用
+     * @param contextWindowTokens 实际上下文上限，不得超过方案容量
+     * @param maxOutputTokens     单次最大输出，必须为输入保留至少一个 Token
      */
-    public record Settings(DefinitionRef connectionTemplate, String remoteModel, long contextWindowTokens,
-                           int maxOutputTokens) {
+    public record Settings(DefinitionRef planRef, long contextWindowTokens, int maxOutputTokens) {
         public Settings {
-            Objects.requireNonNull(connectionTemplate).requireType("connection");
-            PlatformChecks.id(remoteModel, "remoteModel");
-            PlatformChecks.require(remoteModel.length() <= 256 && remoteModel.chars().noneMatch(Character::isISOControl), "Invalid remote model");
-            PlatformChecks.require(contextWindowTokens >= 1 && contextWindowTokens <= 10_000_000
-                    && maxOutputTokens >= 1 && maxOutputTokens <= contextWindowTokens, "Invalid token limits");
+            Objects.requireNonNull(planRef).requireType("model-plan");
+            PlatformChecks.require(!"latest".equalsIgnoreCase(planRef.version()), "Fixed plan required");
+            PlatformChecks.require(contextWindowTokens >= 2 && contextWindowTokens <= 10_000_000
+                    && maxOutputTokens >= 1 && maxOutputTokens < contextWindowTokens, "Invalid token limits");
         }
     }
 
@@ -58,17 +54,21 @@ public final class ModelDrafts {
      * @param resource  草稿关联的稳定模型资源引用，资源类型为 model
      * @param scope     资源所属的租户和主空间范围，租户须与资源引用一致
      * @param name      草稿配置的展示名称，不直接改写已有模型资源名称
-     * @param settings  用户选择的审核模板、远端模型及容量设置
+     * @param settings  用户选择的精确审核方案及容量设置
+     * @param plan      保存时由受信方案读取端口取得的方案快照，用于展示及后续依赖核验
      * @param version   草稿乐观锁版本；持久化时首次为 1，后续更新递增
      * @param updatedAt 该草稿版本的业务更新时间
      */
-    public record Draft(ResourceRef resource, Scope scope, String name, Settings settings, long version,
+    public record Draft(ResourceRef resource, Scope scope, String name, Settings settings, ReviewedModelPlan plan,
+                        long version,
                         Instant updatedAt) {
         public Draft {
             scopeMatches(resource, scope);
             Objects.requireNonNull(resource);
             Objects.requireNonNull(scope);
             Objects.requireNonNull(settings);
+            PlatformChecks.require(settings.planRef().equals(Objects.requireNonNull(plan).planRef())
+                    && settings.contextWindowTokens() <= plan.contextWindowTokens(), "Draft plan mismatch");
             name = PlatformChecks.name(name);
             PlatformChecks.version(version, "version");
             Objects.requireNonNull(updatedAt);
@@ -76,7 +76,12 @@ public final class ModelDrafts {
     }
 
     /**
-     * 仅供内部存储和受控解密的个人凭据记录，不得作为命令回执或公开视图返回。
+     * 个人与租户凭据的固定使用预设。
+     */
+    public enum CredentialKind {PERSONAL, TENANT}
+
+    /**
+     * 仅供内部存储和受控解密的实际模型凭据记录，不得作为命令回执或公开视图返回。
      * 凭据维护责任不随模型分享或空间治理角色自动转交；撤销清除当前密文，保留资源及历史关联。
      *
      * @param resource             凭据关联的稳定模型资源引用
@@ -90,8 +95,6 @@ public final class ModelDrafts {
      * @param updatedAt            当前凭据版本的业务更新时间
      * @param kind                 PERSONAL 仅本人使用；TENANT 额外要求精确代次的独立用途授权
      */
-    public enum CredentialKind {PERSONAL, TENANT}
-
     public record Credential(ResourceRef resource, Scope scope, DefinitionRef secret, String responsibleSubjectId,
                              String keyId, String ciphertext, boolean revoked, long version, Instant updatedAt,
                              CredentialKind kind) {
@@ -168,6 +171,19 @@ public final class ModelDrafts {
     }
 
     /**
+     * 按政策过滤后的审核方案页及一致目录修订，不返回隐藏方案的数量。
+     *
+     * @param records         本批可采用的安全方案，不包含 endpoint 或凭据
+     * @param catalogRevision 本批固定的审核目录修订
+     * @param nextCursor      绑定主体、管理空间、资源及目录修订的后续游标
+     */
+    public record ReviewedPlanList(List<ReviewedModelPlan> records, long catalogRevision, String nextCursor) {
+        public ReviewedPlanList {
+            records = List.copyOf(records);
+        }
+    }
+
+    /**
      * 验证请求处理状态；成功仅表示声明的探测检查通过，不代表发布或获得模型调用权。
      */
     public enum ValidationState {
@@ -192,6 +208,8 @@ public final class ModelDrafts {
      * @param requestedBy       发起验证的稳定主体 ID，查询和领取须匹配此主体并重检当前授权
      * @param draftVersion      本次绑定的草稿版本，变化后原请求或结果失效
      * @param credentialVersion 本次绑定的凭据版本，替换或撤销后原请求或结果失效
+     * @param planRef           本次验证固定的审核方案引用
+     * @param planDigest        本次验证固定的完整方案摘要
      * @param templateDigest    受理时审核连接模板的确定性摘要，防止同引用内容变化被忽略
      * @param state             当前处理状态：待领取、运行、成功、失败或失效
      * @param code              过程状态或适配器返回的安全结果码，不包含远端异常详情
@@ -200,13 +218,16 @@ public final class ModelDrafts {
      * @param version           验证记录自身的乐观锁版本，初始为 0；与草稿及凭据版本独立
      */
     public record Validation(String id, ResourceRef resource, Scope scope, String requestedBy, long draftVersion,
-                             long credentialVersion, String templateDigest, ValidationState state, String code,
+                             long credentialVersion, DefinitionRef planRef, String planDigest, String templateDigest,
+                             ValidationState state, String code,
                              Instant expiresAt, Instant checkedAt, long version) {
         public Validation {
             scopeMatches(resource, scope);
             PlatformChecks.id(id, "validationId");
             PlatformChecks.id(requestedBy, "requestedBy");
             PlatformChecks.require(draftVersion >= 1 && credentialVersion >= 1 && templateDigest != null && templateDigest.matches("[a-f0-9]{64}"), "Invalid validation binding");
+            Objects.requireNonNull(planRef).requireType("model-plan");
+            PlatformChecks.require(planDigest != null && planDigest.matches("[a-f0-9]{64}"), "Invalid plan digest");
             Objects.requireNonNull(state);
             Objects.requireNonNull(code);
             Objects.requireNonNull(expiresAt);

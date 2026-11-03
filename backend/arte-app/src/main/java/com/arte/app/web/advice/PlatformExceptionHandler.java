@@ -40,7 +40,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 @RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceAccessController.class,
         WorkspaceAiConfigurationController.class, ResourceAccessController.class, ModelResourceController.class,
-        ModelDraftController.class, PersonalModelPublicationController.class, ReviewedModelPlanController.class, ModelSharingController.class, ModelUsagePreparationController.class})
+        ModelDraftController.class, ModelPublicationController.class, ReviewedModelPlanController.class, ModelSharingController.class, ModelUsagePreparationController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class PlatformExceptionHandler {

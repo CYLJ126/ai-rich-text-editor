@@ -17,25 +17,43 @@ import java.util.*;
  * binding 必须为 GENERATION，连接及费率引用须与对应快照一致；只保存凭据引用，不包含密钥明文、预算账户或调用身份。
  * 该对象记录发布时的内容，不代替调用时的当前授权、停用状态、凭据用途及预算校验。
  *
- * @param source          内容权威来源：FIXED 为固定部署，DATABASE 为平台审核目录，PERSONAL 为已核验的个人发布；不代表供应商或访问许可。
- * @param catalogRevision DATABASE 的精确目录修订；FIXED 和 PERSONAL 为空，个人发布的审核修订保存在独立发布证据，不解析 latest。
+ * @param source          内容权威来源：FIXED 为固定部署，DATABASE 为平台审核目录，RESOURCE 为已验证的实际模型资源发布，PERSONAL 仅为历史来源编码；不代表供应商或访问许可。
+ * @param catalogRevision DATABASE 或 RESOURCE 采用的精确审核目录修订；FIXED 和历史 PERSONAL 为空，不解析 latest。
  * @param releaseRef      读取该发布内容时记录的发布标识，用于保留来源证据；独立于目录修订号、binding 字符串版本及管理资源版本。
  * @param binding         精确模型绑定快照，包含能力契约、远端连接引用、供应商实际模型标识、上下文容量及费率引用；不以其 ID 代替稳定管理资源 ID。
  * @param connection      与 binding 连接引用一致的连接快照，包含提供方、协议、目标地址、凭据引用、状态及传输限制；不返回凭据明文。
  * @param rate            与 binding 费率引用一致的模型 Token 费率快照；不允许工具按次费率，不表示已分配预算、可用余额或实际扣费结果。
+ * @param planRef         RESOURCE 发布采用的固定审核方案，其他来源为空
+ * @param credentialKind  RESOURCE 发布的固定凭据种类，其他来源为空
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/30 22:40 ✾
  */
 public record ModelPublication(Source source, Long catalogRevision, String releaseRef, ResolvedBinding binding,
-                               ConnectionDefinition connection, RateDefinition rate) {
+                               ConnectionDefinition connection, RateDefinition rate, DefinitionRef planRef,
+                               ModelDrafts.CredentialKind credentialKind) {
+
+    /**
+     * FIXED 及历史来源快照无资源方案证据；RESOURCE 必须使用完整构造。
+     */
+    public ModelPublication(Source source, Long catalogRevision, String releaseRef, ResolvedBinding binding,
+                            ConnectionDefinition connection, RateDefinition rate) {
+        this(source, catalogRevision, releaseRef, binding, connection, rate, null, null);
+    }
 
     /**
      * 发布内容来源；稳定存储编码独立于枚举声明顺序。
      */
     public enum Source {
-        FIXED(0), DATABASE(1), PERSONAL(2);
+        // 固定部署的不可变定义。
+        FIXED(0),
+        // 旧数据库目录定义，仅保留历史编码。
+        DATABASE(1),
+        // 旧个人发布，仅保留历史编码。
+        PERSONAL(2),
+        // 经草稿、凭据和验证发布的实际模型资源。
+        RESOURCE(3);
         /**
-         * 定义来源登记表使用的编码：0 为 FIXED，1 为 DATABASE，2 为 PERSONAL。
+         * 定义来源登记表使用的编码：0 为 FIXED，1 为 DATABASE，2 为 PERSONAL，3 为 RESOURCE。
          */
         private final int code;
 
@@ -50,11 +68,18 @@ public record ModelPublication(Source source, Long catalogRevision, String relea
 
     public ModelPublication {
         Objects.requireNonNull(source);
+        if (source == Source.RESOURCE) {
+            Objects.requireNonNull(planRef).requireType("model-plan");
+            Objects.requireNonNull(credentialKind);
+            PlatformChecks.require(!"latest".equalsIgnoreCase(planRef.version()), "Fixed plan required");
+        } else {
+            PlatformChecks.require(planRef == null && credentialKind == null, "Unexpected resource evidence");
+        }
         Objects.requireNonNull(binding);
         Objects.requireNonNull(connection);
         Objects.requireNonNull(rate);
         PlatformChecks.id(releaseRef, "releaseRef");
-        PlatformChecks.require(source == Source.DATABASE ? catalogRevision != null && catalogRevision > 0 : catalogRevision == null, "Exact source revision required");
+        PlatformChecks.require((source == Source.DATABASE || source == Source.RESOURCE) ? catalogRevision != null && catalogRevision > 0 : catalogRevision == null, "Exact source revision required");
         PlatformChecks.require(binding.capability().kind() == CapabilityDescriptor.Kind.GENERATION
                 && binding.connection().equals(connection.definition()) && Objects.equals(binding.rate(), rate.definition())
                 && rate.toolPerCall() == null, "Not a complete published model");

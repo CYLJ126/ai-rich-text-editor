@@ -104,11 +104,15 @@ it('refuses missing or malformed credential input without transport', async () =
 });
 it('uses ordinary creation without platform catalog endpoints or client-owned identities', async () => {
   vi.mocked(request).mockResolvedValue(answer(receipt(model)));
-  await api.executeModelCommand({kind: 'create', key: 'create-key', request: {scope, name: '私有模型'}});
+  await api.executeModelCommand({
+    kind: 'create',
+    key: 'create-key',
+    request: {scope, name: '私有模型', modelKind: 'PERSONAL'}
+  });
   expect(request).toHaveBeenCalledWith('/arte/ai-new/model-resource/createModelResource', expect.objectContaining({
     data: {
       scope,
-      name: '私有模型'
+      name: '私有模型', modelKind: 'PERSONAL'
     }
   }));
 });
@@ -134,20 +138,35 @@ it('queries the original validation identity and compares publication references
   const binding = {version: 'v1', id: 'personal-binding', type: 'binding'};
   vi.mocked(request).mockResolvedValue(answer({
     binding,
-    ready: false,
-    reason: 'NO_COMPATIBLE_BUDGET',
-    budgetRefs: [],
+    valid: true,
+    reason: 'VALID',
     maxOutputTokens: 512
   }));
-  expect((await api.getPublicationStatus(scope, 'model', binding)).body.data.reason).toBe('NO_COMPATIBLE_BUDGET');
+  expect((await api.getPublicationStatus(scope, 'model', binding)).body.data.reason).toBe('VALID');
   await expect(api.getPublicationStatus(scope, 'model', {...binding, version: 'v2'})).rejects.toThrow();
 });
 it('isolates command recovery by user and scope and blocks corrupted records', () => {
-  const command = {kind: 'create', key: 'same-key', request: {scope, name: '私有模型'}} as const;
+  const command = {kind: 'create', key: 'same-key', request: {scope, name: '私有模型', modelKind: 'PERSONAL'}} as const;
   saveModelCommand(context, command);
   expect(readModelCommand({...context, userId: 'other'}).command).toBeNull();
   expect(readModelCommand({...context, scope: {...scope, workspaceId: 'other'}}).command).toBeNull();
   const key = sessionStorage.key(0)!;
   sessionStorage.setItem(key, '{bad');
   expect(readModelCommand(context).blocked).toBe(true);
+});
+
+
+it('loads reviewed plans without a saved draft and rejects a repeated continuation cursor', async () => {
+  vi.mocked(request).mockResolvedValue(answer({records: [], catalogRevision: 7, nextCursor: 'same-cursor'}));
+  await expect(api.listPublicationOptions(scope, 'new-model')).rejects.toThrow();
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenNthCalledWith(1, '/arte/ai-new/model-draft/listReviewedModelPlans', expect.objectContaining({
+    data: {scope, resourceId: 'new-model', cursor: null, size: 100}
+  }));
+});
+
+it('rejects a reviewed catalog revision change between pages instead of publishing a mixed plan list', async () => {
+  vi.mocked(request).mockResolvedValueOnce(answer({records: [], catalogRevision: 7, nextCursor: 'next'}))
+    .mockResolvedValueOnce(answer({records: [], catalogRevision: 8, nextCursor: null}));
+  await expect(api.listPublicationOptions(scope, 'model')).rejects.toMatchObject({code: 'MODEL_PLAN_REVISION_CHANGED'});
 });

@@ -5,6 +5,7 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.serialize.CanonicalJson;
 
 /**
  * 模型审核方案检查
@@ -17,6 +18,16 @@ import com.arte.core.pojo.reference.DefinitionRef;
 public final class ReviewedModelPlanChecks {
 
     private ReviewedModelPlanChecks() {
+    }
+
+    /**
+     * 完整审核方案摘要绑定精确引用、能力、费率、容量和发布证据。
+     */
+    public static String digest(ReviewedModelPlan plan) {
+        return CanonicalJson.digest(CanonicalJson.fields(
+                "plan", plan.planRef(), "name", plan.displayName(), "connection", plan.connection(), "remoteModel", plan.remoteModel(),
+                "features", plan.features().stream().map(Enum::name).sorted().toList(), "window", plan.contextWindowTokens(),
+                "rate", plan.rate(), "publishedAt", plan.publishedAt(), "publishedBy", plan.publishedBy(), "revision", plan.catalogRevision()));
     }
 
     /**

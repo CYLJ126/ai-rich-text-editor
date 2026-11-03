@@ -1,11 +1,11 @@
 package com.arte.app.web.controller.platform;
 
-import com.arte.ainew.api.model.PersonalModelPublicationService;
-import com.arte.ainew.pojo.model.PersonalModels;
+import com.arte.ainew.api.model.ModelPublicationService;
+import com.arte.ainew.pojo.model.ModelPublications;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
+import com.arte.app.web.platform.ModelPublicationPayload.PublishRequest;
+import com.arte.app.web.platform.ModelPublicationPayload.StatusRequest;
 import com.arte.app.web.platform.ModelResourcePayload;
-import com.arte.app.web.platform.PersonalModelPayload.PublishRequest;
-import com.arte.app.web.platform.PersonalModelPayload.StatusRequest;
 import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.app.web.platform.PlatformHttpViews;
 import com.arte.core.enums.ResultCodeEnum;
@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
 import java.util.Locale;
 
 /**
- * 个人模型发布 HTTP 入口
+ * 实际模型发布 HTTP 入口
  * <p>
  * 沿用当前认证及模型动作权限，响应不包含内部连接或密钥内容。
  *
@@ -34,17 +34,17 @@ import java.util.Locale;
 @RequestMapping("/ai-new/model-resource")
 @PreAuthorize("isAuthenticated()")
 @ConditionalOnProperty(prefix = "arte.ai-new-model-publication", name = "enabled", havingValue = "true")
-public class PersonalModelPublicationController {
+public class ModelPublicationController {
 
     private final PlatformAuthenticatedExecutor executor;
-    private final PersonalModelPublicationService publications;
+    private final ModelPublicationService publications;
 
-    public PersonalModelPublicationController(PlatformAuthenticatedExecutor executor, PersonalModelPublicationService publications) {
+    public ModelPublicationController(PlatformAuthenticatedExecutor executor, ModelPublicationService publications) {
         this.executor = executor;
         this.publications = publications;
     }
 
-    @PostMapping("/publishPersonalModel")
+    @PostMapping("/publishModel")
     public Mono<ResultContext<CommandReceipt<ModelResourcePayload.Version>>> publish(Authentication auth, @Valid @RequestBody PublishRequest request,
                                                                                      @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
         CommandMeta meta = new CommandMeta(key, PlatformHttpContext.traceId(http));
@@ -54,8 +54,8 @@ public class PersonalModelPublicationController {
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
-    @PostMapping("/getPersonalModelPublicationStatus")
-    public Mono<ResultContext<PersonalModels.Status>> status(Authentication auth, @Valid @RequestBody StatusRequest request, Locale locale) {
+    @PostMapping("/getModelPublicationStatus")
+    public Mono<ResultContext<ModelPublications.Status>> status(Authentication auth, @Valid @RequestBody StatusRequest request, Locale locale) {
         return executor.call(auth, actor -> publications.status(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()), request.binding()))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }

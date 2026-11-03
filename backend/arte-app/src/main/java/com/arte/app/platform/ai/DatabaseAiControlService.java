@@ -23,7 +23,7 @@ import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
-import com.arte.ainew.spi.model.PersonalModelRuntime;
+import com.arte.ainew.spi.model.ModelPublicationRuntime;
 import com.arte.ainew.spi.model.ReviewedModelPlanSource;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
@@ -92,7 +92,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final HttpEgressPolicy connectionEgress;
     private final List<String> connectionOrigins;
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
-    private ObjectProvider<PersonalModelRuntime> personalModels;
+    private ObjectProvider<ModelPublicationRuntime> resourceModels;
     private ObjectProvider<ModelGateway> modelGateways;
 
     @Autowired
@@ -104,13 +104,20 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
      * 延迟接入个人发布定义，避免改变唯一控制来源及其启动依赖关系。
      */
     @Autowired
-    void personalModels(ObjectProvider<PersonalModelRuntime> personalModels) {
-        this.personalModels = personalModels;
+    void resourceModels(ObjectProvider<ModelPublicationRuntime> resourceModels) {
+        this.resourceModels = resourceModels;
     }
 
-    private NewAiProperties withPersonal(TrustedActor actor, Scope scope, NewAiProperties base, boolean current) {
-        PersonalModelRuntime runtime = personalModels == null ? null : personalModels.getIfAvailable();
-        return runtime == null ? base : runtime.contribute(actor, scope, base, current);
+    private NewAiProperties withResources(TrustedActor actor, Scope scope, NewAiProperties base, boolean current) {
+        ModelPublicationRuntime runtime = resourceModels == null ? null : resourceModels.getIfAvailable();
+        NewAiProperties configuration = runtime == null ? base : runtime.contribute(actor, scope, base, current);
+        Set<String> registered = configuration.bindings().stream().map(binding -> binding.definition().id()).collect(java.util.stream.Collectors.toSet());
+        List<NewAiProperties.Grant> grants = configuration.grants().stream().map(grant -> new NewAiProperties.Grant(
+                grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(), grant.grantRef(),
+                grant.enabled(), grant.scopes(), grant.bindingIds().stream().filter(registered::contains).collect(java.util.stream.Collectors.toSet()), grant.budgetRefs())).toList();
+        return new NewAiProperties(configuration.enabled(), configuration.dataSourceBean(), configuration.releaseRef(), configuration.persistence(),
+                configuration.limits(), grants, configuration.capabilities(), configuration.bindings(), configuration.connections(), configuration.rates(),
+                configuration.budgets(), configuration.configurationMode(), configuration.conversationMetadataBackfill());
     }
 
     /**
@@ -122,23 +129,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return new ReviewedModelPlanSource.Snapshot(value.catalog().reviewedPlans(), value.catalog().properties(infrastructure, List.of(), List.of()).connections(),
                 value.catalog().rates().stream().map(rate -> new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall())).toList(),
                 value.version(), infrastructure.releaseRef());
-    }
-
-    /**
-     * 原事务中的执行定义读取；仅供尚待 M2 收口的既有资源资格适配，不作为审核方案来源。
-     */
-    NewAiProperties currentDefinitions() {
-        tx.requireWritable();
-        return publishedCurrent().catalog().properties(infrastructure, List.of(), List.of());
-    }
-
-    /**
-     * 查询当前主体原空间的预算配置；不初始化空间或账户。
-     */
-    public NewAiProperties personalModelConfiguration(TrustedActor actor, Scope scope) {
-        tx.requireWritable();
-        String name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() -> new AccessDeniedException("Account unavailable"));
-        return currentSnapshot(name, actor.principal().subjectId(), scope, Set.of(AdmissionAuthorization.INVOKE), true).configuration();
     }
 
     public DatabaseAiControlService(PlatformAiControlMapper mapper, PlatformJson json, RbacIdentityProvider identities,
@@ -206,7 +196,15 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     @Override
     public NewAiProperties definitions() {
         var published = published(false);
-        return (published == null ? Catalog.empty() : published.catalog()).properties(infrastructure, List.of(), List.of());
+        Catalog data = published == null ? Catalog.empty() : published.catalog();
+        return nonGenerationDefinitions(data);
+    }
+
+    private NewAiProperties nonGenerationDefinitions(Catalog data) {
+        Catalog safe = new Catalog(data.capabilities(), data.bindings().stream()
+                .filter(binding -> binding.capability().kind() != CapabilityDescriptor.Kind.GENERATION).toList(),
+                data.connections(), data.rates(), List.of(), List.of(), data.defaults(), data.disabledConnections(), data.reviewedPlans());
+        return safe.properties(infrastructure, List.of(), List.of());
     }
 
     @Override
@@ -287,19 +285,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (decisions.subList(0, requiredActions).stream().anyMatch(d -> !d.allowed())) {
             if (decisions.stream().anyMatch(d -> d.reason() == com.arte.core.enums.access.AccessReasonEnum.AUTHORITY_UNAVAILABLE))
                 throw unavailable();
-            // 仅没有公共父空间的兼容范围可使用已发布 legacy grant，真实空间不能借用旧授权。
-            if (decisions.getFirst().reason() == com.arte.core.enums.access.AccessReasonEnum.NOT_FOUND
-                    && workspaces.getObject().find(scope).isEmpty()) {
-                var published = published(true);
-                var grant = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
-                                && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
-                                && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
-                                && g.scopes().containsAll(requested)).findFirst()
-                        .map(g -> renamed(g, name)).orElseThrow(() -> new AccessDeniedException("Workspace AI access denied"));
-                var configuration = includeConfiguration ? published.catalog().properties(infrastructure, List.of(grant),
-                        published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null;
-                return new Snapshot(authorization(grant, requested), configuration);
-            }
             throw new AccessDeniedException("Workspace AI access denied");
         }
         var row = mapper.workspaceRead(scope.tenantId(), scope.workspaceId());
@@ -317,10 +302,11 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (decisions.get(policyAction).allowed()) permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
         var grant = workspaceGrant(actor, settings, permissions, name, definitions);
         var catalog = published(true).catalog();
-        var bindings = catalog.bindings().stream().filter(b -> settings.preset().bindings().contains(b.definition())).toList();
+        var bindings = catalog.bindings().stream().filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
+                && settings.preset().bindings().contains(b.definition())).toList();
         var filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
                 List.of(), List.of(), settings.preset(), catalog.disabledConnections());
-        return new Snapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
+        return new Snapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
     }
 
     private ExecutionAuthorization authorization(NewAiProperties.Grant grant, Set<String> requested) {
@@ -392,16 +378,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested))
             throw new AccessDeniedException("Workspace AI action denied");
         if (workspaces.getObject().find(scope).isEmpty()) {
-            var published = publishedCurrent();
-            var grant = published.catalog().legacyGrants().stream().filter(g -> g.enabled()
-                            && g.principalKind() == ExecutionPrincipal.Kind.USER && g.subjectId().equals(actor.principal().subjectId())
-                            && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
-                            && g.scopes().containsAll(requested)).findFirst().map(g -> renamed(g, name))
-                    .orElseThrow(() -> new AccessDeniedException("Workspace AI access denied"));
-            identities.findCurrentBySubjectId(actor.principal().subjectId()).filter(p -> p.status() == PrincipalStatusEnum.ACTIVE)
-                    .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
-            return new CurrentSnapshot(authorization(grant, requested), includeConfiguration ? published.catalog().properties(infrastructure,
-                    List.of(grant), published.catalog().legacyBudgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef())).toList()) : null, published.version());
+            throw new AccessDeniedException("Workspace AI access denied");
         }
         var requests = new ArrayList<com.arte.core.pojo.access.AccessRequest>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
@@ -420,9 +397,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             var publication = publishedCurrent();
             var catalog = publication.catalog();
             var filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
-                    .filter(b -> settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
+                    .filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
+                            && settings.preset().bindings().contains(b.definition())).toList(), catalog.connections(), catalog.rates(),
                     List.of(), List.of(), settings.preset(), catalog.disabledConnections());
-            return new CurrentSnapshot(auth, withPersonal(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
+            return new CurrentSnapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
         });
     }
 
@@ -466,7 +444,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     @Override
     public PreparedConfiguration revalidate(ExecutionContext context, PreparedConfiguration prepared) {
-        if (personalModels != null && personalModels.getIfAvailable() != null) {
+        if (resourceModels != null && resourceModels.getIfAvailable() != null) {
             return prepareConfiguration(context);
         }
         var principal = context.authorization().principal();
