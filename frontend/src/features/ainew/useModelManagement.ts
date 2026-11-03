@@ -18,7 +18,7 @@ export interface ModelDetail {
 }
 
 /** 管理读取及命令协调：迟到响应不能跨资源／空间覆盖，未确认写入只按原请求和原键确认。 */
-export type ModelChange = { kind: api.ModelCommand['kind']; resourceId: string | null };
+export type ModelChange = { kind: api.ModelCommand['kind'] | 'prepare'; resourceId: string | null };
 
 export function useModelManagement(context: BrowserContext, onUpdated: (change: ModelChange) => void) {
   const [restored] = useState(() => readModelCommand(context));

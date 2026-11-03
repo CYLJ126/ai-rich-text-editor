@@ -52,6 +52,7 @@ export default function ChatConfigurationForm({
                                                 onCancel,
                                                 draftValues,
                                                 initialDirty = false,
+                                                requireExplicitApply = false,
                                                 onDraftChange,
                                               }: {
   restored: ChatTestConfig | null;
@@ -65,7 +66,7 @@ export default function ChatConfigurationForm({
   translate: (key: string) => string;
   fixedScope?: import('@/services/arte-ai').AiScope;
   onOptions?: (options: ChatModelOption[], error: unknown, loading: boolean) => void;
-  externalModel?: { key: string; revision: number };
+  externalModel?: { key: string; revision: number; resourceId?: string; refresh?: boolean };
   applyRevision?: number;
   cancelRevision?: number;
   refreshRevision?: number;
@@ -73,6 +74,7 @@ export default function ChatConfigurationForm({
   onCancel?: () => void;
   draftValues?: ConfigurationDraft;
   initialDirty?: boolean;
+  requireExplicitApply?: boolean;
   onDraftChange?: (values: ConfigurationDraft) => void;
 }) {
   const [form] = Form.useForm<Values>();
@@ -88,7 +90,10 @@ export default function ChatConfigurationForm({
     budgetRef,
   );
   const [restoreInvalid, setRestoreInvalid] = useState(false);
-  const edited = useRef(initialDirty);
+  const [requestedModelError, setRequestedModelError] = useState('');
+  const [requestedRevision, setRequestedRevision] = useState(0);
+  const requestedPending = !!externalModel?.refresh && requestedRevision !== externalModel.revision;
+  const edited = useRef(initialDirty || requireExplicitApply);
 
   const markDirty = () => {
     edited.current = true;
@@ -154,13 +159,21 @@ export default function ChatConfigurationForm({
     if (!options) return;
     const previous = options.find((option) => matchesModel(values, option));
     // 旧模型失效时可预选当前唯一选项；下拉框有值只表示草稿已填充，不代表旧配置恢复成功。
-    const option = previous ?? (options.length === 1 ? options[0] : undefined);
+    const requested = externalModel?.refresh ? options.find(item => modelOptionKey(item) === externalModel.key
+      && item.resourceId === externalModel.resourceId) : undefined;
+    const option = externalModel?.refresh ? requested : previous ?? (options.length === 1 ? options[0] : undefined);
+    setRequestedModelError(externalModel?.refresh && !requested
+      ? '待选择的精确模型版本当前不可用。请核对权限、发布状态、凭据和兼容预算；不会改用其他模型。' : '');
     selectModel(option, previous ? values : undefined);
-    if (!refreshRevision && fixedScope && !restored && !edited.current && option && option.budgetRefs.length === 1) {
+    if (externalModel?.refresh) {
+      markDirty();
+      setRequestedRevision(externalModel.revision);
+    }
+    if (!requireExplicitApply && !externalModel?.refresh && !refreshRevision && fixedScope && !restored && !edited.current && option && option.budgetRefs.length === 1) {
       const valid = selectedChatConfigSchema(option).safeParse(form.getFieldsValue(true));
       if (valid.success) onRestore(valid.data, option);
     }
-    if (restore && restored && !edited.current) {
+    if (!requireExplicitApply && !externalModel?.refresh && restore && restored && !edited.current) {
       // 校验加载目录前保存的旧值，避免 selectModel 补入的新引用、预算或推荐参数掩盖旧配置失效。
       // 模型绑定／能力版本不匹配、预算不兼容或参数不合法时，提示用户重新确认并手动应用。
       const valid = previous && selectedChatConfigSchema(previous).safeParse(values);
@@ -194,6 +207,11 @@ export default function ChatConfigurationForm({
   }, [discovery.options, discovery.error, discovery.loading]);
   useEffect(() => {
     if (!externalModel) return;
+    if (externalModel.refresh) {
+      edited.current = true;
+      void loadOptions();
+      return;
+    }
     const option = discovery.options.find(option => modelOptionKey(option) === externalModel.key);
     if (option) {
       selectModel(option, form.getFieldsValue(true));
@@ -219,7 +237,7 @@ export default function ChatConfigurationForm({
   }, [cancelRevision]);
 
   function apply() {
-    if (discovery.loading || !discovery.scope) return;
+    if (requestedPending || discovery.loading || !discovery.scope) return;
     const values = form.getFieldsValue(true) as Values;
     const chosen = discovery.options.find(
       (option) => modelOptionKey(option) === values.modelKey,
@@ -276,7 +294,7 @@ export default function ChatConfigurationForm({
         min={min}
         max={max}
         step={optional ? 0.1 : 1}
-        disabled={!selected || discovery.loading}
+        disabled={!selected || discovery.loading || requestedPending}
         placeholder={optional ? t('samplingDefault') : undefined}
       />
     </Form.Item>
@@ -342,6 +360,7 @@ export default function ChatConfigurationForm({
       {/* 此提示针对浏览器保存的旧配置，不表示当前模型不可用，也不由预算余额决定。
           操作：加载可用配置 → 确认模型和兼容预算 → 按需在高级参数中使用模型推荐额度 → 应用配置。
           仅重新选择模型或刷新预算不会清除此提示；应用失败时须查看字段错误，包括折叠的高级参数。 */}
+      {requestedModelError && <Alert type="warning" showIcon title={requestedModelError}/>}
       {restoreInvalid && (
         <Alert
           className="mb-3"
@@ -385,7 +404,7 @@ export default function ChatConfigurationForm({
       <Form.Item name="budgetRef" label={t('field.budgetRef')} required>
         <Select
           placeholder={t('selectBudget')}
-          disabled={!selected || discovery.loading}
+          disabled={!selected || discovery.loading || requestedPending}
           options={
             selected?.budgetRefs.map((value) => ({value, label: value})) ?? []
           }
@@ -445,7 +464,7 @@ export default function ChatConfigurationForm({
                 <Typography.Paragraph className="ai-management-muted">{t('contextWindowHint')}</Typography.Paragraph>
                 <Button
                   className="mb-3"
-                  disabled={!selected || discovery.loading}
+                  disabled={!selected || discovery.loading || requestedPending}
                   onClick={() => {
                     if (!selected) return;
                     form.setFieldsValue(selected.defaults);
@@ -496,7 +515,7 @@ export default function ChatConfigurationForm({
         <Button
           type="primary"
           htmlType="submit"
-          disabled={!selected || discovery.loading}
+          disabled={!selected || discovery.loading || requestedPending}
         >
           {t('apply')}
         </Button>

@@ -20,6 +20,7 @@ import {refKey} from '@/services/platform/ai';
 import {type BrowserContext, storageKey} from './storage';
 import {type ModelChange, useModelManagement} from './useModelManagement';
 import {modelStatusText, validationText} from './modelManagementState';
+import ModelUsagePreparationPanel from './ModelUsagePreparationPanel';
 import './personalModels.css';
 
 interface Props {
@@ -27,6 +28,8 @@ interface Props {
   onUpdated: (change: ModelChange) => void;
   onUnsafeChange?: (unsafe: boolean) => void;
   onBrowse?: () => void;
+  onUseInChat?: () => void;
+  useInChatDisabled?: boolean;
 }
 
 type Fields = Omit<ModelFields, 'connectionTemplate'> & { template: string };
@@ -46,7 +49,7 @@ export default function PersonalModelManager(props: Props) {
   return <ModelManager key={storageKey(props.context, 'model-management')} {...props}/>;
 }
 
-function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
+function ModelManager({context, onUpdated, onUnsafeChange, onBrowse, onUseInChat, useInChatDisabled}: Props) {
   const vm = useModelManagement(context, onUpdated);
   const [form] = Form.useForm<Fields>();
   const [dirty, setDirty] = useState(false);
@@ -54,8 +57,9 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
   const [token, setToken] = useState('');
   const [formError, setFormError] = useState('');
   const [plan, setPlan] = useState('');
+  const [usageUnsafe, setUsageUnsafe] = useState(false);
   const detail = vm.detail;
-  const unsafe = dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked;
+  const unsafe = usageUnsafe || dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked;
 
   useEffect(() => {
     onUnsafeChange?.(unsafe);
@@ -99,7 +103,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
     }
   }, [vm.closed]);
 
-  const disabled = vm.closed || vm.saving || !!vm.pending || vm.blocked || vm.detailLoading;
+  const disabled = usageUnsafe || vm.closed || vm.saving || !!vm.pending || vm.blocked || vm.detailLoading;
   const located = {scope: context.scope, resourceId: detail?.model.resourceId ?? ''};
   const draft = detail?.draft.draft;
   const credential = detail?.draft.credential;
@@ -107,7 +111,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
   const canCredential = !!credential && !!detail?.actions.has('model:edit') && (credential.state === 'MISSING' || credential.mayMaintain);
   const validationMatches = !!draft && !!validation && validation.draftVersion === draft.version && validation.credentialVersion === credential?.version;
   const canPublish = validationMatches && validation?.state === 'SUCCEEDED' && !dirty;
-  const canMove = !dirty && !token && !vm.hasTemporarySecret && !vm.pending && !vm.saving && !vm.blocked;
+  const canMove = !usageUnsafe && !dirty && !token && !vm.hasTemporarySecret && !vm.pending && !vm.saving && !vm.blocked;
 
   async function submit(kind: ModelCommand['kind'], request: ModelCommand['request'], secret?: string) {
     setFormError('');
@@ -179,6 +183,21 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
         {onBrowse && <Button disabled={!canMove} onClick={onBrowse}>返回可用模型目录</Button>}
       </Flex>
     </Flex>
+    <ModelUsagePreparationPanel context={context}
+                                target={vm.selectedVersion ? {
+                                  resourceId: vm.selectedVersion.resourceId,
+                                  binding: {...vm.selectedVersion.binding, type: 'binding'}
+                                } : null}
+                                disabled={dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
+                                navigationDisabled={useInChatDisabled}
+                                onUnsafeChange={setUsageUnsafe}
+                                onPrepared={() => {
+                                  onUpdated({
+                                    kind: 'prepare',
+                                    resourceId: vm.selectedVersion?.resourceId ?? vm.selected
+                                  });
+                                  if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
+                                }} onUseInChat={onUseInChat}/>
     <div className="personal-models-grid">
       <Flex vertical gap={10} className="personal-models-directory">
         <Card size="small" title="添加模型">
@@ -258,7 +277,7 @@ function ModelManager({context, onUpdated, onUnsafeChange, onBrowse}: Props) {
                         disabled={disabled || !detail.actions.has('model:edit') || !detail.templates.length}>
                   保存模型草稿
                 </Button>
-                <Button disabled={vm.saving || !!vm.pending}
+                <Button disabled={usageUnsafe || vm.saving || !!vm.pending}
                         onClick={() => {
                           setDirty(false);
                           setToken('');

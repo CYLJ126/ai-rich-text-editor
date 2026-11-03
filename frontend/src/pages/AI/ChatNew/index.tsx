@@ -45,6 +45,8 @@ import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
 import WorkspaceAiSettings from '@/features/ainew/WorkspaceAiSettings';
 import PersonalModelManager from '@/features/ainew/PersonalModelManager';
+import PreparedModelNotice, {useModelChatHandoff} from '@/features/ainew/PreparedModelNotice';
+import {clearModelChatHandoff, type ModelChatHandoff, readModelChatHandoff} from '@/features/ainew/modelUsageRecovery';
 import type {ModelChange} from '@/features/ainew/useModelManagement';
 import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import type {WorkspaceView} from '@/services/platform/workspace';
@@ -65,7 +67,7 @@ import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
 import {useChatLayout} from '@/features/ainew/useChatLayout';
 import {useComponentHeight} from '@/utils/useDynamicHeight';
 import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
-import {type ConfigurationRejected} from '@/features/ainew/configurationInvalidation';
+import type {ConfigurationRejected} from '@/features/ainew/configurationInvalidation';
 import {
   type BrowserContext,
   clearAccountSession,
@@ -100,6 +102,7 @@ function WorkspaceChat({
   protectRef: React.RefObject<((proceed: () => void) => void) | null>;
 }) {
   const context = useMemo<BrowserContext>(() => ({userId, scope: workspace.scope}), [userId, workspace.scope]);
+  const {saved: preparedModel} = useModelChatHandoff(context);
   const conversations = useConversationDirectory(workspace.scope, context);
   const selectedId = conversations.selectedId ?? '';
   const [formDraft, setFormDraft] = useState<{ id: string; values: ConfigurationDraft } | null>(null);
@@ -127,7 +130,12 @@ function WorkspaceChat({
     return () => window.removeEventListener('storage', changed);
   }, [context, selectedId]);
   const [invalidation, setInvalidation] = useState(0);
-  const [externalModel, setExternalModel] = useState<{ key: string; revision: number }>();
+  const [externalModel, setExternalModel] = useState<{
+    key: string;
+    revision: number;
+    resourceId?: string;
+    refresh?: boolean
+  }>();
   const [editingId, setEditingId] = useState(selectedId);
   const [applyRevision, setApplyRevision] = useState(0);
   const [cancelRevision, setCancelRevision] = useState(0);
@@ -170,7 +178,7 @@ function WorkspaceChat({
   function activate(value: ChatTestConfig, option: ChatModelOption) {
     if (interaction.unsafeToLeave) {
       setWarning('未确认操作未能保存，请先确认原操作后再应用其他配置。');
-      return;
+      return false;
     }
     setFormDraft(null);
     setConfigState({id: selectedId, config: value});
@@ -185,6 +193,7 @@ function WorkspaceChat({
     afterApply.current = null;
     cancelSwitch.current = null;
     next?.();
+    return true;
   }
 
   const guardState = useRef({
@@ -247,7 +256,31 @@ function WorkspaceChat({
     layout.open('settings');
   }
 
+  function choosePreparedModel(handoff: ModelChatHandoff) {
+    if (!sameScope(handoff.request.scope, workspace.scope)) return;
+    guard(() => {
+      setExternalModel(previous => ({
+        key: modelOptionKey({binding: handoff.request.binding}),
+        resourceId: handoff.request.resourceId, refresh: true, revision: (previous?.revision ?? 0) + 1
+      }));
+      setDirtyState({id: selectedId, dirty: true});
+      setTab('models');
+      setModelMode('catalog');
+      layout.open('settings');
+    });
+  }
+
+  function applyConfiguration(value: ChatTestConfig, option: ChatModelOption) {
+    if (!activate(value, option)) return;
+    setExternalModel(undefined);
+    const pending = readModelChatHandoff(context).handoff;
+    if (pending && option.resourceId === pending.request.resourceId
+      && option.binding.id === pending.request.binding.id && option.binding.version === pending.request.binding.version
+      && !clearModelChatHandoff(context, pending.id)) setWarning('配置已应用，但待选择记录暂无法清除。请检查浏览器存储。');
+  }
+
   function cancel() {
+    setExternalModel(undefined);
     if (afterApply.current) {
       cancelSwitch.current?.();
       cancelSwitch.current = null;
@@ -512,6 +545,7 @@ function WorkspaceChat({
               {cache.warning && <Alert type="warning" title={cache.warning}/>}
               <ChatConfigurationForm
                 sharedDiscovery={discovery} key={selectedId}
+                requireExplicitApply={!!preparedModel.handoff || !!preparedModel.warning}
                 draftValues={formDraft?.id === selectedId ? formDraft.values : undefined}
                 initialDirty={dirty} onDraftChange={values => setFormDraft({id: selectedId, values})}
                 fixedScope={workspace.scope} restored={cache.value} applied={config}
@@ -526,7 +560,7 @@ function WorkspaceChat({
                   error,
                   loading
                 })}
-                onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={activate}
+                onDirty={() => setDirtyState({id: selectedId, dirty: true})} onApply={applyConfiguration}
                 onRestore={activate}
                 onCancel={cancel} onReset={() => {
                 setFormDraft(null);
@@ -543,6 +577,12 @@ function WorkspaceChat({
               context={context}
               onUnsafeChange={setModelManagementUnsafe}
               onUpdated={modelsUpdated}
+              onUseInChat={() => {
+                setModelMode('catalog');
+                setTab('models');
+                layout.open('settings');
+              }}
+              useInChatDisabled={aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave}
               onBrowse={() => {
                 setModelMode('catalog');
                 recheckAccess();
@@ -595,6 +635,9 @@ function WorkspaceChat({
         <Typography.Text type="secondary" className="ainew-muted">通用文本聊天</Typography.Text>
       </Flex>
     </Flex>
+    <PreparedModelNotice context={context}
+                         disabled={modelManagementUnsafe || aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave}
+                         onSelect={choosePreparedModel}/>
     {(warning || conversations.storageWarning || conversations.selectionNotice) &&
       <Alert type="warning" title={warning ?? conversations.storageWarning ?? conversations.selectionNotice}/>}
     {!readBlocked && optionsState?.id === selectedId && !optionsState.loading && !options.length &&

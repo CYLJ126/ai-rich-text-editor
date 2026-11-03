@@ -2,16 +2,15 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
-import com.arte.ainew.api.model.ModelAclMigrationService;
-import com.arte.ainew.api.model.ModelDraftService;
-import com.arte.ainew.api.model.ModelResourceService;
-import com.arte.ainew.api.model.PersonalModelPublicationService;
+import com.arte.ainew.api.model.*;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.application.execution.GenerationDispatcher;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
@@ -24,6 +23,9 @@ import com.arte.ainew.spi.control.PublishedAiCatalog;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.model.ModelConnectionValidator;
 import com.arte.ainew.spi.model.ModelResourceStore;
+import com.arte.ainew.web.NewAiHttpContext;
+import com.arte.ainew.web.controller.NewAiBudgetController;
+import com.arte.ainew.web.controller.NewAiConfigurationController;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.platform.identity.RbacIdentityProvider;
@@ -80,13 +82,21 @@ class PersonalModelBrowserAcceptanceTest {
                 control.ensure(f.f.f.f.actor, f.f.scope);
                 f.policy(c, "127.0.0.1", true);
                 f.f.f.f.jdbc.update("DELETE FROM arte_rbac_relation");
+                if (Boolean.getBoolean("model.browser.a2")) {
+                    f.f.f.f.jdbc.update("DELETE FROM arte_ai_account");
+                    f.f.f.f.jdbc.update("DELETE FROM arte_ai_budget_definition");
+                }
                 PlatformAuthenticatedExecutor executor = new PlatformAuthenticatedExecutor(c.getBean(RbacIdentityProvider.class),
                         new PlatformPersistenceExecutor(c.getBean("newAiPersistenceScheduler", Scheduler.class), f.f.f.f.tx));
                 DefaultWorkspaceServices services = c.getBean(DefaultWorkspaceServices.class);
+                NewAiHttpContext aiHttp = new NewAiHttpContext(c.getBean(ExecutionContextFactory.class), c.getBean(NewAiProperties.class));
                 try (ManagementHttpHarness http = new ManagementHttpHarness(
                         new ModelResourceController(executor, c.getBean(ModelResourceService.class), c.getBean(ModelAclMigrationService.class)),
                         new ModelDraftController(executor, c.getBean(ModelDraftService.class), c.getBean(ModelConnectionValidator.class)),
                         new PersonalModelPublicationController(executor, c.getBean(PersonalModelPublicationService.class)),
+                        new ModelUsagePreparationController(executor, c.getBean(ModelUsagePreparationService.class)),
+                        new NewAiConfigurationController(c.getBean(ChatConfigurationQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),
+                        new NewAiBudgetController(c.getBean(BudgetAccountQueryService.class), aiHttp, c.getBean(NewAiProperties.class)),
                         new ResourceAccessController(executor, services.resources(), c.getBean("platformAuthorizationService", AuthorizationService.class)),
                         new WorkspaceAccessController(c.getBean(ReactiveWorkspaceOperations.class)))) {
                     HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 15203), 0);
@@ -99,6 +109,12 @@ class PersonalModelBrowserAcceptanceTest {
                             int status = 200;
                             if (path.equals("/fixture/info")) {
                                 output = f.f.f.f.json.write(Map.of("userId", "browser-user", "scope", f.f.scope)).getBytes(StandardCharsets.UTF_8);
+                            } else if (path.equals("/fixture/state")) {
+                                output = f.f.f.f.json.write(Map.of(
+                                                "accounts", f.f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_account", Integer.class),
+                                                "preparations", f.f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_platform_command WHERE command_type='model:usage:prepare'", Integer.class),
+                                                "invocations", f.f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Integer.class)))
+                                        .getBytes(StandardCharsets.UTF_8);
                             } else if (path.equals("/fixture/discover")) {
                                 output = f.f.f.f.json.write(c.getBean(ChatConfigurationQueryService.class).discover(f.f.execution(c, "browser-discover")).block(Duration.ofSeconds(15))).getBytes(StandardCharsets.UTF_8);
                             } else if (path.equals("/fixture/run")) {

@@ -116,7 +116,10 @@ function ModelConfiguration({userId, initialTab}: { userId: string; initialTab: 
     <Tabs activeKey={tab} onChange={value => setTab(value as ModelConfigurationTab)} destroyOnHidden={false} items={[
       {
         key: 'models', label: '模型管理', children: context
-          ? <PersonalModelManager context={context} onUnsafeChange={setModelUnsafe} onUpdated={modelUpdated}/>
+          ? <PersonalModelManager context={context} onUnsafeChange={setModelUnsafe} onUpdated={modelUpdated}
+                                  useInChatDisabled={leavingDisabled} onUseInChat={() => {
+            if (!leavingDisabled) history.push('/AI/ChatNew');
+          }}/>
           : noWorkspace,
       },
       {

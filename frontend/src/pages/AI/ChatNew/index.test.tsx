@@ -5,6 +5,7 @@ import * as api from '@/services/arte-ai';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatNewPage from './index';
 import messages from '@/locales/zh-CN/aiChat';
+import {readModelChatHandoff, saveModelChatHandoff} from '@/features/ainew/modelUsageRecovery';
 
 const state = vi.hoisted(() => ({workspace: null as WorkspaceView | null, userId: 'page-user'}));
 vi.mock('@umijs/max', () => ({
@@ -102,7 +103,7 @@ const windowReply = (records: api.ConversationResponse[] = []) => reply({
   anchorConversationId: null, anchorFallback: false,
 });
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   sessionStorage.clear();
   localStorage.clear();
   state.workspace = {scope, name: '空间', state: 0, currentRole: 0, version: 1};
@@ -528,4 +529,29 @@ it('checks newly edited configuration again after a search target has been read 
   await waitFor(() => expect(screen.getByRole('button', {name: '查看命中消息：搜索中的会话'})).toBeEnabled());
   expect(screen.getByLabelText('搜索会话')).toHaveValue('历史');
   expect(screen.getByRole('spinbutton', {name: /最大输出 Token/})).toHaveValue('1024');
+});
+
+it('returns from model preparation without auto-applying a unique model, then explicitly selects and applies the exact version', async () => {
+  const context = {userId: state.userId, scope};
+  const prepared = {...model, resourceId: 'prepared-model', source: 'PERSONAL' as const};
+  vi.mocked(api.discoverChatOptions).mockResolvedValue(reply({modelOptions: [prepared]}));
+  saveModelChatHandoff(context, {scope, resourceId: 'prepared-model', binding: prepared.binding});
+  render(<ChatNewPage/>);
+  await chooseConversation();
+  fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '准备后提问'}});
+  await screen.findByRole('button', {name: '重新发现并选择此模型'});
+  expect(screen.getByRole('button', {name: '发送'})).toBeDisabled();
+  const readsBeforeSelection = vi.mocked(api.discoverChatOptions).mock.calls.length;
+  fireEvent.click(screen.getByRole('button', {name: '重新发现并选择此模型'}));
+  await waitFor(() => expect(api.discoverChatOptions).toHaveBeenCalledTimes(readsBeforeSelection + 1));
+  await waitFor(() => expect(screen.getByRole('button', {name: '应用配置'})).toBeEnabled());
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '应用配置'}));
+  await waitFor(() => {
+    const blockers = ['请选择模型和兼容预算。', '有未应用配置，请应用或取消修改。', '预算余额未知或不足，请刷新预算。',
+      '历史读取失败，请重试。', '正在恢复历史…', '执行结果待确认，请刷新或查看待核对费用。']
+      .filter(text => screen.queryAllByText(text, {exact: true}).length);
+    expect(screen.getByRole('button', {name: '发送'}), blockers.join(' | ')).toBeEnabled();
+  });
+  expect(readModelChatHandoff(context).handoff).toBeNull();
 });
