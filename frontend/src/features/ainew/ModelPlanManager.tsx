@@ -234,19 +234,29 @@ function Manager({userId, onUnsafeChange, onOpenTemplate}: Props) {
                                    费率 {plan.rate.id}@{plan.rate.version}</Typography.Text>
                                </Flex>
                              }))}>
-    <Typography.Paragraph>平台管理员审核远端模型、容量与费率后发布方案。个人模型继续使用本人密钥验证并发布；登记方案不探测供应商、不分配预算，也不会直接成为聊天候选。</Typography.Paragraph>
+    <Typography.Paragraph>
+      平台管理员审核远端模型、容量与费率后发布方案。<br/>1. 个人模型继续使用本人密钥验证并发布；<br/>2.登记方案不探测供应商、不分配预算，也不会直接成为聊天候选。
+    </Typography.Paragraph>
+
     {blocked &&
       <Alert showIcon type="warning" title="恢复记录无法可靠保存或读取，已阻止新操作；请保留本页并检查浏览器存储。"/>}
     {error && <Alert showIcon type="warning" title={error}/>}{notice && <Alert showIcon type="info" title={notice}/>}
+
     {pending && <Card size="small" title="待确认模型方案">
-      <Typography.Paragraph>{pending.request.command.settings.remoteModel} ·
-        保留完整请求和原操作键，刷新后不自动提交。</Typography.Paragraph>
-      <Button aria-label="重试确认原方案" loading={saving} disabled={blocked}
-              onClick={() => void run()}>重试确认原方案</Button>
+      <Typography.Paragraph>
+        {pending.request.command.settings.remoteModel} ·保留完整请求和原操作键，刷新后不自动提交。
+      </Typography.Paragraph>
+      <Button aria-label="重试确认原方案"
+              loading={saving} disabled={blocked}
+              onClick={() => void run()}>
+        重试确认原方案
+      </Button>
     </Card>}
+
     {view && !enabled.length && <Alert type="info" title="请先在审核连接管理发布并启用一个受支持连接，然后重新读取。"/>}
     {view && !editing &&
       <Typography.Paragraph>选择已发布版本查看或编辑，点击添加图标创建新版本。刷新目录会保留当前草稿。</Typography.Paragraph>}
+
     {view && editing && <>
       <Card size="small" title="发布模型及费率新版本">
         <Form form={form} name="ai-model-plan" layout="vertical" initialValues={defaults} disabled={locked}
@@ -262,34 +272,51 @@ function Manager({userId, onUnsafeChange, onOpenTemplate}: Props) {
           void run({expectedVersion: view.version, settings: settings.data});
         }}>
           <Form.Item name="id" label="方案标识"
-                     rules={[{required: true, pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/}]}><Input
-            aria-label="方案标识" maxLength={96}/></Form.Item>
-          <Form.Item name="connectionKey" label="精确审核连接" rules={[{required: true}]}><Select
-            aria-label="精确审核连接"
-            options={enabled.map(c => ({
-              value: refKey(c.reference),
-              label: `${c.providerId} · ${c.reference.id}@${c.reference.version}`
-            }))}/></Form.Item>
-          <Form.Item name="remoteModel" label="远端模型名" rules={[{required: true, whitespace: true, max: 256}]}><Input
-            aria-label="方案远端模型名" maxLength={256}/></Form.Item>
-          <Form.Item name="contextWindowTokens" label="审核上下文容量（Token）" rules={[{required: true}]}><InputNumber
-            aria-label="审核上下文容量" min={2} max={10_000_000} precision={0}/></Form.Item>
-          <Form.Item name="currency" label="币种" rules={[{required: true}]}><Select aria-label="费率币种"
-                                                                                     options={['CNY', 'USD', 'EUR'].map(value => ({value}))}/></Form.Item>
-          <Form.Item name="inputPerMillion" label="每百万输入 Token 价格" rules={[{required: true}]}><InputNumber
-            aria-label="输入单价" stringMode min="0"/></Form.Item>
-          <Form.Item name="outputPerMillion" label="每百万输出 Token 价格" rules={[{required: true}]}><InputNumber
-            aria-label="输出单价" stringMode min="0"/></Form.Item>
-          <Form.Item name="usageReporting" label="声明支持用量报告" valuePropName="checked"><Switch
-            aria-label="声明支持用量报告"/></Form.Item>
-          <Form.Item name="toolCalls" label="声明支持工具调用" valuePropName="checked"><Switch
-            aria-label="声明支持工具调用"/></Form.Item>
-          <Typography.Paragraph
-            type="secondary">能力声明需要审核者核实；连接探测不证明工具调用能力，程序还会核验适配支持。</Typography.Paragraph>
-          <Typography.Paragraph
-            type="secondary">价格按原币种十进制保存，不自动换汇。修改价格、容量或目标均追加新固定版本；旧模型、历史调用及预算不会自动升级。</Typography.Paragraph>
-          <Flex gap={8} wrap><Button aria-label="发布模型与费率版本" type="primary" htmlType="submit" loading={saving}
-                                     disabled={locked || stale || !enabled.length}>发布模型与费率版本</Button>
+                     rules={[{required: true, pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/}]}>
+            <Input aria-label="方案标识" maxLength={96}/>
+          </Form.Item>
+          <Form.Item name="connectionKey" label="精确审核连接" rules={[{required: true}]}>
+            <Select aria-label="精确审核连接"
+                    options={enabled.map(c => ({
+                      value: refKey(c.reference),
+                      label: `${c.providerId} · ${c.reference.id}@${c.reference.version}`
+                    }))}/>
+          </Form.Item>
+          <Form.Item name="remoteModel" label="远端模型名" rules={[{required: true, whitespace: true, max: 256}]}>
+            <Input aria-label="方案远端模型名" maxLength={256}/>
+          </Form.Item>
+          <Form.Item name="contextWindowTokens" label="审核上下文容量（Token）" rules={[{required: true}]}>
+            <InputNumber aria-label="审核上下文容量" min={2} max={10_000_000} precision={0}/>
+          </Form.Item>
+          <Form.Item name="currency" label="币种" rules={[{required: true}]}>
+            <Select aria-label="费率币种" options={['CNY', 'USD', 'EUR'].map(value => ({value}))}/>
+          </Form.Item>
+          <Form.Item name="inputPerMillion" label="每百万输入 Token 价格" rules={[{required: true}]}>
+            <InputNumber aria-label="输入单价" stringMode min="0"/>
+          </Form.Item>
+          <Form.Item name="outputPerMillion" label="每百万输出 Token 价格" rules={[{required: true}]}>
+            <InputNumber aria-label="输出单价" stringMode min="0"/>
+          </Form.Item>
+          <Form.Item name="usageReporting" label="声明支持用量报告" valuePropName="checked">
+            <Switch aria-label="声明支持用量报告"/>
+          </Form.Item>
+          <Form.Item name="toolCalls" label="声明支持工具调用" valuePropName="checked">
+            <Switch aria-label="声明支持工具调用"/>
+          </Form.Item>
+
+          <Typography.Paragraph type="secondary">
+            能力声明需要审核者核实；连接探测不证明工具调用能力，程序还会核验适配支持。
+          </Typography.Paragraph>
+          <Typography.Paragraph type="secondary">
+            价格按原币种十进制保存，不自动换汇。修改价格、容量或目标均追加新固定版本；旧模型、历史调用及预算不会自动升级。
+          </Typography.Paragraph>
+
+          <Flex gap={8} wrap>
+            <Button aria-label="发布模型与费率版本" type="primary"
+                    htmlType="submit" loading={saving}
+                    disabled={locked || stale || !enabled.length}>
+              发布模型与费率版本
+            </Button>
             <Popconfirm title="放弃未保存的方案修改？" onConfirm={() => {
               form.resetFields();
               setDirty(false);

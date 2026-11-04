@@ -57,7 +57,7 @@ export default function MasterDetailLayout({
 
   return <section className="master-detail-layout" style={style} aria-label={label}>
     <Splitter orientation={vertical ? 'vertical' : 'horizontal'}>
-      <Splitter.Panel defaultSize="40%" min="20%" max="80%">
+      <Splitter.Panel defaultSize="30%" min="20%" max="80%">
         <div className="master-detail-directory">
           {actions.length > 0 &&
             <Flex className="master-detail-toolbar" gap={8} role="toolbar" aria-label={`${label}操作`}>

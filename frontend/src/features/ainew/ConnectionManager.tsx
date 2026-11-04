@@ -169,55 +169,59 @@ function Manager({userId, onUnsafeChange}: Props) {
     setNotice('');
   }
 
-  return <MasterDetailLayout label="数据库连接管理"
-                             actions={[
-                               {
-                                 key: 'refresh',
-                                 label: '重新读取连接目录',
-                                 icon: 'ReloadOutlined',
-                                 loading,
-                                 disabled: saving || !!pending || blocked,
-                                 onClick: () => void load()
-                               },
-                               {
-                                 key: 'add',
-                                 label: '创建连接新版本',
-                                 icon: 'PlusOutlined',
-                                 disabled: disabled || dirty,
-                                 onClick: () => {
-                                   setSelected(undefined);
-                                   setEditing(true);
-                                   form.resetFields();
-                                   setDirty(false);
-                                   setNotice('');
-                                 }
-                               },
-                             ]}
-                             selectedKey={selected} onSelect={key => {
+  return <MasterDetailLayout
+    label="数据库连接管理"
+    actions={[
+      {
+        key: 'refresh',
+        label: '重新读取连接目录',
+        icon: 'ReloadOutlined',
+        loading,
+        disabled: saving || !!pending || blocked,
+        onClick: () => void load()
+      },
+      {
+        key: 'add',
+        label: '创建连接新版本',
+        icon: 'PlusOutlined',
+        disabled: disabled || dirty,
+        onClick: () => {
+          setSelected(undefined);
+          setEditing(true);
+          form.resetFields();
+          setDirty(false);
+          setNotice('');
+        }
+      },
+    ]}
+    selectedKey={selected} onSelect={key => {
     const connection = view?.connections.find(c => JSON.stringify(c.reference) === key);
     if (connection) edit(connection);
   }}
-                             emptyText="尚无审核连接。"
-                             listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} · 部署允许的
-                               origin：{view.allowedOrigins.join('、') || '未配置，当前不能发布连接'}</Typography.Paragraph>}
-                             items={[...(view?.connections ?? [])].reverse().map(connection => ({
-                               key: JSON.stringify(connection.reference),
-                               label: `以此版本编辑 ${connection.reference.id}@${connection.reference.version}`,
-                               disabled: disabled || dirty,
-                               content: <Flex vertical gap={8}>
-                                 <Typography.Text
-                                   strong>{connection.providerId} · {connection.reference.id}@{connection.reference.version}</Typography.Text>
-                                 <Tag
-                                   color={connection.state === 'ENABLED' ? 'green' : 'default'}>{connection.state === 'ENABLED' ? '已启用' : '已停用'}</Tag>
-                                 <Typography.Text>{connection.endpoint}</Typography.Text>
-                                 <Typography.Text
-                                   type="secondary">{connection.protocol.id}@{connection.protocol.version} ·
-                                   连接 {connection.connectTimeoutSeconds}s ·
-                                   响应 {connection.responseTimeoutSeconds}s</Typography.Text>
-                               </Flex>
-                             }))}>
-    <Typography.Paragraph>审核连接由平台配置管理员发布。第一批支持 DeepSeek 的 Chat Completions SSE 协议；连接不保存 API
-      Key，模型草稿另行配置本人凭据并验证。</Typography.Paragraph>
+    emptyText="尚无审核连接。"
+    listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} · 部署允许的
+      origin：{view.allowedOrigins.join('、') || '未配置，当前不能发布连接'}</Typography.Paragraph>}
+    items={[...(view?.connections ?? [])].reverse().map(connection => ({
+      key: JSON.stringify(connection.reference),
+      label: `以此版本编辑 ${connection.reference.id}@${connection.reference.version}`,
+      disabled: disabled || dirty,
+      content: <Flex vertical gap={8}>
+        <Typography.Text
+          strong>{connection.providerId} · {connection.reference.id}@{connection.reference.version}</Typography.Text>
+        <Tag
+          color={connection.state === 'ENABLED' ? 'green' : 'default'}>{connection.state === 'ENABLED' ? '已启用' : '已停用'}</Tag>
+        <Typography.Text>{connection.endpoint}</Typography.Text>
+        <Typography.Text
+          type="secondary">{connection.protocol.id}@{connection.protocol.version} ·
+          连接 {connection.connectTimeoutSeconds}s ·
+          响应 {connection.responseTimeoutSeconds}s</Typography.Text>
+      </Flex>
+    }))}>
+    <Typography.Paragraph>
+      审核连接由平台配置管理员发布：<br/>
+      1. 第一批支持 DeepSeek 的 Chat Completions SSE 协议；<br/>
+      2. 连接不保存 API Key，模型草稿另行配置本人凭据并验证。
+    </Typography.Paragraph>
     {blocked &&
       <Alert type="warning" showIcon title="恢复记录无法可靠保存或读取，已阻止新操作；请保留本页并检查浏览器存储。"/>}
     {error && <Alert type="warning" showIcon title={error}/>}

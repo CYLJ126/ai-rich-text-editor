@@ -41,12 +41,15 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
   const unsafe = formUnsafe || policyUnsafe || directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave;
   const blocked = useCallback(() => setGuardMessage('请先保存、放弃修改或确认原操作，再离开或更换配置目标。'), []);
   useAiLeaveGuard(unsafe, blocked);
+
   useEffect(() => {
     if (!unsafe) setGuardMessage('');
   }, [unsafe]);
+
   useEffect(() => {
     setFilter(directory.search);
   }, [directory.search]);
+
   useEffect(() => {
     alive.current = true;
     const logout = (event: Event) => {
@@ -63,6 +66,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
       window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, [userId]);
+
   useEffect(() => {
     const controller = new AbortController();
     setTenants([]);
@@ -94,99 +98,114 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
   return <ViewportPage className="personal-models-page workspace-configuration-page" label="工作空间配置">
     {guardMessage && <Alert type="info" title={guardMessage}/>}
     <div className="workspace-configuration-content">
-      <MasterDetailLayout label="工作空间管理" actions={[]}
-                          selectedKey={!creating && target ? keyOf(target.scope) : undefined}
-                          onSelect={key => {
-                            if (unsafe || policyOpen) {
-                              blocked();
-                              return;
-                            }
-                            const item = directory.records.find(value => keyOf(value.scope) === key);
-                            if (item) {
-                              setCreating(false);
-                              setTarget(item);
-                            }
-                          }}
-                          listHeader={<Flex gap={8} align="center" className="workspace-directory-actions">
-                            <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
-                                          maxLength={100} allowClear
-                                          enterButton={<Button aria-label="搜索" title="搜索工作空间"
-                                                               icon={<DynamicIcon iconName="SearchOutlined"/>}/>}
-                                          loading={directory.loading} disabled={directory.saving}
-                                          onChange={event => setFilter(event.target.value)}
-                                          onSearch={value => void directory.load(value)}/>
-                            <Tooltip title="租户与空间政策"><Button aria-label="租户与空间政策"
-                                                                    icon={<DynamicIcon iconName="ControlOutlined"/>}
-                                                                    disabled={unsafe || !target || creating || policyOpen}
-                                                                    onClick={() => setPolicyOpen(true)}/></Tooltip>
-                            <Tooltip title="清除启动空间偏好"><Button aria-label="清除启动空间偏好"
-                                                                      icon={<DynamicIcon iconName="ClearOutlined"/>}
-                                                                      disabled={unsafe || !directory.preference?.startupScope || policyOpen}
-                                                                      onClick={() => void directory.updatePreference({startupScope: null})}/></Tooltip>
-                            <Tooltip title="新建工作空间"><Button aria-label="新建工作空间"
-                                                                  icon={<DynamicIcon iconName="PlusOutlined"/>}
-                                                                  disabled={unsafe || !tenants.length || policyOpen}
-                                                                  onClick={() => {
-                                                                    setInitialTenantId(tenants.some(item => item.value === target?.scope.tenantId) ? target!.scope.tenantId : '');
-                                                                    setTarget(null);
-                                                                    setCreating(true);
-                                                                  }}/></Tooltip>
-                          </Flex>}
-                          listFooter={<Flex vertical gap={8} style={{marginTop: 12}}>
-                            {directory.warning && <Alert type="warning" title={directory.warning}/>}
-                            {directory.error != null && <Alert type="warning"
-                                                               title={directory.error instanceof Error ? directory.error.message : '空间目录读取失败。'}/>}
-                            {candidates.error && <Alert type="warning" title={candidates.error}
-                                                        action={<Button
-                                                          onClick={() => void candidates.reload()}>重新读取租户</Button>}/>}
-                            {directory.pending && <Alert type="warning" title="有待确认空间操作，请处理原操作。"
-                                                         action={<Button
-                                                           disabled={directory.saving || directory.recoveryBlocked}
-                                                           onClick={recover}>处理原空间操作</Button>}/>}
-                            {!directory.exhausted && directory.nextCursor && !directory.cursorExpired &&
-                              <Button loading={directory.loading} disabled={directory.loading || directory.saving}
-                                      onClick={() => void directory.loadMore()}>继续加载</Button>}
-                            {directory.cursorExpired &&
-                              <Button onClick={() => void directory.load(filter)}>重新加载目录</Button>}
-                            {candidates.hasMore && <Button disabled={candidates.loading}
-                                                           onClick={() => void candidates.more()}>加载更多可选租户</Button>}
-                            {directory.loaded && !directory.preference && !directory.error && <Button disabled={unsafe}
-                                                                                                      onClick={() => void directory.initialize()}>初始化个人默认空间</Button>}
-                          </Flex>}
-                          emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
-                          items={directory.records.map(item => ({
-                            key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: unsafe || policyOpen,
-                            content: <Flex vertical gap={8}>
-                              <Typography.Text strong>{item.name}</Typography.Text>
-                              <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
-                              <Typography.Text
-                                type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
+      <MasterDetailLayout
+        label="工作空间管理" actions={[]}
+        selectedKey={!creating && target ? keyOf(target.scope) : undefined}
+        onSelect={key => {
+          if (unsafe || policyOpen) {
+            blocked();
+            return;
+          }
+          const item = directory.records.find(value => keyOf(value.scope) === key);
+          if (item) {
+            setCreating(false);
+            setTarget(item);
+          }
+        }}
+        listHeader={<Flex gap={8} align="center" className="workspace-directory-actions">
+          <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
+                        maxLength={100} allowClear
+                        enterButton={<Button aria-label="搜索" title="搜索工作空间"
+                                             icon={<DynamicIcon iconName="SearchOutlined"/>}/>}
+                        loading={directory.loading} disabled={directory.saving}
+                        onChange={event => setFilter(event.target.value)}
+                        onSearch={value => void directory.load(value)}/>
+          <Tooltip title="租户与空间政策">
+            <Button aria-label="租户与空间政策"
+                    icon={<DynamicIcon iconName="ControlOutlined"/>}
+                    disabled={unsafe || !target || creating || policyOpen}
+                    onClick={() => setPolicyOpen(true)}/>
+          </Tooltip>
+          <Tooltip title="清除启动空间偏好">
+            <Button aria-label="清除启动空间偏好"
+                    icon={<DynamicIcon iconName="ClearOutlined"/>}
+                    disabled={unsafe || !directory.preference?.startupScope || policyOpen}
+                    onClick={() => void directory.updatePreference({startupScope: null})}/>
+          </Tooltip>
+          <Tooltip title="新建工作空间">
+            <Button aria-label="新建工作空间"
+                    icon={<DynamicIcon iconName="PlusOutlined"/>}
+                    disabled={unsafe || !tenants.length || policyOpen}
+                    onClick={() => {
+                      setInitialTenantId(tenants.some(item => item.value === target?.scope.tenantId) ? target!.scope.tenantId : '');
+                      setTarget(null);
+                      setCreating(true);
+                    }}/>
+          </Tooltip>
+        </Flex>}
+        listFooter={<Flex vertical gap={8} style={{marginTop: 12}}>
+          {directory.warning && <Alert type="warning" title={directory.warning}/>}
+          {directory.error != null && <Alert type="warning"
+                                             title={directory.error instanceof Error ? directory.error.message : '空间目录读取失败。'}/>}
+          {candidates.error && <Alert type="warning" title={candidates.error}
+                                      action={<Button
+                                        onClick={() => void candidates.reload()}>重新读取租户</Button>}/>}
+          {directory.pending && <Alert type="warning" title="有待确认空间操作，请处理原操作。"
+                                       action={<Button
+                                         disabled={directory.saving || directory.recoveryBlocked}
+                                         onClick={recover}>处理原空间操作</Button>}/>}
+          {!directory.exhausted && directory.nextCursor && !directory.cursorExpired &&
+            <Button loading={directory.loading} disabled={directory.loading || directory.saving}
+                    onClick={() => void directory.loadMore()}>继续加载</Button>}
+          {directory.cursorExpired &&
+            <Button onClick={() => void directory.load(filter)}>重新加载目录</Button>}
+          {candidates.hasMore && <Button disabled={candidates.loading}
+                                         onClick={() => void candidates.more()}>加载更多可选租户</Button>}
+          {directory.loaded && !directory.preference && !directory.error && <Button disabled={unsafe}
+                                                                                    onClick={() => void directory.initialize()}>初始化个人默认空间</Button>}
+        </Flex>}
+        emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
+        items={directory.records.map(item => ({
+          key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: unsafe || policyOpen,
+          content: <Flex vertical gap={8}>
+            <Typography.Text strong>{item.name}</Typography.Text>
+            <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
+            <Typography.Text
+              type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
-                          }))}>
-        {creating ? <WorkspaceDetailForm userId={userId} initialTenantId={initialTenantId} tenants={tenants}
-                                         onMoreTenants={candidates.hasMore ? () => void candidates.more() : undefined}
-                                         onCancel={() => {
-                                           setCreating(false);
-                                           setFormUnsafe(false);
-                                         }}
-                                         onUnsafeChange={setFormUnsafe} onSaved={view => {
+        }))}>
+        {/* 右侧工作空间表单详情区域，三目运算符表示：创建表单、编辑/详情表单、null（未选中某个空间） */}
+        {creating ? <WorkspaceDetailForm
+            userId={userId} initialTenantId={initialTenantId} tenants={tenants}
+            onMoreTenants={candidates.hasMore ? () => void candidates.more() : undefined}
+            onCancel={() => {
+              setCreating(false);
+              setFormUnsafe(false);
+            }}
+            onUnsafeChange={setFormUnsafe} onSaved={view => {
             setCreating(false);
             setTarget(view);
           }}/>
           : target ? <WorkspaceDetailForm userId={userId} scope={target.scope} onUnsafeChange={setFormUnsafe}
                                           onSaved={setTarget}/> : null}
+        {/* 按钮：收藏、设为启动空间 */}
         {target && !creating && <Flex gap={8} wrap>
-          <Button disabled={unsafe || !directory.preference} onClick={() => void directory.updatePreference({
-            favorites: directory.favorite(target.scope)
-              ? directory.preference!.favorites.filter(scope => !sameScope(scope, target.scope))
-              : [...directory.preference!.favorites, target.scope]
-          })}>{directory.favorite(target.scope) ? '取消收藏' : '收藏此空间'}</Button>
+          <Button disabled={unsafe || !directory.preference}
+                  onClick={() => void directory.updatePreference({
+                    favorites: directory.favorite(target.scope)
+                      ? directory.preference!.favorites.filter(scope => !sameScope(scope, target.scope))
+                      : [...directory.preference!.favorites, target.scope]
+                  })}>
+            {directory.favorite(target.scope) ? '取消收藏' : '收藏此空间'}
+          </Button>
           <Button disabled={unsafe || !directory.preference}
                   onClick={() => void directory.updatePreference({startupScope: target.scope})}>
-            {sameScope(directory.preference?.startupScope, target.scope) ? '已设为启动空间' : '设为启动空间'}</Button>
+            {sameScope(directory.preference?.startupScope, target.scope) ? '已设为启动空间' : '设为启动空间'}
+          </Button>
         </Flex>}
       </MasterDetailLayout>
     </div>
+
     {policyOpen && target && <WorkspacePolicyDialog userId={userId} target={target}
                                                     onClose={() => setPolicyOpen(false)}
                                                     onUnsafeChange={setPolicyUnsafe}/>}

@@ -201,42 +201,43 @@ function ModelManager({
     await submit('save', {...located, expectedVersion: draft?.version ?? 0, name: displayName, settings});
   }
 
-  return <MasterDetailLayout label="模型管理" style={onBrowse ? {height: '75dvh'} : undefined}
-                             actions={[
-                               {
-                                 key: 'refresh',
-                                 label: '重新读取模型',
-                                 icon: 'ReloadOutlined',
-                                 loading: vm.loading,
-                                 disabled: !canMove || vm.closed,
-                                 onClick: () => {
-                                   void vm.loadList();
-                                   if (vm.selected) void vm.open(vm.selected);
-                                 }
-                               },
-                               {
-                                 key: 'add',
-                                 label: '添加模型',
-                                 icon: 'PlusOutlined',
-                                 disabled: !canMove || disabled || !vm.canCreate,
-                                 onClick: () => {
-                                   setCreating(true);
-                                   setName('');
-                                   setModelKind(vm.creationKinds[0] ?? 'PERSONAL');
-                                 }
-                               },
-                             ]}
-                             selectedKey={creating ? undefined : vm.selected ?? undefined}
-                             onSelect={key => {
-                               if (canMove) {
-                                 setCreating(false);
-                                 void vm.open(key);
-                               }
-                             }}
-                             emptyText="当前列表没有可读模型"
-                             listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
-                                                              onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
-                             items={buildModelItems(vm.records, !canMove)}>
+  return <MasterDetailLayout
+    label="模型管理" style={onBrowse ? {height: '75dvh'} : undefined}
+    actions={[
+      {
+        key: 'refresh',
+        label: '重新读取模型',
+        icon: 'ReloadOutlined',
+        loading: vm.loading,
+        disabled: !canMove || vm.closed,
+        onClick: () => {
+          void vm.loadList();
+          if (vm.selected) void vm.open(vm.selected);
+        }
+      },
+      {
+        key: 'add',
+        label: '添加模型',
+        icon: 'PlusOutlined',
+        disabled: !canMove || disabled || !vm.canCreate,
+        onClick: () => {
+          setCreating(true);
+          setName('');
+          setModelKind(vm.creationKinds[0] ?? 'PERSONAL');
+        }
+      },
+    ]}
+    selectedKey={creating ? undefined : vm.selected ?? undefined}
+    onSelect={key => {
+      if (canMove) {
+        setCreating(false);
+        void vm.open(key);
+      }
+    }}
+    emptyText="当前列表没有可读模型"
+    listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
+                                     onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
+    items={buildModelItems(vm.records, !canMove)}>
     {/* 右侧模型表单详情 */}
     <div className="personal-models ai-management-panel">
       <Flex vertical gap={10} className="personal-models-intro">
@@ -305,27 +306,29 @@ function ModelManager({
           }}>取消添加模型</Button>
         </Card>
       </> : <>
-        <ModelUsagePreparationPanel key={storageKey(usageContext, 'usage-target')} context={usageContext}
-                                    refreshRevision={usageRevision}
-                                    onConfigureWorkspace={onConfigureWorkspace}
-                                    target={vm.selectedVersion ? {
-                                      resourceId: vm.selectedVersion.resourceId,
-                                      binding: {...vm.selectedVersion.binding, type: 'binding'}
-                                    } : null}
-                                    disabled={blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
-                                    navigationDisabled={useInChatDisabled}
-                                    onUnsafeChange={setUsageUnsafe}
-                                    onPrepared={() => {
-                                      onUpdated({
-                                        kind: 'prepare',
-                                        resourceId: vm.selectedVersion?.resourceId ?? vm.selected
-                                      });
-                                      if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
-                                    }} onUseInChat={onUseInChat}/>
+        <ModelUsagePreparationPanel
+          key={storageKey(usageContext, 'usage-target')} context={usageContext}
+          refreshRevision={usageRevision}
+          onConfigureWorkspace={onConfigureWorkspace}
+          target={vm.selectedVersion ? {
+            resourceId: vm.selectedVersion.resourceId,
+            binding: {...vm.selectedVersion.binding, type: 'binding'}
+          } : null}
+          disabled={blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
+          navigationDisabled={useInChatDisabled}
+          onUnsafeChange={setUsageUnsafe}
+          onPrepared={() => {
+            onUpdated({
+              kind: 'prepare',
+              resourceId: vm.selectedVersion?.resourceId ?? vm.selected
+            });
+            if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
+          }} onUseInChat={onUseInChat}/>
         <Flex vertical gap={12} className="personal-models-editor">
           {vm.detailLoading && <Flex gap={8} role="status"><Spin size="small"/>正在读取模型当前资格…</Flex>}
           {!detail && !vm.detailLoading &&
-            <Typography.Paragraph>请选择左侧模型，或点击新增。</Typography.Paragraph>}
+            <Typography.Paragraph>1. 点击左侧模型以编辑，或查看详情；<br/>2.
+              点击左上方新增图标，以创建新模型。</Typography.Paragraph>}
           {detail && <>
             <Card size="small" title={detail.model.name}>
               <Descriptions column={1} size="small" className="ai-management-info" items={[
