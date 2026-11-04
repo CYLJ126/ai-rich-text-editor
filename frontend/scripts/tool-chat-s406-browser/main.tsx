@@ -13,7 +13,7 @@ import {
 import BusinessChatPanel from '@/features/ainew/BusinessChatPanel';
 import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
 import {useChatLayout} from '@/features/ainew/useChatLayout';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
 import {toolChatContext as context} from '@/features/ainew/toolChat.testdata';
 import type {ConversationResponse} from '@/services/arte-ai';
 import '@/pages/AI/ChatNew/style.css';
@@ -111,8 +111,8 @@ function App() {
                                      label: '',
                                      icon: <Tooltip title="工作空间"><HomeOutlined aria-label="工作空间"/></Tooltip>,
                                      forceRender: true,
-                                     children: <WorkspacePicker userId="workspace-scroll-fixture"
-                                                                presentation="inline"/>,
+                                     children: <WorkspaceDetailForm userId="workspace-scroll-fixture"
+                                                                    scope={context.scope}/>,
                                    },
                                    {
                                      key: 'settings',

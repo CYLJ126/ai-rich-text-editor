@@ -49,7 +49,9 @@ describe('工具工作区接线', () => {
         binding: detail.binding,
       }),
     );
-    render(<ToolWorkspace userId="user" workspace={workspace}/>);
+    render(<ToolWorkspace userId="user" workspace={workspace} tabBarExtraContent={<button>选择工作空间</button>}/>);
+    expect(screen.getByRole('button', {name: '选择工作空间'}).closest('.ant-tabs-extra-content'))
+      .toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole('button', {name: '查看并准备配置'}),
     );

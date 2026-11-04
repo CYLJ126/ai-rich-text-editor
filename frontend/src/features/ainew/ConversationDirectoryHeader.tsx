@@ -16,21 +16,24 @@ export default function ConversationDirectoryHeader({
                                                       onRefresh,
                                                       onCreate,
                                                       onCollapse,
-                                                      onManage,
+                                                      workspaceSelectOpen,
+                                                      onWorkspaceSelectOpenChange,
                                                       onConnect,
                                                       onPlatformConfig
                                                     }: {
   userId: string; scope: AiScope; name: string; writable: boolean; creating: boolean; pendingCreate: boolean;
   refreshing: boolean; onRefresh: () => void;
   searching?: boolean;
-  onCreate: () => void; onCollapse: () => void; onManage: () => void;
+  onCreate: () => void; onCollapse: () => void;
+  workspaceSelectOpen?: boolean; onWorkspaceSelectOpenChange?: (open: boolean) => void;
   onConnect: () => void; onPlatformConfig: () => void;
 }) {
   const [notice, setNotice] = useState('');
   const createLabel = pendingCreate ? '确认原创建操作' : '新建会话';
   return <>
     <header className="ainew-directory-header">
-      <WorkspaceQuickSelect userId={userId} scope={scope} name={name} onManage={onManage}
+      <WorkspaceQuickSelect userId={userId} scope={scope} name={name}
+                            open={workspaceSelectOpen} onOpenChange={onWorkspaceSelectOpenChange}
                             onConnect={onConnect} onPlatformConfig={onPlatformConfig}/>
       <div className="ainew-directory-tools">
         <Tooltip title={searching ? '按 Enter 重新搜索' : '刷新会话列表'}>

@@ -5,7 +5,7 @@ import * as api from '@/services/arte-ai';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import * as platform from '@/services/platform/workspace';
 import ChatNewPage from './index';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import messages from '@/locales/zh-CN/aiChat';
 import {storageKey, writeValue} from '@/features/ainew/storage';
 import {workspaceStorageKey} from '@/features/workspace/useWorkspace';
@@ -187,13 +187,13 @@ it('reuses the workspace model directory when switching conversations', async ()
 
 
 function app() {
-  return render(<><WorkspacePicker userId={state.userId}/><ChatNewPage/></>);
+  return render(<><WorkspaceQuickSelect userId={state.userId}/><ChatNewPage/></>);
 }
 
 async function selectFromHeader(name: string) {
   fireEvent.click(screen.getAllByLabelText('选择工作空间')[0]);
-  const target = await screen.findByRole('button', {name});
-  await waitFor(() => expect(target).toBeEnabled());
+  const target = await screen.findByRole('menuitem', {name});
+  await waitFor(() => expect(target).not.toHaveAttribute('aria-disabled', 'true'));
   fireEvent.click(target);
 }
 
@@ -293,7 +293,7 @@ it('restores the current space, original pending request and independent draft w
 
 it('returns to chat with the space selected in another module and keeps the old chat draft isolated', async () => {
   vi.mocked(api.queryConversationWindow).mockImplementation(async request => windowReply(request.scope.workspaceId === scope.workspaceId ? [conversation] : []));
-  const renderModule = (chat: boolean) => <><WorkspacePicker userId={state.userId}/>{chat ? <ChatNewPage/> :
+  const renderModule = (chat: boolean) => <><WorkspaceQuickSelect userId={state.userId}/>{chat ? <ChatNewPage/> :
     <main>其他模块</main>}</>;
   const view = render(renderModule(true));
   await chooseConversation();
@@ -509,7 +509,7 @@ it('opens the real workspace picker from a denied AI state and recovers in anoth
   app();
   await screen.findByText('此空间的 AI 功能暂不可用');
   fireEvent.click(screen.getByRole('button', {name: '切换工作空间'}));
-  fireEvent.click(await screen.findByRole('button', {name: '空间B'}));
+  fireEvent.click(await screen.findByRole('menuitem', {name: '空间B'}));
   await screen.findByRole('button', {name: '打开会话：我的会话'});
   expect(screen.queryByText('此空间的 AI 功能暂不可用')).not.toBeInTheDocument();
   expect(screen.getByRole('button', {name: '新建会话'})).toBeEnabled();
@@ -517,25 +517,25 @@ it('opens the real workspace picker from a denied AI state and recovers in anoth
   expect(api.turnsForChat).not.toHaveBeenCalled();
 });
 
-it('shares one workspace directory between the quick selector and inline management tab without opening a Drawer', async () => {
+it('keeps workspace details separate from the quick selector and offers no management menu', async () => {
   render(<ChatNewPage/>);
   await chooseConversation();
   const reads = vi.mocked(api.queryConversationWindow).mock.calls.length;
-  fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '空间管理草稿'}});
+  fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '空间详情草稿'}});
   fireEvent.click(screen.getByRole('button', {name: '选择工作空间'}));
-  fireEvent.click(await screen.findByRole('menuitem', {name: '管理工作空间'}));
-  await screen.findByRole('tab', {name: '工作空间', selected: true});
-  expect(await screen.findByRole('region', {name: '工作空间管理'})).toBeVisible();
-  expect(screen.getByText('当前空间：空间A')).toBeVisible();
-  expect(platform.browseAccessibleWorkspaces).toHaveBeenCalledTimes(1);
+  expect(await screen.findByRole('menuitem', {name: '空间B'})).toBeInTheDocument();
+  expect(screen.queryByRole('menuitem', {name: '管理工作空间'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '选择工作空间'}));
+  fireEvent.click(screen.getByRole('tab', {name: '工作空间'}));
+  expect(await screen.findByLabelText('工作空间详情表单')).toBeVisible();
+  expect(screen.queryByRole('region', {name: '工作空间管理'})).not.toBeInTheDocument();
   expect(api.queryConversationWindow).toHaveBeenCalledTimes(reads);
-  expect(screen.getByLabelText('输入问题')).toHaveValue('空间管理草稿');
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByLabelText('输入问题')).toHaveValue('空间详情草稿');
   expect(document.querySelector('.ant-drawer-open')).toBeNull();
 });
 
 
-it('reveals a failed quick workspace selection in the management tab while retaining the current chat', async () => {
+it('reveals a failed quick workspace selection beside the selector while retaining the current chat', async () => {
   render(<ChatNewPage/>);
   await chooseConversation();
   const reads = vi.mocked(api.queryConversationWindow).mock.calls.length;
@@ -544,7 +544,6 @@ it('reveals a failed quick workspace selection in the management tab while retai
   vi.mocked(platform.getWorkspace).mockRejectedValueOnce(new Error('空间详情暂时无法读取'));
   fireEvent.click(screen.getByRole('button', {name: '选择工作空间'}));
   fireEvent.click(await screen.findByRole('menuitem', {name: '空间B'}));
-  await screen.findByRole('tab', {name: '工作空间', selected: true});
   expect(await screen.findByText('空间详情暂时无法读取')).toBeVisible();
   expect(screen.getByLabelText('输入问题')).toBe(composer);
   expect(composer).toHaveValue('切换失败不能丢稿');

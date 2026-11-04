@@ -2,7 +2,13 @@ import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {request} from '@umijs/max';
 import * as api from '@/services/platform/workspace';
-import {registerWorkspaceGuard, useCurrentWorkspace, useWorkspaceDirectory, workspaceStorageKey} from './useWorkspace';
+import {
+  registerWorkspaceGuard,
+  useCurrentWorkspace,
+  useWorkspaceDirectory,
+  useWorkspaceManagement,
+  workspaceStorageKey
+} from './useWorkspace';
 import {AiApiError} from '@/services/arte-ai';
 import {writeValue} from '@/features/ainew/storage';
 
@@ -456,4 +462,78 @@ it('only invokes explicit chat navigation after the protected selection actually
   expect(hook.result.current.current?.scope).toEqual(b);
   expect(navigate).toHaveBeenCalledTimes(1);
   unregister();
+});
+
+it('keeps management browsing, creation and preference changes independent of chat selection', async () => {
+  const userId = `management-${++counter}`;
+  const chat = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(chat.result.current.current?.scope).toEqual(a));
+  const selected = vi.fn();
+  window.addEventListener('arte-workspace-selected', selected);
+  const stored = sessionStorage.getItem(workspaceStorageKey(userId, 'currentWorkspace'));
+  const management = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(management.result.current.loaded).toBe(true));
+  expect(management.result.current.current).toBeNull();
+  vi.mocked(api.createWorkspace).mockResolvedValue(receipt(view(b)));
+  await act(async () => {
+    expect(await management.result.current.create('b', '', b.tenantId)).toBe(true);
+  });
+  expect(management.result.current.savedWorkspace()?.scope).toEqual(b);
+  expect(chat.result.current.current?.scope).toEqual(a);
+  expect(sessionStorage.getItem(workspaceStorageKey(userId, 'currentWorkspace'))).toBe(stored);
+  expect(selected).not.toHaveBeenCalled();
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
+  window.removeEventListener('arte-workspace-selected', selected);
+});
+
+it('updates shared metadata for the same chat space without selecting a different space', async () => {
+  const userId = `metadata-${++counter}`;
+  const chat = renderHook(() => useWorkspaceDirectory(userId));
+  const management = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(chat.result.current.current?.scope).toEqual(a));
+  await waitFor(() => expect(management.result.current.loaded).toBe(true));
+  vi.mocked(api.renameWorkspace).mockResolvedValue(receipt({...view(b), name: 'B changed', version: 2}));
+  await act(async () => {
+    await management.result.current.rename(view(b), 'B changed', '');
+  });
+  expect(chat.result.current.current?.name).toBe('a');
+  vi.mocked(api.renameWorkspace).mockResolvedValue(receipt({...view(a), name: 'A changed', version: 2}));
+  await act(async () => {
+    await management.result.current.rename(view(a), 'A changed', '');
+  });
+  expect(chat.result.current.current?.name).toBe('A changed');
+  expect(chat.result.current.current?.scope).toEqual(a);
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
+});
+
+it('does not send a management mutation when its recovery record cannot be persisted', async () => {
+  const userId = `blocked-management-${++counter}`;
+  const management = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(management.result.current.loaded).toBe(true));
+  const storage = vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+  try {
+    await act(async () => {
+      expect(await management.result.current.create('new', '', a.tenantId)).toBe(false);
+    });
+    expect(api.createWorkspace).not.toHaveBeenCalled();
+    expect(management.result.current.recoveryBlocked).toBe(true);
+  } finally {
+    storage.mockRestore();
+  }
+});
+
+it('rereads shared metadata from another tab without committing a chat selection', async () => {
+  const userId = `remote-metadata-${++counter}`;
+  const chat = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(chat.result.current.current?.scope).toEqual(a));
+  vi.mocked(api.getWorkspace).mockResolvedValue(reply({...view(a), name: '远端新名称', version: 3}));
+  act(() => window.dispatchEvent(new StorageEvent('storage', {
+    key: 'arte.workspace.metadata.revision',
+    newValue: JSON.stringify({userId, scope: a, revision: 'new'})
+  })));
+  await waitFor(() => expect(chat.result.current.current?.name).toBe('远端新名称'));
+  expect(chat.result.current.current?.scope).toEqual(a);
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
 });

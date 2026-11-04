@@ -1,14 +1,20 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {history, useModel} from '@umijs/max';
-import {Alert, Button, Card, Flex, Typography} from 'antd';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
-import {protectWorkspaceChange, registerWorkspaceGuard, useWorkspaceDirectory} from '@/features/workspace/useWorkspace';
-import {getWorkspace, type WorkspaceView} from '@/services/platform/workspace';
-import WorkspaceAiGovernanceEditor from '@/features/ainew/WorkspaceAiGovernanceEditor';
-import {aiLocation, parseAiIntent, useAiLeaveGuard, useAiRoute, verifyAiModel} from '@/features/ainew/aiNavigation';
-import {notifyAiConfiguration, subscribeAiConfiguration} from '@/features/ainew/aiConfigurationEvents';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {useModel} from '@umijs/max';
+import {Alert, Button, Flex, Input, Tooltip, Typography} from 'antd';
+import MasterDetailLayout from '@/components/MasterDetailLayout';
+import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
+import DynamicIcon from '@/components/DynamicIcon/MyDynamicIcon';
+import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
+import WorkspacePolicyDialog from '@/features/workspace/WorkspacePolicyDialog';
+import {useWorkspaceManagement} from '@/features/workspace/useWorkspace';
+import {usePolicyDirectory} from '@/features/workspace/usePolicyDirectory';
+import {checkWorkspaceAccess, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
+import {useAiLeaveGuard} from '@/features/ainew/aiNavigation';
 import {sameScope} from '@/features/ainew/storage';
 import '@/features/ainew/personalModels.css';
+import './index.css';
+
+const keyOf = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.workspaceId]);
 
 export default function WorkspaceConfigurationPage() {
   const {initialState} = useModel('@@initialState');
@@ -17,134 +23,172 @@ export default function WorkspaceConfigurationPage() {
   return <WorkspaceConfiguration key={userId} userId={userId}/>;
 }
 
+/** 配置目标只存在本页状态中；URL、聊天当前空间和刷新均不会自动选择卡片。 */
 function WorkspaceConfiguration({userId}: { userId: string }) {
-  const search = useAiRoute();
-  const parsed = useMemo(() => {
-    try {
-      return {intent: parseAiIntent(search, userId), error: ''};
-    } catch (failure) {
-      return {intent: null, error: (failure as Error).message};
-    }
-  }, [search, userId]);
-  const intent = parsed.intent;
-  const directory = useWorkspaceDirectory(userId);
+  const directory = useWorkspaceManagement(userId);
+  const candidates = usePolicyDirectory(userId);
   const [target, setTarget] = useState<WorkspaceView | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [editorUnsafe, setEditorUnsafe] = useState(false);
-  const [directoryUnsafe, setDirectoryUnsafe] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [notice, setNotice] = useState('');
-  const ownNotification = useRef(false);
-  const unsafe = editorUnsafe || directoryUnsafe;
-  const blocked = useCallback(() => setError('请先保存或放弃修改、确认原操作，再离开或更换配置目标。'), []);
+  const [creating, setCreating] = useState(false);
+  const [initialTenantId, setInitialTenantId] = useState('');
+  const [filter, setFilter] = useState(directory.search);
+  const [formUnsafe, setFormUnsafe] = useState(false);
+  const [policyUnsafe, setPolicyUnsafe] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [guardMessage, setGuardMessage] = useState('');
+  const [tenants, setTenants] = useState<{ value: string; label: string }[]>([]);
+  const alive = useRef(true);
+  const tenantIds = [...new Set(candidates.records.map(item => item.scope.tenantId))].sort().join('\n');
+  const unsafe = formUnsafe || policyUnsafe || directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave;
+  const blocked = useCallback(() => setGuardMessage('请先保存、放弃修改或确认原操作，再离开或更换配置目标。'), []);
   useAiLeaveGuard(unsafe, blocked);
   useEffect(() => {
-    if (!unsafe) setError(value => value === '请先保存或放弃修改、确认原操作，再离开或更换配置目标。' ? '' : value);
+    if (!unsafe) setGuardMessage('');
   }, [unsafe]);
-  useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
-    if (unsafe) blocked(); else proceed();
-  }), [userId, unsafe, blocked]);
   useEffect(() => {
-    setTarget(null);
-    setError('');
-    if (!intent?.scope) return;
-    const controller = new AbortController();
-    const scope = intent.scope;
-    setLoading(true);
+    setFilter(directory.search);
+  }, [directory.search]);
+  useEffect(() => {
+    alive.current = true;
     const logout = (event: Event) => {
-      if ((event as CustomEvent<string>).detail === userId) {
-        controller.abort();
-        setTarget(null);
-      }
+      if ((event as CustomEvent<string>).detail !== userId) return;
+      alive.current = false;
+      setTarget(null);
+      setCreating(false);
+      setPolicyOpen(false);
+      setTenants([]);
     };
     window.addEventListener('arte-account-session-cleared', logout);
-    const load = async () => {
-      const {body} = await getWorkspace(scope, {signal: controller.signal});
-      if (!sameScope(body.data.scope, intent.scope)) throw new Error('目标空间响应不一致。');
-      if (intent.model) await verifyAiModel(scope, intent.model, controller.signal);
-      if (!controller.signal.aborted) setTarget(body.data);
-    };
-    void load().catch(failure => {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : '目标空间或精确版本不可访问，请重新选择。');
-    })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
     return () => {
-      controller.abort();
+      alive.current = false;
       window.removeEventListener('arte-account-session-cleared', logout);
     };
-  }, [intent, userId]);
-  const context = useMemo(() => target ? {userId, scope: target.scope} : null, [userId, target]);
-  useEffect(() => target ? subscribeAiConfiguration(userId, target.scope, () => {
-    if (ownNotification.current) return;
-    setNotice('此空间 AI 配置已变化。请重新读取最新配置；未保存草稿、原操作与当前聊天不变。');
-    setRevision(value => value + 1);
-  }) : undefined, [userId, target]);
-  const originalChatChanged = !!intent?.chat && !sameScope(intent.chat, directory.current?.scope);
+  }, [userId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setTenants([]);
+    void Promise.all(tenantIds.split('\n').filter(Boolean).map(async tenantId => {
+      const permission = await checkWorkspaceAccess({tenantId}, 'tenant', 'tenant:workspace:create', {signal: controller.signal}).catch(() => null);
+      return permission?.body.data.allowed ? {value: tenantId, label: `租户 · ${tenantId}`} : null;
+    })).then(values => {
+      if (!controller.signal.aborted && alive.current) setTenants(values.filter(value => value !== null));
+    });
+    return () => controller.abort();
+  }, [tenantIds, userId]);
 
-  function configure(view: WorkspaceView) {
-    if (unsafe) {
-      blocked();
-      return;
-    }
-    if (intent?.management && intent.management.tenantId !== view.scope.tenantId) {
-      setError('请选择与来源模型相同租户的目标空间。');
-      return;
-    }
-    history.push(aiLocation('workspaces', userId, {...intent, scope: view.scope}));
+  function recover() {
+    const operation = directory.pending;
+    if (operation?.kind === 'rename') {
+      // 显式点击恢复入口后才打开原目标；完整详情仍由表单重新读取验证。
+      setCreating(false);
+      setTarget({
+        scope: operation.request.scope, name: operation.request.name,
+        description: operation.request.description, version: operation.request.expectedVersion, state: 0, currentRole: 3
+      });
+    } else if (operation?.kind === 'create') {
+      setTarget(null);
+      setInitialTenantId(operation.request.tenantId);
+      setCreating(true);
+    } else void directory.retry();
   }
 
-  return <main className="personal-models-page" aria-label="工作空间配置">
-    <Typography.Title level={3}>工作空间配置</Typography.Title>
-    <Typography.Paragraph>“配置”只打开目标空间详情；目录进入／切换、收藏和启动偏好各自独立。</Typography.Paragraph>
-    {parsed.error && <Alert type="warning" title={parsed.error}/>}
-    {error && <Alert type="warning" title={error}/>}
-    {notice && <Alert type="info" title={notice}/>}
-    {unsafe && <Alert type="info" title="有未保存修改或待确认操作，请处理后再更换目标或离开。"/>}
-    {intent && !intent.scope && <Alert type="info" title="请在目录点击“配置”选择目标空间；不会自动使用当前聊天空间。"/>}
-    {loading && <Typography.Paragraph role="status">正在核验目标空间和精确模型版本…</Typography.Paragraph>}
-    <Flex gap={12} wrap style={{alignItems: 'flex-start'}}>
-      <div style={{flex: '1 1 280px', minWidth: 0}}>
-        <WorkspacePicker userId={userId} presentation="inline" configurationDisabled={unsafe || !!parsed.error}
-                         onUnsafeChange={setDirectoryUnsafe} onConfigure={configure}/>
-      </div>
-      {target && context &&
-        <Card style={{flex: '2 1 440px', minWidth: 0, maxWidth: '100%'}} title={`配置目标：${target.name}`}>
-          <Typography.Paragraph style={{overflowWrap: 'anywhere'}}>租户：{target.scope.tenantId} ·
-            空间：{target.scope.workspaceId}</Typography.Paragraph>
-          {intent?.model &&
-            <Alert type="info" title={`已核验定位版本：${intent.model.binding.id}@${intent.model.binding.version}`}
-                   description="此定位不会自动选择模型、批准预算或准备本人账户。请在下方手动保存。"/>}
-          <WorkspaceAiGovernanceEditor key={JSON.stringify([userId, target.scope])} scope={target.scope}
-                                       context={context}
-                                       onUnsafeChange={setEditorUnsafe} refreshRevision={revision}
-                                       onUpdated={() => {
-                                         ownNotification.current = true;
-                                         notifyAiConfiguration(userId, target.scope);
-                                         ownNotification.current = false;
-                                         setNotice('空间 AI 操作已保存；已通知模型与聊天目录重读，仍须手动应用。');
-                                       }}/>
-          <Flex gap={8} wrap style={{marginTop: 16}}>
-            <Button disabled={unsafe} onClick={() => history.push(aiLocation('models', userId, {
-              scope: intent?.management ?? target.scope, management: intent?.management, execution: target.scope,
-              chat: intent?.chat, model: intent?.management ? intent.model : undefined
-            }))}>返回模型管理</Button>
-            <Button disabled={unsafe || originalChatChanged}
-                    onClick={() => history.push('/AI/ChatNew')}>返回原聊天</Button>
-            <Button disabled={unsafe || directory.selecting}
-                    onClick={() => protectWorkspaceChange(userId, target.scope, () => {
-                      void directory.select(target.scope, () => history.push('/AI/ChatNew'));
-                    })}>在此空间打开聊天</Button>
+  return <ViewportPage className="personal-models-page workspace-configuration-page" label="工作空间配置">
+    {guardMessage && <Alert type="info" title={guardMessage}/>}
+    <div className="workspace-configuration-content">
+      <MasterDetailLayout label="工作空间管理" actions={[]}
+                          selectedKey={!creating && target ? keyOf(target.scope) : undefined}
+                          onSelect={key => {
+                            if (unsafe || policyOpen) {
+                              blocked();
+                              return;
+                            }
+                            const item = directory.records.find(value => keyOf(value.scope) === key);
+                            if (item) {
+                              setCreating(false);
+                              setTarget(item);
+                            }
+                          }}
+                          listHeader={<Flex gap={8} align="center" className="workspace-directory-actions">
+                            <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
+                                          maxLength={100} allowClear
+                                          enterButton={<Button aria-label="搜索" title="搜索工作空间"
+                                                               icon={<DynamicIcon iconName="SearchOutlined"/>}/>}
+                                          loading={directory.loading} disabled={directory.saving}
+                                          onChange={event => setFilter(event.target.value)}
+                                          onSearch={value => void directory.load(value)}/>
+                            <Tooltip title="租户与空间政策"><Button aria-label="租户与空间政策"
+                                                                    icon={<DynamicIcon iconName="ControlOutlined"/>}
+                                                                    disabled={unsafe || !target || creating || policyOpen}
+                                                                    onClick={() => setPolicyOpen(true)}/></Tooltip>
+                            <Tooltip title="清除启动空间偏好"><Button aria-label="清除启动空间偏好"
+                                                                      icon={<DynamicIcon iconName="ClearOutlined"/>}
+                                                                      disabled={unsafe || !directory.preference?.startupScope || policyOpen}
+                                                                      onClick={() => void directory.updatePreference({startupScope: null})}/></Tooltip>
+                            <Tooltip title="新建工作空间"><Button aria-label="新建工作空间"
+                                                                  icon={<DynamicIcon iconName="PlusOutlined"/>}
+                                                                  disabled={unsafe || !tenants.length || policyOpen}
+                                                                  onClick={() => {
+                                                                    setInitialTenantId(tenants.some(item => item.value === target?.scope.tenantId) ? target!.scope.tenantId : '');
+                                                                    setTarget(null);
+                                                                    setCreating(true);
+                                                                  }}/></Tooltip>
+                          </Flex>}
+                          listFooter={<Flex vertical gap={8} style={{marginTop: 12}}>
+                            {directory.warning && <Alert type="warning" title={directory.warning}/>}
+                            {directory.error != null && <Alert type="warning"
+                                                               title={directory.error instanceof Error ? directory.error.message : '空间目录读取失败。'}/>}
+                            {candidates.error && <Alert type="warning" title={candidates.error}
+                                                        action={<Button
+                                                          onClick={() => void candidates.reload()}>重新读取租户</Button>}/>}
+                            {directory.pending && <Alert type="warning" title="有待确认空间操作，请处理原操作。"
+                                                         action={<Button
+                                                           disabled={directory.saving || directory.recoveryBlocked}
+                                                           onClick={recover}>处理原空间操作</Button>}/>}
+                            {!directory.exhausted && directory.nextCursor && !directory.cursorExpired &&
+                              <Button loading={directory.loading} disabled={directory.loading || directory.saving}
+                                      onClick={() => void directory.loadMore()}>继续加载</Button>}
+                            {directory.cursorExpired &&
+                              <Button onClick={() => void directory.load(filter)}>重新加载目录</Button>}
+                            {candidates.hasMore && <Button disabled={candidates.loading}
+                                                           onClick={() => void candidates.more()}>加载更多可选租户</Button>}
+                            {directory.loaded && !directory.preference && !directory.error && <Button disabled={unsafe}
+                                                                                                      onClick={() => void directory.initialize()}>初始化个人默认空间</Button>}
+                          </Flex>}
+                          emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
+                          items={directory.records.map(item => ({
+                            key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: unsafe || policyOpen,
+                            content: <Flex vertical gap={8}>
+                              <Typography.Text strong>{item.name}</Typography.Text>
+                              <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
+                              <Typography.Text
+                                type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
-          {originalChatChanged && <Typography.Paragraph
-            type="secondary">原聊天空间已变化，暂不返回错误空间；可明确选择“在此空间打开聊天”。</Typography.Paragraph>}
-        </Card>}
-    </Flex>
-    {!target && <Button disabled={unsafe}
-                        onClick={() => history.push(intent?.returnTo === 'chat' ? '/AI/ChatNew' : aiLocation('models', userId, {
-                          scope: intent?.management, chat: intent?.chat
-                        }))}>返回来源页面</Button>}
-  </main>;
+                          }))}>
+        {creating ? <WorkspaceDetailForm userId={userId} initialTenantId={initialTenantId} tenants={tenants}
+                                         onMoreTenants={candidates.hasMore ? () => void candidates.more() : undefined}
+                                         onCancel={() => {
+                                           setCreating(false);
+                                           setFormUnsafe(false);
+                                         }}
+                                         onUnsafeChange={setFormUnsafe} onSaved={view => {
+            setCreating(false);
+            setTarget(view);
+          }}/>
+          : target ? <WorkspaceDetailForm userId={userId} scope={target.scope} onUnsafeChange={setFormUnsafe}
+                                          onSaved={setTarget}/> : null}
+        {target && !creating && <Flex gap={8} wrap>
+          <Button disabled={unsafe || !directory.preference} onClick={() => void directory.updatePreference({
+            favorites: directory.favorite(target.scope)
+              ? directory.preference!.favorites.filter(scope => !sameScope(scope, target.scope))
+              : [...directory.preference!.favorites, target.scope]
+          })}>{directory.favorite(target.scope) ? '取消收藏' : '收藏此空间'}</Button>
+          <Button disabled={unsafe || !directory.preference}
+                  onClick={() => void directory.updatePreference({startupScope: target.scope})}>
+            {sameScope(directory.preference?.startupScope, target.scope) ? '已设为启动空间' : '设为启动空间'}</Button>
+        </Flex>}
+      </MasterDetailLayout>
+    </div>
+    {policyOpen && target && <WorkspacePolicyDialog userId={userId} target={target}
+                                                    onClose={() => setPolicyOpen(false)}
+                                                    onUnsafeChange={setPolicyUnsafe}/>}
+  </ViewportPage>;
 }

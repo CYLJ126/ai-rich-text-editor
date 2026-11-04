@@ -1,7 +1,6 @@
-import React, {useState} from 'react';
+import React from 'react';
 import {useModel} from '@umijs/max';
-import {Alert, Drawer, Flex, Typography} from 'antd';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import {Alert, Typography} from 'antd';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import {useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import ToolWorkspace from '@/features/aitool/ToolWorkspace';
@@ -15,50 +14,24 @@ export default function ToolsPage() {
     initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '',
   );
   const workspace = useCurrentWorkspace(userId);
-  const [manage, setManage] = useState(false);
   if (!userId) return <Alert type="info" title="请登录后查看 AI 工具。"/>;
+  const workspaceSelect = <WorkspaceQuickSelect userId={userId} scope={workspace?.scope} name={workspace?.name}/>;
+  const workspaceFallback = <div className="tool-workspace-select">{workspaceSelect}</div>;
   return (
     <main className="tool-page">
-      <Flex
-        className="tool-page-header"
-        justify="space-between"
-        align="center"
-        gap={12}
-        wrap
-      >
-        <div>
-          <Typography.Title level={3}>AI 工具</Typography.Title>
-          <Typography.Text type="secondary">
-            查看工具用途，准备并管理当前空间的个人配置。
-          </Typography.Text>
-        </div>
-        <WorkspaceQuickSelect
-          userId={userId}
-          scope={workspace?.scope}
-          name={workspace?.name}
-          onManage={() => setManage(true)}
-        />
-      </Flex>
       {!workspace ? (
-        <WorkspacePicker userId={userId} presentation="inline"/>
+        <>{workspaceFallback}<Typography.Paragraph>请从上方选择工作空间。</Typography.Paragraph></>
       ) : (
         <WorkspaceAiPreparation
           key={JSON.stringify([userId, workspace.scope])}
           scope={workspace.scope}
           context={{userId, scope: workspace.scope}}
           legacy={false}
+          fallback={workspaceFallback}
         >
-          <ToolWorkspace userId={userId} workspace={workspace}/>
+          <ToolWorkspace userId={userId} workspace={workspace} tabBarExtraContent={workspaceSelect}/>
         </WorkspaceAiPreparation>
       )}
-      <Drawer
-        title="工作空间"
-        open={manage}
-        onClose={() => setManage(false)}
-        destroyOnHidden
-      >
-        <WorkspacePicker userId={userId} presentation="inline"/>
-      </Drawer>
     </main>
   );
 }

@@ -160,6 +160,9 @@ afterEach(cleanup);
 it('lists readable models without filtering by creator and creates using current scope only', async () => {
   manager();
   await screen.findByRole('button', {name: '管理 我的模型'});
+  expect(screen.getByText('请选择左侧模型，或点击新增。')).toBeInTheDocument();
+  expect(screen.queryByText('模型授权与使用范围')).not.toBeInTheDocument();
+  expect(screen.queryByText('模型授权详情')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '个人模型'}});
   fireEvent.click(screen.getByRole('button', {name: '创建私有模型'}));
@@ -168,6 +171,8 @@ it('lists readable models without filtering by creator and creates using current
     request: {scope, name: '个人模型', modelKind: 'PERSONAL'}
   }), undefined));
   await screen.findByRole('button', {name: '保存模型草稿'});
+  expect(screen.getByText('模型授权与使用范围')).toBeInTheDocument();
+  expect(screen.getByText('模型授权详情')).toBeInTheDocument();
   expect(updated).toHaveBeenCalledWith({kind: 'create', resourceId: 'model'});
 });
 it('keeps model read permission and personal credential responsibility separate', async () => {
@@ -425,10 +430,14 @@ it('opens a separate initial creation form and cancels without changing the sele
   await open();
   fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   expect(screen.queryByRole('textbox', {name: '模型展示名称'})).not.toBeInTheDocument();
+  expect(screen.queryByText('请选择左侧模型，或点击新增。')).not.toBeInTheDocument();
+  expect(screen.queryByText('模型授权与使用范围')).not.toBeInTheDocument();
+  expect(screen.queryByText('模型授权详情')).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '未保存的新模型'}});
   expect(screen.getByRole('button', {name: '管理 我的模型'})).toHaveAttribute('aria-disabled', 'true');
   fireEvent.click(screen.getByRole('button', {name: '取消添加模型'}));
   expect(screen.getByRole('textbox', {name: '模型展示名称'})).toHaveValue('我的模型');
+  expect(screen.getByText('模型授权详情')).toBeInTheDocument();
   expect(api.executeModelCommand).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   expect(screen.getByRole('textbox', {name: '新模型名称'})).toHaveValue('');

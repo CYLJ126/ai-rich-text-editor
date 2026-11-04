@@ -91,6 +91,7 @@ const empty: DirectoryState = {
   pending: null, recoveryBlocked: false, unsafeToLeave: false, canCreate: false, canRename: false, lastReceipt: null,
 };
 const stores = new Map<string, WorkspaceDirectory>();
+const managementStores = new Map<string, WorkspaceDirectory>();
 
 function isHidden(failure: unknown) {
   return failure instanceof AiApiError && [403, 404].includes(failure.httpStatus);
@@ -118,8 +119,8 @@ class WorkspaceDirectory {
   private stopped = false;
   private consumers = 0;
 
-  constructor(private readonly userId: string) {
-    const stored = readValue<WorkspaceOperation>(workspaceStorageKey(userId, 'workspaceOperation'));
+  constructor(private readonly userId: string, private readonly management = false) {
+    const stored = readValue<WorkspaceOperation>(workspaceStorageKey(userId, management ? 'workspaceManagementOperation' : 'workspaceOperation'));
     const parsed = pendingSchema.safeParse(stored.value);
     const warning = stored.warning ?? (stored.value && !parsed.success ? RECOVERY_WARNING : null);
     this.state = {...empty, pending: parsed.success ? parsed.data : null, warning, recoveryBlocked: !!warning};
@@ -167,8 +168,8 @@ class WorkspaceDirectory {
   };
 
   private persist(operation: WorkspaceOperation | null) {
-    const saved = operation ? writeValue(workspaceStorageKey(this.userId, 'workspaceOperation'), operation)
-      : removeValue(workspaceStorageKey(this.userId, 'workspaceOperation'));
+    const saved = operation ? writeValue(workspaceStorageKey(this.userId, this.management ? 'workspaceManagementOperation' : 'workspaceOperation'), operation)
+      : removeValue(workspaceStorageKey(this.userId, this.management ? 'workspaceManagementOperation' : 'workspaceOperation'));
     this.update({
       pending: operation, unsafeToLeave: !saved,
       ...(!saved ? {warning: STORAGE_WARNING, recoveryBlocked: !operation} : {})
@@ -207,6 +208,22 @@ class WorkspaceDirectory {
       canRename
     });
   }
+
+  refreshView = (view: api.WorkspaceView) => {
+    if (sameScope(this.state.current?.scope, view.scope) && view.version >= this.state.current!.version) this.accept(view);
+  };
+  refreshCurrentMetadata = async (scope: api.WorkspaceScope) => {
+    if (!sameScope(scope, this.state.current?.scope) || this.stopped) return;
+    try {
+      const {body} = await api.getWorkspace(scope);
+      if (!this.stopped && sameScope(scope, this.state.current?.scope)) this.refreshView(validateView(scope, body.data));
+    } catch { /* 变更通知不授权读取；原访问控制仍由服务端核验。 */
+    }
+  };
+  savedWorkspace = () => {
+    const parsed = api.workspaceViewSchema.safeParse(this.state.lastReceipt?.value);
+    return parsed.success ? parsed.data : null;
+  };
 
   select = async (scope: api.WorkspaceScope, onSelected?: () => void) => {
     if (this.state.unsafeToLeave || this.state.recoveryBlocked) {
@@ -267,6 +284,10 @@ class WorkspaceDirectory {
       } catch (failure) {
         if (failure instanceof AiApiError && failure.httpStatus === 404 && failure.code === 'PLATFORM_NOT_FOUND'
           && !controller.signal.aborted && !this.stopped && !this.state.pending && !this.state.recoveryBlocked && !this.write) {
+          if (this.management) {
+            this.update({preference: null});
+            return;
+          }
           await this.initialize();
           return;
         }
@@ -280,6 +301,7 @@ class WorkspaceDirectory {
         nextCursor: list.body.data.nextCursor,
         exhausted: list.body.data.exhausted,
       });
+      if (this.management) return;
       const stored = readValue<api.WorkspaceScope>(workspaceStorageKey(this.userId, 'currentWorkspace'));
       const parsed = api.workspaceScopeSchema.safeParse(stored.value);
       if (stored.warning || (stored.value && !parsed.success)) this.update({warning: '保存的空间选择无法读取，已重新校验启动或默认空间。'});
@@ -363,7 +385,10 @@ class WorkspaceDirectory {
   private async execute(operation: WorkspaceOperation): Promise<boolean> {
     if (this.write || this.state.recoveryBlocked || this.stopped) return false;
     const selectionRevision = this.revision;
-    this.persist(operation);
+    if (!this.persist(operation) && this.management) {
+      this.update({recoveryBlocked: true});
+      return false;
+    }
     const controller = new AbortController();
     this.write = controller;
     this.update({saving: true, error: null});
@@ -383,18 +408,31 @@ class WorkspaceDirectory {
       if (operation.kind === 'initialize') {
         const personal = api.personalWorkspaceSchema.parse(receipt.value);
         this.update({preference: personal.preference, personalTenant: personal.tenant});
-        if (selectionRevision === this.revision) this.accept(personal.workspace);
+        if (!this.management && selectionRevision === this.revision) this.accept(personal.workspace);
       } else if (operation.kind === 'preference') {
         this.update({preference: api.workspacePreferenceSchema.parse(receipt.value)});
       } else {
         const view = api.workspaceViewSchema.parse(receipt.value);
         if (operation.kind === 'rename') validateView(operation.request.scope, view);
         else if (view.scope.tenantId !== operation.request.tenantId) throw new Error('创建空间的租户与原请求不一致。');
-        if (selectionRevision === this.revision && (operation.kind === 'create' || sameScope(this.state.current?.scope, view.scope))) {
+        if (!this.management && selectionRevision === this.revision && (operation.kind === 'create' || sameScope(this.state.current?.scope, view.scope))) {
           if (operation.kind === 'create') protectWorkspaceChange(this.userId, view.scope, () => {
             if (!this.stopped && selectionRevision === this.revision) this.accept(view, true);
           });
           else this.accept(view);
+        }
+      }
+      if (this.management && operation.kind === 'rename') {
+        const view = api.workspaceViewSchema.parse(receipt.value);
+        stores.get(this.userId)?.refreshView(view);
+        window.dispatchEvent(new CustomEvent('arte-workspace-details-updated', {detail: {userId: this.userId, view}}));
+        try {
+          localStorage.setItem('arte.workspace.metadata.revision', JSON.stringify({
+            userId: this.userId,
+            scope: view.scope,
+            revision: crypto.randomUUID()
+          }));
+        } catch { /* 同页更新已完成，跨页可重新读取。 */
         }
       }
       this.update({lastReceipt: receipt});
@@ -455,9 +493,23 @@ function directoryFor(userId: string) {
   return directory;
 }
 
+if (typeof window !== 'undefined') window.addEventListener('storage', event => {
+  if (event.key !== 'arte.workspace.metadata.revision' || !event.newValue) return;
+  try {
+    const change = z.object({
+      userId: z.string(),
+      scope: api.workspaceScopeSchema,
+      revision: z.string()
+    }).parse(JSON.parse(event.newValue));
+    void stores.get(change.userId)?.refreshCurrentMetadata(change.scope);
+  } catch { /* 损坏通知不改变当前空间。 */
+  }
+});
+
 if (typeof window !== 'undefined') window.addEventListener('arte-account-session-cleared', event => {
   const userId = (event as CustomEvent<string>).detail;
   stores.get(userId)?.clear();
+  managementStores.get(userId)?.clear();
   guards.delete(userId);
 });
 
@@ -467,7 +519,20 @@ export function useCurrentWorkspace(userId: string) {
 }
 
 export function useWorkspaceDirectory(userId: string) {
-  const directory = directoryFor(userId);
+  return useDirectory(directoryFor(userId));
+}
+
+/** 独立治理目录：不读取、保存或切换聊天当前空间。 */
+export function useWorkspaceManagement(userId: string) {
+  let directory = managementStores.get(userId);
+  if (!directory) {
+    directory = new WorkspaceDirectory(userId, true);
+    managementStores.set(userId, directory);
+  }
+  return useDirectory(directory);
+}
+
+function useDirectory(directory: WorkspaceDirectory) {
   const state = useSyncExternalStore(directory.subscribe, directory.snapshot, () => empty);
   useEffect(() => directory.attach(), [directory]);
   useEffect(() => {
@@ -490,6 +555,7 @@ export function useWorkspaceDirectory(userId: string) {
     create: directory.create,
     rename: directory.rename,
     updatePreference: directory.updatePreference,
-    favorite: directory.favorite
+    favorite: directory.favorite,
+    savedWorkspace: directory.savedWorkspace
   };
 }

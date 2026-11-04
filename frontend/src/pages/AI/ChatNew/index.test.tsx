@@ -2,6 +2,7 @@ import React from 'react';
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/arte-ai';
+import {registerWorkspaceGuard} from '@/features/workspace/useWorkspace';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatNewPage from './index';
 import messages from '@/locales/zh-CN/aiChat';
@@ -27,7 +28,14 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
   registerWorkspaceGuard: vi.fn(() => () => {
   })
 }));
-vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <button type="button">公共空间选择器</button>}));
+vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
+  default: ({scope, onUnsafeChange}: {
+    scope: { workspaceId: string }; onUnsafeChange: (unsafe: boolean) => void
+  }) => <section aria-label="聊天空间详情">详情：{scope.workspaceId}
+    <button onClick={() => onUnsafeChange(true)}>修改空间详情</button>
+    <button onClick={() => onUnsafeChange(false)}>放弃空间详情修改</button>
+  </section>
+}));
 vi.mock('@/features/ainew/ModelManager', () => ({
   default: ({onUpdated}: { onUpdated: (change: { kind: string; resourceId: string }) => void }) =>
     <section aria-label="个人管理测试入口">
@@ -35,8 +43,7 @@ vi.mock('@/features/ainew/ModelManager', () => ({
     </section>
 }));
 vi.mock('@/features/workspace/WorkspaceQuickSelect', () => ({
-  default: ({onManage}: { onManage: () => void }) =>
-    <button type="button" onClick={onManage}>空间快捷选择</button>
+  default: () => <button type="button">空间快捷选择</button>
 }));
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
@@ -492,9 +499,10 @@ it('keeps the chat draft and single configuration form when collapsing regions a
   const reads = vi.mocked(api.queryConversationWindow).mock.calls.length;
   fireEvent.click(screen.getByRole('button', {name: '收起会话列表'}));
   fireEvent.click(screen.getByRole('button', {name: '展开会话列表'}));
-  fireEvent.click(screen.getByRole('button', {name: '空间快捷选择'}));
+  fireEvent.click(screen.getByRole('tab', {name: '工作空间'}));
   await screen.findByRole('tab', {name: '工作空间', selected: true});
-  expect(screen.getByRole('button', {name: '公共空间选择器'})).toBeVisible();
+  expect(screen.getByRole('region', {name: '聊天空间详情'})).toBeVisible();
+  expect(screen.queryByRole('button', {name: '公共空间选择器'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', {name: '会话设置'}));
   fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
   fireEvent.click(screen.getByRole('button', {name: '高级参数'}));
@@ -564,4 +572,29 @@ it('returns from model preparation without auto-applying a unique model, then ex
     expect(screen.getByRole('button', {name: '发送'}), blockers.join(' | ')).toBeEnabled();
   });
   expect(readModelChatHandoff(context).handoff).toBeNull();
+});
+
+
+it('protects current workspace details when switching chat spaces and follows the supplied scope', async () => {
+  const page = render(<ChatNewPage/>);
+  await screen.findByRole('button', {name: '空间快捷选择'});
+  fireEvent.click(screen.getByRole('tab', {name: '工作空间'}));
+  await screen.findByRole('region', {name: '聊天空间详情'});
+  expect(screen.getByText(`详情：${scope.workspaceId}`)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '修改空间详情'}));
+  const proceed = vi.fn();
+  act(() => {
+    vi.mocked(registerWorkspaceGuard).mock.calls.at(-1)?.[1]({...scope, workspaceId: 'other'}, proceed);
+  });
+  expect(proceed).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '放弃空间详情修改'}));
+  act(() => {
+    vi.mocked(registerWorkspaceGuard).mock.calls.at(-1)?.[1]({...scope, workspaceId: 'other'}, proceed);
+  });
+  await waitFor(() => expect(proceed).toHaveBeenCalledTimes(1));
+  state.workspace = {...state.workspace!, scope: {...scope, workspaceId: 'other'}};
+  page.rerender(<ChatNewPage/>);
+  await screen.findByRole('button', {name: '空间快捷选择'});
+  fireEvent.click(screen.getByRole('tab', {name: '工作空间'}));
+  expect(await screen.findByText('详情：other')).toBeInTheDocument();
 });

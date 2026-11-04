@@ -21,7 +21,15 @@ import {type BrowserContext, readOperation, saveOperation} from './storage';
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
 /** 空间治理命令分别保存原请求和原键；不将模型选择联动为预算修改或账户准备。 */
-export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, onUnsafeChange, refreshRevision = 0}: {
+export default function WorkspaceAiGovernanceEditor({
+                                                      scope,
+                                                      context,
+                                                      onUpdated,
+                                                      onUnsafeChange,
+                                                      refreshRevision = 0,
+                                                      disabled = false
+                                                    }: {
+  disabled?: boolean;
   refreshRevision?: number;
   scope: WorkspaceScope; context: BrowserContext; onUpdated: () => void; onUnsafeChange?: (unsafe: boolean) => void
 }) {
@@ -192,7 +200,7 @@ export default function WorkspaceAiGovernanceEditor({scope, context, onUpdated, 
     }
   }
 
-  const canEdit = !!view?.canManage && !loading && !saving && !uncertain && !blocked;
+  const canEdit = !disabled && !!view?.canManage && !loading && !saving && !uncertain && !blocked;
   const canEditModels = canEdit && dirtyKind !== 'rules';
   const canEditRules = canEdit && dirtyKind !== 'models';
   return <Flex component="section" vertical gap={12} aria-label="空间 AI 配置">

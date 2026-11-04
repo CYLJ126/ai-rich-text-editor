@@ -11,8 +11,10 @@
   min-width: 0;
 }
 
-.tool-page-header {
-  margin-bottom: 16px;
+.tool-workspace-select {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .tool-filters {

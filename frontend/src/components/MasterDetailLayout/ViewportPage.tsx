@@ -1,4 +1,5 @@
 import React, {useLayoutEffect, useRef} from 'react';
+import './style.css';
 
 /** 填满应用导航下的可用视口，内容滚动交给内部面板。 */
 export default function ViewportPage({children, className = '', label}: {

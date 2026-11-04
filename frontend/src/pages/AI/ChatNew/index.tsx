@@ -38,7 +38,7 @@ import {
   queryConversationWindow
 } from '@/services/arte-ai';
 import messages from '@/locales/zh-CN/aiChat';
-import WorkspacePicker from '@/features/workspace/WorkspacePicker';
+import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
 import WorkspaceAiUsagePanel from '@/features/ainew/WorkspaceAiUsagePanel';
@@ -152,11 +152,14 @@ function WorkspaceChat({
   const layout = useChatLayout();
   // 右侧辅助栏显示哪个标签页
   const [tab, setTab] = useState('models');
+  const [workspaceSelectOpen, setWorkspaceSelectOpen] = useState(false);
+  const seenWorkspaceRevision = useRef(workspaceRevision);
   const [toolSettingsContainer, setToolSettingsContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (workspaceRevision > 0) {
-      setTab('workspace');
-      layout.open('settings');
+    if (workspaceRevision !== seenWorkspaceRevision.current) {
+      seenWorkspaceRevision.current = workspaceRevision;
+      layout.open('list');
+      setWorkspaceSelectOpen(true);
     }
   }, [workspaceRevision, layout.open]);
   const [accessHelpOpen, setAccessHelpOpen] = useState(false);
@@ -427,10 +430,8 @@ function WorkspaceChat({
       onConnect={onConnect}
       onPlatformConfig={onPlatformConfig}
       onCollapse={() => layout.close('list')}
-      onManage={() => {
-        setTab('workspace');
-        layout.open('settings');
-      }}/>}
+      workspaceSelectOpen={workspaceSelectOpen}
+      onWorkspaceSelectOpenChange={setWorkspaceSelectOpen}/>}
     onOpen={id => guard(() => {
       void conversations.select(id).then(opened => {
         if (opened) {
@@ -826,6 +827,12 @@ export default function ChatNewPage() {
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const catalogUnsafe = false;
   const [preparationUnsafe, setPreparationUnsafe] = useState(false);
+  const [workspaceDetailsUnsafe, setWorkspaceDetailsUnsafe] = useState(false);
+  const [workspaceDetailsWarning, setWorkspaceDetailsWarning] = useState('');
+  useAiLeaveGuard(workspaceDetailsUnsafe, () => setWorkspaceDetailsWarning('请先保存或放弃空间详情修改，再离开或切换空间。'));
+  useEffect(() => {
+    if (!workspaceDetailsUnsafe) setWorkspaceDetailsWarning('');
+  }, [workspaceDetailsUnsafe]);
   const aiPreparationRevision = 0;
   const [tenantId, setTenantId] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -842,9 +849,13 @@ export default function ChatNewPage() {
   } : current;
   const previousAccount = useRef(userId);
   useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
+    if (workspaceDetailsUnsafe) {
+      setWorkspaceDetailsWarning('请先保存或放弃空间详情修改，再离开或切换空间。');
+      return;
+    }
     if (catalogUnsafe || preparationUnsafe) return;
     if (protect.current) protect.current(proceed); else proceed();
-  }), [userId, catalogUnsafe, preparationUnsafe]);
+  }), [userId, catalogUnsafe, preparationUnsafe, workspaceDetailsUnsafe]);
   useEffect(() => {
     const selected = (event: Event) => {
       if ((event as CustomEvent).detail.userId !== userId) return;
@@ -858,10 +869,15 @@ export default function ChatNewPage() {
     if (previousAccount.current && previousAccount.current !== userId) {
       clearAccountSession(previousAccount.current);
       setPreparationUnsafe(false);
+      setWorkspaceDetailsUnsafe(false);
+      setWorkspaceDetailsWarning('');
     }
     previousAccount.current = userId;
   }, [userId]);
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
+  const workspaceDetails = workspace && workspace.state !== null
+    ? <WorkspaceDetailForm userId={userId} scope={workspace.scope} onUnsafeChange={setWorkspaceDetailsUnsafe}/>
+    : <Alert type="info" title="请选择公共工作空间后查看和编辑详情。"/>;
   // 空间尚未就绪时列表未挂载，保留同一菜单作为连接固定授权空间的入口。
   const workspaceFallback = <>
     <Flex className="ainew-bootstrap-workspace">
@@ -870,18 +886,18 @@ export default function ChatNewPage() {
         userId={userId}
         scope={workspace?.scope}
         name={workspace?.name}
-        onManage={() => setWorkspaceRevision(value => value + 1)}
         onConnect={() => setConnectionOpen(true)}
         onPlatformConfig={() => {
           const proceed = () => history.push('/AI/ModelPlans');
           if (protect.current) protect.current(proceed); else proceed();
         }}/>
     </Flex>
-    <WorkspacePicker userId={userId} presentation="inline"/>
+    {workspaceDetails}
     {workspace && <Button onClick={() => history.push('/AI/Models')}>管理当前空间模型</Button>}
   </>;
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">
+    {workspaceDetailsWarning && workspaceDetailsUnsafe && <Alert type="info" title={workspaceDetailsWarning}/>}
     {catalogUnsafe && <Alert type="warning" title="平台配置操作尚未可靠保存，请确认原操作后再切换空间。"/>}
     {legacy?.userId === userId && <Alert type="info" title="当前使用手动指定的已有 AI scope" description={<>
       <Descriptions column={1} size="small" className="ainew-info" items={[
@@ -904,7 +920,7 @@ export default function ChatNewPage() {
           const proceed = () => history.push('/AI/ModelPlans');
           if (protect.current) protect.current(proceed); else proceed();
         }}
-          workspaceManager={<WorkspacePicker userId={userId} presentation="inline"/>}/>
+          workspaceManager={workspaceDetails}/>
       </WorkspaceAiPreparation>
       : <Flex vertical className="ainew-bootstrap">
         <Typography.Paragraph>请选择或初始化个人默认空间；也可连接当前账号已有的合法 AI 工作空间。</Typography.Paragraph>
@@ -919,6 +935,10 @@ export default function ChatNewPage() {
         setLegacy({userId, scope});
         setConnectionOpen(false);
       };
+      if (workspaceDetailsUnsafe) {
+        setWorkspaceDetailsWarning('请先保存或放弃空间详情修改，再离开或切换空间。');
+        return;
+      }
       if (catalogUnsafe || preparationUnsafe) return;
       if (protect.current) protect.current(proceed); else proceed();
     }}>

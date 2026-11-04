@@ -3,11 +3,11 @@ import {sameScope} from './storage';
 
 const channel = 'arte-ai-configuration-changed';
 const key = 'arte.ai.configuration.revision';
-type Change = { userId: string; scope: WorkspaceScope; revision: string };
+type Change = { userId: string; scope: WorkspaceScope; revision: string; tenantWide?: boolean };
 
 /** 通知只携带账号、范围与失效标记，不含密钥、额度或许可。 */
-export function notifyAiConfiguration(userId: string, scope: WorkspaceScope) {
-  const change: Change = {userId, scope, revision: crypto.randomUUID()};
+export function notifyAiConfiguration(userId: string, scope: WorkspaceScope, tenantWide = false) {
+  const change: Change = {userId, scope, revision: crypto.randomUUID(), ...(tenantWide ? {tenantWide: true} : {})};
   window.dispatchEvent(new CustomEvent(channel, {detail: change}));
   try {
     localStorage.setItem(key, JSON.stringify(change));
@@ -18,7 +18,7 @@ export function notifyAiConfiguration(userId: string, scope: WorkspaceScope) {
 export function subscribeAiConfiguration(userId: string, scope: WorkspaceScope, changed: () => void) {
   const accept = (value: unknown) => {
     const change = value as Partial<Change> | null;
-    if (change?.userId === userId && typeof change.revision === 'string' && sameScope(change.scope, scope)) changed();
+    if (change?.userId === userId && typeof change.revision === 'string' && (sameScope(change.scope, scope) || (change.tenantWide === true && change.scope?.tenantId === scope.tenantId))) changed();
   };
   const local = (event: Event) => accept((event as CustomEvent).detail);
   const remote = (event: StorageEvent) => {

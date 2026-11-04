@@ -1,0 +1,30 @@
+.workspace-configuration-page.personal-models-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-configuration-page > .ant-typography,
+.workspace-configuration-page > .ant-alert {
+  margin-inline: 12px;
+}
+
+.workspace-configuration-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-directory-actions {
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.workspace-directory-actions > .ant-input-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-directory-actions > .ant-btn {
+  flex-shrink: 0;
+}

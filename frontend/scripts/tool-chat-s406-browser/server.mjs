@@ -171,6 +171,17 @@ const server = await createServer({
             };
           else if (endpoint === 'checkWorkspaceAccess')
             data = {allowed: false, reason: 'FIXTURE_READ_ONLY', checkedAt: now};
+          else if (endpoint === 'getConfiguration')
+            data = {
+              mode: 'DATABASE',
+              configuration: null,
+              workspaceVersion: 0,
+              canManage: false,
+              needsImport: false,
+              templateVersion: 1,
+              models: [],
+              defaults: null
+            };
           else if (endpoint === 'getConversation')
             data = {
               conversationId: 'conversation',

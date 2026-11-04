@@ -1,7 +1,6 @@
 .ai-management-panel.ant-flex,
 .ai-chat-configuration-form,
-.ai-management-form,
-.workspace-inline.ant-flex {
+.ai-management-form {
   width: 100%;
   min-width: 0;
 }
@@ -70,20 +69,6 @@
 
 .ai-management-panel .ant-alert-actions {
   margin-inline-start: 0;
-}
-
-.workspace-picker-name.ant-btn {
-  max-width: 100%;
-  height: auto;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.workspace-picker-trigger > .ant-typography {
-  flex: 1;
-  min-width: 0;
-  color: inherit;
-  font: inherit;
 }
 
 h2.ai-management-title.ant-typography {

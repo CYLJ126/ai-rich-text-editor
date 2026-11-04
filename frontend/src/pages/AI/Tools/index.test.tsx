@@ -2,25 +2,37 @@ import React from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import ToolsPage from './index';
+import type {WorkspaceView} from '@/services/platform/workspace';
 import {getWorkspaceAi} from '@/services/platform/ai';
 
 const state = vi.hoisted(() => ({
   workspace: {
     scope: {tenantId: 'tenant', workspaceId: 'space'}, name: '空间', state: 0, currentRole: 0, version: 0,
-  }
+  } as WorkspaceView | null
 }));
 vi.mock('@umijs/max', () => ({
   history: {push: vi.fn()},
   useModel: () => ({initialState: {currentUser: {id: 'user'}}})
 }));
 vi.mock('@/features/workspace/useWorkspace', () => ({useCurrentWorkspace: () => state.workspace}));
-vi.mock('@/features/workspace/WorkspacePicker', () => ({default: () => <p>空间管理</p>}));
 vi.mock('@/features/workspace/WorkspaceQuickSelect', () => ({default: () => <p>空间切换</p>}));
-vi.mock('@/features/aitool/ToolWorkspace', () => ({default: () => <p>工具消费者</p>}));
+vi.mock('@/features/aitool/ToolWorkspace', () => ({
+  default: ({tabBarExtraContent}: { tabBarExtraContent?: React.ReactNode }) =>
+    <>{tabBarExtraContent}<p>工具消费者</p></>
+}));
 vi.mock('@/features/ainew/WorkspaceAiSettings', () => ({default: () => <p>准备 AI 配置</p>}));
 vi.mock('@/services/platform/ai', () => ({getWorkspaceAi: vi.fn()}));
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  state.workspace = {
+    scope: {tenantId: 'tenant', workspaceId: 'space'},
+    name: '空间',
+    state: 0,
+    currentRole: 0,
+    version: 0
+  };
+});
 afterEach(cleanup);
 
 it('prepares AI on direct entry to a new space before mounting tool consumers', async () => {
@@ -30,8 +42,9 @@ it('prepares AI on direct entry to a new space before mounting tool consumers', 
   }));
   render(<ToolsPage/>);
   expect(screen.getByText('空间切换')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', {name: 'AI 工具'})).not.toBeInTheDocument();
   expect(screen.queryByText('工具消费者')).not.toBeInTheDocument();
-  expect(getWorkspaceAi).toHaveBeenCalledWith(state.workspace.scope, expect.objectContaining({signal: expect.any(AbortSignal)}));
+  expect(getWorkspaceAi).toHaveBeenCalledWith(state.workspace!.scope, expect.objectContaining({signal: expect.any(AbortSignal)}));
   finish();
   expect(await screen.findByText('工具消费者')).toBeInTheDocument();
 });
@@ -53,4 +66,15 @@ it('shows initial AI configuration when the space has no published template', as
   expect(screen.queryByText('准备 AI 配置')).not.toBeInTheDocument();
   expect(screen.queryByText('工具消费者')).not.toBeInTheDocument();
   expect(screen.getByText('空间切换')).toBeInTheDocument();
+});
+
+it('only offers space selection when no space is selected and never renders a management drawer', () => {
+  state.workspace = null;
+  render(<ToolsPage/>);
+  expect(screen.getByText('空间切换')).toBeInTheDocument();
+  expect(screen.getByText('请从上方选择工作空间。')).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.queryByText('空间管理')).not.toBeInTheDocument();
+  expect(screen.queryByText('新建工作空间')).not.toBeInTheDocument();
+  expect(getWorkspaceAi).not.toHaveBeenCalled();
 });

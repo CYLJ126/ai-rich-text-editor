@@ -30,3 +30,15 @@ it('keeps same-page notification when cross-tab storage is blocked', () => {
   expect(changed).toHaveBeenCalledTimes(1);
   stop();
 });
+
+it('notifies spaces in the same tenant after tenant policy changes without crossing accounts', () => {
+  const sameTenant = vi.fn(), otherTenant = vi.fn(), otherAccount = vi.fn();
+  const stop = [subscribeAiConfiguration('alice', {...scope, workspaceId: 'B'}, sameTenant),
+    subscribeAiConfiguration('alice', {...scope, tenantId: 'other'}, otherTenant),
+    subscribeAiConfiguration('bob', scope, otherAccount)];
+  notifyAiConfiguration('alice', scope, true);
+  expect(sameTenant).toHaveBeenCalledTimes(1);
+  expect(otherTenant).not.toHaveBeenCalled();
+  expect(otherAccount).not.toHaveBeenCalled();
+  stop.forEach(close => close());
+});

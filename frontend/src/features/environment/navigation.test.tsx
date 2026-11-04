@@ -15,14 +15,11 @@ vi.mock('@umijs/max', () => ({
   Link: ({to, children}: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }));
 vi.mock('@/features/workspace/useWorkspace', () => ({
-  useWorkspaceDirectory: () => ({current: null, select: vi.fn()}),
+  useWorkspaceManagement: () => ({records: [], search: '', loaded: false}),
   registerWorkspaceGuard: vi.fn(() => () => {
   })
 }));
-vi.mock('@/features/workspace/WorkspacePicker', () => ({
-  default: ({userId, presentation}: { userId: string; presentation: string }) =>
-    <div>已有空间管理：{userId}／{presentation}</div>,
-}));
+vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => ({records: [], hasMore: false})}));
 beforeEach(() => {
   session.user = {id: 'operator', menus: []};
 });
@@ -43,14 +40,15 @@ it('explains missing menu assignments without adding unavailable operations', ()
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
 });
 
-it('mounts existing workspace management directly without preparing models or AI', () => {
+it('mounts an independent directory with empty details without preparing models or AI', () => {
   render(<WorkspaceConfigurationPage/>);
-  expect(screen.getByText('已有空间管理：operator／inline')).toBeInTheDocument();
+  expect(screen.getByRole('region', {name: '工作空间管理列表'})).toBeInTheDocument();
+  expect(screen.queryByRole('region', {name: '工作空间详情表单'})).not.toBeInTheDocument();
 });
 
 it('does not mount workspace management before login', () => {
   session.user = null;
   render(<WorkspaceConfigurationPage/>);
   expect(screen.getByText('请登录后管理工作空间。')).toBeInTheDocument();
-  expect(screen.queryByText(/已有空间管理/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', {name: '工作空间管理列表'})).not.toBeInTheDocument();
 });

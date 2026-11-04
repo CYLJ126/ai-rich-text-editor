@@ -40,9 +40,11 @@ import './tools.css';
 export default function ToolWorkspace({
                                         userId,
                                         workspace,
+                                        tabBarExtraContent,
                                       }: {
   userId: string;
   workspace: WorkspaceView;
+  tabBarExtraContent?: React.ReactNode;
 }) {
   const {tenantId, workspaceId} = workspace.scope;
   // 同空间元数据刷新不重置编辑器；真正切换由页面的账号／Scope key 隔离。
@@ -157,6 +159,7 @@ export default function ToolWorkspace({
       <Tabs
         activeKey={tab}
         onChange={setTab}
+        tabBarExtraContent={{right: tabBarExtraContent}}
         items={[
           {key: 'observation', label: '执行记录与统计', children: <ToolObservationPanel context={{userId, scope}}/>},
           {key: 'reconciliations', label: '结果核对', children: <ToolReconciliationInbox context={{userId, scope}}/>},
