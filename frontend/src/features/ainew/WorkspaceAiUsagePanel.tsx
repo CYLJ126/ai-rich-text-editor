@@ -4,7 +4,7 @@ import {Alert, Button, Flex, Select, Typography} from 'antd';
 import {type AiModel, getWorkspaceAi, type ModelSelection, refKey} from '@/services/platform/ai';
 import {type BrowserContext, sameScope} from './storage';
 import {aiLocation} from './aiNavigation';
-import {subscribeAiConfiguration} from './aiConfigurationEvents';
+import {subscribeAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
 import ModelUsagePreparationPanel from './ModelUsagePreparationPanel';
 
 /** 聊天仅检查空间条件和准备本人账户；治理编辑统一跳转工作空间配置。 */

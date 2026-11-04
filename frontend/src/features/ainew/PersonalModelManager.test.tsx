@@ -3,7 +3,7 @@ import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/model';
 import * as usage from '@/services/platform/modelUsage';
-import {notifyAiConfiguration} from './aiConfigurationEvents';
+import {notifyAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
 import {checkWorkspaceAccess} from '@/services/platform/workspace';
 import {AiApiError} from '@/services/arte-ai/request';
 import PersonalModelManager from './PersonalModelManager';
@@ -160,7 +160,7 @@ afterEach(cleanup);
 it('lists readable models without filtering by creator and creates using current scope only', async () => {
   manager();
   await screen.findByRole('button', {name: '管理 我的模型'});
-  expect(screen.getByText('请选择左侧模型，或点击新增。')).toBeInTheDocument();
+  expect(screen.getByText(/点击左侧模型以编辑/)).toBeInTheDocument();
   expect(screen.queryByText('模型授权与使用范围')).not.toBeInTheDocument();
   expect(screen.queryByText('模型授权详情')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
@@ -430,7 +430,7 @@ it('opens a separate initial creation form and cancels without changing the sele
   await open();
   fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   expect(screen.queryByRole('textbox', {name: '模型展示名称'})).not.toBeInTheDocument();
-  expect(screen.queryByText('请选择左侧模型，或点击新增。')).not.toBeInTheDocument();
+  expect(screen.queryByText(/点击左侧模型以编辑/)).not.toBeInTheDocument();
   expect(screen.queryByText('模型授权与使用范围')).not.toBeInTheDocument();
   expect(screen.queryByText('模型授权详情')).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '未保存的新模型'}});

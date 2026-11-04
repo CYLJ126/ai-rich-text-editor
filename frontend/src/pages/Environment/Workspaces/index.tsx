@@ -174,7 +174,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
               type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
         }))}>
-        {/* 右侧工作空间表单详情区域，三目运算符表示：创建表单、编辑/详情表单、null（未选中某个空间） */}
+        {/* 右侧工作空间表单详情区域：创建表单、编辑/详情表单、未选择时的引导。 */}
         {creating ? <WorkspaceDetailForm
             userId={userId} initialTenantId={initialTenantId} tenants={tenants}
             onMoreTenants={candidates.hasMore ? () => void candidates.more() : undefined}
@@ -187,7 +187,10 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
             setTarget(view);
           }}/>
           : target ? <WorkspaceDetailForm userId={userId} scope={target.scope} onUnsafeChange={setFormUnsafe}
-                                          onSaved={setTarget}/> : null}
+                                          onSaved={setTarget}/> : <Typography.Paragraph>
+            1. 点击左侧工作空间以编辑，或查看详情；<br/>
+            2. 点击左上方新增图标，以创建新工作空间。
+          </Typography.Paragraph>}
         {/* 按钮：收藏、设为启动空间 */}
         {target && !creating && <Flex gap={8} wrap>
           <Button disabled={unsafe || !directory.preference}

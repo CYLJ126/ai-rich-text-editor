@@ -4,7 +4,7 @@ import {Alert, Typography} from 'antd';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
 import {useCurrentWorkspace} from '@/features/workspace/useWorkspace';
 import ToolWorkspace from '@/features/aitool/ToolWorkspace';
-import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
+import WorkspaceAiPreparation from '@/features/workspace/WorkspaceAiPreparation';
 import '@/features/aitool/tools.css';
 
 /** 与 ChatNew 共用真实工作空间及按需 AI 准备入口；不自动发布工具或执行调用。 */

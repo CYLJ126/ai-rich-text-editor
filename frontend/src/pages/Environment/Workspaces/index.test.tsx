@@ -64,13 +64,16 @@ afterEach(cleanup);
 
 it('starts empty even with a URL target, and only opens a detail after clicking a card', async () => {
   const page = render(<Page/>);
+  expect(screen.getByText(/点击左侧工作空间以编辑/)).toHaveTextContent('2. 点击左上方新增图标，以创建新工作空间。');
   expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button', {name: '返回原聊天'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
   expect(screen.getByText('编辑目标 B')).toBeInTheDocument();
+  expect(screen.queryByText(/点击左侧工作空间以编辑/)).not.toBeInTheDocument();
   page.unmount();
   render(<Page/>);
   expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
+  expect(screen.getByText(/点击左侧工作空间以编辑/)).toBeInTheDocument();
 });
 it('blocks target and toolbar actions while the form is dirty and uses the selected policy scope', async () => {
   render(<Page/>);
@@ -88,6 +91,7 @@ it('creates in a separate initial form and opens the saved new workspace locally
   await waitFor(() => expect(screen.getByRole('button', {name: '新建工作空间'})).toBeEnabled());
   fireEvent.click(screen.getByRole('button', {name: '新建工作空间'}));
   expect(screen.getByText('新增空间表单')).toBeInTheDocument();
+  expect(screen.queryByText(/点击左侧工作空间以编辑/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '模拟保存'}));
   expect(screen.getByText('编辑目标 C')).toBeInTheDocument();
 });

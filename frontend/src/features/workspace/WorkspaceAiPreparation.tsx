@@ -3,9 +3,9 @@ import {Alert, Button, Flex, Spin, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
 import {getWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
-import type {BrowserContext} from './storage';
+import type {BrowserContext} from '@/features/ainew/storage';
 import {history} from '@umijs/max';
-import {aiLocation} from './aiNavigation';
+import {aiLocation} from '@/features/ainew/aiNavigation';
 import '../aiManagement.css';
 
 /** 只读确认目标空间可访问，禁止页面读取自动创建配置或本人预算。 */

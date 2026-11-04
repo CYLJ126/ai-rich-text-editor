@@ -5,7 +5,7 @@ import {history} from '@umijs/max';
 import {getWorkspaceAi} from '@/services/platform/ai';
 import {getModelUsagePreparation, prepareModelUsage} from '@/services/platform/modelUsage';
 import WorkspaceAiUsagePanel from './WorkspaceAiUsagePanel';
-import {notifyAiConfiguration} from './aiConfigurationEvents';
+import {notifyAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
 
 vi.mock('@umijs/max', () => ({history: {push: vi.fn()}, useModel: () => ({initialState: {currentUser: {menus}}})}));
 vi.mock('@/services/platform/ai', async original => ({

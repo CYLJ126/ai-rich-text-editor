@@ -16,7 +16,7 @@ import {
 } from '@/services/platform/ai';
 import {AiApiError} from '@/services/arte-ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
-import {type BrowserContext, readOperation, saveOperation} from './storage';
+import {type BrowserContext, readOperation, saveOperation} from '@/features/ainew/storage';
 
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
@@ -78,36 +78,36 @@ export default function WorkspaceAiGovernanceEditor({
     outerSignal?.addEventListener('abort', cancel, {once: true});
     setLoading(true);
     try {
-    const result = (await getWorkspaceAi(scope, {signal})).body.data;
-    if (!live.current || signal?.aborted) return;
-    if (result.configuration && (result.configuration.scope.tenantId !== scope.tenantId || result.configuration.scope.workspaceId !== scope.workspaceId)) {
-      throw new AiApiError(200, {code: 'INVALID_WORKSPACE_AI_RESPONSE'});
-    }
-    let budget: WorkspaceBudgetRulesView | undefined;
-    const options: BudgetRateOption[] = [];
-    if (result.canManage) {
-      budget = (await getWorkspaceBudgetRules(scope, {signal})).body.data;
-      if (budget.scope.tenantId !== scope.tenantId || budget.scope.workspaceId !== scope.workspaceId) {
-        throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RULE_RESPONSE'});
+      const result = (await getWorkspaceAi(scope, {signal})).body.data;
+      if (!live.current || signal?.aborted) return;
+      if (result.configuration && (result.configuration.scope.tenantId !== scope.tenantId || result.configuration.scope.workspaceId !== scope.workspaceId)) {
+        throw new AiApiError(200, {code: 'INVALID_WORKSPACE_AI_RESPONSE'});
       }
-      let cursor: string | undefined;
-      const seen = new Set<string>();
-      do {
-        const page = (await listWorkspaceBudgetRateOptions(scope, cursor, {signal})).body.data;
-        options.push(...page.items);
-        cursor = page.nextCursor ?? undefined;
-        if (cursor && seen.has(cursor)) throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RATE_CURSOR'});
-        if (cursor) seen.add(cursor);
-      } while (cursor);
-    }
-    if (!live.current || signal?.aborted) return;
-    setView(result);
-    setRuleView(budget);
-    setRates(options);
-    setEnabled(result.configuration?.enabled ?? false);
-    setModels(result.configuration?.models ?? []);
-    setRules(budget?.configuration?.rules ?? []);
-    setDirtyKind(null);
+      let budget: WorkspaceBudgetRulesView | undefined;
+      const options: BudgetRateOption[] = [];
+      if (result.canManage) {
+        budget = (await getWorkspaceBudgetRules(scope, {signal})).body.data;
+        if (budget.scope.tenantId !== scope.tenantId || budget.scope.workspaceId !== scope.workspaceId) {
+          throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RULE_RESPONSE'});
+        }
+        let cursor: string | undefined;
+        const seen = new Set<string>();
+        do {
+          const page = (await listWorkspaceBudgetRateOptions(scope, cursor, {signal})).body.data;
+          options.push(...page.items);
+          cursor = page.nextCursor ?? undefined;
+          if (cursor && seen.has(cursor)) throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RATE_CURSOR'});
+          if (cursor) seen.add(cursor);
+        } while (cursor);
+      }
+      if (!live.current || signal?.aborted) return;
+      setView(result);
+      setRuleView(budget);
+      setRates(options);
+      setEnabled(result.configuration?.enabled ?? false);
+      setModels(result.configuration?.models ?? []);
+      setRules(budget?.configuration?.rules ?? []);
+      setDirtyKind(null);
     } finally {
       outerSignal?.removeEventListener('abort', cancel);
       if (live.current && !signal.aborted) setLoading(false);

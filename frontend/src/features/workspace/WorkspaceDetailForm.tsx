@@ -6,8 +6,8 @@ import {
   type WorkspaceScope,
   type WorkspaceView
 } from '@/services/platform/workspace';
-import WorkspaceAiGovernanceEditor from '@/features/ainew/WorkspaceAiGovernanceEditor';
-import {notifyAiConfiguration, subscribeAiConfiguration} from '@/features/ainew/aiConfigurationEvents';
+import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
+import {notifyAiConfiguration, subscribeAiConfiguration} from './aiConfigurationEvents';
 import {sameScope} from '@/features/ainew/storage';
 import {useWorkspaceManagement} from './useWorkspace';
 

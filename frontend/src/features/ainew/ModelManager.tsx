@@ -22,7 +22,7 @@ import {type ModelChange, useModelManagement} from './useModelManagement';
 import {modelStatusText, validationText} from './modelManagementState';
 import ModelSharingManager from './ModelSharingManager';
 import {readSharingOperation} from './modelSharingRecovery';
-import {subscribeAiConfiguration} from './aiConfigurationEvents';
+import {subscribeAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
 import ModelUsagePreparationPanel from './ModelUsagePreparationPanel';
 import './personalModels.css';
 import MasterDetailLayout, {type MasterDetailItem} from '@/components/MasterDetailLayout';

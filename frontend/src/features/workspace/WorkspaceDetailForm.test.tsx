@@ -5,7 +5,7 @@ import * as api from '@/services/platform/workspace';
 import WorkspaceDetailForm from './WorkspaceDetailForm';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
-vi.mock('@/features/ainew/WorkspaceAiGovernanceEditor', () => ({
+vi.mock('@/features/workspace/WorkspaceAiGovernanceEditor', () => ({
   default: ({scope, disabled, onUpdated}: {
     scope: api.WorkspaceScope; disabled: boolean; onUpdated: () => void
   }) => <section aria-label="AI 表单"><span>AI 目标 {scope.workspaceId}</span>

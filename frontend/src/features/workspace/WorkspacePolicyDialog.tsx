@@ -3,7 +3,7 @@ import {Modal, Tabs} from 'antd';
 import PolicyEditor from './PolicyEditor';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import type {PolicySnapshot, TenantPolicyView} from '@/services/platform/policy';
-import {notifyAiConfiguration} from '@/features/ainew/aiConfigurationEvents';
+import {notifyAiConfiguration} from './aiConfigurationEvents';
 
 /** 政策范围固定为配置目标，弹窗内不切换聊天空间。 */
 export default function WorkspacePolicyDialog({userId, target, onClose, onUnsafeChange}: {

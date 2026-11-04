@@ -20,7 +20,6 @@ vi.mock('@/features/aitool/ToolWorkspace', () => ({
   default: ({tabBarExtraContent}: { tabBarExtraContent?: React.ReactNode }) =>
     <>{tabBarExtraContent}<p>工具消费者</p></>
 }));
-vi.mock('@/features/ainew/WorkspaceAiSettings', () => ({default: () => <p>准备 AI 配置</p>}));
 vi.mock('@/services/platform/ai', () => ({getWorkspaceAi: vi.fn()}));
 
 beforeEach(() => {
@@ -63,7 +62,6 @@ it('shows initial AI configuration when the space has no published template', as
   vi.mocked(getWorkspaceAi).mockResolvedValue({body: {data: {needsImport: true}}} as never);
   render(<ToolsPage/>);
   expect(await screen.findByText('平台审核目录尚未准备，请联系平台配置管理员。')).toBeInTheDocument();
-  expect(screen.queryByText('准备 AI 配置')).not.toBeInTheDocument();
   expect(screen.queryByText('工具消费者')).not.toBeInTheDocument();
   expect(screen.getByText('空间切换')).toBeInTheDocument();
 });

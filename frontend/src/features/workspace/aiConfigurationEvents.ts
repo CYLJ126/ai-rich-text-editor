@@ -1,5 +1,5 @@
 import type {WorkspaceScope} from '@/services/platform/workspace';
-import {sameScope} from './storage';
+import {sameScope} from '@/features/ainew/storage';
 
 const channel = 'arte-ai-configuration-changed';
 const key = 'arte.ai.configuration.revision';

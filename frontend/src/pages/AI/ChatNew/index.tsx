@@ -40,10 +40,10 @@ import {
 import messages from '@/locales/zh-CN/aiChat';
 import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
 import WorkspaceQuickSelect from '@/features/workspace/WorkspaceQuickSelect';
-import WorkspaceAiPreparation from '@/features/ainew/WorkspaceAiPreparation';
+import WorkspaceAiPreparation from '@/features/workspace/WorkspaceAiPreparation';
 import WorkspaceAiUsagePanel from '@/features/ainew/WorkspaceAiUsagePanel';
 import {aiLocation, useAiLeaveGuard} from '@/features/ainew/aiNavigation';
-import {subscribeAiConfiguration} from '@/features/ainew/aiConfigurationEvents';
+import {subscribeAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
 import ModelManager from '@/features/ainew/ModelManager';
 import PreparedModelNotice, {useModelChatHandoff} from '@/features/ainew/PreparedModelNotice';
 import {clearModelChatHandoff, type ModelChatHandoff, readModelChatHandoff} from '@/features/ainew/modelUsageRecovery';

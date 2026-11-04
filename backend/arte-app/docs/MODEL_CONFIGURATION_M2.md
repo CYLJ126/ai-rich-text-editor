@@ -154,7 +154,7 @@ modelPlan、defaultAiPolicy、ModelPlanManager、WorkspaceAiSettings、model、P
 ```shell
 npm test -- --run --maxWorkers=1 src/pages/AI/ChatNew/index.test.tsx
 npm test -- --run --maxWorkers=1 src/pages/AI/ChatNew/workspaceIntegration.test.tsx
-npm test -- --run --maxWorkers=1 src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/ainew/WorkspaceAiSettings.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/services/platform/modelSharing.test.ts src/features/ainew/ModelSharingManager.test.tsx src/pages/AI/Models/index.test.tsx
+npm test -- --run --maxWorkers=1 src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/workspace/WorkspaceAiGovernanceEditor.test.tsx src/features/workspace/WorkspaceAiPreparation.test.tsx src/features/ainew/DefaultAiTemplateEditor.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/services/platform/modelSharing.test.ts src/features/ainew/ModelSharingManager.test.tsx src/pages/AI/Models/index.test.tsx
 npm run build
 npm run tsc
 ```

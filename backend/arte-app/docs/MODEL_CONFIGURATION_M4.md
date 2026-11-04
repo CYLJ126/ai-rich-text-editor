@@ -21,6 +21,10 @@ SQL、授予权限或部署。
 `ModelManager` 是统一管理器。`PersonalModelManager` 和 `WorkspaceAiSettings` 只保留兼容导出／包装，生产完整空间编辑器仅由工作空间页直接挂载，平台模板仅由模型方案
 Tab 挂载。没有新增第二份业务配置状态。
 
+2026-11-04 目录整理：`WorkspaceAiGovernanceEditor`、`WorkspaceAiPreparation` 和 `aiConfigurationEvents` 已迁入
+`frontend/src/features/workspace/`；删除无生产调用的 `WorkspaceAiSettings` 兼容包装，原测试拆为两个空间组件测试及
+`DefaultAiTemplateEditor.test.tsx`。恢复存储键及业务行为保持原样。
+
 ## 三种范围与导航
 
 模型页管理范围是局部选择，不调用公共 `directory.select`。工作空间“配置 B”也不调用它，不写入当前聊天 A、最近／启动偏好或模型归属。
@@ -76,7 +80,7 @@ scope、旧深链接、菜单区别、本人准备、同页／跨标签通知、
 复现（frontend 目录，重型聊天文件单独串行）：
 
 ```sh
-npm test -- src/features/ainew/aiNavigation.test.ts src/features/ainew/aiConfigurationEvents.test.ts src/pages/AI/Models/index.test.tsx src/pages/Environment/Workspaces/index.test.tsx src/features/ainew/WorkspaceAiUsagePanel.test.tsx src/features/ainew/PersonalModelManager.test.tsx src/features/ainew/ModelSharingManager.test.tsx src/features/ainew/WorkspaceAiSettings.test.tsx src/features/ainew/ModelUsagePreparationPanel.test.tsx src/features/ainew/modelSharingRecovery.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/ainew/ConnectionManager.test.tsx src/features/ainew/ChatConfigurationForm.test.tsx src/features/workspace/workspace.test.tsx src/features/workspace/WorkspacePicker.test.tsx --maxWorkers=1
+npm test -- src/features/ainew/aiNavigation.test.ts src/features/workspace/aiConfigurationEvents.test.ts src/pages/AI/Models/index.test.tsx src/pages/Environment/Workspaces/index.test.tsx src/features/ainew/WorkspaceAiUsagePanel.test.tsx src/features/ainew/PersonalModelManager.test.tsx src/features/ainew/ModelSharingManager.test.tsx src/features/workspace/WorkspaceAiGovernanceEditor.test.tsx src/features/workspace/WorkspaceAiPreparation.test.tsx src/features/ainew/DefaultAiTemplateEditor.test.tsx src/features/ainew/ModelUsagePreparationPanel.test.tsx src/features/ainew/modelSharingRecovery.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/ainew/ConnectionManager.test.tsx src/features/ainew/ChatConfigurationForm.test.tsx src/features/workspace/workspace.test.tsx src/features/workspace/WorkspacePicker.test.tsx --maxWorkers=1
 npm test -- src/pages/AI/ChatNew/index.test.tsx --maxWorkers=1
 npm test -- src/pages/AI/ChatNew/workspaceIntegration.test.tsx --maxWorkers=1
 npm test -- src/features/environment/navigation.test.tsx --maxWorkers=1

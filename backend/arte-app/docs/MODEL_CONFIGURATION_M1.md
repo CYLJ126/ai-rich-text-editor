@@ -99,7 +99,7 @@ platform.test.mysql 指向业务数据库。
 frontend 目录：
 
 ```shell
-npm test -- --run src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/ainew/WorkspaceAiSettings.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/pages/AI/Models/index.test.tsx src/pages/AI/ChatNew/index.test.tsx src/pages/AI/ChatNew/workspaceIntegration.test.tsx
+npm test -- --run src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/workspace/WorkspaceAiGovernanceEditor.test.tsx src/features/workspace/WorkspaceAiPreparation.test.tsx src/features/ainew/DefaultAiTemplateEditor.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/pages/AI/Models/index.test.tsx src/pages/AI/ChatNew/index.test.tsx src/pages/AI/ChatNew/workspaceIntegration.test.tsx
 npm run build
 npm run tsc
 ```

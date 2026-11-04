@@ -48,7 +48,7 @@ Elasticsearch 适合新增的名称／正文全文检索，可以在数据量较
 
 ### 2. 空间 AI 准备是聊天挂载前的另一个串行阶段
 
-[WorkspaceAiPreparation.tsx](../../../frontend/src/features/ainew/WorkspaceAiPreparation.tsx:34) 先调用
+[WorkspaceAiPreparation.tsx](../../../frontend/src/features/workspace/WorkspaceAiPreparation.tsx:34) 先调用
 `ensureWorkspaceAi`，状态为 ready 才挂载聊天子树；它并非每次都创建数据，但每次进入这个组件都要执行准备请求。
 
 [DatabaseAiControlService.ensure](../src/main/java/com/arte/app/platform/ai/DatabaseAiControlService.java:499)

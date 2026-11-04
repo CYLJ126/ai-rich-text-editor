@@ -113,7 +113,7 @@ JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn -o -pl arte-app -am -Dtest=Workspa
 在 `frontend`：
 
 ```shell
-npm test -- --run --maxWorkers=1 src/services/platform/workspaceAi.test.ts src/services/platform/modelUsage.test.ts src/features/ainew/ModelUsagePreparationPanel.test.tsx src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/ainew/WorkspaceAiSettings.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/services/platform/modelSharing.test.ts src/features/ainew/ModelSharingManager.test.tsx src/pages/AI/Models/index.test.tsx src/pages/AI/Tools/index.test.tsx
+npm test -- --run --maxWorkers=1 src/services/platform/workspaceAi.test.ts src/services/platform/modelUsage.test.ts src/features/ainew/ModelUsagePreparationPanel.test.tsx src/services/platform/modelPlan.test.ts src/services/platform/defaultAiPolicy.test.ts src/features/ainew/ModelPlanManager.test.tsx src/features/workspace/WorkspaceAiGovernanceEditor.test.tsx src/features/workspace/WorkspaceAiPreparation.test.tsx src/features/ainew/DefaultAiTemplateEditor.test.tsx src/services/platform/model.test.ts src/features/ainew/PersonalModelManager.test.tsx src/services/platform/modelSharing.test.ts src/features/ainew/ModelSharingManager.test.tsx src/pages/AI/Models/index.test.tsx src/pages/AI/Tools/index.test.tsx
 npm test -- --run --maxWorkers=1 src/pages/AI/ChatNew/index.test.tsx
 npm test -- --run --maxWorkers=1 src/pages/AI/ChatNew/workspaceIntegration.test.tsx
 npm run tsc
