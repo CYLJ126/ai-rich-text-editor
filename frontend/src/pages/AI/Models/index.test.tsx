@@ -34,7 +34,9 @@ vi.mock('@/features/ainew/ConnectionManager', () => ({
   default: ({onUnsafeChange}: EditorProps) => <Editor name="连接草稿" onUnsafeChange={onUnsafeChange}/>
 }));
 vi.mock('@/features/ainew/ModelPlanManager', () => ({
-  default: ({onUnsafeChange}: EditorProps) => <Editor name="费率草稿" onUnsafeChange={onUnsafeChange}/>
+  default: ({onUnsafeChange, onOpenTemplate}: EditorProps & { onOpenTemplate: () => void }) => <>
+    <button onClick={onOpenTemplate}>平台默认 AI 模板</button>
+    <Editor name="费率草稿" onUnsafeChange={onUnsafeChange}/></>
 }));
 vi.mock('@/features/ainew/DefaultAiTemplateEditor', () => ({
   default: ({onUnsafeChange}: EditorProps) => <Editor name="默认模板" onUnsafeChange={onUnsafeChange}/>
@@ -121,6 +123,7 @@ it('keeps default platform template only in the plans tab', async () => {
   render(<ModelsPage/>);
   expect(screen.queryByLabelText('默认模板')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', {name: '审核模型与费率'}));
+  fireEvent.click(await screen.findByRole('button', {name: '平台默认 AI 模板'}));
   fireEvent.change(await screen.findByLabelText('默认模板'), {target: {value: '未发布'}});
   expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
 });
@@ -162,4 +165,16 @@ it('keeps returned execution conditions separate from management and original ch
   expect(screen.getByText('使用条件空间：first')).toBeInTheDocument();
   expect(directory.current?.scope.workspaceId).toBe('first');
   expect(directory.select).not.toHaveBeenCalled();
+});
+
+it('opens the default template in a modal and prevents closing an unsaved template', async () => {
+  render(<ModelsPage initialTab="plans"/>);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('button', {name: '平台默认 AI 模板'}));
+  expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('默认模板'), {target: {value: '未保存'}});
+  expect(screen.queryByRole('button', {name: 'Close'})).not.toBeInTheDocument();
+  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('默认模板'), {target: {value: ''}});
+  fireEvent.click(screen.getByRole('button', {name: 'Close'}));
 });

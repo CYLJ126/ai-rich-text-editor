@@ -11,6 +11,7 @@ import {
   type ManagedConnection,
 } from '@/services/platform/connection';
 import {type Operation, readOperation, saveOperation} from './storage';
+import MasterDetailLayout from '@/components/MasterDetailLayout';
 
 type Saved = { scope: { tenantId: string; workspaceId: string }; command: ConnectionCommand };
 type Props = { userId: string; onUnsafeChange?: (unsafe: boolean) => void };
@@ -39,6 +40,8 @@ function Manager({userId, onUnsafeChange}: Props) {
   const [saving, setSaving] = useState(false);
   const writing = useRef(false);
   const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(!!restored.value);
+  const [selected, setSelected] = useState<string>();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [form] = Form.useForm<ConnectionSettings>();
@@ -95,6 +98,8 @@ function Manager({userId, onUnsafeChange}: Props) {
 
   useEffect(() => {
     live.current = true;
+    const command = pendingRef.current?.request.command;
+    if (command?.kind === 'publish') form.setFieldsValue(command.request.settings);
     void load();
     return () => {
       live.current = false;
@@ -129,6 +134,8 @@ function Manager({userId, onUnsafeChange}: Props) {
       setBlocked(!saveOperation(context, 'connection-configuration', '', null));
       setDirty(false);
       form.resetFields();
+      setEditing(false);
+      setSelected(undefined);
       setNotice('连接操作已确认并保存到数据库；后续读取与启动使用数据库目录。');
     } catch (error) {
       if (!live.current) return;
@@ -147,19 +154,68 @@ function Manager({userId, onUnsafeChange}: Props) {
   }
 
   function edit(connection: ManagedConnection) {
+    if (disabled || dirty) return;
+    setEditing(true);
+    setSelected(JSON.stringify(connection.reference));
     form.setFieldsValue({
       id: connection.reference.id,
-      providerId: 'deepseek',
+      providerId: connection.providerId,
       endpoint: connection.endpoint,
       connectTimeoutSeconds: connection.connectTimeoutSeconds,
       responseTimeoutSeconds: connection.responseTimeoutSeconds,
       maxResponseBytes: connection.maxResponseBytes
     });
-    setDirty(true);
+    setDirty(false);
     setNotice('');
   }
 
-  return <Flex vertical gap={16} aria-label="数据库连接管理">
+  return <MasterDetailLayout label="数据库连接管理"
+                             actions={[
+                               {
+                                 key: 'refresh',
+                                 label: '重新读取连接目录',
+                                 icon: 'ReloadOutlined',
+                                 loading,
+                                 disabled: saving || !!pending || blocked,
+                                 onClick: () => void load()
+                               },
+                               {
+                                 key: 'add',
+                                 label: '创建连接新版本',
+                                 icon: 'PlusOutlined',
+                                 disabled: disabled || dirty,
+                                 onClick: () => {
+                                   setSelected(undefined);
+                                   setEditing(true);
+                                   form.resetFields();
+                                   setDirty(false);
+                                   setNotice('');
+                                 }
+                               },
+                             ]}
+                             selectedKey={selected} onSelect={key => {
+    const connection = view?.connections.find(c => JSON.stringify(c.reference) === key);
+    if (connection) edit(connection);
+  }}
+                             emptyText="尚无审核连接。"
+                             listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} · 部署允许的
+                               origin：{view.allowedOrigins.join('、') || '未配置，当前不能发布连接'}</Typography.Paragraph>}
+                             items={[...(view?.connections ?? [])].reverse().map(connection => ({
+                               key: JSON.stringify(connection.reference),
+                               label: `以此版本编辑 ${connection.reference.id}@${connection.reference.version}`,
+                               disabled: disabled || dirty,
+                               content: <Flex vertical gap={8}>
+                                 <Typography.Text
+                                   strong>{connection.providerId} · {connection.reference.id}@{connection.reference.version}</Typography.Text>
+                                 <Tag
+                                   color={connection.state === 'ENABLED' ? 'green' : 'default'}>{connection.state === 'ENABLED' ? '已启用' : '已停用'}</Tag>
+                                 <Typography.Text>{connection.endpoint}</Typography.Text>
+                                 <Typography.Text
+                                   type="secondary">{connection.protocol.id}@{connection.protocol.version} ·
+                                   连接 {connection.connectTimeoutSeconds}s ·
+                                   响应 {connection.responseTimeoutSeconds}s</Typography.Text>
+                               </Flex>
+                             }))}>
     <Typography.Paragraph>审核连接由平台配置管理员发布。第一批支持 DeepSeek 的 Chat Completions SSE 协议；连接不保存 API
       Key，模型草稿另行配置本人凭据并验证。</Typography.Paragraph>
     {blocked &&
@@ -170,16 +226,14 @@ function Manager({userId, onUnsafeChange}: Props) {
       <Typography.Paragraph>按原参数和原操作键重试；不会重新生成连接版本。刷新页面后也应先确认这项操作。</Typography.Paragraph>
       <Button loading={saving} disabled={blocked} onClick={() => void run()}>重试确认原连接操作</Button>
     </Card>}
-    <Button loading={loading} disabled={saving || !!pending || blocked}
-            onClick={() => void load()}>重新读取连接目录</Button>
-    {view && <>
-      {!view.initialized && <Alert type="info" title="数据库目录为空，可以直接创建第一个审核连接。"/>}
-      <Typography.Text type="secondary">目录版本 {view.version} · 部署允许的
-        origin：{view.allowedOrigins.join('、') || '未配置，当前不能发布连接'}</Typography.Text>
+    {view && !view.initialized && <Alert type="info" title="数据库目录为空，可以直接创建第一个审核连接。"/>}
+    {view && !editing && <Typography.Paragraph>选择连接版本查看或编辑，点击添加图标创建新版本。</Typography.Paragraph>}
+    {view && editing && <>
       <Card title="创建连接／发布连接新版本" size="small">
         <Typography.Paragraph
           type="secondary">相同连接标识保存为新版本；旧版本保留。此步骤只登记连接，不会向供应商发送请求。</Typography.Paragraph>
-        <Form form={form} name="ai-connection-management" initialValues={defaults} layout="vertical" disabled={disabled}
+        <Form form={form} name="ai-connection-management" initialValues={defaults} layout="vertical"
+              disabled={disabled || (selected !== undefined && view.connections.find(c => JSON.stringify(c.reference) === selected)?.providerId !== 'deepseek')}
               onValuesChange={() => setDirty(true)} onFinish={values => {
           const result = connectionSettingsSchema.safeParse(values);
           if (!result.success) {
@@ -208,36 +262,20 @@ function Manager({userId, onUnsafeChange}: Props) {
             <Button onClick={() => {
               form.resetFields();
               setDirty(false);
+              setEditing(false);
+              setSelected(undefined);
             }}>放弃连接修改</Button></Flex>
         </Form>
       </Card>
-      {!view.connections.length && <Typography.Text>尚无审核连接。</Typography.Text>}
-      {[...view.connections].reverse().map(connection => <Card key={JSON.stringify(connection.reference)} size="small"
-                                                               title={`${connection.providerId} · ${connection.reference.id}@${connection.reference.version}`}>
-        <Flex vertical gap={8}>
-          <Tag
-            color={connection.state === 'ENABLED' ? 'green' : 'default'}>{connection.state === 'ENABLED' ? '已启用' : '已停用'}</Tag>
-          <Typography.Text style={{overflowWrap: 'anywhere'}}>{connection.endpoint}</Typography.Text>
-          <Typography.Text type="secondary">{connection.protocol.id}@{connection.protocol.version} ·
-            连接 {connection.connectTimeoutSeconds}s · 响应 {connection.responseTimeoutSeconds}s</Typography.Text>
-          <Flex gap={8} wrap>
-            <Button disabled={disabled || dirty || connection.providerId !== 'deepseek'}
-                    onClick={() => edit(connection)}>以此版本编辑</Button>
-            <Popconfirm
-              title={connection.state === 'ENABLED' ? '停用此连接的全部版本？引用它的个人模型将无法通过当前模板检查。' : '启用此连接？仍会检查租户、空间政策和模型资格。'}
-              onConfirm={() => run({
-                kind: 'state',
-                request: {
-                  expectedVersion: view.version,
-                  id: connection.reference.id,
-                  enabled: connection.state !== 'ENABLED'
-                }
-              })}>
-              <Button disabled={disabled || dirty}>{connection.state === 'ENABLED' ? '停用连接' : '启用连接'}</Button>
-            </Popconfirm>
-          </Flex>
-        </Flex>
-      </Card>)}
+      {selected && view.connections.filter(c => JSON.stringify(c.reference) === selected).map(connection => <Popconfirm
+        key={selected}
+        title={connection.state === 'ENABLED' ? '停用此连接的全部版本？引用它的个人模型将无法通过当前模板检查。' : '启用此连接？仍会检查租户、空间政策和模型资格。'}
+        onConfirm={() => run({
+          kind: 'state',
+          request: {expectedVersion: view.version, id: connection.reference.id, enabled: connection.state !== 'ENABLED'}
+        })}>
+        <Button disabled={disabled || dirty}>{connection.state === 'ENABLED' ? '停用连接' : '启用连接'}</Button>
+      </Popconfirm>)}
     </>}
-  </Flex>;
+  </MasterDetailLayout>;
 }

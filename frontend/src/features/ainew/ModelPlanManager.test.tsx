@@ -37,6 +37,7 @@ afterEach(cleanup);
 
 async function fill() {
   await screen.findByText('尚无审核模型方案，可以从已有审核连接独立创建。');
+  fireEvent.click(screen.getByRole('button', {name: '创建模型与费率新版本'}));
   fireEvent.change(screen.getByRole('textbox', {name: '方案标识'}), {target: {value: planCommand.settings.id}});
   fireEvent.change(screen.getByRole('textbox', {name: '方案远端模型名'}), {target: {value: planCommand.settings.remoteModel}});
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '精确审核连接'}));
@@ -113,6 +114,7 @@ it('does not allow publishing with an empty or disabled connection catalog', asy
   connections.connections[0].state = 'DISABLED';
   render(<ModelPlanManager userId="alice"/>);
   await screen.findByText('请先在审核连接管理发布并启用一个受支持连接，然后重新读取。');
+  fireEvent.click(screen.getByRole('button', {name: '创建模型与费率新版本'}));
   expect(screen.getByRole('button', {name: '发布模型与费率版本'})).toBeDisabled();
 });
 it('does not resubmit an acknowledged save when only the subsequent read fails', async () => {
@@ -165,7 +167,7 @@ it('edits a historical plan into a fresh revision without modifying its connecti
   view = {version: 2, initialized: true, plans: [managedPlan]};
   connections.version = 2;
   render(<ModelPlanManager userId="alice"/>);
-  fireEvent.click(await screen.findByRole('button', {name: '参考此版本编辑方案'}));
+  fireEvent.click(await screen.findByRole('button', {name: /参考此版本编辑方案/}));
   fireEvent.change(screen.getByRole('spinbutton', {name: '输入单价'}), {target: {value: '3.2'}});
   fireEvent.click(screen.getByRole('button', {name: '发布模型与费率版本'}));
   await waitFor(() => expect(api.publishModelPlan).toHaveBeenCalled());

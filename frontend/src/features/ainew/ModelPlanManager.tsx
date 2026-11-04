@@ -13,10 +13,11 @@ import {
 } from '@/services/platform/modelPlan';
 import {refKey} from '@/services/platform/ai';
 import {type Operation, readOperation, saveOperation} from './storage';
+import MasterDetailLayout from '@/components/MasterDetailLayout';
 
 type Fields = Omit<ModelPlanSettings, 'connection'> & { connectionKey: string };
 type Saved = { scope: { tenantId: string; workspaceId: string }; command: ModelPlanCommand };
-type Props = { userId: string; onUnsafeChange?: (value: boolean) => void };
+type Props = { userId: string; onUnsafeChange?: (value: boolean) => void; onOpenTemplate?: () => void };
 const defaults = {currency: 'CNY', contextWindowTokens: 8192, usageReporting: false, toolCalls: false};
 
 /** 平台登记价格不代替个人模型验证，也不授予执行资格。 */
@@ -24,7 +25,7 @@ export default function ModelPlanManager(props: Props) {
   return <Manager key={props.userId} {...props}/>;
 }
 
-function Manager({userId, onUnsafeChange}: Props) {
+function Manager({userId, onUnsafeChange, onOpenTemplate}: Props) {
   const context = useMemo(() => ({userId, scope: {tenantId: 'control-admin', workspaceId: 'model-plans'}}), [userId]);
   const [restored] = useState(() => readOperation<Saved>(context, 'model-plan-configuration', ''));
   const operation = useRef<Operation<Saved> | null>(restored.value);
@@ -35,6 +36,8 @@ function Manager({userId, onUnsafeChange}: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(!!restored.value);
+  const [selected, setSelected] = useState<string>();
   const [stale, setStale] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -134,6 +137,8 @@ function Manager({userId, onUnsafeChange}: Props) {
       setPending(null);
       setBlocked(!saveOperation(context, 'model-plan-configuration', '', null));
       form.resetFields();
+      setEditing(false);
+      setSelected(undefined);
       setDirty(false);
       const refreshed = await load();
       if (live.current) setNotice(refreshed ? '模型与费率已发布到数据库，旧版本和预算保持原值。'
@@ -161,6 +166,9 @@ function Manager({userId, onUnsafeChange}: Props) {
   }
 
   function edit(plan: ManagedModelPlan) {
+    if (locked || dirty) return;
+    setEditing(true);
+    setSelected(refKey(plan.planRef));
     form.setFieldsValue({
       id: plan.planRef.id.startsWith('reviewed-') ? plan.planRef.id.slice(9) : '',
       connectionKey: refKey(plan.connection),
@@ -171,11 +179,61 @@ function Manager({userId, onUnsafeChange}: Props) {
       outputPerMillion: plan.outputPerMillion,
       usageReporting: plan.usageReporting, toolCalls: plan.toolCalls
     });
-    setDirty(true);
+    setDirty(false);
     setNotice('');
   }
 
-  return <Flex vertical gap={16} aria-label="审核模型与费率管理">
+  return <MasterDetailLayout label="审核模型与费率管理"
+                             actions={[
+                               {
+                                 key: 'refresh',
+                                 label: '重新读取方案与连接',
+                                 icon: 'ReloadOutlined',
+                                 loading,
+                                 disabled: saving || !!pending || blocked,
+                                 onClick: () => void load()
+                               },
+                               ...(onOpenTemplate ? [{
+                                 key: 'settings',
+                                 label: '平台默认 AI 模板',
+                                 icon: 'SettingOutlined',
+                                 onClick: onOpenTemplate
+                               }] : []),
+                               {
+                                 key: 'add',
+                                 label: '创建模型与费率新版本',
+                                 icon: 'PlusOutlined',
+                                 disabled: !view || locked || dirty,
+                                 onClick: () => {
+                                   setSelected(undefined);
+                                   setEditing(true);
+                                   form.resetFields();
+                                   setDirty(false);
+                                   setNotice('');
+                                 }
+                               },
+                             ]}
+                             selectedKey={selected} onSelect={key => {
+    const plan = view?.plans.find(p => refKey(p.planRef) === key);
+    if (plan) edit(plan);
+  }}
+                             emptyText="尚无审核模型方案，可以从已有审核连接独立创建。"
+                             listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} ·
+                               文本／流式模型；能力声明须由审核者核实。</Typography.Paragraph>}
+                             items={[...(view?.plans ?? [])].reverse().map(plan => ({
+                               key: refKey(plan.planRef),
+                               label: `参考此版本编辑方案 ${plan.planRef.id}@${plan.planRef.version}`,
+                               disabled: locked || dirty,
+                               content: <Flex vertical gap={8}>
+                                 <Typography.Text
+                                   strong>{plan.remoteModel} · {plan.planRef.id}@{plan.planRef.version}</Typography.Text>
+                                 <Typography.Text>{plan.connection.id}@{plan.connection.version} ·
+                                   上下文 {plan.contextWindowTokens} Token</Typography.Text>
+                                 <Typography.Text>输入 {plan.inputPerMillion} /
+                                   输出 {plan.outputPerMillion} {plan.currency}／百万 Token ·
+                                   费率 {plan.rate.id}@{plan.rate.version}</Typography.Text>
+                               </Flex>
+                             }))}>
     <Typography.Paragraph>平台管理员审核远端模型、容量与费率后发布方案。个人模型继续使用本人密钥验证并发布；登记方案不探测供应商、不分配预算，也不会直接成为聊天候选。</Typography.Paragraph>
     {blocked &&
       <Alert showIcon type="warning" title="恢复记录无法可靠保存或读取，已阻止新操作；请保留本页并检查浏览器存储。"/>}
@@ -186,12 +244,10 @@ function Manager({userId, onUnsafeChange}: Props) {
       <Button aria-label="重试确认原方案" loading={saving} disabled={blocked}
               onClick={() => void run()}>重试确认原方案</Button>
     </Card>}
-    <Button aria-label="重新读取方案与连接" loading={loading} disabled={saving || !!pending || blocked}
-            onClick={() => void load()}>重新读取方案与连接（保留草稿）</Button>
-    {view && <>
-      <Typography.Text type="secondary">目录版本 {view.version} ·
-        文本／流式模型；能力声明须由审核者核实。</Typography.Text>
-      {!enabled.length && <Alert type="info" title="请先在审核连接管理发布并启用一个受支持连接，然后重新读取。"/>}
+    {view && !enabled.length && <Alert type="info" title="请先在审核连接管理发布并启用一个受支持连接，然后重新读取。"/>}
+    {view && !editing &&
+      <Typography.Paragraph>选择已发布版本查看或编辑，点击添加图标创建新版本。刷新目录会保留当前草稿。</Typography.Paragraph>}
+    {view && editing && <>
       <Card size="small" title="发布模型及费率新版本">
         <Form form={form} name="ai-model-plan" layout="vertical" initialValues={defaults} disabled={locked}
               onValuesChange={() => setDirty(true)} onFinish={values => {
@@ -237,18 +293,11 @@ function Manager({userId, onUnsafeChange}: Props) {
             <Popconfirm title="放弃未保存的方案修改？" onConfirm={() => {
               form.resetFields();
               setDirty(false);
+              setEditing(false);
+              setSelected(undefined);
             }}><Button disabled={locked}>放弃方案修改</Button></Popconfirm></Flex>
         </Form>
       </Card>
-      {!view.plans.length && <Typography.Text>尚无审核模型方案，可以从已有审核连接独立创建。</Typography.Text>}
-      {[...view.plans].reverse().map(plan => <Card size="small" key={refKey(plan.planRef)}
-                                                   title={`${plan.remoteModel} · ${plan.planRef.id}@${plan.planRef.version}`}>
-        <Flex vertical gap={8}><Typography.Text>{plan.connection.id}@{plan.connection.version} ·
-          上下文 {plan.contextWindowTokens} Token</Typography.Text>
-          <Typography.Text>输入 {plan.inputPerMillion} / 输出 {plan.outputPerMillion} {plan.currency}／百万 Token ·
-            费率 {plan.rate.id}@{plan.rate.version}</Typography.Text>
-          <Button disabled={locked || dirty} onClick={() => edit(plan)}>参考此版本编辑方案</Button></Flex>
-      </Card>)}
     </>}
-  </Flex>;
+  </MasterDetailLayout>;
 }

@@ -33,6 +33,7 @@ afterEach(cleanup);
 
 async function create() {
   await screen.findByText('数据库目录为空，可以直接创建第一个审核连接。');
+  fireEvent.click(screen.getByRole('button', {name: '创建连接新版本'}));
   fireEvent.change(screen.getByRole('textbox', {name: '连接标识'}), {target: {value: 'personal-deepseek'}});
   fireEvent.change(screen.getByRole('textbox', {name: 'API 基础地址'}), {target: {value: 'https://api.deepseek.com/v1'}});
   fireEvent.click(screen.getByRole('button', {name: '发布连接版本'}));
@@ -112,4 +113,24 @@ it('does not restore another account’s pending connection mutation', async () 
   rerender(<ConnectionManager userId="bob"/>);
   await screen.findByText('尚无审核连接。');
   expect(screen.queryByRole('button', {name: '重试确认原连接操作'})).not.toBeInTheDocument();
+});
+
+it('selects a published connection in the right form and protects edits until cancellation', async () => {
+  vi.mocked(api.getConnections).mockResolvedValue(saved);
+  render(<ConnectionManager userId="alice"/>);
+  expect(screen.queryByRole('textbox', {name: '连接标识'})).not.toBeInTheDocument();
+  const card = await screen.findByRole('button', {name: '以此版本编辑 personal-deepseek@db-v1'});
+  fireEvent.keyDown(card, {key: 'Enter'});
+  expect(card).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('textbox', {name: 'API 基础地址'})).toHaveValue('https://api.deepseek.com/v1');
+  fireEvent.change(screen.getByRole('textbox', {name: 'API 基础地址'}), {target: {value: 'https://api.deepseek.com/v2'}});
+  expect(screen.getByRole('button', {name: '创建连接新版本'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: '重新读取连接目录'}));
+  await waitFor(() => expect(api.getConnections).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('textbox', {name: 'API 基础地址'})).toHaveValue('https://api.deepseek.com/v2');
+  fireEvent.click(screen.getByRole('button', {name: '放弃连接修改'}));
+  fireEvent.click(screen.getByRole('button', {name: '创建连接新版本'}));
+  expect(screen.getByRole('textbox', {name: '连接标识'})).toHaveValue('');
+  expect(screen.getByRole('textbox', {name: 'API 基础地址'})).toHaveValue('');
+  expect(api.executeConnectionCommand).not.toHaveBeenCalled();
 });

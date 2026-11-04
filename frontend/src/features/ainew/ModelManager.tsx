@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Descriptions,
-  Empty,
   Flex,
   Form,
   Input,
@@ -26,6 +25,7 @@ import {readSharingOperation} from './modelSharingRecovery';
 import {subscribeAiConfiguration} from './aiConfigurationEvents';
 import ModelUsagePreparationPanel from './ModelUsagePreparationPanel';
 import './personalModels.css';
+import MasterDetailLayout from '@/components/MasterDetailLayout';
 
 interface Props {
   context: BrowserContext;
@@ -83,6 +83,7 @@ function ModelManager({
   const sharingResource = original && original.kind !== 'create'
     ? ('target' in original.request ? original.request.target.resourceId : original.request.resourceId) : undefined;
   const vm = useModelManagement(context, onUpdated, sharingResource ?? initialModel?.resourceId ?? initialResourceId, initialModel);
+  const [creating, setCreating] = useState(false);
   const [modelKind, setModelKind] = useState<'PERSONAL' | 'TENANT'>('PERSONAL');
   const [sharingUnsafe, setSharingUnsafe] = useState(false);
   const [stale, setStale] = useState(false);
@@ -161,6 +162,7 @@ function ModelManager({
       setName('');
       setToken('');
       setDirty(false);
+      if (kind === 'create') setCreating(false);
     }
   }
 
@@ -175,7 +177,51 @@ function ModelManager({
     await submit('save', {...located, expectedVersion: draft?.version ?? 0, name: displayName, settings});
   }
 
-  return <section className="personal-models ai-management-panel" aria-label="模型管理">
+  return <MasterDetailLayout label="模型管理" style={onBrowse ? {height: '75dvh'} : undefined}
+                             actions={[
+                               {
+                                 key: 'refresh',
+                                 label: '重新读取模型',
+                                 icon: 'ReloadOutlined',
+                                 loading: vm.loading,
+                                 disabled: !canMove || vm.closed,
+                                 onClick: () => {
+                                   void vm.loadList();
+                                   if (vm.selected) void vm.open(vm.selected);
+                                 }
+                               },
+                               {
+                                 key: 'add',
+                                 label: '添加模型',
+                                 icon: 'PlusOutlined',
+                                 disabled: !canMove || disabled || !vm.canCreate,
+                                 onClick: () => {
+                                   setCreating(true);
+                                   setName('');
+                                   setModelKind(vm.creationKinds[0] ?? 'PERSONAL');
+                                 }
+                               },
+                             ]}
+                             selectedKey={creating ? undefined : vm.selected ?? undefined}
+                             onSelect={key => {
+                               if (canMove) {
+                                 setCreating(false);
+                                 void vm.open(key);
+                               }
+                             }}
+                             emptyText="当前列表没有可读模型"
+                             listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
+                                                              onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
+                             items={vm.records.map(model => ({
+                               key: model.resourceId, label: `管理 ${model.name}`, disabled: !canMove,
+                               content: <Flex vertical gap={8}>
+                                 <Typography.Text strong>{model.name}</Typography.Text>
+                                 <Flex wrap
+                                       gap={6}><Tag>{model.ownershipType === 'TENANT' ? '租户模型' : '个人模型'}</Tag><Tag>{stateName[model.state]}</Tag>
+                                   <Typography.Text type="secondary">管理版本 {model.version}</Typography.Text></Flex>
+                               </Flex>
+                             }))}>
+    <div className="personal-models ai-management-panel">
     <Flex vertical gap={10} className="personal-models-intro">
       <Typography.Text strong>我可管理的模型</Typography.Text>
       <Typography.Paragraph
@@ -213,37 +259,9 @@ function ModelManager({
       </Button>}
 
       {dirty && <Alert type="info" title="配置有未保存修改；保存或放弃后再切换模型、空间。"/>}
-      <Flex wrap gap={8}>
-        <Button loading={vm.loading}
-                disabled={!canMove || vm.closed}
-                onClick={() => {
-                  void vm.loadList();
-                  if (vm.selected) void vm.open(vm.selected);
-                }}>
-          重新读取模型
-        </Button>
-        {onBrowse && <Button disabled={!canMove} onClick={onBrowse}>返回可用模型目录</Button>}
-      </Flex>
+      {onBrowse && <Button disabled={!canMove} onClick={onBrowse}>返回可用模型目录</Button>}
     </Flex>
-    <ModelUsagePreparationPanel key={storageKey(usageContext, 'usage-target')} context={usageContext}
-                                refreshRevision={usageRevision}
-                                onConfigureWorkspace={onConfigureWorkspace}
-                                target={vm.selectedVersion ? {
-                                  resourceId: vm.selectedVersion.resourceId,
-                                  binding: {...vm.selectedVersion.binding, type: 'binding'}
-                                } : null}
-                                disabled={blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
-                                navigationDisabled={useInChatDisabled}
-                                onUnsafeChange={setUsageUnsafe}
-                                onPrepared={() => {
-                                  onUpdated({
-                                    kind: 'prepare',
-                                    resourceId: vm.selectedVersion?.resourceId ?? vm.selected
-                                  });
-                                  if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
-                                }} onUseInChat={onUseInChat}/>
-    <div className="personal-models-grid">
-      <Flex vertical gap={10} className="personal-models-directory">
+      {creating ? <>
         <Card size="small" title="添加模型">
           <Flex vertical gap={8}>
             <Select aria-label="模型归属" value={modelKind} disabled={disabled || dirty || !!name || !!token}
@@ -267,25 +285,28 @@ function ModelManager({
             {!vm.canCreate &&
               <Typography.Text type="secondary">当前创建资格未通过，不以空间角色代替动作授权。</Typography.Text>}
           </Flex>
-        </Card>
-
-        {!vm.records.length && !vm.loading &&
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前列表没有可读模型"/>}
-        {vm.records.map(model =>
-          <Card size="small" key={model.resourceId}
-                className={model.resourceId === vm.selected ? 'model-resource-selected' : ''}>
-            <Flex vertical gap={8}>
-              <Typography.Text strong>{model.name}</Typography.Text>
-              <Flex wrap
-                    gap={6}><Tag>{model.ownershipType === 'TENANT' ? '租户模型' : '个人模型'}</Tag><Tag>{stateName[model.state]}</Tag><Typography.Text
-                type="secondary">管理版本 {model.version}</Typography.Text></Flex>
-              <Button disabled={!canMove} onClick={() => void vm.open(model.resourceId)}>管理 {model.name}</Button>
-            </Flex>
-          </Card>)}
-        {vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
-                              onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
-      </Flex>
-
+          <Button disabled={vm.saving || !!vm.pending || vm.blocked} onClick={() => {
+            setName('');
+            setCreating(false);
+          }}>取消添加模型</Button>
+        </Card>    </> : <>
+        <ModelUsagePreparationPanel key={storageKey(usageContext, 'usage-target')} context={usageContext}
+                                    refreshRevision={usageRevision}
+                                    onConfigureWorkspace={onConfigureWorkspace}
+                                    target={vm.selectedVersion ? {
+                                      resourceId: vm.selectedVersion.resourceId,
+                                      binding: {...vm.selectedVersion.binding, type: 'binding'}
+                                    } : null}
+                                    disabled={blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
+                                    navigationDisabled={useInChatDisabled}
+                                    onUnsafeChange={setUsageUnsafe}
+                                    onPrepared={() => {
+                                      onUpdated({
+                                        kind: 'prepare',
+                                        resourceId: vm.selectedVersion?.resourceId ?? vm.selected
+                                      });
+                                      if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
+                                    }} onUseInChat={onUseInChat}/>
       <Flex vertical gap={12} className="personal-models-editor">
         {vm.detailLoading && <Flex gap={8} role="status"><Spin size="small"/>正在读取模型当前资格…</Flex>}
         {!detail && !vm.detailLoading &&
@@ -509,11 +530,12 @@ function ModelManager({
           </Card>
         </>}
       </Flex>
-    </div>
     <Card size="small" title={authorization ? '模型授权（来源入口）' : '模型授权与使用范围'}>
       <ModelSharingManager context={context} embedded model={detail?.model}
                            disabled={blockedByOther || usageUnsafe || dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked || vm.closed || vm.detailLoading}
                            onCreated={resourceId => void vm.open(resourceId)} onUnsafeChange={setSharingUnsafe}/>
     </Card>
-  </section>;
+      </>}
+    </div>
+  </MasterDetailLayout>;
 }

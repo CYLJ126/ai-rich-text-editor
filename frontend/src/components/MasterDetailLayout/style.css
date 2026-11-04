@@ -1,0 +1,100 @@
+.master-detail-layout {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.master-detail-layout .ant-splitter-panel {
+  overflow: hidden;
+}
+
+.master-detail-directory {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.master-detail-toolbar {
+  flex-shrink: 0;
+  padding: 12px;
+  border-bottom: 1px solid var(--ant-color-border-secondary, #eee);
+}
+
+.master-detail-scroll {
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  overscroll-behavior: contain;
+}
+
+.master-detail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.master-detail-directory > .master-detail-scroll {
+  flex: 1;
+}
+
+.master-detail-editor {
+  height: 100%;
+}
+
+.master-detail-card {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.master-detail-card[aria-disabled="true"] {
+  cursor: default;
+}
+
+.master-detail-card-selected {
+  border-color: var(--ant-color-primary, #1677ff);
+  background: var(--ant-color-primary-bg, #e6f4ff);
+}
+
+.master-detail-card:focus-visible {
+  outline: 2px solid var(--ant-color-primary, #1677ff);
+  outline-offset: -2px;
+}
+
+.master-detail-layout .ant-card, .master-detail-layout .ant-card-body {
+  min-width: 0;
+}
+
+.master-detail-layout .ant-card-head-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.master-detail-editor > * {
+  margin-bottom: 12px;
+}
+
+.master-detail-editor .ant-select, .master-detail-editor .ant-input-number {
+  width: 100%;
+}
+
+.viewport-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viewport-page > * {
+  flex-shrink: 0;
+}

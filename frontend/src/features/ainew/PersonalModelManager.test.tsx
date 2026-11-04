@@ -160,6 +160,7 @@ afterEach(cleanup);
 it('lists readable models without filtering by creator and creates using current scope only', async () => {
   manager();
   await screen.findByRole('button', {name: '管理 我的模型'});
+  fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '个人模型'}});
   fireEvent.click(screen.getByRole('button', {name: '创建私有模型'}));
   await waitFor(() => expect(api.executeModelCommand).toHaveBeenCalledWith(expect.objectContaining({
@@ -283,7 +284,7 @@ it('retains the credential recovery record on idempotency mismatch', async () =>
   await screen.findByRole('button', {name: '重试确认原操作'});
   await waitFor(() => expect(screen.getByRole('button', {name: '重试确认原操作'})).toBeEnabled());
   expect(sessionStorage.getItem(storageKey(context, 'model-management'))).toContain('credential');
-  expect(screen.getByRole('button', {name: '创建私有模型'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '添加模型'})).toBeDisabled();
 });
 it('retains the temporary credential when the same account and scope receive a new context object', async () => {
   vi.mocked(api.executeModelCommand).mockRejectedValueOnce(new TypeError('network'));
@@ -336,7 +337,7 @@ it('reports disabled deployment without granting optimistic creation', async () 
   vi.mocked(api.listManagedModels).mockRejectedValue(new AiApiError(404, {code: 'NOT_FOUND'}));
   manager();
   await screen.findByText('当前部署尚未开放模型管理，请联系管理员确认功能开关与部署。');
-  expect(screen.getByRole('button', {name: '创建私有模型'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '添加模型'})).toBeDisabled();
 });
 it('guards unsaved fields and clears secret input and detail on logout', async () => {
   manager();
@@ -366,6 +367,7 @@ it('never sends a write when recovery storage fails', async () => {
 it('creates tenant resources in the same detail flow without a second tab or refresh', async () => {
   manager();
   await screen.findByRole('button', {name: '管理 我的模型'});
+  fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '模型归属'}));
   fireEvent.click(await screen.findByText('租户模型', {selector: '.ant-select-item-option-content'}));
   fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '租户模型'}});
@@ -413,6 +415,21 @@ it('does not expose executable tenant creation when the server only allows perso
   vi.mocked(api.getModelCreationOptions).mockResolvedValue(response(['PERSONAL']));
   manager();
   await screen.findByRole('button', {name: '管理 我的模型'});
+  fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '模型归属'}));
   expect(screen.queryByText('租户模型', {selector: '.ant-select-item-option-content'})).not.toBeInTheDocument();
+});
+
+it('opens a separate initial creation form and cancels without changing the selected model', async () => {
+  manager();
+  await open();
+  fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
+  expect(screen.queryByRole('textbox', {name: '模型展示名称'})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox', {name: '新模型名称'}), {target: {value: '未保存的新模型'}});
+  expect(screen.getByRole('button', {name: '管理 我的模型'})).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(screen.getByRole('button', {name: '取消添加模型'}));
+  expect(screen.getByRole('textbox', {name: '模型展示名称'})).toHaveValue('我的模型');
+  expect(api.executeModelCommand).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '添加模型'}));
+  expect(screen.getByRole('textbox', {name: '新模型名称'})).toHaveValue('');
 });
