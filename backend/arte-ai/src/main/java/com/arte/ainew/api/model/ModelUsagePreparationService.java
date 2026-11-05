@@ -1,5 +1,6 @@
 package com.arte.ainew.api.model;
 
+import com.arte.ainew.pojo.model.ModelUsageChecks;
 import com.arte.ainew.pojo.model.ModelUsagePreparation;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.CommandMeta;
@@ -21,6 +22,11 @@ public interface ModelUsagePreparationService {
      * 当前事实查询，不创建空间 AI、预算、账户、回执或事件。
      */
     ModelUsagePreparation status(TrustedActor actor, Scope scope, ResourceRef resource, DefinitionRef binding);
+
+    /**
+     * 受权分项诊断，未执行的检查不得推断为通过。
+     */
+    ModelUsageChecks checks(TrustedActor actor, Scope scope, ResourceRef resource, DefinitionRef binding);
 
     /**
      * 按当前批准规则幂等准备；重放仍重查当前模型、凭据用途、范围和预算资格。

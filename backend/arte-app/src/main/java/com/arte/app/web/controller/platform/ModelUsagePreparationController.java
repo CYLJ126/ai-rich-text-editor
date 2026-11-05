@@ -1,6 +1,7 @@
 package com.arte.app.web.controller.platform;
 
 import com.arte.ainew.api.model.ModelUsagePreparationService;
+import com.arte.ainew.pojo.model.ModelUsageChecks;
 import com.arte.ainew.pojo.model.ModelUsagePreparation;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.web.platform.ModelResourcePayload;
@@ -45,6 +46,13 @@ public class ModelUsagePreparationController {
     @PostMapping("/getModelUsagePreparation")
     public Mono<ResultContext<ModelUsagePreparation>> status(Authentication auth, @Valid @RequestBody Request request, Locale locale) {
         return executor.call(auth, actor -> preparation.status(actor, request.scope(), ModelResourcePayload.ref(request.scope(), request.resourceId()), request.binding()))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getModelUsageChecks")
+    public Mono<ResultContext<ModelUsageChecks>> checks(Authentication auth, @Valid @RequestBody Request request, Locale locale) {
+        return executor.call(auth, actor -> preparation.checks(actor, request.scope(),
+                        ModelResourcePayload.ref(request.scope(), request.resourceId()), request.binding()))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 

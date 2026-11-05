@@ -231,7 +231,9 @@ it('disables each write when server action checks deny it', async () => {
   vi.mocked(api.checkModelActions).mockResolvedValue(new Set());
   manager();
   await open();
-  for (const name of ['保存模型草稿', '验证当前连接', '发布新的固定版本', '停用模型全部版本']) expect(screen.getByRole('button', {name})).toBeDisabled();
+  for (const name of ['保存模型草稿', '验证当前连接', '停用模型全部版本']) expect(screen.getByRole('button', {name})).toBeDisabled();
+  expect(screen.queryByRole('button', {name: '发布新的固定版本'})).not.toBeInTheDocument();
+  expect(screen.getByText('当前没有发布权限，请联系模型发布负责人。')).toBeVisible();
   expect(api.executeModelCommand).not.toHaveBeenCalled();
 });
 it('saves against the draft version instead of the management or credential version', async () => {
@@ -285,6 +287,35 @@ it('validates once then publishes exact dependencies and never applies a chat se
   }), undefined));
   expect(localStorage.setItem).not.toHaveBeenCalled();
 });
+it('stops publication if the original validation has become stale since the detail loaded', async () => {
+  manager();
+  await open();
+  fireEvent.click(screen.getByRole('button', {name: '验证当前连接'}));
+  await screen.findByText('验证通过，等待发布');
+  vi.mocked(api.getModelValidation).mockResolvedValue(response({
+    ...validation,
+    state: 'STALE',
+    code: 'VALIDATION_EXPIRED'
+  }));
+  fireEvent.click(screen.getByRole('button', {name: '发布新的固定版本'}));
+  expect(await screen.findByText('成功验证已过期，请重新验证后再发布。')).toBeVisible();
+  expect(screen.getByRole('button', {name: '发布新的固定版本'})).toBeDisabled();
+  expect(vi.mocked(api.executeModelCommand).mock.calls.map(([command]) => command.kind)).toEqual(['validate']);
+});
+
+it('guides a saved draft without a credential to the key section', async () => {
+  vi.mocked(api.getModelDraft).mockResolvedValue(response({
+    ...draft,
+    credential: {...draft.credential, state: 'MISSING', version: 0}
+  }));
+  manager();
+  await open();
+  const next = screen.getByRole('button', {name: '前往维护密钥'});
+  fireEvent.click(next);
+  expect(screen.getByRole('region', {name: '密钥'})).toHaveFocus();
+  expect(screen.getByRole('button', {name: '验证当前连接'})).toBeDisabled();
+});
+
 it('recovers an uncertain save with its original request and key after remount without auto-submit', async () => {
   vi.mocked(api.executeModelCommand).mockRejectedValueOnce(new TypeError('network'));
   manager();

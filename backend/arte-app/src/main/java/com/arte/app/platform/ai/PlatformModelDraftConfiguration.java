@@ -65,12 +65,12 @@ public class PlatformModelDraftConfiguration {
     }
 
     @Bean
-    ModelDraftService modelDraftService(ModelResourceStore models, ModelDraftStore store, ModelConnectionTemplates templates,
+    ModelDraftService modelDraftService(ModelResourceStore models, ModelDraftStore store, ObjectProvider<ModelPublicationStore> publications, ModelConnectionTemplates templates,
                                         ModelCredentialCipher cipher, ReviewedModelPlanSource plans, ObjectProvider<com.arte.ainew.spi.gateway.ModelGateway> gateway, @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
                                         IdentityProvider identity, TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers,
                                         WorkspaceMembershipStore members, PreferenceStore preferences, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                         CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new DefaultModelDraftService(models, store, templates, cipher, plans, gateway::getIfAvailable, tx, identity, tenants, workspaces, tenantMembers,
+        return new DefaultModelDraftService(models, store, publications::getIfAvailable, templates, cipher, plans, gateway::getIfAvailable, tx, identity, tenants, workspaces, tenantMembers,
                 members, preferences, authorization, receipts, outbox, audit, ids, clock);
     }
 }

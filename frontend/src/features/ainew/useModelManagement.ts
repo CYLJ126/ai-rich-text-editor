@@ -223,17 +223,19 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
 
   async function queryValidation() {
     const current = detail?.validation;
-    if (!current || !selected) return;
+    if (!current || !selected) return null;
     const controller = detailRead.current;
     try {
       const result = await api.getModelValidation(context.scope, current.validationId, {signal: controller?.signal});
       if (live.current && controller === detailRead.current && !controller?.signal.aborted) {
         if (result.body.data.resourceId !== selected || result.body.data.validationId !== current.validationId) throw new Error('identity');
         setDetail(previous => previous ? {...previous, validation: result.body.data} : previous);
+        return result.body.data;
       }
     } catch (failure) {
       if (live.current && !controller?.signal.aborted) setError(modelFailure(failure));
     }
+    return null;
   }
 
   async function run(command: api.ModelCommand, token?: string) {

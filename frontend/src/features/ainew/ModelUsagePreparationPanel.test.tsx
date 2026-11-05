@@ -9,7 +9,7 @@ import {readModelChatHandoff, readModelUsageOperation, saveModelUsageOperation} 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/platform/modelUsage', async original => ({
   ...(await original<typeof import('@/services/platform/modelUsage')>()),
-  getModelUsagePreparation: vi.fn(), prepareModelUsage: vi.fn()
+  getModelUsageChecks: vi.fn(), getModelUsagePreparation: vi.fn(), prepareModelUsage: vi.fn()
 }));
 const scope = {tenantId: 'tenant', workspaceId: 'space'};
 const context = {userId: 'user', scope};
@@ -41,6 +41,7 @@ function panel(value = context) {
 beforeEach(() => {
   vi.resetAllMocks();
   sessionStorage.clear();
+  vi.mocked(api.getModelUsageChecks).mockRejectedValue(new Error('diagnostics unavailable'));
   vi.mocked(api.getModelUsagePreparation).mockResolvedValue(available);
   vi.mocked(api.prepareModelUsage).mockResolvedValue(done);
 });
@@ -169,5 +170,32 @@ it('surfaces corrupted recovery even with no selected model and never resends a 
   vi.mocked(api.getModelUsagePreparation).mockResolvedValue(ready);
   render(<ModelUsagePreparationPanel context={context} target={null} onPrepared={updated} onUnsafeChange={unsafe}/>);
   await waitFor(() => expect(updated).toHaveBeenCalled());
+  expect(api.prepareModelUsage).not.toHaveBeenCalled();
+});
+
+it('keeps authorized space checks readable when preparation is denied for the current person', async () => {
+  vi.mocked(api.getModelUsagePreparation).mockRejectedValue(new AiApiError(403, {}, 'denied'));
+  const checks: api.ModelUsageChecks = {
+    scope, resource: available.resource, binding: target.binding,
+    spaceConditions: api.spaceConditions.map(condition => ({
+      condition, ...(condition === 'WORKSPACE_SELECTION' ? {status: 'BLOCKED', reason: 'MODEL_NOT_ENABLED'}
+        : {status: 'PASS', reason: 'VERIFIED'})
+    })),
+    personalConditions: api.personalConditions.map(condition => ({
+      condition, ...(condition === 'MODEL_ACCESS' ? {status: 'BLOCKED', reason: 'MODEL_USE_DENIED'}
+        : condition === 'WORKSPACE_AI_ACCESS' ? {status: 'PASS', reason: 'VERIFIED'}
+          : {status: 'UNKNOWN', reason: 'PREREQUISITE_UNVERIFIED'})
+    })),
+    allowedActions: ['CONFIGURE_WORKSPACE_AI'],
+  };
+  vi.mocked(api.getModelUsageChecks).mockResolvedValue(checks);
+  const configure = vi.fn();
+  render(<ModelUsagePreparationPanel context={context} target={target} onUnsafeChange={unsafe}
+                                     onPrepared={updated} onConfigureWorkspace={configure}/>);
+  expect(await screen.findByText('此模型尚未在当前空间启用，请联系空间负责人配置。')).toBeVisible();
+  expect(screen.getByText('请联系模型授权管理员核对此空间内的模型使用资格。')).toBeVisible();
+  expect(screen.getAllByText('未核验')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', {name: '配置此空间 AI'}));
+  expect(configure).toHaveBeenCalledWith(target);
   expect(api.prepareModelUsage).not.toHaveBeenCalled();
 });

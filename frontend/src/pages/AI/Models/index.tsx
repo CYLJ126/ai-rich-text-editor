@@ -212,6 +212,12 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   if (oldSpaceLink) return <Alert type="info" title={hasWorkspaceMenu
     ? '正在打开工作空间 AI 配置。' : '当前账号未分配工作空间配置菜单。'}/>;
 
+  function openExecutionSpace(scope: WorkspaceScope, model: ModelSelection, management: WorkspaceScope) {
+    navigation.request(() => history.push(aiLocation('workspaces', userId, {
+      scope, execution: scope, model, management, chat: intent?.chat ?? chatReturn.scope, returnTo: 'models',
+    })));
+  }
+
   return <ViewportPage className="personal-models-page model-configuration-page" label="空间模型管理页面">
     {chatReturn.changed && <Alert type="info" title="原聊天空间已变化，请重新确认当前使用空间。"/>}
     {chatReturn.error && <Alert type="warning" title={chatReturn.error}/>}
@@ -237,8 +243,9 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
                                                                             onUnsafeChange={setModelUnsafe}
                                                                             useInChatDisabled={unsafe}
                                                                             onUseInChat={sameScope(execution ?? context.scope, chatReturn.scope) && !chatReturn.changed ? chatReturn.back : undefined}
-                                                                            onConfigureWorkspace={hasWorkspaceMenu ? model => {
-                                                                              setTargetModel({
+                                                                            onConfigureWorkspace={hasWorkspaceMenu ? (model, scope) => {
+                                                                              if (scope) openExecutionSpace(scope, model, context.scope);
+                                                                              else setTargetModel({
                                                                                 model,
                                                                                 management: context.scope
                                                                               });
@@ -269,10 +276,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     </Modal>}
     {targetModel &&
       <ExecutionSpaceDialog tenantId={targetModel.management.tenantId} onClose={() => setTargetModel(null)}
-                            onSelect={scope => navigation.request(() => history.push(aiLocation('workspaces', userId, {
-                              scope, execution: scope, model: targetModel.model, management: targetModel.management,
-                              chat: intent?.chat ?? chatReturn.scope, returnTo: 'models',
-                            })))}/>}
+                            onSelect={scope => openExecutionSpace(scope, targetModel.model, targetModel.management)}/>}
   </ViewportPage>;
 }
 

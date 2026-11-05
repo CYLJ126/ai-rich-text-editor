@@ -144,8 +144,9 @@ public final class ModelDrafts {
      *
      * @param draft      当前配置草稿；模型身份已存在但尚未保存配置时为空
      * @param credential 脱敏凭据状态，未提供凭据时返回 MISSING 状态而不是密钥内容
+     * @param currentPublicationMatchesDraft 当前发布是否采用此草稿及密钥代次；非资源发布时为空
      */
-    public record DraftView(Draft draft, CredentialView credential) {
+    public record DraftView(Draft draft, CredentialView credential, Boolean currentPublicationMatchesDraft) {
     }
 
     /**
@@ -232,6 +233,18 @@ public final class ModelDrafts {
             Objects.requireNonNull(code);
             Objects.requireNonNull(expiresAt);
             PlatformChecks.version(version, "version");
+        }
+
+        /**
+         * 成功结果允许用于发布的截止时间，与探测处理期限独立。
+         */
+        public Instant publishableUntil() {
+            return state == ValidationState.SUCCEEDED && checkedAt != null ? checkedAt.plusSeconds(600) : null;
+        }
+
+        public boolean publishableAt(Instant now) {
+            Instant until = publishableUntil();
+            return until != null && !checkedAt.isAfter(now) && now.isBefore(until);
         }
     }
 

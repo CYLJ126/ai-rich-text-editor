@@ -1,5 +1,5 @@
 import {useConfigurationDraft, useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {
   Alert,
   Button,
@@ -12,6 +12,7 @@ import {
   Popconfirm,
   Select,
   Spin,
+  Steps,
   Tag,
   Typography
 } from 'antd';
@@ -22,6 +23,7 @@ import {
   modelFieldsSchema,
   type ModelListFilter
 } from '@/services/platform/model';
+import type {ModelUsageChecks} from '@/services/platform/modelUsage';
 import type {ModelSelection} from '@/services/platform/ai';
 import {refKey} from '@/services/platform/ai';
 import {type BrowserContext, storageKey} from './storage';
@@ -41,7 +43,7 @@ interface Props {
   initialModel?: ModelSelection;
   initialResourceId?: string;
   authorization?: boolean;
-  onConfigureWorkspace?: (model: ModelSelection) => void;
+  onConfigureWorkspace?: (model: ModelSelection, scope?: BrowserContext['scope']) => void;
   onUpdated: (change: ModelChange) => void;
   onUnsafeChange?: (unsafe: boolean) => void;
   onBrowse?: () => void;
@@ -76,7 +78,6 @@ function buildModelItems(models: ManagedModel[], disabled: boolean): MasterDetai
       <Flex wrap gap={6}>
         <Tag>{model.ownershipType === 'TENANT' ? '租户模型' : '个人模型'}</Tag>
         <Tag>{stateName[model.state]}</Tag>
-        <Typography.Text type="secondary">管理版本 {model.version}</Typography.Text>
       </Flex>
     </Flex>
   }));
@@ -127,8 +128,12 @@ function ModelManager({
   const [formError, setFormError] = useState('');
   const [plan, setPlan] = useState('');
   const [usageUnsafe, setUsageUnsafe] = useState(false);
+  const [usageChecks, setUsageChecks] = useState<ModelUsageChecks | null>(null);
+  const [checkingPublication, setCheckingPublication] = useState(false);
+  const checkingRef = useRef(false);
+  const sectionId = useId();
   const detail = vm.detail;
-  const unsafe = sharingUnsafe || usageUnsafe || dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked;
+  const unsafe = sharingUnsafe || usageUnsafe || dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || checkingPublication || vm.blocked;
 
   useEffect(() => subscribeAiConfiguration(usageContext.userId, usageContext.scope, () => {
     setStale(true);
@@ -177,7 +182,7 @@ function ModelManager({
     }
   }, [vm.closed]);
 
-  const disabled = blockedByOther || sharingUnsafe || usageUnsafe || vm.closed || vm.saving || !!vm.pending || vm.blocked || vm.detailLoading;
+  const disabled = checkingPublication || blockedByOther || sharingUnsafe || usageUnsafe || vm.closed || vm.saving || !!vm.pending || vm.blocked || vm.detailLoading;
   const navigation = useConfigurationNavigation();
   const located = {scope: context.scope, resourceId: detail?.model.resourceId ?? ''};
   const draft = detail?.draft.draft;
@@ -185,12 +190,48 @@ function ModelManager({
   const validation = detail?.validation;
   const canCredential = !!credential && !!detail?.actions.has('model:edit') && (credential.state === 'MISSING' || credential.mayMaintain);
   const validationMatches = !!draft && !!validation && validation.draftVersion === draft.version && validation.credentialVersion === credential?.version;
-  const canPublish = validationMatches && validation?.state === 'SUCCEEDED' && !dirty;
-  const canMove = !blockedByOther && !sharingUnsafe && !usageUnsafe && !name && !dirty && !token && !vm.hasTemporarySecret && !vm.pending && !vm.saving && !vm.blocked;
+  const deadline = validation?.publishableUntil ? Date.parse(validation.publishableUntil) : undefined;
+  const [expiredDeadline, setExpiredDeadline] = useState<number>();
+  useEffect(() => {
+    if (deadline === undefined || !Number.isFinite(deadline)) return;
+    const timer = window.setTimeout(() => setExpiredDeadline(deadline), Math.max(0, deadline - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [deadline]);
+  const validationExpired = deadline !== undefined && (expiredDeadline === deadline || !(Date.now() < deadline));
+  const validationPassed = validationMatches && validation?.state === 'SUCCEEDED' && !validationExpired && credential?.state === 'CONFIGURED';
+  const canValidate = !!draft && !!credential?.mayMaintain && credential.state === 'CONFIGURED' && !!detail?.actions.has('model:validate');
+  const publicationOption = detail?.options.find(item => refKey(item.planRef) === plan);
+  const validationPending = validationMatches && (validation?.state === 'PENDING' || validation?.state === 'RUNNING');
+  const canPublish = validationPassed && !dirty && !!publicationOption && !!detail?.actions.has('model:publish');
+  const version = vm.selectedVersion;
+  const currentChecks = version && usageChecks?.resource.resourceId === version.resourceId
+  && refKey(usageChecks.binding) === refKey(version.binding)
+  && usageChecks.scope.workspaceId === usageContext.scope.workspaceId
+  && usageChecks.scope.tenantId === usageContext.scope.tenantId ? usageChecks : null;
+  const allConditions = [...(currentChecks?.spaceConditions ?? []), ...(currentChecks?.personalConditions ?? [])];
+  const usagePassed = !!currentChecks && allConditions.every(check => check.status === 'PASS');
+  const usageBlocked = allConditions.some(check => check.status === 'BLOCKED');
+  const sameDraftPublished = detail?.model.state === 'PUBLISHED' && detail.draft.currentPublicationMatchesDraft !== false;
+  const next = dirty || (!draft && !sameDraftPublished) ? 'config' : credential?.state !== 'CONFIGURED' && (!sameDraftPublished || !!draft) ? 'key'
+    : !sameDraftPublished ? 'release' : 'usage';
+  const nextAction = next === 'config'
+    ? detail?.actions.has('model:edit') && !!detail.options.length ? '前往填写或保存配置' : null
+    : next === 'key' ? canCredential ? '前往维护密钥' : null
+      : next === 'release' ? canPublish ? '前往发布版本' : !validationPassed && canValidate
+          ? validationPending ? '前往查看原验证' : '前往连接验证' : null
+        : version ? '查看使用条件' : detail?.versions.length ? '前往选择固定版本' : null;
+
+  function goToSection(section: string) {
+    const node = document.getElementById(`${sectionId}-${section}`);
+    node?.focus({preventScroll: true});
+    node?.scrollIntoView?.({block: 'start'});
+  }
+
+  const canMove = !blockedByOther && !sharingUnsafe && !usageUnsafe && !name && !dirty && !token && !vm.hasTemporarySecret && !vm.pending && !vm.saving && !checkingPublication && !vm.blocked;
 
   useConfigurationDraft({
     group: 'models', label: token || vm.hasTemporarySecret ? '模型临时密钥输入' : '模型配置草稿',
-    status: vm.blocked ? 'blocked' : vm.saving ? 'submitting' : vm.pending ? 'pending'
+    status: vm.blocked ? 'blocked' : vm.saving || checkingPublication ? 'submitting' : vm.pending ? 'pending'
       : dirty || !!name || !!token || vm.hasTemporarySecret ? 'dirty' : 'clean',
     save: !name && !token && !vm.hasTemporarySecret && !creating ? async () => {
       try {
@@ -226,6 +267,31 @@ function ModelManager({
       return true;
     }
     return false;
+  }
+
+  async function publish() {
+    if (disabled || !canPublish || checkingRef.current || !detail || !draft || !credential || !validation || !publicationOption) return;
+    checkingRef.current = true;
+    setCheckingPublication(true);
+    setFormError('');
+    try {
+      const current = await vm.queryValidation();
+      if (!current || current.state !== 'SUCCEEDED' || current.draftVersion !== draft.version
+        || current.credentialVersion !== credential.version
+        || (current.publishableUntil && !(Date.now() < Date.parse(current.publishableUntil)))) return;
+      await submit('publish', {
+        ...located,
+        expectedVersion: detail.model.version,
+        draftVersion: draft.version,
+        credentialVersion: credential.version,
+        validationId: current.validationId,
+        planRef: publicationOption.planRef,
+        catalogRevision: publicationOption.catalogRevision
+      });
+    } finally {
+      checkingRef.current = false;
+      setCheckingPublication(false);
+    }
   }
 
   async function save(values: Fields) {
@@ -345,24 +411,6 @@ function ModelManager({
           }}>取消添加模型</Button>
         </Card>
       </> : <>
-        <ModelUsagePreparationPanel
-          key={storageKey(usageContext, 'usage-target')} context={usageContext}
-          refreshRevision={usageRevision}
-          onConfigureWorkspace={onConfigureWorkspace}
-          target={vm.selectedVersion ? {
-            resourceId: vm.selectedVersion.resourceId,
-            binding: {...vm.selectedVersion.binding, type: 'binding'}
-          } : null}
-          disabled={blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
-          navigationDisabled={useInChatDisabled}
-          onUnsafeChange={setUsageUnsafe}
-          onPrepared={() => {
-            onUpdated({
-              kind: 'prepare',
-              resourceId: vm.selectedVersion?.resourceId ?? vm.selected
-            });
-            if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
-          }} onUseInChat={onUseInChat}/>
         <Flex vertical gap={12} className="personal-models-editor">
           {vm.detailLoading && <Flex gap={8} role="status"><Spin size="small"/>正在读取模型当前资格…</Flex>}
           {!detail && !vm.detailLoading &&
@@ -376,18 +424,62 @@ function ModelManager({
                   label: '归属',
                   children: detail.model.ownershipType === 'TENANT' ? '租户模型' : '个人模型'
                 },
-                {key: 'management', label: '管理空间', children: context.scope.workspaceId},
+                {key: 'management', label: '管理空间', children: managementName ?? context.scope.workspaceId},
+                ...(usageContext.scope.workspaceId !== context.scope.workspaceId ? [{
+                  key: 'execution', label: '使用检查的执行空间', children: usageContext.scope.workspaceId,
+                }] : []),
                 {key: 'state', label: '状态', children: stateName[detail.model.state]},
-                {key: 'identity', label: '资源', children: detail.model.resourceId},
-                {
-                  key: 'versions',
-                  label: '版本',
-                  children: `管理 ${detail.model.version} · 草稿 ${draft?.version ?? 0} · 凭据 ${credential?.version ?? 0}`
-                },
               ]}/>
+              <details>
+                <summary>技术详情</summary>
+                <Typography.Text type="secondary">资源 {detail.model.resourceId} · 管理版本 {detail.model.version} ·
+                  草稿版本 {draft?.version ?? '无'} · 密钥代次 {credential?.version ?? '无'}</Typography.Text>
+              </details>
             </Card>
 
-            <Card size="small" title="配置草稿">
+            <Card size="small" title="模型维护进度">
+              <Flex vertical gap={12}>
+                <Steps className="model-maintenance-steps" size="small"
+                       current={['config', 'key', 'release', 'usage'].indexOf(next)} items={[
+                  {
+                    title: '基本配置',
+                    content: dirty ? '有未保存修改' : draft ? '草稿已保存' : '尚未保存草稿',
+                    status: draft && !dirty ? 'finish' : undefined
+                  },
+                  {
+                    title: '密钥',
+                    content: credential?.state === 'CONFIGURED' ? '已配置' : credential?.state === 'REVOKED' ? '已撤销' : '尚未配置',
+                    status: credential?.state === 'CONFIGURED' ? 'finish' : undefined
+                  },
+                  {
+                    title: '验证发布', content: sameDraftPublished ? '当前配置已有发布版本'
+                      : validationPassed ? '验证通过，等待发布' : validationExpired || validation?.state === 'STALE' || validation && !validationMatches
+                        ? '验证已失效' : validation?.state === 'FAILED' ? '验证未通过'
+                          : validation ? '等待验证结果' : '需要验证当前配置',
+                    status: sameDraftPublished ? 'finish' : validationMatches && validation?.state === 'FAILED' ? 'error' : undefined
+                  },
+                  {
+                    title: '使用条件',
+                    content: !version ? '尚未选择固定版本' : usagePassed ? '当前检查全部通过' : usageBlocked ? '存在待处理项' : '有条件未核验',
+                    status: usagePassed ? 'finish' : undefined
+                  },
+                ]}/>
+                {nextAction ? <Button type="primary" disabled={disabled}
+                                      onClick={() => goToSection(next === 'usage' && !version ? 'versions' : next)}>
+                  {nextAction}
+                </Button> : <Typography.Text type="secondary">
+                  {next === 'config' ? detail.actions.has('model:edit') ? '请联系平台配置管理员核对审核模型方案。' : '请联系模型维护者保存配置。' : next === 'key' ? '请联系密钥责任人维护密钥。'
+                    : next === 'release' ? validationPassed
+                      ? detail.actions.has('model:publish') ? '请联系平台配置管理员核对审核发布方案。' : '验证已通过，请联系模型发布负责人。'
+                      : '请联系模型维护者验证并发布。' : '当前没有可供检查的版本。'}
+                </Typography.Text>}
+                {next !== 'usage' && detail.model.state === 'PUBLISHED' && detail.versions.length > 0 &&
+                  <Button type="link" onClick={() => goToSection('versions')}>查看已有发布版本</Button>}
+              </Flex>
+            </Card>
+
+            <Card id={`${sectionId}-config`} role="region" tabIndex={-1} aria-label="基本配置"
+                  size="small" title="配置草稿">
               {!detail.actions.has('model:edit') &&
                 <Typography.Paragraph>当前只有读取资格，不能编辑此草稿。</Typography.Paragraph>}
               {!detail.options.length &&
@@ -400,10 +492,14 @@ function ModelManager({
                 <Form.Item name="template" label="审核模型方案" rules={[{required: true}]}><Select
                   aria-label="审核模型方案" options={detail.options.map(item => ({
                   value: refKey(item.planRef),
-                  label: `${item.displayName} · ${item.planRef.id}@${item.planRef.version}`
+                  label: item.displayName
                 }))}/></Form.Item>
-                {draft && <Typography.Text type="secondary">方案模型：{draft.plan.remoteModel} ·
-                  费率 {draft.plan.rate.id}@{draft.plan.rate.version}</Typography.Text>}
+                {draft && <details>
+                  <summary>审核方案技术详情</summary>
+                  <Typography.Text type="secondary">{draft.plan.planRef.id}@{draft.plan.planRef.version} ·
+                    方案模型 {draft.plan.remoteModel} ·
+                    费率 {draft.plan.rate.id}@{draft.plan.rate.version}</Typography.Text>
+                </details>}
                 <Form.Item name="contextWindowTokens" label="上下文窗口（Token）" rules={[{required: true}]}><InputNumber
                   aria-label="上下文窗口" min={2} max={10_000_000} precision={0}/></Form.Item>
                 <Form.Item name="maxOutputTokens" label="输出上限（Token）" rules={[{required: true}]}><InputNumber
@@ -411,11 +507,11 @@ function ModelManager({
 
                 <Flex gap={8} wrap>
                   <Button htmlType="submit"
-                          type="primary"
+                          type={detail.actions.has('model:edit') && detail.options.length ? 'primary' : 'default'}
                           disabled={disabled || !detail.actions.has('model:edit') || !detail.options.length}>
                     保存模型草稿
                   </Button>
-                  <Button disabled={usageUnsafe || vm.saving || !!vm.pending}
+                  <Button disabled={usageUnsafe || checkingPublication || vm.saving || !!vm.pending}
                           onClick={() => {
                             setDirty(false);
                             setToken('');
@@ -431,7 +527,8 @@ function ModelManager({
                 type="secondary">保存只修改草稿，不改变已发布版本。远端模型及费率还须匹配平台审核方案。</Typography.Paragraph>
             </Card>
 
-            <Card size="small" title={detail.model.ownershipType === 'TENANT' ? '租户凭据' : '个人凭据'}>
+            <Card id={`${sectionId}-key`} role="region" tabIndex={-1} aria-label="密钥"
+                  size="small" title={detail.model.ownershipType === 'TENANT' ? '租户凭据' : '个人凭据'}>
               <Flex vertical gap={8}>
                 <Typography.Text>
                   {credential?.state === 'MISSING' ? '尚未配置密钥' : credential?.state === 'REVOKED' ? '密钥已撤销' : '密钥已配置，不能读取原值'}
@@ -476,13 +573,14 @@ function ModelManager({
               </Flex>
             </Card>
 
-            <Card size="small" title="连接验证与发布">
+            <Card id={`${sectionId}-release`} role="region" tabIndex={-1} aria-label="验证发布"
+                  size="small" title="连接验证与发布">
               <Flex vertical gap={8}>
                 <Typography.Text
                   type="secondary">验证只检查认证后的模型列表，不生成内容，也不保证供应商所有能力。</Typography.Text>
 
                 <Button
-                  disabled={disabled || dirty || !draft || !credential?.mayMaintain || credential.state !== 'CONFIGURED' || !detail.actions.has('model:validate')}
+                  disabled={disabled || dirty || !canValidate || validationPending}
                   onClick={() => {
                     if (draft && credential) void submit('validate', {
                       ...located,
@@ -494,11 +592,16 @@ function ModelManager({
                 </Button>
 
                 {validation && <>
-                  <Alert type={validation.state === 'SUCCEEDED' && validationMatches ? 'success' : 'info'}
-                         title={validationMatches ? validationText[validation.code] ?? '验证状态已更新，请检查当前结果。' : '此验证针对旧草稿或旧凭据，请重新验证。'}
-                         description={`验证 ${validation.validationId} · ${validation.state}`}/>
-
-                  <Button disabled={vm.saving} onClick={() => void vm.queryValidation()}>查询原验证状态</Button>
+                  <Alert
+                    type={validationPassed ? 'success' : validation.state === 'FAILED' || validationExpired ? 'warning' : 'info'}
+                    title={!validationMatches ? '此验证针对旧草稿或旧凭据，请重新验证。' : validationExpired ? validationText.VALIDATION_EXPIRED
+                      : validationText[validation.code] ?? '验证状态已更新，请检查当前结果。'}/>
+                  <details>
+                    <summary>验证技术详情</summary>
+                    验证 {validation.validationId} · {validation.state}</details>
+                  {detail.actions.has('model:validate') &&
+                    <Button disabled={vm.saving || checkingPublication}
+                            onClick={() => void vm.queryValidation()}>查询原验证状态</Button>}
                 </>}
 
                 <Typography.Text>审核发布方案</Typography.Text>
@@ -507,39 +610,33 @@ function ModelManager({
                         disabled
                         options={detail.options.map(item => ({
                           value: refKey(item.planRef),
-                          label: `${item.planRef.id}@${item.planRef.version} · ${item.rate.id}@${item.rate.version} · 目录 ${item.catalogRevision}`
+                          label: item.displayName
                         }))}/>
 
                 {!detail.options.length && <Typography.Text
                   type="secondary">暂无可采用方案，请联系平台配置管理员发布审核方案后重新读取。</Typography.Text>}
 
-                <Button type="primary"
-                        disabled={disabled || !canPublish || !plan || !detail.actions.has('model:publish')}
-                        onClick={() => {
-                          const option = detail.options.find(item => refKey(item.planRef) === plan);
-                          if (option && draft && credential && validation) void submit('publish', {
-                            ...located,
-                            expectedVersion: detail.model.version,
-                            draftVersion: draft.version,
-                            credentialVersion: credential.version,
-                            validationId: validation.validationId,
-                            planRef: option.planRef,
-                            catalogRevision: option.catalogRevision
-                          });
-                        }}>
+                {detail.actions.has('model:publish') &&
+                  <Button aria-label="发布新的固定版本" type={canPublish ? 'primary' : 'default'}
+                          disabled={disabled || !canPublish} loading={checkingPublication}
+                          onClick={() => void publish()}>
                   发布新的固定版本
-                </Button>
+                  </Button>}
+                {!detail.actions.has('model:publish') &&
+                  <Typography.Text type="secondary">当前没有发布权限，请联系模型发布负责人。</Typography.Text>}
 
                 <Typography.Text
                   type="secondary">发布采用十分钟内且依赖一致的成功验证。发布不分配预算，也不自动替换会话已应用的模型。</Typography.Text>
               </Flex>
             </Card>
 
-            <Card size="small" title="发布版本与依赖状态">
+            <Card id={`${sectionId}-versions`} role="region" tabIndex={-1} aria-label="发布版本"
+                  size="small" title="发布版本与依赖状态">
               <Flex vertical gap={8}>
                 {!detail.versions.length && <Typography.Text type="secondary">尚无发布版本。</Typography.Text>}
                 {detail.versions.map(item =>
                   <Button key={refKey(item.binding)} disabled={!canMove}
+                          aria-pressed={!!version && refKey(item.binding) === refKey(version.binding)}
                           onClick={() => void vm.selectVersion(item)}>
                     {item.remoteOperation} ·查看版本 {item.binding.version}
                   </Button>)}
@@ -551,16 +648,21 @@ function ModelManager({
                           onClick={() => void vm.open(detail.model.resourceId, detail.versionPage + 1)}>下一页版本</Button>
                 </Flex>}
 
-                {vm.selectedVersion && onConfigureWorkspace && <Button disabled={!canMove || useInChatDisabled}
-                                                                       onClick={() => vm.selectedVersion && onConfigureWorkspace({
-                                                                         resourceId: vm.selectedVersion.resourceId,
-                                                                         binding: vm.selectedVersion.binding
-                                                                       })}>配置空间使用条件</Button>}
-                {vm.selectedVersion && <Typography.Paragraph
-                  type="secondary">{vm.selectedVersion.source} · {vm.selectedVersion.binding.id}@{vm.selectedVersion.binding.version}<br/>
-                  {vm.selectedVersion.remoteOperation} · 上下文 {vm.selectedVersion.contextWindowTokens} ·
-                  费率 {vm.selectedVersion.rate.id}@{vm.selectedVersion.rate.version}
-                </Typography.Paragraph>}
+                {version && onConfigureWorkspace && <Button disabled={!canMove || useInChatDisabled}
+                                                            onClick={() => onConfigureWorkspace({
+                                                              resourceId: version.resourceId,
+                                                              binding: version.binding
+                                                            })}>
+                  选择执行空间
+                </Button>}
+                {vm.selectedVersion && <details>
+                  <summary>所选版本技术详情</summary>
+                  <Typography.Paragraph type="secondary">
+                    {vm.selectedVersion.source} · {vm.selectedVersion.binding.id}@{vm.selectedVersion.binding.version}<br/>
+                    {vm.selectedVersion.remoteOperation} · 上下文 {vm.selectedVersion.contextWindowTokens} ·
+                    费率 {vm.selectedVersion.rate.id}@{vm.selectedVersion.rate.version}
+                  </Typography.Paragraph>
+                </details>}
 
                 {vm.selectedVersion?.source !== 'RESOURCE' && vm.selectedVersion &&
                   <Typography.Text>此版本来自原平台目录，当前可用性请在聊天目录中重新核验。</Typography.Text>}
@@ -594,6 +696,30 @@ function ModelManager({
                                  disabled={blockedByOther || usageUnsafe || dirty || !!name || !!token || vm.hasTemporarySecret || !!vm.pending || vm.saving || vm.blocked || vm.closed || vm.detailLoading}
                                  onCreated={resourceId => void vm.open(resourceId)} onUnsafeChange={setSharingUnsafe}/>
           </Card>}
+        <section className="model-usage-section" id={`${sectionId}-usage`} tabIndex={-1} aria-label="使用条件">
+          {detail && !version && <Card size="small" title="使用条件">
+            请先在发布版本中选择一个固定版本。检查将在执行空间 {usageContext.scope.workspaceId} 中进行。
+          </Card>}
+          <ModelUsagePreparationPanel
+            key={storageKey(usageContext, 'usage-target')} context={usageContext}
+            refreshRevision={usageRevision}
+            onChecks={setUsageChecks}
+            onConfigureWorkspace={onConfigureWorkspace && (model => onConfigureWorkspace(model, usageContext.scope))}
+            target={vm.selectedVersion ? {
+              resourceId: vm.selectedVersion.resourceId,
+              binding: {...vm.selectedVersion.binding, type: 'binding'}
+            } : null}
+            disabled={checkingPublication || blockedByOther || dirty || !!name || !!token || vm.hasTemporarySecret || vm.saving || !!vm.pending || vm.blocked || vm.closed || vm.detailLoading}
+            navigationDisabled={useInChatDisabled}
+            onUnsafeChange={setUsageUnsafe}
+            onPrepared={() => {
+              onUpdated({
+                kind: 'prepare',
+                resourceId: vm.selectedVersion?.resourceId ?? vm.selected
+              });
+              if (vm.selectedVersion) void vm.selectVersion(vm.selectedVersion);
+            }} onUseInChat={onUseInChat}/>
+        </section>
       </>}
     </div>
   </MasterDetailLayout>;

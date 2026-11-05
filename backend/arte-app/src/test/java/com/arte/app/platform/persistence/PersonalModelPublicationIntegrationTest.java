@@ -275,7 +275,10 @@ class PersonalModelPublicationIntegrationTest {
             prepare(c);
             ModelResourceVersion first = publishSelectedFixture(c, "first", 0, 1, 1);
             String firstValidation = validation;
-            c.getBean(ModelDraftService.class).replaceCredential(f.f.f.actor, f.f.meta("rotate"), f.scope, model.resource(), 1, "replacement-personal-key");
+            ModelDraftService drafts = c.getBean(ModelDraftService.class);
+            assertEquals(Boolean.TRUE, drafts.get(f.f.f.actor, f.scope, model.resource()).currentPublicationMatchesDraft());
+            drafts.replaceCredential(f.f.f.actor, f.f.meta("rotate"), f.scope, model.resource(), 1, "replacement-personal-key");
+            assertEquals(Boolean.FALSE, drafts.get(f.f.f.actor, f.scope, model.resource()).currentPublicationMatchesDraft());
             assertEquals("CREDENTIAL_STALE", status(c, first).reason());
             assertThrows(RuntimeException.class, () -> accept(c, first, 128));
             validate(c, 1, 2, false);

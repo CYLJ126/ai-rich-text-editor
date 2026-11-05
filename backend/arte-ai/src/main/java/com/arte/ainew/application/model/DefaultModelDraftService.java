@@ -53,6 +53,7 @@ public final class DefaultModelDraftService implements ModelDraftService {
 
     private final ModelResourceStore models;
     private final ModelDraftStore store;
+    private final Supplier<ModelPublicationStore> publications;
     private final ModelConnectionTemplates templates;
     private final ModelCredentialCipher cipher;
     private final ReviewedModelPlanSource plans;
@@ -66,13 +67,14 @@ public final class DefaultModelDraftService implements ModelDraftService {
     private final PlatformIdGenerator ids;
     private final Clock clock;
 
-    public DefaultModelDraftService(ModelResourceStore models, ModelDraftStore store, ModelConnectionTemplates templates,
+    public DefaultModelDraftService(ModelResourceStore models, ModelDraftStore store, Supplier<ModelPublicationStore> publications, ModelConnectionTemplates templates,
                                     ModelCredentialCipher cipher, ReviewedModelPlanSource plans, Supplier<ModelGateway> gateway, PublicTransactionRunner tx, IdentityProvider identity, TenantStore tenants,
                                     WorkspaceStore workspaces, TenantMembershipStore tenantMembers, WorkspaceMembershipStore members,
                                     PreferenceStore preferences, AuthorizationService authorization, CommandReceiptStore receipts,
                                     PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, Clock clock) {
         this.models = models;
         this.store = store;
+        this.publications = publications;
         this.templates = templates;
         this.cipher = cipher;
         this.plans = plans;
@@ -200,7 +202,21 @@ public final class DefaultModelDraftService implements ModelDraftService {
     public DraftView get(TrustedActor actor, Scope scope, ResourceRef ref) {
         return read(actor, scope, () -> {
             require(actor, scope, ref, MODEL_READ);
-            return new DraftView(store.draft(ref).orElse(null), view(actor, ref, store.credential(ref).orElse(null)));
+            ModelResource model = current(scope, ref);
+            Draft draft = store.draft(ref).orElse(null);
+            CredentialView credential = view(actor, ref, store.credential(ref).orElse(null));
+            Boolean matchesPublication = null;
+            if (model.state() == ModelResource.State.PUBLISHED && DefaultModelPublicationService.family(ref).equals(model.bindingId())) {
+                ModelPublicationStore releases = publications.get();
+                if (releases != null) {
+                    matchesPublication = releases.find(scope, DefaultModelPublicationService.binding(ref, model.version()), true)
+                            .filter(value -> value.resource().equals(ref))
+                            .map(value -> draft != null && credential.state().equals("CONFIGURED")
+                                    && value.draftVersion() == draft.version() && value.credentialVersion() == credential.version())
+                            .orElse(null);
+                }
+            }
+            return new DraftView(draft, credential, matchesPublication);
         });
     }
 
@@ -467,6 +483,9 @@ public final class DefaultModelDraftService implements ModelDraftService {
     private Validation effective(Validation v) {
         if (v.state() == ValidationState.STALE) {
             return v;
+        }
+        if (v.state() == ValidationState.SUCCEEDED && !v.publishableAt(PlatformTimes.businessNow(clock))) {
+            return change(v, ValidationState.STALE, "VALIDATION_EXPIRED");
         }
         if ((v.state() == ValidationState.PENDING || v.state() == ValidationState.RUNNING) && expired(v) || !unchanged(v)) {
             return change(v, ValidationState.STALE, "STALE");

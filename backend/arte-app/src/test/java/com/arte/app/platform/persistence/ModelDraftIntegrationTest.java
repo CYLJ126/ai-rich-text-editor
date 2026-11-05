@@ -118,7 +118,7 @@ class ModelDraftIntegrationTest {
     }
 
     ModelDraftService graph(AuditSink audit) {
-        return new DefaultModelDraftService(f.store, store, templates, cipher, () -> new com.arte.ainew.spi.model.ReviewedModelPlanSource.Snapshot(
+        return new DefaultModelDraftService(f.store, store, () -> null, templates, cipher, () -> new com.arte.ainew.spi.model.ReviewedModelPlanSource.Snapshot(
                 List.of(new com.arte.ainew.pojo.model.ReviewedModelPlan(settings.planRef(), "Test model", ModelResourceIntegrationTest.CONN, "test-model",
                         Set.of(com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.TEXT_INPUT, com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.STREAMING),
                         8192, f.seed.rates().getFirst().definition(), Instant.parse("2026-01-01T00:00:00Z"), f.f.actor.principal().subjectId(), 1)),
@@ -229,6 +229,24 @@ class ModelDraftIntegrationTest {
         assertEquals(v.id(), request("validate").id());
         assertTrue(service.claimValidation(f.f.actor, f.scope, v.id()).isEmpty());
         assertFalse(f.allowed(model, MODEL_USE));
+        assertEquals(0, f.count("arte_ai_model_version"));
+    }
+
+    @Test
+    void successfulValidationExpiresAtThePublicationDeadline() {
+        save("save", 0);
+        credential();
+        var request = request("validate");
+        service.claimValidation(f.f.actor, f.scope, request.id()).orElseThrow();
+        var result = service.completeValidation(f.f.actor, f.scope, request.id(), new ProbeResult(true, "MODEL_FOUND"));
+        assertEquals(result.checkedAt().plusSeconds(600), result.publishableUntil());
+        clock.value = result.publishableUntil().minusSeconds(1);
+        assertEquals(ValidationState.SUCCEEDED, service.validation(f.f.actor, f.scope, request.id()).state());
+        clock.value = result.publishableUntil();
+        var expired = service.validation(f.f.actor, f.scope, request.id());
+        assertEquals(ValidationState.STALE, expired.state());
+        assertEquals("VALIDATION_EXPIRED", expired.code());
+        assertNull(expired.publishableUntil());
         assertEquals(0, f.count("arte_ai_model_version"));
     }
 

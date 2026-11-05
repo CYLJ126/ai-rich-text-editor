@@ -385,9 +385,24 @@ class ModelUsagePreparationIntegrationTest {
                 String prefix = "/ai-new/model-resource/";
                 String body = f.f.f.f.json.write(request);
                 assertEquals("PREPARABLE", http.ok(prefix + "getModelUsagePreparation", body, null, auth).getJSONObject("data").getStr("state"));
+                int commands = count("arte_platform_command"), events = count("arte_platform_outbox"), audits = count("arte_platform_audit");
+                var checks = http.ok(prefix + "getModelUsageChecks", body, null, auth).getJSONObject("data");
+                assertEquals(5, checks.getJSONArray("spaceConditions").size());
+                assertEquals(4, checks.getJSONArray("personalConditions").size());
+                assertEquals("PREPARE_OWN_BUDGET", checks.getJSONArray("allowedActions").getStr(0));
+                assertTrue(checks.toString().contains("BUDGET_NOT_PREPARED"));
+                assertFalse(checks.toString().contains("budgetRefs"));
+                assertFalse(checks.toString().contains("endpoint"));
+                assertFalse(checks.toString().contains(PersonalModelPublicationIntegrationTest.TOKEN));
+                assertEquals(0, count("arte_ai_budget_definition"));
+                assertEquals(0, count("arte_ai_account"));
+                assertEquals(commands, count("arte_platform_command"));
+                assertEquals(events, count("arte_platform_outbox"));
+                assertEquals(audits, count("arte_platform_audit"));
                 for (String field : List.of("amount", "subjectId", "rate", "budgetRef", "endpoint")) {
                     var forged = new java.util.HashMap<>(request);
                     forged.put(field, "forged");
+                    assertEquals(400, http.execute(prefix + "getModelUsageChecks", f.f.f.f.json.write(forged), null, auth).getResponse().getStatus());
                     assertEquals(400, http.execute(prefix + "prepareModelUsage", f.f.f.f.json.write(forged), "forged-" + field, auth).getResponse().getStatus());
                 }
                 assertEquals(400, http.execute(prefix + "prepareModelUsage", body, null, auth).getResponse().getStatus());

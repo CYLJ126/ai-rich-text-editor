@@ -55,5 +55,6 @@ export const validationText: Record<string, string> = {
   MODEL_NOT_FOUND: '供应商未列出目标模型，请检查远端模型名。',
   REMOTE_UNAVAILABLE: '供应商暂时不可达；本次没有通过验证。',
   INVALID_RESPONSE: '供应商模型列表响应不符合当前适配要求。',
+  VALIDATION_EXPIRED: '成功验证已过期，请重新验证后再发布。',
   STALE: '验证已失效，请保存当前配置并重新验证。',
 };

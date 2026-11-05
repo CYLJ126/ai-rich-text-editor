@@ -47,11 +47,13 @@ const credentialSchema = z.object({
   version,
   mayMaintain: z.boolean(), kind: z.enum(['PERSONAL', 'TENANT']).optional(),
 });
-export const modelDraftSchema = z.object({draft: draftSchema.nullable(), credential: credentialSchema});
+export const modelDraftSchema = z.object({
+  draft: draftSchema.nullable(), credential: credentialSchema, currentPublicationMatchesDraft: z.boolean().nullish()
+});
 export const modelValidationSchema = z.object({
   validationId: id, resourceId: id, draftVersion: positive, credentialVersion: positive,
   state: z.enum(['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'STALE']), code: z.string().max(96),
-  expiresAt: z.string(), checkedAt: z.string().nullable(),
+  expiresAt: z.string(), checkedAt: z.string().nullable(), publishableUntil: z.string().nullable().optional(),
 });
 export const modelVersionSchema = z.object({
   resourceId: id, binding: modelRefSchema, capability: ref('capability'), connection: connectionRefSchema,

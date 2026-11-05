@@ -11,7 +11,6 @@ import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.pojo.model.ModelDrafts.Credential;
 import com.arte.ainew.pojo.model.ModelDrafts.Draft;
 import com.arte.ainew.pojo.model.ModelDrafts.Validation;
-import com.arte.ainew.pojo.model.ModelDrafts.ValidationState;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.ainew.spi.model.*;
 import com.arte.core.api.access.AuthorizationService;
@@ -129,6 +128,10 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
         return "resource-" + DefaultCommandExecutor.digest(List.of(resource.tenantId(), resource.resourceId()));
     }
 
+    static DefinitionRef binding(ResourceRef resource, long version) {
+        return new DefinitionRef("binding", family(resource), "v" + version);
+    }
+
     static DefinitionRef secret(Credential value) {
         return new DefinitionRef("secret", value.secret().id(), "v" + value.version());
     }
@@ -203,12 +206,10 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
                     Validation validation = drafts.validation(scope, validationId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
                     Instant now = PlatformTimes.businessNow(clock);
                     if (!validation.resource().equals(resource) || !validation.requestedBy().equals(actor.principal().subjectId())
-                            || validation.state() != ValidationState.SUCCEEDED || validation.draftVersion() != draftVersion
+                            || !validation.publishableAt(now) || validation.draftVersion() != draftVersion
                             || validation.credentialVersion() != credentialVersion || !validation.templateDigest().equals(digest)
                             || !validation.planRef().equals(planRef) || !draft.settings().planRef().equals(planRef)
-                            || !validation.planDigest().equals(ReviewedModelPlanChecks.digest(draft.plan()))
-                            || validation.checkedAt() == null || validation.checkedAt().isAfter(now)
-                            || !now.isBefore(validation.checkedAt().plusSeconds(600))) {
+                            || !validation.planDigest().equals(ReviewedModelPlanChecks.digest(draft.plan()))) {
                         throw error(PlatformErrorCodeEnum.VERSION_CONFLICT);
                     }
                     ReviewedModelPlanSource.Snapshot reviewed = catalog.read();
@@ -219,7 +220,7 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
                     RateDefinition rate = reviewed.rates().stream().filter(value -> value.definition().equals(option.rate())).findFirst().orElseThrow();
                     long nextVersion = Math.incrementExact(old.version());
                     String version = "v" + nextVersion;
-                    DefinitionRef bindingRef = new DefinitionRef("binding", family(resource), version);
+                    DefinitionRef bindingRef = binding(resource, nextVersion);
                     DefinitionRef connectionRef = new DefinitionRef("connection", family(resource), version);
                     CapabilityDescriptor capability = new CapabilityDescriptor(new DefinitionRef("capability", family(resource), version), CapabilityDescriptor.Kind.GENERATION,
                             ControlDefinitionChecks.INPUT_SCHEMA,
@@ -366,13 +367,9 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
         if (dependency != null) {
             return dependency;
         }
-        ModelResource model = current(release.scope(), release.resource());
-        if (model.state() != ModelResource.State.PUBLISHED) {
-            return "MODEL_DISABLED";
-        }
-        ModelPublication publication = models.findCurrentBinding(release.scope().tenantId(), release.binding()).orElseThrow().publication();
-        if (gateway.get() == null || !gateway.get().supportsTextChat(publication.binding(), publication.connection())) {
-            return "ADAPTER_UNAVAILABLE";
+        String adapter = adapterBlocker(release);
+        if (adapter != null) {
+            return adapter;
         }
         try {
             authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(executionScope, WORKSPACE_AI_USE, "personal-model"));
@@ -383,6 +380,26 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
             }
             return "MODEL_USE_DENIED";
         }
+        String credential = credentialUseBlocker(actor, release, executionScope);
+        return credential == null ? executionPolicyBlocker(release, executionScope) : credential;
+    }
+
+    /**
+     * 调用方须已持有管理空间门控，并核验精确绑定。
+     */
+    public String adapterBlocker(ModelPublications.Release release) {
+        ModelPublication publication = models.findCurrentBinding(release.scope().tenantId(), release.binding())
+                .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)).publication();
+        ModelGateway adapter = gateway.get();
+        return adapter == null || !adapter.supportsTextChat(publication.binding(), publication.connection())
+                ? "ADAPTER_UNAVAILABLE" : null;
+    }
+
+    /**
+     * 读取凭据用途前，调用方须已核验空间 AI 及模型使用权限。
+     */
+    public String credentialUseBlocker(TrustedActor actor, ModelPublications.Release release, Scope executionScope) {
+        ModelResource model = current(release.scope(), release.resource());
         Credential credential = drafts.credential(release.resource()).orElse(null);
         if (credential == null || credential.revoked() || credential.version() != release.credentialVersion()
                 || credential.kind() != release.credentialKind() || !credential.scope().equals(release.scope()) || !secret(credential).equals(release.secret())) {
@@ -400,6 +417,10 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
                 return "CREDENTIAL_USE_DENIED";
             }
         }
+        return null;
+    }
+
+    public String executionPolicyBlocker(ModelPublications.Release release, Scope executionScope) {
         try {
             // 运行出口取租户与实际使用空间政策，管理空间只用于维护，不替代目标空间准入。
             if (!templates.digest(templates.require(executionScope, release.template())).equals(release.templateDigest())) {

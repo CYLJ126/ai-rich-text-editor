@@ -1,6 +1,7 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.model.ModelUsagePreparationService;
+import com.arte.ainew.pojo.model.ModelUsageChecks;
 import com.arte.ainew.pojo.model.ModelUsagePreparation;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.CommandMeta;
@@ -10,8 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 租户模型使用目标空间和当前消费者预算，管理空间及凭据责任主体不代替调用用户。
@@ -53,6 +53,13 @@ class TenantModelUsagePreparationIntegrationTest {
             var service = c.getBean(ModelUsagePreparationService.class);
             var binding = f.version.publication().binding().definition();
             assertEquals(ModelUsagePreparation.State.PREPARABLE, service.status(f.bob, f.target, f.f.model.resource(), binding).state());
+            var checks = service.checks(f.bob, f.target, f.f.model.resource(), binding);
+            assertEquals(f.target, checks.scope());
+            assertEquals(binding, checks.binding());
+            assertTrue(checks.spaceConditions().stream().allMatch(check -> check.status() == ModelUsageChecks.Status.PASS));
+            assertEquals(ModelUsageChecks.Check.evaluated(ModelUsageChecks.Condition.OWN_BUDGET, "BUDGET_NOT_PREPARED"),
+                    checks.personalConditions().getLast());
+            assertTrue(checks.allowedActions().contains("PREPARE_OWN_BUDGET"));
             var receipt = service.prepare(f.bob, new CommandMeta("bob-prepare", "a1"), f.target, f.f.model.resource(), binding);
             assertEquals(ModelUsagePreparation.State.READY, receipt.value().state());
             String ref = receipt.value().budgetRefs().getFirst();
@@ -85,7 +92,18 @@ class TenantModelUsagePreparationIntegrationTest {
             com.arte.app.platform.ai.AiControlData.WorkspaceView view = governance.get(f.bob, f.target);
             org.junit.jupiter.api.Assertions.assertTrue(view.canManage());
             org.junit.jupiter.api.Assertions.assertFalse(governance.modelOptions(f.bob, f.target, null).items().isEmpty());
-            governance.update(f.bob, new CommandMeta("bob-select", "m3"), f.target, view.workspaceVersion(), view.configuration().version(), true,
+            governance.update(f.bob, new CommandMeta("bob-unselect", "m3"), f.target, view.workspaceVersion(), view.configuration().version(), true, java.util.List.of());
+            var unselected = governance.get(f.bob, f.target);
+            var service = c.getBean(ModelUsagePreparationService.class);
+            var checks = service.checks(f.bob, f.target, f.f.model.resource(), f.version.publication().binding().definition());
+            assertEquals(ModelUsageChecks.Check.evaluated(ModelUsageChecks.Condition.WORKSPACE_SELECTION, "MODEL_NOT_ENABLED"),
+                    checks.spaceConditions().stream().filter(check -> check.condition() == ModelUsageChecks.Condition.WORKSPACE_SELECTION).findFirst().orElseThrow());
+            assertTrue(checks.allowedActions().contains("CONFIGURE_WORKSPACE_AI"));
+            assertFalse(checks.allowedActions().contains("PREPARE_OWN_BUDGET"));
+            assertEquals(ModelUsageChecks.Check.evaluated(ModelUsageChecks.Condition.MODEL_ACCESS, "MODEL_USE_DENIED"),
+                    checks.personalConditions().stream().filter(check -> check.condition() == ModelUsageChecks.Condition.MODEL_ACCESS).findFirst().orElseThrow());
+            assertEquals(ModelUsageChecks.Status.UNKNOWN, checks.personalConditions().getLast().status());
+            governance.update(f.bob, new CommandMeta("bob-select", "m3"), f.target, unselected.workspaceVersion(), unselected.configuration().version(), true,
                     java.util.List.of(new com.arte.ainew.pojo.model.ModelSelection(f.f.model.resource().resourceId(), f.version.publication().binding().definition())));
             assertThrows(PlatformException.class, () -> c.getBean(ModelUsagePreparationService.class)
                     .status(f.bob, f.target, f.f.model.resource(), f.version.publication().binding().definition()));
@@ -100,6 +118,7 @@ class TenantModelUsagePreparationIntegrationTest {
             var service = c.getBean(ModelUsagePreparationService.class);
             var binding = f.version.publication().binding().definition();
             assertThrows(PlatformException.class, () -> service.status(f.bob, f.target, f.f.model.resource(), binding));
+            assertThrows(PlatformException.class, () -> service.checks(f.bob, f.target, f.f.model.resource(), binding));
             f.grant(c);
             f.scopes(c, 0, Set.of(f.target.workspaceId()));
             f.consumers(c, 1, Set.of(f.bob.principal().subjectId()));

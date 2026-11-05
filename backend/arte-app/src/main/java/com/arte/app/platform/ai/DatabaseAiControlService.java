@@ -630,18 +630,11 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (!config.enabled()) {
                 return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "WORKSPACE_AI_DISABLED", List.of(), null);
             }
-            BudgetRules rules = workspaceAi.rules(scope, true);
-            BudgetPreset rule = rules.rules().stream().filter(b -> b.rate().equals(rate)).findFirst().orElse(null);
-            if (rule == null) {
-                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_NOT_CONFIGURED", List.of(), null);
-            }
-            NewAiProperties.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
-                    .orElseThrow(DatabaseAiControlService::unavailable);
-            if (!definition.currency().equals(rule.limit().currency())) {
-                throw unavailable();
-            }
-            if (rule.limit().amount().signum() == 0) {
-                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_ZERO", List.of(), rule.limit());
+            UsageRule checked = usageRule(scope, rate, catalog);
+            BudgetPreset rule = checked.rule();
+            if (checked.reason() != null) {
+                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, checked.reason(), List.of(),
+                        rule == null ? null : rule.limit());
             }
             ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId());
             String ownerKey = hash(scope.tenantId(), scope.workspaceId(), owner.subjectId());
@@ -679,9 +672,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (mapper.account(hash(ref), ownerKey) != null) {
                 throw unavailable();
             }
-            if (rule.limit().amount().signum() == 0) {
-                return new UsageBudget(ModelUsagePreparation.State.BLOCKED, "BUDGET_RULE_ZERO", List.of(), rule.limit());
-            }
             if (!prepare) {
                 return new UsageBudget(ModelUsagePreparation.State.PREPARABLE, "BUDGET_NOT_PREPARED", List.of(), rule.limit());
             }
@@ -689,6 +679,32 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             prepareBudgets(scope, owner.subjectId(), new Preset(true, List.of(), List.of(rule)), false);
             return new UsageBudget(ModelUsagePreparation.State.READY, "READY", List.of(ref), rule.limit());
         });
+    }
+
+    private record UsageRule(BudgetPreset rule, String reason) {
+    }
+
+    /**
+     * 在空间和精确模型均已受权的事务中检查预算规则，不读取个人账户。
+     */
+    String modelUsageRuleBlocker(Scope scope, DefinitionRef rate) {
+        tx.requireWritable();
+        CatalogView current = workspaceCatalog();
+        return current.catalog() == null ? "CATALOG_NOT_INITIALIZED" : usageRule(scope, rate, current.catalog()).reason();
+    }
+
+    private UsageRule usageRule(Scope scope, DefinitionRef rate, Catalog catalog) {
+        BudgetRules rules = workspaceAi.rules(scope, true);
+        BudgetPreset rule = rules == null ? null : rules.rules().stream().filter(b -> b.rate().equals(rate)).findFirst().orElse(null);
+        if (rule == null) {
+            return new UsageRule(null, "BUDGET_RULE_NOT_CONFIGURED");
+        }
+        NewAiProperties.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
+                .orElseThrow(DatabaseAiControlService::unavailable);
+        if (!definition.currency().equals(rule.limit().currency())) {
+            throw unavailable();
+        }
+        return new UsageRule(rule, rule.limit().amount().signum() == 0 ? "BUDGET_RULE_ZERO" : null);
     }
 
     /**

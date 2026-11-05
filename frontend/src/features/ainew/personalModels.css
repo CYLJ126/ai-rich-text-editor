@@ -139,3 +139,32 @@
 .model-configuration-page .model-tabs-actions > .ant-btn {
   flex-shrink: 0;
 }
+
+.personal-models-editor + .ant-card,
+.model-usage-section:not(:empty) {
+  margin-block-start: 12px;
+}
+
+.model-usage-section > .ant-card + .ant-card {
+  margin-block-start: 12px;
+}
+
+.personal-models details {
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 600px) {
+  .model-maintenance-steps.ant-steps-horizontal {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .model-maintenance-steps.ant-steps-horizontal .ant-steps-item {
+    padding-inline-start: 0;
+  }
+
+  .model-maintenance-steps.ant-steps-horizontal .ant-steps-item-rail {
+    display: none;
+  }
+}

@@ -147,12 +147,14 @@ public final class ModelDraftPayload {
      * @param code              过程状态或安全结果码，不包含供应商响应正文、密钥或异常详情
      * @param expiresAt         本次请求的处理期限，不是已完成结果的能力保证期
      * @param checkedAt         最近一次状态推进时间；刚受理、尚未领取时为空
+     * @param publishableUntil 成功结果用于发布的截止时间；未通过时为空
      */
     public record ValidationView(String validationId, String resourceId, long draftVersion, long credentialVersion,
-                                 String state, String code, Instant expiresAt, Instant checkedAt) {
+                                 String state, String code, Instant expiresAt, Instant checkedAt,
+                                 Instant publishableUntil) {
         public static ValidationView from(Validation v) {
             return new ValidationView(v.id(), v.resource().resourceId(), v.draftVersion(), v.credentialVersion(),
-                    v.state().name(), v.code(), v.expiresAt(), v.checkedAt());
+                    v.state().name(), v.code(), v.expiresAt(), v.checkedAt(), v.publishableUntil());
         }
     }
 
