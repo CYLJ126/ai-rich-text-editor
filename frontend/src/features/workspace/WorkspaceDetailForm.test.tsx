@@ -1,7 +1,11 @@
 import React from 'react';
-import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/workspace';
+import * as ai from '@/services/platform/ai';
+import * as policy from '@/services/platform/policy';
+import {AiApiError} from '@/services/arte-ai/request';
+import {tenantPolicyView, workspacePolicyView} from '@root/tests/fixtures/policy';
 import WorkspaceDetailForm from './WorkspaceDetailForm';
 import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
@@ -11,13 +15,13 @@ vi.mock('@umijs/max', () => ({
     })
   }
 }));
-vi.mock('@/features/workspace/WorkspaceAiGovernanceEditor', () => ({
-  default: ({scope, disabled, onUpdated}: {
-    scope: api.WorkspaceScope; disabled: boolean; onUpdated: () => void
-  }) => <section aria-label="AI 表单"><span>AI 目标 {scope.workspaceId}</span>
-    <button type="button" disabled={disabled}>编辑 AI 测试</button>
-    <button type="button" disabled={disabled} onClick={onUpdated}>保存 AI 测试</button>
-  </section>
+vi.mock('@/services/platform/ai', async original => ({
+  ...await original<typeof import('@/services/platform/ai')>(),
+  getWorkspaceAi: vi.fn(), getWorkspaceBudgetRules: vi.fn(), listWorkspaceBudgetRateOptions: vi.fn(),
+  updateWorkspaceAi: vi.fn(), updateWorkspaceBudgetRules: vi.fn(), prepareWorkspaceAi: vi.fn(),
+}));
+vi.mock('@/services/platform/policy', async original => ({
+  ...await original<typeof import('@/services/platform/policy')>(), getPolicy: vi.fn(), executePolicyCommand: vi.fn(),
 }));
 vi.mock('@/services/platform/workspace', async original => ({
   ...await original<typeof import('@/services/platform/workspace')>(),
@@ -39,12 +43,31 @@ const receipt = (value: api.WorkspaceView) => reply({
   operationId: 'operation', status: 1 as const, delivery: 0 as const,
   value, resultVersion: value.version, acceptedAt: 'now', completedAt: 'now'
 });
+const aiView = (canManage = true): ai.WorkspaceAiView => ({
+  mode: 'DATABASE', workspaceVersion: 7, canManage, needsImport: false,
+  templateVersion: 1, models: [], defaults: null,
+  configuration: {scope, version: 0, enabled: true, models: [], templateVersion: 1},
+});
 let counter = 0;
 let userId: string;
 beforeEach(() => {
   vi.resetAllMocks();
   sessionStorage.clear();
   userId = `details-${++counter}`;
+  vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply(aiView()));
+  vi.mocked(ai.getWorkspaceBudgetRules).mockResolvedValue(reply({
+    scope, configuration: {scope, rules: [], version: 0}, workspaceVersion: 7,
+    canManage: true, canRaiseBudget: false, approvedCaps: []
+  }));
+  vi.mocked(ai.listWorkspaceBudgetRateOptions).mockResolvedValue(reply({items: [], nextCursor: null}));
+  vi.mocked(policy.getPolicy).mockImplementation(async (kind, target) => kind === 'tenant'
+    ? {kind, value: {...tenantPolicyView, policy: {...tenantPolicyView.policy, tenantId: target.tenantId}}}
+    : {
+      kind, value: {
+        ...workspacePolicyView, workspaceVersion: 7,
+        policy: {...workspacePolicyView.policy, scope: target as api.WorkspaceScope}
+      }
+    });
   vi.mocked(api.getWorkspace).mockImplementation(async target => reply(view(target)));
   vi.mocked(api.checkWorkspaceAccess).mockResolvedValue(reply({allowed: true, reason: 'ALLOWED', checkedAt: 'now'}));
   vi.mocked(api.getWorkspacePreference).mockResolvedValue(reply({
@@ -97,34 +120,51 @@ it('saves metadata before a guarded target change and keeps the chat preference 
   expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
 });
 
-it('reads and edits the exact supplied scope and locks AI while metadata is dirty', async () => {
+it('keeps the AI draft and its target through a metadata save, then uses the confirmed parent version', async () => {
   const saved = vi.fn();
   render(<WorkspaceDetailForm userId={userId} scope={scope} onSaved={saved}/>);
-  await waitFor(() => expect(screen.getByLabelText('空间名称')).toHaveValue('空间 B'));
-  expect(api.checkWorkspaceAccess).toHaveBeenCalledWith(scope, 'workspace', 'workspace:update', expect.anything());
+  await screen.findByText('已启用 · 已配置 0 个模型');
+  fireEvent.click(screen.getByRole('tab', {name: 'AI 配置'}));
+  fireEvent.click(await screen.findByRole('switch', {name: '启用此空间 AI'}));
+  fireEvent.click(screen.getByRole('tab', {name: '概览'}));
   fireEvent.change(screen.getByLabelText('空间名称'), {target: {value: '新的 B'}});
-  expect(screen.getByRole('button', {name: '编辑 AI 测试'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button', {name: '保存空间信息'}));
   await waitFor(() => expect(saved).toHaveBeenCalledWith(expect.objectContaining({scope, name: '新的 B'})));
   expect(api.renameWorkspace).toHaveBeenCalledWith({
-    scope,
-    expectedVersion: 7,
-    name: '新的 B',
-    description: '原描述'
+    scope, expectedVersion: 7, name: '新的 B', description: '原描述'
   }, expect.any(String), expect.anything());
+  expect(api.checkWorkspaceAccess).toHaveBeenCalledWith(scope, 'workspace', 'workspace:update', expect.anything());
+  fireEvent.click(screen.getByRole('tab', {name: 'AI 配置'}));
+  expect(screen.getByRole('switch', {name: '启用此空间 AI'})).not.toBeChecked();
+  const updated = aiView();
+  vi.mocked(ai.updateWorkspaceAi).mockResolvedValue(reply({
+    operationId: 'operation', status: 1, delivery: 0, resultVersion: 1, acceptedAt: 'now', completedAt: 'now',
+    value: {
+      ...updated,
+      workspaceVersion: 9,
+      configuration: {scope, enabled: false, models: [], templateVersion: 1, version: 1}
+    }
+  }));
+  vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply({...updated, workspaceVersion: 9}));
+  fireEvent.click(screen.getByRole('button', {name: '保存空间 AI 配置'}));
+  await waitFor(() => expect(ai.updateWorkspaceAi).toHaveBeenCalledWith({
+    scope, expectedWorkspaceVersion: 8, expectedVersion: 0, enabled: false, models: [],
+  }, expect.any(String)));
+  expect(ai.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
   expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
 });
+
 it('keeps AI fields unavailable until the new space is saved and does not select it for chat', async () => {
   const saved = vi.fn();
   render(<WorkspaceDetailForm userId={userId} tenants={[{value: 'tenant', label: '租户'}]} onSaved={saved}/>);
-  expect(screen.getByLabelText('启用此空间 AI')).toBeDisabled();
-  expect(screen.queryByRole('region', {name: 'AI 表单'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab', {name: 'AI 配置'})).not.toBeInTheDocument();
+  expect(ai.getWorkspaceAi).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByRole('combobox', {name: '新空间所属租户'})).toBeEnabled());
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '新空间所属租户'}));
   fireEvent.click(await screen.findByText('租户', {selector: '.ant-select-item-option-content'}));
   await waitFor(() => expect(screen.getByLabelText('空间名称')).toBeEnabled());
   fireEvent.change(screen.getByLabelText('空间名称'), {target: {value: '新空间'}});
-  fireEvent.click(screen.getByRole('button', {name: '保存空间信息'}));
+  fireEvent.click(screen.getByRole('button', {name: '创建工作空间'}));
   await waitFor(() => expect(saved).toHaveBeenCalledWith(expect.objectContaining({
     scope: {
       tenantId: 'tenant',
@@ -175,21 +215,55 @@ it('discards late details from a previous space and clears the form on logout', 
   expect(screen.getByLabelText('空间名称')).toHaveValue('空间 C');
   act(() => window.dispatchEvent(new CustomEvent('arte-account-session-cleared', {detail: userId})));
   expect(screen.getByLabelText('空间名称')).toHaveValue('');
-  expect(screen.queryByRole('region', {name: 'AI 表单'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab', {name: 'AI 配置'})).not.toBeInTheDocument();
 });
 
 
-it('rereads the workspace concurrency version after saving AI before allowing metadata edits', async () => {
+it('keeps metadata, AI and policy permissions independent for a space administrator', async () => {
+  vi.mocked(api.getWorkspace).mockResolvedValue(reply({...view(), currentRole: 1}));
+  vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply(aiView(false)));
+  vi.mocked(policy.getPolicy).mockImplementation(async kind => {
+    if (kind === 'workspace') throw new AiApiError(403, {code: 'PLATFORM_ACCESS_DENIED'});
+    return {
+      kind: 'tenant',
+      value: {...tenantPolicyView, policy: {...tenantPolicyView.policy, tenantId: scope.tenantId}}
+    };
+  });
   render(<WorkspaceDetailForm userId={userId} scope={scope}/>);
-  await waitFor(() => expect(screen.getByLabelText('空间名称')).toHaveValue('空间 B'));
-  vi.mocked(api.getWorkspace).mockResolvedValue(reply({...view(), version: 9}));
-  fireEvent.click(screen.getByRole('button', {name: '保存 AI 测试'}));
-  await waitFor(() => expect(api.getWorkspace).toHaveBeenCalledTimes(2));
   await waitFor(() => expect(screen.getByLabelText('空间名称')).toBeEnabled());
-  fireEvent.change(screen.getByLabelText('空间名称'), {target: {value: 'AI保存后改名'}});
+  expect(screen.getByText('管理员')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', {name: 'AI 配置'}));
+  await screen.findByText('只有当前空间负责人可以修改空间 AI 设置。');
+  expect(screen.getByRole('button', {name: '保存空间 AI 配置'})).toBeDisabled();
+  expect(ai.getWorkspaceBudgetRules).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('tab', {name: '政策'}));
+  await screen.findByText('当前无权读取或修改空间政策；需要当前空间负责人的治理资格。');
+  expect(await screen.findByRole('button', {name: '查看租户政策'})).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '保存空间政策'})).not.toBeInTheDocument();
+});
+
+it('preserves the inline policy draft and updates its CAS version even when the tenant ceiling is hidden', async () => {
+  const readPolicy = vi.mocked(policy.getPolicy).getMockImplementation();
+  if (!readPolicy) throw new Error('Missing policy fixture');
+  vi.mocked(policy.getPolicy).mockImplementation(async (kind, target) => {
+    if (kind === 'tenant') throw new AiApiError(403, {code: 'PLATFORM_ACCESS_DENIED'});
+    return readPolicy(kind, target);
+  });
+  render(<WorkspaceDetailForm userId={userId} scope={scope}/>);
+  await screen.findByRole('tab', {name: '概览'});
+  fireEvent.click(screen.getByRole('tab', {name: '政策'}));
+  const pane = await screen.findByLabelText('空间政策编辑');
+  expect(await screen.findByText(/你当前无权查看完整租户政策/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '查看租户政策'})).not.toBeInTheDocument();
+  fireEvent.click(await within(pane).findByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
+  fireEvent.click(screen.getByRole('tab', {name: '概览'}));
+  fireEvent.change(screen.getByLabelText('空间描述'), {target: {value: '新描述'}});
   fireEvent.click(screen.getByRole('button', {name: '保存空间信息'}));
-  await waitFor(() => expect(api.renameWorkspace).toHaveBeenCalledWith(expect.objectContaining({
-    scope,
-    expectedVersion: 9
-  }), expect.any(String), expect.anything()));
+  await screen.findByText('空间信息已保存。');
+  fireEvent.click(screen.getByRole('tab', {name: '政策'}));
+  expect(within(pane).getByRole('switch', {name: '允许个人凭据'})).toBeChecked();
+  fireEvent.click(within(pane).getByRole('button', {name: '保存空间政策'}));
+  await waitFor(() => expect(policy.executePolicyCommand).toHaveBeenCalledWith(expect.objectContaining({
+    kind: 'workspace', request: expect.objectContaining({scope, expectedWorkspaceVersion: 8})
+  }), expect.any(String)));
 });

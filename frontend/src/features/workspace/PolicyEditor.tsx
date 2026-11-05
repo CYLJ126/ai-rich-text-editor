@@ -8,8 +8,7 @@ import {
   policyCommandSchema,
   type PolicyKind,
   type PolicyScope,
-  type PolicySnapshot,
-  type TenantPolicyView
+  type PolicySnapshot
 } from '@/services/platform/policy';
 import {type PolicyOperation, readPolicyOperation, savePolicyOperation} from './policyRecovery';
 import {
@@ -22,11 +21,12 @@ import {
 } from './policyForm';
 import PolicyRulesFields from './PolicyRulesFields';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
+import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
 
 type Props = {
   userId: string; scope: PolicyScope; kind: PolicyKind; workspaceName?: string; refreshRevision?: number;
-  ceiling?: TenantPolicyView | null;
-  onUnsafeChange?: (unsafe: boolean) => void; onSaved?: () => void;
+  versionChange?: WorkspaceVersionChange;
+  onUnsafeChange?: (unsafe: boolean) => void; onSaved?: (change?: WorkspaceVersionChange) => void;
   onSnapshot?: (snapshot: PolicySnapshot | null) => void;
 };
 
@@ -42,7 +42,7 @@ function Editor({
                   kind,
                   workspaceName,
                   refreshRevision = 0,
-                  ceiling,
+                  versionChange,
                   onUnsafeChange,
                   onSaved,
                   onSnapshot
@@ -172,9 +172,16 @@ function Editor({
     if (!refreshRevision) return;
     if (state.current.dirty || state.current.pending || state.current.blocked) {
       setStale(true);
-      setNotice('租户政策上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
+      setNotice('空间政策或租户上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
     } else void load();
   }, [refreshRevision]);
+
+  const workspaceVersion = snapshot?.kind === 'workspace' ? snapshot.value.workspaceVersion : undefined;
+  useEffect(() => {
+    if (!versionChange || workspaceVersion !== versionChange.from) return;
+    setSnapshot(value => value?.kind === 'workspace'
+      ? {...value, value: {...value.value, workspaceVersion: versionChange.to}} : value);
+  }, [versionChange, workspaceVersion]);
 
   async function run(command?: PolicyCommand) {
     if (!live.current || writing.current || blocked || (command && pendingRef.current)) return false;
@@ -205,7 +212,8 @@ function Editor({
       const refreshed = await load();
       if (!live.current) return false;
       setNotice(refreshed ? '政策已保存，已重新读取当前版本。' : '政策已确认保存，但最新政策读取失败，请重新读取后继续。');
-      callbacks.current.onSaved?.();
+      callbacks.current.onSaved?.(operation.command.kind === 'workspace'
+        ? confirmedWorkspaceVersion(operation.command.request.expectedWorkspaceVersion) : undefined);
       return refreshed && cleared;
     } catch (error) {
       if (!live.current) return false;
@@ -296,9 +304,6 @@ function Editor({
             children: snapshot.value.tenantPolicyVersion
           }] : []),
         ]}/>
-        {kind === 'workspace' && ceiling?.policy.tenantId === scope.tenantId &&
-          <Alert type="info" title="当前可读取的租户上限"
-                 description={`个人凭据：${ceiling.policy.rules.personalCredentialsAllowed ? '允许' : '禁止'}；供应商：${ceiling.policy.rules.allowedProviders.join('、') || '无'}；主机：${ceiling.policy.rules.allowedDestinations.join('、') || '无'}。保存仍以服务端当前政策为准。`}/>}
         <Card size="small">
           <Form form={form} name={`workspace-policy-${kind}`} layout="vertical" disabled={locked}
                 onValuesChange={() => {

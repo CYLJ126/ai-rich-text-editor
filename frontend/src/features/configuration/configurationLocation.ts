@@ -1,5 +1,6 @@
 import type {WorkspaceScope} from '@/services/platform/workspace';
 
+export type WorkspaceTab = 'overview' | 'ai' | 'policy';
 export type TenantTab = 'overview' | 'workspaces' | 'policy';
 
 export function readConfigurationLocation(search: string, userId: string) {
@@ -27,7 +28,7 @@ export function readConfigurationLocation(search: string, userId: string) {
   return {tenantId, workspaceId, tab};
 }
 
-export function workspaceConfigurationLocation(userId: string, scope: WorkspaceScope, tab: 'overview' | 'policy') {
+export function workspaceConfigurationLocation(userId: string, scope: WorkspaceScope, tab: WorkspaceTab) {
   return `/Environment/Workspaces?${new URLSearchParams({account: userId, ...scope, tab})}`;
 }
 

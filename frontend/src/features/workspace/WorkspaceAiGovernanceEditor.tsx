@@ -18,6 +18,7 @@ import {AiApiError} from '@/services/arte-ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import {type BrowserContext, readOperation, saveOperation} from '@/features/ainew/storage';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
+import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
 
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
@@ -28,11 +29,16 @@ export default function WorkspaceAiGovernanceEditor({
                                                       onUpdated,
                                                       onUnsafeChange,
                                                       refreshRevision = 0,
+                                                      versionChange,
                                                       disabled = false
                                                     }: {
   disabled?: boolean;
   refreshRevision?: number;
-  scope: WorkspaceScope; context: BrowserContext; onUpdated: () => void; onUnsafeChange?: (unsafe: boolean) => void
+  versionChange?: WorkspaceVersionChange;
+  scope: WorkspaceScope;
+  context: BrowserContext;
+  onUpdated: (change?: WorkspaceVersionChange) => void;
+  onUnsafeChange?: (unsafe: boolean) => void
 }) {
   const [restored] = useState(() => readOperation<Operation>(context, 'workspace-ai-governance', ''));
   const pending = useRef(restored.value ? {key: restored.value.key, ...restored.value.request} : null);
@@ -55,7 +61,7 @@ export default function WorkspaceAiGovernanceEditor({
   const [loading, setLoading] = useState(false);
   const unsafe = blocked || uncertain || saving || dirty;
   useConfigurationDraft({
-    group: 'workspace', label: dirtyKind === 'rules' ? '空间预算规则' : '空间 AI 配置', order: 20,
+    group: 'workspace-ai', label: dirtyKind === 'rules' ? '空间预算规则' : '空间 AI 配置', order: 20,
     status: blocked ? 'blocked' : saving ? 'submitting' : uncertain ? 'pending' : dirty ? 'dirty' : 'clean',
     save: dirtyKind === 'models' ? async () => {
       if (!view?.configuration || !view.canManage || disabled) return false;
@@ -89,7 +95,19 @@ export default function WorkspaceAiGovernanceEditor({
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsafe]);
 
-  async function load(outerSignal?: AbortSignal) {
+  useEffect(() => {
+    if (!versionChange) return;
+    setView(value => value?.workspaceVersion === versionChange.from ? {
+      ...value,
+      workspaceVersion: versionChange.to
+    } : value);
+    setRuleView(value => value?.workspaceVersion === versionChange.from ? {
+      ...value,
+      workspaceVersion: versionChange.to
+    } : value);
+  }, [versionChange, view?.workspaceVersion, ruleView?.workspaceVersion]);
+
+  async function load(outerSignal?: AbortSignal, preserve = false) {
     reader.current?.abort();
     const controller = new AbortController();
     reader.current = controller;
@@ -125,10 +143,12 @@ export default function WorkspaceAiGovernanceEditor({
       setView(result);
       setRuleView(budget);
       setRates(options);
-      setEnabled(result.configuration?.enabled ?? false);
-      setModels(result.configuration?.models ?? []);
-      setRules(budget?.configuration?.rules ?? []);
-      setDirtyKind(null);
+      if (!preserve || dirtyKind !== 'models') {
+        setEnabled(result.configuration?.enabled ?? false);
+        setModels(result.configuration?.models ?? []);
+      }
+      if (!preserve || dirtyKind !== 'rules') setRules(budget?.configuration?.rules ?? []);
+      if (!preserve) setDirtyKind(null);
     } finally {
       outerSignal?.removeEventListener('abort', cancel);
       if (live.current && !signal.aborted) setLoading(false);
@@ -204,7 +224,8 @@ export default function WorkspaceAiGovernanceEditor({
       setUncertain(false);
       setBlocked(false);
       setSaved(operation.kind === 'prepare' ? '首次准备已保存；尚未选择模型或创建账户。' : operation.kind === 'models' ? '空间开关与模型版本已保存；预算规则保持独立。' : '独立预算规则已保存；模型选择保持独立。');
-      onUpdated();
+      const request = operation.request as { expectedWorkspaceVersion?: unknown } | undefined;
+      onUpdated(confirmedWorkspaceVersion(request?.expectedWorkspaceVersion));
       return true;
     } catch (failure) {
       if (!live.current) return false;
@@ -215,7 +236,7 @@ export default function WorkspaceAiGovernanceEditor({
         setBlocked(!saveOperation(context, 'workspace-ai-governance', '', null));
       }
       setError(unknown ? '保存结果待确认，请保留本页并按原操作重试。'
-        : failure instanceof AiApiError && failure.httpStatus === 409 ? '配置已变化，请重新读取后修改。' : '配置未保存，请核对当前权限、版本和批准额度。');
+        : failure instanceof AiApiError && failure.httpStatus === 409 ? '配置已变化。可读取最新版本并保留草稿，核对后再保存。' : '配置未保存，请核对当前权限、版本和批准额度。');
       return false;
     } finally {
       writing.current = false;
@@ -309,14 +330,23 @@ export default function WorkspaceAiGovernanceEditor({
         <Button disabled={!canEditRules} loading={saving} onClick={() => {
           if (ruleView.configuration) void run('rules', {
             scope,
-            expectedWorkspaceVersion: view.workspaceVersion,
+            expectedWorkspaceVersion: ruleView.workspaceVersion,
             expectedRuleVersion: ruleView.configuration.version,
             rules
           });
         }}>保存独立预算规则</Button>
       </>}
     </>}
-    <Button disabled={loading || saving || uncertain || blocked}
-            onClick={() => void load().catch(() => setError('最新配置读取失败，请重试。'))}>重新读取配置</Button>
+    <Flex gap={8} wrap>
+      {dirty && <Button disabled={loading || saving || uncertain || blocked}
+                        onClick={() => void load(undefined, true).then(() => {
+                          if (live.current) setError('已读取最新版本，当前草稿已保留。保存前请核对完整模型或预算规则。');
+                        }).catch(() => setError('最新配置读取失败，当前草稿已保留。'))}>读取最新版本并保留 AI
+        草稿</Button>}
+      <Button disabled={loading || saving || uncertain || blocked}
+              onClick={() => void load().catch(() => setError('最新配置读取失败，请重试。'))}>
+        {dirty ? '放弃 AI 草稿并重新读取' : '重新读取配置'}
+      </Button>
+    </Flex>
   </Flex>;
 }

@@ -19,7 +19,6 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
   registerWorkspaceGuard: vi.fn(() => () => {
   })
 }));
-vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => ({records: [], hasMore: false})}));
 beforeEach(() => {
   session.user = {id: 'operator', menus: []};
 });

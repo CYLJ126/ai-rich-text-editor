@@ -18,7 +18,8 @@ export default function PolicySettingsPage() {
     if (tab !== undefined && !['tenant', 'workspace', 'policy'].includes(tab)) throw new Error('政策页签无效');
     if (tab === 'workspace' && !workspaceId)
       return <Alert type="info" title="请选择要配置政策的工作空间。"
-                    action={<Button onClick={() => history.push('/Environment/Workspaces')}>选择工作空间</Button>}/>;
+                    action={<Button
+                      onClick={() => history.push('/Environment/Workspaces?tab=policy')}>选择工作空间</Button>}/>;
     if (tenantId && workspaceId && tab !== 'tenant')
       return <SpacePolicyLocation to={workspaceConfigurationLocation(userId, {tenantId, workspaceId}, 'policy')}/>;
     return <TenantSettings key={JSON.stringify([userId, tenantId])} userId={userId}

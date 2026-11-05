@@ -153,7 +153,7 @@ it('retains a dirty workspace draft when a tenant save requests a refresh', asyn
   const {rerender} = render(<PolicyEditor userId="alice" scope={policyScope} kind="workspace" refreshRevision={0}/>);
   await draft('workspace');
   rerender(<PolicyEditor userId="alice" scope={policyScope} kind="workspace" refreshRevision={1}/>);
-  await screen.findByText('租户政策上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
+  await screen.findByText('空间政策或租户上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
   expect(api.getPolicy).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('switch', {name: '允许个人凭据'})).toBeChecked();
   expect(screen.getByRole('button', {name: '保存空间政策'})).toBeDisabled();

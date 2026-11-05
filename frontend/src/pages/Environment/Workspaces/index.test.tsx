@@ -1,7 +1,11 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {checkWorkspaceAccess, getWorkspace} from '@/services/platform/workspace';
+import {getWorkspace} from '@/services/platform/workspace';
+import {browseAccessibleTenants} from '@/services/platform/tenant';
+import {retainWorkspaceSelection} from '@/features/workspace/useWorkspace';
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
+import type WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
 import Page from './index';
 
 vi.mock('@umijs/max', () => ({
@@ -14,32 +18,43 @@ vi.mock('@umijs/max', () => ({
 vi.mock('@/features/workspace/useWorkspace', () => ({
   useWorkspaceManagement: () => directory,
   registerWorkspaceGuard: vi.fn(() => () => {
-  })
+  }),
+  retainWorkspaceSelection: vi.fn(),
 }));
-vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => candidates}));
+vi.mock('@/services/platform/tenant', () => ({browseAccessibleTenants: vi.fn()}));
 vi.mock('@/services/platform/workspace', async original => ({
-  ...await original<typeof import('@/services/platform/workspace')>(),
-  checkWorkspaceAccess: vi.fn(),
-  getWorkspace: vi.fn()
-}));
-vi.mock('@/features/workspace/WorkspacePolicyDialog', () => ({
-  default: ({target}: { target: typeof space }) => <div>政策目标 {target.scope.workspaceId}</div>
+  ...await original<typeof import('@/services/platform/workspace')>(), getWorkspace: vi.fn()
 }));
 vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
-  default: ({scope, onSaved, onUnsafeChange, onCancel}: {
-    scope?: typeof space.scope;
-    onSaved: (view: typeof space) => void;
-    onUnsafeChange: (unsafe: boolean) => void;
-    onCancel?: () => void
-  }) => <section aria-label="配置详情测试">{scope ? `编辑目标 ${scope.workspaceId}` : '新增空间表单'}
-    <button type="button" onClick={() => onUnsafeChange(true)}>模拟修改</button>
-    <button type="button" onClick={() => {
-      onUnsafeChange(false);
-      onSaved({...space, scope: {...space.scope, workspaceId: scope?.workspaceId ?? 'C'}});
-    }}>模拟保存
-    </button>
-    {onCancel && <button type="button" onClick={onCancel}>取消新增</button>}
-  </section>
+  default: function Detail({
+                             scope,
+                             tab,
+                             tenants,
+                             onSaved,
+                             onUnsafeChange,
+                             onCancel,
+                             preferences
+                           }: React.ComponentProps<typeof WorkspaceDetailForm>) {
+    const [dirty, setDirty] = useState(false);
+    useConfigurationDraft({group: 'workspace-metadata', label: '空间基本信息', status: dirty ? 'dirty' : 'clean'});
+    return <section aria-label="配置详情测试">
+      {scope ? `编辑目标 ${scope.workspaceId} · ${tab}` : '新增空间表单'}
+      {!scope && tenants?.map(tenant => <div key={tenant.value}>{tenant.label}</div>)}
+      <button type="button" onClick={() => {
+        setDirty(true);
+        onUnsafeChange?.(true);
+      }}>模拟修改
+      </button>
+      <button type="button" onClick={() => {
+        setDirty(false);
+        onUnsafeChange?.(false);
+        onSaved?.({...space, scope: {...space.scope, workspaceId: scope?.workspaceId ?? 'C'}});
+      }}>模拟保存
+      </button>
+      {onCancel && <button type="button" onClick={onCancel}>取消新增</button>}
+      {preferences}
+    </section>;
+  }
 }));
 const space = {
   scope: {tenantId: 't', workspaceId: 'B'},
@@ -50,73 +65,97 @@ const space = {
 };
 const pref = {defaultScope: space.scope, startupScope: space.scope, lastScope: null, favorites: [], version: 0};
 let directory: ReturnType<typeof import('@/features/workspace/useWorkspace').useWorkspaceManagement>;
-let candidates: ReturnType<typeof import('@/features/workspace/usePolicyDirectory').usePolicyDirectory>;
+const select = vi.fn();
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   window.history.replaceState(null, '', '/Environment/Workspaces?tenantId=t&workspaceId=B&returnTo=chat');
   directory = {
     records: [{...space, defaultWorkspace: false}], preference: pref, search: '', loaded: true,
     load: vi.fn(), loadMore: vi.fn(), updatePreference: vi.fn(), favorite: vi.fn(() => false)
   } as unknown as typeof directory;
-  candidates = {
-    records: [{...space, defaultWorkspace: false}],
-    hasMore: false,
-    error: '',
-    reload: vi.fn()
-  } as unknown as typeof candidates;
-  vi.mocked(checkWorkspaceAccess).mockResolvedValue({body: {data: {allowed: true}}} as never);
+  vi.mocked(retainWorkspaceSelection).mockReturnValue({select, release: vi.fn()});
+  vi.mocked(browseAccessibleTenants).mockResolvedValue({
+    body: {
+      data: {
+        records: [{id: 'org-without-space', name: '尚无空间的组织'}], nextCursor: null, exhausted: true,
+      }
+    }
+  } as never);
 });
 afterEach(cleanup);
 
-it('starts empty even with a URL target, and only opens a detail after clicking a card', async () => {
+const choose = () => fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
+
+it('opens an overview only after selecting a card when no tab is specified', () => {
   const page = render(<Page/>);
-  expect(screen.getByText(/点击左侧工作空间以编辑/)).toHaveTextContent('2. 点击左上方新增图标，以创建新工作空间。');
+  expect(screen.getByText('从左侧选择工作空间，或点击列表上方的新建按钮。')).toBeInTheDocument();
   expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', {name: '返回原聊天'})).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
-  expect(screen.getByText('编辑目标 B')).toBeInTheDocument();
-  expect(screen.queryByText(/点击左侧工作空间以编辑/)).not.toBeInTheDocument();
+  choose();
+  expect(screen.getByText('编辑目标 B · overview')).toBeInTheDocument();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
   page.unmount();
   render(<Page/>);
   expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
-  expect(screen.getByText(/点击左侧工作空间以编辑/)).toBeInTheDocument();
 });
-it('blocks target and toolbar actions while the form is dirty and uses the selected policy scope', async () => {
+
+it('protects dirty details before entering the selected workspace and reports only committed selection', async () => {
+  select.mockImplementation(async (_scope, commit) => {
+    commit();
+    return true;
+  });
   render(<Page/>);
-  fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
+  choose();
   fireEvent.click(screen.getByRole('button', {name: '模拟修改'}));
-  await waitFor(() => expect(screen.getByRole('button', {name: '新建工作空间'})).toBeEnabled());
-  fireEvent.click(screen.getByRole('button', {name: '新建工作空间'}));
+  fireEvent.click(screen.getByRole('button', {name: '进入此空间'}));
   expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
-  expect(screen.queryByText('新增空间表单')).not.toBeInTheDocument();
+  expect(select).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', {name: '留在本页'}));
   fireEvent.click(screen.getByRole('button', {name: '模拟保存'}));
-  fireEvent.click(screen.getByRole('button', {name: '租户与空间政策'}));
-  expect(screen.getByText('政策目标 B')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '进入此空间'}));
+  expect(await screen.findByText('已进入此空间，聊天使用空间已切换。')).toBeInTheDocument();
+  expect(select).toHaveBeenCalledWith(space.scope, expect.any(Function));
 });
-it('creates in a separate initial form and opens the saved new workspace locally', async () => {
+
+it('uses the independent tenant directory for creation and opens the created space locally', async () => {
   render(<Page/>);
-  await waitFor(() => expect(screen.getByRole('button', {name: '新建工作空间'})).toBeEnabled());
+  expect(browseAccessibleTenants).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', {name: '新建工作空间'}));
   expect(screen.getByText('新增空间表单')).toBeInTheDocument();
-  expect(screen.queryByText(/点击左侧工作空间以编辑/)).not.toBeInTheDocument();
+  expect(await screen.findByText('尚无空间的组织')).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '进入此空间'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '模拟保存'}));
-  expect(screen.getByText('编辑目标 C')).toBeInTheDocument();
+  expect(screen.getByText('编辑目标 C · overview')).toBeInTheDocument();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+  expect(directory.updatePreference).not.toHaveBeenCalled();
 });
-it('merges search and refresh and clears the account startup preference from its toolbar icon', async () => {
+
+it('keeps search in the directory and startup settings under my preferences', () => {
   render(<Page/>);
   fireEvent.change(screen.getByLabelText('搜索工作空间'), {target: {value: '空间'}});
   fireEvent.click(screen.getByRole('button', {name: /^搜\s*索$/}));
   expect(directory.load).toHaveBeenCalledWith('空间');
+  expect(screen.queryByRole('button', {name: '清除启动空间偏好'})).not.toBeInTheDocument();
+  choose();
+  expect(screen.getByText('我的偏好')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '清除启动空间偏好'}));
   expect(directory.updatePreference).toHaveBeenCalledWith({startupScope: null});
 });
 
-it('validates an explicit policy link and opens its workspace dialog without changing preferences', async () => {
-  window.history.replaceState(null, '', '/Environment/Workspaces?account=alice&tenantId=t&workspaceId=B&tab=policy');
+it.each(['ai', 'policy'])('validates an explicit %s link and opens the corresponding detail tab', async tab => {
+  window.history.replaceState(null, '', `/Environment/Workspaces?account=alice&tenantId=t&workspaceId=B&tab=${tab}`);
   vi.mocked(getWorkspace).mockResolvedValue({body: {data: space}} as never);
   render(<Page/>);
-  expect(await screen.findByText('政策目标 B')).toBeInTheDocument();
+  expect(await screen.findByText(`编辑目标 B · ${tab}`)).toBeInTheDocument();
   expect(getWorkspace).toHaveBeenCalledWith(space.scope, {signal: expect.any(AbortSignal)});
   expect(directory.updatePreference).not.toHaveBeenCalled();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+});
+
+it('keeps the current usage space when revalidation fails', async () => {
+  select.mockResolvedValue(false);
+  render(<Page/>);
+  choose();
+  fireEvent.click(screen.getByRole('button', {name: '进入此空间'}));
+  await waitFor(() => expect(screen.getByText(/未切换使用空间/)).toBeInTheDocument());
+  expect(screen.queryByText('已进入此空间，聊天使用空间已切换。')).not.toBeInTheDocument();
 });
