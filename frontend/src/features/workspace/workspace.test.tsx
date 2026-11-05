@@ -4,6 +4,7 @@ import {request} from '@umijs/max';
 import * as api from '@/services/platform/workspace';
 import {
   registerWorkspaceGuard,
+  retainWorkspaceSelection,
   useCurrentWorkspace,
   useWorkspaceDirectory,
   useWorkspaceManagement,
@@ -85,6 +86,31 @@ it('browses management candidates without a personal preference and never initia
   expect(selected).not.toHaveBeenCalled();
   expect(JSON.parse(sessionStorage.getItem(workspaceStorageKey(userId, 'currentWorkspace')) ?? 'null').value).toEqual(a);
   window.removeEventListener('arte-workspace-selected', selected);
+});
+
+it('revalidates explicit entry and retains it when opening chat without a personal preference', async () => {
+  const userId = `explicit-entry-${++counter}`;
+  const selected = vi.fn();
+  window.addEventListener('arte-workspace-selected', selected);
+  const entry = retainWorkspaceSelection(userId);
+  try {
+    expect(api.getWorkspacePreference).not.toHaveBeenCalled();
+    vi.mocked(api.getWorkspacePreference).mockRejectedValue(new AiApiError(404, {code: 'PLATFORM_NOT_FOUND'}));
+    const committed = vi.fn();
+    await expect(entry.select(b, committed)).resolves.toBe(true);
+    expect(committed).toHaveBeenCalledOnce();
+    expect(api.getWorkspace).toHaveBeenCalledWith(b, {signal: expect.any(AbortSignal)});
+    expect(selected).toHaveBeenCalledOnce();
+    expect(api.initializePersonalWorkspace).not.toHaveBeenCalled();
+  } finally {
+    entry.release();
+    window.removeEventListener('arte-workspace-selected', selected);
+  }
+  const chat = renderHook(() => useWorkspaceDirectory(userId));
+  await waitFor(() => expect(chat.result.current.loaded).toBe(true));
+  expect(chat.result.current.current?.scope).toEqual(b);
+  expect(api.initializePersonalWorkspace).not.toHaveBeenCalled();
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
 });
 
 it('keeps even an explicit management directory selection local to that directory', async () => {

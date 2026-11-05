@@ -4,7 +4,7 @@ export const environmentEntries = [
     menuCode: 'EnvironmentTenants',
     path: '/Environment/Tenants',
     title: '租户配置',
-    description: '查看和维护已有租户的政策。',
+    description: '查看所属租户的概览、可访问工作空间和租户政策。',
   },
   {
     menuCode: 'EnvironmentWorkspaces',

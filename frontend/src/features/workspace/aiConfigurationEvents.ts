@@ -3,11 +3,18 @@ import {sameScope} from '@/features/ainew/storage';
 
 const channel = 'arte-ai-configuration-changed';
 const key = 'arte.ai.configuration.revision';
-type Change = { userId: string; scope: WorkspaceScope; revision: string; tenantWide?: boolean };
+type Change = {
+  userId: string;
+  revision: string;
+} & ({ scope: { tenantId: string }; tenantWide: true } | { scope: WorkspaceScope; tenantWide?: false });
 
 /** 通知只携带账号、范围与失效标记，不含密钥、额度或许可。 */
-export function notifyAiConfiguration(userId: string, scope: WorkspaceScope, tenantWide = false) {
-  const change: Change = {userId, scope, revision: crypto.randomUUID(), ...(tenantWide ? {tenantWide: true} : {})};
+export function notifyAiConfiguration(userId: string, scope: WorkspaceScope, tenantWide?: boolean): void;
+export function notifyAiConfiguration(userId: string, scope: { tenantId: string }, tenantWide: true): void;
+export function notifyAiConfiguration(userId: string, scope: WorkspaceScope | {
+  tenantId: string
+}, tenantWide = false) {
+  const change = {userId, scope, revision: crypto.randomUUID(), ...(tenantWide ? {tenantWide: true} : {})};
   window.dispatchEvent(new CustomEvent(channel, {detail: change}));
   try {
     localStorage.setItem(key, JSON.stringify(change));
@@ -18,7 +25,9 @@ export function notifyAiConfiguration(userId: string, scope: WorkspaceScope, ten
 export function subscribeAiConfiguration(userId: string, scope: WorkspaceScope, changed: () => void) {
   const accept = (value: unknown) => {
     const change = value as Partial<Change> | null;
-    if (change?.userId === userId && typeof change.revision === 'string' && (sameScope(change.scope, scope) || (change.tenantWide === true && change.scope?.tenantId === scope.tenantId))) changed();
+    if (change?.userId !== userId || typeof change.revision !== 'string' || !change.scope || typeof change.scope !== 'object') return;
+    if (change.tenantWide === true ? change.scope.tenantId === scope.tenantId
+      : 'workspaceId' in change.scope && sameScope(change.scope, scope)) changed();
   };
   const local = (event: Event) => accept((event as CustomEvent).detail);
   const remote = (event: StorageEvent) => {

@@ -1,0 +1,13 @@
+.tenant-configuration-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tenant-directory-controls {
+  margin-block: 0 12px;
+}
+
+.tenant-directory-controls:last-child {
+  margin-block: 12px 0;
+}

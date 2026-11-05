@@ -1,7 +1,7 @@
 import React from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {checkWorkspaceAccess} from '@/services/platform/workspace';
+import {checkWorkspaceAccess, getWorkspace} from '@/services/platform/workspace';
 import Page from './index';
 
 vi.mock('@umijs/max', () => ({
@@ -18,7 +18,9 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
 }));
 vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => candidates}));
 vi.mock('@/services/platform/workspace', async original => ({
-  ...await original<typeof import('@/services/platform/workspace')>(), checkWorkspaceAccess: vi.fn()
+  ...await original<typeof import('@/services/platform/workspace')>(),
+  checkWorkspaceAccess: vi.fn(),
+  getWorkspace: vi.fn()
 }));
 vi.mock('@/features/workspace/WorkspacePolicyDialog', () => ({
   default: ({target}: { target: typeof space }) => <div>政策目标 {target.scope.workspaceId}</div>
@@ -108,4 +110,13 @@ it('merges search and refresh and clears the account startup preference from its
   expect(directory.load).toHaveBeenCalledWith('空间');
   fireEvent.click(screen.getByRole('button', {name: '清除启动空间偏好'}));
   expect(directory.updatePreference).toHaveBeenCalledWith({startupScope: null});
+});
+
+it('validates an explicit policy link and opens its workspace dialog without changing preferences', async () => {
+  window.history.replaceState(null, '', '/Environment/Workspaces?account=alice&tenantId=t&workspaceId=B&tab=policy');
+  vi.mocked(getWorkspace).mockResolvedValue({body: {data: space}} as never);
+  render(<Page/>);
+  expect(await screen.findByText('政策目标 B')).toBeInTheDocument();
+  expect(getWorkspace).toHaveBeenCalledWith(space.scope, {signal: expect.any(AbortSignal)});
+  expect(directory.updatePreference).not.toHaveBeenCalled();
 });

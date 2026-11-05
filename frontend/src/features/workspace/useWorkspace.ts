@@ -139,11 +139,11 @@ class WorkspaceDirectory {
     });
   }
 
-  attach = () => {
+  attach = (load = true) => {
     this.consumers++;
     if (this.stopped && !this.state.current) this.update({loaded: false});
     this.stopped = false;
-    if (!this.state.loaded && !this.state.loading && this.userId) void this.load();
+    if (load && !this.state.loaded && !this.state.loading && this.userId) void this.load();
     return () => {
       this.consumers--;
       if (this.consumers > 0) return;
@@ -228,7 +228,8 @@ class WorkspaceDirectory {
     return parsed.success ? parsed.data : null;
   };
 
-  select = async (scope: api.WorkspaceScope, onSelected?: () => void) => {
+  select = async (scope: api.WorkspaceScope, onSelected?: () => void, entrySignal?: AbortSignal) => {
+    if (entrySignal?.aborted) return false;
     if (this.state.unsafeToLeave || this.state.recoveryBlocked) {
       this.update({warning: '未确认空间操作无法安全恢复，请先处理原操作后再切换。'});
       return false;
@@ -237,23 +238,37 @@ class WorkspaceDirectory {
     this.selection?.abort();
     const controller = new AbortController();
     this.selection = controller;
+    const signal = entrySignal ? AbortSignal.any([controller.signal, entrySignal]) : controller.signal;
     this.update({selecting: true, error: null});
     try {
-      const response = await api.getWorkspace(scope, {signal: controller.signal});
-      if (this.stopped || controller.signal.aborted) return false;
+      const response = await api.getWorkspace(scope, {signal});
+      if (this.stopped || signal.aborted) return false;
       const view = validateView(scope, response.body.data);
       // Re-run protection at commit: the user may have edited a draft while getWorkspace was in flight.
       let committed = false;
       protectWorkspaceChange(this.userId, scope, () => {
-        if (this.stopped || controller.signal.aborted) return;
+        if (this.stopped || signal.aborted) return;
         this.accept(view, true);
         committed = true;
         onSelected?.();
-        if (!this.management && this.state.preference && !this.state.pending && !this.write) void this.updatePreference({lastScope: scope});
+        if (!this.management && !this.state.pending && !this.write) {
+          if (this.state.preference) void this.updatePreference({lastScope: scope});
+          else if (entrySignal) {
+            const selectedRevision = this.revision;
+            // 配置页可在聊天目录尚未挂载时显式进入，仅读取既有偏好。
+            void api.getWorkspacePreference({signal}).then(({body}) => {
+              if (this.stopped || signal.aborted || this.revision !== selectedRevision
+                || this.state.pending || this.write) return;
+              this.update({preference: this.state.preference ?? body.data});
+              void this.updatePreference({lastScope: scope});
+            }).catch(() => { /* 无可用偏好时不初始化，选择结果仍有效。 */
+            });
+          }
+        }
       });
       return committed;
     } catch (failure) {
-      if (!this.stopped && !controller.signal.aborted) {
+      if (!this.stopped && !signal.aborted) {
         this.update({error: failure});
         if (authExpired(failure)) this.update({current: null, records: [], canCreate: false, canRename: false});
         else if (isHidden(failure) && sameScope(scope, this.state.current?.scope)) {
@@ -263,7 +278,7 @@ class WorkspaceDirectory {
       }
       return false;
     } finally {
-      if (!this.stopped && !controller.signal.aborted) this.update({selecting: false});
+      if (!this.stopped && this.selection === controller) this.update({selecting: false});
     }
   };
   load = async (search = this.state.search): Promise<void> => {
@@ -283,13 +298,15 @@ class WorkspaceDirectory {
     try {
       // A missing preference is the server's indication that this account has not initialized its default space.
       // Never initialize on network/401/403/503 failures or while a previous command is uncertain.
+      const stored = this.management ? null : readValue<api.WorkspaceScope>(workspaceStorageKey(this.userId, 'currentWorkspace'));
+      const parsed = api.workspaceScopeSchema.safeParse(stored?.value);
       let prefs: Awaited<ReturnType<typeof api.getWorkspacePreference>> | undefined;
       try {
         prefs = await api.getWorkspacePreference({signal: controller.signal});
       } catch (failure) {
         if (failure instanceof AiApiError && failure.httpStatus === 404 && failure.code === 'PLATFORM_NOT_FOUND'
           && !controller.signal.aborted && !this.stopped && !this.state.pending && !this.state.recoveryBlocked && !this.write) {
-          if (this.management) {
+          if (this.management || this.state.current || parsed.success) {
             this.update({preference: null});
           } else {
             await this.initialize();
@@ -306,20 +323,22 @@ class WorkspaceDirectory {
         exhausted: list.body.data.exhausted,
       });
       if (this.management) return;
-      if (!prefs) throw new Error('个人空间偏好未读取。');
-      const stored = readValue<api.WorkspaceScope>(workspaceStorageKey(this.userId, 'currentWorkspace'));
-      const parsed = api.workspaceScopeSchema.safeParse(stored.value);
-      if (stored.warning || (stored.value && !parsed.success)) this.update({warning: '保存的空间选择无法读取，已重新校验启动或默认空间。'});
+      if (stored?.warning || (stored?.value && !parsed.success)) this.update({warning: '保存的空间选择无法读取，已重新校验启动或默认空间。'});
       const preferred = this.state.current?.scope ?? (parsed.success ? parsed.data : null)
-        ?? prefs.body.data.startupScope ?? prefs.body.data.lastScope ?? prefs.body.data.defaultScope;
+        ?? prefs?.body.data.startupScope ?? prefs?.body.data.lastScope ?? prefs?.body.data.defaultScope;
+      if (!preferred) throw new Error('当前空间和个人空间偏好均不可用。');
       let view: api.WorkspaceView;
       let fallback = false;
       try {
         const response = await api.getWorkspace(preferred, {signal: controller.signal});
         view = validateView(preferred, response.body.data);
       } catch (failure) {
-        if (!isHidden(failure)) throw failure;
-        if (selectionRevision === this.revision) this.update({current: null, canCreate: false, canRename: false});
+        if (!isHidden(failure) || this.stopped || controller.signal.aborted || selectionRevision !== this.revision) throw failure;
+        this.update({current: null, canCreate: false, canRename: false});
+        if (!prefs) {
+          if (!this.state.pending && !this.state.recoveryBlocked && !this.write) await this.initialize();
+          return;
+        }
         const response = await api.getWorkspace(prefs.body.data.defaultScope, {signal: controller.signal});
         view = validateView(prefs.body.data.defaultScope, response.body.data);
         fallback = true;
@@ -517,6 +536,20 @@ if (typeof window !== 'undefined') window.addEventListener('arte-account-session
   managementStores.get(userId)?.clear();
   guards.delete(userId);
 });
+
+/** 保留公共选择服务供显式“进入”操作使用，挂载时不加载或回退使用空间。 */
+export function retainWorkspaceSelection(userId: string) {
+  const directory = directoryFor(userId);
+  const lifetime = new AbortController();
+  const release = directory.attach(false);
+  return {
+    select: (scope: api.WorkspaceScope, onSelected: () => void) => directory.select(scope, onSelected, lifetime.signal),
+    release: () => {
+      lifetime.abort();
+      release();
+    },
+  };
+}
 
 export function useCurrentWorkspace(userId: string) {
   const directory = directoryFor(userId);

@@ -36,9 +36,9 @@ it('notifies spaces in the same tenant after tenant policy changes without cross
   const stop = [subscribeAiConfiguration('alice', {...scope, workspaceId: 'B'}, sameTenant),
     subscribeAiConfiguration('alice', {...scope, tenantId: 'other'}, otherTenant),
     subscribeAiConfiguration('bob', scope, otherAccount)];
-  notifyAiConfiguration('alice', scope, true);
+  notifyAiConfiguration('alice', {tenantId: scope.tenantId}, true);
   expect(sameTenant).toHaveBeenCalledTimes(1);
   expect(otherTenant).not.toHaveBeenCalled();
   expect(otherAccount).not.toHaveBeenCalled();
-  stop.forEach(close => close());
+  for (const close of stop) close();
 });

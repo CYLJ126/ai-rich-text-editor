@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {useModel} from '@umijs/max';
+import {history, useModel} from '@umijs/max';
 import {Alert, Button, Flex, Input, Tooltip, Typography} from 'antd';
 import MasterDetailLayout from '@/components/MasterDetailLayout';
 import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
@@ -8,13 +8,21 @@ import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
 import WorkspacePolicyDialog from '@/features/workspace/WorkspacePolicyDialog';
 import {useWorkspaceManagement} from '@/features/workspace/useWorkspace';
 import {usePolicyDirectory} from '@/features/workspace/usePolicyDirectory';
-import {checkWorkspaceAccess, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
+import {
+  checkWorkspaceAccess,
+  getWorkspace,
+  type WorkspaceScope,
+  type WorkspaceView
+} from '@/services/platform/workspace';
 import ConfigurationBoundary, {
   useConfigurationFallback,
   useConfigurationNavigation
 } from '@/features/configuration/ConfigurationBoundary';
 import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 import {sameScope} from '@/features/ainew/storage';
+import {useAiRoute} from '@/features/ainew/aiNavigation';
+import {readConfigurationLocation} from '@/features/configuration/configurationLocation';
+import {configurationReadError} from '@/features/configuration/useConfigurationDirectory';
 import '@/features/ainew/personalModels.css';
 import './index.css';
 
@@ -23,16 +31,35 @@ const keyOf = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.w
 export default function WorkspaceConfigurationPage() {
   const {initialState} = useModel('@@initialState');
   const userId = String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '');
+  const search = useAiRoute();
   if (!userId) return <Alert type="info" title="请登录后管理工作空间。"/>;
-  return <ConfigurationBoundary key={userId} userId={userId}><WorkspaceConfiguration
-    userId={userId}/></ConfigurationBoundary>;
+  let location: { scope: WorkspaceScope; policy: boolean } | undefined;
+  const tab = new URLSearchParams(search).getAll('tab');
+  if (tab.some(value => value === 'policy' || value === 'overview')) {
+    try {
+      const {tenantId, workspaceId, tab: view} = readConfigurationLocation(search, userId);
+      if (!tenantId || !workspaceId) throw new Error('空间定位不完整');
+      location = {scope: {tenantId, workspaceId}, policy: view === 'policy'};
+    } catch {
+      return <Alert type="warning" title="工作空间定位无效，请重新选择。"
+                    action={<Button onClick={() => history.replace('/Environment/Workspaces')}>打开空间目录</Button>}/>;
+    }
+  }
+  return <ConfigurationBoundary key={userId} userId={userId}>
+    <WorkspaceConfiguration key={location ? search : 'directory'} userId={userId} location={location}/>
+  </ConfigurationBoundary>;
 }
 
-/** 配置目标只存在本页状态中；URL、聊天当前空间和刷新均不会自动选择卡片。 */
-function WorkspaceConfiguration({userId}: { userId: string }) {
+/** 显式配置链接经服务端核验后打开本页目标。 */
+function WorkspaceConfiguration({userId, location}: {
+  userId: string; location?: { scope: WorkspaceScope; policy: boolean };
+}) {
   const directory = useWorkspaceManagement(userId);
   const candidates = usePolicyDirectory(userId);
   const [target, setTarget] = useState<WorkspaceView | null>(null);
+  const [locating, setLocating] = useState(!!location);
+  const [locationError, setLocationError] = useState('');
+  const [initialLocation] = useState(location);
   const [creating, setCreating] = useState(false);
   const [initialTenantId, setInitialTenantId] = useState('');
   const [filter, setFilter] = useState(directory.search);
@@ -68,6 +95,23 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
       window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!initialLocation) return;
+    const request = new AbortController();
+    void getWorkspace(initialLocation.scope, {signal: request.signal}).then(({body}) => {
+      if (request.signal.aborted || !alive.current) return;
+      if (!sameScope(body.data.scope, initialLocation.scope)) throw new Error('空间范围不一致');
+      setTarget(body.data);
+      setPolicyOpen(initialLocation.policy);
+    }).catch(failure => {
+      if (!request.signal.aborted && alive.current)
+        setLocationError(configurationReadError(failure, '无法打开所选工作空间，请从目录重新选择。'));
+    }).finally(() => {
+      if (!request.signal.aborted && alive.current) setLocating(false);
+    });
+    return () => request.abort();
+  }, [initialLocation]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -108,6 +152,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
           if (item) {
             setPolicyOpen(false);
             setCreating(false);
+            setLocationError('');
             setTarget(item);
           }
         })}
@@ -134,7 +179,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
           <Tooltip title="新建工作空间">
             <Button aria-label="新建工作空间"
                     icon={<DynamicIcon iconName="PlusOutlined"/>}
-                    disabled={!tenants.length || policyOpen || directory.saving}
+                    disabled={!tenants.length || policyOpen || directory.saving || locating}
                     onClick={() => navigation.request(() => {
                       setInitialTenantId(tenants.some(item => item.value === target?.scope.tenantId) ? target!.scope.tenantId : '');
                       setTarget(null);
@@ -165,7 +210,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
         </Flex>}
         emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
         items={directory.records.map(item => ({
-          key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: directory.saving,
+          key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: directory.saving || locating,
           content: <Flex vertical gap={8}>
             <Typography.Text strong>{item.name}</Typography.Text>
             <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
@@ -173,6 +218,8 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
               type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
         }))}>
+        {locationError && <Alert type="warning" title={locationError}/>}
+        {locating && <Typography.Paragraph role="status">正在核验工作空间…</Typography.Paragraph>}
         {/* 右侧工作空间表单详情区域：创建表单、编辑/详情表单、未选择时的引导。 */}
         {creating ? <WorkspaceDetailForm
             userId={userId} initialTenantId={initialTenantId} tenants={tenants}
@@ -186,7 +233,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
             setTarget(view);
           }}/>
           : target ? <WorkspaceDetailForm userId={userId} scope={target.scope} onUnsafeChange={setFormUnsafe}
-                                          onSaved={setTarget}/> : <Typography.Paragraph>
+                                          onSaved={setTarget}/> : !locating && <Typography.Paragraph>
             1. 点击左侧工作空间以编辑，或查看详情；<br/>
             2. 点击左上方新增图标，以创建新工作空间。
           </Typography.Paragraph>}
