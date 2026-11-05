@@ -1,5 +1,5 @@
 import React from 'react';
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/ai';
 import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
@@ -43,6 +43,18 @@ const view: api.WorkspaceAiView = {
     rate
   }]
 };
+const rateOption: api.BudgetRateOption = {
+  rate,
+  kind: 'MODEL',
+  currency: 'CNY',
+  configured: true,
+  inputPerMillion: '0.001',
+  outputPerMillion: '0.004',
+  toolPerCall: null
+};
+const ratePage: api.BudgetRatePage = {
+  scope, workspaceVersion: 2, ruleVersion: 0, catalogVersion: 1, items: [rateOption], nextCursor: null
+};
 const response = <T, >(data: T) => ({httpStatus: 200, body: {success: true as const, code: '200', desc: 'OK', data}});
 beforeEach(() => {
   vi.resetAllMocks();
@@ -52,14 +64,7 @@ beforeEach(() => {
     scope, configuration: {scope, rules: preset.budgets, version: 0}, workspaceVersion: 2,
     canManage: true, canRaiseBudget: false, approvedCaps: preset.budgets
   }));
-  vi.mocked(api.listWorkspaceBudgetRateOptions).mockResolvedValue(response({
-    items: [{
-      rate,
-      kind: 'MODEL',
-      currency: 'CNY',
-      configured: true
-    }], nextCursor: null
-  }));
+  vi.mocked(api.listWorkspaceBudgetRateOptions).mockResolvedValue(response(ratePage));
   vi.mocked(api.getWorkspaceAi).mockResolvedValue(response(view));
   vi.mocked(api.updateWorkspaceAi).mockResolvedValue(response({
     operationId: 'operation',
@@ -83,7 +88,7 @@ it('requires explicit budget approval and only discards the draft when leaving',
   render(<ConfigurationBoundary userId={context.userId}>
     <WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/><ChangeTarget done={done}/>
   </ConfigurationBoundary>);
-  fireEvent.change(await screen.findByLabelText('预算额度 price'), {target: {value: '40'}});
+  fireEvent.change(await screen.findByLabelText('预算额度 price@v1'), {target: {value: '40'}});
   fireEvent.click(screen.getByText('更换 AI 目标'));
   expect(screen.getByRole('button', {name: '保存并继续'})).toBeDisabled();
   expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
@@ -151,7 +156,7 @@ it('saves budget rules independently without changing model selections', async (
     }
   }));
   render(<WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/>);
-  fireEvent.change(await screen.findByLabelText('预算额度 price'), {target: {value: '40'}});
+  fireEvent.change(await screen.findByLabelText('预算额度 price@v1'), {target: {value: '40'}});
   fireEvent.click(screen.getByRole('button', {name: '保存独立预算规则'}));
   await waitFor(() => expect(api.updateWorkspaceBudgetRules).toHaveBeenCalledTimes(1));
   expect(vi.mocked(api.updateWorkspaceBudgetRules).mock.calls[0][0]).toMatchObject({
@@ -183,4 +188,65 @@ it('first preparation is explicit and contains no model or account request', asy
   });
   expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
   expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+});
+
+it('uses one exact rule for two models and reads every rate page before showing associations', async () => {
+  const second = {...view.models[0], resourceId: 'second', name: 'Second', binding: {...binding, id: 'second'}};
+  const first = view.models[0];
+  vi.mocked(api.getWorkspaceAi).mockResolvedValue(response({
+    ...view,
+    models: [first, second],
+    configuration: {
+      ...view.configuration!,
+      models: [first, second].map(({resourceId, binding}) => ({resourceId, binding}))
+    }
+  }));
+  vi.mocked(api.listWorkspaceBudgetRateOptions).mockResolvedValueOnce(response({
+    ...ratePage, items: [{...rateOption, rate: {...rate, version: 'v2'}, configured: false}], nextCursor: 'page-two',
+  })).mockResolvedValueOnce(response(ratePage));
+  render(<WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/>);
+  const entries = await screen.findAllByRole('button', {name: '配置预算'});
+  expect(entries).toHaveLength(2);
+  for (const entry of entries) {
+    fireEvent.click(entry);
+    expect(screen.getByText('price@v1 · CNY（当前定位）')).toHaveFocus();
+    expect(screen.getAllByLabelText('预算额度 price@v1')).toHaveLength(1);
+  }
+  expect(api.listWorkspaceBudgetRateOptions).toHaveBeenLastCalledWith(scope, 'page-two', expect.anything());
+  const ruleRow = screen.getByLabelText('预算额度 price@v1').closest('tr')!;
+  expect(within(ruleRow).getByText('Model · v1')).toBeVisible();
+  expect(within(ruleRow).getByText('Second · v1')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('预算额度 price@v1'), {target: {value: '0'}});
+  expect(screen.getByLabelText('预算规则变更预览')).toHaveTextContent('100 CNY → 0 CNY。规则额度为零');
+  fireEvent.click(screen.getByRole('button', {name: '移除预算规则 price@v1'}));
+  expect(screen.getByLabelText('预算规则变更预览')).toHaveTextContent('100 CNY → 无规则');
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+  expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+});
+
+it('opens the exact missing rule from a budget link without adding a rule or enabling a model', async () => {
+  vi.mocked(api.getWorkspaceBudgetRules).mockResolvedValue(response({
+    scope, configuration: {scope, rules: [], version: 0}, workspaceVersion: 2,
+    canManage: true, canRaiseBudget: false, approvedCaps: preset.budgets
+  }));
+  vi.mocked(api.listWorkspaceBudgetRateOptions).mockResolvedValue(response({
+    ...ratePage, items: [{...rateOption, configured: false}]
+  }));
+  render(<WorkspaceAiGovernanceEditor scope={scope} context={context} focusedModel={view.models[0]}
+                                      focusBudget onUpdated={vi.fn()}/>);
+  expect(await screen.findByText('price@v1 · CNY（当前定位）')).toHaveFocus();
+  expect(screen.getByText('缺少规则')).toBeVisible();
+  expect(screen.queryByLabelText('预算额度 price@v1')).not.toBeInTheDocument();
+  expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+});
+
+it('rejects a rate page from a different rule revision without showing incomplete budget links', async () => {
+  vi.mocked(api.listWorkspaceBudgetRateOptions).mockResolvedValueOnce(response({
+    ...ratePage, items: [], nextCursor: 'next',
+  })).mockResolvedValueOnce(response({...ratePage, ruleVersion: 1}));
+  render(<WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/>);
+  expect(await screen.findByText('空间 AI 配置读取失败，请重新读取。')).toBeVisible();
+  expect(screen.queryByRole('button', {name: '保存独立预算规则'})).not.toBeInTheDocument();
+  expect(screen.queryByText('当前无关联模型')).not.toBeInTheDocument();
 });

@@ -59,7 +59,14 @@ beforeEach(() => {
     scope, configuration: {scope, rules: [], version: 0}, workspaceVersion: 7,
     canManage: true, canRaiseBudget: false, approvedCaps: []
   }));
-  vi.mocked(ai.listWorkspaceBudgetRateOptions).mockResolvedValue(reply({items: [], nextCursor: null}));
+  vi.mocked(ai.listWorkspaceBudgetRateOptions).mockResolvedValue(reply({
+    items: [],
+    nextCursor: null,
+    scope,
+    workspaceVersion: 7,
+    ruleVersion: 0,
+    catalogVersion: 1
+  }));
   vi.mocked(policy.getPolicy).mockImplementation(async (kind, target) => kind === 'tenant'
     ? {kind, value: {...tenantPolicyView, policy: {...tenantPolicyView.policy, tenantId: target.tenantId}}}
     : {

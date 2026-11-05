@@ -14,7 +14,7 @@ import java.util.List;
  */
 public record ModelUsageChecks(Scope scope, ResourceRef resource, DefinitionRef binding,
                                List<Check> spaceConditions, List<Check> personalConditions,
-                               List<String> allowedActions) {
+                               List<String> allowedActions, boolean canConfigureBudget) {
 
     public ModelUsageChecks {
         spaceConditions = List.copyOf(spaceConditions);

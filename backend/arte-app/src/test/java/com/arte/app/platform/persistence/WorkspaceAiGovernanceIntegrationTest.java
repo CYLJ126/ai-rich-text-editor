@@ -97,7 +97,12 @@ class WorkspaceAiGovernanceIntegrationTest {
             assertNull(before.configuration());
             assertNull(service.getRules(actor(), scope()).configuration());
             assertTrue(service.modelOptions(actor(), scope(), null).items().isEmpty());
-            service.rateOptions(actor(), scope(), null);
+            AiControlData.BudgetRateOptions rates = service.rateOptions(actor(), scope(), null);
+            assertEquals(scope(), rates.scope());
+            assertEquals(before.workspaceVersion(), rates.workspaceVersion());
+            assertEquals(before.templateVersion(), rates.catalogVersion());
+            assertNull(rates.ruleVersion());
+            assertTrue(rates.items().stream().allMatch(rate -> !rate.configured()));
             assertEquals(receipts, count("arte_platform_command"));
             assertEquals(events, count("arte_platform_outbox"));
             assertEquals(0, count("arte_ai_workspace_configuration"));
@@ -176,6 +181,24 @@ class WorkspaceAiGovernanceIntegrationTest {
             assertEquals(before, governance(c).getRules(actor(), scope()).configuration());
             assertEquals(1, count("arte_ai_account"));
             assertNotEquals(firstModel.resource(), second.resource());
+
+            f.accept(c, second, 128);
+            com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
+            com.arte.ainew.pojo.budget.BudgetCommands.Account ledger = codec.decode(f.f.f.f.jdbc.queryForObject(
+                    "SELECT workspace_snapshot FROM arte_ai_account", String.class), com.arte.ainew.pojo.budget.BudgetCommands.Account.class);
+            AiControlData.WorkspaceConfiguration selected = governance(c).get(actor(), scope()).configuration();
+            AiControlData.BudgetPreset saved = before.rules().getFirst();
+            AiControlData.BudgetPreset lower = new AiControlData.BudgetPreset(saved.rate(), new com.arte.ainew.pojo.budget.Money(
+                    saved.limit().amount().divide(java.math.BigDecimal.TWO), saved.limit().currency()));
+            rules(c, List.of(lower));
+            com.arte.ainew.pojo.budget.BudgetCommands.Account updated = codec.decode(f.f.f.f.jdbc.queryForObject(
+                    "SELECT workspace_snapshot FROM arte_ai_account", String.class), com.arte.ainew.pojo.budget.BudgetCommands.Account.class);
+            assertEquals(ledger.budgetRef(), updated.budgetRef());
+            assertEquals(ledger.held(), updated.held());
+            assertEquals(ledger.charged(), updated.charged());
+            assertEquals(lower.limit(), updated.limit());
+            assertEquals(selected, governance(c).get(actor(), scope()).configuration());
+            assertEquals(1, count("arte_ai_account"));
         });
     }
 
@@ -305,6 +328,17 @@ class WorkspaceAiGovernanceIntegrationTest {
                 assertFalse(response.contains("subjectId"));
                 assertFalse(response.contains("budgetRef"));
                 assertFalse(response.contains("credential"));
+                cn.hutool.json.JSONObject ratePage = http.ok("/workspace/ai/listBudgetRateOptions",
+                        f.f.f.f.json.write(Map.of("scope", scope())), null, login).getJSONObject("data");
+                assertEquals(scope().workspaceId(), ratePage.getJSONObject("scope").getStr("workspaceId"));
+                assertEquals(view.workspaceVersion(), ratePage.getLong("workspaceVersion"));
+                assertEquals(view.templateVersion(), ratePage.getLong("catalogVersion"));
+                assertEquals(0L, ratePage.getLong("ruleVersion"));
+                assertFalse(ratePage.toString().contains("subjectId"));
+                assertFalse(ratePage.toString().contains("budgetRef"));
+                assertTrue(ratePage.getJSONArray("items").stream().map(cn.hutool.json.JSONObject.class::cast)
+                        .anyMatch(item -> item.getStr("kind").equals("MODEL") && item.get("inputPerMillion") instanceof String
+                                && item.get("outputPerMillion") instanceof String));
                 assertEquals(0, count("arte_ai_account"));
             }
         });

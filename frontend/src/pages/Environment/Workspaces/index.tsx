@@ -254,6 +254,7 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
           : target ? <>
             <WorkspaceEntry key={keyOf(target.scope)} userId={userId} target={target}/>
             <WorkspaceDetailForm userId={userId} scope={target.scope} tab={targetTab} focusedModel={focusedModel}
+                                 focusBudget={task?.focus === 'budget'}
                                  onTabChange={setTargetTab} onUnsafeChange={setFormUnsafe} onSaved={setTarget}
                                  preferences={<WorkspacePreferences scope={target.scope} directory={directory}
                                                                     disabled={unsafe}/>}/>

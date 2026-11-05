@@ -30,6 +30,7 @@ interface Props {
   onTabChange?: (tab: WorkspaceTab) => void;
   preferences?: React.ReactNode;
   focusedModel?: AiModel;
+  focusBudget?: boolean;
 }
 
 /** 目标由调用方提供；编辑与新增均不选择聊天空间。换目标时卸载旧草稿与读取。 */
@@ -48,7 +49,7 @@ function Detail({
                   onUnsafeChange,
                   tab,
                   onTabChange,
-                  preferences, focusedModel
+                  preferences, focusedModel, focusBudget
                 }: Props) {
   const directory = useWorkspaceManagement(userId);
   const [view, setView] = useState<WorkspaceView>();
@@ -302,6 +303,7 @@ function Detail({
                                                  children: <WorkspaceAiGovernanceEditor scope={context.scope}
                                                                                         context={context}
                                                                                         focusedModel={focusedModel}
+                                                                                        focusBudget={focusBudget}
                                                                                         versionChange={versionChange}
                                                                                         refreshRevision={aiRevision}
                                                                                         onUnsafeChange={setAiUnsafe}

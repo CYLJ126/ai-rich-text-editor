@@ -1,5 +1,6 @@
 package com.arte.app.platform.ai;
 
+import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.model.ModelPublications;
 import com.arte.ainew.pojo.model.ModelResource;
 import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
@@ -245,11 +246,18 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
             CatalogView catalog = catalog();
             List<BudgetRateOption> values = catalog.catalog() == null ? List.of() : catalog.catalog().rates().stream()
                     .map(rate -> new BudgetRateOption(rate.definition(), rate.toolPerCall() == null ? "MODEL" : "TOOL", rate.currency().getCurrencyCode(),
-                            configured.contains(rate.definition()))).sorted(Comparator.comparing(item -> json.write(item.rate()))).toList();
+                            configured.contains(rate.definition()), amount(rate.inputPerMillion()), amount(rate.outputPerMillion()),
+                            amount(rate.toolPerCall()))).sorted(Comparator.comparing(item -> json.write(item.rate()))).toList();
             int offset = offset(actor, scope, "rates", values, cursor);
             int end = Math.min(offset + 100, values.size());
-            return new BudgetRateOptions(values.subList(offset, end), end < values.size() ? cursor(actor, scope, "rates", values, end) : null);
+            return new BudgetRateOptions(values.subList(offset, end),
+                    end < values.size() ? cursor(actor, scope, "rates", values, end) : null,
+                    scope, workspace(scope).version(), rules == null ? null : rules.version(), catalog.version());
         });
+    }
+
+    private static String amount(Money price) {
+        return price == null ? null : price.amount().toPlainString();
     }
 
     /**

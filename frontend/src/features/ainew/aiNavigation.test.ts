@@ -14,14 +14,15 @@ it('round-trips exact model and distinct management, target and chat scopes', ()
     management: {...scope, workspaceId: 'M'},
     execution: scope,
     chat: {...scope, workspaceId: 'A'},
-    returnTo: 'models' as const
+    returnTo: 'models' as const,
+    focus: 'budget' as const
   };
   const url = aiLocation('workspaces', 'alice', intent);
   expect(parseAiIntent(url.slice(url.indexOf('?')), 'alice')).toMatchObject(intent);
 });
 it.each(['?tenantId=T', '?workspaceId=B', '?resourceId=r', '?resourceId=r&bindingId=b', '?returnTo=https://evil.example',
   '?account=bob', '?tenantId=T&workspaceId=B&management-tenantId=X&management-workspaceId=M', '?tenantId=T&tenantId=X&workspaceId=B',
-  '?tenantId=%0A&workspaceId=B', '?view=unknown', '?tenantId=T&workspaceId=M&execution-tenantId=X&execution-workspaceId=B'])('rejects invalid or cross-account intent %s', search => {
+  '?tenantId=%0A&workspaceId=B', '?view=unknown', '?focus=budget', '?focus=other', '?tenantId=T&workspaceId=M&execution-tenantId=X&execution-workspaceId=B'])('rejects invalid or cross-account intent %s', search => {
   expect(() => parseAiIntent(search, 'alice')).toThrow();
 });
 it('missing target stays missing and never borrows a current space', () => {

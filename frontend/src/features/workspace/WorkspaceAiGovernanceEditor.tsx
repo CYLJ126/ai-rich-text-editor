@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Flex, Form, InputNumber, Select, Switch, Typography} from 'antd';
+import {Alert, Button, Card, Flex, Form, Select, Switch, Table, Typography} from 'antd';
 import {
   type AiModel,
   type BudgetPreset,
@@ -17,9 +17,11 @@ import {
 } from '@/services/platform/ai';
 import {AiApiError} from '@/services/arte-ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
-import {type BrowserContext, readOperation, saveOperation} from '@/features/ainew/storage';
+import {type BrowserContext, readOperation, sameScope, saveOperation} from '@/features/ainew/storage';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
+
+import WorkspaceAiBudgetRules from './WorkspaceAiBudgetRules';
 
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
@@ -31,13 +33,14 @@ export default function WorkspaceAiGovernanceEditor({
                                                       onUnsafeChange,
                                                       refreshRevision = 0,
                                                       versionChange,
-                                                      focusedModel,
+                                                      focusedModel, focusBudget,
                                                       disabled = false
                                                     }: {
   disabled?: boolean;
   refreshRevision?: number;
   versionChange?: WorkspaceVersionChange;
   focusedModel?: AiModel;
+  focusBudget?: boolean;
   scope: WorkspaceScope;
   context: BrowserContext;
   onUpdated: (change?: WorkspaceVersionChange) => void;
@@ -52,6 +55,7 @@ export default function WorkspaceAiGovernanceEditor({
   const [saved, setSaved] = useState('');
   const [view, setView] = useState<WorkspaceAiView>();
   const [ruleView, setRuleView] = useState<WorkspaceBudgetRulesView>();
+  const [budgetFocus, setBudgetFocus] = useState<{ key: string } | null>(null);
   const [rates, setRates] = useState<BudgetRateOption[]>([]);
   const [models, setModels] = useState<ModelSelection[]>([]);
   const [enabled, setEnabled] = useState(false);
@@ -127,25 +131,48 @@ export default function WorkspaceAiGovernanceEditor({
       }
       let budget: WorkspaceBudgetRulesView | undefined;
       const options: BudgetRateOption[] = [];
-      if (result.canManage) {
+      if (result.canManage && result.configuration) {
         budget = (await getWorkspaceBudgetRules(scope, {signal})).body.data;
-        if (budget.scope.tenantId !== scope.tenantId || budget.scope.workspaceId !== scope.workspaceId) {
+        if (!sameScope(budget.scope, scope) || !sameScope(budget.configuration?.scope, scope)
+          || budget.workspaceVersion !== result.workspaceVersion || !budget.canManage || !budget.configuration) {
           throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RULE_RESPONSE'});
         }
+        const configured = new Set(budget.configuration.rules.map(rule => refKey(rule.rate)));
         let cursor: string | undefined;
         const seen = new Set<string>();
+        const seenRates = new Set<string>();
         do {
           const page = (await listWorkspaceBudgetRateOptions(scope, cursor, {signal})).body.data;
-          options.push(...page.items);
+          if (signal.aborted) return;
+          if (!sameScope(page.scope, scope) || page.workspaceVersion !== result.workspaceVersion
+            || page.ruleVersion !== budget.configuration.version || page.catalogVersion !== result.templateVersion) {
+            throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RATE_SNAPSHOT'});
+          }
+          for (const option of page.items) {
+            const key = refKey(option.rate);
+            if (seenRates.has(key) || configured.has(key) !== option.configured) {
+              throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RATE_RESPONSE'});
+            }
+            seenRates.add(key);
+            options.push(option);
+          }
           cursor = page.nextCursor ?? undefined;
           if (cursor && seen.has(cursor)) throw new AiApiError(200, {code: 'INVALID_WORKSPACE_RATE_CURSOR'});
           if (cursor) seen.add(cursor);
         } while (cursor);
+        if ([...configured].some(key => !seenRates.has(key))) {
+          throw new AiApiError(200, {code: 'INCOMPLETE_WORKSPACE_RATE_RESPONSE'});
+        }
+        // 保留草稿重读时，禁止因候选集变化而静默丢弃草稿里的费率。
+        if (preserve && dirtyKind === 'rules' && rules.some(rule => !seenRates.has(refKey(rule.rate)))) {
+          throw new AiApiError(200, {code: 'WORKSPACE_RATE_DRAFT_UNAVAILABLE'});
+        }
       }
       if (!live.current || signal?.aborted) return;
       setView(result);
       setRuleView(budget);
       setRates(options);
+      setBudgetFocus(current => current && options.some(option => refKey(option.rate) === current.key) ? current : null);
       if (!preserve || dirtyKind !== 'models') {
         setEnabled(result.configuration?.enabled ?? false);
         setModels(result.configuration?.models ?? []);
@@ -249,7 +276,31 @@ export default function WorkspaceAiGovernanceEditor({
 
   const canEdit = !disabled && !!view?.canManage && !loading && !saving && !uncertain && !blocked;
   const canEditModels = canEdit && dirtyKind !== 'rules';
-  const canEditRules = canEdit && dirtyKind !== 'models';
+  const canEditRules = canEdit && !!ruleView?.canManage && dirtyKind !== 'models';
+  const visibleModels = new Map(view?.models.map(model => [refKey(model.binding), model]));
+  const savedSelections = view?.configuration?.models ?? [];
+  const readModel = (selection: ModelSelection) => {
+    const model = visibleModels.get(refKey(selection.binding));
+    return model?.resourceId === selection.resourceId ? model : undefined;
+  };
+  const linkedModels = savedSelections.flatMap(selection => {
+    const model = readModel(selection);
+    return model ? [model] : [];
+  });
+  const savedRules = ruleView?.configuration?.rules;
+  const rateByKey = new Map(rates.map(rate => [refKey(rate.rate), rate]));
+  const modelRows = models.map((selection, index) => ({selection, model: readModel(selection), index}));
+  const modelChanges = [...savedSelections.filter(item => !models.some(next => next.resourceId === item.resourceId
+    && refKey(next.binding) === refKey(item.binding))).map(item => ({item, action: '移除'})),
+    ...models.filter(item => !savedSelections.some(previous => previous.resourceId === item.resourceId
+      && refKey(previous.binding) === refKey(item.binding))).map(item => ({item, action: '配置'}))];
+  const focusRate = (key: string) => setBudgetFocus({key});
+  const ruleStatus = (rate: AiModel['rate']) => {
+    if (!savedRules || !rateByKey.has(refKey(rate))) return '规则未核验';
+    const rule = savedRules.find(item => refKey(item.rate) === refKey(rate));
+    if (!rule) return '缺少规则';
+    return Number(rule.limit.amount) > 0 ? '已有正额度规则' : '规则额度为零';
+  };
   const focusedKey = focusedModel ? refKey(focusedModel.binding) : '';
   const availableFocus = focusedModel && view?.models.some(item =>
     item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
@@ -257,7 +308,11 @@ export default function WorkspaceAiGovernanceEditor({
     item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
   const draftFocus = focusedModel && models.some(item =>
     item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
-  const focusedRule = focusedModel && ruleView?.configuration?.rules.find(rule => refKey(rule.rate) === refKey(focusedModel.rate));
+  const focusedRateKey = focusedModel && refKey(focusedModel.rate);
+  const canFocusRoute = !!(availableFocus && focusedRateKey && savedRules && rateByKey.has(focusedRateKey));
+  useEffect(() => {
+    if (focusBudget && canFocusRoute && focusedRateKey) setBudgetFocus({key: focusedRateKey});
+  }, [focusBudget, canFocusRoute, focusedRateKey]);
   return <Flex component="section" vertical gap={12} aria-label="空间 AI 配置">
     <Typography.Paragraph>为此空间启用实际模型的固定版本，并独立维护费率预算规则。首次准备不选择模型，也不创建本人账户。</Typography.Paragraph>
     {focusedModel && <Flex vertical gap={8} aria-label="定位模型版本">
@@ -269,9 +324,9 @@ export default function WorkspaceAiGovernanceEditor({
               ? `${view.configuration.enabled ? '空间 AI 已启用。' : '空间 AI 尚未启用。'}${savedFocus
                 ? '此版本已配置在空间中。' : '此版本尚未配置在空间中。'}`
               : '待首次准备空间 AI 配置。'}</Typography.Text>
-            <Typography.Text>{!ruleView ? '当前无法核验此费率的空间预算规则。'
-              : focusedRule && Number(focusedRule.limit.amount) > 0 ? '此费率已有正额度规则。'
-                : '此费率待配置正额度规则。'} 本人使用条件需在模型详情中重新检查。</Typography.Text>
+            <Typography.Text>{focusedModel.rate.id}@{focusedModel.rate.version} · {ruleStatus(focusedModel.rate)}。本人使用条件可在模型详情中重新检查。</Typography.Text>
+            {canFocusRoute && focusedRateKey &&
+              <Button onClick={() => focusRate(focusedRateKey)}>定位此模型预算规则</Button>}
             {canEditModels && view.configuration && !draftFocus && <Button onClick={() => {
               setModels(current => [...current.filter(item => item.resourceId !== focusedModel.resourceId),
                 {resourceId: focusedModel.resourceId, binding: focusedModel.binding}]);
@@ -279,6 +334,8 @@ export default function WorkspaceAiGovernanceEditor({
             }}>加入模型草稿</Button>}
           </>}
     </Flex>}
+    {focusBudget && view && !loading && !canFocusRoute &&
+      <Alert type="info" title="当前无法定位此版本的预算规则。请核对空间治理权限、首次准备状态及费率。"/>}
     {dirty && <Typography.Text>请先保存当前修改，或重新读取放弃修改后，再编辑另一项。</Typography.Text>}
     {saved && <Alert type="success" title={saved}/>}
     {refreshRevision > 0 && <Typography.Text>空间配置有更新，请按需重新读取；当前草稿保持不变。</Typography.Text>}
@@ -293,79 +350,114 @@ export default function WorkspaceAiGovernanceEditor({
         scope, expectedWorkspaceVersion: view.workspaceVersion, expectedTemplateVersion: view.templateVersion
       })}>首次准备空间 AI 配置</Button>}
     {view?.configuration && <>
-      <Form layout="vertical">
-        <Form.Item label="启用此空间 AI"><Switch aria-label="启用此空间 AI" disabled={!canEditModels} checked={enabled}
-                                                 onChange={value => {
-                                                   setEnabled(value);
-                                                   setDirtyKind('models');
-                                                 }}/></Form.Item>
-        <Form.Item label="空间可用模型"><Select aria-label="空间可用模型" mode="multiple" disabled={!canEditModels}
-                                                value={models.map(model => refKey(model.binding))}
-                                                options={view.models.map(model => ({
-                                                  value: refKey(model.binding),
-                                                  label: `${model.name} · ${model.kind === 'PERSONAL' ? '个人' : '租户'} · ${model.binding.version}`
-                                                }))}
-                                                onChange={keys => {
-                                                  const selected = new Map<string, ModelSelection>();
-                                                  for (const key of keys) {
-                                                    const model = view.models.find(value => refKey(value.binding) === key);
-                                                    if (model) selected.set(model.resourceId, {
-                                                      resourceId: model.resourceId,
-                                                      binding: model.binding
-                                                    });
-                                                  }
-                                                  setModels([...selected.values()]);
-                                                  setDirtyKind('models');
-                                                }}/></Form.Item>
-      </Form>
-      <Button type="primary" disabled={!canEditModels} loading={saving} onClick={() => {
-        if (view.configuration) void run('models', {
-          scope,
-          expectedWorkspaceVersion: view.workspaceVersion,
-          expectedVersion: view.configuration.version,
-          enabled,
-          models
-        });
-      }}>保存空间 AI 配置</Button>
-      {ruleView?.configuration && <>
-        <Form layout="vertical">
-          <Form.Item label="独立预算费率"><Select aria-label="独立预算费率" mode="multiple" disabled={!canEditRules}
-                                                  value={rules.map(rule => refKey(rule.rate))}
-                                                  options={rates.map(option => ({
-                                                    value: refKey(option.rate),
-                                                    label: `${option.kind === 'MODEL' ? '模型' : '工具'} · ${option.rate.id}@${option.rate.version} · ${option.currency}`
-                                                  }))}
-                                                  onChange={keys => {
-                                                    setRules(rates.filter(option => keys.includes(refKey(option.rate))).map(option => rules.find(rule => refKey(rule.rate) === refKey(option.rate))
-                                                      ?? {
-                                                        rate: option.rate,
-                                                        limit: {amount: '0', currency: option.currency}
-                                                      }));
-                                                    setDirtyKind('rules');
-                                                  }}/></Form.Item>
-          {rules.map((rule, index) => <Form.Item key={refKey(rule.rate)}
-                                                 label={`独立预算额度 · ${rule.rate.id}@${rule.rate.version} · ${rule.limit.currency}`}>
-            <InputNumber aria-label={`预算额度 ${rule.rate.id}`} stringMode min="0" max="1000000000"
-                         disabled={!canEditRules} value={String(rule.limit.amount)}
-                         onChange={amount => {
-                           setRules(rules.map((value, i) => i === index ? {
-                             ...value,
-                             limit: {...value.limit, amount: amount ?? '0'}
-                           } : value));
-                           setDirtyKind('rules');
-                         }}/>
-          </Form.Item>)}
-        </Form>
-        <Typography.Paragraph>移除模型保留预算规则。撤销规则保留历史账户和费用，并阻止新调用。修改额度保留预留及已计费用；超出已批准上限需平台提额资格。</Typography.Paragraph>
-        <Button disabled={!canEditRules} loading={saving} onClick={() => {
+      <Card size="small" title="总开关与摘要">
+        <Flex vertical gap={8}>
+          <Typography.Text>已保存：空间 AI {view.configuration.enabled ? '启用' : '关闭'} ·
+            已配置 {savedSelections.length} 个固定模型版本</Typography.Text>
+          <Flex align="center" gap={8}>
+            <Typography.Text>启用此空间 AI</Typography.Text>
+            <Switch aria-label="启用此空间 AI" disabled={!canEditModels} checked={enabled}
+                    onChange={value => {
+                      setEnabled(value);
+                      setDirtyKind('models');
+                    }}/>
+          </Flex>
+        </Flex>
+      </Card>
+      <Card size="small" title="启用模型">
+        <Flex vertical gap={12}>
+          <Form layout="vertical">
+            <Form.Item label="空间可用模型">
+              <Select aria-label="空间可用模型" mode="multiple" disabled={!canEditModels}
+                      value={models.filter(readModel).map(model => refKey(model.binding))}
+                      options={view.models.map(model => ({
+                        value: refKey(model.binding),
+                        label: `${model.name} · ${model.kind === 'PERSONAL' ? '个人' : '租户'} · ${model.binding.version}`
+                      }))}
+                      onChange={keys => {
+                        const selected = new Map<string, ModelSelection>(
+                          models.filter(item => !readModel(item)).map(item => [item.resourceId, item])
+                        );
+                        for (const key of keys) {
+                          const model = visibleModels.get(key);
+                          if (model) selected.set(model.resourceId, {
+                            resourceId: model.resourceId,
+                            binding: model.binding
+                          });
+                        }
+                        setModels([...selected.values()]);
+                        setDirtyKind('models');
+                      }}/>
+            </Form.Item>
+          </Form>
+          <Table size="small" pagination={false} scroll={{x: 590}}
+                 rowKey={row => row.model ? refKey(row.model.binding) : `unreadable-${row.index}`}
+                 dataSource={modelRows} locale={{emptyText: '尚未选择模型版本。'}} columns={[
+            {title: '模型', key: 'name', render: (_, row) => row.model?.name ?? '当前不可读的已配置模型'},
+            {title: '固定版本', key: 'version', render: (_, row) => row.model?.binding.version ?? '未核验'},
+            {
+              title: '精确费率', key: 'rate', render: (_, row) => row.model
+                ? `${row.model.rate.id}@${row.model.rate.version}` : '未核验'
+            },
+            {
+              title: '已保存规则状态',
+              key: 'status',
+              render: (_, row) => row.model ? ruleStatus(row.model.rate) : '未核验'
+            },
+            {
+              title: '操作', key: 'actions', render: (_, row) => {
+                if (!row.model) return <Button disabled={!canEditModels} onClick={() => {
+                  setModels(models.filter(item => item !== row.selection));
+                  setDirtyKind('models');
+                }}>从草稿移除</Button>;
+                const key = refKey(row.model.rate);
+                return savedRules && rateByKey.has(key)
+                  ? <Button onClick={() => focusRate(key)}>配置预算</Button> : null;
+              }
+            },
+          ]}/>
+          {dirtyKind === 'models' && <section aria-label="空间模型变更预览">
+            <Typography.Text strong>保存效果预览</Typography.Text>
+            {enabled !== view.configuration.enabled &&
+              <div>空间 AI：{view.configuration.enabled ? '启用' : '关闭'} → {enabled ? '启用' : '关闭'}</div>}
+            {modelChanges.map(({item, action}) => {
+              const model = readModel(item);
+              return <div
+                key={`${action}-${refKey(item.binding)}`}>{action} {model ? `${model.name} · ${model.binding.version}` : '当前不可读的版本'}</div>;
+            })}
+          </section>}
+          <Typography.Text type="secondary">移除模型后保留对应的规则及历史账户。</Typography.Text>
+          <Button type="primary" disabled={!canEditModels} loading={saving} onClick={() => {
+            if (view.configuration) void run('models', {
+              scope,
+              expectedWorkspaceVersion: view.workspaceVersion,
+              expectedVersion: view.configuration.version,
+              enabled,
+              models
+            });
+          }}>保存空间 AI 配置</Button>
+        </Flex>
+      </Card>
+      {ruleView?.configuration && savedRules && <WorkspaceAiBudgetRules options={rates} saved={savedRules}
+                                                                        rules={rules} caps={ruleView.approvedCaps}
+                                                                        models={linkedModels}
+                                                                        associationIncomplete={linkedModels.length !== savedSelections.length}
+                                                                        canRaise={ruleView.canRaiseBudget}
+                                                                        editable={canEditRules} saving={saving}
+                                                                        focus={budgetFocus} onFocus={focusRate}
+                                                                        onChange={value => {
+                                                                          setRules(value);
+                                                                          setDirtyKind('rules');
+                                                                        }}
+                                                                        onSave={() => {
           if (ruleView.configuration) void run('rules', {
             scope,
             expectedWorkspaceVersion: ruleView.workspaceVersion,
             expectedRuleVersion: ruleView.configuration.version,
             rules
           });
-        }}>保存独立预算规则</Button>
-      </>}
+                                                                        }}/>}
+
     </>}
     <Flex gap={8} wrap>
       {dirty && <Button disabled={loading || saving || uncertain || blocked}

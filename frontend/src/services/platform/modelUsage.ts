@@ -26,6 +26,7 @@ const checksSchema = z.object({
   spaceConditions: group(spaceConditions),
   personalConditions: group(personalConditions),
   allowedActions: actions,
+  canConfigureBudget: z.boolean().default(false),
 });
 export type ModelUsageChecks = z.infer<typeof checksSchema>;
 

@@ -140,7 +140,7 @@ public final class AiControlData {
     }
 
     /**
-     * 空间模型配置及当前主体允许的治理操作，读取不创建配置或账户。
+     * 空间模型配置及当前主体允许的治理操作。models 是目标空间内当前主体可读的完整候选集，超出安全边界时拒绝读取。
      */
     public record WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion,
                                 boolean canManage, boolean needsImport, long templateVersion, List<Model> models,
@@ -158,7 +158,8 @@ public final class AiControlData {
     /**
      * 安全的精确费率候选，保留既有规则使用的历史版本供读取和撤销。
      */
-    public record BudgetRateOption(DefinitionRef rate, String kind, String currency, boolean configured) {
+    public record BudgetRateOption(DefinitionRef rate, String kind, String currency, boolean configured,
+                                   String inputPerMillion, String outputPerMillion, String toolPerCall) {
     }
 
     /**
@@ -170,7 +171,8 @@ public final class AiControlData {
     /**
      * 有界安全费率列表，不以先启用模型作为查询前置条件。
      */
-    public record BudgetRateOptions(List<BudgetRateOption> items, String nextCursor) {
+    public record BudgetRateOptions(List<BudgetRateOption> items, String nextCursor, Scope scope,
+                                    long workspaceVersion, Long ruleVersion, long catalogVersion) {
     }
 
     public record CatalogView(long version, Catalog catalog) {

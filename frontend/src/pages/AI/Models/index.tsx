@@ -212,9 +212,9 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   if (oldSpaceLink) return <Alert type="info" title={hasWorkspaceMenu
     ? '正在打开工作空间 AI 配置。' : '当前账号未分配工作空间配置菜单。'}/>;
 
-  function openExecutionSpace(scope: WorkspaceScope, model: ModelSelection, management: WorkspaceScope) {
+  function openExecutionSpace(scope: WorkspaceScope, model: ModelSelection, management: WorkspaceScope, focus?: 'budget') {
     navigation.request(() => history.push(aiLocation('workspaces', userId, {
-      scope, execution: scope, model, management, chat: intent?.chat ?? chatReturn.scope, returnTo: 'models',
+      scope, execution: scope, model, management, chat: intent?.chat ?? chatReturn.scope, returnTo: 'models', focus,
     })));
   }
 
@@ -243,8 +243,8 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
                                                                             onUnsafeChange={setModelUnsafe}
                                                                             useInChatDisabled={unsafe}
                                                                             onUseInChat={sameScope(execution ?? context.scope, chatReturn.scope) && !chatReturn.changed ? chatReturn.back : undefined}
-                                                                            onConfigureWorkspace={hasWorkspaceMenu ? (model, scope) => {
-                                                                              if (scope) openExecutionSpace(scope, model, context.scope);
+                                                                            onConfigureWorkspace={hasWorkspaceMenu ? (model, scope, focus) => {
+                                                                              if (scope) openExecutionSpace(scope, model, context.scope, focus);
                                                                               else setTargetModel({
                                                                                 model,
                                                                                 management: context.scope

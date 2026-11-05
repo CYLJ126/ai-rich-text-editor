@@ -119,7 +119,19 @@ export interface BudgetRateOption {
   rate: DefinitionRef;
   kind: 'MODEL' | 'TOOL';
   currency: string;
-  configured: boolean
+  configured: boolean;
+  inputPerMillion: string | null;
+  outputPerMillion: string | null;
+  toolPerCall: string | null
+}
+
+export interface BudgetRatePage {
+  items: BudgetRateOption[];
+  nextCursor: string | null;
+  scope: WorkspaceScope;
+  workspaceVersion: number;
+  ruleVersion: number | null;
+  catalogVersion: number
 }
 
 export const getWorkspaceBudgetRules = (scope: WorkspaceScope, options?: AiRequestOptions) => postResult<WorkspaceBudgetRulesView>('getBudgetRules', {scope}, options, undefined, base);
@@ -127,10 +139,10 @@ export const listWorkspaceModelOptions = (scope: WorkspaceScope, cursor?: string
   items: AiModel[];
   nextCursor: string | null
 }>('listModelOptions', {scope, cursor}, options, undefined, base);
-export const listWorkspaceBudgetRateOptions = (scope: WorkspaceScope, cursor?: string, options?: AiRequestOptions) => postResult<{
-  items: BudgetRateOption[];
-  nextCursor: string | null
-}>('listBudgetRateOptions', {scope, cursor}, options, undefined, base);
+export const listWorkspaceBudgetRateOptions = (scope: WorkspaceScope, cursor?: string, options?: AiRequestOptions) => postResult<BudgetRatePage>('listBudgetRateOptions', {
+  scope,
+  cursor
+}, options, undefined, base);
 export const prepareWorkspaceAi = async (request: {
   scope: WorkspaceScope;
   expectedWorkspaceVersion: number;

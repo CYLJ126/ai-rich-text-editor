@@ -43,7 +43,7 @@ interface Props {
   initialModel?: ModelSelection;
   initialResourceId?: string;
   authorization?: boolean;
-  onConfigureWorkspace?: (model: ModelSelection, scope?: BrowserContext['scope']) => void;
+  onConfigureWorkspace?: (model: ModelSelection, scope?: BrowserContext['scope'], focus?: 'budget') => void;
   onUpdated: (change: ModelChange) => void;
   onUnsafeChange?: (unsafe: boolean) => void;
   onBrowse?: () => void;
@@ -655,12 +655,12 @@ function ModelManager({
                                                             })}>
                   选择执行空间
                 </Button>}
+                {version && <Typography.Text>对应费率：{version.rate.id}@{version.rate.version}</Typography.Text>}
                 {vm.selectedVersion && <details>
                   <summary>所选版本技术详情</summary>
                   <Typography.Paragraph type="secondary">
                     {vm.selectedVersion.source} · {vm.selectedVersion.binding.id}@{vm.selectedVersion.binding.version}<br/>
-                    {vm.selectedVersion.remoteOperation} · 上下文 {vm.selectedVersion.contextWindowTokens} ·
-                    费率 {vm.selectedVersion.rate.id}@{vm.selectedVersion.rate.version}
+                    {vm.selectedVersion.remoteOperation} · 上下文 {vm.selectedVersion.contextWindowTokens}
                   </Typography.Paragraph>
                 </details>}
 
@@ -705,6 +705,7 @@ function ModelManager({
             refreshRevision={usageRevision}
             onChecks={setUsageChecks}
             onConfigureWorkspace={onConfigureWorkspace && (model => onConfigureWorkspace(model, usageContext.scope))}
+            onConfigureBudget={onConfigureWorkspace && (model => onConfigureWorkspace(model, usageContext.scope, 'budget'))}
             target={vm.selectedVersion ? {
               resourceId: vm.selectedVersion.resourceId,
               binding: {...vm.selectedVersion.binding, type: 'binding'}

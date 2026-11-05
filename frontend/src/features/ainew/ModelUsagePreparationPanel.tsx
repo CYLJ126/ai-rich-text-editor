@@ -86,6 +86,7 @@ type Props = {
   onChecks?: (checks: ModelUsageChecks | null) => void;
   onUseInChat?: () => void;
   onConfigureWorkspace?: (model: Omit<ModelUsageRequest, 'scope'>) => void;
+  onConfigureBudget?: (model: Omit<ModelUsageRequest, 'scope'>) => void;
 };
 
 /** 恢复只自动读取当前状态；未知写结果始终按原请求及原键确认，成功后的重读失败不再次写入。 */
@@ -96,7 +97,7 @@ export default function ModelUsagePreparationPanel({
                                                      navigationDisabled = false,
                                                      onUnsafeChange,
                                                      onPrepared, onChecks,
-                                                     onUseInChat, onConfigureWorkspace
+                                                     onUseInChat, onConfigureWorkspace, onConfigureBudget
                                                    }: Props) {
   const [restored] = useState(() => readModelUsageOperation(context));
   const [operation, setOperation] = useState<ModelUsageOperation | null>(restored.operation);
@@ -303,6 +304,11 @@ export default function ModelUsagePreparationPanel({
                                                         resourceId: request.resourceId,
                                                         binding: request.binding
                                                       })}>配置此空间 AI</Button>}</Flex>}
+      {checks?.canConfigureBudget && onConfigureBudget && request &&
+        <Button disabled={disabled || navigationDisabled || unsafe || closed}
+                onClick={() => onConfigureBudget({resourceId: request.resourceId, binding: request.binding})}>
+          查看此空间预算规则
+        </Button>}
       {state?.approvedLimit &&
         <Typography.Text>规则批准额度：{state.approvedLimit.amount} {state.approvedLimit.currency}（非账户余额）</Typography.Text>}
       {operation &&

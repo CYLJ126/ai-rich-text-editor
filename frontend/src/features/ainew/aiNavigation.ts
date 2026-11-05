@@ -14,6 +14,7 @@ export type AiIntent = {
   chat?: WorkspaceScope;
   returnTo?: 'chat' | 'models';
   view?: 'authorization';
+  focus?: 'budget';
 };
 const cleanId = (value: string | null): value is string => !!value && value.length <= 256 && value.trim() === value && Array.from(value).every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
 
@@ -46,7 +47,17 @@ export function parseAiIntent(search: string, userId: string): AiIntent {
   if (view !== null && view !== 'authorization') throw new Error('模型视图无效。');
   if (target && management && target.tenantId !== management.tenantId) throw new Error('不能将模型定位到其他租户。');
   if (execution && target && execution.tenantId !== target.tenantId) throw new Error('执行空间与模型管理范围不属于同一租户。');
-  return {scope: target, management, execution, chat, model, ...(returnTo ? {returnTo} : {}), ...(view ? {view} : {})};
+  const focus = one('focus');
+  if (focus !== null && (focus !== 'budget' || !model || !target || !management || !sameScope(target, execution))) {
+    throw new Error('预算定位需要完整的执行空间、管理空间和固定模型版本。');
+  }
+  return {
+    scope: target,
+    management,
+    execution,
+    chat,
+    model, ...(returnTo ? {returnTo} : {}), ...(view ? {view} : {}), ...(focus ? {focus} : {})
+  };
 }
 
 export function aiLocation(page: 'workspaces' | 'models', userId: string, intent: AiIntent): string {
@@ -68,6 +79,7 @@ export function aiLocation(page: 'workspaces' | 'models', userId: string, intent
   }
   if (intent.returnTo) params.set('returnTo', intent.returnTo);
   if (intent.view) params.set('view', intent.view);
+  if (page === 'workspaces' && intent.focus) params.set('focus', intent.focus);
   return `/Environment/${page === 'workspaces' ? 'Workspaces' : 'Models'}?${params}`;
 }
 

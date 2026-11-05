@@ -186,16 +186,19 @@ it('keeps authorized space checks readable when preparation is denied for the cu
         : condition === 'WORKSPACE_AI_ACCESS' ? {status: 'PASS', reason: 'VERIFIED'}
           : {status: 'UNKNOWN', reason: 'PREREQUISITE_UNVERIFIED'})
     })),
-    allowedActions: ['CONFIGURE_WORKSPACE_AI'],
+    allowedActions: ['CONFIGURE_WORKSPACE_AI'], canConfigureBudget: true,
   };
   vi.mocked(api.getModelUsageChecks).mockResolvedValue(checks);
-  const configure = vi.fn();
+  const configure = vi.fn(), configureBudget = vi.fn();
   render(<ModelUsagePreparationPanel context={context} target={target} onUnsafeChange={unsafe}
-                                     onPrepared={updated} onConfigureWorkspace={configure}/>);
+                                     onPrepared={updated} onConfigureWorkspace={configure}
+                                     onConfigureBudget={configureBudget}/>);
   expect(await screen.findByText('此模型尚未在当前空间启用，请联系空间负责人配置。')).toBeVisible();
   expect(screen.getByText('请联系模型授权管理员核对此空间内的模型使用资格。')).toBeVisible();
   expect(screen.getAllByText('未核验')).toHaveLength(2);
   fireEvent.click(screen.getByRole('button', {name: '配置此空间 AI'}));
   expect(configure).toHaveBeenCalledWith(target);
+  fireEvent.click(screen.getByRole('button', {name: '查看此空间预算规则'}));
+  expect(configureBudget).toHaveBeenCalledWith(target);
   expect(api.prepareModelUsage).not.toHaveBeenCalled();
 });

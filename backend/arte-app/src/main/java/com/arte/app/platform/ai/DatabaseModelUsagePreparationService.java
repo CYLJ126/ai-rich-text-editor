@@ -181,6 +181,10 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
                 actions.addAll(governance.usageActions(actor, scope, reason));
             }
         }
+        boolean canConfigureBudget = managed && !"MODEL_DISABLED".equals(publicationBlocker)
+                && allowed(actor, new AccessRequest(scope, resource, MODEL_READ, "workspace-ai-options"))
+                && allowed(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "workspace-ai"))
+                && governance.rules(scope, true) != null;
         return new ModelUsageChecks(scope, resource, binding, List.of(
                 evaluated(PUBLICATION, publicationBlocker),
                 publicationReady ? evaluated(RUNTIME_ADAPTER, adapter) : unavailable(RUNTIME_ADAPTER, managed),
@@ -192,7 +196,7 @@ public final class DatabaseModelUsagePreparationService implements ModelUsagePre
                 evaluated(MODEL_ACCESS, modelUse ? null : "MODEL_USE_DENIED"),
                 checkedCredential ? evaluated(CREDENTIAL_USE, credential) : unavailable(CREDENTIAL_USE, managed),
                 checkBudget ? evaluated(OWN_BUDGET, budgetBlocker) : unavailable(OWN_BUDGET, managed)
-        ), List.copyOf(actions));
+        ), List.copyOf(actions), canConfigureBudget);
     }
 
     private boolean allowed(TrustedActor actor, AccessRequest request) {

@@ -54,6 +54,7 @@ class TenantModelUsagePreparationIntegrationTest {
             var binding = f.version.publication().binding().definition();
             assertEquals(ModelUsagePreparation.State.PREPARABLE, service.status(f.bob, f.target, f.f.model.resource(), binding).state());
             var checks = service.checks(f.bob, f.target, f.f.model.resource(), binding);
+            assertFalse(checks.canConfigureBudget());
             assertEquals(f.target, checks.scope());
             assertEquals(binding, checks.binding());
             assertTrue(checks.spaceConditions().stream().allMatch(check -> check.status() == ModelUsageChecks.Status.PASS));
@@ -99,6 +100,7 @@ class TenantModelUsagePreparationIntegrationTest {
             assertEquals(ModelUsageChecks.Check.evaluated(ModelUsageChecks.Condition.WORKSPACE_SELECTION, "MODEL_NOT_ENABLED"),
                     checks.spaceConditions().stream().filter(check -> check.condition() == ModelUsageChecks.Condition.WORKSPACE_SELECTION).findFirst().orElseThrow());
             assertTrue(checks.allowedActions().contains("CONFIGURE_WORKSPACE_AI"));
+            assertTrue(checks.canConfigureBudget());
             assertFalse(checks.allowedActions().contains("PREPARE_OWN_BUDGET"));
             assertEquals(ModelUsageChecks.Check.evaluated(ModelUsageChecks.Condition.MODEL_ACCESS, "MODEL_USE_DENIED"),
                     checks.personalConditions().stream().filter(check -> check.condition() == ModelUsageChecks.Condition.MODEL_ACCESS).findFirst().orElseThrow());
