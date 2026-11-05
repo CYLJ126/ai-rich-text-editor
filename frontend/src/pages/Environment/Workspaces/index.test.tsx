@@ -1,7 +1,11 @@
 import React, {useState} from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import {history} from '@umijs/max';
 import {getWorkspace} from '@/services/platform/workspace';
+import {getManagedModel} from '@/services/platform/model';
+import {listWorkspaceModelOptions} from '@/services/platform/ai';
+import {aiLocation, parseAiIntent} from '@/features/ainew/aiNavigation';
 import {browseAccessibleTenants} from '@/services/platform/tenant';
 import {retainWorkspaceSelection} from '@/features/workspace/useWorkspace';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
@@ -17,10 +21,13 @@ vi.mock('@umijs/max', () => ({
 }));
 vi.mock('@/features/workspace/useWorkspace', () => ({
   useWorkspaceManagement: () => directory,
+  useCurrentWorkspace: () => chat,
   registerWorkspaceGuard: vi.fn(() => () => {
   }),
   retainWorkspaceSelection: vi.fn(),
 }));
+vi.mock('@/services/platform/model', () => ({getManagedModel: vi.fn()}));
+vi.mock('@/services/platform/ai', () => ({listWorkspaceModelOptions: vi.fn()}));
 vi.mock('@/services/platform/tenant', () => ({browseAccessibleTenants: vi.fn()}));
 vi.mock('@/services/platform/workspace', async original => ({
   ...await original<typeof import('@/services/platform/workspace')>(), getWorkspace: vi.fn()
@@ -33,7 +40,8 @@ vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
                              onSaved,
                              onUnsafeChange,
                              onCancel,
-                             preferences
+                             preferences,
+                             focusedModel
                            }: React.ComponentProps<typeof WorkspaceDetailForm>) {
     const [dirty, setDirty] = useState(false);
     useConfigurationDraft({group: 'workspace-metadata', label: '空间基本信息', status: dirty ? 'dirty' : 'clean'});
@@ -53,6 +61,7 @@ vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
       </button>
       {onCancel && <button type="button" onClick={onCancel}>取消新增</button>}
       {preferences}
+      {focusedModel && <span>精确版本 {focusedModel.binding.version}</span>}
     </section>;
   }
 }));
@@ -63,12 +72,20 @@ const space = {
   currentRole: 0 as const,
   version: 1
 };
+const chatSpace = {...space, scope: {...space.scope, workspaceId: 'A'}};
+const executeSpace = {...space, scope: {...space.scope, workspaceId: 'C'}};
+const exact = {resourceId: 'model', binding: {type: 'binding', id: 'binding', version: 'v1'}};
+let chat = chatSpace;
 const pref = {defaultScope: space.scope, startupScope: space.scope, lastScope: null, favorites: [], version: 0};
 let directory: ReturnType<typeof import('@/features/workspace/useWorkspace').useWorkspaceManagement>;
 const select = vi.fn();
 beforeEach(() => {
   vi.resetAllMocks();
-  window.history.replaceState(null, '', '/Environment/Workspaces?tenantId=t&workspaceId=B&returnTo=chat');
+  window.history.replaceState(null, '', '/Environment/Workspaces');
+  chat = chatSpace;
+  vi.mocked(getWorkspace).mockImplementation(async scope => ({body: {data: {...space, scope}}}) as never);
+  vi.mocked(getManagedModel).mockResolvedValue({body: {data: {state: 'PUBLISHED'}}} as never);
+  vi.mocked(listWorkspaceModelOptions).mockResolvedValue({body: {data: {items: [exact], nextCursor: null}}} as never);
   directory = {
     records: [{...space, defaultWorkspace: false}], preference: pref, search: '', loaded: true,
     load: vi.fn(), loadMore: vi.fn(), updatePreference: vi.fn(), favorite: vi.fn(() => false)
@@ -86,7 +103,7 @@ afterEach(cleanup);
 
 const choose = () => fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
 
-it('opens an overview only after selecting a card when no tab is specified', () => {
+it('opens an overview only after selecting a card when the menu has no target', () => {
   const page = render(<Page/>);
   expect(screen.getByText('从左侧选择工作空间，或点击列表上方的新建按钮。')).toBeInTheDocument();
   expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
@@ -158,4 +175,60 @@ it('keeps the current usage space when revalidation fails', async () => {
   fireEvent.click(screen.getByRole('button', {name: '进入此空间'}));
   await waitFor(() => expect(screen.getByText(/未切换使用空间/)).toBeInTheDocument());
   expect(screen.queryByText('已进入此空间，聊天使用空间已切换。')).not.toBeInTheDocument();
+});
+
+const taskPath = () => aiLocation('workspaces', 'alice', {
+  scope: executeSpace.scope, execution: executeSpace.scope, management: space.scope, chat: chatSpace.scope,
+  model: exact, returnTo: 'models',
+});
+
+it('verifies C, verifies B resource ownership and restores v1 with a guarded return to B', async () => {
+  window.history.replaceState(null, '', taskPath());
+  render(<Page/>);
+  await screen.findByText('编辑目标 C · ai');
+  expect(screen.getByText('精确版本 v1')).toBeInTheDocument();
+  expect(getManagedModel).toHaveBeenCalledWith(space.scope, 'model', expect.anything());
+  expect(listWorkspaceModelOptions).toHaveBeenCalledWith(executeSpace.scope, undefined, expect.anything());
+  fireEvent.click(screen.getByRole('button', {name: '模拟修改'}));
+  fireEvent.click(screen.getByRole('button', {name: '返回模型详情'}));
+  expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
+  expect(history.push).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '留在本页'}));
+  fireEvent.click(screen.getByRole('button', {name: '模拟保存'}));
+  fireEvent.click(screen.getByRole('button', {name: '返回模型详情'}));
+  const route = vi.mocked(history.push).mock.calls[0][0] as string;
+  expect(parseAiIntent(route.split('?')[1], 'alice')).toMatchObject({
+    scope: space.scope, execution: executeSpace.scope, chat: chatSpace.scope, model: exact, returnTo: 'chat',
+  });
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+});
+
+it.each(['latest', 'different'])('rejects a stale or substituted version %s and retains the original usage scope', async version => {
+  const path = taskPath();
+  if (version === 'latest') window.history.replaceState(null, '', path.replace('bindingVersion=v1', 'bindingVersion=latest'));
+  else {
+    window.history.replaceState(null, '', path);
+    vi.mocked(listWorkspaceModelOptions).mockResolvedValue({
+      body: {
+        data: {
+          items: [
+            {...exact, binding: {...exact.binding, version: 'v2'}}], nextCursor: null
+        }
+      }
+    } as never);
+  }
+  render(<Page/>);
+  await screen.findByText(/精确版本|指定模型版本/);
+  expect(screen.queryByText('编辑目标 C · ai')).not.toBeInTheDocument();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+});
+
+it('blocks returning to a changed chat source without switching workspaces', async () => {
+  chat = executeSpace;
+  window.history.replaceState(null, '', taskPath());
+  render(<Page/>);
+  await screen.findByText('编辑目标 C · ai');
+  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+  expect(history.push).not.toHaveBeenCalled();
 });

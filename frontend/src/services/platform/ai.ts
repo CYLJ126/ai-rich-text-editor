@@ -1,3 +1,4 @@
+import {z} from 'zod';
 import {type DefaultAiPolicyCommand, defaultAiPolicySchema} from './defaultAiPolicyContract';
 import {AiApiError, type AiRequestOptions, postResult, requireIdempotencyKey} from '@/services/arte-ai/request';
 import type {CommandReceipt, WorkspaceScope} from './workspaceTypes';
@@ -73,6 +74,18 @@ export interface CatalogView {
 }
 
 const base = '/arte/workspace/ai';
+const configurationCapabilities = z.object({
+  available: z.boolean(), manageConnections: z.boolean(), managePlans: z.boolean(), manageDefaultTemplate: z.boolean(),
+}).strict().refine(value => value.available || !(value.manageConnections || value.managePlans || value.manageDefaultTemplate));
+export type ConfigurationCapabilities = z.infer<typeof configurationCapabilities>;
+
+export async function getConfigurationCapabilities(options?: AiRequestOptions): Promise<ConfigurationCapabilities> {
+  const result = await postResult<unknown>('getConfigurationCapabilities', {}, options, undefined, base);
+  const parsed = configurationCapabilities.safeParse(result.body.data);
+  if (!parsed.success) throw new AiApiError(result.httpStatus, result.body, 'Invalid configuration capabilities');
+  return parsed.data;
+}
+
 export const getWorkspaceAi = (scope: WorkspaceScope, options?: AiRequestOptions) => postResult<WorkspaceAiView>('getConfiguration', {scope}, options, undefined, base);
 export const updateWorkspaceAi = async (request: {
   scope: WorkspaceScope;

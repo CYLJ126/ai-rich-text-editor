@@ -6,7 +6,7 @@ import {
   type WorkspaceScope,
   type WorkspaceView
 } from '@/services/platform/workspace';
-import {getWorkspaceAi} from '@/services/platform/ai';
+import {type AiModel, getWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceTab} from '@/features/configuration/configurationLocation';
 import {configurationReadError} from '@/features/configuration/useConfigurationDirectory';
 import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
@@ -29,6 +29,7 @@ interface Props {
   tab?: WorkspaceTab;
   onTabChange?: (tab: WorkspaceTab) => void;
   preferences?: React.ReactNode;
+  focusedModel?: AiModel;
 }
 
 /** 目标由调用方提供；编辑与新增均不选择聊天空间。换目标时卸载旧草稿与读取。 */
@@ -47,7 +48,7 @@ function Detail({
                   onUnsafeChange,
                   tab,
                   onTabChange,
-                  preferences
+                  preferences, focusedModel
                 }: Props) {
   const directory = useWorkspaceManagement(userId);
   const [view, setView] = useState<WorkspaceView>();
@@ -300,6 +301,7 @@ function Detail({
                                                  label: 'AI 配置',
                                                  children: <WorkspaceAiGovernanceEditor scope={context.scope}
                                                                                         context={context}
+                                                                                        focusedModel={focusedModel}
                                                                                         versionChange={versionChange}
                                                                                         refreshRevision={aiRevision}
                                                                                         onUnsafeChange={setAiUnsafe}

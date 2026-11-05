@@ -1,8 +1,9 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {history} from '@umijs/max';
 import type {WorkspaceScope} from '@/services/platform/workspace';
-import {workspaceScopeSchema} from '@/services/platform/workspace';
+import {getWorkspace, workspaceScopeSchema} from '@/services/platform/workspace';
 import {listWorkspaceModelOptions, type ModelSelection} from '@/services/platform/ai';
+import {readValue, sameScope, workspaceStorageKey} from './storage';
 import {useConfigurationFallback, useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
 export type AiIntent = {
@@ -14,7 +15,7 @@ export type AiIntent = {
   returnTo?: 'chat' | 'models';
   view?: 'authorization';
 };
-const cleanId = (value: string | null): value is string => !!value && value.length <= 256 && Array.from(value).every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
+const cleanId = (value: string | null): value is string => !!value && value.length <= 256 && value.trim() === value && Array.from(value).every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
 
 /** 路由只是定位意图；完整范围、账号及版本均核验，不代入当前空间或最新版本。 */
 export function parseAiIntent(search: string, userId: string): AiIntent {
@@ -23,6 +24,7 @@ export function parseAiIntent(search: string, userId: string): AiIntent {
     if (params.getAll(key).length > 1) throw new Error('重复的定位参数，请重新选择目标。');
     return params.get(key);
   };
+  one('tab');
   const account = one('account');
   if (account !== null && account !== userId) throw new Error('此定位来自其他账号，请用当前账号重新选择。');
   const scope = (prefix: string) => {
@@ -82,14 +84,71 @@ export async function verifyAiModel(scope: WorkspaceScope, model: ModelSelection
   do {
     const {body} = await listWorkspaceModelOptions(scope, cursor, {signal});
     if (signal.aborted) throw new Error('定位已取消。');
-    if (body.data.items.some(item => item.resourceId === model.resourceId && item.binding.id === model.binding.id
-      && item.binding.version === model.binding.version && item.binding.type === 'binding')) return;
+    const exact = body.data.items.find(item => item.resourceId === model.resourceId && item.binding.id === model.binding.id
+      && item.binding.version === model.binding.version && item.binding.type === 'binding');
+    if (exact) return exact;
     const next = body.data.nextCursor;
     if (next && visited.has(next)) throw new Error('候选分页失效，请重新读取。');
     if (next) visited.add(next);
     cursor = next ?? undefined;
   } while (cursor);
   throw new Error('所定位的模型版本不可读、已失效或不属于此资源，请重新选择。');
+}
+
+/** Chat source is only a return target if it still agrees with the actual account's selection. */
+export function useChatReturn(userId: string, current: WorkspaceScope | undefined, source?: WorkspaceScope) {
+  const navigation = useConfigurationNavigation();
+  const stored = workspaceScopeSchema.safeParse(readValue<unknown>(workspaceStorageKey(userId, 'currentWorkspace')).value);
+  const scope = current ?? (stored.success ? stored.data : undefined);
+  const latest = useRef(scope);
+  latest.current = scope;
+  const request = useRef<AbortController | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const changed = !!source && !sameScope(scope, source);
+  useEffect(() => {
+    const logout = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === userId) request.current?.abort();
+    };
+    window.addEventListener('arte-account-session-cleared', logout);
+    return () => {
+      request.current?.abort();
+      window.removeEventListener('arte-account-session-cleared', logout);
+    };
+  }, [userId]);
+
+  function back() {
+    navigation.request(() => {
+      if (source && !sameScope(source, latest.current)) {
+        setError('原聊天空间已变化，请重新确认当前使用空间。');
+        return;
+      }
+      const target = source ?? latest.current;
+      if (!target) {
+        history.push('/AI/ChatNew');
+        return;
+      }
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setError('');
+      setLoading(true);
+      void getWorkspace(target, {signal: controller.signal}).then(({body}) => {
+        if (controller.signal.aborted) return;
+        if (!sameScope(body.data.scope, target) || !sameScope(latest.current, target))
+          throw new Error('聊天空间已变化');
+        navigation.request(() => {
+          if (!controller.signal.aborted && sameScope(latest.current, target)) history.push('/AI/ChatNew');
+        });
+      }).catch(() => {
+        if (!controller.signal.aborted) setError('原聊天空间不可读取或已变化，请重新确认当前使用空间。');
+      }).finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    });
+  }
+
+  return {back, error, loading, changed, scope};
 }
 
 /** 站内离开与浏览器刷新都保护未保存草稿和原操作；不自动放弃或重发。 */

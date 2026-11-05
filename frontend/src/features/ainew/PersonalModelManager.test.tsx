@@ -361,7 +361,22 @@ it('supports empty filtered pages with a continuation cursor', async () => {
   manager();
   fireEvent.click(await screen.findByRole('button', {name: '继续查找可读模型'}));
   await screen.findByRole('button', {name: '管理 我的模型'});
-  expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, 'next', expect.anything());
+  expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, 'next', expect.anything(), {});
+});
+it('resets pagination when search changes without losing an open model draft', async () => {
+  vi.mocked(api.listManagedModels).mockResolvedValueOnce(response({records: [model], nextCursor: 'old'}))
+    .mockResolvedValueOnce(response({records: [], nextCursor: 'filtered'}))
+    .mockResolvedValueOnce(response({records: [], nextCursor: null}));
+  render(<PersonalModelManager context={context} scopeFilter={<span>管理空间选择</span>} onUpdated={updated}/>);
+  await open();
+  fireEvent.change(screen.getByRole('textbox', {name: '模型展示名称'}), {target: {value: '保留的草稿'}});
+  const search = screen.getByRole('searchbox', {name: '搜索模型名称'});
+  fireEvent.change(search, {target: {value: '目标'}});
+  fireEvent.keyDown(search, {key: 'Enter'});
+  await waitFor(() => expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, null, expect.anything(), {search: '目标'}));
+  expect(screen.getByRole('textbox', {name: '模型展示名称'})).toHaveValue('保留的草稿');
+  fireEvent.click(await screen.findByRole('button', {name: '继续查找可读模型'}));
+  await waitFor(() => expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, 'filtered', expect.anything(), {search: '目标'}));
 });
 it('discards late reads after scope changes and never shows another scope response', async () => {
   let finish!: (value: ReturnType<typeof response<api.ModelDraft>>) => void;
@@ -373,10 +388,10 @@ it('discards late reads after scope changes and never shows another scope respon
   const other = {...context, scope: {...scope, workspaceId: 'other'}};
   vi.mocked(api.listManagedModels).mockResolvedValue(response({records: [], nextCursor: null}));
   page.rerender(<PersonalModelManager context={other} onUpdated={updated}/>);
-  await screen.findByText('当前列表没有可读模型');
+  await screen.findByText('没有匹配的可读模型。');
   await act(async () => finish(response(draft)));
   expect(screen.queryByLabelText('模型展示名称')).not.toBeInTheDocument();
-  expect(api.listManagedModels).toHaveBeenLastCalledWith(other.scope, null, expect.anything());
+  expect(api.listManagedModels).toHaveBeenLastCalledWith(other.scope, null, expect.anything(), {});
 });
 it('reports disabled deployment without granting optimistic creation', async () => {
   vi.mocked(api.listManagedModels).mockRejectedValue(new AiApiError(404, {code: 'NOT_FOUND'}));
@@ -439,6 +454,11 @@ it('reads and refreshes returned execution B while preserving management M and m
   });
   const writeUsage = vi.spyOn(usage, 'prepareModelUsage');
   vi.mocked(api.listModelVersions).mockResolvedValue(response({records: [release], current: 1, size: 10, total: 1}));
+  vi.mocked(api.getManagedModel).mockResolvedValue(response({
+    ...model,
+    state: 'PUBLISHED',
+    bindingId: release.binding.id
+  }));
   render(<PersonalModelManager context={context} executionScope={execution}
                                initialModel={{resourceId: release.resourceId, binding: release.binding}}
                                onUpdated={updated}/>);

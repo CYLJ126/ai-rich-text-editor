@@ -3,6 +3,7 @@ package com.arte.app.web.controller.platform;
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.api.model.ModelResourceService;
 import com.arte.ainew.pojo.model.ModelDrafts.*;
+import com.arte.ainew.pojo.model.ModelListFilter;
 import com.arte.ainew.spi.model.ModelConnectionValidator;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.web.platform.ModelDraftPayload.*;
@@ -63,7 +64,8 @@ public class ModelDraftController {
     @PostMapping("/listModelResources")
     public Mono<ResultContext<ModelListView>> list(Authentication auth, @Valid @RequestBody ListRequest request, Locale locale) {
         return executor.call(auth, actor -> {
-            ModelList page = service.list(actor, request.scope(), request.cursor(), request.size());
+            ModelList page = service.list(actor, request.scope(), request.cursor(), request.size(),
+                    new ModelListFilter(request.search(), request.modelKind(), request.state()));
             return new ModelListView(page.records().stream().map(model -> ModelResourcePayload.Resource.from(model)
                     .withActions(models.actions(actor, request.scope(), model.resource()))).toList(), page.nextCursor());
         }).map(value -> ok(value, locale));

@@ -28,6 +28,8 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
   const writing = useRef(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [listError, setListError] = useState('');
+  const filter = useRef<api.ModelListFilter>({});
   const [records, setRecords] = useState<api.ManagedModel[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const visitedCursors = useRef(new Set<string>());
@@ -89,10 +91,10 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
       visitedCursors.current.clear();
     }
     setLoading(true);
-    setError('');
+    setListError('');
     setCreationKinds([]);
     const results = await Promise.allSettled([
-      api.listManagedModels(context.scope, after, {signal: controller.signal}),
+      api.listManagedModels(context.scope, after, {signal: controller.signal}, filter.current),
       api.getModelCreationOptions(context.scope, {signal: controller.signal}),
     ]);
     if (!live.current || controller.signal.aborted) return;
@@ -100,7 +102,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
     if (list.status === 'fulfilled') {
       const page = list.value.body.data;
       if (page.nextCursor !== null && (page.nextCursor === after || visitedCursors.current.has(page.nextCursor))) {
-        setError('目录游标未向后推进，请重新读取模型列表。');
+        setListError('目录游标未向后推进，请重新读取模型列表。');
         setCursor(null);
       } else {
         if (page.nextCursor) visitedCursors.current.add(page.nextCursor);
@@ -108,15 +110,27 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
         setCursor(page.nextCursor);
       }
       setCreationKinds(access.status === 'fulfilled' ? access.value.body.data : []);
-      if (access.status === 'rejected') setError('无法核验创建权限，当前只允许读取。');
+      if (access.status === 'rejected') setListError('无法核验创建权限，当前只允许读取。');
     } else {
-      setError(modelFailure(list.reason, true));
-      setRecords([]);
+      setListError(list.reason instanceof AiApiError && list.reason.httpStatus === 400 && after
+        ? '筛选游标已失效，请从第一页重新读取模型列表。' : modelFailure(list.reason, true));
+      if (list.reason instanceof AiApiError && [401, 403, 404].includes(list.reason.httpStatus)) {
+        detailRead.current?.abort();
+        statusRead.current?.abort();
+        setRecords([]);
+        setDetail(null);
+        setStatus(null);
+        setSelectedVersion(null);
+        setDetailLoading(false);
+      }
       setCursor(null);
-      setDetail(null);
-      setStatus(null);
     }
     setLoading(false);
+  }
+
+  function setListFilter(value: api.ModelListFilter) {
+    filter.current = value;
+    void loadList();
   }
 
   async function open(resourceId: string, page = 1) {
@@ -172,7 +186,10 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
           if (!live.current || controller.signal.aborted) return;
           exact = response.body.data.records.find(item => item.binding.id === initialModel.binding.id && item.binding.version === initialModel.binding.version);
         }
-        if (!exact) throw new Error('定位版本不可读或已失效，请重新选择；不会采用最新版本。');
+        if (!exact || value.model.state !== 'PUBLISHED') {
+          setError('定位版本不可读或已失效，请重新选择。');
+          return;
+        }
         locating.current = false;
         void selectVersion(exact);
       }
@@ -308,7 +325,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
     if (selected) void open(selected);
   }, []);
   return {
-    records,
+    records, listError, setListFilter,
     cursor,
     loading,
     canCreate,

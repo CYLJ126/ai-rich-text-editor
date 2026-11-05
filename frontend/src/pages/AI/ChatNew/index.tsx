@@ -875,6 +875,11 @@ export default function ChatNewPage() {
     previousAccount.current = userId;
   }, [userId]);
   if (!userId) return <Alert type="info" title="请登录后使用 AI 聊天。"/>;
+  const openModelConfiguration = () => {
+    const source = workspace?.state !== null ? workspace?.scope : undefined;
+    const proceed = () => history.push(aiLocation('models', userId, source ? {chat: source, returnTo: 'chat'} : {}));
+    if (protect.current) protect.current(proceed); else proceed();
+  };
   const workspaceDetails = workspace && workspace.state !== null
     ? <WorkspaceDetailForm userId={userId} scope={workspace.scope} onUnsafeChange={setWorkspaceDetailsUnsafe}/>
     : <Alert type="info" title="请选择公共工作空间后查看和编辑详情。"/>;
@@ -893,7 +898,7 @@ export default function ChatNewPage() {
         }}/>
     </Flex>
     {workspaceDetails}
-    {workspace && <Button onClick={() => history.push('/AI/Models')}>管理当前空间模型</Button>}
+    {workspace && <Button onClick={openModelConfiguration}>管理当前空间模型</Button>}
   </>;
   return <Flex component="main" vertical gap={12} ref={pageRef} className="ainew-page" style={{height: pageHeight}}
                aria-label="AI 聊天（新版）">
@@ -910,7 +915,7 @@ export default function ChatNewPage() {
         key={JSON.stringify([userId, workspace.scope])} scope={workspace.scope}
         context={{userId, scope: workspace.scope}} legacy={workspace.state === null}
         refreshRevision={aiPreparationRevision} onUnsafeChange={setPreparationUnsafe}
-        fallback={workspaceFallback}>
+        fallback={workspaceFallback} onOpenModels={openModelConfiguration}>
         {/* 页面主体内容：会话列表、聊天内容、右侧辅助栏 */}
         <WorkspaceChat
           userId={userId} workspace={workspace} t={t} translate={translate} protectRef={protect}

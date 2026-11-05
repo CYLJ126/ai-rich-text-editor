@@ -219,6 +219,19 @@ it('discards late details from a previous space and clears the form on logout', 
 });
 
 
+it('opens the AI tab with the exact route model and does not submit any changes', async () => {
+  const reference = (type: string, id: string) => ({type, id, version: 'v1'});
+  const model: ai.AiModel = {
+    name: '跨页定位模型', resourceId: 'model', binding: reference('binding', 'model'),
+    kind: 'TENANT', enabled: true, rate: reference('rate', 'price'), connection: reference('connection', 'provider')
+  };
+  vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply({...aiView(), models: [model]}));
+  render(<WorkspaceDetailForm userId={userId} scope={scope} tab="ai" focusedModel={model}/>);
+  expect(await screen.findByText('跨页定位模型 · 版本 v1')).toBeInTheDocument();
+  expect(await screen.findByRole('button', {name: '加入模型草稿'})).toBeEnabled();
+  expect(ai.updateWorkspaceAi).not.toHaveBeenCalled();
+  expect(ai.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+});
 it('keeps metadata, AI and policy permissions independent for a space administrator', async () => {
   vi.mocked(api.getWorkspace).mockResolvedValue(reply({...view(), currentRole: 1}));
   vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply(aiView(false)));

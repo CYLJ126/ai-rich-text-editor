@@ -15,7 +15,13 @@ import {
   Tag,
   Typography
 } from 'antd';
-import {type ManagedModel, type ModelCommand, type ModelFields, modelFieldsSchema} from '@/services/platform/model';
+import {
+  type ManagedModel,
+  type ModelCommand,
+  type ModelFields,
+  modelFieldsSchema,
+  type ModelListFilter
+} from '@/services/platform/model';
 import type {ModelSelection} from '@/services/platform/ai';
 import {refKey} from '@/services/platform/ai';
 import {type BrowserContext, storageKey} from './storage';
@@ -41,6 +47,8 @@ interface Props {
   onBrowse?: () => void;
   onUseInChat?: () => void;
   useInChatDisabled?: boolean;
+  scopeFilter?: React.ReactNode;
+  managementName?: string;
 }
 
 type Fields = Omit<ModelFields, 'planRef'> & { template: string };
@@ -96,7 +104,7 @@ function ModelManager({
                         authorization,
                         onConfigureWorkspace,
                         disabled: blockedByOther = false,
-                        executionScope
+                        executionScope, scopeFilter, managementName
                       }: Props) {
   const usageContext = useMemo(() => ({
     userId: context.userId,
@@ -262,7 +270,8 @@ function ModelManager({
       setCreating(false);
       void vm.open(key);
     })}
-    emptyText="当前列表没有可读模型"
+    listHeader={scopeFilter && <ModelListControls scopeFilter={scopeFilter} onFilter={vm.setListFilter}/>}
+    emptyText={vm.loading ? '正在读取模型列表…' : vm.cursor ? '本批没有匹配模型，可以继续加载。' : '没有匹配的可读模型。'}
     listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
                                      onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
     items={buildModelItems(vm.records, !navigation.available && !canMove)}>
@@ -271,6 +280,7 @@ function ModelManager({
       <Flex vertical gap={10} className="personal-models-intro">
         {stale && <Alert type="info" title="空间 AI 配置已变化，请重新读取准备状态和可用目录；当前草稿及选择保持不变。"/>}
         {vm.closed && <Alert type="warning" title="账号会话已结束，请重新登录后打开模型管理。"/>}
+        {vm.listError && <Alert type="warning" title={vm.listError}/>}
         {vm.error && <Alert type="warning" showIcon title={vm.error}/>}
         {formError && <Alert type="warning" showIcon title={formError}/>}
         {vm.notice && <Alert type="success" showIcon title={vm.notice}/>}
@@ -306,6 +316,7 @@ function ModelManager({
 
       {creating ? <>
         <Card size="small" title="添加模型">
+          <Typography.Paragraph>管理空间：{managementName ?? context.scope.workspaceId}</Typography.Paragraph>
           <Flex vertical gap={8}>
             <Select aria-label="模型归属" value={modelKind} disabled={disabled || dirty || !!name || !!token}
                     options={vm.creationKinds.map(value => ({
@@ -586,4 +597,26 @@ function ModelManager({
       </>}
     </div>
   </MasterDetailLayout>;
+}
+
+function ModelListControls({scopeFilter, onFilter}: {
+  scopeFilter: React.ReactNode;
+  onFilter: (query: ModelListFilter) => void
+}) {
+  const [query, setQuery] = useState<ModelListFilter>({});
+  const apply = (next: ModelListFilter) => {
+    setQuery(next);
+    onFilter(next);
+  };
+  return <Flex vertical gap={8} style={{marginBottom: 12}}>
+    {scopeFilter}
+    <Input.Search aria-label="搜索模型名称" placeholder="搜索模型名称" maxLength={100} allowClear
+                  onSearch={search => apply({...query, search: search.trim() || undefined})}/>
+    <Select aria-label="筛选模型归属" placeholder="全部归属" allowClear value={query.modelKind}
+            options={[{label: '个人模型', value: 'PERSONAL'}, {label: '租户模型', value: 'TENANT'}]}
+            onChange={modelKind => apply({...query, modelKind})}/>
+    <Select aria-label="筛选模型状态" placeholder="全部状态" allowClear value={query.state}
+            options={Object.entries(stateName).map(([value, label]) => ({value, label}))}
+            onChange={state => apply({...query, state})}/>
+  </Flex>;
 }

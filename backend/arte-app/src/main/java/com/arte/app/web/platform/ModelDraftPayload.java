@@ -2,6 +2,8 @@ package com.arte.app.web.platform;
 
 import com.arte.ainew.pojo.model.ModelDrafts.Settings;
 import com.arte.ainew.pojo.model.ModelDrafts.Validation;
+import com.arte.ainew.pojo.model.ModelResource;
+import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -32,9 +34,13 @@ public final class ModelDraftPayload {
      * @param scope  待查询的租户和空间范围，不能代替服务端授权
      * @param cursor 上次返回的主体及空间绑定游标，首次查询可省略
      * @param size   本次最多返回的可读资源数，省略时为 20，允许范围为 1～100
+     * @param search 名称包含匹配，省略时不限名称
+     * @param modelKind 模型归属过滤
+     * @param state 模型管理状态过滤
      */
     public record ListRequest(@NotNull Scope scope, @Size(max = 129) String cursor,
-                              @Min(1) @Max(100) Integer size) implements StrictPlatformRequest {
+                              @Min(1) @Max(100) Integer size, @Size(max = 100) String search,
+                              ModelKind modelKind, ModelResource.State state) implements StrictPlatformRequest {
         public ListRequest {
             size = size == null ? 20 : size;
         }

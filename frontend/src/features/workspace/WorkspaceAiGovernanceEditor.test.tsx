@@ -93,6 +93,24 @@ it('requires explicit budget approval and only discards the draft when leaving',
   expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
 });
 
+it('shows the precise route model and only adds it to the draft on explicit request', async () => {
+  const focused = view.models[0];
+  const configuration = view.configuration;
+  if (!configuration) throw new Error('Missing configuration fixture');
+  vi.mocked(api.getWorkspaceAi).mockResolvedValue(response({
+    ...view,
+    configuration: {...configuration, enabled: false, models: []}
+  }));
+  render(<WorkspaceAiGovernanceEditor scope={scope} context={context} focusedModel={focused} onUpdated={vi.fn()}/>);
+  await screen.findByText('空间 AI 尚未启用。此版本尚未配置在空间中。');
+  expect(screen.getByRole('switch', {name: '启用此空间 AI'})).not.toBeChecked();
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '加入模型草稿'}));
+  expect(screen.queryByRole('button', {name: '加入模型草稿'})).not.toBeInTheDocument();
+  expect(screen.getByRole('switch', {name: '启用此空间 AI'})).not.toBeChecked();
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+  expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+});
 it('preserves the original operation and CAS fields after network uncertainty and remount', async () => {
   vi.mocked(api.updateWorkspaceAi).mockRejectedValueOnce(new TypeError('network'));
   render(<WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/>);

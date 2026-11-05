@@ -15,6 +15,7 @@ vi.mock('@umijs/max', () => ({
   Link: ({to, children}: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }));
 vi.mock('@/features/workspace/useWorkspace', () => ({
+  useCurrentWorkspace: () => null,
   useWorkspaceManagement: () => ({records: [], search: '', loaded: false}),
   registerWorkspaceGuard: vi.fn(() => () => {
   })

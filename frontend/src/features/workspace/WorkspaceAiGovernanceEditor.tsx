@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Alert, Button, Flex, Form, InputNumber, Select, Switch, Typography} from 'antd';
 import {
+  type AiModel,
   type BudgetPreset,
   type BudgetRateOption,
   getWorkspaceAi,
@@ -30,11 +31,13 @@ export default function WorkspaceAiGovernanceEditor({
                                                       onUnsafeChange,
                                                       refreshRevision = 0,
                                                       versionChange,
+                                                      focusedModel,
                                                       disabled = false
                                                     }: {
   disabled?: boolean;
   refreshRevision?: number;
   versionChange?: WorkspaceVersionChange;
+  focusedModel?: AiModel;
   scope: WorkspaceScope;
   context: BrowserContext;
   onUpdated: (change?: WorkspaceVersionChange) => void;
@@ -247,8 +250,35 @@ export default function WorkspaceAiGovernanceEditor({
   const canEdit = !disabled && !!view?.canManage && !loading && !saving && !uncertain && !blocked;
   const canEditModels = canEdit && dirtyKind !== 'rules';
   const canEditRules = canEdit && dirtyKind !== 'models';
+  const focusedKey = focusedModel ? refKey(focusedModel.binding) : '';
+  const availableFocus = focusedModel && view?.models.some(item =>
+    item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
+  const savedFocus = focusedModel && view?.configuration?.models.some(item =>
+    item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
+  const draftFocus = focusedModel && models.some(item =>
+    item.resourceId === focusedModel.resourceId && refKey(item.binding) === focusedKey);
+  const focusedRule = focusedModel && ruleView?.configuration?.rules.find(rule => refKey(rule.rate) === refKey(focusedModel.rate));
   return <Flex component="section" vertical gap={12} aria-label="空间 AI 配置">
     <Typography.Paragraph>为此空间启用实际模型的固定版本，并独立维护费率预算规则。首次准备不选择模型，也不创建本人账户。</Typography.Paragraph>
+    {focusedModel && <Flex vertical gap={8} aria-label="定位模型版本">
+      <Typography.Text strong>{focusedModel.name} · 版本 {focusedModel.binding.version}</Typography.Text>
+      {!view ? <Typography.Text type="secondary">等待读取执行空间配置。</Typography.Text>
+        : !availableFocus ? <Alert type="warning" title="该精确版本已不在此空间的可配置目录中。"/>
+          : <>
+            <Typography.Text>{view.configuration
+              ? `${view.configuration.enabled ? '空间 AI 已启用。' : '空间 AI 尚未启用。'}${savedFocus
+                ? '此版本已配置在空间中。' : '此版本尚未配置在空间中。'}`
+              : '待首次准备空间 AI 配置。'}</Typography.Text>
+            <Typography.Text>{!ruleView ? '当前无法核验此费率的空间预算规则。'
+              : focusedRule && Number(focusedRule.limit.amount) > 0 ? '此费率已有正额度规则。'
+                : '此费率待配置正额度规则。'} 本人使用条件需在模型详情中重新检查。</Typography.Text>
+            {canEditModels && view.configuration && !draftFocus && <Button onClick={() => {
+              setModels(current => [...current.filter(item => item.resourceId !== focusedModel.resourceId),
+                {resourceId: focusedModel.resourceId, binding: focusedModel.binding}]);
+              setDirtyKind('models');
+            }}>加入模型草稿</Button>}
+          </>}
+    </Flex>}
     {dirty && <Typography.Text>请先保存当前修改，或重新读取放弃修改后，再编辑另一项。</Typography.Text>}
     {saved && <Alert type="success" title={saved}/>}
     {refreshRevision > 0 && <Typography.Text>空间配置有更新，请按需重新读取；当前草稿保持不变。</Typography.Text>}

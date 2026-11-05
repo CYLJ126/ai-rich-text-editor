@@ -113,6 +113,15 @@ public class WorkspaceAiConfigurationController {
         return executor.read(() -> work.apply(identities.actor(snapshot))).map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
+    public record CapabilitiesRequest() implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/getConfigurationCapabilities")
+    public Mono<ResultContext<DatabaseAiControlService.ConfigurationCapabilities>> capabilities(
+            Authentication auth, @Valid @RequestBody CapabilitiesRequest request, Locale locale) {
+        return call(auth, locale, service::configurationCapabilities);
+    }
+
     @PostMapping("/getConfiguration")
     public Mono<ResultContext<WorkspaceView>> get(Authentication auth, @Valid @RequestBody ScopeRequest request, Locale locale) {
         return call(auth, locale, actor -> governance.get(actor, request.scope()));

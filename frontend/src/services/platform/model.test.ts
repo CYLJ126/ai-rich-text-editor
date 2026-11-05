@@ -43,6 +43,16 @@ it('uses the current scope and opaque cursor, preserving empty readable pages wi
     }, method: 'POST'
   }));
 });
+it('sends server filters with the continuation and rejects a mismatched returned state', async () => {
+  const filter = {search: '精确模型', modelKind: 'TENANT', state: 'PUBLISHED'} as const;
+  vi.mocked(request).mockResolvedValue(answer({records: [], nextCursor: 'after'}));
+  await api.listManagedModels(scope, 'before', undefined, filter);
+  expect(request).toHaveBeenCalledWith('/arte/ai-new/model-draft/listModelResources', expect.objectContaining({
+    data: {scope, cursor: 'before', size: 20, ...filter},
+  }));
+  vi.mocked(request).mockResolvedValue(answer({records: [{...model, ownershipType: 'TENANT'}], nextCursor: null}));
+  await expect(api.listManagedModels(scope, null, undefined, filter)).rejects.toMatchObject({code: 'INVALID_MODEL_RESPONSE'});
+});
 it('rejects cross-scope resources and duplicate identities', async () => {
   vi.mocked(request).mockResolvedValue(answer({
     records: [{...model, scope: {...scope, workspaceId: 'other'}}],

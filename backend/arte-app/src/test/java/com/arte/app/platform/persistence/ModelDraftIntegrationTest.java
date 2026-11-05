@@ -359,6 +359,49 @@ class ModelDraftIntegrationTest {
     }
 
     @Test
+    void filteredHttpDirectoryCanContinueAnEmptyBatchAndBindsQueryToCursor() {
+        var candidates = new ArrayList<ModelResource>();
+        candidates.add(model);
+        for (int i = 0; i < 100; i++) {
+            candidates.add(f.models.create(f.f.actor, new com.arte.ainew.pojo.model.ModelResourceCommands.Create(
+                    f.meta("filter-" + i), f.scope, "Fixture model " + String.format(Locale.ROOT, "%03d", i))).value());
+        }
+        ModelResource last = candidates.stream()
+                .max(Comparator.comparing(candidate -> DefaultModelDraftService.resourceKey(candidate.resource()))).orElseThrow();
+        var scheduler = Schedulers.newBoundedElastic(2, 16, "model-filter-test");
+        var executor = new PlatformAuthenticatedExecutor(f.identity, new PlatformPersistenceExecutor(scheduler, f.f.tx));
+        try (var http = new ManagementHttpHarness(new ModelDraftController(executor, service,
+                probe -> Mono.error(new AssertionError("Browsing must not probe")), f.models))) {
+            var auth = ManagementHttpHarness.login(f.f.jdbc, 1, "alice");
+            var request = new HashMap<String, Object>(Map.of("scope", f.scope, "size", 2,
+                    "modelKind", "PERSONAL", "state", "DRAFT", "search", " " + last.name().toUpperCase(Locale.ROOT) + " "));
+            var first = http.ok(ROOT + "listModelResources", f.f.json.write(request), null, auth).getJSONObject("data");
+            assertTrue(first.getJSONArray("records").isEmpty());
+            String cursor = first.getStr("nextCursor");
+            assertNotNull(cursor);
+            request.put("cursor", cursor);
+            request.put("search", last.name());
+            var second = http.ok(ROOT + "listModelResources", f.f.json.write(request), null, auth).getJSONObject("data");
+            assertEquals(last.resource().resourceId(), second.getJSONArray("records").getJSONObject(0).getStr("resourceId"));
+            assertNull(second.getStr("nextCursor"));
+
+            for (var mismatch : Map.of("search", "other", "size", 3, "modelKind", "TENANT", "state", "PUBLISHED").entrySet()) {
+                var changed = new HashMap<>(request);
+                changed.put(mismatch.getKey(), mismatch.getValue());
+                http.rejected(ROOT + "listModelResources", f.f.json.write(changed), null, auth, 400, "INVALID_ARGUMENT");
+            }
+            var hidden = bob();
+            assertTrue(service.list(hidden, f.scope, null, 20,
+                    new com.arte.ainew.pojo.model.ModelListFilter(last.name(), null, null)).records().isEmpty());
+            request.remove("cursor");
+            request.put("state", "NOT_A_STATE");
+            http.rejected(ROOT + "listModelResources", f.f.json.write(request), null, auth, 400, "INVALID_ARGUMENT");
+        } finally {
+            scheduler.dispose();
+        }
+    }
+
+    @Test
     void parallelDraftUpdatesHaveOneWinner() throws Exception {
         save("save", 0);
         try (var pool = Executors.newFixedThreadPool(2)) {

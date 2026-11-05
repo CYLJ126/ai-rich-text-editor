@@ -16,7 +16,7 @@ export default function WorkspaceAiPreparation({
                                                  children,
                                                  refreshRevision = 0,
                                                  onUnsafeChange,
-                                                 fallback
+                                                 fallback, onOpenModels
                                                }: {
   scope: WorkspaceScope;
   context: BrowserContext;
@@ -25,6 +25,7 @@ export default function WorkspaceAiPreparation({
   refreshRevision?: number;
   onUnsafeChange?: (unsafe: boolean) => void;
   fallback?: React.ReactNode;
+  onOpenModels?: () => void;
 }) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'import' | 'error'>(legacy ? 'ready' : 'loading');
@@ -58,7 +59,7 @@ export default function WorkspaceAiPreparation({
     </Flex>
     : state === 'import' ? <Alert type="info" title="平台审核目录尚未准备，请联系平台配置管理员。"
                                   action={<Button
-                                    onClick={() => history.push(aiLocation('models', context.userId, {}))}>打开模型配置</Button>}/>
+                                    onClick={onOpenModels ?? (() => history.push(aiLocation('models', context.userId, {})))}>打开模型配置</Button>}/>
       : <Alert type="info" title={error}
                action={<Button onClick={() => setRevision(value => value + 1)}>重新检查</Button>}/>;
   return <Flex vertical gap={12} className="ainew-bootstrap ai-preparation-panel">{status}{fallback}</Flex>;

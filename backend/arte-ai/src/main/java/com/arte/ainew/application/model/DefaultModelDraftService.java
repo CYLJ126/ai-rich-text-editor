@@ -4,6 +4,7 @@ import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.model.ModelDrafts.*;
+import com.arte.ainew.pojo.model.ModelListFilter;
 import com.arte.ainew.pojo.model.ModelResource;
 import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver.BearerCredential;
@@ -125,13 +126,17 @@ public final class DefaultModelDraftService implements ModelDraftService {
     }
 
     @Override
-    public ModelList list(TrustedActor actor, Scope scope, String cursor, int size) {
+    public ModelList list(TrustedActor actor, Scope scope, String cursor, int size, ModelListFilter filter) {
         if (size < 1 || size > 100) {
             throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
         }
         return read(actor, scope, () -> {
             workspace(actor, scope);
-            String after = cursorKey(actor, scope, cursor);
+            // Keep issued, unfiltered cursors valid. Filtered cursors bind the complete query.
+            String namespace = filter.unfiltered() ? "model-list" : DefaultCommandExecutor.digest(List.of(
+                    "model-list-filter-v1", filter.search(), Objects.toString(filter.modelKind(), ""),
+                    Objects.toString(filter.state(), ""), Integer.toString(size)));
+            String after = cursorKey(actor, scope, cursor, namespace);
             List<ModelResource> candidates = models.candidates(scope, after, 100);
             List<ModelResource> result = new ArrayList<>();
             String last = after;
@@ -142,7 +147,8 @@ public final class DefaultModelDraftService implements ModelDraftService {
                 try {
                     // 即使调用方外层事务已有旧快照，也按锁定后的当前授权事实过滤。
                     authorization.requireInCurrentTransaction(actor, new AccessRequest(scope, model.resource(), MODEL_READ, "model-list"));
-                    result.add(model);
+                    ModelResource current = filter.unfiltered() ? model : current(scope, model.resource());
+                    if (filter.matches(current)) result.add(current);
                 } catch (PlatformException denied) {
                     if (!Set.of(PlatformErrorCodeEnum.ACCESS_DENIED, PlatformErrorCodeEnum.POLICY_DENIED, PlatformErrorCodeEnum.NOT_FOUND).contains(denied.getCode())) {
                         throw denied;
@@ -152,21 +158,13 @@ public final class DefaultModelDraftService implements ModelDraftService {
                     break;
                 }
             }
-            String next = scanned < candidates.size() || candidates.size() == 100 ? cursor(actor, scope, last) : null;
+            String next = scanned < candidates.size() || candidates.size() == 100 ? cursor(actor, scope, last, namespace) : null;
             return new ModelList(result, next);
         });
     }
 
-    private String cursor(TrustedActor actor, Scope scope, String key) {
-        return cursor(actor, scope, key, "model-list");
-    }
-
     private String cursor(TrustedActor actor, Scope scope, String key, String namespace) {
         return key + "." + cipher.fingerprint(DefaultCommandExecutor.digest(List.of(namespace, actor.principal().subjectId(), scope.tenantId(), scope.workspaceId(), key)));
-    }
-
-    private String cursorKey(TrustedActor actor, Scope scope, String value) {
-        return cursorKey(actor, scope, value, "model-list");
     }
 
     private String cursorKey(TrustedActor actor, Scope scope, String value, String namespace) {

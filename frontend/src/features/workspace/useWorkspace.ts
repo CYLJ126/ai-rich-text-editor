@@ -8,11 +8,11 @@ import {
   removeValue,
   sameScope,
   STORAGE_WARNING,
+  workspaceStorageKey,
   writeValue
 } from '@/features/ainew/storage';
 
-export const workspaceStorageKey = (userId: string, kind: string) =>
-  `arte.ainew.${kind}.v1.${encodeURIComponent(JSON.stringify([userId]))}`;
+export {workspaceStorageKey} from '@/features/ainew/storage';
 const key = z.string().min(1).max(256).refine(value => value.trim() === value && Array.from(value).every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127));
 const pendingSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('initialize'), key, operationId: key.optional()}),

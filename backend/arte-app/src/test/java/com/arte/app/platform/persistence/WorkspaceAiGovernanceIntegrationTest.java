@@ -258,6 +258,31 @@ class WorkspaceAiGovernanceIntegrationTest {
     }
 
     @Test
+    void platformCapabilitiesFollowCurrentRbacWithoutScopeOrCatalogResponse() {
+        f.context().run(c -> {
+            var controller = new WorkspaceAiConfigurationController(c.getBean(DatabaseAiControlService.class),
+                    c.getBean(RbacIdentityProvider.class), c.getBean(PlatformPersistenceExecutor.class), governance(c));
+            try (var http = new ManagementHttpHarness(controller)) {
+                String route = "/workspace/ai/getConfigurationCapabilities";
+                var login = ManagementHttpHarness.login(f.f.f.f.jdbc, 1, "alice");
+                var allowed = http.ok(route, "{}", null, login).getJSONObject("data");
+                assertEquals(Set.of("available", "manageConnections", "managePlans", "manageDefaultTemplate"), allowed.keySet());
+                assertTrue(allowed.getBool("manageConnections"));
+                assertTrue(allowed.getBool("managePlans"));
+                assertTrue(allowed.getBool("manageDefaultTemplate"));
+                f.f.f.f.jdbc.update("DELETE FROM arte_rbac_relation WHERE target='aiConfiguration:manage'");
+                var denied = http.ok(route, "{}", null, login).getJSONObject("data");
+                assertTrue(denied.getBool("available"));
+                assertFalse(denied.getBool("manageConnections"));
+                assertFalse(denied.getBool("managePlans"));
+                assertFalse(denied.getBool("manageDefaultTemplate"));
+                http.rejected(route, "{\"manageConnections\":true}", null, login, 400, "INVALID_ARGUMENT");
+                http.rejected(route, "{}", null, null, 401, "UNAUTHENTICATED");
+            }
+        });
+    }
+
+    @Test
     void httpRejectsFormerPresetBareBindingsForgedBudgetAndWrongResourceVersion() {
         f.context().run(c -> {
             f.prepare(c);

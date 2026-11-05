@@ -5,7 +5,7 @@ import MasterDetailLayout from '@/components/MasterDetailLayout';
 import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
 import DynamicIcon from '@/components/DynamicIcon/MyDynamicIcon';
 import WorkspaceDetailForm from '@/features/workspace/WorkspaceDetailForm';
-import {retainWorkspaceSelection, useWorkspaceManagement} from '@/features/workspace/useWorkspace';
+import {retainWorkspaceSelection, useCurrentWorkspace, useWorkspaceManagement} from '@/features/workspace/useWorkspace';
 import {browseAccessibleTenants, type TenantSummary} from '@/services/platform/tenant';
 import {getWorkspace, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
 import ConfigurationBoundary, {
@@ -14,8 +14,17 @@ import ConfigurationBoundary, {
 } from '@/features/configuration/ConfigurationBoundary';
 import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 import {sameScope} from '@/features/ainew/storage';
-import {useAiRoute} from '@/features/ainew/aiNavigation';
-import {readConfigurationLocation, type WorkspaceTab} from '@/features/configuration/configurationLocation';
+import {
+  type AiIntent,
+  aiLocation,
+  parseAiIntent,
+  useAiRoute,
+  useChatReturn,
+  verifyAiModel
+} from '@/features/ainew/aiNavigation';
+import {getManagedModel} from '@/services/platform/model';
+import type {AiModel} from '@/services/platform/ai';
+import type {WorkspaceTab} from '@/features/configuration/configurationLocation';
 import {configurationReadError, useConfigurationDirectory} from '@/features/configuration/useConfigurationDirectory';
 import '@/features/ainew/personalModels.css';
 import './index.css';
@@ -23,7 +32,7 @@ import './index.css';
 const keyOf = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.workspaceId]);
 const tabs = new Set(['overview', 'ai', 'policy']);
 const tenantKey = (tenant: TenantSummary) => tenant.id;
-type Location = { scope: WorkspaceScope; tab: WorkspaceTab };
+type Location = { scope: WorkspaceScope; tab: WorkspaceTab; intent: AiIntent };
 
 export default function WorkspaceConfigurationPage() {
   const {initialState} = useModel('@@initialState');
@@ -31,20 +40,24 @@ export default function WorkspaceConfigurationPage() {
   const search = useAiRoute();
   if (!userId) return <Alert type="info" title="请登录后管理工作空间。"/>;
   let location: Location | undefined;
-  const tab = new URLSearchParams(search).getAll('tab');
-  if (tab.some(value => tabs.has(value))) {
-    try {
-      const {tenantId, workspaceId, tab: view} = readConfigurationLocation(search, userId);
-      if (tenantId && workspaceId) location = {scope: {tenantId, workspaceId}, tab: view as WorkspaceTab};
-      else if (tenantId || workspaceId) throw new Error('空间定位不完整');
-    } catch {
-      return <Alert type="warning" title="工作空间定位无效，请重新选择。"
-                    action={<Button onClick={() => history.replace('/Environment/Workspaces')}>打开空间目录</Button>}/>;
-    }
+  const tab = new URLSearchParams(search).get('tab');
+  try {
+    const intent = parseAiIntent(search, userId);
+    if (tab !== null && !tabs.has(tab)) throw new Error('工作空间页签无效。');
+    if (intent.model && (!intent.scope || !intent.management || tab !== 'ai'))
+      throw new Error('模型定位需要完整的管理空间、执行空间和 AI 页签。');
+    if (intent.execution && (!intent.model || !sameScope(intent.scope, intent.execution)))
+      throw new Error('执行空间定位不一致。');
+    if (intent.returnTo === 'chat' && !intent.chat)
+      throw new Error('返回聊天定位缺少原聊天空间。');
+    if (intent.scope) location = {scope: intent.scope, tab: (tab ?? 'overview') as WorkspaceTab, intent};
+  } catch (failure) {
+    return <Alert type="warning" title={failure instanceof Error ? failure.message : '工作空间定位无效，请重新选择。'}
+                  action={<Button onClick={() => history.replace('/Environment/Workspaces')}>打开空间目录</Button>}/>;
   }
   return <ConfigurationBoundary key={userId} userId={userId}>
     <WorkspaceConfiguration key={location ? search : 'directory'} userId={userId} location={location}
-                            defaultTab={tab.length === 1 && tabs.has(tab[0]) ? tab[0] as WorkspaceTab : 'overview'}/>
+                            defaultTab={(tab ?? 'overview') as WorkspaceTab}/>
   </ConfigurationBoundary>;
 }
 
@@ -53,6 +66,10 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
   userId: string; location?: Location; defaultTab: WorkspaceTab;
 }) {
   const directory = useWorkspaceManagement(userId);
+  const chat = useCurrentWorkspace(userId);
+  const [task, setTask] = useState(location?.intent);
+  const [focusedModel, setFocusedModel] = useState<AiModel>();
+  const chatReturn = useChatReturn(userId, chat?.scope, task?.chat);
   const [target, setTarget] = useState<WorkspaceView | null>(null);
   const [locating, setLocating] = useState(!!location);
   const [locationError, setLocationError] = useState('');
@@ -92,14 +109,28 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
   useEffect(() => {
     if (!initialLocation) return;
     const request = new AbortController();
-    void getWorkspace(initialLocation.scope, {signal: request.signal}).then(({body}) => {
-      if (request.signal.aborted || !alive.current) return;
-      if (!sameScope(body.data.scope, initialLocation.scope)) throw new Error('空间范围不一致');
-      setTarget(body.data);
-      setTargetTab(initialLocation.tab);
-    }).catch(failure => {
+    const {scope, tab, intent} = initialLocation;
+    const load = async () => {
+      const {body} = await getWorkspace(scope, {signal: request.signal});
+      if (!sameScope(body.data.scope, scope)) throw new Error('空间范围不一致。');
+      if (intent.model && intent.management) {
+        const [source, focused] = await Promise.all([
+          getManagedModel(intent.management, intent.model.resourceId, {signal: request.signal}),
+          verifyAiModel(scope, intent.model, request.signal),
+        ]);
+        if (source.body.data.state !== 'PUBLISHED') throw new Error('模型已不可用。');
+        if (!request.signal.aborted && alive.current) setFocusedModel(focused);
+      }
+      if (!request.signal.aborted && alive.current) {
+        setTarget(body.data);
+        setTargetTab(tab);
+      }
+    };
+    void load().catch(failure => {
       if (!request.signal.aborted && alive.current)
-        setLocationError(configurationReadError(failure, '无法打开所选工作空间，请从目录重新选择。'));
+        setLocationError(configurationReadError(failure, intent.model
+          ? '指定模型版本或空间不可读、已失效或不符合目标空间条件，请重新选择。'
+          : '无法打开所选工作空间，请从目录重新选择。'));
     }).finally(() => {
       if (!request.signal.aborted && alive.current) setLocating(false);
     });
@@ -114,6 +145,8 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
       else navigation.request(() => {
         setCreating(false);
         setTargetTab('overview');
+        setTask(undefined);
+        setFocusedModel(undefined);
         setTarget({
           scope, name: operation.request.name, description: operation.request.description,
           version: operation.request.expectedVersion, state: 0, currentRole: 3
@@ -143,6 +176,8 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
             if (!item) return;
             setCreating(false);
             setLocationError('');
+            setTask(undefined);
+            setFocusedModel(undefined);
             setTargetTab(defaultTab);
             setTarget(item);
           });
@@ -162,6 +197,8 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                     onClick={() => navigation.request(() => {
                       setInitialTenantId(target?.scope.tenantId ?? '');
                       setTarget(null);
+                      setTask(undefined);
+                      setFocusedModel(undefined);
                       setLocationError('');
                       setCreating(true);
                     })}/>
@@ -193,6 +230,17 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
               type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
         }))}>
+        {(task?.management || task?.chat) && <Flex gap={8} wrap>
+          {task.management &&
+            <Button onClick={() => navigation.request(() => history.push(aiLocation('models', userId, {
+              scope: task.management, model: task.model, execution: task.model ? task.scope : undefined,
+              chat: task.chat, returnTo: task.chat ? 'chat' : undefined,
+            })))}>{task.model ? '返回模型详情' : '返回模型管理'}</Button>}
+          {task.chat && <Button disabled={chatReturn.changed} loading={chatReturn.loading}
+                                onClick={chatReturn.back}>返回聊天</Button>}
+        </Flex>}
+        {chatReturn.changed && task?.chat && <Alert type="info" title="原聊天空间已变化，请重新确认当前使用空间。"/>}
+        {chatReturn.error && <Alert type="warning" title={chatReturn.error}/>}
         {locationError && <Alert type="warning" title={locationError}/>}
         {locating && <Typography.Paragraph role="status">正在核验工作空间…</Typography.Paragraph>}
         {creating ? <NewWorkspaceForm userId={userId} initialTenantId={initialTenantId}
@@ -205,7 +253,7 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                                       }}/>
           : target ? <>
             <WorkspaceEntry key={keyOf(target.scope)} userId={userId} target={target}/>
-            <WorkspaceDetailForm userId={userId} scope={target.scope} tab={targetTab}
+            <WorkspaceDetailForm userId={userId} scope={target.scope} tab={targetTab} focusedModel={focusedModel}
                                  onTabChange={setTargetTab} onUnsafeChange={setFormUnsafe} onSaved={setTarget}
                                  preferences={<WorkspacePreferences scope={target.scope} directory={directory}
                                                                     disabled={unsafe}/>}/>

@@ -112,6 +112,9 @@ export interface Operation<T> {
   acceptedId?: string
 }
 
+export const workspaceStorageKey = (userId: string, kind: string) =>
+  `${prefix}${kind}.v1.${encodeURIComponent(JSON.stringify([userId]))}`;
+
 export function storageKey(context: BrowserContext, kind: string, target = '') {
   return `${prefix}${kind}.v1.${encodeURIComponent(JSON.stringify([context.userId, context.scope.tenantId, context.scope.workspaceId, target]))}`;
 }

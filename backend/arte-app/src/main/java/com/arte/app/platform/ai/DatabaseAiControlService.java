@@ -731,6 +731,21 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return permissions.contains("admin") || permissions.contains("aiConfiguration:manage");
     }
 
+    public record ConfigurationCapabilities(boolean available, boolean manageConnections,
+                                            boolean managePlans, boolean manageDefaultTemplate) {
+    }
+
+    /**
+     * Reads platform RBAC only. No workspace, reviewed catalog, or credential material is needed.
+     */
+    public ConfigurationCapabilities configurationCapabilities(TrustedActor actor) {
+        return tx.required(() -> {
+            preferences.lockSubject(actor.principal().subjectId());
+            boolean manage = canManageCatalog(actor);
+            return new ConfigurationCapabilities(true, manage, manage, manage);
+        });
+    }
+
     void validateBudgetRules(Catalog catalog, List<BudgetPreset> rules) {
         validate(catalog, new Preset(false, List.of(), rules));
     }

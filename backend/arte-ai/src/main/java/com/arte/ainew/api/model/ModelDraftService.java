@@ -1,6 +1,7 @@
 package com.arte.ainew.api.model;
 
 import com.arte.ainew.pojo.model.ModelDrafts.*;
+import com.arte.ainew.pojo.model.ModelListFilter;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.CommandMeta;
 import com.arte.core.pojo.platform.CommandReceipt;
@@ -46,7 +47,11 @@ public interface ModelDraftService {
      * @param size   本次最多返回的可读资源数，范围为 1～100
      * @return 当前批次的可读资源及后续游标，游标为空表示本批已无后续候选
      */
-    ModelList list(TrustedActor actor, Scope scope, String cursor, int size);
+    default ModelList list(TrustedActor actor, Scope scope, String cursor, int size) {
+        return list(actor, scope, cursor, size, ModelListFilter.ALL);
+    }
+
+    ModelList list(TrustedActor actor, Scope scope, String cursor, int size, ModelListFilter filter);
 
     /**
      * 查询经部署审核且同时满足当前租户、空间及出口政策的连接模板，只返回安全元数据。

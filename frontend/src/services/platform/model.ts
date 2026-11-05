@@ -123,10 +123,23 @@ export type ModelAction = typeof MODEL_ACTIONS[number];
 export const getModelCreationOptions = (scope: WorkspaceScope, options?: AiRequestOptions) =>
   call('ai-new/model-resource', 'getModelCreationOptions', {scope}, z.array(z.enum(['PERSONAL', 'TENANT'])).max(2), options);
 
-export async function listManagedModels(scope: WorkspaceScope, cursor: string | null = null, options?: AiRequestOptions) {
-  const result = await call('ai-new/model-draft', 'listModelResources', {scope, cursor, size: 20},
+export type ModelListFilter = {
+  search?: string;
+  modelKind?: ManagedModel['ownershipType'];
+  state?: ManagedModel['state']
+};
+
+export async function listManagedModels(scope: WorkspaceScope, cursor: string | null = null,
+                                        options?: AiRequestOptions, filter: ModelListFilter = {}) {
+  const {search, modelKind, state} = filter;
+  const result = await call('ai-new/model-draft', 'listModelResources', {
+      scope,
+      cursor,
+      size: 20, ...(search ? {search} : {}), ...(modelKind ? {modelKind} : {}), ...(state ? {state} : {})
+    },
     z.object({records: z.array(modelResourceSchema).max(100), nextCursor: z.string().max(129).nullable()}), options);
-  assertResponse(result.body.data.records.every(item => sameScope(item.scope, scope))
+  assertResponse(result.body.data.records.every(item => sameScope(item.scope, scope)
+      && (!modelKind || item.ownershipType === modelKind) && (!state || item.state === state))
     && new Set(result.body.data.records.map(item => item.resourceId)).size === result.body.data.records.length);
   return result;
 }
