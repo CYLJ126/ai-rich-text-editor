@@ -14,9 +14,11 @@ import com.arte.core.pojo.UserOnlineInfo;
 import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.access.ResourceRef;
 import com.arte.core.pojo.platform.CommandMeta;
+import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.workspace.WorkspaceCommands;
+import com.arte.core.pojo.workspace.WorkspaceViews;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Signal;
+import reactor.util.function.Tuple2;
 
 import javax.sql.DataSource;
 import java.time.Duration;
@@ -262,4 +266,127 @@ class PlatformWorkspaceAssemblyIntegrationTest {
     private AccessRequest read(Scope scope) {
         return new AccessRequest(scope, new ResourceRef(scope.tenantId(), WORKSPACE, scope.workspaceId()), WORKSPACE_READ, "assembly");
     }
+
+    @Test
+    void organizationAndTenantNameCommandsUseExplicitPermissionsAndRecoverWithoutCreatingSpaces() throws Exception {
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_relation(source VARCHAR(256), binding_type VARCHAR(96), target VARCHAR(256))");
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(96), status VARCHAR(8))");
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_menu(menu_code VARCHAR(32))");
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_menu_operation(menu_code VARCHAR(32), operation_code VARCHAR(32), operation_name VARCHAR(64),"
+                + " status INT, description VARCHAR(256), create_by VARCHAR(32), create_time TIMESTAMP, UNIQUE(menu_code, operation_code))");
+        fixture.jdbc.update("INSERT INTO arte_rbac_menu VALUES('EnvironmentTenants')");
+        try (java.sql.Connection connection = fixture.source.getConnection()) {
+            org.springframework.core.io.Resource install = new org.springframework.core.io.FileSystemResource("scripts/arte-tenant-governance-rbac-dml-mysql.sql");
+            org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection, install);
+            org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection, install);
+        }
+        assertEquals(2, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_menu_operation", Integer.class));
+        assertEquals(0, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM arte_rbac_relation", Integer.class));
+        fixture.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','admin')");
+        fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)", java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+        com.arte.core.pojo.workspace.PolicyRules rules = new com.arte.core.pojo.workspace.PolicyRules(
+                Set.of(com.arte.core.constant.platform.PlatformResourceTypes.ARTICLE), java.util.Map.of(), false, false,
+                Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of());
+        com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate template =
+                new com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate(7, rules, false, 1, 1);
+        String root = "/workspace/";
+        context().withPropertyValues("arte.platform.tenant-governance.organization-creation-enabled=true",
+                        "arte.platform.tenant-governance.organization-policy-template=" + fixture.json.write(template))
+                .run(c -> {
+                    assertNull(c.getStartupFailure());
+                    Authentication alice = login(1, "alice");
+                    Authentication bob = login(2, "bob");
+                    ReactiveWorkspaceOperations workspaces = c.getBean(ReactiveWorkspaceOperations.class);
+                    try (ManagementHttpHarness http = new ManagementHttpHarness(
+                            new com.arte.app.web.controller.platform.TenantDirectoryController(
+                                    c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class)),
+                            new com.arte.app.web.controller.platform.WorkspaceController(workspaces))) {
+                        String create = fixture.json.write(java.util.Map.of("name", "Team One"));
+                        assertFalse(http.ok(root + "getTenantCreationOptions", "{}", null, alice)
+                                .getJSONObject("data").getBool("organizationAllowed"));
+                        http.rejected(root + "createOrganization", create, "admin-is-not-grant", alice, 403, "ACCESS_DENIED");
+                        assertEquals(0, fixture.count("tenant"));
+                        fixture.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','EnvironmentTenants:create')");
+                        assertTrue(http.ok(root + "getTenantCreationOptions", "{}", null, alice)
+                                .getJSONObject("data").getBool("organizationAllowed"));
+                        http.rejected(root + "createOrganization", fixture.json.write(java.util.Map.of("name", "Team", "type", 0)),
+                                "forged-type", alice, 400, "INVALID_ARGUMENT");
+                        cn.hutool.json.JSONObject created = http.ok(root + "createOrganization", create, "org", alice).getJSONObject("data");
+                        String tenant = created.getJSONObject("value").getStr("id");
+                        String createReceipt = fixture.json.write(java.util.Map.of("operationId", created.getStr("operationId")));
+                        assertEquals(created.getStr("operationId"), http.ok(root + "createOrganization", create, "org", alice)
+                                .getJSONObject("data").getStr("operationId"));
+                        assertEquals(1, http.ok(root + "getWorkspaceCommandReceipt", createReceipt, null, alice)
+                                .getJSONObject("data").getInt("delivery"));
+                        http.rejected(root + "getWorkspaceCommandReceipt", createReceipt, null, bob, 404, "NOT_FOUND");
+                        assertEquals(1, fixture.count("tenant"));
+                        assertEquals(1, fixture.count("tenant_member"));
+                        assertEquals(1, fixture.count("tenant_policy"));
+                        assertEquals(0, fixture.count("workspace"));
+                        assertEquals(0, fixture.count("workspace_preference"));
+                        assertEquals(rules, fixture.policies.findTenantPolicy(tenant).orElseThrow().rules());
+                        assertNull(fixture.policies.findTenantPolicy(tenant).orElseThrow().personalTemplateVersion());
+                        assertTrue(fixture.jdbc.queryForObject("SELECT event FROM arte_platform_outbox", String.class)
+                                .contains("organizationTemplateVersion"));
+
+                        String target = fixture.json.write(java.util.Map.of("tenantId", tenant));
+                        String rename = fixture.json.write(java.util.Map.of("tenantId", tenant, "expectedTenantVersion", 0, "name", "Team Two"));
+                        assertFalse(http.ok(root + "getTenant", target, null, alice).getJSONObject("data").getJSONArray("actions").contains("tenant:update"));
+                        http.rejected(root + "updateTenant", rename, "without-update", alice, 403, "ACCESS_DENIED");
+                        fixture.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','EnvironmentTenants:update')");
+                        assertTrue(http.ok(root + "getTenant", target, null, alice).getJSONObject("data").getJSONArray("actions").contains("tenant:update"));
+                        cn.hutool.json.JSONObject updated = http.ok(root + "updateTenant", rename, "rename", alice).getJSONObject("data");
+                        assertEquals(1L, updated.getLong("resultVersion"));
+                        assertEquals("Team Two", updated.getJSONObject("value").getStr("name"));
+                        http.rejected(root + "updateTenant", rename, "stale-rename", alice, 409, "VERSION_CONFLICT");
+                        assertEquals(updated.getStr("operationId"), http.ok(root + "updateTenant", rename, "rename", alice).getJSONObject("data").getStr("operationId"));
+                        assertEquals(2, fixture.count("command"));
+                        assertEquals(2, fixture.count("audit"));
+                        assertEquals(2, fixture.count("outbox"));
+
+                        com.arte.app.platform.workspace.ReactiveTenantQueries tenantApi =
+                                c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class);
+                        Tuple2<Signal<CommandReceipt<WorkspaceViews.TenantView>>, Signal<CommandReceipt<WorkspaceViews.TenantView>>> races = Mono.zip(
+                                tenantApi.updateTenant(alice, new com.arte.core.pojo.workspace.TenantCommands.UpdateTenant(
+                                        meta("race-one"), tenant, 1, "Concurrent One")).materialize(),
+                                tenantApi.updateTenant(alice, new com.arte.core.pojo.workspace.TenantCommands.UpdateTenant(
+                                        meta("race-two"), tenant, 1, "Concurrent Two")).materialize()).block(WAIT);
+                        assertTrue(races.getT1().isOnNext() ^ races.getT2().isOnNext());
+                        Throwable loser = races.getT1().isOnError() ? races.getT1().getThrowable() : races.getT2().getThrowable();
+                        assertEquals(PlatformErrorCodeEnum.VERSION_CONFLICT, assertInstanceOf(PlatformException.class, loser).getCode());
+                        assertEquals(2L, fixture.tenants.find(tenant).orElseThrow().version());
+
+                        Scope personal = workspaces.initializePersonal(alice, meta("personal")).block(WAIT).value().workspace().scope();
+                        String personalUpdate = fixture.json.write(java.util.Map.of("tenantId", personal.tenantId(),
+                                "expectedTenantVersion", 0, "name", "Personal label"));
+                        http.rejected(root + "updateTenant", fixture.json.write(java.util.Map.of("tenantId", personal.tenantId(),
+                                "expectedTenantVersion", 0, "name", "Personal label", "type", 1)), "forged-conversion", alice, 400, "INVALID_ARGUMENT");
+                        assertEquals(0, http.ok(root + "updateTenant", personalUpdate, "personal-label", alice)
+                                .getJSONObject("data").getJSONObject("value").getInt("type"));
+                        assertEquals(personal, workspaces.getPreference(alice).block(WAIT).defaultScope());
+
+                        fixture.jdbc.update("DELETE FROM arte_rbac_relation WHERE target IN ('EnvironmentTenants:update','EnvironmentTenants:create')");
+                        String renameReceipt = fixture.json.write(java.util.Map.of("operationId", updated.getStr("operationId")));
+                        http.rejected(root + "getWorkspaceCommandReceipt", renameReceipt, null, alice, 403, "ACCESS_DENIED");
+                        http.rejected(root + "updateTenant", rename, "rename", alice, 403, "ACCESS_DENIED");
+                        http.rejected(root + "getWorkspaceCommandReceipt", createReceipt, null, alice, 403, "ACCESS_DENIED");
+                    }
+                });
+    }
+
+    @Test
+    void enablingOrganizationCreationWithoutAnOrganizationTemplateLeavesCreationClosed() {
+        context().withPropertyValues("arte.platform.tenant-governance.organization-creation-enabled=true").run(c -> {
+            assertNull(c.getStartupFailure());
+            com.arte.app.platform.workspace.ReactiveTenantQueries tenants = c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class);
+            Authentication alice = login(1, "alice");
+            assertFalse(tenants.creationOptions(alice).block(WAIT).available());
+            PlatformException failure = assertThrows(PlatformException.class, () -> tenants.createOrganization(alice,
+                    new com.arte.core.pojo.workspace.TenantCommands.CreateOrganization(meta("unconfigured"), "Org")).block(WAIT));
+            assertEquals(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, failure.getCode());
+            assertEquals(0, fixture.count("tenant"));
+            assertEquals(0, fixture.count("command"));
+        });
+    }
+
 }

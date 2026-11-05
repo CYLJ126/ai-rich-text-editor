@@ -7,6 +7,7 @@ import com.arte.core.enums.platform.CommandDeliveryEnum;
 import com.arte.core.enums.platform.CommandStatusEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.workspace.TenantRoleEnum;
+import com.arte.core.enums.workspace.TenantTypeEnum;
 import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.*;
@@ -42,11 +43,12 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
     private final DefaultAuthorizationService authorization;
     private final WorkspaceGovernanceLocks locks;
     private final PublicTransactionRunner transactions;
+    private final DefaultTenantGovernanceService tenantGovernance;
 
     DefaultCommandReceiptQueryService(CurrentPrincipalResolver principals, CommandReceiptStore receipts,
                                       PreferenceStore preferences, TenantStore tenants, WorkspaceAccessSupport access,
                                       DefaultAuthorizationService authorization, WorkspaceGovernanceLocks locks,
-                                      PublicTransactionRunner transactions) {
+                                      PublicTransactionRunner transactions, DefaultTenantGovernanceService tenantGovernance) {
         this.principals = principals;
         this.receipts = receipts;
         this.preferences = preferences;
@@ -55,6 +57,7 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
         this.authorization = authorization;
         this.locks = locks;
         this.transactions = transactions;
+        this.tenantGovernance = tenantGovernance;
     }
 
     @Override
@@ -77,6 +80,14 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
                         : (WorkspaceViews.PreferenceView) value;
                 if (!current.subjectId().equals(subjectId) || !current.defaultScope().equals(saved.defaultScope()))
                     throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            }
+            if (value instanceof WorkspaceViews.TenantView tenant) {
+                if (stored.identity().commandType().equals(DefaultTenantGovernanceService.CREATE)) {
+                    tenantGovernance.requireCreationReceipt(actor, subjectId, tenant.id());
+                } else {
+                    locks.tenant(subjectId, tenant.id());
+                    tenantGovernance.requireUpdate(actor, tenant.id());
+                }
             }
             if (value instanceof TenantPolicy policy) {
                 locks.tenant(subjectId, policy.tenantId());
@@ -129,6 +140,17 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
                         : !view.scope().workspaceId().equals(identityScope.workspaceId())))
                     throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
                 yield Set.of(view.scope());
+            }
+            case DefaultTenantGovernanceService.CREATE, DefaultTenantGovernanceService.UPDATE -> {
+                boolean create = stored.identity().commandType().equals(DefaultTenantGovernanceService.CREATE);
+                if (!stored.resultSchema().equals(DefaultTenantGovernanceService.VIEW_SCHEMA)
+                        || !(receipt.value() instanceof WorkspaceViews.TenantView view) || receipt.resultVersion() != view.version()
+                        || !identityScope.equals(new CommandScope(create ? null : view.id(), null))
+                        || (create && (view.type() != TenantTypeEnum.ORGANIZATION || view.currentRole() != TenantRoleEnum.OWNER
+                        || view.version() != 0))) {
+                    throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                }
+                yield Set.of();
             }
             case "tenant:policy:update" -> {
                 if (!stored.resultSchema().equals("tenant:policy:v1") || !(receipt.value() instanceof TenantPolicy policy)

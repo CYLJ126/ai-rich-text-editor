@@ -1,6 +1,8 @@
 package com.arte.app.platform.workspace;
 
 import com.arte.app.platform.identity.RbacIdentityProvider;
+import com.arte.app.platform.identity.RbacToolPermissionReader;
+import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.platform.persistence.WorkspaceCursorStore;
 import com.arte.core.api.access.AuthorizationService;
@@ -8,6 +10,7 @@ import com.arte.core.api.platform.CommandReceiptQueryService;
 import com.arte.core.api.workspace.*;
 import com.arte.core.application.workspace.DefaultWorkspacePolicies;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
+import com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.*;
@@ -18,7 +21,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
+import javax.sql.DataSource;
 import java.time.Clock;
+
 
 /**
  * 公共应用服务装配
@@ -30,8 +35,10 @@ import java.time.Clock;
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte.platform.workspace", name = "enabled", havingValue = "true")
-@EnableConfigurationProperties(PlatformWorkspaceProperties.class)
+@EnableConfigurationProperties({PlatformWorkspaceProperties.class, TenantGovernanceProperties.class})
 public class PlatformWorkspaceConfiguration {
+    private static final String UPDATE_TENANT_PERMISSION = "EnvironmentTenants:update";
+    private static final String CREATE_ORGANIZATION_PERMISSION = "EnvironmentTenants:create";
 
     public PlatformWorkspaceConfiguration(Environment environment) {
         if (!environment.getProperty("arte.platform.identity.enabled", Boolean.class, false)
@@ -98,10 +105,37 @@ public class PlatformWorkspaceConfiguration {
                                                        PlatformWorkspaceProperties properties,
                                                        com.arte.core.spi.access.ResourceGrantStore grants,
                                                        java.util.List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
-                                                       java.util.List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions) {
+                                                       java.util.List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions,
+                                                       TenantGovernanceProperties tenantGovernance, PlatformJson json,
+                                                       RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource dataSource) {
+        RbacToolPermissionReader permissions = new RbacToolPermissionReader(dataSource);
+        TenantUpdatePolicy update = (actor, tenantId, current) -> {
+            String subject = actor.principal().subjectId();
+            return (current ? identities.currentSubjectName(subject) : identities.subjectName(subject))
+                    .map(name -> (current ? permissions.current(name) : permissions.snapshot(name)).contains(UPDATE_TENANT_PERMISSION))
+                    .orElse(false);
+        };
+        TenantProvisioningPolicy create = actor -> tenantGovernance.organizationCreationEnabled()
+                && identities.currentSubjectName(actor.principal().subjectId())
+                .map(name -> permissions.current(name).contains(CREATE_ORGANIZATION_PERMISSION)).orElse(false);
+        OrganizationTenantPolicyTemplate template = organizationTemplate(tenantGovernance, json);
         return new DefaultWorkspaceServices(identity, transactions, tenants, workspaces, tenantMembers,
                 workspaceMembers, policies, preferences, receipts, outbox, audit, ids, clock, defaults, facts, provisioning,
-                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions);
+                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions, update, create, () -> template);
+    }
+
+    private static OrganizationTenantPolicyTemplate organizationTemplate(TenantGovernanceProperties configuration, PlatformJson json) {
+        String value = configuration.organizationPolicyTemplate();
+        if (!configuration.organizationCreationEnabled() || value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return json.read(value, OrganizationTenantPolicyTemplate.class);
+        } catch (RuntimeException invalid) {
+            org.slf4j.LoggerFactory.getLogger(PlatformWorkspaceConfiguration.class)
+                    .warn("Organization creation is disabled because the configured policy template is invalid");
+            return null;
+        }
     }
 
     @Bean
@@ -225,9 +259,14 @@ public class PlatformWorkspaceConfiguration {
     }
 
     @Bean
+    TenantGovernanceService tenantGovernanceService(DefaultWorkspaceServices services) {
+        return services.tenantGovernance();
+    }
+
+    @Bean
     ReactiveTenantQueries reactiveTenantQueries(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
-                                                TenantQueryService tenants, TenantDirectoryBrowser browser) {
-        return new ReactiveTenantQueries(identities, executor, tenants, browser);
+                                                TenantQueryService tenants, TenantDirectoryBrowser browser, TenantGovernanceService governance) {
+        return new ReactiveTenantQueries(identities, executor, tenants, browser, governance);
     }
 
     /**

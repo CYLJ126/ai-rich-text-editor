@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {AiApiError, type AiRequestOptions, postResult} from '@/services/arte-ai/request';
+import {AiApiError, type AiRequestOptions, postResult, requireIdempotencyKey} from '@/services/arte-ai/request';
 
 const base = '/arte/workspace';
 const tenantId = z.string().min(1).max(256);
@@ -17,14 +17,15 @@ const identity = z.object({
 });
 const consistentIdentity = (tenant: z.infer<typeof identity>) => !tenant.isPersonal || tenant.type === 0;
 const summary = identity.strict().refine(consistentIdentity);
-const action = z.enum(['tenant:read', 'tenant:policy:write', 'tenant:workspace:create']);
+const action = z.enum(['tenant:read', 'tenant:policy:write', 'tenant:workspace:create', 'tenant:update']);
 const detail = identity.extend({
   viewLevel: z.enum(['BASIC', 'GOVERNANCE']),
-  actions: z.array(action).max(3),
+  actions: z.array(action).max(4),
 }).strict().refine(consistentIdentity).refine(tenant => {
   const governance = tenant.currentRole !== 2;
   return tenant.actions.includes('tenant:read')
     && new Set(tenant.actions).size === tenant.actions.length
+    && (!tenant.actions.includes('tenant:update') || governance)
     && tenant.actions.includes('tenant:policy:write') === governance
     && tenant.viewLevel === (governance ? 'GOVERNANCE' : 'BASIC');
 }, 'Invalid tenant detail eligibility');
@@ -39,6 +40,24 @@ const creation = z.object({
   organizationAllowed: z.boolean(),
   reason: z.string().min(1).max(96),
 }).strict().refine(value => !value.organizationAllowed || value.available, 'Invalid tenant creation eligibility');
+
+const version = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const tenantNameSchema = z.string().trim().min(1).max(100);
+export const tenantCommandSchema = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('create'), request: z.object({name: tenantNameSchema}).strict()}).strict(),
+  z.object({
+    kind: z.literal('update'), request: z.object({
+      tenantId, name: tenantNameSchema, expectedTenantVersion: version
+    }).strict()
+  }).strict()
+]);
+export type TenantCommand = z.infer<typeof tenantCommandSchema>;
+const tenantReceiptSchema = z.object({
+  operationId: tenantId, status: z.literal(1), delivery: z.union([z.literal(0), z.literal(1)]),
+  value: identity.omit({isPersonal: true}).strict(), resultVersion: version,
+  acceptedAt: z.string(), completedAt: z.string().nullable()
+});
+export type TenantReceipt = z.infer<typeof tenantReceiptSchema>;
 
 export type TenantType = z.infer<typeof tenantType>;
 export type TenantRole = z.infer<typeof tenantRole>;
@@ -74,3 +93,31 @@ export const getTenant = (id: string, options?: AiRequestOptions) =>
 
 export const getTenantCreationOptions = (options?: AiRequestOptions) =>
   result('getTenantCreationOptions', {}, creation, options);
+
+function tenantReceipt(data: unknown, status: number, command: TenantCommand, operationId?: string) {
+  const parsed = tenantReceiptSchema.safeParse(data);
+  if (parsed.success) {
+    const receipt = parsed.data;
+    const target = receipt.value;
+    const match = command.kind === 'create' ? target.type === 1 && target.currentRole === 0 && target.version === 0
+      : target.id === command.request.tenantId && target.version === command.request.expectedTenantVersion + 1
+      && target.currentRole !== 2;
+    if (match && target.name === command.request.name && receipt.resultVersion === target.version
+      && (operationId === undefined || receipt.operationId === operationId && receipt.delivery === 1)) return receipt;
+  }
+  throw new AiApiError(status, {code: 'INVALID_TENANT_RECEIPT'}, '租户操作回执不匹配');
+}
+
+export async function executeTenantCommand(command: TenantCommand, key: string) {
+  requireIdempotencyKey(key);
+  const input = tenantCommandSchema.parse(command);
+  const response = await postResult<unknown>(input.kind === 'create' ? 'createOrganization' : 'updateTenant',
+    input.request, undefined, key, base);
+  return tenantReceipt(response.body.data, response.httpStatus, input);
+}
+
+export async function getTenantCommandReceipt(operationId: string, command: TenantCommand, options?: AiRequestOptions) {
+  const response = await postResult<unknown>('getWorkspaceCommandReceipt', {operationId: tenantId.parse(operationId)},
+    options, undefined, base);
+  return tenantReceipt(response.body.data, response.httpStatus, command, operationId);
+}

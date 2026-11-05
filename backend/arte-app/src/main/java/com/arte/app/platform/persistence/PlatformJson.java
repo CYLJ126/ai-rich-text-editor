@@ -37,6 +37,7 @@ public final class PlatformJson {
                     Map.entry("workspace:view:v1", WorkspaceViews.WorkspaceView.class),
                     Map.entry("preference:view:v1", WorkspaceViews.PreferenceView.class),
                     Map.entry("tenant:policy:v1", TenantPolicy.class),
+                    Map.entry("tenant:view:v1", WorkspaceViews.TenantView.class),
                     Map.entry("workspace:policy:v1", WorkspacePolicy.class),
                     Map.entry("workspace:ai:view:v2", AiControlData.WorkspaceView.class),
                     Map.entry("workspace:ai:rules:v1", AiControlData.BudgetRulesView.class),

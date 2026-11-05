@@ -212,7 +212,8 @@ function Editor({
       clearPreview();
       setDirectory(undefined);
       setStale(true);
-      setNotice('空间政策或租户上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
+      setNotice(kind === 'tenant' ? '租户记录或政策已更新，当前草稿或原操作已保留，请重新核对后继续。'
+        : '空间政策或租户上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
     } else void load();
   }, [refreshRevision]);
 

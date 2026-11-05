@@ -31,6 +31,18 @@ public final class TenantCommands {
     }
 
     /**
+     * 只修改租户展示名称，保留托管主体、类型和生命周期。
+     */
+    public record UpdateTenant(CommandMeta meta, String tenantId, long expectedTenantVersion, String name) {
+        public UpdateTenant {
+            Objects.requireNonNull(meta, "meta");
+            PlatformChecks.id(tenantId, "tenantId");
+            PlatformChecks.version(expectedTenantVersion, "expectedTenantVersion");
+            name = PlatformChecks.name(name);
+        }
+    }
+
+    /**
      * 普通改角色不能授予 OWNER。
      */
     public record ChangeTenantMemberRole(

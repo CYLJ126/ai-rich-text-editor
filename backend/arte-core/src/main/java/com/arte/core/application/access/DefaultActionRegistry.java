@@ -32,7 +32,7 @@ public final class DefaultActionRegistry implements ActionRegistry {
 
     public static DefaultActionRegistry standard() {
         List<ActionDefinition> definitions = new ArrayList<>();
-        add(definitions, TENANT, false, TENANT_READ, TENANT_WORKSPACE_CREATE, TENANT_POLICY_WRITE,
+        add(definitions, TENANT, false, TENANT_READ, TENANT_UPDATE, TENANT_WORKSPACE_CREATE, TENANT_POLICY_WRITE,
                 TENANT_MEMBER_MANAGE, TENANT_OWNER_TRANSFER, TENANT_MODEL_CREATE, TENANT_MODEL_MANAGE);
         add(definitions, WORKSPACE, false, WORKSPACE_READ, WORKSPACE_UPDATE, WORKSPACE_INVITE,
                 WORKSPACE_MEMBER_MANAGE, WORKSPACE_ADMIN_ASSIGN, WORKSPACE_OWNER_TRANSFER, WORKSPACE_POLICY_WRITE,

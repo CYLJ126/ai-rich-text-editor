@@ -84,7 +84,7 @@ class WorkspaceHttpIntegrationTest {
         accessProxy.addAspect(new WebAspect());
         var tenantProxy = new AspectJProxyFactory(new TenantDirectoryController(
                 new ReactiveTenantQueries(identities, executor, services.tenantQueries(),
-                        new TenantDirectoryBrowser(services.tenantQueries(), cursors))));
+                        new TenantDirectoryBrowser(services.tenantQueries(), cursors), services.tenantGovernance())));
         tenantProxy.setProxyTargetClass(true);
         tenantProxy.addAspect(new WebAspect());
         validator = new LocalValidatorFactoryBean();

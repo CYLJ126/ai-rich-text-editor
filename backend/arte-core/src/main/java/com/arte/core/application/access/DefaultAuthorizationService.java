@@ -11,6 +11,7 @@ import com.arte.core.pojo.platform.AuthorizationVersions;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.spi.access.ActionRegistry;
+import com.arte.core.spi.workspace.TenantUpdatePolicy;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
@@ -35,6 +36,7 @@ public final class DefaultAuthorizationService implements AuthorizationService {
     private final ActionRegistry actionRegistry;
     private final Clock clock;
     private final ResourceAclSupport acl;
+    private final TenantUpdatePolicy tenantUpdates;
 
     public DefaultAuthorizationService(WorkspaceAccessSupport support, ActionRegistry registry, Clock clock) {
         this(support, registry, clock, null, List.of(), List.of());
@@ -44,6 +46,15 @@ public final class DefaultAuthorizationService implements AuthorizationService {
                                        com.arte.core.spi.access.ResourceGrantStore store,
                                        List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
                                        List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions) {
+        this(support, registry, clock, store, descriptors, conditions, (actor, tenantId, current) -> false);
+    }
+
+    public DefaultAuthorizationService(WorkspaceAccessSupport support, ActionRegistry registry, Clock clock,
+                                       com.arte.core.spi.access.ResourceGrantStore store,
+                                       List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
+                                       List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions,
+                                       TenantUpdatePolicy tenantUpdates) {
+        this.tenantUpdates = Objects.requireNonNull(tenantUpdates);
         this.workspaceAccessSupport = Objects.requireNonNull(support);
         this.actionRegistry = Objects.requireNonNull(registry);
         this.clock = Objects.requireNonNull(clock);
@@ -108,7 +119,13 @@ public final class DefaultAuthorizationService implements AuthorizationService {
                         : workspaceAccessSupport.tenant(actor, request.scope().tenantId());
                 var invalidAction = invalidAction(request);
                 if (invalidAction != null) return denied(invalidAction);
-                reason = DefaultRolePermissions.tenant(request.action(), tenant);
+                if (request.action().equals(TENANT_UPDATE)) {
+                    boolean governor = DefaultRolePermissions.tenant(TENANT_POLICY_WRITE, tenant) == AccessReasonEnum.ALLOWED;
+                    reason = governor && tenantUpdates.mayUpdate(actor, tenant.tenant().id(), currentRead)
+                            ? AccessReasonEnum.ALLOWED : AccessReasonEnum.ACTION_NOT_GRANTED;
+                } else {
+                    reason = DefaultRolePermissions.tenant(request.action(), tenant);
+                }
                 versions = new AuthorizationVersions(tenant.tenant().authEpoch(), null,
                         tenant.member().generation(), tenant.member().version(), null, null, null, tenant.tenant().version());
             } else if (request.resource().type().equals(WORKSPACE)

@@ -108,11 +108,23 @@ public final class RbacIdentityProvider implements IdentityProvider {
      */
     public Optional<String> currentSubjectName(String subjectId) {
         accounts.requireTransaction();
-        return identities.findAccountBinding(subjectId, true).flatMap(binding -> {
-            if (principal(binding, true).status() != PrincipalStatusEnum.ACTIVE) {
+        return subjectName(subjectId, true);
+    }
+
+    /**
+     * 展示型资格读取使用稳定主体绑定及当前有效账户名。
+     */
+    public Optional<String> subjectName(String subjectId) {
+        return subjectName(subjectId, false);
+    }
+
+    private Optional<String> subjectName(String subjectId, boolean current) {
+        return identities.findAccountBinding(subjectId, current).flatMap(binding -> {
+            if (principal(binding, current).status() != PrincipalStatusEnum.ACTIVE) {
                 return Optional.empty();
             }
-            return accounts.findCurrentById(Long.parseLong(binding.identity().externalUserId())).map(RbacAccountReader.Account::name);
+            long id = Long.parseLong(binding.identity().externalUserId());
+            return (current ? accounts.findCurrentById(id) : accounts.findById(id)).map(RbacAccountReader.Account::name);
         });
     }
 

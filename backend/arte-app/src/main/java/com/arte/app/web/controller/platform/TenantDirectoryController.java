@@ -2,30 +2,30 @@ package com.arte.app.web.controller.platform;
 
 import com.arte.app.platform.workspace.ReactiveTenantQueries;
 import com.arte.app.platform.workspace.TenantDirectoryBrowser;
+import com.arte.app.web.platform.PlatformHttpContext;
 import com.arte.app.web.platform.StrictPlatformRequest;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.workspace.TenantTypeEnum;
 import com.arte.core.pojo.ResultContext;
+import com.arte.core.pojo.platform.CommandMeta;
+import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.workspace.TenantBrowseQuery;
+import com.arte.core.pojo.workspace.TenantCommands;
 import com.arte.core.pojo.workspace.TenantDirectoryViews;
+import com.arte.core.pojo.workspace.WorkspaceViews;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.util.Locale;
 
 /**
- * 独立于空间目录及使用偏好的租户查询入口。
+ * 独立于空间目录及使用偏好的租户查询及基本治理入口。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/05 13:11 ✾
@@ -77,6 +77,30 @@ public class TenantDirectoryController {
             Authentication authentication, @Valid @RequestBody GetRequest request, Locale locale) {
         return queries.detail(authentication, request.tenantId())
                 .map(detail -> ResultContext.success(detail, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    public record UpdateRequest(@NotBlank @Size(max = 256) String tenantId,
+                                @NotNull @Min(0) Long expectedTenantVersion,
+                                @NotBlank @Size(max = 100) String name) implements StrictPlatformRequest {
+    }
+
+    public record CreateRequest(@NotBlank @Size(max = 100) String name) implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/updateTenant")
+    public Mono<ResultContext<CommandReceipt<WorkspaceViews.TenantView>>> updateTenant(Authentication authentication,
+                                                                                       @Valid @RequestBody UpdateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        TenantCommands.UpdateTenant command = new TenantCommands.UpdateTenant(new CommandMeta(key, PlatformHttpContext.traceId(http)),
+                request.tenantId(), request.expectedTenantVersion(), request.name());
+        return queries.updateTenant(authentication, command).map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/createOrganization")
+    public Mono<ResultContext<CommandReceipt<WorkspaceViews.TenantView>>> createOrganization(Authentication authentication,
+                                                                                             @Valid @RequestBody CreateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        TenantCommands.CreateOrganization command = new TenantCommands.CreateOrganization(
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.name());
+        return queries.createOrganization(authentication, command).map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getTenantCreationOptions")

@@ -15,7 +15,7 @@ import com.arte.core.pojo.workspace.WorkspaceViews;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
-public interface TenantService {
+public interface TenantService extends TenantGovernanceService {
 
     /**
      * 查询当前操作者有资格查看的租户信息。
@@ -25,15 +25,6 @@ public interface TenantService {
      * @return 当前可见的租户摘要及角色信息
      */
     WorkspaceViews.TenantView getTenant(TrustedActor actor, String tenantId);
-
-    /**
-     * 在组织创建政策允许时创建组织租户。
-     *
-     * @param actor   经可信认证适配确认的当前操作者
-     * @param command 组织创建命令，包含组织名称及命令元数据
-     * @return 创建操作回执，包含新组织租户信息
-     */
-    CommandReceipt<WorkspaceViews.TenantView> createOrganization(TrustedActor actor, TenantCommands.CreateOrganization command);
 
     /**
      * 分页查询当前操作者有资格查看的租户成员。

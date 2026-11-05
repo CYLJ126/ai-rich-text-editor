@@ -3,7 +3,16 @@ import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {history} from '@umijs/max';
 import {AiApiError} from '@/services/arte-ai/request';
-import {browseAccessibleTenants, getTenant, type TenantDetail, type TenantSummary} from '@/services/platform/tenant';
+import {
+  browseAccessibleTenants,
+  executeTenantCommand,
+  getTenant,
+  getTenantCommandReceipt,
+  getTenantCreationOptions,
+  type TenantDetail,
+  type TenantReceipt,
+  type TenantSummary
+} from '@/services/platform/tenant';
 import {browseTenantWorkspaces} from '@/services/platform/workspace';
 import {retainWorkspaceSelection} from '@/features/workspace/useWorkspace';
 import * as policy from '@/services/platform/policy';
@@ -15,7 +24,14 @@ vi.mock('@umijs/max', () => ({
   request: vi.fn(), useModel: () => ({initialState: {currentUser: {id: 'alice'}}}),
   history: {push: vi.fn(), replace: vi.fn()}
 }));
-vi.mock('@/services/platform/tenant', () => ({browseAccessibleTenants: vi.fn(), getTenant: vi.fn()}));
+vi.mock('@/services/platform/tenant', async original => ({
+  ...await original<typeof import('@/services/platform/tenant')>(),
+  browseAccessibleTenants: vi.fn(),
+  getTenant: vi.fn(),
+  executeTenantCommand: vi.fn(),
+  getTenantCommandReceipt: vi.fn(),
+  getTenantCreationOptions: vi.fn()
+}));
 vi.mock('@/services/platform/workspace', async original => ({
   ...await original<typeof import('@/services/platform/workspace')>(), browseTenantWorkspaces: vi.fn()
 }));
@@ -68,6 +84,11 @@ beforeEach(() => {
   }));
   sessionStorage.clear();
   window.history.replaceState(null, '', '/Environment/Tenants');
+  vi.mocked(getTenantCreationOptions).mockResolvedValue(response({
+    available: false,
+    organizationAllowed: false,
+    reason: 'CAPABILITY_NOT_ENABLED'
+  }));
   vi.mocked(browseAccessibleTenants).mockResolvedValue(page([team, admin]));
   vi.mocked(getTenant).mockImplementation(async id => {
     const tenant = [team, admin, personal].find(item => item.id === id);
@@ -207,4 +228,108 @@ it('restores a policy deep link and confirms a pending request with its original
   expect(screen.getByRole('button', {name: '保存并继续'})).toBeDisabled();
   expect(screen.getByRole('button', {name: '放弃修改并继续'})).toBeDisabled();
   expect(getTenant).toHaveBeenCalledTimes(1);
+});
+
+it('requires explicit eligibility for both organization creation and a tenant rename', async () => {
+  vi.mocked(getTenantCreationOptions).mockResolvedValue(response({
+    available: true,
+    organizationAllowed: false,
+    reason: 'ACCESS_DENIED'
+  }));
+  render(<Page/>);
+  await choose(admin.name);
+  await screen.findByRole('tab', {name: '概览'});
+  expect(screen.queryByRole('button', {name: '新建组织租户'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '编辑租户名称'})).not.toBeInTheDocument();
+});
+
+it('retains the rename on a version conflict, then saves against the newly read tenant version', async () => {
+  const target: TenantDetail = {...details(admin), actions: ['tenant:read', 'tenant:policy:write', 'tenant:update']};
+  vi.mocked(getTenant).mockResolvedValueOnce(response(target)).mockResolvedValue(response({
+    ...target,
+    version: 2,
+    name: '并发修改'
+  }));
+  vi.mocked(executeTenantCommand).mockRejectedValueOnce(new AiApiError(409, {code: 'PLATFORM_VERSION_CONFLICT'}))
+    .mockResolvedValueOnce({
+      operationId: 'rename-tenant', status: 1, delivery: 0, resultVersion: 3, acceptedAt: 'now', completedAt: 'now',
+      value: {id: admin.id, name: '新的名称', state: 0, type: 1, currentRole: 1, version: 3}
+    });
+  render(<Page/>);
+  await choose(admin.name);
+  fireEvent.click(await screen.findByRole('button', {name: '编辑租户名称'}));
+  fireEvent.change(screen.getByLabelText('租户名称'), {target: {value: '新的名称'}});
+  fireEvent.click(screen.getByRole('button', {name: '保存租户名称'}));
+  expect(await screen.findByText('租户版本已变化。请读取最新版本，原名称草稿仍保留。')).toBeVisible();
+  expect(screen.getByLabelText('租户名称')).toHaveValue('新的名称');
+  expect(screen.getByRole('button', {name: '保存租户名称'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: '读取最新版本并保留名称'}));
+  await waitFor(() => expect(screen.getByRole('button', {name: '保存租户名称'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', {name: '保存租户名称'}));
+  await screen.findByText('租户操作已确认');
+  expect(executeTenantCommand).toHaveBeenLastCalledWith({
+    kind: 'update', request: {tenantId: admin.id, name: '新的名称', expectedTenantVersion: 2}
+  }, expect.any(String));
+  expect(vi.mocked(executeTenantCommand).mock.calls[0][1]).not.toBe(vi.mocked(executeTenantCommand).mock.calls[1][1]);
+});
+
+it('restores organization creation with its original key and opens only the new tenant overview', async () => {
+  const created: TenantSummary = {...team, id: 'new-org', name: '新组织', currentRole: 0, version: 0};
+  const {isPersonal: _isPersonal, ...value} = created;
+  const receipt: TenantReceipt = {
+    value, operationId: 'create-tenant', status: 1, delivery: 1, resultVersion: 0,
+    acceptedAt: 'now', completedAt: 'now'
+  };
+  vi.mocked(getTenantCreationOptions).mockResolvedValue(response({
+    available: true,
+    organizationAllowed: true,
+    reason: 'ALLOWED'
+  }));
+  vi.mocked(getTenant).mockResolvedValue(response(details(created)));
+  vi.mocked(executeTenantCommand).mockRejectedValueOnce(new TypeError('network')).mockResolvedValueOnce(receipt);
+  vi.mocked(getTenantCommandReceipt).mockResolvedValue(receipt);
+  render(<Page/>);
+  fireEvent.click(await screen.findByRole('button', {name: '新建组织租户'}));
+  fireEvent.change(screen.getByLabelText('组织名称'), {target: {value: '新组织'}});
+  fireEvent.click(screen.getByRole('button', {name: '创建组织租户'}));
+  await screen.findByRole('button', {name: '确认原租户操作'});
+  const original = vi.mocked(executeTenantCommand).mock.calls[0];
+  cleanup();
+  render(<Page/>);
+  const retry = await screen.findByRole('button', {name: '确认原租户操作'});
+  expect(executeTenantCommand).toHaveBeenCalledTimes(1);
+  fireEvent.click(retry);
+  expect(await screen.findByText('组织租户已建立。可在工作空间页签查看或创建空间。')).toBeVisible();
+  expect(executeTenantCommand).toHaveBeenLastCalledWith(...original);
+  expect(screen.getByRole('tab', {name: '概览'})).toHaveAttribute('aria-selected', 'true');
+  expect(select).not.toHaveBeenCalled();
+  expect(history.push).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '查询操作结果'}));
+  expect(await screen.findByText('已核验原操作结果：新组织 · 租户版本 0')).toBeVisible();
+  expect(getTenantCommandReceipt).toHaveBeenCalledWith('create-tenant', original[0], expect.anything());
+  await tab('工作空间');
+  expect(await screen.findByText('此租户暂无你可访问的工作空间。')).toBeVisible();
+});
+
+it('keeps an unsaved policy draft when the same tenant name is saved', async () => {
+  const target: TenantDetail = {...details(admin), actions: ['tenant:read', 'tenant:policy:write', 'tenant:update']};
+  const updated = {...target, name: '同一租户新名称', version: 2};
+  vi.mocked(getTenant).mockResolvedValueOnce(response(target)).mockResolvedValue(response(updated));
+  vi.mocked(executeTenantCommand).mockResolvedValue({
+    operationId: 'same-tenant-name', status: 1, delivery: 0, resultVersion: 2, acceptedAt: 'now', completedAt: 'now',
+    value: {id: admin.id, name: updated.name, state: 0, type: 1, currentRole: 1, version: 2}
+  });
+  render(<Page/>);
+  await choose(admin.name);
+  await tab('租户政策');
+  fireEvent.click(await screen.findByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
+  await tab('概览');
+  fireEvent.click(screen.getByRole('button', {name: '编辑租户名称'}));
+  fireEvent.change(screen.getByLabelText('租户名称'), {target: {value: updated.name}});
+  fireEvent.click(screen.getByRole('button', {name: '保存租户名称'}));
+  await screen.findByText('正在配置：同一租户新名称');
+  await tab('租户政策');
+  expect(screen.getByRole('switch', {name: '允许个人凭据'})).toBeChecked();
+  expect(screen.getByRole('button', {name: '保存租户政策'})).toBeDisabled();
+  expect(policy.executePolicyCommand).not.toHaveBeenCalled();
 });

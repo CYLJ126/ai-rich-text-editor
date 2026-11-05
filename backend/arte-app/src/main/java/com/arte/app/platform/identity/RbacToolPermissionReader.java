@@ -45,19 +45,26 @@ public final class RbacToolPermissionReader {
     public Set<String> current(String accountName) {
         if (!TransactionSynchronizationManager.isActualTransactionActive() || !TransactionSynchronizationManager.hasResource(source))
             throw new IllegalStateException("Current RBAC reads require appDataSource transaction");
-        return RbacAuthorizationReads.read(source, this, accountName, () -> loadCurrent(accountName));
+        return RbacAuthorizationReads.read(source, this, accountName, () -> load(accountName, true));
     }
 
-    private Set<String> loadCurrent(String accountName) {
-        var direct = mapper.relations(accountName, "user_to_operation");
-        var roles = mapper.relations(accountName, "user_to_role");
+    /**
+     * 供页面资格展示，最终写入仍须使用 current。
+     */
+    public Set<String> snapshot(String accountName) {
+        return load(accountName, false);
+    }
+
+    private Set<String> load(String accountName, boolean current) {
+        var direct = mapper.relations(accountName, "user_to_operation", current);
+        var roles = mapper.relations(accountName, "user_to_role", current);
         if (direct.size() > 256 || roles.size() > 256)
             throw new AccessDeniedException("RBAC relation capacity exceeded");
         var result = new HashSet<>(direct);
         if (!roles.isEmpty()) {
-            var active = mapper.roles(roles).stream().filter(r -> "1".equals(r.status())).map(RoleState::code).sorted().toList();
+            var active = mapper.roles(roles, current).stream().filter(r -> "1".equals(r.status())).map(RoleState::code).sorted().toList();
             if (!active.isEmpty()) {
-                var inherited = mapper.roleOperations(active);
+                var inherited = mapper.roleOperations(active, current);
                 if (inherited.size() > 1024) throw new AccessDeniedException("RBAC operation capacity exceeded");
                 result.addAll(inherited);
             }
@@ -72,17 +79,18 @@ public final class RbacToolPermissionReader {
      * 只注册到上面的隔离工厂，SQL 使用既有索引 (source,binding_type,target)。
      */
     public interface Permissions {
-        @Select("SELECT target FROM arte_rbac_relation WHERE source=#{name} AND binding_type=#{kind} ORDER BY target LIMIT 257 FOR UPDATE")
-        List<String> relations(@Param("name") String name, @Param("kind") String kind);
+        @Select({"<script>SELECT target FROM arte_rbac_relation WHERE source=#{name} AND binding_type=#{kind} ORDER BY target LIMIT 257",
+                "<if test='current'> FOR UPDATE</if></script>"})
+        List<String> relations(@Param("name") String name, @Param("kind") String kind, @Param("current") boolean current);
 
         @Select({"<script>SELECT role_code AS code,status FROM arte_rbac_role WHERE role_code IN",
                 "<foreach collection='codes' item='code' open='(' separator=',' close=')'>#{code}</foreach>",
-                "ORDER BY role_code FOR UPDATE</script>"})
-        List<RoleState> roles(@Param("codes") List<String> codes);
+                "ORDER BY role_code <if test='current'>FOR UPDATE</if></script>"})
+        List<RoleState> roles(@Param("codes") List<String> codes, @Param("current") boolean current);
 
         @Select({"<script>SELECT target FROM arte_rbac_relation WHERE binding_type='role_to_operation' AND source IN",
                 "<foreach collection='codes' item='code' open='(' separator=',' close=')'>#{code}</foreach>",
-                "ORDER BY source,target LIMIT 1025 FOR UPDATE</script>"})
-        List<String> roleOperations(@Param("codes") List<String> codes);
+                "ORDER BY source,target LIMIT 1025 <if test='current'>FOR UPDATE</if></script>"})
+        List<String> roleOperations(@Param("codes") List<String> codes, @Param("current") boolean current);
     }
 }

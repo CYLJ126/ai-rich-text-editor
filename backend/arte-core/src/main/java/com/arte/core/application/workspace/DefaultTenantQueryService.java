@@ -1,6 +1,7 @@
 package com.arte.core.application.workspace;
 
 import com.arte.core.api.workspace.TenantQueryService;
+import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.access.DefaultRolePermissions;
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.enums.access.AccessReasonEnum;
@@ -33,14 +34,19 @@ final class DefaultTenantQueryService implements TenantQueryService {
     private final TenantMembershipStore members;
     private final WorkspaceBrowseBudget budget;
     private final LongSupplier nanoTime;
+    private final DefaultAuthorizationService authorization;
+    private final DefaultTenantGovernanceService governanceService;
 
     DefaultTenantQueryService(CurrentPrincipalResolver principals, WorkspaceAccessSupport access,
-                              TenantMembershipStore members, WorkspaceBrowseBudget budget, LongSupplier nanoTime) {
+                              TenantMembershipStore members, WorkspaceBrowseBudget budget, LongSupplier nanoTime,
+                              DefaultAuthorizationService authorization, DefaultTenantGovernanceService governanceService) {
         this.principals = principals;
         this.access = access;
         this.members = members;
         this.budget = budget;
         this.nanoTime = nanoTime;
+        this.authorization = authorization;
+        this.governanceService = governanceService;
     }
 
     @Override
@@ -102,6 +108,10 @@ final class DefaultTenantQueryService implements TenantQueryService {
         actions.add(TENANT_READ.value());
         boolean governance = DefaultRolePermissions.tenant(TENANT_POLICY_WRITE, snapshot) == AccessReasonEnum.ALLOWED;
         if (governance) actions.add(TENANT_POLICY_WRITE.value());
+        if (governance && authorization.check(actor, DefaultAuthorizationService.tenantRequest(tenantId, TENANT_UPDATE,
+                "tenant-directory")).allowed()) {
+            actions.add(TENANT_UPDATE.value());
+        }
         if (DefaultRolePermissions.mayCreateWorkspace(snapshot)) actions.add(TENANT_WORKSPACE_CREATE.value());
         principals.requireUser(actor);
         return new TenantDirectoryViews.Detail(summary.id(), summary.name(), summary.type(), summary.state(), summary.currentRole(),
@@ -111,9 +121,7 @@ final class DefaultTenantQueryService implements TenantQueryService {
 
     @Override
     public TenantDirectoryViews.CreationOptions getCreationOptions(TrustedActor actor) {
-        principals.requireUser(actor);
-        // 当前尚无组织租户创建命令，不能把现有租户中的角色当作组织创建资格。
-        return new TenantDirectoryViews.CreationOptions(false, false, "CAPABILITY_NOT_ENABLED");
+        return governanceService.creationOptions(actor);
     }
 
     private static WorkspaceAccessSupport.TenantSnapshot visibleTenant(Supplier<WorkspaceAccessSupport.TenantSnapshot> read) {

@@ -14,6 +14,7 @@ public final class PlatformActions {
      */
     public static final Action TENANT_READ = new Action("tenant:read");
     public static final Action TENANT_WORKSPACE_CREATE = new Action("tenant:workspace:create");
+    public static final Action TENANT_UPDATE = new Action("tenant:update");
     public static final Action TENANT_POLICY_WRITE = new Action("tenant:policy:write");
     public static final Action TENANT_MEMBER_MANAGE = new Action("tenant:member:manage");
     public static final Action TENANT_OWNER_TRANSFER = new Action("tenant:owner:transfer");
