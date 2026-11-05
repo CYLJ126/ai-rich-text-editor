@@ -3,6 +3,7 @@ package com.arte.core.pojo.platform;
 import com.arte.core.utils.platform.PlatformChecks;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 公共分页结果；API 的 total 必须仅计可见数据，records 应为不可变 View。
@@ -20,5 +21,9 @@ public record PageResult<T>(
         records = List.copyOf(records);
         PlatformChecks.require(current >= 1 && size >= 1 && size <= 100, "invalid page bounds");
         PlatformChecks.require(records.size() <= size && records.size() <= total, "records exceed page or total");
+    }
+
+    public <R> PageResult<R> map(Function<T, R> mapper) {
+        return new PageResult<>(current, size, total, records.stream().map(mapper).toList());
     }
 }

@@ -26,11 +26,13 @@ import {getManagedModel} from '@/services/platform/model';
 import type {AiModel} from '@/services/platform/ai';
 import type {WorkspaceTab} from '@/features/configuration/configurationLocation';
 import {configurationReadError, useConfigurationDirectory} from '@/features/configuration/useConfigurationDirectory';
+import {MembershipSession, useMembershipSession} from '@/features/workspace/MembershipSession';
+import {MembershipInbox} from '@/features/workspace/MembershipPanel';
 import '@/features/ainew/personalModels.css';
 import './index.css';
 
 const keyOf = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.workspaceId]);
-const tabs = new Set(['overview', 'ai', 'policy']);
+const tabs = new Set(['overview', 'ai', 'policy', 'members']);
 const tenantKey = (tenant: TenantSummary) => tenant.id;
 type Location = { scope: WorkspaceScope; tab: WorkspaceTab; intent: AiIntent };
 
@@ -56,8 +58,10 @@ export default function WorkspaceConfigurationPage() {
                   action={<Button onClick={() => history.replace('/Environment/Workspaces')}>打开空间目录</Button>}/>;
   }
   return <ConfigurationBoundary key={userId} userId={userId}>
-    <WorkspaceConfiguration key={location ? search : 'directory'} userId={userId} location={location}
-                            defaultTab={(tab ?? 'overview') as WorkspaceTab}/>
+    <MembershipSession userId={userId}>
+      <WorkspaceConfiguration key={location ? search : 'directory'} userId={userId} location={location}
+                              defaultTab={(tab ?? 'overview') as WorkspaceTab}/>
+    </MembershipSession>
   </ConfigurationBoundary>;
 }
 
@@ -66,6 +70,13 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
   userId: string; location?: Location; defaultTab: WorkspaceTab;
 }) {
   const directory = useWorkspaceManagement(userId);
+  const membership = useMembershipSession();
+  const membershipRevision = membership?.revision ?? 0;
+  const loadDirectory = useRef(() => directory.load(directory.search));
+  loadDirectory.current = () => directory.load(directory.search);
+  useEffect(() => {
+    if (membershipRevision) void loadDirectory.current();
+  }, [membershipRevision]);
   const chat = useCurrentWorkspace(userId);
   const [task, setTask] = useState(location?.intent);
   const [focusedModel, setFocusedModel] = useState<AiModel>();
@@ -230,6 +241,8 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
               type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
         }))}>
+        {membership?.status}
+        <MembershipInbox workspace/>
         {(task?.management || task?.chat) && <Flex gap={8} wrap>
           {task.management &&
             <Button onClick={() => navigation.request(() => history.push(aiLocation('models', userId, {
@@ -256,6 +269,10 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
             <WorkspaceDetailForm userId={userId} scope={target.scope} tab={targetTab} focusedModel={focusedModel}
                                  focusBudget={task?.focus === 'budget'}
                                  onTabChange={setTargetTab} onUnsafeChange={setFormUnsafe} onSaved={setTarget}
+                                 onAccessLost={() => {
+                                   setTarget(null);
+                                   setLocationError('当前账号已无法访问此工作空间。');
+                                 }}
                                  preferences={<WorkspacePreferences scope={target.scope} directory={directory}
                                                                     disabled={unsafe}/>}/>
           </> : !locating && <Typography.Paragraph>

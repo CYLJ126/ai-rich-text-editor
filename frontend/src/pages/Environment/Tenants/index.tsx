@@ -9,6 +9,13 @@ import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/conf
 import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 import {readConfigurationLocation, type TenantTab} from '@/features/configuration/configurationLocation';
 import {notifyAiConfiguration} from '@/features/workspace/aiConfigurationEvents';
+import {MembershipSession, useMembershipSession} from '@/features/workspace/MembershipSession';
+import {
+  MembershipInbox,
+  MembershipPanel,
+  useMembershipCapabilities,
+  useMembershipTarget
+} from '@/features/workspace/MembershipPanel';
 import PolicyEditor from '@/features/workspace/PolicyEditor';
 import {
   browseAccessibleTenants,
@@ -28,7 +35,7 @@ import './index.css';
 const tenantKey = (tenant: TenantSummary) => tenant.id;
 const roles = ['负责人', '管理员', '成员'];
 const types = ['个人托管', '组织'];
-const tabs = new Set(['overview', 'workspaces', 'policy']);
+const tabs = new Set(['overview', 'workspaces', 'policy', 'members']);
 
 export default function TenantConfigurationPage() {
   const {initialState} = useModel('@@initialState');
@@ -59,7 +66,9 @@ export function TenantSettings({userId, initialTenantId, initialTab = 'overview'
   }, [userId]);
   if (closed) return <Alert type="warning" title="账号会话已结束，请重新登录后打开租户配置。"/>;
   return <ConfigurationBoundary userId={userId}>
-    <TenantConfiguration userId={userId} initialTenantId={initialTenantId} initialTab={initialTab}/>
+    <MembershipSession userId={userId}>
+      <TenantConfiguration userId={userId} initialTenantId={initialTenantId} initialTab={initialTab}/>
+    </MembershipSession>
   </ConfigurationBoundary>;
 }
 
@@ -95,6 +104,13 @@ function TenantConfiguration({userId, initialTenantId, initialTab}: {
       type: type === 'all' ? undefined : type
     }, {signal})).body.data, [search, type]);
   const directory = useConfigurationDirectory(fetchPage, tenantKey);
+  const membership = useMembershipSession();
+  const membershipRevision = membership?.revision ?? 0;
+  const reloadDirectory = useRef(directory.reload);
+  reloadDirectory.current = directory.reload;
+  useEffect(() => {
+    if (membershipRevision) reloadDirectory.current();
+  }, [membershipRevision]);
 
   useEffect(() => () => personalReader.current?.abort(), []);
   useEffect(() => {
@@ -224,6 +240,8 @@ function TenantConfiguration({userId, initialTenantId, initialTab}: {
                     onClick={() => void governance.run()}>确认原租户操作</Button>
           </Flex>
         </Card>}
+        {membership?.status}
+        <MembershipInbox workspace={false}/>
         {governance.confirmed && <Card size="small" title="租户操作已确认">
           <Flex vertical gap={8} align="start">
             <Typography.Text>{governance.confirmed.receipt.value.name} ·
@@ -260,9 +278,13 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
   const original = governance.pending?.command;
   const restoring = original?.kind === 'update' && original.request.tenantId === tenantId;
   const [editing, setEditing] = useState(restoring);
+  const [nameVersion, setNameVersion] = useState(restoring ? original.request.expectedTenantVersion : undefined);
   const [rebaseError, setRebaseError] = useState('');
   const [rebasing, setRebasing] = useState(false);
   const rebaseReader = useRef<AbortController | null>(null);
+  const membership = useMembershipSession();
+  const membershipTarget = useMembershipTarget(detail?.type === 1 ? tenantId : undefined);
+  const caps = useMembershipCapabilities(membershipTarget, revision);
   const confirmed = governance.confirmed?.receipt.value.id === tenantId ? governance.confirmed : undefined;
   const navigation = useConfigurationNavigation();
 
@@ -278,7 +300,7 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
       }
     });
     return () => request.abort();
-  }, [tenantId, revision, confirmed]);
+  }, [tenantId, revision, confirmed, membership?.revision]);
   useEffect(() => () => rebaseReader.current?.abort(), []);
   useEffect(() => {
     if (confirmed) {
@@ -297,6 +319,7 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
       const {body} = await getTenant(tenantId, {signal: request.signal});
       if (!request.signal.aborted) {
         setDetail(body.data);
+        setNameVersion(body.data.version);
         governance.clearConflict();
       }
     } catch (failure) {
@@ -316,7 +339,8 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
       <ConfigurationTarget name={detail.name} scope={{tenantId}} purpose="租户配置"/>
       <Button onClick={() => navigation.request(() => setRevision(value => value + 1))}>刷新租户详情</Button>
     </Flex>
-    <Tabs activeKey={tab} onChange={value => setTab(value as TenantTab)} destroyOnHidden={false} items={[
+    <Tabs activeKey={tab === 'members' && !caps?.manage ? 'overview' : tab}
+          onChange={value => setTab(value as TenantTab)} destroyOnHidden={false} items={[
       {
         key: 'overview', label: '概览', children: <Flex vertical gap={12} align="start">
           <Descriptions size="small" column={{xs: 1, sm: 1, md: 2}} items={[
@@ -336,7 +360,7 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
                               submitDisabled={governance.conflict === tenantId}
                               onSubmit={name => governance.run({
                                 kind: 'update', request: {
-                                  tenantId, expectedTenantVersion: detail.version, name
+                                  tenantId, expectedTenantVersion: nameVersion ?? detail.version, name
                                 }
                               })}
                               onCancel={() => {
@@ -344,12 +368,19 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
                                 setRebaseError('');
                                 governance.clearConflict();
                               }}/> :
-            <Button disabled={blocked || !!error} onClick={() => setEditing(true)}>编辑租户名称</Button>)}
+            <Button disabled={blocked || !!error} onClick={() => {
+              setNameVersion(detail.version);
+              setEditing(true);
+            }}>编辑租户名称</Button>)}
           {editing && governance.conflict === tenantId && <Button loading={rebasing} disabled={blocked}
                                                                   onClick={() => void rebase()}>读取最新版本并保留名称</Button>}
           {rebaseError && <Alert type="warning" title={rebaseError}/>}
         </Flex>
       },
+      ...(caps?.manage && membershipTarget ? [{
+        key: 'members', label: '成员',
+        children: <MembershipPanel target={membershipTarget} version={detail.version} caps={caps} disabled={blocked}/>
+      }] : []),
       {key: 'workspaces', label: '工作空间', children: <TenantWorkspaces userId={userId} tenantId={tenantId}/>},
       {
         key: 'policy', label: '租户政策', children: policyAllowed

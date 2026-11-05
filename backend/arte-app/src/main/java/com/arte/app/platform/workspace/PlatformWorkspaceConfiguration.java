@@ -2,24 +2,28 @@ package com.arte.app.platform.workspace;
 
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
+import com.arte.app.platform.persistence.JdbcMembershipInvitationStore;
 import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
 import com.arte.app.platform.persistence.WorkspaceCursorStore;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.platform.CommandReceiptQueryService;
 import com.arte.core.api.workspace.*;
+import com.arte.core.application.workspace.DefaultMembershipGovernanceService;
 import com.arte.core.application.workspace.DefaultWorkspacePolicies;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
 import com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.*;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 import java.time.Clock;
@@ -107,7 +111,8 @@ public class PlatformWorkspaceConfiguration {
                                                        java.util.List<com.arte.core.spi.access.ResourceDescriptorProvider> descriptors,
                                                        java.util.List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions,
                                                        TenantGovernanceProperties tenantGovernance, PlatformJson json,
-                                                       RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource dataSource) {
+                                                       RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource dataSource,
+                                                       ObjectProvider<JdbcMembershipInvitationStore> invitations) {
         RbacToolPermissionReader permissions = new RbacToolPermissionReader(dataSource);
         TenantUpdatePolicy update = (actor, tenantId, current) -> {
             String subject = actor.principal().subjectId();
@@ -119,9 +124,25 @@ public class PlatformWorkspaceConfiguration {
                 && identities.currentSubjectName(actor.principal().subjectId())
                 .map(name -> permissions.current(name).contains(CREATE_ORGANIZATION_PERMISSION)).orElse(false);
         OrganizationTenantPolicyTemplate template = organizationTemplate(tenantGovernance, json);
+        JdbcMembershipInvitationStore invitationStore = invitations.getIfAvailable();
         return new DefaultWorkspaceServices(identity, transactions, tenants, workspaces, tenantMembers,
                 workspaceMembers, policies, preferences, receipts, outbox, audit, ids, clock, defaults, facts, provisioning,
-                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions, update, create, () -> template);
+                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions, update, create, () -> template, invitationStore, invitationStore);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.platform.membership", name = "enabled", havingValue = "true")
+    JdbcMembershipInvitationStore membershipInvitationStore(@Qualifier("appDataSource") DataSource source,
+                                                            @Qualifier("platformTransactionRunner") PublicTransactionRunner tx) {
+        new JdbcTemplate(source).queryForList("SELECT id,tenant_id,workspace_id,target_subject_id,issued_by,role,state,expires_at,accepted_member_id,version"
+                + " FROM arte_platform_membership_invitation WHERE 1=0");
+        return new JdbcMembershipInvitationStore(source, tx);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "arte.platform.membership", name = "enabled", havingValue = "true")
+    DefaultMembershipGovernanceService membershipGovernanceService(DefaultWorkspaceServices services) {
+        return java.util.Objects.requireNonNull(services.membership());
     }
 
     private static OrganizationTenantPolicyTemplate organizationTemplate(TenantGovernanceProperties configuration, PlatformJson json) {
@@ -265,7 +286,7 @@ public class PlatformWorkspaceConfiguration {
 
     @Bean
     ReactiveTenantQueries reactiveTenantQueries(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
-                                                TenantQueryService tenants, TenantDirectoryBrowser browser, TenantGovernanceService governance) {
+                                                TenantQueryService tenants, TenantDirectoryBrowser browser, @Qualifier("tenantGovernanceService") TenantGovernanceService governance) {
         return new ReactiveTenantQueries(identities, executor, tenants, browser, governance);
     }
 

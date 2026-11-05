@@ -2,6 +2,7 @@ package com.arte.core.spi.workspace;
 
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.PageResult;
+import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.workspace.WorkspaceInvitation;
 
 import java.util.Optional;
@@ -38,4 +39,6 @@ public interface InvitationStore {
      * 分页查询以指定主体为邀请目标的记录。
      */
     PageResult<WorkspaceInvitation> listForSubject(String subjectId, PageQuery query);
+
+    PageResult<WorkspaceInvitation> listForWorkspace(Scope scope, PageQuery query);
 }

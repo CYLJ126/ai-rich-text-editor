@@ -4,6 +4,7 @@ import com.arte.core.enums.workspace.TenantRoleEnum;
 import com.arte.core.pojo.platform.CommandMeta;
 import com.arte.core.utils.platform.PlatformChecks;
 
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -121,6 +122,44 @@ public final class TenantCommands {
             PlatformChecks.version(expectedTenantVersion, "expectedTenantVersion");
             PlatformChecks.version(expectedPolicyVersion, "expectedPolicyVersion");
             Objects.requireNonNull(rules, "rules");
+        }
+    }
+
+    /**
+     * 邀请现有账号加入组织租户，接受后取得成员资格。
+     */
+    public record InviteTenantMember(CommandMeta meta, String tenantId, long expectedTenantVersion,
+                                     String targetSubjectId, Instant expiresAt) {
+        public InviteTenantMember {
+            Objects.requireNonNull(meta);
+            PlatformChecks.id(tenantId, "tenantId");
+            PlatformChecks.id(targetSubjectId, "targetSubjectId");
+            PlatformChecks.version(expectedTenantVersion, "expectedTenantVersion");
+        }
+    }
+
+    /**
+     * 按邀请和父级版本撤销组织邀请。
+     */
+    public record RevokeTenantInvitation(CommandMeta meta, String tenantId, long expectedTenantVersion,
+                                         String invitationId, long expectedInvitationVersion) {
+        public RevokeTenantInvitation {
+            Objects.requireNonNull(meta);
+            PlatformChecks.id(tenantId, "tenantId");
+            PlatformChecks.id(invitationId, "invitationId");
+            PlatformChecks.version(expectedTenantVersion, "expectedTenantVersion");
+            PlatformChecks.version(expectedInvitationVersion, "expectedInvitationVersion");
+        }
+    }
+
+    /**
+     * 由受邀账号确认加入组织租户。
+     */
+    public record AcceptTenantInvitation(CommandMeta meta, String invitationId, long expectedInvitationVersion) {
+        public AcceptTenantInvitation {
+            Objects.requireNonNull(meta);
+            PlatformChecks.id(invitationId, "invitationId");
+            PlatformChecks.version(expectedInvitationVersion, "expectedInvitationVersion");
         }
     }
 }

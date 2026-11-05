@@ -1,14 +1,23 @@
 package com.arte.app.platform.persistence;
 
+import cn.hutool.json.JSONObject;
 import com.arte.app.platform.identity.PlatformIdentityConfiguration;
 import com.arte.app.platform.identity.RbacAccountMapperConfiguration;
 import com.arte.app.platform.identity.RbacAccountReader;
+import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.workspace.PlatformWorkspaceConfiguration;
 import com.arte.app.platform.workspace.ReactiveWorkspaceOperations;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.service.platform.AuditSinkServiceImpl;
+import com.arte.app.web.controller.platform.MembershipGovernanceController;
+import com.arte.app.web.controller.platform.TenantDirectoryController;
+import com.arte.app.web.controller.platform.WorkspaceController;
+import com.arte.core.application.workspace.DefaultMembershipGovernanceService;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.enums.workspace.MembershipStateEnum;
+import com.arte.core.enums.workspace.TenantRoleEnum;
+import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.UserOnlineInfo;
 import com.arte.core.pojo.access.AccessRequest;
@@ -17,6 +26,8 @@ import com.arte.core.pojo.platform.CommandMeta;
 import com.arte.core.pojo.platform.CommandReceipt;
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate;
+import com.arte.core.pojo.workspace.PolicyRules;
 import com.arte.core.pojo.workspace.WorkspaceCommands;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 import org.junit.jupiter.api.AfterEach;
@@ -25,9 +36,12 @@ import org.junit.jupiter.api.Test;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Mono;
@@ -37,10 +51,7 @@ import reactor.util.function.Tuple2;
 import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_READ;
 import static com.arte.core.constant.platform.PlatformResourceTypes.WORKSPACE;
@@ -387,6 +398,224 @@ class PlatformWorkspaceAssemblyIntegrationTest {
             assertEquals(0, fixture.count("tenant"));
             assertEquals(0, fixture.count("command"));
         });
+    }
+
+    @Test
+    void membershipInvitationsSeparateScopesAndRequireExplicitAcceptance() throws Exception {
+        membershipContext().run(c -> {
+            assertNull(c.getStartupFailure());
+            Authentication alice = login(1, "alice");
+            Authentication bob = login(2, "bob");
+            Authentication carol = login(3, "carol");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Team")).getStr("id");
+                Scope first = createSpace(http, tenant, alice, "First");
+                Scope other = createSpace(http, tenant, alice, "Other");
+                String bobId = memberTarget(http, alice, tenant, "bob");
+                String carolId = memberTarget(http, alice, tenant, "carol");
+                JSONObject tenantInvite = command(http, "inviteTenantMember", "tenant-invite", alice,
+                        Map.of("tenantId", tenant, "targetSubjectId", bobId, "expectedTenantVersion", fixture.tenants.find(tenant).orElseThrow().version()));
+                Map<String, Object> accept = acceptance(tenantInvite);
+                http.rejected("/workspace/acceptTenantInvitation", fixture.json.write(accept), "wrong-user", carol, 404, "NOT_FOUND");
+                assertEquals(0, readMembership(http, "listMyTenantInvitations", carol, Map.of()).getInt("total"));
+                JSONObject inboxItem = readMembership(http, "listMyTenantInvitations", bob, Map.of())
+                        .getJSONArray("records").getJSONObject(0);
+                assertEquals("Team", inboxItem.getStr("targetName"));
+                assertNotNull(java.time.Instant.parse(inboxItem.getStr("expiresAt")));
+                http.rejected("/workspace/findInvitationTarget", fixture.json.write(Map.of("tenantId", tenant, "account", "bo")),
+                        null, alice, 404, "NOT_FOUND");
+                JSONObject joined = membershipResponse(http, "acceptTenantInvitation", "tenant-join", bob, accept);
+                assertEquals(2, joined.getJSONObject("value").getJSONObject("member").getInt("role"));
+                assertEquals(1, membershipResponse(http, "acceptTenantInvitation", "tenant-join", bob, accept).getInt("delivery"));
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", bob,
+                        Map.of("operationId", joined.getStr("operationId"))).getInt("delivery"));
+                assertTrue(fixture.workspaceMembers.find(first, bobId).isEmpty());
+                http.rejected("/workspace/listTenantMembers", fixture.json.write(Map.of("tenantId", tenant)),
+                        null, bob, 403, "ACCESS_DENIED");
+
+                JSONObject guestInvite = command(http, "inviteWorkspaceMember", "guest-invite", alice,
+                        Map.of("scope", first, "targetSubjectId", carolId, "expectedWorkspaceVersion", 0, "role", 3));
+                assertEquals("First", readMembership(http, "listMyWorkspaceInvitations", carol, Map.of())
+                        .getJSONArray("records").getJSONObject(0).getStr("targetName"));
+                JSONObject guest = command(http, "acceptWorkspaceInvitation", "guest-join", carol, acceptance(guestInvite));
+                assertEquals(3, guest.getJSONObject("member").getInt("role"));
+                assertEquals(TenantRoleEnum.GUEST, fixture.tenantMembers.find(tenant, carolId).orElseThrow().role());
+                http.rejected("/workspace/getWorkspace", fixture.json.write(Map.of("scope", other)), null, carol, 404, "NOT_FOUND");
+                http.rejected("/workspace/findInvitationTarget", fixture.json.write(Map.of("scope", first, "tenantId", tenant, "account", "bob")),
+                        null, carol, 403, "ACCESS_DENIED");
+
+                Map<String, Object> leave = Map.of("scope", first, "expectedWorkspaceVersion", 1, "expectedMemberVersion", 0);
+                JSONObject left = membershipResponse(http, "leaveWorkspace", "leave", carol, leave);
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", carol,
+                        Map.of("operationId", left.getStr("operationId"))).getInt("delivery"));
+                http.rejected("/workspace/acceptWorkspaceInvitation", fixture.json.write(acceptance(guestInvite)),
+                        "old-invite-new-key", carol, 409, "VERSION_CONFLICT");
+                JSONObject fresh = command(http, "inviteWorkspaceMember", "guest-reinvite", alice,
+                        Map.of("scope", first, "targetSubjectId", carolId, "expectedWorkspaceVersion", 2, "role", 2));
+                command(http, "acceptWorkspaceInvitation", "guest-rejoin", carol, acceptance(fresh));
+                assertEquals(1L, fixture.workspaceMembers.find(first, carolId).orElseThrow().generation());
+                http.rejected("/workspace/getWorkspaceCommandReceipt", fixture.json.write(Map.of("operationId", left.getStr("operationId"))),
+                        null, carol, 403, "ACCESS_DENIED");
+
+                Scope personal = c.getBean(ReactiveWorkspaceOperations.class).initializePersonal(alice, meta("personal"))
+                        .block(WAIT).value().workspace().scope();
+                JSONObject personalCaps = readMembership(http, "getMembershipCapabilities", alice,
+                        Map.of("tenantId", personal.tenantId(), "scope", personal));
+                assertFalse(personalCaps.getBool("transferOwner"));
+                assertFalse(personalCaps.getBool("leave"));
+                http.rejected("/workspace/inviteTenantMember", fixture.json.write(Map.of("tenantId", personal.tenantId(),
+                        "targetSubjectId", bobId, "expectedTenantVersion", 0)), "personal-tenant-invite", alice, 403, "ACCESS_DENIED");
+                JSONObject collaboration = command(http, "inviteWorkspaceMember", "personal-space-invite", alice,
+                        Map.of("scope", personal, "targetSubjectId", bobId, "expectedWorkspaceVersion", 0, "role", 2));
+                JSONObject collaborator = command(http, "acceptWorkspaceInvitation", "personal-space-join", bob,
+                        acceptance(collaboration)).getJSONObject("member");
+                http.rejected("/workspace/transferWorkspaceOwner", fixture.json.write(Map.of("scope", personal,
+                                "targetMemberId", collaborator.getStr("memberId"), "expectedWorkspaceVersion", 1,
+                                "expectedOwnerMemberVersion", personalCaps.getLong("memberVersion"), "expectedTargetMemberVersion", 0)),
+                        "personal-default-transfer", alice, 403, "POLICY_DENIED");
+                http.rejected("/workspace/leaveWorkspace", fixture.json.write(Map.of("scope", personal,
+                                "expectedWorkspaceVersion", 1, "expectedMemberVersion", personalCaps.getLong("memberVersion"))),
+                        "personal-default-leave", alice, 403, "ACCESS_DENIED");
+            }
+        });
+    }
+
+    @Test
+    void membershipHandoffAndTenantRemovalProtectOwnersAndInvalidateDependentAccess() throws Exception {
+        membershipContext().run(c -> {
+            assertNull(c.getStartupFailure());
+            Authentication alice = login(1, "alice");
+            Authentication bob = login(2, "bob");
+            Authentication carol = login(3, "carol");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Team")).getStr("id");
+                Scope space = createSpace(http, tenant, alice, "Team Space");
+                String bobId = memberTarget(http, alice, tenant, "bob");
+                String carolId = memberTarget(http, alice, tenant, "carol");
+                JSONObject tenantInvite = command(http, "inviteTenantMember", "tenant-invite", alice,
+                        Map.of("tenantId", tenant, "targetSubjectId", bobId, "expectedTenantVersion", fixture.tenants.find(tenant).orElseThrow().version()));
+                JSONObject member = command(http, "acceptTenantInvitation", "tenant-join", bob, acceptance(tenantInvite))
+                        .getJSONObject("member");
+                JSONObject invite = command(http, "inviteWorkspaceMember", "workspace-invite", alice,
+                        Map.of("scope", space, "targetSubjectId", bobId, "expectedWorkspaceVersion", 0, "role", 2));
+                JSONObject spaceMember = command(http, "acceptWorkspaceInvitation", "workspace-join", bob, acceptance(invite))
+                        .getJSONObject("member");
+
+                JSONObject caps = readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant, "scope", space));
+                Map<String, Object> transfer = Map.of("scope", space, "targetMemberId", spaceMember.getStr("memberId"),
+                        "expectedWorkspaceVersion", 1, "expectedOwnerMemberVersion", caps.getLong("memberVersion"), "expectedTargetMemberVersion", 0);
+                http.rejected("/workspace/transferWorkspaceOwner", fixture.json.write(transfer), "stale-transfer", bob, 403, "ACCESS_DENIED");
+                assertEquals(1, command(http, "transferWorkspaceOwner", "space-transfer", alice, transfer).getInt("currentRole"));
+                assertEquals(WorkspaceRoleEnum.OWNER, fixture.workspaceMembers.find(space, bobId).orElseThrow().role());
+                assertEquals(WorkspaceRoleEnum.ADMIN, fixture.workspaceMembers.find(space, fixture.actor.principal().subjectId()).orElseThrow().role());
+
+                JSONObject tenantCaps = readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant));
+                Map<String, Object> remove = Map.of("tenantId", tenant, "memberId", member.getStr("memberId"),
+                        "expectedTenantVersion", 2, "expectedMemberVersion", 0);
+                http.rejected("/workspace/removeTenantMember", fixture.json.write(remove), "protected-owner", alice, 403, "ACCESS_DENIED");
+                JSONObject pending = command(http, "inviteWorkspaceMember", "pending", bob,
+                        Map.of("scope", space, "targetSubjectId", carolId, "expectedWorkspaceVersion", 2, "role", 2));
+                JSONObject aliceSpace = readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant, "scope", space));
+                command(http, "transferWorkspaceOwner", "space-return", bob, Map.of("scope", space, "targetMemberId", aliceSpace.getStr("memberId"),
+                        "expectedWorkspaceVersion", 2, "expectedOwnerMemberVersion", 1, "expectedTargetMemberVersion", 1));
+                membershipResponse(http, "removeTenantMember", "tenant-remove", alice, remove);
+                assertEquals(MembershipStateEnum.REVOKED, fixture.workspaceMembers.find(space, bobId).orElseThrow().state());
+                http.rejected("/workspace/getWorkspace", fixture.json.write(Map.of("scope", space)), null, bob, 404, "NOT_FOUND");
+                http.rejected("/workspace/acceptWorkspaceInvitation", fixture.json.write(acceptance(pending)),
+                        "issuer-revoked", carol, 404, "NOT_FOUND");
+                JSONObject reinvite = command(http, "inviteTenantMember", "tenant-reinvite", alice,
+                        Map.of("tenantId", tenant, "targetSubjectId", bobId, "expectedTenantVersion", 3));
+                JSONObject newMember = command(http, "acceptTenantInvitation", "tenant-rejoin", bob, acceptance(reinvite)).getJSONObject("member");
+                assertEquals(1L, fixture.tenantMembers.find(tenant, bobId).orElseThrow().generation());
+                assertEquals(MembershipStateEnum.REVOKED, fixture.workspaceMembers.find(space, bobId).orElseThrow().state());
+                assertEquals(1, command(http, "transferTenantOwner", "tenant-transfer", alice, Map.of("tenantId", tenant,
+                        "targetMemberId", newMember.getStr("memberId"), "expectedTenantVersion", 4,
+                        "expectedOwnerMemberVersion", tenantCaps.getLong("memberVersion"),
+                        "expectedTargetMemberVersion", newMember.getLong("version"))).getInt("currentRole"));
+                assertEquals(TenantRoleEnum.OWNER, fixture.tenantMembers.find(tenant, bobId).orElseThrow().role());
+                assertEquals(TenantRoleEnum.ADMIN, fixture.tenantMembers.find(tenant, fixture.actor.principal().subjectId()).orElseThrow().role());
+
+                JSONObject revoked = command(http, "inviteTenantMember", "new-pending", bob,
+                        Map.of("tenantId", tenant, "targetSubjectId", carolId, "expectedTenantVersion", 5));
+                command(http, "revokeTenantInvitation", "revoke", bob, Map.of("tenantId", tenant, "expectedTenantVersion", 5,
+                        "invitationId", revoked.getStr("invitationId"), "expectedInvitationVersion", 0));
+                http.rejected("/workspace/acceptTenantInvitation", fixture.json.write(acceptance(revoked)),
+                        "accept-revoked", carol, 409, "VERSION_CONFLICT");
+
+                JSONObject formerOwner = readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant));
+                Map<String, Object> demote = Map.of("tenantId", tenant, "memberId", formerOwner.getStr("memberId"), "role", 2,
+                        "expectedTenantVersion", 5, "expectedMemberVersion", formerOwner.getLong("memberVersion"));
+                JSONObject changed = membershipResponse(http, "changeTenantMemberRole", "demote", bob, demote);
+                assertEquals(2, changed.getJSONObject("value").getInt("role"));
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", bob,
+                        Map.of("operationId", changed.getStr("operationId"))).getInt("delivery"));
+                http.rejected("/workspace/changeTenantMemberRole", fixture.json.write(demote),
+                        "stale-role", bob, 409, "VERSION_CONFLICT");
+                assertFalse(readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant)).getBool("manage"));
+                http.rejected("/workspace/listTenantMembers", fixture.json.write(Map.of("tenantId", tenant)),
+                        null, alice, 403, "ACCESS_DENIED");
+            }
+        });
+    }
+
+    private ApplicationContextRunner membershipContext() throws Exception {
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_relation(source VARCHAR(256), binding_type VARCHAR(96), target VARCHAR(256))");
+        fixture.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(96), status VARCHAR(8))");
+        fixture.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','EnvironmentTenants:create')");
+        for (int id = 2; id <= 3; id++) {
+            fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(?,?,1,?)", id, id == 2 ? "bob" : "carol",
+                    java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+        }
+        String ddl = java.nio.file.Files.readString(java.nio.file.Path.of("scripts/arte-platform-membership-invitation-ddl-mysql.sql"));
+        if (fixture.mysql == null) {
+            ddl = ddl.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replace("ENGINE=InnoDB", "");
+        }
+        try (java.sql.Connection connection = fixture.source.getConnection()) {
+            ByteArrayResource sql = new ByteArrayResource(ddl.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            ScriptUtils.executeSqlScript(connection, sql);
+            ScriptUtils.executeSqlScript(connection, sql);
+        }
+        PolicyRules rules = new PolicyRules(Set.of(com.arte.core.constant.platform.PlatformResourceTypes.ARTICLE), Map.of(),
+                false, false, Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of());
+        return context().withPropertyValues("arte.platform.membership.enabled=true",
+                "arte.platform.tenant-governance.organization-creation-enabled=true",
+                "arte.platform.tenant-governance.organization-policy-template=" +
+                        fixture.json.write(new OrganizationTenantPolicyTemplate(7, rules, false, 1, 1)));
+    }
+
+    private ManagementHttpHarness membershipHttp(AssertableApplicationContext c) {
+        return new ManagementHttpHarness(
+                new TenantDirectoryController(c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class)),
+                new WorkspaceController(c.getBean(ReactiveWorkspaceOperations.class)),
+                new MembershipGovernanceController(c.getBean(DefaultMembershipGovernanceService.class),
+                        c.getBean(RbacIdentityProvider.class), c.getBean(PlatformPersistenceExecutor.class),
+                        fixture.tenants, fixture.workspaces));
+    }
+
+    private String memberTarget(ManagementHttpHarness http, Authentication actor, String tenant, String account) {
+        return readMembership(http, "findInvitationTarget", actor, Map.of("tenantId", tenant, "account", account)).getStr("subjectId");
+    }
+
+    private Scope createSpace(ManagementHttpHarness http, String tenant, Authentication actor, String name) {
+        JSONObject scope = command(http, "createWorkspace", "create-" + name.replace(" ", "-"), actor, Map.of("tenantId", tenant, "name", name))
+                .getJSONObject("scope");
+        return new Scope(scope.getStr("tenantId"), scope.getStr("workspaceId"));
+    }
+
+    private static Map<String, Object> acceptance(JSONObject invitation) {
+        return Map.of("invitationId", invitation.getStr("invitationId"), "expectedInvitationVersion", invitation.getLong("version"));
+    }
+
+    private JSONObject membershipResponse(ManagementHttpHarness http, String endpoint, String key, Authentication actor, Map<String, ?> body) {
+        return http.ok("/workspace/" + endpoint, fixture.json.write(body), key, actor).getJSONObject("data");
+    }
+
+    private JSONObject command(ManagementHttpHarness http, String endpoint, String key, Authentication actor, Map<String, ?> body) {
+        return membershipResponse(http, endpoint, key, actor, body).getJSONObject("value");
+    }
+
+    private JSONObject readMembership(ManagementHttpHarness http, String endpoint, Authentication actor, Map<String, ?> body) {
+        return membershipResponse(http, endpoint, null, actor, body);
     }
 
 }

@@ -150,6 +150,17 @@ public final class WorkspaceViews {
         }
     }
 
+    public record TenantInvitationView(String invitationId, String tenantId, String targetSubjectId,
+                                       InvitationStateEnum state, Instant expiresAt, long version) {
+    }
+
+    public record TenantJoinResult(JoinOutcomeEnum outcome, String tenantId, TenantMemberView member) {
+    }
+
+    public record MembershipCapabilities(boolean available, boolean manage, boolean invite, boolean assignAdmin,
+                                         boolean transferOwner, boolean leave, String memberId, Long memberVersion) {
+    }
+
     /**
      * 本人偏好 View，引用仍需重新验证。
      */

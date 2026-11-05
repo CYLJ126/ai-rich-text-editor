@@ -62,4 +62,14 @@ public interface TenantService extends TenantGovernanceService {
      * @return 交接操作回执，包含更新后的租户信息
      */
     CommandReceipt<WorkspaceViews.TenantView> transferOwner(TrustedActor actor, TenantCommands.TransferTenantOwner command);
+
+    PageResult<WorkspaceViews.TenantInvitationView> listTenantInvitations(TrustedActor actor, String tenantId, PageQuery query);
+
+    PageResult<WorkspaceViews.TenantInvitationView> listMyTenantInvitations(TrustedActor actor, PageQuery query);
+
+    CommandReceipt<WorkspaceViews.TenantInvitationView> inviteTenantMember(TrustedActor actor, TenantCommands.InviteTenantMember command);
+
+    CommandReceipt<WorkspaceViews.TenantInvitationView> revokeTenantInvitation(TrustedActor actor, TenantCommands.RevokeTenantInvitation command);
+
+    CommandReceipt<WorkspaceViews.TenantJoinResult> acceptTenantInvitation(TrustedActor actor, TenantCommands.AcceptTenantInvitation command);
 }

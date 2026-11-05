@@ -27,4 +27,8 @@ public interface PlatformWorkspaceMemberMapper extends BaseMapper<PlatformWorksp
     int insertFromWorkspace(@Param("row") PlatformWorkspaceMemberDto row);
 
     List<PlatformWorkspaceMemberDto> selectScopes(@Param("scopes") List<Scope> scopes, @Param("subject") String subject);
+
+    String findOwnedWorkspace(@Param("tenant") String tenant, @Param("subject") String subject);
+
+    int revokeTenantAccess(@Param("tenant") String tenant, @Param("subject") String subject);
 }

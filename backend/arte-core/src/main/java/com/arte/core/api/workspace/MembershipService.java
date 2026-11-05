@@ -33,6 +33,8 @@ public interface MembershipService {
      */
     PageResult<WorkspaceViews.InvitationView> listInvitations(TrustedActor actor, PageQuery query);
 
+    PageResult<WorkspaceViews.InvitationView> listWorkspaceInvitations(TrustedActor actor, Scope scope, PageQuery query);
+
     /**
      * 邀请已有账户以 MEMBER 或 GUEST 角色加入空间。
      *

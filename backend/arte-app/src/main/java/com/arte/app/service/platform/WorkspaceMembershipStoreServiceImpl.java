@@ -71,4 +71,18 @@ public class WorkspaceMembershipStoreServiceImpl extends PlatformStoreSupport<Pl
         next(value.version(), expected);
         return updateRecord(() -> baseMapper.replaceCas(PlatformRecords.workspaceMember(value), expected));
     }
+
+    @Override
+    public boolean ownsWorkspace(String tenantId, String subjectId) {
+        requireTenant(tenantId);
+        requireSubject(subjectId);
+        return baseMapper.findOwnedWorkspace(tenantId, subjectId) != null;
+    }
+
+    @Override
+    public void revokeTenantAccess(String tenantId, String subjectId) {
+        requireTenant(tenantId);
+        requireSubject(subjectId);
+        baseMapper.revokeTenantAccess(tenantId, subjectId);
+    }
 }

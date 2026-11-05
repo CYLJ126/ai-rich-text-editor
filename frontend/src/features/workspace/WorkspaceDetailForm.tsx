@@ -16,6 +16,9 @@ import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspac
 import {notifyAiConfiguration, subscribeAiConfiguration} from './aiConfigurationEvents';
 import {sameScope} from '@/features/ainew/storage';
 import {useWorkspaceManagement} from './useWorkspace';
+import {AiApiError} from '@/services/arte-ai/request';
+import {MembershipPanel, useMembershipCapabilities, useMembershipTarget} from './MembershipPanel';
+import {useMembershipSession} from './MembershipSession';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 
 interface Props {
@@ -25,6 +28,7 @@ interface Props {
   tenants?: { value: string; label: string }[];
   onMoreTenants?: () => void;
   onSaved?: (view: WorkspaceView) => void;
+  onAccessLost?: () => void;
   onCancel?: () => void;
   onUnsafeChange?: (unsafe: boolean) => void;
   tab?: WorkspaceTab;
@@ -46,6 +50,7 @@ function Detail({
                   tenants = [],
                   onMoreTenants,
                   onSaved,
+                  onAccessLost,
                   onCancel,
                   onUnsafeChange,
                   tab,
@@ -72,9 +77,10 @@ function Detail({
   const [versionChange, setVersionChange] = useState<WorkspaceVersionChange>();
   const live = useRef(true);
   const reader = useRef<AbortController | null>(null);
+  const [metadataChanged, setMetadataChanged] = useState(false);
   const ownNotification = useRef(false);
-  const callbacks = useRef({onSaved});
-  callbacks.current = {onSaved};
+  const callbacks = useRef({onSaved, onAccessLost});
+  callbacks.current = {onSaved, onAccessLost};
   const pending = directory.pending;
   const ownPending = pending?.kind === 'rename' ? sameScope(scope, pending.request.scope)
     : pending?.kind === 'create' && !scope;
@@ -83,6 +89,10 @@ function Detail({
   const locked = closed || loading || directory.saving || !!pending || directory.recoveryBlocked;
   const unsafe = !closed && (dirty || aiUnsafe || policyUnsafe || directory.saving || !!pending || directory.recoveryBlocked || directory.unsafeToLeave);
   const stableScope = useMemo(() => scope ? {...scope} : undefined, [scope?.tenantId, scope?.workspaceId]);
+  const membership = useMembershipSession();
+  const membershipRevision = membership?.revision ?? 0;
+  const membershipTarget = useMembershipTarget(view?.scope.tenantId, view?.scope.workspaceId);
+  const caps = useMembershipCapabilities(membershipTarget, view?.version);
   const context = useMemo(() => stableScope ? {userId, scope: stableScope} : undefined, [userId, stableScope]);
   useConfigurationDraft({
     group: 'workspace-metadata',
@@ -114,7 +124,7 @@ function Detail({
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsafe]);
 
-  async function read() {
+  async function read(membershipRefresh = false) {
     reader.current?.abort();
     const controller = new AbortController();
     reader.current = controller;
@@ -133,12 +143,25 @@ function Detail({
       setAllowed(permission?.body.data.allowed === true);
       const original = directory.pending;
       const restored = original?.kind === 'rename' && sameScope(original.request.scope, stableScope) ? original.request : null;
-      setName(restored?.name ?? body.data.name);
-      setDescription(restored?.description ?? body.data.description ?? '');
+      if (membershipRefresh && dirty && view
+        && (view.name !== body.data.name || (view.description ?? '') !== (body.data.description ?? ''))) {
+        setMetadataChanged(true);
+        setNotice('空间信息已被更新，原草稿仍保留。请重新读取并核对后保存。');
+      }
+      if (!membershipRefresh || !dirty) {
+        setMetadataChanged(false);
+        setName(restored?.name ?? body.data.name);
+        setDescription(restored?.description ?? body.data.description ?? '');
+      }
+      if (membershipRefresh) callbacks.current.onSaved?.(body.data);
       return true;
     } catch (failure) {
       if (live.current && !controller.signal.aborted) {
         setAllowed(false);
+        if (membershipRefresh && failure instanceof AiApiError && [401, 403, 404].includes(failure.httpStatus)) {
+          setView(undefined);
+          callbacks.current.onAccessLost?.();
+        }
         setError(configurationReadError(failure, '空间详情读取失败，请重新读取。'));
       }
       return false;
@@ -172,6 +195,16 @@ function Detail({
       window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, [stableScope, userId]);
+
+  const refreshRead = useRef(() => read(true));
+  refreshRead.current = () => read(true);
+  const lastMembershipRevision = useRef(membershipRevision);
+  useEffect(() => {
+    if (lastMembershipRevision.current !== membershipRevision && stableScope) {
+      lastMembershipRevision.current = membershipRevision;
+      void refreshRead.current();
+    }
+  }, [membershipRevision, stableScope]);
 
   useEffect(() => {
     if (stableScope) return;
@@ -214,7 +247,7 @@ function Detail({
 
   async function save(retry = false) {
     if (closed || loading || directory.saving || directory.recoveryBlocked) return false;
-    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending)) return false;
+    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending || metadataChanged)) return false;
     const previousVersion = retry && pending?.kind === 'rename' ? pending.request.expectedVersion : view?.version;
     const saved = retry ? await directory.retry()
       : view ? await directory.rename(view, name.trim(), description.trim())
@@ -225,6 +258,7 @@ function Detail({
       setError('空间保存回执与目标不一致，请确认原操作。');
       return false;
     }
+    setMetadataChanged(false);
     setView(updated);
     setName(updated.name);
     setDescription(updated.description ?? '');
@@ -245,7 +279,7 @@ function Detail({
     <Form.Item label="空间描述"><Input.TextArea aria-label="空间描述" value={description} maxLength={1000}
                                                 onChange={event => setDescription(event.target.value)}/></Form.Item>
     <Flex gap={8} wrap>
-      <Button type="primary" disabled={locked || !allowed || !name.trim() || (!!scope && !dirty)}
+      <Button type="primary" disabled={locked || !allowed || !name.trim() || (!!scope && !dirty) || metadataChanged}
               loading={directory.saving} onClick={() => void save()}>{scope ? '保存空间信息' : '创建工作空间'}</Button>
       {scope && <Button disabled={locked}
                         onClick={() => void read()}>{dirty ? '放弃修改并重新读取空间信息' : '重新读取空间信息'}</Button>}
@@ -272,7 +306,9 @@ function Detail({
       {onMoreTenants && <Button disabled={locked} onClick={onMoreTenants}>加载更多租户</Button>}
       {tenantId && !allowed && !locked &&
         <Typography.Text type="secondary">请选择有创建工作空间资格的租户。</Typography.Text>}
-    </> : view && context && !closed ? <Tabs activeKey={tab ?? localTab} destroyOnHidden={false}
+    </> : view && context && !closed ? <Tabs
+      activeKey={(tab ?? localTab) === 'members' && !caps?.manage && !caps?.leave ? 'overview' : (tab ?? localTab)}
+      destroyOnHidden={false}
                                              onChange={key => (onTabChange ?? setLocalTab)(key as WorkspaceTab)}
                                              items={[
                                                {
@@ -315,6 +351,12 @@ function Detail({
                                                                                         onUnsafeChange={setAiUnsafe}
                                                                                         onUpdated={governanceSaved}/>
                                                },
+                                               ...(caps && (caps.manage || caps.leave) && membershipTarget ? [{
+                                                 key: 'members', label: '成员',
+                                                 children: <MembershipPanel target={membershipTarget}
+                                                                            version={view.version} caps={caps}
+                                                                            disabled={locked}/>
+                                               }] : []),
                                                {
                                                  key: 'policy',
                                                  label: '政策',

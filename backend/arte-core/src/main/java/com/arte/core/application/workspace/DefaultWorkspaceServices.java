@@ -37,6 +37,7 @@ public final class DefaultWorkspaceServices {
     private final DefaultWorkspaceService workspaces;
     private final TenantQueryService tenantQueries;
     private final DefaultTenantGovernanceService tenantGovernance;
+    private final DefaultMembershipGovernanceService membership;
     private final DefaultWorkspacePreferenceService preferences;
     private final DefaultWorkspacePolicyService policies;
     private final DefaultScopeResolver scopes;
@@ -99,6 +100,21 @@ public final class DefaultWorkspaceServices {
                                     ResourceGrantStore grants, List<ResourceDescriptorProvider> descriptors,
                                     List<DomainAccessConditionProvider> conditions, TenantUpdatePolicy tenantUpdates,
                                     TenantProvisioningPolicy tenantProvisioning, Supplier<OrganizationTenantPolicyTemplate> organizationTemplate) {
+        this(identity, transactions, tenantStore, workspaceStore, tenantMembers, workspaceMembers, policyStore, preferenceStore,
+                receipts, outbox, audit, ids, clock, defaults, batchFacts, provisioning, budget, nanoTime, grants, descriptors,
+                conditions, tenantUpdates, tenantProvisioning, organizationTemplate, null, null);
+    }
+
+    public DefaultWorkspaceServices(IdentityProvider identity, PublicTransactionRunner transactions,
+                                    TenantStore tenantStore, WorkspaceStore workspaceStore, TenantMembershipStore tenantMembers,
+                                    WorkspaceMembershipStore workspaceMembers, PolicyStore policyStore, PreferenceStore preferenceStore,
+                                    CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids,
+                                    Clock clock, DefaultWorkspacePolicies defaults, WorkspaceAccessFactsStore batchFacts,
+                                    List<WorkspaceProvisioningParticipant> provisioning, WorkspaceBrowseBudget budget, LongSupplier nanoTime,
+                                    ResourceGrantStore grants, List<ResourceDescriptorProvider> descriptors,
+                                    List<DomainAccessConditionProvider> conditions, TenantUpdatePolicy tenantUpdates,
+                                    TenantProvisioningPolicy tenantProvisioning, Supplier<OrganizationTenantPolicyTemplate> organizationTemplate,
+                                    TenantInvitationStore tenantInvitations, InvitationStore spaceInvitations) {
         var principals = new CurrentPrincipalResolver(identity);
         var access = new WorkspaceAccessSupport(principals, tenantStore, workspaceStore, tenantMembers,
                 workspaceMembers, policyStore, preferenceStore, clock, transactions, batchFacts);
@@ -121,8 +137,11 @@ public final class DefaultWorkspaceServices {
                 workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects, provisioning, budget, nanoTime);
         policies = new DefaultWorkspacePolicyService(principals, access, authorization, commands, locks, effects,
                 tenantStore, workspaceStore, policyStore, transactions, clock);
+        membership = tenantInvitations == null || spaceInvitations == null ? null : new DefaultMembershipGovernanceService(
+                principals, access, authorization, locks, commands, effects, transactions, identity, tenantStore, workspaceStore,
+                tenantMembers, workspaceMembers, tenantInvitations, spaceInvitations, tenantGovernance, ids, clock);
         receiptQueries = new DefaultCommandReceiptQueryService(principals, receipts, preferenceStore, tenantStore,
-                access, authorization, locks, transactions, tenantGovernance);
+                access, authorization, locks, transactions, tenantGovernance, membership);
     }
 
     public DefaultResourceAccessService resources() {
@@ -135,6 +154,10 @@ public final class DefaultWorkspaceServices {
 
     public TenantQueryService tenantQueries() {
         return tenantQueries;
+    }
+
+    public DefaultMembershipGovernanceService membership() {
+        return membership;
     }
 
     public TenantGovernanceService tenantGovernance() {

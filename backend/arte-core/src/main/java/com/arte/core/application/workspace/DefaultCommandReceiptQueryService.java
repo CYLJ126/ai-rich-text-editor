@@ -44,11 +44,13 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
     private final WorkspaceGovernanceLocks locks;
     private final PublicTransactionRunner transactions;
     private final DefaultTenantGovernanceService tenantGovernance;
+    private final DefaultMembershipGovernanceService membership;
 
     DefaultCommandReceiptQueryService(CurrentPrincipalResolver principals, CommandReceiptStore receipts,
                                       PreferenceStore preferences, TenantStore tenants, WorkspaceAccessSupport access,
                                       DefaultAuthorizationService authorization, WorkspaceGovernanceLocks locks,
-                                      PublicTransactionRunner transactions, DefaultTenantGovernanceService tenantGovernance) {
+                                      PublicTransactionRunner transactions, DefaultTenantGovernanceService tenantGovernance,
+                                      DefaultMembershipGovernanceService membership) {
         this.principals = principals;
         this.receipts = receipts;
         this.preferences = preferences;
@@ -58,6 +60,7 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
         this.locks = locks;
         this.transactions = transactions;
         this.tenantGovernance = tenantGovernance;
+        this.membership = membership;
     }
 
     @Override
@@ -66,12 +69,27 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
         String subjectId = principals.requireUser(actor).subjectId();
         var located = authorityRead(() -> receipts.findByOperationId(operationId)).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         if (!located.identity().actorSubjectId().equals(subjectId)) throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        boolean membershipCommand = DefaultMembershipGovernanceService.supportsReceipt(located.identity().commandType());
         return transactions.required(() -> {
-            locks.subject(subjectId);
-            principals.requireUserCurrent(actor);
+            if (membershipCommand) {
+                if (membership == null) {
+                    throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                }
+                membership.lockStoredReceiptScope(actor, located);
+            } else {
+                locks.subject(subjectId);
+                principals.requireUserCurrent(actor);
+            }
             var stored = authorityRead(() -> receipts.findCurrent(located.identity())).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
             if (!stored.identity().equals(located.identity()) || !stored.receipt().operationId().equals(operationId))
                 throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            if (membershipCommand) {
+                if (stored.receipt().status() != CommandStatusEnum.APPLIED || !stored.equals(located)) {
+                    throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+                }
+                membership.authorizeStoredReceipt(actor, stored);
+                return replay(stored.receipt());
+            }
             Set<Scope> targets = validateAndTargets(stored);
             Object value = stored.receipt().value();
             if (value instanceof WorkspaceViews.PersonalWorkspaceView || value instanceof WorkspaceViews.PreferenceView) {
@@ -108,10 +126,13 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
                     throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
             }
             // 历史回执保持原版本和时间，返回方式标识为 REPLAYED，不改写数据库。
-            var receipt = stored.receipt();
-            return new CommandReceipt<>(receipt.operationId(), receipt.status(), CommandDeliveryEnum.REPLAYED,
-                    receipt.value(), receipt.resultVersion(), receipt.acceptedAt(), receipt.completedAt());
+            return replay(stored.receipt());
         });
+    }
+
+    private static CommandReceipt<?> replay(CommandReceipt<?> receipt) {
+        return new CommandReceipt<>(receipt.operationId(), receipt.status(), CommandDeliveryEnum.REPLAYED,
+                receipt.value(), receipt.resultVersion(), receipt.acceptedAt(), receipt.completedAt());
     }
 
     private Set<Scope> validateAndTargets(StoredCommandReceipt stored) {

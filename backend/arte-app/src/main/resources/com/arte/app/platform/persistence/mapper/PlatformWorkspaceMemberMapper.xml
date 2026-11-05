@@ -58,4 +58,13 @@
         (tenant_id=#{scope.tenantId} AND workspace_id=#{scope.workspaceId})
     </foreach> AND subject_id=#{subject}
     </select>
+    <select id="findOwnedWorkspace" resultType="string" useCache="false" flushCache="true">
+        SELECT workspace_id FROM arte_platform_workspace_member WHERE tenant_id=#{tenant} AND subject_id=#{subject}
+        AND state=0 AND role=0 ORDER BY workspace_id LIMIT 1 FOR UPDATE
+    </select>
+
+    <update id="revokeTenantAccess">
+        UPDATE arte_platform_workspace_member SET state=1,version=version+1
+        WHERE tenant_id=#{tenant} AND subject_id=#{subject} AND state=0 AND role&lt;&gt;0
+    </update>
 </mapper>

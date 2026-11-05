@@ -151,6 +151,14 @@ public final class RbacIdentityProvider implements IdentityProvider {
         });
     }
 
+    /**
+     * 仅供已授权的邀请查询使用，精确匹配既有有效账号。
+     */
+    public Optional<Principal> findInvitationPrincipal(String name) {
+        return accounts.findByName(name).filter(account -> account.active() && account.name().equals(name))
+                .map(this::resolve).filter(principal -> principal.status() == PrincipalStatusEnum.ACTIVE);
+    }
+
     private Principal resolve(RbacAccountReader.Account account) {
         return resolve(account, false);
     }

@@ -74,4 +74,18 @@ public interface WorkspaceMembershipStore {
      * @return 更新成功时返回 true，版本条件不满足时返回 false
      */
     boolean replace(WorkspaceMembership member, long expectedVersion);
+
+    /**
+     * 原父租户和目标主体锁下检查是否仍有有效负责人资格。
+     */
+    default boolean ownsWorkspace(String tenantId, String subjectId) {
+        throw new UnsupportedOperationException("Tenant membership cascade is unavailable");
+    }
+
+    /**
+     * 原父租户和目标主体锁下撤销全部依赖的有效空间成员关系。
+     */
+    default void revokeTenantAccess(String tenantId, String subjectId) {
+        throw new UnsupportedOperationException("Tenant membership cascade is unavailable");
+    }
 }

@@ -1,7 +1,7 @@
 import type {WorkspaceScope} from '@/services/platform/workspace';
 
-export type WorkspaceTab = 'overview' | 'ai' | 'policy';
-export type TenantTab = 'overview' | 'workspaces' | 'policy';
+export type WorkspaceTab = 'overview' | 'ai' | 'policy' | 'members';
+export type TenantTab = 'overview' | 'workspaces' | 'policy' | 'members';
 
 export function readConfigurationLocation(search: string, userId: string) {
   const params = new URLSearchParams(search);

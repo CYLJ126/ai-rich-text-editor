@@ -82,6 +82,8 @@ class PlatformWorkspaceConfigurationTest {
 
     private ApplicationContextRunner dependencies() {
         return runner.withBean(RbacIdentityProvider.class, () -> mock(RbacIdentityProvider.class))
+                .withBean(com.arte.app.platform.persistence.PlatformJson.class, com.arte.app.platform.persistence.PlatformJson::new)
+                .withBean("appDataSource", javax.sql.DataSource.class, () -> mock(javax.sql.DataSource.class))
                 .withBean("platformTransactionRunner", PublicTransactionRunner.class, () -> mock(PublicTransactionRunner.class))
                 .withBean(com.arte.core.spi.access.ResourceGrantStore.class, () -> mock(com.arte.core.spi.access.ResourceGrantStore.class))
                 .withBean(TenantStore.class, () -> mock(TenantStore.class))
