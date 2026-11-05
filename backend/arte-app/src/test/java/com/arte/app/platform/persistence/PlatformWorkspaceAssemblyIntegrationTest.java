@@ -457,6 +457,30 @@ class PlatformWorkspaceAssemblyIntegrationTest {
                 http.rejected("/workspace/getWorkspaceCommandReceipt", fixture.json.write(Map.of("operationId", left.getStr("operationId"))),
                         null, carol, 403, "ACCESS_DENIED");
 
+                long tenantVersion = fixture.tenants.find(tenant).orElseThrow().version();
+                JSONObject duplicateInvite = command(http, "inviteTenantMember", "existing-member-invite", alice,
+                        Map.of("tenantId", tenant, "targetSubjectId", bobId, "expectedTenantVersion", tenantVersion));
+                JSONObject alreadyJoined = command(http, "acceptTenantInvitation", "existing-member-join", bob, acceptance(duplicateInvite));
+                assertEquals(1, alreadyJoined.getInt("outcome"));
+                JSONObject priorMember = joined.getJSONObject("value").getJSONObject("member");
+                JSONObject sameMember = alreadyJoined.getJSONObject("member");
+                assertEquals(priorMember.getStr("memberId"), sameMember.getStr("memberId"));
+                assertEquals(priorMember.getInt("role"), sameMember.getInt("role"));
+                assertEquals(priorMember.getLong("version"), sameMember.getLong("version"));
+                assertEquals(tenantVersion, fixture.tenants.find(tenant).orElseThrow().version());
+
+                long workspaceVersion = fixture.workspaces.find(other).orElseThrow().version();
+                JSONObject expired = command(http, "inviteWorkspaceMember", "expiry-fixture", alice,
+                        Map.of("scope", other, "targetSubjectId", carolId, "expectedWorkspaceVersion", workspaceVersion, "role", 2));
+                fixture.jdbc.update("UPDATE arte_platform_membership_invitation SET expires_at=? WHERE id=?",
+                        LocalDateTime.of(2020, 1, 1, 0, 0), expired.getStr("invitationId"));
+                assertTrue(readMembership(http, "listMyWorkspaceInvitations", carol, Map.of()).getJSONArray("records")
+                        .stream().map(value -> (JSONObject) value)
+                        .anyMatch(row -> expired.getStr("invitationId").equals(row.getStr("invitationId")) && row.getInt("state") == 3));
+                http.rejected("/workspace/acceptWorkspaceInvitation", fixture.json.write(acceptance(expired)),
+                        "expired-join", carol, 409, "VERSION_CONFLICT");
+                assertTrue(fixture.workspaceMembers.find(other, carolId).isEmpty());
+
                 Scope personal = c.getBean(ReactiveWorkspaceOperations.class).initializePersonal(alice, meta("personal"))
                         .block(WAIT).value().workspace().scope();
                 JSONObject personalCaps = readMembership(http, "getMembershipCapabilities", alice,
